@@ -20,6 +20,7 @@ import {
   Scissors,
   Send,
   ShieldAlert,
+  Sparkles,
   User,
   X,
 } from "lucide-react";
@@ -32,6 +33,8 @@ import {
   type GroomingCompletionDetails,
 } from "@/components/owner-web/calendar-grooming-completion-fields";
 import { CalendarCareReportCompletionPanel } from "@/components/owner-web/calendar-care-report-completion-panel";
+import { OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
+import { useExistingCompletionPhotos } from "@/components/owner-web/use-existing-completion-photos";
 import { useGroomingRecordDraft } from "@/components/owner-web/use-grooming-record-draft";
 import { DailyScheduleGrid } from "@/components/owner-web/calendar-daily-schedule-grid";
 import { getRollingScheduleDates } from "@/components/owner-web/calendar-week-range";
@@ -89,7 +92,6 @@ import {
 } from "@/lib/discount-coupons";
 import {
   createOwnerMediaAssetFromFile,
-  getOwnerMediaSignedUrls,
   type OwnerMediaUploadMetrics,
 } from "@/lib/media/owner-media-client";
 import { getPetBiteLevelLabel, normalizePetBiteLevel } from "@/lib/pet-bite-level";
@@ -133,10 +135,14 @@ type RecentStatusOverride = {
 };
 type PhotoStatusAction = {
   bookingId: string;
+  petName: string;
+  serviceId?: string;
   serviceName?: string;
+  staffName: string;
   nextStatus: "진행 중" | "픽업 준비" | "완료";
   mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
   mode?: "single" | "completion";
+  statusAlreadyCompleted?: boolean;
   title: string;
   description: string;
   buttonLabel: string;
@@ -144,18 +150,6 @@ type PhotoStatusAction = {
   mobileDescription: string;
 };
 
-type ExistingCompletionPhoto = {
-  mediaAssetId: string;
-  signedUrl: string | null;
-};
-
-type CompletionMediaListResponse = {
-  items: Array<{
-    mediaAsset: {
-      id: string;
-    };
-  }>;
-};
 type StaffKey = string;
 type StaffFilter = "전체 직원" | StaffKey;
 type StaffAssignments = Record<string, StaffKey>;
@@ -1639,6 +1633,7 @@ function BookingSidePanel({
   currentHour,
   bookings,
   onChangeStatus,
+  onOpenCareReport,
   onSelectBooking,
   onAcknowledgeChange,
   staffComments,
@@ -1658,6 +1653,7 @@ function BookingSidePanel({
   currentHour: number;
   bookings: DailyBooking[];
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
+  onOpenCareReport: (booking: DailyBooking) => void;
   onSelectBooking: (id: string) => void;
   onAcknowledgeChange: (bookingId: string) => void;
   staffComments: Record<string, string>;
@@ -2356,7 +2352,18 @@ function BookingSidePanel({
           </div>
         </div>
 
-          {showWorkflowFooter ? (
+          {workflowCompleted ? (
+          <section className="shrink-0 border-t border-[#f0f2f4] bg-white px-4 pb-4 pt-3">
+            <button
+              type="button"
+              onClick={() => onOpenCareReport(selectedBooking)}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[#2f6fd6] px-3 text-[15px] font-semibold text-white transition hover:bg-[#255fc1]"
+            >
+              <Sparkles className="h-4 w-4 shrink-0" />
+              AI 케어리포트 작성·이어보기
+            </button>
+          </section>
+          ) : showWorkflowFooter ? (
           <section className="shrink-0 border-t border-[#f0f2f4] bg-white px-4 pb-4 pt-3">
             <div className="grid gap-2">
               {sourceStatus === "확정" ? (
@@ -3467,17 +3474,25 @@ function CancelReservationDialog({
 function PhotoStatusDialog({
   shopId,
   action,
+  services,
+  revisitReminderEnabled,
+  revisitReminderDefaultDays,
   onClose,
   onSubmit,
+  onServiceChange,
   onComplete,
 }: {
   shopId: string;
   action: PhotoStatusAction;
+  services: Service[];
+  revisitReminderEnabled: boolean;
+  revisitReminderDefaultDays: number;
   onClose: () => void;
   onSubmit: (
     file: File,
     mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">,
   ) => Promise<{ mediaAssetId: string; metrics: OwnerMediaUploadMetrics }>;
+  onServiceChange: (serviceId: string) => Promise<void>;
   onComplete: (mediaAssetIds: string[], groomingRecord?: GroomingCompletionDetails) => Promise<void>;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -3487,54 +3502,36 @@ function PhotoStatusDialog({
   const [uploadMetrics, setUploadMetrics] = useState<OwnerMediaUploadMetrics | null>(null);
   const [activeMediaKind, setActiveMediaKind] = useState<Extract<MediaKind, "grooming_before" | "grooming_after">>(action.mediaKind);
   const [beforeMediaAssetId, setBeforeMediaAssetId] = useState<string | null>(null);
-  const [existingBeforePhoto, setExistingBeforePhoto] = useState<ExistingCompletionPhoto | null>(null);
-  const [existingBeforePhotoLoading, setExistingBeforePhotoLoading] = useState(false);
+  const [photoRegistrationEnabled, setPhotoRegistrationEnabled] = useState(true);
   const [careReportBusy, setCareReportBusy] = useState(false);
+  const [serviceChanging, setServiceChanging] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState(action.serviceId ?? "");
+  const [selectedServiceName, setSelectedServiceName] = useState(action.serviceName ?? "");
   const isCompletionMode = action.mode === "completion";
-  const draft = useGroomingRecordDraft({
+  const isCompletedCareReport = isCompletionMode && action.statusAlreadyCompleted;
+  const {
+    beforePhoto: existingBeforePhoto,
+    afterPhoto: existingAfterPhoto,
+    loading: existingCompletionPhotosLoading,
+  } = useExistingCompletionPhotos({
     shopId,
     appointmentId: action.bookingId,
     enabled: isCompletionMode,
   });
+  const draft = useGroomingRecordDraft({
+    shopId,
+    appointmentId: action.bookingId,
+    enabled: isCompletionMode,
+    revisitReminderEnabled,
+    revisitReminderDefaultDays,
+  });
   useEffect(() => {
-    if (!isCompletionMode || !action.serviceName || draft.value.treatmentNotes === action.serviceName) return;
-    draft.setValue({ ...draft.value, treatmentNotes: action.serviceName });
-  }, [action.serviceName, draft.setValue, draft.value, isCompletionMode]);
-  useEffect(() => {
-    if (!isCompletionMode) return;
-    let active = true;
-    const query = new URLSearchParams({
-      shopId,
-      appointmentId: action.bookingId,
-      mediaKind: "grooming_before",
-      limit: "1",
-      includeVariants: "false",
-    });
-
-    setExistingBeforePhotoLoading(true);
-    void fetchApiJsonWithAuth<CompletionMediaListResponse>(`/api/owner/media/assets?${query.toString()}`, { cache: "no-store" })
-      .then(async (response) => {
-        const mediaAssetId = response.items[0]?.mediaAsset.id;
-        if (!mediaAssetId) return null;
-        const signedUrls = await getOwnerMediaSignedUrls(shopId, [mediaAssetId], "thumbnail");
-        return { mediaAssetId, signedUrl: signedUrls[0]?.signedUrl ?? null };
-      })
-      .then((photo) => {
-        if (active) setExistingBeforePhoto(photo);
-      })
-      .catch(() => {
-        if (active) setExistingBeforePhoto(null);
-      })
-      .finally(() => {
-        if (active) setExistingBeforePhotoLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [action.bookingId, isCompletionMode, shopId]);
+    if (!isCompletionMode || !selectedServiceName || draft.value.treatmentNotes.trim()) return;
+    draft.setValue({ ...draft.value, treatmentNotes: selectedServiceName });
+  }, [draft.setValue, draft.value, isCompletionMode, selectedServiceName]);
   const uploadedAssetIds = [beforeMediaAssetId, draft.afterMediaAssetId].filter((id): id is string => Boolean(id));
-  const busy = uploading || completing;
+  const hasRegisteredPhotos = Boolean(existingBeforePhoto || existingAfterPhoto || beforeMediaAssetId || draft.afterMediaAssetId);
+  const busy = uploading || completing || serviceChanging;
   const mobileOwnerPath = `/owner/mobile?appointmentId=${encodeURIComponent(action.bookingId)}&statusAction=${encodeURIComponent(action.nextStatus)}`;
   const mobileOwnerUrl = typeof window === "undefined" ? mobileOwnerPath : `${window.location.origin}${mobileOwnerPath}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=176x176&margin=12&data=${encodeURIComponent(mobileOwnerUrl)}`;
@@ -3583,13 +3580,60 @@ function PhotoStatusDialog({
     }
   }
 
+  async function handleSaveAndClose(allowCareReportBusy = false) {
+    if (busy || (!allowCareReportBusy && careReportBusy)) return;
+
+    setCompleting(true);
+    setError("");
+    try {
+      if (isCompletionMode) await draft.flushDraft();
+      onClose();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "임시저장 중 문제가 발생했습니다.");
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  async function handleReportSent() {
+    setCompleting(true);
+    setError("");
+    try {
+      await draft.clearDraft();
+      onClose();
+    } catch (cleanupError) {
+      setError(cleanupError instanceof Error ? cleanupError.message : "케어리포트 저장 후 화면을 닫지 못했습니다.");
+    } finally {
+      setCompleting(false);
+    }
+  }
+
   function selectPhoto(mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">) {
     setActiveMediaKind(mediaKind);
     inputRef.current?.click();
   }
 
+  async function handleServiceChange(serviceId: string) {
+    if (!serviceId || serviceId === selectedServiceId || busy) return;
+    const service = services.find((item) => item.id === serviceId);
+    if (!service) return;
+
+    setServiceChanging(true);
+    setError("");
+    try {
+      await onServiceChange(serviceId);
+      setSelectedServiceId(serviceId);
+      setSelectedServiceName(service.name);
+      draft.setValue({ ...draft.value, treatmentNotes: service.name });
+    } catch (serviceError) {
+      setError(serviceError instanceof Error ? serviceError.message : "예약 서비스를 수정하지 못했습니다.");
+    } finally {
+      setServiceChanging(false);
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4" onClick={busy ? undefined : onClose}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4" onClick={busy || careReportBusy ? undefined : () => void handleSaveAndClose()}>
       <div
         className={cn(
           "max-h-[calc(100vh-32px)] w-full overflow-y-auto rounded-[18px] border border-[#d7e2ee] bg-[#fbfdff] p-5 shadow-[0_24px_80px_rgba(29,61,98,0.20)]",
@@ -3607,46 +3651,88 @@ function PhotoStatusDialog({
         />
 
         <div className="mb-4">
-            <h3 className="text-[20px] font-semibold tracking-[-0.02em] text-[#172c46]">{action.title}</h3>
+          <h3 className="text-[26px] font-semibold leading-[1.25] tracking-[-0.025em] text-[#172c46]">{action.title}</h3>
+          {isCompletionMode ? (
+            <p className="mt-1.5 text-[16px] leading-6 text-[#536b85]">
+              {action.petName} · {selectedServiceName || "예약 서비스"} · {action.staffName}
+            </p>
+          ) : null}
           {action.description ? (
-            <p className="mt-1 text-[14px] leading-6 text-[#64748b]">{action.description}</p>
+            <p className={`${OWNER_TYPOGRAPHY.label} mt-1 text-[#64748b]`}>{action.description}</p>
           ) : null}
         </div>
 
         {isCompletionMode ? (
-          <div className="grid gap-2">
-            {[
-              { key: "before" as const, label: "미용 전 사진 · 선택", mediaKind: "grooming_before" as const, uploaded: Boolean(beforeMediaAssetId) },
-              { key: "after" as const, label: "미용 후 사진 · 선택", mediaKind: "grooming_after" as const, uploaded: Boolean(draft.afterMediaAssetId) },
-            ].map((slot) => {
-              const hasExistingBeforePhoto = slot.key === "before" && Boolean(existingBeforePhoto);
-              const uploaded = slot.uploaded || hasExistingBeforePhoto;
-              const statusCopy =
-                slot.key === "before" && existingBeforePhotoLoading
-                  ? "확인 중"
-                  : hasExistingBeforePhoto
-                    ? "등록됨"
-                    : uploaded
-                      ? "선택됨"
-                      : "선택";
+          <div className="space-y-4">
+            <section className="rounded-[14px] border border-[#d5e2ef] bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className={`${OWNER_TYPOGRAPHY.sectionTitle} text-[#172c46]`}>미용 전·후 사진</p>
+                  <label className={`${OWNER_TYPOGRAPHY.label} inline-flex items-center gap-2 text-[#536f8e]`}>
+                    <input
+                      type="checkbox"
+                      checked={photoRegistrationEnabled || hasRegisteredPhotos}
+                      onChange={(event) => setPhotoRegistrationEnabled(event.target.checked)}
+                      disabled={busy || hasRegisteredPhotos}
+                      className="h-4 w-4 accent-[#2f6fd6]"
+                    />
+                    사진 등록
+                  </label>
+                </div>
+                {photoRegistrationEnabled || hasRegisteredPhotos ? <div className="mt-3 grid grid-cols-2 gap-2.5">
+                  {[
+                    { key: "before" as const, label: "미용 전 사진 · 선택", mediaKind: "grooming_before" as const, uploaded: Boolean(beforeMediaAssetId), existingPhoto: existingBeforePhoto },
+                    { key: "after" as const, label: "미용 후 사진 · 선택", mediaKind: "grooming_after" as const, uploaded: Boolean(draft.afterMediaAssetId), existingPhoto: existingAfterPhoto },
+                  ].map((slot) => {
+                    const hasExistingPhoto = Boolean(slot.existingPhoto);
+                    const uploaded = slot.uploaded || hasExistingPhoto;
+                    const statusCopy = existingCompletionPhotosLoading
+                      ? "확인 중"
+                      : uploaded ? "등록됨" : "사진 추가";
 
-              return (
-                <button
-                  key={slot.key}
-                  type="button"
-                  onClick={() => selectPhoto(slot.mediaKind)}
-                  disabled={busy}
-            className="flex min-h-[60px] items-center justify-between rounded-[12px] border border-[#d5e2ef] bg-[#f4f8fd] px-4 text-left transition hover:border-[#a9c6e5] hover:bg-[#edf5fd] disabled:opacity-60"
-                >
-                  <span className="inline-flex items-center gap-2 text-[14px] font-medium text-[#334155]">
-                    {hasExistingBeforePhoto && existingBeforePhoto?.signedUrl ? <img src={existingBeforePhoto.signedUrl} alt="등록된 미용 전 사진" className="h-9 w-9 rounded-[8px] object-cover" /> : null}
-              {uploaded ? <CheckCircle2 className="h-4 w-4 text-[#2f7866]" /> : <ImagePlus className="h-4 w-4 text-[#3978b5]" />}
-                    {slot.label}
-                  </span>
-                  <span className="text-[13px] text-[#64748b]">{statusCopy}</span>
-                </button>
-              );
-            })}
+                    return (
+                      <button
+                        key={slot.key}
+                        type="button"
+                        onClick={() => selectPhoto(slot.mediaKind)}
+                        disabled={busy}
+                        className="flex min-h-[88px] items-center justify-between rounded-[11px] border border-[#d5e2ef] bg-[#f7faff] px-4 text-left transition hover:border-[#9fbfe0] hover:bg-[#edf5fd] disabled:opacity-60"
+                      >
+                        <span className={`${OWNER_TYPOGRAPHY.body} inline-flex min-w-0 items-center gap-2.5 text-[#334155]`}>
+                          {hasExistingPhoto && slot.existingPhoto?.signedUrl ? <img src={slot.existingPhoto.signedUrl} alt={`등록된 ${slot.key === "before" ? "미용 전" : "미용 후"} 사진`} className="h-10 w-10 shrink-0 rounded-[8px] object-cover" /> : null}
+                          {uploaded ? <CheckCircle2 className="h-4 w-4 shrink-0 text-[#2f7866]" /> : <ImagePlus className="h-4 w-4 shrink-0 text-[#3978b5]" />}
+                          <span>{slot.label}</span>
+                        </span>
+                        <span className={`${OWNER_TYPOGRAPHY.label} shrink-0 text-[#64748b]`}>{statusCopy}</span>
+                      </button>
+                    );
+                  })}
+                </div> : null}
+            </section>
+
+            <CalendarGroomingCompletionFields
+              value={draft.value}
+              onChange={draft.setValue}
+              serviceId={selectedServiceId}
+              serviceName={selectedServiceName}
+              services={services}
+              onServiceChange={handleServiceChange}
+              disabled={busy}
+              saveError={draft.saveError}
+              onRetrySave={() => void draft.flushDraft()}
+            />
+
+            <CalendarCareReportCompletionPanel
+              shopId={shopId}
+              appointmentId={action.bookingId}
+              details={draft.value}
+              onDetailsChange={draft.setValue}
+              hasRegisteredPhotos={hasRegisteredPhotos}
+              serviceName={selectedServiceName}
+              disabled={busy}
+              onPendingChange={setCareReportBusy}
+              onSaveDraft={() => handleSaveAndClose(true)}
+              onReportSent={handleReportSent}
+            />
           </div>
         ) : (
           <div className="rounded-[10px] bg-[#fbfcfd] p-4">
@@ -3663,28 +3749,6 @@ function PhotoStatusDialog({
           </div>
         )}
 
-        {isCompletionMode ? (
-          <>
-            <CalendarGroomingCompletionFields
-              value={draft.value}
-              onChange={draft.setValue}
-              serviceName={action.serviceName}
-              disabled={completing}
-              draftStatus={draft.status}
-              lastSavedAt={draft.lastSavedAt}
-              saveError={draft.saveError}
-              onRetrySave={() => void draft.flushDraft()}
-            />
-            <CalendarCareReportCompletionPanel
-              shopId={shopId}
-              appointmentId={action.bookingId}
-              details={draft.value}
-              disabled={busy}
-              onPendingChange={setCareReportBusy}
-            />
-          </>
-        ) : null}
-
         {uploading ? (
           <p className="mt-3 text-[12px] text-[#526173]">사진을 최적화해 업로드하고 있습니다. 메모는 계속 입력할 수 있어요.</p>
         ) : uploadMetrics ? (
@@ -3699,7 +3763,7 @@ function PhotoStatusDialog({
           </p>
         ) : null}
 
-        {isCompletionMode ? (
+        {!isCompletedCareReport && isCompletionMode ? (
           <div className="mt-4 space-y-2">
             <button
               type="button"
@@ -3709,7 +3773,6 @@ function PhotoStatusDialog({
             >
               {completing ? "완료 처리 중" : uploading ? "사진 업로드 중" : "미용 완료"}
             </button>
-            <p className="text-center text-[12px] text-[#64748b]">케어리포트는 선택 사항이며 나중에 작성해도 됩니다.</p>
             <button
               type="button"
               onClick={onClose}
@@ -4569,15 +4632,18 @@ export default function CalendarManagementScreen({
   }
 
   function requestPhotoStatusChange(booking: DailyBooking, nextStatus: "완료") {
-    const sourceStatus = booking.sourceStatus ?? booking.status;
     setPhotoStatusAction({
       bookingId: booking.id,
+      petName: booking.pet,
+      serviceId: booking.serviceId,
       serviceName: booking.service,
+      staffName: booking.staffName || booking.staff || "담당 미지정",
       nextStatus,
       mediaKind: "grooming_after",
       mode: "completion",
-      title: "미용 완료",
-      description: "오늘 상태를 확인하고, 원하면 완료 사진을 더해 AI 케어리포트를 준비합니다.",
+      statusAlreadyCompleted: true,
+      title: "AI 케어리포트 작성",
+      description: "",
       buttonLabel: "사진 선택",
       skipLabel: "미용 기록 저장하고 완료",
       mobileDescription: "휴대폰으로 QR을 스캔해 사진을 촬영하고 미용 완료를 처리하세요.",
@@ -4610,6 +4676,49 @@ export default function CalendarManagementScreen({
       mediaAssetId: uploaded.mediaAsset.id,
       metrics: uploaded.metrics,
     };
+  }
+
+  async function persistCompletionServiceChange(appointmentId: string, serviceId: string) {
+    const appointment = bootstrapData.appointments.find((item) => item.id === appointmentId);
+    const service = bootstrapData.services.find((item) => item.id === serviceId && item.is_active);
+    if (!appointment || !service) throw new Error("수정할 예약 서비스를 찾지 못했습니다.");
+    if (appointment.service_id === service.id) return;
+
+    const updatedAppointment = await fetchApiJsonWithAuth<Appointment>("/api/appointments", {
+      method: "PATCH",
+      body: JSON.stringify({
+        appointmentId: appointment.id,
+        serviceId: service.id,
+        staffId: appointment.staff_id ?? null,
+        appointmentDate: appointment.appointment_date,
+        appointmentTime: appointment.appointment_time.slice(0, 5),
+        durationMinutes: service.duration_minutes,
+        memo: appointment.memo ?? "",
+        eventType: "care_report_service_correction",
+        enforceShopCapacity: false,
+        allowOutsideShopHours: true,
+        notifyCustomer: false,
+        preserveStatus: true,
+      }),
+    });
+
+    const nextBootstrapData = replaceAppointmentInBootstrap(bootstrapData, updatedAppointment);
+    setBootstrapData(nextBootstrapData);
+    onDataChange?.(nextBootstrapData);
+    setBookings((current) => current.map((booking) => (
+      booking.id === appointment.id
+        ? {
+            ...booking,
+            serviceId: service.id,
+            service: service.name,
+            servicePrice: service.price,
+            duration: service.duration_minutes / 60,
+          }
+        : booking
+    )));
+    setPhotoStatusAction((current) => current?.bookingId === appointment.id
+      ? { ...current, serviceId: service.id, serviceName: service.name }
+      : current);
   }
 
   function handleChangeBookingStatus(bookingId: string, nextStatus: string) {
@@ -4645,7 +4754,10 @@ export default function CalendarManagementScreen({
     }
 
     if (targetBooking && nextStatus === "완료") {
-      requestPhotoStatusChange(targetBooking, nextStatus);
+      void (async () => {
+        const succeeded = await applyBookingStatusChange(targetBooking.id, nextStatus);
+        if (succeeded === true) requestPhotoStatusChange(targetBooking, nextStatus);
+      })();
       return;
     }
 
@@ -5063,6 +5175,7 @@ export default function CalendarManagementScreen({
           currentHour={scheduleStatusHour}
           bookings={filteredBookings}
           onChangeStatus={handleChangeBookingStatus}
+          onOpenCareReport={(booking) => requestPhotoStatusChange(booking, "완료")}
           onAcknowledgeChange={handleAcknowledgeChangeBooking}
           onSelectBooking={setSelectedBookingId}
           staffComments={staffComments}
@@ -5077,8 +5190,12 @@ export default function CalendarManagementScreen({
         <PhotoStatusDialog
           shopId={bootstrapData.shop.id}
           action={photoStatusAction}
+          services={bootstrapData.services}
+          revisitReminderEnabled={bootstrapData.shop.notification_settings.revisit_enabled}
+          revisitReminderDefaultDays={bootstrapData.shop.notification_settings.revisit_reminder_default_days}
           onClose={() => setPhotoStatusAction(null)}
           onSubmit={handlePhotoStatusFile}
+          onServiceChange={(serviceId) => persistCompletionServiceChange(photoStatusAction.bookingId, serviceId)}
           onComplete={async (mediaAssetIds, groomingRecord) => {
             const action = photoStatusAction;
             if (!action) return;

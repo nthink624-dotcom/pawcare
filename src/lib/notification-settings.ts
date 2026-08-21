@@ -13,6 +13,7 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
   alimtalk_template_request_note: "",
   alimtalk_template_request_updated_at: null,
   revisit_enabled: true,
+  revisit_reminder_default_days: 45,
   booking_confirmed_enabled: true,
   booking_rejected_enabled: true,
   booking_cancelled_enabled: true,
@@ -47,6 +48,12 @@ function normalizeMinuteValue(value: unknown, fallback: number) {
   return Math.min(Math.max(Math.round(parsed), 0), 180);
 }
 
+function normalizeDayValue(value: unknown, fallback: number) {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(Math.round(parsed), 1), 365);
+}
+
 export function normalizeShopNotificationSettings(settings: Partial<ShopNotificationSettings> | null | undefined): ShopNotificationSettings {
   const senderMode = settings?.alimtalk_sender_mode === "shop_channel" ? "shop_channel" : "petmanager";
   const channelStatus = ["requested", "reviewing", "active", "rejected"].includes(
@@ -68,6 +75,10 @@ export function normalizeShopNotificationSettings(settings: Partial<ShopNotifica
     alimtalk_business_channel_verified: Boolean(settings?.alimtalk_business_channel_verified),
     alimtalk_template_request_note: settings?.alimtalk_template_request_note?.trim() ?? "",
     alimtalk_template_request_updated_at: settings?.alimtalk_template_request_updated_at ?? null,
+    revisit_reminder_default_days: normalizeDayValue(
+      settings?.revisit_reminder_default_days,
+      defaultShopNotificationSettings.revisit_reminder_default_days,
+    ),
     appointment_reminder_10m_mode:
       settings?.appointment_reminder_10m_mode === "manual" ? "manual" : "auto",
     visit_reminder_offset_minutes: normalizeMinuteValue(

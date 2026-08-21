@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
 import { computeAvailableSlots, computeRecommendedAvailableSlots } from "@/lib/availability";
+import { validateCustomerBookingDate } from "@/lib/customer-booking-window";
 import { getStaffBookingLoads } from "@/lib/staff-booking-load";
 import { recommendAvailableSlotsWithAi } from "@/server/ai-slot-recommendations";
 import { getBootstrap } from "@/server/bootstrap";
@@ -22,6 +23,10 @@ export async function GET(request: NextRequest) {
 
     if (!shopId || !date || (!serviceId && !previewDurationMinutes)) {
       return NextResponse.json({ message: "예약 가능 시간을 조회할 정보가 부족합니다." }, { status: 400 });
+    }
+    const bookingDate = validateCustomerBookingDate(date);
+    if (!bookingDate.ok) {
+      return NextResponse.json({ message: bookingDate.message }, { status: 400 });
     }
 
     const bootstrap = await getBootstrap(shopId);

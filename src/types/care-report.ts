@@ -25,6 +25,7 @@ export const careReportGenerationInputSchema = z.object({
   appointmentId: z.string().trim().min(1).max(120),
   observations: careReportObservationsSchema,
   voiceTranscript: z.string().trim().max(4000).default(""),
+  currentDraft: careReportDraftSchema.optional(),
   photoConsent: z.boolean().default(false),
 });
 

@@ -84,6 +84,7 @@ const oneShotAppointmentNotificationTypes = new Set<NotificationType>([
   "grooming_started",
   "grooming_almost_done",
   "grooming_completed",
+  "revisit_notice",
 ]);
 
 const snapshotAppointmentNotificationTypes = new Set<NotificationType>([
@@ -665,10 +666,23 @@ function buildNaverMapSearchUrl(shopName: string, shopAddress: string | null | u
 
 function buildNotificationButtons(params: {
   type: NotificationType;
+  bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
   directionsUrl: string | null;
   hasMediaAttachments: boolean;
 }): AlimtalkButton[] {
+  if (params.type === "revisit_notice") {
+    if (!params.bookingEntryUrl) return [];
+    return [
+      {
+        type: "WL",
+        name: "바로 재예약",
+        linkMobile: params.bookingEntryUrl,
+        linkPc: params.bookingEntryUrl,
+      },
+    ];
+  }
+
   if (params.type === "booking_time_proposed") {
     if (!params.bookingManageUrl) return [];
     return [
@@ -964,6 +978,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       ? []
       : buildNotificationButtons({
           type: input.type,
+          bookingEntryUrl,
           bookingManageUrl,
           directionsUrl,
           hasMediaAttachments: mediaAttachments.length > 0,

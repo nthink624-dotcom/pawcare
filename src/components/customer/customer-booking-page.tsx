@@ -16,6 +16,7 @@ import {
 } from "@/lib/customer-service-options";
 import { fetchCustomerAvailability, invalidateCustomerAvailability, type CustomerAvailabilityPayload } from "@/lib/customer-availability";
 import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
+import { CUSTOMER_BOOKING_HORIZON_DAYS } from "@/lib/customer-booking-window";
 import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
 
@@ -354,7 +355,7 @@ function buildDateOptions(shop: Shop): DateOption[] {
   const todayDate = parseISO(`${today}T00:00:00`);
   let offset = 0;
 
-  while (offset < 45) {
+  while (offset < CUSTOMER_BOOKING_HORIZON_DAYS) {
     const date = addDays(todayDate, offset);
     const value = format(date, "yyyy-MM-dd");
     const isClosed = isShopClosedOnDate(shop, value);
@@ -702,23 +703,29 @@ export default function CustomerBookingPage({
       const selectedDurationMinutes = selectedFirstServiceOption?.durationMinutes;
       setEarliestAvailableDate("");
 
-      for (const dateOption of dateOptions.slice(0, 15)) {
-        try {
-          const result = await fetchCustomerAvailability({
-            shopId,
-            date: dateOption.value,
-            serviceId: usesPreviewSlots ? undefined : firstVisit.serviceId,
-            previewDurationMinutes: selectedDurationMinutes ?? (usesPreviewSlots ? 120 : undefined),
-            staffId: firstVisit.staffId || null,
-            summaryOnly: true,
-          });
-          if (!active) return;
-          if (result.slots.length > 0) {
-            setEarliestAvailableDate(dateOption.value);
-            return;
+      const batchSize = 4;
+      for (let index = 0; index < dateOptions.length; index += batchSize) {
+        const batch = dateOptions.slice(index, index + batchSize);
+        const results = await Promise.all(batch.map(async (dateOption) => {
+          try {
+            const result = await fetchCustomerAvailability({
+              shopId,
+              date: dateOption.value,
+              serviceId: usesPreviewSlots ? undefined : firstVisit.serviceId,
+              previewDurationMinutes: selectedDurationMinutes ?? (usesPreviewSlots ? 120 : undefined),
+              staffId: firstVisit.staffId || null,
+              summaryOnly: true,
+            });
+            return result.slots.length > 0 ? dateOption.value : "";
+          } catch {
+            return "";
           }
-        } catch {
-          if (!active) return;
+        }));
+        if (!active) return;
+        const earliest = results.find(Boolean);
+        if (earliest) {
+          setEarliestAvailableDate(earliest);
+          return;
         }
       }
     }

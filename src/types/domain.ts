@@ -66,6 +66,7 @@ export type ShopNotificationSettings = {
   alimtalk_template_request_note?: string;
   alimtalk_template_request_updated_at?: string | null;
   revisit_enabled: boolean;
+  revisit_reminder_default_days: number;
   booking_confirmed_enabled: boolean;
   booking_rejected_enabled: boolean;
   booking_cancelled_enabled: boolean;

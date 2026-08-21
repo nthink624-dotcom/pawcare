@@ -41,6 +41,7 @@ const aliasesThatMustHaveSsodaaButtons = new Set<AlimtalkTemplateAlias>([
   "visit_schedule_notice",
   "visit_reminder_notice",
   "grooming_completed",
+  "revisit_notice",
 ]);
 
 export function requiresApprovedSsodaaTemplate() {

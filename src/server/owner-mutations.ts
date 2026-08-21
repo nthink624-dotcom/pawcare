@@ -555,6 +555,7 @@ export async function updateShopSettings(
     alimtalk_template_request_note: payload.notificationSettings.alimtalkTemplateRequestNote,
     alimtalk_template_request_updated_at: payload.notificationSettings.alimtalkTemplateRequestUpdatedAt,
     revisit_enabled: payload.notificationSettings.revisitEnabled,
+    revisit_reminder_default_days: payload.notificationSettings.revisitReminderDefaultDays,
     booking_confirmed_enabled: payload.notificationSettings.bookingConfirmedEnabled,
     booking_rejected_enabled: payload.notificationSettings.bookingRejectedEnabled,
     booking_cancelled_enabled: payload.notificationSettings.bookingCancelledEnabled,
@@ -2288,9 +2289,14 @@ export async function updateAppointmentDetails(input: unknown) {
   const appointment = data.appointments.find((item) => item.id === payload.appointmentId);
 
   if (!appointment) throw new Error("예약 정보를 찾을 수 없습니다.");
+  const completedServiceCorrection =
+    appointment.status === "completed" &&
+    payload.eventType === "care_report_service_correction" &&
+    payload.preserveStatus &&
+    !payload.notifyCustomer;
   const scheduleBoardAdjustment = payload.preserveStatus || !payload.notifyCustomer || payload.enforceShopCapacity === false;
   const editableStatuses = scheduleBoardAdjustment
-    ? ["confirmed", "in_progress", "almost_done"]
+    ? ["confirmed", "in_progress", "almost_done", ...(completedServiceCorrection ? ["completed"] : [])]
     : ["confirmed", "cancelled"];
   if (!editableStatuses.includes(appointment.status)) {
     throw new Error("현재 예약 상태에서는 일정 수정이 어렵습니다.");
@@ -2299,6 +2305,16 @@ export async function updateAppointmentDetails(input: unknown) {
   const service = data.services.find((item) => item.id === payload.serviceId);
   if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
   const durationMinutes = payload.durationMinutes ?? service.duration_minutes;
+  if (
+    completedServiceCorrection &&
+    ((payload.staffId ?? null) !== (appointment.staff_id ?? null) ||
+      payload.appointmentDate !== appointment.appointment_date ||
+      normalizeAppointmentTimeForCompare(payload.appointmentTime) !== normalizeAppointmentTimeForCompare(appointment.appointment_time) ||
+      payload.memo.trim() !== (appointment.memo ?? "").trim() ||
+      durationMinutes !== service.duration_minutes)
+  ) {
+    throw new Error("완료된 예약에서는 서비스 항목만 수정할 수 있습니다.");
+  }
   const notificationRelevantDetailsChanged = hasNotificationRelevantAppointmentDetailChange({
     appointment,
     serviceId: payload.serviceId,
@@ -2314,7 +2330,7 @@ export async function updateAppointmentDetails(input: unknown) {
     throw new Error("예약 날짜, 시간, 서비스, 담당자 등 고객에게 안내할 변경 사항이 없습니다. 같은 변경 완료 알림은 반복 발송할 수 없어요.");
   }
 
-  if (payload.enforceShopCapacity) {
+  if (!completedServiceCorrection && payload.enforceShopCapacity) {
     const availableSlots = computeAvailableSlots({
       date: payload.appointmentDate,
       serviceId: payload.serviceId,
@@ -2331,7 +2347,7 @@ export async function updateAppointmentDetails(input: unknown) {
     if (!availableSlots.includes(payload.appointmentTime)) {
       throw new Error("선택한 시간에는 예약할 수 없습니다.");
     }
-  } else {
+  } else if (!completedServiceCorrection) {
     ensureOwnerScheduleAdjustmentAvailable({
       appointment,
       shop: data.shop,
@@ -2374,6 +2390,12 @@ export async function updateAppointmentDetails(input: unknown) {
     pickup_ready_eta_minutes:
       payload.pickupReadyEtaMinutes ?? appointment.pickup_ready_eta_minutes ?? defaultPickupReadyEtaMinutes,
     updated_at: nowIso(),
+    ...(completedServiceCorrection && appointment.service_id !== payload.serviceId
+      ? {
+          original_service_price: service.price,
+          final_service_price: Math.max(0, service.price - (appointment.discount_amount ?? 0)),
+        }
+      : {}),
   };
 
   if (data.mode !== "supabase" || !hasSupabaseServerEnv()) {
@@ -2383,6 +2405,15 @@ export async function updateAppointmentDetails(input: unknown) {
     const previousAppointment = { ...target };
 
     Object.assign(target, nextValues);
+    if (completedServiceCorrection && appointment.service_id !== payload.serviceId) {
+      const groomingRecord = store.groomingRecords.find((record) => record.appointment_id === target.id);
+      if (groomingRecord) {
+        groomingRecord.service_id = service.id;
+        groomingRecord.service_name_snapshot = service.name;
+        groomingRecord.price_paid = Math.max(0, service.price - (target.discount_amount ?? 0));
+        groomingRecord.updated_at = String(nextValues.updated_at);
+      }
+    }
     setMockStore(store);
     await persistAppointmentChangeEvent(createAppointmentChangeEvent({
       before: previousAppointment,
@@ -2467,6 +2498,20 @@ export async function updateAppointmentDetails(input: unknown) {
     note: payload.eventType ?? null,
     createdAt: String(nextValues.updated_at),
   }));
+
+  if (completedServiceCorrection && appointment.service_id !== payload.serviceId) {
+    const recordUpdate = await supabase
+      .from("grooming_records")
+      .update({
+        service_id: service.id,
+        service_name_snapshot: service.name,
+        price_paid: Math.max(0, service.price - (appointment.discount_amount ?? 0)),
+        updated_at: String(nextValues.updated_at),
+      })
+      .eq("shop_id", appointment.shop_id)
+      .eq("appointment_id", appointment.id);
+    if (recordUpdate.error) throw new Error(recordUpdate.error.message);
+  }
 
   if (payload.notifyCustomer) {
     await dispatchNotification({

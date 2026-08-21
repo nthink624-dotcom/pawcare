@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import { Switch } from "@/components/ui/switch";
+import { SettingsRevisitReminderDefault } from "@/components/owner-web/settings-revisit-reminder-default";
 import {
   PETMANAGER_BRAND_MARK_SRC,
   PETMANAGER_MASTER_BRAND_NAME,
@@ -33,6 +34,7 @@ export type AlertSettingsDraft = {
   alimtalkTemplateRequestNote: string;
   alimtalkTemplateRequestUpdatedAt: string | null;
   revisitEnabled: boolean;
+  revisitReminderDefaultDays: number;
   bookingConfirmedEnabled: boolean;
   bookingRejectedEnabled: boolean;
   bookingCancelledEnabled: boolean;
@@ -61,6 +63,7 @@ type AlertToggleKey = Exclude<
   | "alimtalkBusinessChannelVerified"
   | "alimtalkTemplateRequestNote"
   | "alimtalkTemplateRequestUpdatedAt"
+  | "revisitReminderDefaultDays"
   | "visitReminderOffsetMinutes"
   | "pickupReadyEtaMinutes"
   | "groomingStartWithoutPhotoEnabled"
@@ -656,6 +659,14 @@ export default function SettingsAlertsPanel({
               />
             </div>
           </div>
+
+          <SettingsRevisitReminderDefault
+            enabled={value.revisitEnabled}
+            disabled={!value.enabled}
+            days={value.revisitReminderDefaultDays}
+            onEnabledChange={(enabled) => onChange({ ...value, revisitEnabled: enabled })}
+            onDaysChange={(days) => onChange({ ...value, revisitReminderDefaultDays: days })}
+          />
 
           {alertGroups.map((group) => (
             <div key={group.key} className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">

@@ -20,6 +20,7 @@ const confirmInputSchema = z.object({
   appointmentId: z.string().trim().min(1).max(120),
   careReport: careReportDraftSchema,
   photoConsent: z.boolean(),
+  action: z.enum(["save_draft", "publish"]).default("publish"),
 });
 
 type AppointmentScope = {
@@ -66,17 +67,67 @@ async function readCareReportContext(appointment: AppointmentScope) {
   const admin = getSupabaseAdmin();
   if (!admin) throw new OwnerApiError("데이터베이스 서버 설정을 확인해 주세요.", 503);
 
-  const [petResult, serviceResult] = await Promise.all([
-    admin.from("pets").select("name,breed").eq("id", appointment.pet_id).eq("shop_id", appointment.shop_id).single(),
-    admin.from("services").select("name").eq("id", appointment.service_id).eq("shop_id", appointment.shop_id).single(),
+  const [petResult, serviceResult, currentRecordResult, weightHistoryResult] = await Promise.all([
+    admin.from("pets").select("name,breed,weight").eq("id", appointment.pet_id).eq("shop_id", appointment.shop_id).single(),
+    admin.from("services").select("name,duration_minutes").eq("id", appointment.service_id).eq("shop_id", appointment.shop_id).single(),
+    admin
+      .from("grooming_records")
+      .select("id,actual_duration_minutes,expected_duration_minutes,pet_weight_snapshot,next_recommended_visit_date,service_name_snapshot")
+      .eq("appointment_id", appointment.id)
+      .eq("shop_id", appointment.shop_id)
+      .maybeSingle(),
+    admin
+      .from("grooming_records")
+      .select("id,pet_weight_snapshot,groomed_at")
+      .eq("pet_id", appointment.pet_id)
+      .eq("shop_id", appointment.shop_id)
+      .gt("pet_weight_snapshot", 0)
+      .order("groomed_at", { ascending: false })
+      .limit(12),
   ]);
   if (petResult.error) throw new OwnerApiError(petResult.error.message, 500);
   if (serviceResult.error) throw new OwnerApiError(serviceResult.error.message, 500);
+  if (currentRecordResult.error) throw new OwnerApiError(currentRecordResult.error.message, 500);
+  if (weightHistoryResult.error) throw new OwnerApiError(weightHistoryResult.error.message, 500);
+
+  const currentRecord = currentRecordResult.data;
+  const normalizeWeight = (value: unknown) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric * 10) / 10 : null;
+  };
+  const currentWeightKg = normalizeWeight(currentRecord?.pet_weight_snapshot ?? petResult.data.weight);
+  const priorWeights = (weightHistoryResult.data ?? [])
+    .filter((item) => item.id !== currentRecord?.id)
+    .map((item) => normalizeWeight(item.pet_weight_snapshot))
+    .filter((value): value is number => value !== null);
+  const recentAverageWeightKg = priorWeights.length > 0
+    ? Math.round((priorWeights.reduce((sum, value) => sum + value, 0) / priorWeights.length) * 10) / 10
+    : null;
+  const weightChangeFromPreviousKg = currentWeightKg !== null && priorWeights[0] !== undefined
+    ? Math.round((currentWeightKg - priorWeights[0]) * 10) / 10
+    : null;
+  const weightDifferenceFromRecentAverageKg = currentWeightKg !== null && recentAverageWeightKg !== null
+    ? Math.round((currentWeightKg - recentAverageWeightKg) * 10) / 10
+    : null;
 
   return {
     petName: petResult.data.name as string,
     petBreed: (petResult.data.breed as string | null) ?? "",
-    serviceName: serviceResult.data.name as string,
+    serviceName: (currentRecord?.service_name_snapshot as string | null) || (serviceResult.data.name as string),
+    automaticFacts: {
+      actualDurationMinutes: (currentRecord?.actual_duration_minutes as number | null) ?? null,
+      expectedDurationMinutes:
+        (currentRecord?.expected_duration_minutes as number | null) ??
+        (serviceResult.data.duration_minutes as number | null) ??
+        null,
+      currentWeightKg,
+      previousWeightKg: priorWeights[0] ?? null,
+      weightChangeFromPreviousKg,
+      recentAverageWeightKg,
+      weightDifferenceFromRecentAverageKg,
+      weightSampleCount: priorWeights.length,
+      nextRecommendedVisitDate: (currentRecord?.next_recommended_visit_date as string | null) ?? null,
+    },
   };
 }
 
@@ -129,6 +180,7 @@ export async function POST(request: NextRequest) {
       ...contextBase,
       observations: input.observations,
       voiceTranscript: input.voiceTranscript,
+      currentDraft: input.currentDraft,
     };
     const admin = getSupabaseAdmin();
     if (!admin) throw new OwnerApiError("데이터베이스 서버 설정을 확인해 주세요.", 503);
@@ -142,8 +194,10 @@ export async function POST(request: NextRequest) {
           appointment_id: appointment.id,
           guardian_id: appointment.guardian_id,
           pet_id: appointment.pet_id,
-          care_report_observations: input.observations,
-          care_report_voice_transcript: input.voiceTranscript,
+          // Raw owner prompts and voice transcripts are generation-only input.
+          // Persist only the AI result so incidental searches never become customer history.
+          care_report_observations: {},
+          care_report_voice_transcript: "",
           care_report_photo_consent: input.photoConsent,
           care_report_owner_confirmed_at: null,
           created_by_user_id: owner.userId,
@@ -251,46 +305,46 @@ export async function PATCH(request: NextRequest) {
       throw new OwnerApiError("먼저 AI 초안을 만들어 주세요.", 409);
     }
 
-    if (draftLookup.data) {
+    if (input.action === "save_draft") {
+      if (!draftLookup.data) {
+        throw new OwnerApiError("임시저장할 케어리포트 초안을 찾지 못했습니다.", 409);
+      }
+
+      const savedAt = new Date().toISOString();
       const draftUpdate = await admin
         .from("grooming_record_drafts")
         .update({
           care_report_ai_draft: input.careReport,
           care_report_photo_consent: input.photoConsent,
-          care_report_owner_confirmed_at: confirmedAt,
-          updated_at: confirmedAt,
+          care_report_owner_confirmed_at: null,
+          updated_at: savedAt,
         })
         .eq("shop_id", owner.shopId)
         .eq("appointment_id", appointment.id);
       if (draftUpdate.error) throw new OwnerApiError(draftUpdate.error.message, 500);
+
+      return NextResponse.json({ status: "draft", savedAt, careReport: input.careReport });
     }
 
-    if (finalLookup.data) {
-      const finalRecordUpdate = await admin
-        .from("grooming_records")
-        .update({
-          care_report_data: input.careReport,
-          care_report_observations: draftLookup.data?.care_report_observations ?? finalLookup.data.care_report_observations,
-          care_report_generation_id: draftLookup.data?.care_report_generation_id ?? finalLookup.data.care_report_generation_id,
-          care_report_photo_consent: input.photoConsent,
-          care_report_owner_confirmed_at: confirmedAt,
-          updated_at: confirmedAt,
-        })
-        .eq("shop_id", owner.shopId)
-        .eq("appointment_id", appointment.id);
-      if (finalRecordUpdate.error) throw new OwnerApiError(finalRecordUpdate.error.message, 500);
+    if (!finalLookup.data) {
+      throw new OwnerApiError("미용 완료 기록이 만들어진 뒤 케어리포트를 보낼 수 있습니다.", 409);
     }
 
-    if (finalLookup.data && draftLookup.data) {
-      const cleanup = await admin
-        .from("grooming_record_drafts")
-        .delete()
-        .eq("shop_id", owner.shopId)
-        .eq("appointment_id", appointment.id);
-      if (cleanup.error) throw new OwnerApiError(cleanup.error.message, 500);
+    const publishResult = await admin.rpc("publish_ai_care_report", {
+      p_shop_id: owner.shopId,
+      p_appointment_id: appointment.id,
+      p_care_report: input.careReport,
+      p_photo_consent: input.photoConsent,
+      p_confirmed_at: confirmedAt,
+    });
+    if (publishResult.error) {
+      if (publishResult.error.message.includes("CARE_REPORT_FINAL_RECORD_MISSING")) {
+        throw new OwnerApiError("미용 완료 기록이 만들어진 뒤 케어리포트를 보낼 수 있습니다.", 409);
+      }
+      throw new OwnerApiError(publishResult.error.message, 500);
     }
 
-    return NextResponse.json({ status: "confirmed", confirmedAt, careReport: input.careReport });
+    return NextResponse.json({ status: "published", confirmedAt, careReport: input.careReport });
   } catch (error) {
     return errorResponse(error, "케어리포트 확인 상태를 저장하지 못했습니다.");
   }

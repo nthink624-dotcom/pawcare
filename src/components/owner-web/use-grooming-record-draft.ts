@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import type { GroomingCompletionDetails } from "@/components/owner-web/calendar-grooming-completion-fields";
+import { getDefaultRevisitReminderDate } from "@/lib/customer-booking-window";
 
 export type GroomingRecordDraftSaveStatus = "loading" | "idle" | "local" | "saving" | "saved" | "offline" | "error";
 
@@ -26,12 +27,16 @@ type DraftApiResponse = {
   draft: DraftApiItem | null;
 };
 
-const EMPTY_DETAILS: GroomingCompletionDetails = {
-  treatmentNotes: "",
-  specialNotes: "",
-  internalNotes: "",
-  nextRecommendedVisitDate: null,
-};
+function createDefaultDetails(params: { revisitReminderEnabled?: boolean; revisitReminderDefaultDays?: number }): GroomingCompletionDetails {
+  return {
+    treatmentNotes: "",
+    specialNotes: "",
+    internalNotes: "",
+    nextRecommendedVisitDate: params.revisitReminderEnabled === false
+      ? null
+      : getDefaultRevisitReminderDate(undefined, params.revisitReminderDefaultDays),
+  };
+}
 
 const AUTOSAVE_DELAY_MS = 900;
 const LOCAL_DRAFT_VERSION = 1;
@@ -98,12 +103,14 @@ export function useGroomingRecordDraft(params: {
   shopId: string;
   appointmentId: string;
   enabled: boolean;
+  revisitReminderEnabled?: boolean;
+  revisitReminderDefaultDays?: number;
 }) {
   const serverEnabled = params.enabled && params.shopId !== "demo-shop" && params.shopId !== "owner-demo";
   const [localDraft] = useState(() => (
     params.enabled ? readLocalGroomingDraft(params.shopId, params.appointmentId) : null
   ));
-  const [value, setValueState] = useState<GroomingCompletionDetails>(localDraft?.value ?? EMPTY_DETAILS);
+  const [value, setValueState] = useState<GroomingCompletionDetails>(() => localDraft?.value ?? createDefaultDetails(params));
   const [afterMediaAssetId, setAfterMediaAssetIdState] = useState<string | null>(localDraft?.afterMediaAssetId ?? null);
   const [status, setStatus] = useState<GroomingRecordDraftSaveStatus>(
     serverEnabled ? "loading" : localDraft ? "local" : "idle",

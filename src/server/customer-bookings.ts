@@ -10,6 +10,8 @@ import {
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
+import { assertCustomerBookingDate } from "@/lib/customer-booking-window";
+import { buildCustomerWeightHistory } from "@/lib/customer-weight-history";
 import {
   addDate,
   currentDateInTimeZone,
@@ -589,6 +591,7 @@ export async function createCustomerBooking(
   options: { trustedDiscountQuote?: CustomerDiscountQuoteResponse } = {},
 ) {
   const payload = customerBookingCreateSchema.parse(input);
+  assertCustomerBookingDate(payload.appointmentDate);
   const bootstrap = await getBootstrap(payload.shopId);
   const discountQuote =
     options.trustedDiscountQuote ??
@@ -746,6 +749,20 @@ export async function lookupCustomerBookingsByToken(shopId: string, token: strin
     throw new Error("예약 정보를 찾지 못했어요.");
   }
   const scopedGroomingRecords = bootstrap.groomingRecords.filter((record) => scopedPetIds.has(record.pet_id));
+  const currentResultRecord = scopedGroomingRecords.find((record) => record.appointment_id === payload.appointmentId);
+  const weightHistory = payload.action === "result"
+    ? buildCustomerWeightHistory(
+        scopedGroomingRecords,
+        payload.petId,
+        12,
+        typeof pet.weight === "number" && pet.weight > 0
+          ? {
+              measuredAt: currentResultRecord?.groomed_at ?? scopedAppointments[0].start_at,
+              weightKg: pet.weight,
+            }
+          : null,
+      )
+    : [];
   const groomingRecords = (payload.action === "result"
     ? scopedGroomingRecords.filter((record) => record.appointment_id === payload.appointmentId)
     : []
@@ -826,6 +843,7 @@ export async function lookupCustomerBookingsByToken(shopId: string, token: strin
     pets: scopedPets,
     appointments: scopedAppointments,
     groomingRecords,
+    weightHistory,
     resultMediaAssets,
     visitType: scopedAppointments.some(countsTowardVisitHistory) ? "revisit" : "first_visit",
     access: {
@@ -880,6 +898,9 @@ async function updateSupabaseAppointment(appointmentId: string, values: Partial<
 
 export async function updateCustomerBooking(input: unknown) {
   const payload = customerBookingUpdateSchema.parse(input);
+  if (payload.action === "reschedule") {
+    assertCustomerBookingDate(payload.appointmentDate);
+  }
   const access = verifyBookingAccessToken(payload.accessToken);
   if (
     access.shopId !== payload.shopId ||

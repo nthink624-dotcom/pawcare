@@ -9,9 +9,11 @@ import {
   CustomerGroomingResultCard,
   type CustomerResultMediaAsset,
 } from "@/components/customer/customer-grooming-result-card";
+import type { CustomerWeightMeasurement } from "@/lib/customer-weight-history";
 import { fetchApiJson } from "@/lib/api";
 import { invalidateCustomerAvailability } from "@/lib/customer-availability";
 import { isShopClosedOnDate } from "@/lib/availability";
+import { CUSTOMER_BOOKING_HORIZON_DAYS } from "@/lib/customer-booking-window";
 import { fetchCustomerAvailability } from "@/lib/customer-availability";
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
@@ -22,6 +24,7 @@ type LookupPayload = {
   appointments: Appointment[];
   groomingRecords: GroomingRecord[];
   resultMediaAssets?: CustomerResultMediaAsset[];
+  weightHistory?: CustomerWeightMeasurement[];
   pets: Array<{ id: string; name: string; guardian_id: string; breed?: string }>;
   access?: {
     appointmentId?: string | null;
@@ -90,7 +93,7 @@ function buildDateOptions(shop: Shop): DateOption[] {
   const todayDate = parseISO(`${today}T00:00:00`);
   let offset = 0;
 
-    while (options.length < 8 && offset < 45) {
+  while (options.length < 8 && offset < CUSTOMER_BOOKING_HORIZON_DAYS) {
       const date = addDays(todayDate, offset);
       const value = format(date, "yyyy-MM-dd");
       const isClosed = isShopClosedOnDate(shop, value);
@@ -613,6 +616,7 @@ export default function CustomerBookingManagePanel({
                       mediaAssets={(lookupResult.resultMediaAssets ?? []).filter(
                         (asset) => asset.appointmentId === appointment.id,
                       )}
+                      weightHistory={lookupResult.weightHistory ?? []}
                     />
                   ) : null}
 

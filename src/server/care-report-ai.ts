@@ -15,8 +15,20 @@ type CareReportContext = {
   petName: string;
   petBreed: string;
   serviceName: string;
+  automaticFacts: {
+    actualDurationMinutes: number | null;
+    expectedDurationMinutes: number | null;
+    currentWeightKg: number | null;
+    previousWeightKg: number | null;
+    weightChangeFromPreviousKg: number | null;
+    recentAverageWeightKg: number | null;
+    weightDifferenceFromRecentAverageKg: number | null;
+    weightSampleCount: number;
+    nextRecommendedVisitDate: string | null;
+  };
   observations: CareReportObservations;
   voiceTranscript: string;
+  currentDraft?: CareReportDraft;
 };
 
 type DeepSeekUsage = {
@@ -47,24 +59,38 @@ function safeJson(value: unknown) {
 export function buildCareReportPrompt(context: CareReportContext) {
   return {
     system: [
-      "당신은 반려동물 미용실 오너의 기록을 보호자에게 전달하기 좋은 한국어 케어리포트로 정리합니다.",
-      "입력에 없는 사실을 만들지 마세요. 의료 진단, 질환 단정, 치료 지시를 하지 마세요.",
+      "당신은 반려동물 미용실 오너가 직접 입력하거나 말한 내용을 보호자에게 전달하기 좋은 한국어로 다듬는 편집자입니다.",
+      "오너 입력은 유일한 사람 판단 근거입니다. 입력에 담긴 관찰, 조치, 반응, 주의사항을 빠뜨리거나 의미를 바꾸지 마세요.",
+      "currentDraft가 있으면 이것은 오너가 현재 화면에서 확인하거나 편집 중인 초안입니다. 최신 오너 요청에 필요한 부분만 수정하고, 요청하지 않은 기존 사실과 표현은 유지하세요.",
+      "최신 오너 요청이 currentDraft의 내용을 삭제하거나 바꾸라는 뜻이 아니라면 기존 내용을 임의로 빼거나 전혀 다른 리포트로 다시 쓰지 마세요.",
+      "자동 사실 데이터는 서비스명, 실제 작업 시간, 예상 작업 시간, 같은 아이의 몸무게 기록, 다음 권장일을 설명할 때만 사용하세요.",
+      "입력과 자동 사실에 없는 미용 품질, 감정, 피부·귀·털 상태, 미용 반응, 홈케어 필요성을 만들지 마세요.",
+      "몸무게는 같은 아이의 이전 측정값 또는 최근 기록 평균과만 비교하세요. 품종 평균으로 표현하지 마세요.",
+      "체중과 최근 평균만으로 정상·과체중·저체중 또는 감량 필요를 판단하지 마세요. 오너 입력에 체형 평가나 체중 관리 지시가 명시된 경우에만 그 내용을 부드럽게 정리하세요.",
+      "의료 진단, 질환 단정, 치료 지시를 하지 마세요.",
       "건강 관련 표현은 '관찰됨', '예민해 보임', '보호자가 확인해 주세요' 수준으로만 작성하세요.",
       "따뜻하지만 과장되지 않은 존댓말을 사용하고, 같은 내용을 반복하지 마세요.",
+      "oneLineSummary는 1~3개의 짧은 문장과 160자 이내로 작성하세요. 오너 입력이 있으면 그 내용을 가장 먼저 보존해서 다듬고, 남는 범위에서 실제 서비스·작업 시간·몸무게 사실을 덧붙이세요.",
+      "오너 입력이 비어 있으면 확인 가능한 서비스 완료, 실제 작업 시간, 몸무게 기록만 사용한 안전한 문장을 작성하세요.",
       "반드시 JSON 객체만 출력하세요.",
     ].join(" "),
     user: safeJson({
       pet: { name: context.petName, breed: context.petBreed || "미입력" },
-      service: context.serviceName,
-      observations: context.observations,
-      voiceTranscript: context.voiceTranscript || undefined,
+      ownerSourceText: context.voiceTranscript || undefined,
+      currentDraft: context.currentDraft,
+      automaticFacts: {
+        serviceName: context.serviceName,
+        ...context.automaticFacts,
+        weightAverageBasis: "같은 아이의 최근 실제 측정 기록",
+      },
+      extractedOwnerObservations: context.observations,
       output: {
-        oneLineSummary: "오늘 케어의 핵심 한 문장",
-        treatmentSummary: "오늘 진행한 미용",
-        conditionSummary: "털·피부·귀·발·발톱에서 관찰한 상태",
-        groomingResponse: "미용 중 아이의 반응",
-        homeCareTips: ["집에서 할 수 있는 관리 팁 1~3개"],
-        nextVisitGuide: "다음 관리 시점 안내. 날짜를 임의로 만들지 않기",
+        oneLineSummary: "오너 입력을 우선 보존해 자연스럽게 다듬은 디자이너의 한마디",
+        treatmentSummary: "자동 사실에 있는 서비스와 실제 작업 시간만 사용",
+        conditionSummary: "오너가 실제로 남긴 상태만 사용. 없으면 별도 상태 기록이 없다고 작성",
+        groomingResponse: "오너가 실제로 남긴 반응만 사용. 없으면 별도 반응 기록이 없다고 작성",
+        homeCareTips: ["오너 입력에 근거가 있는 안내만 작성. 없으면 별도 홈케어 안내가 없다고 작성"],
+        nextVisitGuide: "자동 사실의 다음 권장일만 사용. 없으면 날짜를 임의로 만들지 않기",
       },
     }),
   };

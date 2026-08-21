@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { processAutomaticRevisitReminders } from "@/server/revisit-reminder-processor";
 import { processAutomaticVisitReminders } from "@/server/visit-reminder-processor";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +24,15 @@ async function handleVisitReminderCron(request: NextRequest) {
     return NextResponse.json({ message: "Unauthorized visit reminder cron request." }, { status: 401 });
   }
 
-  const result = await processAutomaticVisitReminders();
-  return NextResponse.json(result, { status: result.ok ? 200 : 207 });
+  const [visitReminders, revisitReminders] = await Promise.all([
+    processAutomaticVisitReminders(),
+    processAutomaticRevisitReminders(),
+  ]);
+  const ok = visitReminders.ok && revisitReminders.ok;
+  return NextResponse.json(
+    { ok, visitReminders, revisitReminders },
+    { status: ok ? 200 : 207 },
+  );
 }
 
 export async function GET(request: NextRequest) {

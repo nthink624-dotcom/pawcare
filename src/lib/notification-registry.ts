@@ -400,14 +400,19 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     title: "재방문 안내",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "오너가 고객 상세에서 직접 발송",
-    dispatchSource: "src/components/owner/owner-app.tsx / dispatchNotification",
+    trigger: "케어 완료 때 오너가 선택한 재예약 알림일에 자동 발송",
+    dispatchSource: "src/server/revisit-reminder-processor.ts",
     templateAlias: "revisit_notice",
     templateConfigKey: "templateRevisitNotice",
     shopSettingKey: "revisit_enabled",
     guardianSettingKey: "revisit_enabled",
-    notes: "매장과 고객 모두 재방문 알림이 켜져 있을 때 발송",
-    draftBody: "[#{매장명}] #{반려동물명} 재방문 시기가 가까워졌어요.",
+    notes: "매장과 고객 모두 재방문 알림이 켜져 있고, 이후 예약이 없을 때 한 번만 발송",
+    draftBody: [
+      "[#{매장명}]",
+      "#{반려동물명}의 다음 케어 시기가 다가왔어요.",
+      "",
+      "원하시는 날짜와 시간을 편하게 선택해 주세요.",
+    ].join("\n"),
   },
   {
     type: "birthday_greeting",
@@ -465,6 +470,7 @@ export const ACTIVE_ALIMTALK_TEMPLATE_ALIASES: readonly AlimtalkTemplateAlias[] 
   "grooming_started",
   "grooming_almost_done",
   "grooming_completed",
+  "revisit_notice",
 ];
 
 const activeAlimtalkTemplateAliases = new Set<AlimtalkTemplateAlias>(ACTIVE_ALIMTALK_TEMPLATE_ALIASES);

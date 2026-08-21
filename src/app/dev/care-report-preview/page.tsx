@@ -8,6 +8,7 @@ import type { Appointment, GroomingRecord } from "@/types/domain";
 
 const appointment = {
   id: "care-report-preview-appointment",
+  appointment_date: "2026-08-18",
   actual_started_at: "2026-08-18T09:00:00+09:00",
   actual_completed_at: "2026-08-18T11:05:00+09:00",
 } as Appointment;
@@ -20,6 +21,7 @@ const record = {
   next_recommended_visit_date: "2026-09-22",
   style_notes: "전체미용 · 몸 6mm · 얼굴 둥글게 · 눈가 세정 · 저자극 샴푸",
   memo: "오늘 두부는 눈물이 평소보다 많아 눈가 주변을 자극 없이 꼼꼼하게 세정했습니다.",
+  actual_duration_minutes: 125,
   care_report_owner_confirmed_at: "2026-08-18T11:10:00+09:00",
   care_report_photo_consent: true,
   care_report_data: {
@@ -55,12 +57,8 @@ export default function CareReportPreviewPage() {
   if (process.env.NODE_ENV !== "development") notFound();
 
   return (
-    <main className="min-h-screen bg-[#fff6f4] px-4 py-10">
+    <main className="min-h-screen bg-white px-0 py-0 sm:px-4 sm:py-8">
       <div className="mx-auto w-full max-w-[430px]">
-        <div className="mb-4 px-1">
-          <p className="text-[13px] font-semibold text-[#a96869]">고객이 링크에서 받는 화면</p>
-          <h1 className="mt-1 text-[22px] font-semibold tracking-[-0.04em] text-[#453236]">펫매니저 AI 케어리포트</h1>
-        </div>
         <CustomerGroomingResultCard
           shopId="care-report-preview-shop"
           accessToken="preview-only"
@@ -75,6 +73,18 @@ export default function CareReportPreviewPage() {
             "care-report-before": "/images/customer-booking-hero-original.jpg",
             "care-report-after": "/images/customer-booking-hero-retriever-bath.jpg",
           }}
+          weightHistory={[
+            { measuredAt: "2025-09-20T11:00:00+09:00", weightKg: 4.1 },
+            { measuredAt: "2025-10-25T11:00:00+09:00", weightKg: 4.2 },
+            { measuredAt: "2025-12-02T11:00:00+09:00", weightKg: 4.25 },
+            { measuredAt: "2026-01-10T11:00:00+09:00", weightKg: 4.3 },
+            { measuredAt: "2026-02-21T11:00:00+09:00", weightKg: 4.35 },
+            { measuredAt: "2026-03-28T11:00:00+09:00", weightKg: 4.4 },
+            { measuredAt: "2026-05-09T11:00:00+09:00", weightKg: 4.45 },
+            { measuredAt: "2026-06-13T11:00:00+09:00", weightKg: 4.5 },
+            { measuredAt: "2026-07-11T11:00:00+09:00", weightKg: 4.55 },
+            { measuredAt: "2026-08-18T11:00:00+09:00", weightKg: 4.6 },
+          ]}
         />
       </div>
     </main>

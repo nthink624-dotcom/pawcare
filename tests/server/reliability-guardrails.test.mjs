@@ -86,6 +86,7 @@ test("the owner application retains a route error recovery boundary", () => {
 test("grooming outcomes keep photos optional while preserving customer results and revenue", () => {
   const ownerMutations = readProjectFile("src/server/owner-mutations.ts");
   const ownerCalendar = readProjectFile("src/components/owner-web/calendar-management-screen.tsx");
+  const careReportPhotoCard = readProjectFile("src/components/owner-web/calendar-care-report-photo-card.tsx");
   const careReportPanel = readProjectFile("src/components/owner-web/calendar-care-report-completion-panel.tsx");
   const careNoteInput = readProjectFile("src/components/owner-web/calendar-care-note-input.tsx");
   const completionFields = readProjectFile("src/components/owner-web/calendar-grooming-completion-fields.tsx");
@@ -110,10 +111,25 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.doesNotMatch(ownerCalendar, /사진 없이 바로 시작/);
   assert.doesNotMatch(ownerCalendar, /미용 완료 사진을 먼저 선택해 주세요/);
   assert.doesNotMatch(ownerCalendar, /AI 케어리포트 내용을 확인 완료해 주세요/);
-  assert.match(ownerCalendar, /미용 전 사진 · 선택/);
-  assert.match(ownerCalendar, /미용 후 사진 · 선택/);
+  assert.match(ownerCalendar, /aria-label="미용 사진 선택"/);
+  assert.match(ownerCalendar, /label: "미용 전"/);
+  assert.match(ownerCalendar, /label: "미용 후"/);
+  assert.doesNotMatch(ownerCalendar, /previousImageUrl=\{activeCompletionPhotoIsBefore/);
+  assert.doesNotMatch(ownerCalendar, /nextImageUrl=\{activeCompletionPhotoIsBefore/);
+  assert.doesNotMatch(ownerCalendar, /onPrevious=\{\(\) => setActiveMediaKind/);
+  assert.doesNotMatch(ownerCalendar, /onNext=\{\(\) => setActiveMediaKind/);
+  assert.match(careReportPhotoCard, /등록된 \{label\} 사진이 없습니다/);
+  assert.match(careReportPhotoCard, /availableImageUrls/);
+  assert.match(careReportPhotoCard, /\(current \+ 1\) % availableImageUrls\.length/);
+  assert.match(careReportPhotoCard, /\(current - 1 \+ availableImageUrls\.length\) % availableImageUrls\.length/);
+  assert.match(careReportPhotoCard, /onPointerMove/);
+  assert.match(careReportPhotoCard, /Math\.abs\(deltaX\) < 34/);
+  assert.match(careReportPhotoCard, /care-photo-carousel-next/);
+  assert.match(careReportPhotoCard, /care-photo-carousel-previous/);
+  assert.match(careReportPhotoCard, /draggable=\{false\}/);
+  assert.match(careReportPhotoCard, /onDragStart=\{\(event\) => event\.preventDefault\(\)\}/);
   assert.match(ownerCalendar, /CalendarCareReportCompletionPanel/);
-  assert.match(ownerCalendar, /max-w-\[760px\]/);
+  assert.match(ownerCalendar, /max-w-\[520px\]/);
   assert.doesNotMatch(ownerCalendar, /lg:grid-cols-\[minmax\(0,0\.92fr\)_minmax\(0,1\.08fr\)\]/);
   assert.match(ownerCalendar, /AI 케어리포트 작성·이어보기/);
   assert.match(
@@ -127,7 +143,12 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.match(careReportPanel, /action: "save_draft"/);
   assert.match(careReportPanel, /action: "publish"/);
   assert.match(careReportPanel, /AI가 정리한 문장 편집/);
+  assert.match(careReportPanel, /아래에 케어 내용을 남기면 이곳에 정리됩니다/);
   assert.match(careReportPanel, /editReport\(\{ \.\.\.report, oneLineSummary: content \}\)/);
+  assert.match(careReportPanel, /max-h-\[170px\].*overflow-y-auto/);
+  assert.match(careReportPanel, /h-\[88px\].*resize-none.*overflow-y-auto/);
+  assert.doesNotMatch(careReportPanel, /전체 케어리포트 보기/);
+  assert.match(careNoteInput, /h-\[44px\].*resize-none.*overflow-y-auto/);
   assert.match(careNoteInput, /speechBaseValueRef\.current = valueRef\.current/);
   assert.match(careNoteInput, /const spokenText = \[finalized\.trim\(\), interim\.trim\(\)\]/);
   assert.match(careNoteInput, /onChange\(nextValue\)/);
@@ -149,7 +170,8 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.match(completionFields, /aria-label="예약 서비스 수정"/);
   assert.doesNotMatch(completionFields, /자동 반영/);
   assert.doesNotMatch(completionFields, /30일 후|60일 후|날짜 직접 선택/);
-  assert.match(completionFields, /날짜 지정/);
+  assert.match(completionFields, /재예약 알림/);
+  assert.doesNotMatch(completionFields, />날짜<\/span>/);
   assert.match(reminderSettings, /재예약 알림 기본 시점/);
   assert.match(reminderSettings, /미용 완료일 기준/);
   assert.match(notificationSettings, /revisit_reminder_default_days: 45/);
@@ -198,8 +220,8 @@ test("grooming notes keep a private autosaved draft without delaying photo compl
   assert.match(draftHook, /chooseNewestGroomingDraft/);
   assert.match(draftRoute, /requireOwnerShop/);
   assert.match(draftRoute, /본인 담당 예약의 미용 기록만 작성할 수 있습니다/);
-  assert.match(completionFields, /매장 내부 메모/);
-  assert.match(completionFields, /고객 비공개/);
+  assert.doesNotMatch(completionFields, /매장 내부 메모/);
+  assert.match(completionFields, /aria-label="오늘 몸무게"/);
   assert.match(calendar, /providerReadyMode: "background"/);
   assert.match(mediaClient, /Delivery falls back to the optimized original/);
   assert.doesNotMatch(resultCard, /internal_memo/);

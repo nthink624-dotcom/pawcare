@@ -3,7 +3,7 @@
 import { ArrowUp, Loader2, Mic, MicOff, Sparkles, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
+import { CARE_REPORT_TYPOGRAPHY as OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
 
 type SpeechResultEvent = Event & {
   resultIndex: number;
@@ -124,7 +124,7 @@ export function CalendarCareNoteInput({
   }
 
   return (
-    <div className="overflow-hidden rounded-[22px] border border-[#cbdced] bg-white shadow-[0_10px_30px_rgba(44,91,143,0.09)] transition focus-within:border-[#8cb4df] focus-within:shadow-[0_12px_34px_rgba(47,111,214,0.13)]">
+    <div className="overflow-hidden rounded-[14px] border border-[#d7dde4] bg-white shadow-[0_7px_20px_rgba(20,39,63,0.06)] transition focus-within:border-[#8c99a7] focus-within:shadow-[0_9px_24px_rgba(20,39,63,0.10)]">
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value.slice(0, 2000))}
@@ -136,26 +136,26 @@ export function CalendarCareNoteInput({
         disabled={disabled}
         maxLength={2000}
         placeholder="케어 내용을 입력하거나 말해 주세요."
-        className={`${OWNER_TYPOGRAPHY.body} min-h-[112px] w-full resize-y border-0 bg-transparent px-5 pb-2 pt-4 text-[#20364f] outline-none placeholder:font-normal placeholder:text-[#a4adb8] disabled:opacity-60`}
+        className={`${OWNER_TYPOGRAPHY.body} h-[44px] max-h-[44px] w-full resize-none overflow-y-auto border-0 bg-transparent px-4 pb-1 pt-2 text-[#263547] outline-none placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
       />
 
       {speechError ? (
         <p className={`${OWNER_TYPOGRAPHY.label} mx-5 mb-2 flex items-center gap-1.5 text-[#a04455]`}><MicOff className="h-4 w-4" /> {speechError}</p>
       ) : null}
 
-      <div className="flex min-h-14 items-center justify-between gap-4 px-4 pb-3 pt-1">
-        <div className={`${OWNER_TYPOGRAPHY.meta} flex min-w-0 items-center gap-2 text-[#657b92]`}>
+      <div className="flex min-h-8 items-center justify-between gap-4 px-3 pb-1 pt-0.5">
+        <div className={`${OWNER_TYPOGRAPHY.meta} flex min-w-0 items-center gap-2 text-[#687583]`}>
           {listening ? (
             <>
               <span className="relative flex h-2.5 w-2.5 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2f6fd6] opacity-45" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#2f6fd6]" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#274563] opacity-40" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#274563]" />
               </span>
               <span className="truncate">{interimText || "듣고 있어요"}</span>
             </>
           ) : (
             <>
-              <Sparkles className="h-4 w-4 shrink-0 text-[#3978b5]" />
+              <Sparkles className="h-4 w-4 shrink-0 text-[#526171]" />
               <span>AI 케어리포트</span>
             </>
           )}
@@ -168,9 +168,9 @@ export function CalendarCareNoteInput({
             title={listening ? "음성 입력 마치기" : "음성으로 입력하기"}
             onClick={listening ? stopListening : startListening}
             disabled={disabled || (!speechSupported && !listening)}
-            className={`grid h-10 w-10 place-items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
+            className={`grid h-8 w-8 place-items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
               listening
-                ? "bg-[#e7f0fc] text-[#2f6fd6]"
+                ? "bg-[#edf0f3] text-[#14273f]"
                 : "text-[#44566a] hover:bg-[#f0f4f8]"
             }`}
           >
@@ -182,7 +182,7 @@ export function CalendarCareNoteInput({
             title="AI에게 정리 맡기기"
             onClick={onSubmit}
             disabled={disabled || submitting}
-            className="grid h-11 w-11 place-items-center rounded-full bg-[#172c46] text-white shadow-[0_8px_20px_rgba(23,44,70,0.24)] transition hover:bg-[#234b78] disabled:cursor-not-allowed disabled:opacity-45"
+            className="grid h-9 w-9 place-items-center rounded-full bg-[#14273f] text-white shadow-[0_8px_20px_rgba(20,39,63,0.22)] transition hover:bg-[#274563] disabled:cursor-not-allowed disabled:opacity-45"
           >
             {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowUp className="h-5 w-5" />}
           </button>

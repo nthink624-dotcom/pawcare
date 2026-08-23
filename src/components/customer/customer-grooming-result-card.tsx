@@ -364,7 +364,9 @@ export function CustomerGroomingResultCard({
             </div>
             <span className="shrink-0 rounded-full bg-[#fde9e7] px-3 py-1.5 text-[14px] font-medium text-[#d96570]">잊기 전에 예약</span>
           </div>
-          <p className="border-t border-[#f1e5e6] px-4 py-3 text-[16px] leading-6 text-[#806b70]">{confirmedCareReport.nextVisitGuide}</p>
+          {confirmedCareReport.nextVisitGuide ? (
+            <p className="border-t border-[#f1e5e6] px-4 py-3 text-[16px] leading-6 text-[#806b70]">{confirmedCareReport.nextVisitGuide}</p>
+          ) : null}
           <div className="px-3 pb-3">
             <button
               type="button"

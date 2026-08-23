@@ -63,7 +63,31 @@ async function requireAppointmentScope(owner: OwnerShopContext, appointmentId: s
   return appointment;
 }
 
-async function readCareReportContext(appointment: AppointmentScope) {
+async function persistCurrentWeightMeasurement(appointment: AppointmentScope, currentWeightKg?: number) {
+  if (currentWeightKg === undefined) return;
+  const admin = getSupabaseAdmin();
+  if (!admin) throw new OwnerApiError("데이터베이스 서버 설정을 확인해 주세요.", 503);
+
+  const normalizedWeight = Math.round(currentWeightKg * 10) / 10;
+  const recordUpdate = await admin
+    .from("grooming_records")
+    .update({ pet_weight_snapshot: normalizedWeight, updated_at: new Date().toISOString() })
+    .eq("shop_id", appointment.shop_id)
+    .eq("appointment_id", appointment.id)
+    .select("id")
+    .maybeSingle();
+  if (recordUpdate.error) throw new OwnerApiError(recordUpdate.error.message, 500);
+  if (!recordUpdate.data) throw new OwnerApiError("미용 완료 후 오늘 몸무게를 저장해 주세요.", 409);
+
+  const petUpdate = await admin
+    .from("pets")
+    .update({ weight: normalizedWeight, updated_at: new Date().toISOString() })
+    .eq("shop_id", appointment.shop_id)
+    .eq("id", appointment.pet_id);
+  if (petUpdate.error) throw new OwnerApiError(petUpdate.error.message, 500);
+}
+
+async function readCareReportContext(appointment: AppointmentScope, currentWeightKgOverride?: number) {
   const admin = getSupabaseAdmin();
   if (!admin) throw new OwnerApiError("데이터베이스 서버 설정을 확인해 주세요.", 503);
 
@@ -95,7 +119,7 @@ async function readCareReportContext(appointment: AppointmentScope) {
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric * 10) / 10 : null;
   };
-  const currentWeightKg = normalizeWeight(currentRecord?.pet_weight_snapshot ?? petResult.data.weight);
+  const currentWeightKg = normalizeWeight(currentWeightKgOverride ?? currentRecord?.pet_weight_snapshot ?? petResult.data.weight);
   const priorWeights = (weightHistoryResult.data ?? [])
     .filter((item) => item.id !== currentRecord?.id)
     .map((item) => normalizeWeight(item.pet_weight_snapshot))
@@ -175,7 +199,8 @@ export async function POST(request: NextRequest) {
     const input = careReportGenerationInputSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, input.shopId);
     const appointment = await requireAppointmentScope(owner, input.appointmentId);
-    const contextBase = await readCareReportContext(appointment);
+    await persistCurrentWeightMeasurement(appointment, input.currentWeightKg);
+    const contextBase = await readCareReportContext(appointment, input.currentWeightKg);
     const context = {
       ...contextBase,
       observations: input.observations,

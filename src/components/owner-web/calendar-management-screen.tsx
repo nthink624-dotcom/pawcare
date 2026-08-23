@@ -10,7 +10,6 @@ import {
   Clock,
   Copy,
   History,
-  ImagePlus,
   Loader2,
   MessageCircle,
   NotebookPen,
@@ -33,7 +32,8 @@ import {
   type GroomingCompletionDetails,
 } from "@/components/owner-web/calendar-grooming-completion-fields";
 import { CalendarCareReportCompletionPanel } from "@/components/owner-web/calendar-care-report-completion-panel";
-import { OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
+import { CalendarCareReportPhotoCard } from "@/components/owner-web/calendar-care-report-photo-card";
+import { CARE_REPORT_TYPOGRAPHY, OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
 import { useExistingCompletionPhotos } from "@/components/owner-web/use-existing-completion-photos";
 import { useGroomingRecordDraft } from "@/components/owner-web/use-grooming-record-draft";
 import { DailyScheduleGrid } from "@/components/owner-web/calendar-daily-schedule-grid";
@@ -136,6 +136,7 @@ type RecentStatusOverride = {
 type PhotoStatusAction = {
   bookingId: string;
   petName: string;
+  currentWeightKg?: number | null;
   serviceId?: string;
   serviceName?: string;
   staffName: string;
@@ -3507,6 +3508,9 @@ function PhotoStatusDialog({
   const [serviceChanging, setServiceChanging] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState(action.serviceId ?? "");
   const [selectedServiceName, setSelectedServiceName] = useState(action.serviceName ?? "");
+  const [currentWeightKg, setCurrentWeightKg] = useState(
+    typeof action.currentWeightKg === "number" ? action.currentWeightKg.toFixed(1) : "",
+  );
   const isCompletionMode = action.mode === "completion";
   const isCompletedCareReport = isCompletionMode && action.statusAlreadyCompleted;
   const {
@@ -3632,12 +3636,20 @@ function PhotoStatusDialog({
     }
   }
 
+  const modalTypography = isCompletionMode ? CARE_REPORT_TYPOGRAPHY : OWNER_TYPOGRAPHY;
+  const activeCompletionPhotoIsBefore = activeMediaKind === "grooming_before";
+  const activeCompletionPhoto = activeCompletionPhotoIsBefore ? existingBeforePhoto : existingAfterPhoto;
+  const activeCompletionPhotoUploaded = activeCompletionPhotoIsBefore
+    ? Boolean(beforeMediaAssetId || existingBeforePhoto)
+    : Boolean(draft.afterMediaAssetId || existingAfterPhoto);
+  const activeCompletionPhotoLabel = activeCompletionPhotoIsBefore ? "미용 전" : "미용 후";
+
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4" onClick={busy || careReportBusy ? undefined : () => void handleSaveAndClose()}>
       <div
         className={cn(
-          "max-h-[calc(100vh-32px)] w-full overflow-y-auto rounded-[18px] border border-[#d7e2ee] bg-[#fbfdff] p-5 shadow-[0_24px_80px_rgba(29,61,98,0.20)]",
-          isCompletionMode ? "max-w-[760px]" : "max-w-[540px]",
+          "max-h-[calc(100vh-32px)] w-full overflow-y-auto border border-[#d8dee6] bg-white shadow-[0_24px_80px_rgba(20,39,63,0.18)]",
+          isCompletionMode ? "max-w-[520px] rounded-[22px]" : "max-w-[540px] rounded-[18px] p-5",
         )}
         onClick={(event) => event.stopPropagation()}
       >
@@ -3650,63 +3662,80 @@ function PhotoStatusDialog({
           onChange={(event) => void handleFileChange(event)}
         />
 
-        <div className="mb-4">
-          <h3 className="text-[26px] font-semibold leading-[1.25] tracking-[-0.025em] text-[#172c46]">{action.title}</h3>
+        <div className={isCompletionMode ? "flex items-center justify-between gap-5 border-b border-[#e5e8ec] bg-white px-4 py-2.5" : "mb-3"}>
+          <div className={isCompletionMode ? "flex min-w-0 items-center gap-3" : ""}>
+            {isCompletionMode ? (
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-[#edf4ff] text-[#2f6fd6]">
+                <Sparkles className="h-5 w-5" />
+              </span>
+            ) : null}
+            <div>
+              <h3 className={`${modalTypography.modalTitle} tracking-[-0.025em] text-[#142033]`}>{action.title}</h3>
+              {isCompletionMode ? (
+                <p className={`${modalTypography.body} mt-0.5 text-[#6b7785]`}>
+                  {action.petName} · {selectedServiceName || "예약 서비스"} · {action.staffName}
+                </p>
+              ) : null}
+              {action.description ? (
+                <p className={`${modalTypography.label} mt-1 text-[#64748b]`}>{action.description}</p>
+              ) : null}
+            </div>
+          </div>
           {isCompletionMode ? (
-            <p className="mt-1.5 text-[16px] leading-6 text-[#536b85]">
-              {action.petName} · {selectedServiceName || "예약 서비스"} · {action.staffName}
-            </p>
-          ) : null}
-          {action.description ? (
-            <p className={`${OWNER_TYPOGRAPHY.label} mt-1 text-[#64748b]`}>{action.description}</p>
+            <button type="button" onClick={() => void handleSaveAndClose()} disabled={busy || careReportBusy} aria-label="닫기" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#66717f] transition hover:bg-[#f2f4f6] disabled:opacity-40">
+              <X className="h-5 w-5" />
+            </button>
           ) : null}
         </div>
 
         {isCompletionMode ? (
-          <div className="space-y-4">
-            <section className="rounded-[14px] border border-[#d5e2ef] bg-white p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className={`${OWNER_TYPOGRAPHY.sectionTitle} text-[#172c46]`}>미용 전·후 사진</p>
-                  <label className={`${OWNER_TYPOGRAPHY.label} inline-flex items-center gap-2 text-[#536f8e]`}>
+          <div className="space-y-2 p-3">
+            <section className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <p className={`${modalTypography.sectionTitle} shrink-0 text-[#1b2d43]`}>사진</p>
+                  <div className="flex rounded-[9px] bg-[#f0f2f4] p-0.5" role="tablist" aria-label="미용 사진 선택">
+                    {[
+                      { kind: "grooming_before" as const, label: "미용 전" },
+                      { kind: "grooming_after" as const, label: "미용 후" },
+                    ].map((photoTab) => {
+                      const selected = activeMediaKind === photoTab.kind;
+                      return (
+                        <button
+                          key={photoTab.kind}
+                          type="button"
+                          role="tab"
+                          aria-selected={selected}
+                          onClick={() => setActiveMediaKind(photoTab.kind)}
+                          className={`${modalTypography.label} inline-flex h-7 items-center gap-1.5 rounded-[7px] px-3 transition ${
+                            selected ? "bg-[#edf4ff] font-semibold text-[#2f6fd6] shadow-sm" : "text-[#7a8490] hover:text-[#37485a]"
+                          }`}
+                        >
+                          {photoTab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <label className={`${modalTypography.label} ml-auto inline-flex items-center gap-2 text-[#526171]`}>
                     <input
                       type="checkbox"
                       checked={photoRegistrationEnabled || hasRegisteredPhotos}
                       onChange={(event) => setPhotoRegistrationEnabled(event.target.checked)}
                       disabled={busy || hasRegisteredPhotos}
-                      className="h-4 w-4 accent-[#2f6fd6]"
+                    className="h-4 w-4 accent-[#2f6fd6]"
                     />
                     사진 등록
                   </label>
                 </div>
-                {photoRegistrationEnabled || hasRegisteredPhotos ? <div className="mt-3 grid grid-cols-2 gap-2.5">
-                  {[
-                    { key: "before" as const, label: "미용 전 사진 · 선택", mediaKind: "grooming_before" as const, uploaded: Boolean(beforeMediaAssetId), existingPhoto: existingBeforePhoto },
-                    { key: "after" as const, label: "미용 후 사진 · 선택", mediaKind: "grooming_after" as const, uploaded: Boolean(draft.afterMediaAssetId), existingPhoto: existingAfterPhoto },
-                  ].map((slot) => {
-                    const hasExistingPhoto = Boolean(slot.existingPhoto);
-                    const uploaded = slot.uploaded || hasExistingPhoto;
-                    const statusCopy = existingCompletionPhotosLoading
-                      ? "확인 중"
-                      : uploaded ? "등록됨" : "사진 추가";
-
-                    return (
-                      <button
-                        key={slot.key}
-                        type="button"
-                        onClick={() => selectPhoto(slot.mediaKind)}
-                        disabled={busy}
-                        className="flex min-h-[88px] items-center justify-between rounded-[11px] border border-[#d5e2ef] bg-[#f7faff] px-4 text-left transition hover:border-[#9fbfe0] hover:bg-[#edf5fd] disabled:opacity-60"
-                      >
-                        <span className={`${OWNER_TYPOGRAPHY.body} inline-flex min-w-0 items-center gap-2.5 text-[#334155]`}>
-                          {hasExistingPhoto && slot.existingPhoto?.signedUrl ? <img src={slot.existingPhoto.signedUrl} alt={`등록된 ${slot.key === "before" ? "미용 전" : "미용 후"} 사진`} className="h-10 w-10 shrink-0 rounded-[8px] object-cover" /> : null}
-                          {uploaded ? <CheckCircle2 className="h-4 w-4 shrink-0 text-[#2f7866]" /> : <ImagePlus className="h-4 w-4 shrink-0 text-[#3978b5]" />}
-                          <span>{slot.label}</span>
-                        </span>
-                        <span className={`${OWNER_TYPOGRAPHY.label} shrink-0 text-[#64748b]`}>{statusCopy}</span>
-                      </button>
-                    );
-                  })}
-                </div> : null}
+                {photoRegistrationEnabled || hasRegisteredPhotos ? (
+                  <CalendarCareReportPhotoCard
+                    label={activeCompletionPhotoLabel}
+                    registered={activeCompletionPhotoUploaded}
+                    imageUrls={activeCompletionPhoto?.signedUrl ? [activeCompletionPhoto.signedUrl] : []}
+                    loading={existingCompletionPhotosLoading}
+                    disabled={busy}
+                    onClick={() => selectPhoto(activeMediaKind)}
+                  />
+                ) : null}
             </section>
 
             <CalendarGroomingCompletionFields
@@ -3716,6 +3745,8 @@ function PhotoStatusDialog({
               serviceName={selectedServiceName}
               services={services}
               onServiceChange={handleServiceChange}
+              currentWeightKg={currentWeightKg}
+              onWeightChange={setCurrentWeightKg}
               disabled={busy}
               saveError={draft.saveError}
               onRetrySave={() => void draft.flushDraft()}
@@ -3726,6 +3757,7 @@ function PhotoStatusDialog({
               appointmentId={action.bookingId}
               details={draft.value}
               onDetailsChange={draft.setValue}
+              currentWeightKg={currentWeightKg}
               hasRegisteredPhotos={hasRegisteredPhotos}
               serviceName={selectedServiceName}
               disabled={busy}
@@ -4632,9 +4664,13 @@ export default function CalendarManagementScreen({
   }
 
   function requestPhotoStatusChange(booking: DailyBooking, nextStatus: "완료") {
+    const selectedPet = booking.petId
+      ? bootstrapData.pets.find((pet) => pet.id === booking.petId)
+      : null;
     setPhotoStatusAction({
       bookingId: booking.id,
       petName: booking.pet,
+      currentWeightKg: selectedPet?.weight ?? null,
       serviceId: booking.serviceId,
       serviceName: booking.service,
       staffName: booking.staffName || booking.staff || "담당 미지정",

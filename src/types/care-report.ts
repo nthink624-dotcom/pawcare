@@ -12,12 +12,12 @@ export const careReportObservationsSchema = z.object({
 });
 
 export const careReportDraftSchema = z.object({
-  oneLineSummary: z.string().trim().min(1).max(160),
+  oneLineSummary: z.string().trim().min(1).max(280),
   treatmentSummary: z.string().trim().min(1).max(800),
-  conditionSummary: z.string().trim().min(1).max(800),
-  groomingResponse: z.string().trim().min(1).max(500),
-  homeCareTips: z.array(z.string().trim().min(1).max(240)).min(1).max(4),
-  nextVisitGuide: z.string().trim().min(1).max(300),
+  conditionSummary: z.string().trim().max(800).default(""),
+  groomingResponse: z.string().trim().max(500).default(""),
+  homeCareTips: z.array(z.string().trim().min(1).max(240)).max(4).default([]),
+  nextVisitGuide: z.string().trim().max(300).default(""),
 });
 
 export const careReportGenerationInputSchema = z.object({
@@ -27,6 +27,7 @@ export const careReportGenerationInputSchema = z.object({
   voiceTranscript: z.string().trim().max(4000).default(""),
   currentDraft: careReportDraftSchema.optional(),
   photoConsent: z.boolean().default(false),
+  currentWeightKg: z.number().min(0.1).max(200).optional(),
 });
 
 export type CareReportObservations = z.infer<typeof careReportObservationsSchema>;

@@ -13,6 +13,13 @@ export function CustomerCareReportHistoryCard({
   confirmedAt: string | null | undefined;
   sentAt: string | null | undefined;
 }) {
+  const detailBlocks = [
+    ["오늘 진행한 미용", report.treatmentSummary],
+    ["오늘 확인한 상태", report.conditionSummary],
+    ["미용 중 반응", report.groomingResponse],
+    ["다음 방문 안내", report.nextVisitGuide],
+  ].filter((item): item is [string, string] => Boolean(item[1]?.trim()));
+
   return (
     <section className="rounded-[10px] border border-[#cfe0f2] bg-[#f5f9fe] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -27,18 +34,19 @@ export function CustomerCareReportHistoryCard({
           {sentAt ? "고객 발송 완료" : confirmedAt ? "오너 확인 완료" : "AI 초안"}
         </span>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <CareReportBlock title="오늘 진행한 미용" value={report.treatmentSummary} />
-        <CareReportBlock title="오늘 확인한 상태" value={report.conditionSummary} />
-        <CareReportBlock title="미용 중 반응" value={report.groomingResponse} />
-        <CareReportBlock title="다음 방문 안내" value={report.nextVisitGuide} />
-      </div>
-      <div className="mt-3 rounded-[8px] border border-[#d7e5f3] bg-white px-3.5 py-3">
-        <p className="text-[13px] font-semibold text-[#4c6682]">홈케어 팁</p>
-        <ul className="mt-2 space-y-1.5 text-[14px] leading-6 text-[#334155]">
-          {report.homeCareTips.map((tip) => <li key={tip}>· {tip}</li>)}
-        </ul>
-      </div>
+      {detailBlocks.length ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {detailBlocks.map(([title, value]) => <CareReportBlock key={title} title={title} value={value} />)}
+        </div>
+      ) : null}
+      {report.homeCareTips.length ? (
+        <div className="mt-3 rounded-[8px] border border-[#d7e5f3] bg-white px-3.5 py-3">
+          <p className="text-[13px] font-semibold text-[#4c6682]">홈케어 팁</p>
+          <ul className="mt-2 space-y-1.5 text-[14px] leading-6 text-[#334155]">
+            {report.homeCareTips.map((tip) => <li key={tip}>· {tip}</li>)}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

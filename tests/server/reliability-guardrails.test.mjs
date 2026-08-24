@@ -280,6 +280,23 @@ test("landing pricing stays transparent and sells saved time instead of a price 
   assert.doesNotMatch(landing, /티피보다.*(?:싸|저렴)/);
 });
 
+test("landing media ships with the deploy and booking previews do not depend on production demo data", () => {
+  const bookingCarousel = readProjectFile("src/components/landing/landing-booking-flow-carousel.tsx");
+  const bookingPreview = readProjectFile("src/app/demo/landing-booking/page.tsx");
+  const requiredImages = [
+    "public/images/landing/hero-groomer-missed-call-v3.png",
+    "public/images/landing/actual-customers.png",
+    "public/images/landing/section-new-booking-notification-v2.png",
+  ];
+
+  for (const imagePath of requiredImages) {
+    assert.equal(existsSync(new URL(`../../${imagePath}`, import.meta.url)), true, `${imagePath} must ship`);
+  }
+  assert.match(bookingCarousel, /\/demo\/landing-booking\?experience=/);
+  assert.doesNotMatch(bookingCarousel, /landingDemoShopId|\/entry\/\$\{|\/book\/\$\{/);
+  assert.doesNotMatch(bookingPreview, /getBootstrap|supabase|owner-demo/);
+});
+
 test("customer booking dates show four days and derive the nearest available date across the 60-day window", () => {
   const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
   const bookingFlow = readProjectFile("src/components/customer/customer-first-visit-claude-flow.tsx");

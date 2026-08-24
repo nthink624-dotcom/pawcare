@@ -5,12 +5,9 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 import { GalaxyPhoneMockup, LaptopMockup } from "@/components/landing/landing-ui";
-import { getLandingDemoShopId } from "@/lib/development-demo";
 
 const MOBILE_VIEWPORT_WIDTH = 430;
 const DESKTOP_VIEWPORT_WIDTH = 1440;
-
-const landingDemoShopId = getLandingDemoShopId();
 
 export type BookingSystemFocus = "overview" | "first" | "ai" | "customer-data" | "revisit";
 
@@ -131,10 +128,10 @@ export function CustomerBookingPhonePreview({
   const isAi = experience === "ai";
   const src =
     experience === "revisit"
-      ? `/book/${landingDemoShopId}?experience=revisit`
+      ? "/demo/landing-booking?experience=revisit"
       : isAi
-        ? `/book/${landingDemoShopId}?experience=first&step=3&serviceId=mongshop-service-bath-care`
-        : `/entry/${landingDemoShopId}?experience=first`;
+        ? "/demo/landing-booking?experience=ai"
+        : "/demo/landing-booking?experience=first";
   const title = experience === "revisit" ? "재방문 고객 예약" : isAi ? "AI 추천 시간 예약" : "첫 방문 고객 예약";
 
   return (
@@ -160,14 +157,14 @@ export function BookingFlowCarousel({
       id: "first",
       src:
         focus === "ai"
-          ? `/book/${landingDemoShopId}?experience=first&step=3&serviceId=mongshop-service-bath-care`
-          : `/entry/${landingDemoShopId}?experience=first`,
+          ? "/demo/landing-booking?experience=ai"
+          : "/demo/landing-booking?experience=first",
       title: focus === "ai" ? "AI 추천 시간" : "첫 방문 고객",
       description: focus === "ai" ? ["가능한 시간 중", "가장 자연스러운 시간 먼저"] : ["필요한 정보만 입력하고", "간편하게 예약 시작"],
     },
     {
       id: "revisit",
-      src: `/book/${landingDemoShopId}?experience=revisit`,
+      src: "/demo/landing-booking?experience=revisit",
       title: "재방문 고객",
       description: ["저장된 반려동물 정보로", "더 빠르게 예약"],
     },

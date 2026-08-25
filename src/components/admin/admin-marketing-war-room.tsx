@@ -12,10 +12,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { fetchApiJson } from "@/lib/api";
+import AdminMarketingKpiPanel from "@/components/admin/admin-marketing-kpi-panel";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import type { MarketingAgentStatus } from "@/types/marketing-agent";
+import type { MarketingKpiSnapshot } from "@/types/marketing-kpi";
 
 const REFRESH_INTERVAL_MS = 10_000;
+const KPI_REFRESH_INTERVAL_MS = 5 * 60_000;
 
 export default function AdminMarketingWarRoom({
   sessionLoginId,
@@ -25,6 +28,9 @@ export default function AdminMarketingWarRoom({
   const [status, setStatus] = useState<MarketingAgentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [kpis, setKpis] = useState<MarketingKpiSnapshot | null>(null);
+  const [kpiError, setKpiError] = useState<string | null>(null);
+  const [kpiLoading, setKpiLoading] = useState(true);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -50,6 +56,31 @@ export default function AdminMarketingWarRoom({
     const timer = window.setInterval(() => void loadStatus(), REFRESH_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [loadStatus]);
+
+  const loadKpis = useCallback(async () => {
+    try {
+      const nextKpis = await fetchApiJson<MarketingKpiSnapshot>(
+        "/api/admin/marketing/kpis?days=7",
+        { cache: "no-store" },
+      );
+      setKpis(nextKpis);
+      setKpiError(null);
+    } catch (loadError) {
+      setKpiError(
+        loadError instanceof Error
+          ? loadError.message
+          : "마케팅 운영 KPI를 확인하지 못했습니다.",
+      );
+    } finally {
+      setKpiLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadKpis();
+    const timer = window.setInterval(() => void loadKpis(), KPI_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [loadKpis]);
 
   const studioState = loading
     ? "확인 중"
@@ -132,6 +163,8 @@ export default function AdminMarketingWarRoom({
           />
         </section>
 
+        <AdminMarketingKpiPanel snapshot={kpis} error={kpiError} loading={kpiLoading} />
+
         <section className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
           <div className="rounded-[10px] border border-[#e2e8f0] bg-white p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -208,7 +241,7 @@ export default function AdminMarketingWarRoom({
         </section>
 
         <footer className="mt-3 rounded-[8px] border border-[#ead7b6] bg-[#fffbf3] px-4 py-3 text-[12px] leading-5 text-[#8a5c18]">
-          광고·메시지·게시·예산 변경 기능 없음 · 실제 KPI 미연결 · Production 데이터 변경 없음
+          광고·메시지·게시·예산 변경 기능 없음 · 운영 KPI 읽기 전용 연결 · 랜딩/CTA/UTM 계측 미연결 · Production 데이터 변경 없음
           {status?.checkedAt ? ` · 마지막 확인 ${formatCheckedAt(status.checkedAt)}` : ""}
         </footer>
       </div>

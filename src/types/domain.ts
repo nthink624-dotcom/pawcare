@@ -43,6 +43,7 @@ export type MediaKind =
   | "message_image"
   | "shop_profile"
   | "staff_profile"
+  | "price_guide_source"
   | "customer_shared"
   | "memo_attachment";
 export type MediaVisibility = "private" | "customer_shared" | "public";

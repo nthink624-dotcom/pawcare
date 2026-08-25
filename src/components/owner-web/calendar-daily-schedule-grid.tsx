@@ -8,7 +8,10 @@ import {
   getScheduleLaneActiveStaff,
   type ScheduleStaffLaneColumn,
 } from "@/components/owner-web/calendar-staff-lane-columns";
+import { CalendarStaffLaneHeader } from "@/components/owner-web/calendar-staff-lane-header";
+import { CalendarTimeRail, CalendarTimeRailHeader } from "@/components/owner-web/calendar-time-rail";
 import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
+import { getStaffChipTone } from "@/lib/staff-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { StaffScheduleOverride } from "@/types/domain";
 
@@ -121,17 +124,20 @@ function getBookingCardTone(booking: Pick<DailyBooking, "service">): BookingCard
 }
 
 function getBookingCardToneClass(tone: BookingCardTone) {
-  const toneClass = {
-    bath: "border-[#b9dfc5] bg-[#e6f4ea] hover:bg-[#dff0e4]",
-    grooming: "border-[#b9d6f5] bg-[#e5f0ff] hover:bg-[#dceaff]",
-    hygiene: "border-[#d5c2ef] bg-[#eee7fa] hover:bg-[#e8dff7]",
-    care: "border-[#f0c8a8] bg-[#fce8d8] hover:bg-[#fae0cb]",
-    neutral: "border-[#d4dce6] bg-[#f1f4f7] hover:bg-[#eaf0f5]",
-  }[tone];
+  void tone;
   return cn(
-    "border shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition-[background-color,box-shadow] hover:shadow-[0_5px_14px_rgba(15,23,42,0.07)]",
-    toneClass,
+    "border border-l-[3px] border-[#dbe3ec] border-l-[#b9c3cf] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition-[background-color,box-shadow,border-color] hover:border-[#c8d4e1] hover:bg-[#fbfdff] hover:shadow-[0_5px_14px_rgba(15,23,42,0.07)]",
   );
+}
+
+function getBookingStatusEdgeClass(status: string) {
+  if (status === "확정") return "border-l-[#1f9d55]";
+  if (status === "진행 중") return "border-l-[#2563eb]";
+  if (status === "픽업 준비") return "border-l-[#7c3aed]";
+  if (status === "완료") return "border-l-[#64748b]";
+  if (status.includes("변경") || status === "방문 확인 필요" || status === "완료 확인 필요") return "border-l-[#b98121]";
+  if (status.includes("취소") || status.includes("거절") || status.includes("노쇼")) return "border-l-[#a04455]";
+  return "border-l-[#b9c3cf]";
 }
 
 function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, currentHour: number) {
@@ -362,6 +368,10 @@ export function DailyScheduleGrid({
       ? "0 0 25%"
       : `0 0 calc(100% / ${columnCount})`;
   const scheduleTrackStyle = scheduleTrackWidth ? { width: scheduleTrackWidth, minWidth: scheduleTrackWidth } : undefined;
+  const selectedTimeRailStaff = selectedStaffKey
+    ? scheduleLaneColumns.flatMap((laneColumn) => laneColumn.segments).find((item) => item.key === selectedStaffKey)
+    : null;
+  const timeRailTone = getStaffChipTone(selectedTimeRailStaff?.key, selectedTimeRailStaff?.chipColorIndex);
   const displayedVisibleBookings = resizingBooking
     ? visibleBookings.map((booking) =>
         booking.id === resizingBooking.bookingId ? { ...booking, duration: resizingBooking.nextDuration } : booking,
@@ -617,67 +627,45 @@ export function DailyScheduleGrid({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-white">
+    <div className="flex min-h-0 flex-1 flex-col bg-[#f8fafc] p-2">
       <style>{`
         .pm-schedule-y-scroll {
-          scrollbar-width: thin;
-          scrollbar-color: #c4ceda transparent;
+          scrollbar-width: none;
         }
         .pm-schedule-y-scroll::-webkit-scrollbar {
-          width: 6px;
-        }
-        .pm-schedule-y-scroll::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .pm-schedule-y-scroll::-webkit-scrollbar-thumb {
-          border-radius: 999px;
-          background: #c4ceda;
+          display: none;
+          width: 0;
         }
       `}</style>
-      <div className="flex shrink-0 bg-white">
-          <div className="flex h-[54px] w-[64px] shrink-0 items-center justify-end border-b border-r border-[#e9eef4] bg-[#fbfcfe] pr-3 text-[11px] font-medium tracking-[0.04em] text-[#94a3b8]">
-            시간
-          </div>
+      <div className="flex shrink-0 overflow-hidden rounded-t-[14px] border border-[#e3eaf2] bg-white">
+        <CalendarTimeRailHeader tone={timeRailTone} />
         <div
           ref={headerScrollerRef}
           onScroll={() => syncHorizontalScroll("header")}
           className="no-scrollbar min-w-0 flex-1 overflow-x-auto"
         >
           <div className="flex min-w-full gap-0 px-0 pb-0 pt-0 pr-0" style={scheduleTrackStyle}>
-            {scheduleLaneColumns.map((laneColumn, laneIndex) => {
+            {scheduleLaneColumns.map((laneColumn) => {
               const primaryStaff = laneColumn.segments[0];
               const laneBookings = displayedVisibleBookings.filter((booking) => laneColumn.staffKeys.includes(booking.staffKey));
               const selectedStaff = Boolean(selectedStaffKey && laneColumn.staffKeys.includes(selectedStaffKey));
-              const staffNameToneClass = selectedStaff ? "text-[#1677ff]" : "text-[#334155]";
 
               return (
-                <section
+                <CalendarStaffLaneHeader
                   key={laneColumn.key}
-                  onClick={() => {
+                  name={laneColumn.name}
+                  staffKey={primaryStaff?.key ?? laneColumn.key}
+                  chipColorIndex={primaryStaff?.chipColorIndex}
+                  profileImageUrl={primaryStaff?.profileImageUrl}
+                  startLabel={primaryStaff ? formatHourLabel(primaryStaff.start) : undefined}
+                  endLabel={primaryStaff ? formatHourLabel(primaryStaff.end) : undefined}
+                  bookingCount={laneBookings.length}
+                  selected={selectedStaff}
+                  flexBasis={columnFlexBasis}
+                  onSelect={() => {
                     if (primaryStaff) onSelectStaff(primaryStaff.key);
                   }}
-                  className={cn(
-                    "h-[54px] min-w-[136px] cursor-pointer border border-t-0 border-l-0 border-[#f1f4f7] bg-white px-3 py-2 transition hover:bg-[#f8fbff]",
-                    selectedStaff && "border-b-[#cbd1d8]",
-                  )}
-                  style={{ flex: columnFlexBasis }}
-                >
-                  <div className="flex h-full items-center pl-1">
-                    <div className="min-w-0">
-                      <p
-                        className={cn("min-w-0 truncate text-[14px] font-semibold leading-[18px]", staffNameToneClass)}
-                      >
-                        {laneColumn.name}
-                      </p>
-                      <p
-                        className="min-w-0 truncate text-[11px] leading-[15px]"
-                        style={{ color: "#64748b" }}
-                      >
-                        {primaryStaff?.role ? `${primaryStaff.role} · ` : ""}예약 {laneBookings.length}건
-                      </p>
-                    </div>
-                  </div>
-                </section>
+                />
               );
             })}
           </div>
@@ -691,37 +679,22 @@ export function DailyScheduleGrid({
         onPointerUp={stopBoardPan}
         onPointerCancel={stopBoardPan}
         className={cn(
-          "pm-schedule-y-scroll min-h-0 flex-1 overflow-y-auto select-none",
+          "pm-schedule-y-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-b-[14px] border border-t-0 border-[#e3eaf2] bg-[#fbfcfe] select-none",
           boardPanning && "cursor-grabbing snap-none",
           !boardPanning && scrollable && "cursor-grab",
         )}
       >
         <div className="flex">
-          <div className="w-[64px] shrink-0 border border-l-0 border-t-0 border-[#e9eef4] bg-[#fbfcfe]">
-            <div className="relative" style={{ height: scheduleBodyHeight }}>
-              {expandedTimeHours.map((hour) => (
-                <div
-                  key={hour}
-                  className="absolute right-0 z-10 flex items-center text-[11px] font-medium leading-none text-[#7b8ca1]"
-                  style={{ top: getTimeRailLabelTop(hour), transform: "translateY(-50%)" }}
-                >
-                  <span className="bg-[#fbfcfe] pr-2">{formatHourLabel(hour)}</span>
-                  <span className="h-px w-2 bg-[#dbe4ef]" aria-hidden="true" />
-                </div>
-              ))}
-              {showCurrentTime ? (
-                <div
-                  className="absolute right-0 z-30 flex items-center"
-                  style={{ top: Math.max(11, Math.min(currentTimeTop, scheduleBodyHeight - 11)), transform: "translateY(-50%)" }}
-                  aria-label={`현재 시간 ${formatHourLabel(currentHour)}`}
-                >
-                  <span className="rounded-l-full bg-[#2563eb] px-2 py-1 text-[10px] font-semibold leading-none text-white shadow-sm">
-                    {formatHourLabel(currentHour)}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          </div>
+          <CalendarTimeRail
+            hours={expandedTimeHours}
+            height={scheduleBodyHeight}
+            getLabelTop={getTimeRailLabelTop}
+            formatHourLabel={formatHourLabel}
+            showCurrentTime={showCurrentTime}
+            currentTimeTop={currentTimeTop}
+            currentHour={currentHour}
+            tone={timeRailTone}
+          />
 
           <div
             ref={bodyScrollerRef}
@@ -757,7 +730,7 @@ export function DailyScheduleGrid({
                     onDragOver={handleColumnDragOver}
                     onDrop={(event) => handleColumnDrop(event, laneColumn)}
                     className={cn(
-                      "min-w-0 cursor-pointer border border-l-0 border-t-0 border-[#f1f4f7] bg-white p-0 transition",
+                      "min-w-0 cursor-pointer border border-l-0 border-t-0 border-[#edf1f5] bg-[#fbfcfe] p-0 transition",
                        draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
                     )}
                     style={{ flex: columnFlexBasis }}
@@ -855,6 +828,7 @@ export function DailyScheduleGrid({
                                 draggingBookingId === booking.id && "opacity-70 ring-1 ring-[#93c5fd]",
                                 expandedMicro && "z-50 shadow-none",
                                 getBookingCardToneClass(cardTone),
+                                getBookingStatusEdgeClass(timedStatus),
                               )}
                               style={{
                                 ...bookingLayoutStyle,

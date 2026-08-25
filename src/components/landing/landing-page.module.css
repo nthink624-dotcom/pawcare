@@ -1,0 +1,16 @@
+.scrollTopButton {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 45;
+  display: flex;
+  width: 44px;
+  height: 44px;
+}
+
+@media (max-width: 767px) {
+  .scrollTopButton {
+    right: 16px;
+    bottom: 76px;
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useMemo } from "react";
+import { forwardRef, useMemo, useState } from "react";
 
 import { matchesKoreanSearch } from "@/lib/korean-text-search";
 
@@ -21,13 +21,16 @@ const CustomerBreedAutocomplete = forwardRef<HTMLInputElement, {
   value: string;
   onChange: (value: string) => void;
 }>(function CustomerBreedAutocomplete({ value, onChange }, ref) {
+  const [showPopularBreeds, setShowPopularBreeds] = useState(false);
   const trimmedQuery = value.trim();
   const suggestions = useMemo(
     () =>
       (trimmedQuery
         ? CUSTOMER_BREED_OPTIONS.filter((breed) => matchesKoreanSearch(breed, trimmedQuery)).slice(0, SEARCH_SUGGESTION_COUNT)
-        : CUSTOMER_BREED_OPTIONS.slice(0, INITIAL_SUGGESTION_COUNT)),
-    [trimmedQuery],
+        : showPopularBreeds
+          ? CUSTOMER_BREED_OPTIONS.slice(0, INITIAL_SUGGESTION_COUNT)
+          : []),
+    [showPopularBreeds, trimmedQuery],
   );
 
   return (
@@ -45,6 +48,17 @@ const CustomerBreedAutocomplete = forwardRef<HTMLInputElement, {
         aria-controls="customer-breed-suggestions"
         aria-expanded={suggestions.length > 0}
       />
+      {!trimmedQuery ? (
+        <button
+          className="breed-more-toggle"
+          type="button"
+          aria-expanded={showPopularBreeds}
+          aria-controls="customer-breed-suggestions"
+          onClick={() => setShowPopularBreeds((current) => !current)}
+        >
+          {showPopularBreeds ? "접기" : "더보기"}
+        </button>
+      ) : null}
       {suggestions.length > 0 ? (
         <div id="customer-breed-suggestions" className="chips breed-suggestions" role="listbox" aria-label="추천 품종">
           {suggestions.map((breed) => {

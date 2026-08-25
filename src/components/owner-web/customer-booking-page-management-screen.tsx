@@ -9,6 +9,7 @@ import { fetchApiJsonWithAuth } from "@/lib/api";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 import {
   buildCustomerServiceSourceOptions,
+  formatCustomerServiceDuration,
   normalizeCustomerServiceOverrides,
   type CustomerServiceDisplayOverrides,
   type CustomerServiceSourceOption,
@@ -754,7 +755,7 @@ export default function CustomerBookingPageManagementScreen({
                     </div>
                     <div className="relative">
                       <div className="flex h-10 w-full items-center justify-end rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[16px] text-[#334155]">
-                        {row.option.durationMinutes}분
+                        {formatCustomerServiceDuration(row.option)}
                       </div>
                     </div>
                     <div className="relative">

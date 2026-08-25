@@ -1,7 +1,7 @@
 "use client";
 
 import { Camera, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { CalendarCareReportCompletionPanel } from "@/components/owner-web/calendar-care-report-completion-panel";
 import { CalendarCareReportPhotoCard } from "@/components/owner-web/calendar-care-report-photo-card";
@@ -81,24 +81,48 @@ const previewServices = [
   },
 ];
 
-export function OwnerCareReportCompletionPreviewClient() {
+type OwnerCareReportCompletionPreviewClientProps = {
+  readOnly?: boolean;
+};
+
+export function OwnerCareReportCompletionPreviewClient({
+  readOnly = false,
+}: OwnerCareReportCompletionPreviewClientProps) {
   const [details, setDetails] = useState(initialDetails);
   const [, setCareReportBusy] = useState(false);
   const [photoRegistrationEnabled, setPhotoRegistrationEnabled] = useState(true);
   const [activePhoto, setActivePhoto] = useState<"before" | "after">("after");
   const [previewServiceId, setPreviewServiceId] = useState("preview-service-full");
   const [currentWeightKg, setCurrentWeightKg] = useState("10.3");
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const dragStateRef = useRef<{ pointerId: number; startY: number; scrollTop: number } | null>(null);
   const previewServiceName =
     previewServices.find((service) => service.id === previewServiceId)?.name ?? "전체미용";
 
   return (
-    <main className="min-h-screen bg-[#f3f5f7] px-2 py-2 sm:px-6 sm:py-3">
-      <style jsx global>{`nextjs-portal { display: none !important; }`}</style>
-      <div className="pointer-events-none fixed inset-0 opacity-30 [background-image:linear-gradient(#e1e5ea_1px,transparent_1px),linear-gradient(90deg,#e1e5ea_1px,transparent_1px)] [background-size:72px_72px]" />
+    <main className={readOnly ? "min-h-screen bg-white" : "min-h-screen bg-[#f3f5f7] px-2 py-2 sm:px-6 sm:py-3"}>
+      <style jsx global>{`
+        nextjs-portal { display: none !important; }
+        ${readOnly ? `
+          html, body {
+            height: 100%;
+            overflow: hidden !important;
+            scrollbar-width: none !important;
+            -ms-overflow-style: none;
+          }
+          html::-webkit-scrollbar,
+          body::-webkit-scrollbar {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+          }
+        ` : ""}
+      `}</style>
+      {!readOnly ? <div className="pointer-events-none fixed inset-0 opacity-30 [background-image:linear-gradient(#e1e5ea_1px,transparent_1px),linear-gradient(90deg,#e1e5ea_1px,transparent_1px)] [background-size:72px_72px]" /> : null}
 
-      <div className="relative mx-auto w-full max-w-[520px]">
-        <section className="overflow-hidden rounded-[22px] border border-[#d8dee6] bg-white shadow-[0_24px_70px_rgba(20,39,63,0.13)]">
-          <header className="flex items-center justify-between gap-5 border-b border-[#e5e8ec] bg-white px-4 py-2.5">
+      <div className={`relative mx-auto w-full max-w-[520px] ${readOnly ? "h-screen" : ""}`}>
+        <section className={`relative flex flex-col overflow-hidden rounded-[22px] border border-[#d8dee6] bg-white ${readOnly ? "h-screen shadow-none" : "max-h-[calc(100vh-16px)] shadow-[0_24px_70px_rgba(20,39,63,0.13)]"}`}>
+          <header className={`z-20 flex shrink-0 items-center justify-between gap-5 rounded-t-[22px] border-b border-[#e5e8ec] bg-white px-4 py-2.5 ${readOnly ? "pr-0" : ""}`}>
             <div className="flex min-w-0 items-center gap-3.5">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-[#edf4ff] text-[#2f6fd6]">
                 <Sparkles className="h-5 w-5" />
@@ -113,7 +137,7 @@ export function OwnerCareReportCompletionPreviewClient() {
             </button>
           </header>
 
-          <div className="space-y-2 bg-white p-3">
+          <div ref={scrollContainerRef} className={`no-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-white p-3 ${readOnly ? "pr-0" : ""}`}>
             <section className="space-y-2">
                 <div className="flex items-center gap-3">
                   <p className={`${CARE_REPORT_TYPOGRAPHY.sectionTitle} flex shrink-0 items-center gap-2 text-[#1b2d43]`}>
@@ -179,6 +203,36 @@ export function OwnerCareReportCompletionPreviewClient() {
               onPendingChange={setCareReportBusy}
             />
           </div>
+          {readOnly ? (
+            <div
+              className="absolute inset-0 z-50 cursor-grab touch-none active:cursor-grabbing"
+              aria-label="케어리포트 작성 화면 미리보기. 위아래로 스크롤할 수 있습니다"
+              onWheel={(event) => {
+                event.preventDefault();
+                scrollContainerRef.current?.scrollBy({ top: event.deltaY });
+              }}
+              onPointerDown={(event) => {
+                dragStateRef.current = {
+                  pointerId: event.pointerId,
+                  startY: event.clientY,
+                  scrollTop: scrollContainerRef.current?.scrollTop ?? 0,
+                };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                const dragState = dragStateRef.current;
+                if (!dragState || dragState.pointerId !== event.pointerId || !scrollContainerRef.current) return;
+                scrollContainerRef.current.scrollTop = dragState.scrollTop + dragState.startY - event.clientY;
+              }}
+              onPointerUp={(event) => {
+                if (dragStateRef.current?.pointerId === event.pointerId) dragStateRef.current = null;
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }}
+              onPointerCancel={() => {
+                dragStateRef.current = null;
+              }}
+            />
+          ) : null}
         </section>
       </div>
     </main>

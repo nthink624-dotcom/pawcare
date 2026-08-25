@@ -24,6 +24,7 @@ const DEV_OWNER = {
 };
 
 function mapDevSetupError(message: string | undefined) {
+  console.error("[dev-create-owner]", message ?? "unknown setup error");
   const normalized = (message ?? "").toLowerCase();
 
   if (

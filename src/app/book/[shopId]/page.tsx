@@ -21,6 +21,7 @@ export default async function BookPage({
   const requestedAccessToken = resolvedSearchParams?.t || resolvedSearchParams?.token;
   const encodedShopId = encodeURIComponent(shopId);
   const landingExperience = resolvedSearchParams?.experience;
+  const isStableLandingDemoShop = shopId === "demo-shop" || isDevelopmentDemoShopId(shopId);
 
   if (requestedMode === "manage") {
     const manageUrl = new URL(`/book/${encodedShopId}/manage`, "http://localhost");
@@ -72,7 +73,7 @@ export default async function BookPage({
 
   const initialBookingProfile =
     tokenBookingProfile ??
-    (isDevelopmentDemoShopId(shopId) && landingExperience === "revisit"
+    (isStableLandingDemoShop && landingExperience === "revisit"
       ? {
           ownerName: "김다은",
           phone: "010-0000-0000",
@@ -97,7 +98,7 @@ export default async function BookPage({
       initialFirstVisitStep={initialFirstVisitStep}
       entryHref={landingExperience === "first" ? `/entry/${encodedShopId}?experience=first` : `/entry/${encodedShopId}`}
       initialBookingProfile={initialBookingProfile}
-      disableStoredProfile={Boolean(tokenBookingProfile) || (isDevelopmentDemoShopId(shopId) && (landingExperience === "first" || landingExperience === "revisit"))}
+      disableStoredProfile={Boolean(tokenBookingProfile) || (isStableLandingDemoShop && (landingExperience === "first" || landingExperience === "revisit"))}
     />
   );
 }

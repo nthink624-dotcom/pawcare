@@ -2,7 +2,7 @@
 
 import { Check } from "lucide-react";
 
-import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
+import { formatCustomerServiceDuration, type CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { formatServicePrice } from "@/lib/utils";
 
 export default function CustomerEntryServicePicker({
@@ -33,7 +33,7 @@ export default function CustomerEntryServicePicker({
                 {selected ? <Check size={13} strokeWidth={2.8} /> : null}
               </span>
               <span className="n">{service.name}</span>
-              <span className="d">{service.durationMinutes}분</span>
+              <span className="d">{formatCustomerServiceDuration(service)}</span>
               <span className="p">{formatServicePrice(service.price, service.priceType)}</span>
             </button>
           );

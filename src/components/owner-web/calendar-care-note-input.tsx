@@ -126,6 +126,7 @@ export function CalendarCareNoteInput({
   return (
     <div className="overflow-hidden rounded-[14px] border border-[#d7dde4] bg-white shadow-[0_7px_20px_rgba(20,39,63,0.06)] transition focus-within:border-[#8c99a7] focus-within:shadow-[0_9px_24px_rgba(20,39,63,0.10)]">
       <textarea
+        data-modal-wheel-scope="self"
         value={value}
         onChange={(event) => onChange(event.target.value.slice(0, 2000))}
         onKeyDown={(event) => {
@@ -135,8 +136,8 @@ export function CalendarCareNoteInput({
         }}
         disabled={disabled}
         maxLength={2000}
-        placeholder="케어 내용을 입력하거나 말해 주세요."
-        className={`${OWNER_TYPOGRAPHY.body} h-[44px] max-h-[44px] w-full resize-none overflow-y-auto border-0 bg-transparent px-4 pb-1 pt-2 text-[#263547] outline-none placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
+        placeholder={"오늘 진행한 미용 · 아이 상태 · 집에서 관리할 점\n예) 발톱과 발바닥 털을 정리했어요. 피부가 조금 건조해 보여 보습 관리를 부탁드려요."}
+        className={`${OWNER_TYPOGRAPHY.body} h-[58px] max-h-[58px] w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent px-4 pb-1 pt-2 text-[#263547] outline-none placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
       />
 
       {speechError ? (

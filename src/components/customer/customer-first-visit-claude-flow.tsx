@@ -4,7 +4,7 @@ import { Check, ChevronLeft, UserRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import CustomerBreedAutocomplete from "@/components/customer/customer-breed-autocomplete";
-import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
+import { formatCustomerServiceDuration, type CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { getStaffCustomerName } from "@/lib/staff-display";
 import { formatServicePrice, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, Service, Shop } from "@/types/domain";
@@ -51,14 +51,6 @@ type SavedBookingPet = {
 };
 
 const CUSTOM_SERVICE_ID = "__custom__";
-function formatDurationRange(minutes: number) {
-  if (!Number.isFinite(minutes) || minutes <= 0) return "상담 후 안내";
-  if (minutes <= 30) return "30분~60분";
-  if (minutes <= 60) return "60분~90분";
-  if (minutes <= 90) return "90분~120분";
-  return `${minutes}분~${minutes + 30}분`;
-}
-
 function formatDateChipTitle(date: DateOption, previousDate?: DateOption) {
   if (date.label === "오늘") return "오늘";
   if (previousDate?.label === "오늘") return "내일";
@@ -176,6 +168,7 @@ function ClaudeStyles() {
       .pm-proto .chips{display:flex;flex-wrap:wrap;gap:7px}
       .pm-proto .breedchip{border:1px solid var(--border);background:var(--card);border-radius:999px;color:var(--textMid);font-size:15px;font-weight:500;padding:7px 10px}
       .pm-proto .breedchip.sel{border-color:var(--primary);background:#fffaf8;color:var(--primaryDk)}
+      .pm-proto .breed-more-toggle{align-self:flex-start;border:0;background:transparent;padding:2px 2px 0;color:var(--primaryDk);font-size:14px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
       .pm-proto .breed-search .breed-suggestions{margin-top:2px}
       .pm-proto .breed-search .breed-direct-note{font-size:13px;line-height:1.45;color:var(--textMid);padding:2px 2px 0}
       .pm-proto .staffstrip{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 16px 4px 0;scroll-snap-type:x proximity;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
@@ -479,7 +472,7 @@ export default function CustomerFirstVisitClaudeFlow({
                   <span className="radio" />
                   <span className="info">
                     <span className="n">{service.displayName}</span>
-                    <span className="d">{formatDurationRange(service.durationMinutes)}</span>
+                    <span className="d">{formatCustomerServiceDuration(service)}</span>
                   </span>
                   <span className="price">{formatServicePrice(service.price, service.priceType)}</span>
                 </button>

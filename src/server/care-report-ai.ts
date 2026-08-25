@@ -73,7 +73,7 @@ export function buildCareReportPrompt(context: CareReportContext) {
       "의료 진단, 질환 단정, 치료 지시를 하지 마세요.",
       "건강 관련 표현은 '관찰됨', '예민해 보임', '보호자가 확인해 주세요' 수준으로만 작성하세요.",
       "따뜻하지만 과장되지 않은 존댓말을 사용하고, 같은 내용을 반복하지 마세요.",
-      "oneLineSummary는 자연스러운 핵심 2~3문장과 280자 이내로 작성하세요. 오너 입력이 있으면 관찰·조치·반응을 빠짐없이 보존해 문장의 중심으로 삼으세요.",
+      "oneLineSummary는 자연스러운 핵심 2~3문장과 400자 이내로 작성하세요. 오너 입력이 있으면 관찰·조치·반응을 빠짐없이 보존해 문장의 중심으로 삼으세요.",
       "서비스, 작업 시간, 몸무게, 다음 방문일을 oneLineSummary 한곳에 억지로 몰아넣지 마세요. 각각 지정된 출력 항목과 제품 화면에 배치됩니다.",
       "오너 입력이 비어 있으면 확인 가능한 서비스 완료 사실만 사용한 짧고 안전한 문장을 작성하세요.",
       "상태, 반응, 홈케어, 다음 방문 안내는 근거가 있을 때만 작성하세요. 근거가 없으면 '기록 없음', '별도 안내 없음' 같은 문구를 만들지 말고 빈 문자열 또는 빈 배열로 반환하세요.",
@@ -92,7 +92,7 @@ export function buildCareReportPrompt(context: CareReportContext) {
       },
       extractedOwnerObservations: context.observations,
       output: {
-        oneLineSummary: "오너 입력을 중심으로 자연스럽게 다듬은 핵심 2~3문장. 최대 280자",
+        oneLineSummary: "오너 입력을 중심으로 자연스럽게 다듬은 핵심 2~3문장. 최대 400자",
         treatmentSummary: "서비스와 실제 작업 시간만 사용. 제품이 검증된 값으로 최종 보정",
         conditionSummary: "오너가 실제로 남긴 상태만 사용. 근거가 없으면 빈 문자열",
         groomingResponse: "오너가 실제로 남긴 반응만 사용. 근거가 없으면 빈 문자열",

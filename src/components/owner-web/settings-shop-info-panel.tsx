@@ -4,7 +4,11 @@ import { Camera, Info, LoaderCircle, Save, Scissors, Settings2, Store, Trash2, U
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
-import { createOwnerStaffProfileImageFromFile } from "@/lib/media/owner-media-client";
+import {
+  createOwnerStaffProfileImageFromFile,
+  getOwnerMediaSignedUrls,
+} from "@/lib/media/owner-media-client";
+import { mergeResolvedProfileImageUrls } from "@/lib/media/profile-image-collection";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 import { cn } from "@/lib/utils";
 import type { BootstrapStaffMember, OwnerProfile, Service, Shop } from "@/types/domain";
@@ -51,8 +55,6 @@ type StaffProfileDraft = {
   profileMessage: string;
 };
 
-const MAX_STAFF_PROFILE_IMAGES = 3;
-
 function rowValue(rows: ShopInfoSettingRow[], rowId: string) {
   return String(rows.find((row) => row.id === rowId)?.value ?? "");
 }
@@ -74,8 +76,7 @@ function normalizeStaffProfileImages(images: unknown, fallback = "") {
   const normalized = (Array.isArray(images) ? images : [])
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, MAX_STAFF_PROFILE_IMAGES);
+    .filter(Boolean);
   const fallbackUrl = fallback.trim();
   return normalized.length > 0 ? normalized : fallbackUrl ? [fallbackUrl] : [];
 }
@@ -480,23 +481,18 @@ export default function ShopInfoSettingsPanel({
   async function uploadStaffProfileImageFromFile(staffId: string, file: File | undefined) {
     if (!file || !editable || !shop?.id) return;
     const currentDraft = staffProfileDrafts[staffId];
-    const currentImages = currentDraft?.profileImageUrls ?? [];
-    if (currentImages.length >= MAX_STAFF_PROFILE_IMAGES) {
-      setStaffProfileFeedback("프로필 사진은 최대 3장까지 등록할 수 있습니다.");
-      return;
-    }
 
     setSavingStaffProfileId(staffId);
     setStaffProfileFeedback("");
     try {
       const uploaded = await createOwnerStaffProfileImageFromFile({ shopId: shop.id, staffId }, file);
-      updateStaffProfileDraft(staffId, {
-        profileImageUrls: [...currentImages, uploaded.signedUrl].slice(0, MAX_STAFF_PROFILE_IMAGES),
-        profileImageAssetIds: [...(currentDraft?.profileImageAssetIds ?? []), uploaded.mediaAsset.id].slice(
-          0,
-          MAX_STAFF_PROFILE_IMAGES,
-        ),
-      });
+      const nextDraft: StaffProfileDraft = {
+        profileImageUrls: [uploaded.signedUrl],
+        profileImageAssetIds: [uploaded.mediaAsset.id],
+        profileMessage: currentDraft?.profileMessage ?? "",
+      };
+      updateStaffProfileDraft(staffId, nextDraft);
+      await persistStaffProfile(staffId, nextDraft, "프로필 사진을 저장했습니다.");
     } catch (error) {
       setStaffProfileFeedback(error instanceof Error ? error.message : "프로필 사진을 업로드하지 못했습니다.");
     } finally {
@@ -504,13 +500,26 @@ export default function ShopInfoSettingsPanel({
     }
   }
 
-  function removeStaffProfileImage(staffId: string, index: number) {
-    const draft = staffProfileDrafts[staffId];
-    if (!draft || !editable) return;
-    updateStaffProfileDraft(staffId, {
-      profileImageUrls: draft.profileImageUrls.filter((_, itemIndex) => itemIndex !== index),
-      profileImageAssetIds: draft.profileImageAssetIds.filter((_, itemIndex) => itemIndex !== index),
-    });
+  async function persistStaffProfile(staffId: string, draft: StaffProfileDraft, successMessage: string) {
+    if (!draft || !onStaffMembersChange) return;
+
+    const nextStaffMembers = staffMembers.map((staffMember) =>
+      staffMember.id === staffId
+        ? {
+            ...staffMember,
+            profileImageUrl: draft.profileImageUrls[0]?.trim() ?? "",
+            profileImageUrls: draft.profileImageUrls
+              .map((item) => item.trim())
+              .filter(Boolean),
+            profileImageAssetIds: draft.profileImageAssetIds
+              .map((item) => item.trim())
+              .filter(Boolean),
+            profileMessage: draft.profileMessage.trim(),
+          }
+        : staffMember,
+    );
+    await onStaffMembersChange(nextStaffMembers);
+    setStaffProfileFeedback(successMessage);
   }
 
   async function saveStaffProfile(staffId: string) {
@@ -520,25 +529,7 @@ export default function ShopInfoSettingsPanel({
     setSavingStaffProfileId(staffId);
     setStaffProfileFeedback("");
     try {
-      const nextStaffMembers = staffMembers.map((staffMember) =>
-        staffMember.id === staffId
-          ? {
-              ...staffMember,
-              profileImageUrl: draft.profileImageUrls[0]?.trim() ?? "",
-              profileImageUrls: draft.profileImageUrls
-                .map((item) => item.trim())
-                .filter(Boolean)
-                .slice(0, MAX_STAFF_PROFILE_IMAGES),
-              profileImageAssetIds: draft.profileImageAssetIds
-                .map((item) => item.trim())
-                .filter(Boolean)
-                .slice(0, MAX_STAFF_PROFILE_IMAGES),
-              profileMessage: draft.profileMessage.trim(),
-            }
-          : staffMember,
-      );
-      await onStaffMembersChange(nextStaffMembers);
-      setStaffProfileFeedback("프로필을 저장했습니다.");
+      await persistStaffProfile(staffId, draft, "프로필을 저장했습니다.");
     } catch (error) {
       setStaffProfileFeedback(error instanceof Error ? error.message : "직원 프로필을 저장하지 못했습니다.");
     } finally {
@@ -560,8 +551,61 @@ export default function ShopInfoSettingsPanel({
   }, [carouselProfileImages.length]);
 
   useEffect(() => {
-    setStaffProfileDrafts(buildStaffProfileDrafts(staffMembers));
-  }, [staffMembers]);
+    let cancelled = false;
+    const initialDrafts = buildStaffProfileDrafts(staffMembers);
+    setStaffProfileDrafts(initialDrafts);
+
+    if (!shop?.id) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const mediaAssetIds = Array.from(
+      new Set(
+        staffMembers.flatMap((staffMember) =>
+          normalizeStaffProfileImages(staffMember.profileImageAssetIds),
+        ),
+      ),
+    );
+    if (mediaAssetIds.length === 0) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void getOwnerMediaSignedUrls(shop.id, mediaAssetIds, "original")
+      .then((resolvedItems) => {
+        if (cancelled) return;
+        setStaffProfileDrafts((current) => {
+          const next = { ...current };
+          for (const staffMember of staffMembers) {
+            const draft = current[staffMember.id] ?? initialDrafts[staffMember.id];
+            if (!draft) continue;
+            const resolved = mergeResolvedProfileImageUrls({
+              currentImageUrls: draft.profileImageUrls,
+              currentMediaAssetIds: draft.profileImageAssetIds,
+              resolvedItems,
+              maxCount: Number.MAX_SAFE_INTEGER,
+            });
+            next[staffMember.id] = {
+              ...draft,
+              profileImageUrls: resolved.imageUrls,
+              profileImageAssetIds: resolved.mediaAssetIds,
+            };
+          }
+          return next;
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setStaffProfileFeedback(error instanceof Error ? error.message : "프로필 사진을 불러오지 못했습니다.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shop?.id, staffMembers]);
 
   useEffect(() => {
     const scrollContainer = settingsScrollRef.current;
@@ -948,11 +992,11 @@ export default function ShopInfoSettingsPanel({
 
                       return (
                         <div key={staffMember.id} className="rounded-[14px] border border-[#e1e5ec] bg-[#fbfcfd] p-4">
-                          <div className="grid gap-4 lg:grid-cols-[132px_minmax(0,1fr)]">
-                            <div className="grid gap-3">
+                          <div className="grid gap-4 lg:grid-cols-[148px_minmax(0,1fr)]">
+                            <div>
                               <div className="flex justify-center lg:justify-start">
-                                <label className="group relative flex h-[172px] w-[128px] cursor-pointer flex-col items-center justify-center rounded-[14px] border border-[#dbe2ea] bg-white px-3 py-4 text-center transition hover:border-[#9bb8f4] hover:bg-[#f8fafc]">
-                                  <span className="relative flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-full bg-[#f6f8fb] text-[#64748b]">
+                                <label className="group relative flex h-[196px] w-[144px] cursor-pointer flex-col items-center justify-center rounded-[14px] border border-[#dbe2ea] bg-white px-3 py-4 text-center transition hover:border-[#9bb8f4] hover:bg-[#f8fafc]">
+                                  <span className="relative flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full bg-[#f6f8fb] text-[#64748b]">
                                     {draft.profileImageUrls[0] ? (
                                       <img src={draft.profileImageUrls[0]} alt={`${visibleName} 프로필`} className="h-full w-full object-cover" />
                                     ) : (
@@ -971,8 +1015,8 @@ export default function ShopInfoSettingsPanel({
                                     type="file"
                                     accept="image/*"
                                     className="sr-only"
-                                    disabled={!editable || isSaving || draft.profileImageUrls.length >= MAX_STAFF_PROFILE_IMAGES}
-                                    aria-label={`${visibleName} 프로필 사진 추가`}
+                                    disabled={!editable || isSaving}
+                                    aria-label={`${visibleName} 프로필 사진 변경`}
                                     onChange={(event) => {
                                       void uploadStaffProfileImageFromFile(staffMember.id, event.target.files?.[0]);
                                       event.currentTarget.value = "";
@@ -980,50 +1024,21 @@ export default function ShopInfoSettingsPanel({
                                   />
                                 </label>
                               </div>
-                              <div className="grid grid-cols-3 gap-2">
-                                {Array.from({ length: MAX_STAFF_PROFILE_IMAGES }).map((_, imageIndex) => {
-                                  const imageUrl = draft.profileImageUrls[imageIndex] ?? "";
-                                  return imageUrl ? (
-                                    <div
-                                      key={imageIndex}
-                                      className="relative aspect-square overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white"
-                                    >
-                                      <img src={imageUrl} alt={`${visibleName} 프로필 ${imageIndex + 1}`} className="h-full w-full object-cover" />
-                                      <button
-                                        type="button"
-                                        disabled={!editable || isSaving}
-                                        onClick={() => removeStaffProfileImage(staffMember.id, imageIndex)}
-                                        className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/95 text-[#64748b] shadow-[0_1px_4px_rgba(15,23,42,0.18)] transition hover:text-[#a04455] disabled:cursor-not-allowed disabled:text-[#b9c3cf]"
-                                        aria-label={`${visibleName} 프로필 사진 ${imageIndex + 1} 삭제`}
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <label
-                                      key={imageIndex}
-                                      className="flex aspect-square cursor-pointer items-center justify-center rounded-[10px] border border-dashed border-[#cfd7e3] bg-white text-[#64748b] transition hover:border-[#9bb8f4] hover:text-[#2f6bd4]"
-                                    >
-                                      <UserRound className="h-5 w-5" strokeWidth={1.8} />
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="sr-only"
-                                        disabled={!editable || isSaving}
-                                        aria-label={`${visibleName} 프로필 사진 ${imageIndex + 1} 추가`}
-                                        onChange={(event) => {
-                                          void uploadStaffProfileImageFromFile(staffMember.id, event.target.files?.[0]);
-                                          event.currentTarget.value = "";
-                                        }}
-                                      />
-                                    </label>
-                                  );
-                                })}
-                              </div>
                             </div>
                             <div className="grid min-w-0 gap-3">
                               <label className="grid gap-1.5">
-                                <FieldLabel>프로필 메시지</FieldLabel>
+                                <span className="flex items-center justify-between gap-3">
+                                  <FieldLabel>프로필 메시지</FieldLabel>
+                                  <button
+                                    type="button"
+                                    disabled={!editable || isSaving || !onStaffMembersChange}
+                                    onClick={() => void saveStaffProfile(staffMember.id)}
+                                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#2f6bd4] px-3.5 text-[13px] font-semibold text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:bg-[#bdc2cb]"
+                                  >
+                                    <Save className="h-3.5 w-3.5" />
+                                    {isSaving ? "저장 중" : "저장"}
+                                  </button>
+                                </span>
                                 <textarea
                                   value={draft.profileMessage}
                                   maxLength={160}
@@ -1033,17 +1048,6 @@ export default function ShopInfoSettingsPanel({
                                   placeholder="아이 성향에 맞춰 차분하게 미용해드려요."
                                 />
                               </label>
-                              <div className="flex flex-wrap items-center justify-end gap-2">
-                                <button
-                                  type="button"
-                                  disabled={!editable || isSaving || !onStaffMembersChange}
-                                  onClick={() => void saveStaffProfile(staffMember.id)}
-                                  className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[#2f6bd4] px-3.5 text-[13px] font-semibold text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:bg-[#bdc2cb]"
-                                >
-                                  <Save className="h-3.5 w-3.5" />
-                                  {isSaving ? "저장 중" : "저장"}
-                                </button>
-                              </div>
                             </div>
                           </div>
                         </div>

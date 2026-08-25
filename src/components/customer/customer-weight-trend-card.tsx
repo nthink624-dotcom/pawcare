@@ -32,20 +32,30 @@ export function CustomerWeightTrendCard({ history }: { history: CustomerWeightMe
 
   const latest = measurements.at(-1)!;
   const chartWidth = 320;
-  const chartHeight = 92;
-  const xInset = 8;
-  const chartTop = 14;
-  const chartBottom = 73;
+  const chartHeight = 142;
+  const chartLeft = 30;
+  const chartRight = 6;
+  const chartTop = 20;
+  const chartBottom = 126;
+  const yTickStep = 0.2;
   const weights = measurements.map((item) => item.weightKg);
   const rawMin = Math.min(...weights);
   const rawMax = Math.max(...weights);
-  const visualRange = Math.max(rawMax - rawMin, 0.4);
-  const min = rawMin - visualRange * 0.18;
-  const max = rawMax + visualRange * 0.18;
-  const plotWidth = chartWidth - xInset * 2;
+  let min = Math.floor(rawMin / yTickStep) * yTickStep;
+  let max = Math.ceil(rawMax / yTickStep) * yTickStep;
+  if (rawMin - min < 0.05) min -= yTickStep;
+  if (max - rawMax < 0.05) max += yTickStep;
+  min = Math.max(0, Number(min.toFixed(1)));
+  max = Number(Math.max(max, min + yTickStep * 2).toFixed(1));
+  const yTicks = Array.from(
+    { length: Math.round((max - min) / yTickStep) + 1 },
+    (_, index) => Number((min + index * yTickStep).toFixed(1)),
+  );
+  const plotWidth = chartWidth - chartLeft - chartRight;
+  const yForWeight = (weightKg: number) => chartBottom - ((weightKg - min) / (max - min)) * (chartBottom - chartTop);
   const points = measurements.map((item, index) => {
-    const x = measurements.length === 1 ? chartWidth / 2 : xInset + (index / (measurements.length - 1)) * plotWidth;
-    const y = chartBottom - ((item.weightKg - min) / (max - min)) * (chartBottom - chartTop);
+    const x = measurements.length === 1 ? chartLeft + plotWidth / 2 : chartLeft + (index / (measurements.length - 1)) * plotWidth;
+    const y = yForWeight(item.weightKg);
     return { ...item, x, y };
   });
   const linePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
@@ -55,13 +65,13 @@ export function CustomerWeightTrendCard({ history }: { history: CustomerWeightMe
 
   return (
     <section aria-label="몸무게 변화">
-      <p className="text-[18px] font-medium tracking-[-0.02em] text-[#795f64]">몸무게 변화</p>
+      <p className="text-[20px] font-medium tracking-[-0.02em] text-[#795f64]">몸무게 변화</p>
 
       <div className="mt-2.5 overflow-hidden rounded-[20px] border border-[#eadfe1] bg-white shadow-[0_8px_24px_rgba(112,72,80,0.045)]">
-        <div className="flex min-h-[92px] items-center justify-between gap-4 px-5 py-4">
+        <div className="flex min-h-[108px] items-center justify-between gap-4 px-5 py-5">
           <div>
-            <p className="text-[14px] font-normal text-[#927f83]">{selectedPoint ? "선택한 기록" : "현재 몸무게"}</p>
-            <p className="mt-1 text-[30px] font-semibold tracking-[-0.05em] text-[#352a2d]">
+            <p className="text-[16px] font-normal text-[#927f83]">{selectedPoint ? "선택한 기록" : "현재 몸무게"}</p>
+            <p className="mt-1 text-[32px] font-semibold tracking-[-0.05em] text-[#352a2d]">
               {formatWeight(displayedMeasurement.weightKg)}
               <span className="ml-1 text-[15px] font-medium tracking-[-0.02em] text-[#75666a]">kg</span>
             </p>
@@ -69,17 +79,17 @@ export function CustomerWeightTrendCard({ history }: { history: CustomerWeightMe
           <div className="text-right">
             {selectedPoint ? (
               <>
-                <p className="text-[14px] font-medium text-[#a2505a]">{formatMeasurementDate(selectedPoint.measuredAt)}</p>
+                <p className="text-[19px] font-medium text-[#a2505a]">{formatMeasurementDate(selectedPoint.measuredAt)}</p>
                 <button
                   type="button"
                   onClick={() => setSelectedPointIndex(null)}
-                  className="mt-1 text-[14px] font-normal text-[#9a8589] underline decoration-[#d9c7ca] underline-offset-4"
+                  className="mt-1 font-normal text-[#9a8589] underline decoration-[#d9c7ca] underline-offset-4"
                 >
-                  현재 기록 보기
+                  <span className="text-[18px]">현재 기록 보기</span>
                 </button>
               </>
             ) : (
-              <p className="max-w-[132px] text-[14px] font-normal leading-5 text-[#9a8589]">
+              <p className="max-w-[168px] text-[18px] font-normal leading-7 text-[#9a8589]">
                 그래프의 점을 눌러<br />기록을 확인해 보세요
               </p>
             )}
@@ -87,7 +97,7 @@ export function CustomerWeightTrendCard({ history }: { history: CustomerWeightMe
         </div>
 
         {measurements.length >= 2 ? (
-          <div className="border-t border-[#f0e8e9] bg-[#fdfafa] px-3 pb-3 pt-3">
+          <div className="border-t border-[#f0e8e9] bg-[#fdfafa] px-3 pb-4 pt-4">
             <svg
               viewBox={`0 0 ${chartWidth} ${chartHeight}`}
               role="img"
@@ -101,7 +111,25 @@ export function CustomerWeightTrendCard({ history }: { history: CustomerWeightMe
                   <stop offset="100%" stopColor="#ef9ba4" stopOpacity="0.03" />
                 </linearGradient>
               </defs>
-              <line x1={xInset} x2={chartWidth - xInset} y1={chartBottom} y2={chartBottom} stroke="#eadfe1" strokeWidth="1" />
+              <text
+                x={chartWidth - chartRight}
+                y="12"
+                textAnchor="end"
+                fill="#9a8589"
+                fontSize="11"
+                fontWeight="600"
+              >
+                (kg)
+              </text>
+              {yTicks.map((tick) => {
+                const y = yForWeight(tick);
+                return (
+                  <g key={tick}>
+                    <line x1={chartLeft} x2={chartWidth - chartRight} y1={y} y2={y} stroke="#eadfe1" strokeWidth="1" />
+                    <text x={chartLeft - 6} y={y + 4} textAnchor="end" fill="#9a8589" fontSize="12">{tick.toFixed(1)}</text>
+                  </g>
+                );
+              })}
               <path d={areaPath} fill="url(#weightAreaFill)" />
               <polyline
                 points={linePoints}

@@ -6,7 +6,7 @@ export function BookingStructureComparison() {
       <div className="mx-auto w-full max-w-[1440px] px-5 pt-3 md:px-8 md:pt-4 xl:px-0">
         <header className="mx-auto max-w-[1040px] text-center">
           <span className="block text-[54px] font-semibold leading-[0.55] text-[var(--landing-accent)]" aria-hidden="true">“</span>
-          <h3 id="booking-structure-title" className="mx-auto mt-5 break-keep text-[30px] font-medium leading-[1.55] text-[#334155] md:text-[42px] md:leading-[1.5]">
+          <h3 id="booking-structure-title" className="mx-auto mt-3 break-keep text-[30px] font-medium leading-[1.55] text-[#334155] md:text-[42px] md:leading-[1.5]">
             <strong className="font-bold text-[#111827]">고객은 기다리지 않고, 대표님은 서두르지 않도록.</strong>
             <br />
             넘친Day 펫매니저는 매장과 고객의 시간을 함께 지킵니다.
@@ -16,7 +16,7 @@ export function BookingStructureComparison() {
 
       </div>
 
-      <figure className="relative mx-auto mt-10 w-full max-w-[1240px] overflow-hidden bg-white md:mt-12">
+      <figure className="relative mx-auto mt-6 w-full max-w-[1240px] overflow-hidden bg-white md:mt-8">
         <Image
           src="/images/landing/section-new-booking-notification-v2.png"
           alt="미용사가 강아지를 미용하는 동안 휴대폰으로 새 예약 알림을 확인하는 장면"

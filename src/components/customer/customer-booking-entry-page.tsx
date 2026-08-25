@@ -8,6 +8,7 @@ import CustomerEntryServicePicker from "@/components/customer/customer-entry-ser
 import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
+  formatCustomerServiceDuration,
 } from "@/lib/customer-service-options";
 import {
   formatDiscountCouponValue,
@@ -993,7 +994,7 @@ export default function CustomerBookingEntryPage({
               간편예약 시작
             </button>
           ) : selectedServiceBookingHref ? (
-            <a className="cta" href={selectedServiceBookingHref}>{selectedServiceOption?.name} 예약하기</a>
+            <a className="cta" href={selectedServiceBookingHref}>간편예약 시작하기</a>
           ) : (
             <button className="cta" type="button" disabled>서비스를 선택해 주세요</button>
           )}
@@ -1130,7 +1131,7 @@ export default function CustomerBookingEntryPage({
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-[16px] font-normal text-[#2f211d]">{service.name}</p>
-                          <p className="mt-1 text-[13px] font-normal text-[#9a7168]">예상 {service.durationMinutes}분</p>
+                          <p className="mt-1 text-[13px] font-normal text-[#9a7168]">예상 {formatCustomerServiceDuration(service)}</p>
                         </div>
                         <p className="shrink-0 text-[17px] font-medium text-[#2f211d]">{formatServicePrice(service.price, service.priceType)}</p>
                       </div>

@@ -1,36 +1,7 @@
-import {
-  ArrowDown,
-  ArrowRight,
-  BadgeCheck,
-  Building2,
-  Check,
-  ChevronDown,
-  DatabaseBackup,
-  MegaphoneOff,
-  MonitorSmartphone,
-  ReceiptText,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 import { SectionHeading } from "@/components/landing/landing-ui";
-import { billableOwnerPlans } from "@/lib/billing/owner-plans";
-import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
-import { won } from "@/lib/utils";
-
-const DAILY_REDUCED_INQUIRIES = 3;
-const MINUTES_PER_INQUIRY = 10;
-const DAILY_SAVED_MINUTES = DAILY_REDUCED_INQUIRIES * MINUTES_PER_INQUIRY;
-const MONTHLY_SAVED_HOURS = 15;
-
-const trustItems = [
-  { icon: ReceiptText, title: "홈페이지에 요금 공개", body: "운영 인원별 월 요금과 포함 알림톡을 가입 전에 확인할 수 있습니다." },
-  { icon: BadgeCheck, title: "카드 없는 14일 체험", body: "카드 등록과 자동결제 없이 실제 매장 흐름을 먼저 확인합니다." },
-  { icon: MonitorSmartphone, title: "설치비 0원", body: "별도 설치비 없이 PC와 모바일에서 바로 시작할 수 있습니다." },
-  { icon: ShieldCheck, title: "해지 방법 공개", body: "플랜 화면에서 직접 해지하고 현재 이용기간까지 계속 사용할 수 있습니다." },
-  { icon: DatabaseBackup, title: "기존 데이터 이전 지원", body: "티피·기존 엑셀의 고객, 반려동물, 방문기록과 요금표 이전을 지원합니다." },
-  { icon: MegaphoneOff, title: "보호자에게 광고 없음", body: "매장이 공유한 예약·미용결과 화면에 제3자 광고를 넣지 않습니다." },
-] as const;
 
 const faqItems = [
   {
@@ -67,161 +38,10 @@ const faqItems = [
   },
 ] as const;
 
-export function SavingsSection() {
-  return (
-    <section id="savings" className="scroll-mt-20 bg-white py-20 md:py-24">
-      <div className="mx-auto w-full max-w-[1180px] px-5">
-        <SectionHeading
-          eyebrow="시간의 가치"
-          title="하루 30분만 예약 응대를 덜 해도, 한 달 15시간을 돌려받습니다"
-          description="문의 확인과 일정 조율, 재안내에 드는 반복 응대를 줄이면 그 시간을 미용과 고객 관리에 다시 쓸 수 있습니다."
-        />
-
-        <div className="mt-12 rounded-[8px] bg-[#f4f6f9] px-6 py-8 md:px-10 md:py-10">
-          <div className="grid items-center gap-5 text-center md:grid-cols-[1fr_36px_1fr_36px_1.2fr] md:text-left">
-            <div>
-              <p className="text-[15px] font-medium text-[#64748b]">예약 문의 3건 × 건당 10분</p>
-              <p className="mt-2 text-[34px] font-semibold text-[#111827] md:text-[42px]">{DAILY_SAVED_MINUTES}분</p>
-            </div>
-            <span className="mx-auto text-[#94a3b8]" aria-hidden="true">
-              <ArrowDown className="h-5 w-5 md:hidden" />
-              <ArrowRight className="hidden h-5 w-5 md:block" />
-            </span>
-            <div>
-              <p className="text-[15px] font-medium text-[#64748b]">30일 누적</p>
-              <p className="mt-2 text-[34px] font-semibold text-[var(--landing-accent)] md:text-[42px]">{MONTHLY_SAVED_HOURS}시간</p>
-            </div>
-            <span className="mx-auto text-[#94a3b8]" aria-hidden="true">
-              <ArrowDown className="h-5 w-5 md:hidden" />
-              <ArrowRight className="hidden h-5 w-5 md:block" />
-            </span>
-            <div className="border-t border-[#d5dde6] pt-5 md:border-l md:border-t-0 md:pl-8 md:pt-0">
-              <p className="text-[15px] font-medium text-[#64748b]">다시 쓸 수 있는 시간</p>
-              <p className="mt-2 text-[26px] font-semibold text-[var(--landing-accent)] md:text-[30px]">미용과 고객 관리에</p>
-            </div>
-          </div>
-          <p className="mt-8 border-t border-[#d5dde6] pt-5 text-[15px] leading-6 text-[#64748b]">
-            하루 {DAILY_REDUCED_INQUIRIES}건 × 건당 {MINUTES_PER_INQUIRY}분 × 30일 기준의 운영시간 예시입니다. 실제 문의 처리시간이나 절감 시간을 보장하는 수치는 아닙니다.
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function TrustSection() {
-  return (
-    <section className="border-y border-[#e2e8f0] bg-[#f4f6f9] py-20 md:py-24">
-      <div className="mx-auto w-full max-w-[1180px] px-5">
-        <SectionHeading
-          eyebrow="부담 없이 확인"
-          title="먼저 써보고, 우리 매장에 맞는지 결정하세요"
-          description="과장된 사용 수치나 만들어 낸 후기를 앞세우지 않습니다. 실제 제품과 시작·결제 조건을 투명하게 보여드립니다."
-        />
-
-        <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {trustItems.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="border-t-2 border-[#cbd5e1] pt-5">
-              <span className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-white text-[var(--landing-accent)] shadow-[0_5px_14px_rgba(15,23,42,0.06)]">
-                <Icon className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <h3 className="mt-4 text-[17px] font-semibold text-[#111827]">{title}</h3>
-              <p className="mt-2 text-[15px] leading-6 text-[#64748b]">{body}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function PricingSection() {
-  return (
-    <section id="pricing" className="scroll-mt-20 bg-white py-20 md:py-24">
-      <div className="mx-auto w-full max-w-[1180px] px-5">
-        <SectionHeading
-          eyebrow="요금제"
-          title="숨기지 않은 가격, 운영 인원대로 고르세요"
-          description="기능을 잘게 나누어 추가 결제를 유도하지 않습니다. 설치비 없이 운영 인원과 포함 알림톡에 맞는 플랜만 선택합니다."
-        />
-
-        <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 border-y border-[#dbe2ea] py-3 text-[15px] font-medium text-[#526071]">
-          {["간편 예약", "고객 DB", "예약 스케줄", "직원 관리", "데이터 이전 지원", "보호자 화면 광고 없음"].map((item) => (
-            <span key={item} className="inline-flex items-center gap-1.5">
-              <Check className="h-4 w-4 text-[var(--landing-accent)]" aria-hidden="true" />
-              {item}
-            </span>
-          ))}
-        </div>
-
-        <div className="mt-10 grid gap-4 lg:grid-cols-3">
-          {billableOwnerPlans.map((plan) => (
-            <article
-              key={plan.code}
-              itemScope
-              itemType="https://schema.org/Product"
-              className="flex min-w-0 flex-col rounded-[8px] border border-[#d5dde6] bg-[#fbfcfe] p-6 transition hover:border-[#aeb9c7]"
-            >
-              <meta itemProp="category" content="반려동물 미용샵 운영 SaaS" />
-              <h3 itemProp="name" className="text-[23px] font-semibold text-[#111827]">{plan.title}</h3>
-              <p itemProp="description" className="mt-2 min-h-12 text-[15px] leading-6 text-[#64748b]">{plan.targetLabel}</p>
-
-              <div className="mt-5 border-y border-[#e7edf3] py-5" itemProp="offers" itemScope itemType="https://schema.org/Offer">
-                <meta itemProp="priceCurrency" content="KRW" />
-                <meta itemProp="price" content={String(plan.monthlyPrice)} />
-                <meta itemProp="availability" content="https://schema.org/InStock" />
-                <p className="text-[34px] font-semibold text-[#111827]">
-                  {won(plan.monthlyPrice)}
-                  <span className="ml-1 text-[15px] font-medium text-[#64748b]">/ 월 정기결제</span>
-                </p>
-              </div>
-
-              <dl className="mt-4 space-y-3 text-[15px]">
-                <div className="flex items-center justify-between gap-3">
-                  <dt className="text-[#64748b]">운영 기준</dt>
-                  <dd className="text-right font-medium text-[#334155]">{plan.staffLimitLabel}</dd>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <dt className="text-[#64748b]">포함 알림톡</dt>
-                  <dd className="text-right font-medium text-[#334155]">{plan.alimtalkIncludedLabel}</dd>
-                </div>
-              </dl>
-              <p className="mt-4 text-[15px] leading-5 text-[#7c8796]">{plan.excessAlimtalkLabel}</p>
-
-              <Link
-                href="/signup"
-                className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-[8px] border border-[var(--landing-accent)] bg-[var(--landing-accent)] text-[15px] font-semibold text-white transition hover:border-[var(--landing-accent-hover)] hover:bg-[var(--landing-accent-hover)]"
-              >
-                카드 없이 14일 체험
-              </Link>
-            </article>
-          ))}
-        </div>
-
-        <div className="mt-6 flex items-start gap-3 border-l-[3px] border-[#64748b] bg-white px-4 py-3.5">
-          <Building2 className="mt-0.5 h-5 w-5 shrink-0 text-[#64748b]" aria-hidden="true" />
-          <p className="text-[15px] leading-6 text-[#526071]">
-            여러 매장을 함께 운영하는 경우 매장별 이용 기준으로 안내하며, 등록된 매장 수와 운영 조건에 따라 다점포 할인이 적용될 수 있습니다.
-          </p>
-        </div>
-
-        <div className="mt-4 grid gap-3 border-y border-[#dbe2ea] py-4 text-[15px] leading-6 text-[#526071] md:grid-cols-2">
-          <p>
-            설치비는 없습니다. 카드 등록과 결제 없이 14일 체험을 시작하고, 계속 사용할 때만 매장에 맞는 플랜을 직접 선택합니다.
-          </p>
-          <p className="md:border-l md:border-[#dbe2ea] md:pl-5">
-            월 정기결제, 해지 및 환불 기준은 <Link href="/refund" className="font-semibold text-[#334155] underline underline-offset-4">환불 및 이용 안내</Link>에서 확인할 수 있습니다. 결제대행사는 {LEGAL_BUSINESS_INFO.paymentProvider}입니다.
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export function FaqAndFinalCtaSection() {
   return (
     <>
-      <section id="faq" className="border-t border-[#e2e8f0] bg-[#f7f8fa] py-20 md:py-24">
+      <section id="faq" className="border-t border-[#e2e8f0] bg-[#f7f8fa] py-14 md:py-16">
         <div className="mx-auto grid w-full max-w-[1180px] gap-10 px-5 lg:grid-cols-[0.68fr_1.32fr]">
           <SectionHeading
             eyebrow="자주 묻는 질문"
@@ -243,7 +63,7 @@ export function FaqAndFinalCtaSection() {
         </div>
       </section>
 
-      <section className="border-t border-[#d8e0e9] bg-[#eef1f5] py-16 text-[#111827] md:py-20">
+      <section className="border-t border-[#d8e0e9] bg-[#eef1f5] py-12 text-[#111827] md:py-14">
         <div className="mx-auto flex w-full max-w-[1180px] flex-col justify-between gap-8 px-5 lg:flex-row lg:items-end">
           <div>
             <p className="text-[15px] font-semibold text-[var(--landing-accent)]">다음 예약부터 바로 달라집니다</p>

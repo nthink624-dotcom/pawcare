@@ -23,7 +23,7 @@ function CarePhotoSideFrame({
       onClick={onClick}
       disabled={disabled}
       aria-label={isPrevious ? "이전 사진 보기" : "다음 사진 보기"}
-      className="absolute left-1/2 top-1/2 z-0 aspect-[4/3] w-[270px] overflow-hidden rounded-[16px] border border-[#d7dde4] bg-[#f3f5f7] opacity-80 transition duration-300 ease-out hover:opacity-100 disabled:cursor-default disabled:opacity-55"
+      className="absolute left-1/2 top-1/2 z-0 aspect-[4/3] w-[210px] overflow-hidden rounded-[14px] border border-[#d7dde4] bg-[#f3f5f7] opacity-80 transition duration-300 ease-out hover:opacity-100 disabled:cursor-default disabled:opacity-55"
       style={{ transform: isPrevious ? "translate(-78%, -50%) rotateY(15deg) scale(.86)" : "translate(-22%, -50%) rotateY(-15deg) scale(.86)" }}
     >
       {imageUrl ? <img src={imageUrl} alt="" draggable={false} className="pointer-events-none h-full w-full select-none object-cover" /> : <span className="grid h-full w-full place-items-center text-[#a8b1bc]"><ImagePlus className="h-5 w-5" /></span>}
@@ -119,7 +119,8 @@ export function CalendarCareReportPhotoCard({
 
   return (
     <div
-      className="relative mx-auto h-[244px] w-full max-w-[460px] cursor-grab select-none overflow-hidden [perspective:1000px] touch-pan-y active:cursor-grabbing"
+      className="relative mx-auto h-[172px] w-full max-w-[460px] cursor-grab select-none overflow-hidden [perspective:1000px] touch-pan-y active:cursor-grabbing"
+      aria-busy={loading}
       onDragStart={(event) => event.preventDefault()}
       onPointerDown={(event) => {
         if (disabled || availableImageUrls.length === 0) return;
@@ -164,8 +165,8 @@ export function CalendarCareReportPhotoCard({
           onClick?.();
         }}
         disabled={disabled}
-        aria-label={`${label} 사진 ${actionLabel}`}
-        className={`group absolute left-1/2 top-1/2 z-10 flex aspect-[4/3] w-full max-w-[300px] items-center justify-center overflow-hidden rounded-[16px] border border-[#cfd6de] bg-[#fafbfc] px-5 py-4 text-center hover:border-[#aeb9c5] hover:bg-white disabled:opacity-60 ${motionDirection === "next" ? "care-photo-carousel-next" : motionDirection === "previous" ? "care-photo-carousel-previous" : ""}`}
+        aria-label={`${label} 사진 ${imageUrl || registered ? "교체" : "추가"}`}
+        className={`group absolute left-1/2 top-1/2 z-10 flex aspect-[4/3] w-full max-w-[228px] items-center justify-center overflow-hidden rounded-[14px] border border-[#cfd6de] bg-[#fafbfc] px-4 py-3 text-center hover:border-[#aeb9c5] hover:bg-white disabled:opacity-60 ${motionDirection === "next" ? "care-photo-carousel-next" : motionDirection === "previous" ? "care-photo-carousel-previous" : ""}`}
         style={!motionDirection ? {
           transform: `translate(calc(-50% + ${dragOffset}px), -50%) rotateY(${dragOffset * -0.08}deg) scale(${1 - Math.min(Math.abs(dragOffset) / 900, 0.06)})`,
           transition: dragging ? "none" : "transform 180ms ease-out",
@@ -177,7 +178,7 @@ export function CalendarCareReportPhotoCard({
 
         {!imageUrl ? (
           <span key={label} className="relative flex flex-col items-center text-[#263547]">
-            <span className="mb-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#eef1f4] text-[#274563]">
+            <span className="mb-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef1f4] text-[#274563]">
               <ImagePlus className="h-4 w-4" />
             </span>
             <strong className={CARE_REPORT_TYPOGRAPHY.bodyStrong}>{label} 사진 추가</strong>
@@ -186,10 +187,11 @@ export function CalendarCareReportPhotoCard({
         ) : null}
 
         {!imageUrl ? (
-          <span className={`${CARE_REPORT_TYPOGRAPHY.badge} absolute bottom-3 right-3 rounded-full border border-[#d9dfe6] bg-white/95 px-3 py-1 text-[#526171] transition group-hover:border-[#b7c0ca]`}>
+          <span className={`${CARE_REPORT_TYPOGRAPHY.badge} absolute bottom-2 right-2 rounded-full border border-[#d9dfe6] bg-white/95 px-2.5 py-0.5 text-[#526171] transition group-hover:border-[#b7c0ca]`}>
             {actionLabel}
           </span>
         ) : null}
+
       </button>
       <style jsx>{`
         @keyframes care-photo-next {

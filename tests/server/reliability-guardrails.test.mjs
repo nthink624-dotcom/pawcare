@@ -86,6 +86,7 @@ test("the owner application retains a route error recovery boundary", () => {
 test("grooming outcomes keep photos optional while preserving customer results and revenue", () => {
   const ownerMutations = readProjectFile("src/server/owner-mutations.ts");
   const ownerCalendar = readProjectFile("src/components/owner-web/calendar-management-screen.tsx");
+  const careReportChoice = readProjectFile("src/components/owner-web/calendar-care-report-choice-dialog.tsx");
   const careReportPhotoCard = readProjectFile("src/components/owner-web/calendar-care-report-photo-card.tsx");
   const careReportPanel = readProjectFile("src/components/owner-web/calendar-care-report-completion-panel.tsx");
   const careNoteInput = readProjectFile("src/components/owner-web/calendar-care-note-input.tsx");
@@ -126,35 +127,52 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.match(careReportPhotoCard, /Math\.abs\(deltaX\) < 34/);
   assert.match(careReportPhotoCard, /care-photo-carousel-next/);
   assert.match(careReportPhotoCard, /care-photo-carousel-previous/);
+  assert.match(careReportPhotoCard, /CarePhotoSideFrame/);
+  assert.match(careReportPhotoCard, /이전 사진 보기/);
+  assert.match(careReportPhotoCard, /다음 사진 보기/);
+  assert.match(careReportPhotoCard, /rotateY\(15deg\)/);
   assert.match(careReportPhotoCard, /draggable=\{false\}/);
   assert.match(careReportPhotoCard, /onDragStart=\{\(event\) => event\.preventDefault\(\)\}/);
   assert.match(ownerCalendar, /CalendarCareReportCompletionPanel/);
   assert.match(ownerCalendar, /max-w-\[520px\]/);
+  assert.match(ownerCalendar, /no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain/);
+  assert.doesNotMatch(ownerCalendar, /\[scrollbar-width:thin\]/);
   assert.doesNotMatch(ownerCalendar, /lg:grid-cols-\[minmax\(0,0\.92fr\)_minmax\(0,1\.08fr\)\]/);
   assert.match(ownerCalendar, /AI 케어리포트 작성·이어보기/);
   assert.match(
     ownerCalendar,
-    /const succeeded = await applyBookingStatusChange\(targetBooking\.id, nextStatus\);\s+if \(succeeded === true\) requestPhotoStatusChange\(targetBooking, nextStatus\);/,
+    /const succeeded = await applyBookingStatusChange\(targetBooking\.id, nextStatus\);\s+if \(succeeded === true\) \{/,
   );
+  assert.match(ownerCalendar, /setCareReportChoiceBooking\(targetBooking\);/);
+  assert.match(ownerCalendar, /CalendarCareReportChoiceDialog/);
+  assert.match(careReportChoice, /AI 케어리포트 작성하기/);
+  assert.match(careReportChoice, /기본 기록만/);
   assert.match(ownerCalendar, /statusAlreadyCompleted: true/);
   assert.match(ownerCalendar, /if \(isCompletionMode\) await draft\.flushDraft\(\);\s+onClose\(\);/);
-  assert.match(careReportPanel, /임시저장/);
+  assert.match(ownerCalendar, /onPointerDown=\{\(event\) => \{\s+if \(event\.target !== event\.currentTarget \|\| busy \|\| careReportBusy\) return;/);
   assert.match(careReportPanel, /리포트 보내기/);
+  assert.match(careReportPanel, /임시저장/);
+  assert.doesNotMatch(careReportPanel, /작성 없이 완료/);
+  assert.doesNotMatch(careReportPanel, /저장하고 닫기/);
   assert.match(careReportPanel, /action: "save_draft"/);
   assert.match(careReportPanel, /action: "publish"/);
   assert.match(careReportPanel, /AI가 정리한 문장 편집/);
   assert.match(careReportPanel, /아래에 케어 내용을 남기면 이곳에 정리됩니다/);
   assert.match(careReportPanel, /editReport\(\{ \.\.\.report, oneLineSummary: content \}\)/);
-  assert.match(careReportPanel, /max-h-\[170px\].*overflow-y-auto/);
-  assert.match(careReportPanel, /h-\[88px\].*resize-none.*overflow-y-auto/);
+  assert.match(careReportPanel, /max-h-\[148px\].*overflow-y-auto/);
+  assert.match(careReportPanel, /h-\[108px\].*resize-none.*overflow-y-auto/);
+  assert.match(careReportPanel, /sticky bottom-0/);
+  assert.doesNotMatch(careReportPanel, /fixed bottom-2 left-1\/2/);
   assert.doesNotMatch(careReportPanel, /전체 케어리포트 보기/);
-  assert.match(careNoteInput, /h-\[44px\].*resize-none.*overflow-y-auto/);
+  assert.match(careNoteInput, /오늘 진행한 미용 · 아이 상태 · 집에서 관리할 점/);
+  assert.match(careNoteInput, /h-\[58px\].*resize-none.*overflow-y-auto/);
   assert.match(careNoteInput, /speechBaseValueRef\.current = valueRef\.current/);
   assert.match(careNoteInput, /const spokenText = \[finalized\.trim\(\), interim\.trim\(\)\]/);
   assert.match(careNoteInput, /onChange\(nextValue\)/);
   assert.doesNotMatch(careReportPanel, /OwnerCareMessage/);
   assert.doesNotMatch(careReportPanel, /setOwnerMessages/);
-  assert.match(careReportRoute, /z\.enum\(\["save_draft", "publish"\]\)/);
+  assert.match(careReportRoute, /z\.enum\(\["save_draft", "publish", "publish_basic"\]\)/);
+  assert.match(careReportRoute, /input\.action === "publish_basic"/);
   assert.match(careReportRoute, /input\.action === "save_draft"/);
   assert.match(careReportRoute, /\.rpc\("publish_ai_care_report"/);
   assert.match(careReportRoute, /미용 완료 기록이 만들어진 뒤 케어리포트를 보낼 수 있습니다/);
@@ -265,24 +283,25 @@ test("external imports retain preview, idempotency, and private audit boundaries
   assert.doesNotMatch(migration, /raw_row|raw_file|file_contents/);
 });
 
-test("landing pricing stays transparent and sells saved time instead of a price war", () => {
+test("landing keeps the product story free from retired pricing and savings claims", () => {
   const conversion = readProjectFile("src/components/landing/landing-conversion-sections.tsx");
   const primary = readProjectFile("src/components/landing/landing-primary-sections.tsx");
   const landing = `${conversion}\n${primary}`;
 
-  assert.match(landing, /홈페이지에 요금 공개/);
-  assert.match(landing, /카드 없는 14일 체험/);
-  assert.match(landing, /설치비 0원/);
-  assert.match(landing, /해지 방법 공개/);
+  assert.match(landing, /14일 무료로 시작하기/);
   assert.match(landing, /기존 데이터 이전 지원/);
-  assert.match(landing, /보호자에게 광고 없음/);
-  assert.match(landing, /하루 30분만 예약 응대를 덜 해도/);
+  assert.match(landing, /보호자 화면 광고 없음/);
+  assert.doesNotMatch(landing, /홈페이지에 요금 공개/);
+  assert.doesNotMatch(landing, /하루 30분만 예약 응대를 덜 해도/);
   assert.doesNotMatch(landing, /티피보다.*(?:싸|저렴)/);
 });
 
 test("landing media ships with the deploy and booking previews do not depend on production demo data", () => {
   const bookingCarousel = readProjectFile("src/components/landing/landing-booking-flow-carousel.tsx");
   const bookingPreview = readProjectFile("src/app/demo/landing-booking/page.tsx");
+  const careReportCard = readProjectFile("src/components/landing/landing-ai-care-report-card.tsx");
+  const careReportPreview = readProjectFile("src/app/demo/customer-care-report-preview/page.tsx");
+  const nextConfig = readProjectFile("next.config.ts");
   const requiredImages = [
     "public/images/landing/hero-groomer-missed-call-v3.png",
     "public/images/landing/actual-customers.png",
@@ -292,9 +311,30 @@ test("landing media ships with the deploy and booking previews do not depend on 
   for (const imagePath of requiredImages) {
     assert.equal(existsSync(new URL(`../../${imagePath}`, import.meta.url)), true, `${imagePath} must ship`);
   }
-  assert.match(bookingCarousel, /\/demo\/landing-booking\?experience=/);
+  assert.doesNotMatch(bookingCarousel, /\/demo\/landing-booking\?experience=/);
+  assert.match(bookingCarousel, /\/book\/demo-shop\?experience=first/);
+  assert.match(bookingCarousel, /\/book\/demo-shop\?experience=ai/);
+  assert.match(bookingCarousel, /\/book\/demo-shop\?experience=revisit/);
+  assert.match(bookingCarousel, /GalaxyPhoneMockup/);
+  assert.match(careReportCard, /GalaxyPhoneMockup/);
+  assert.doesNotMatch(careReportCard, /rounded-\[40px\]/);
+  assert.match(careReportCard, /\/demo\/customer-care-report-preview/);
+  assert.match(careReportCard, /\/demo\/owner-care-report-completion-preview\?mode=landing/);
+  assert.doesNotMatch(careReportCard, /customer-care-report-view\.png/);
+  assert.doesNotMatch(careReportCard, /owner-care-report-authoring-v3\.png/);
+  assert.match(careReportCard, /max-w-\[220px\]/);
+  assert.match(careReportPreview, /scrollbar-width: none/);
+  assert.match(nextConfig, /allowedDevOrigins:[^\n]*"127\.0\.0\.1"/);
   assert.doesNotMatch(bookingCarousel, /landingDemoShopId|\/entry\/\$\{|\/book\/\$\{/);
   assert.doesNotMatch(bookingPreview, /getBootstrap|supabase|owner-demo/);
+});
+
+test("the owner operations visual keeps the laptop dominant with a foreground phone overlap", () => {
+  const primarySections = readProjectFile("src/components/landing/landing-primary-sections.tsx");
+
+  assert.match(primarySections, /<OwnerLaptopPreview view=\{view\} large \/>/);
+  assert.match(primarySections, /sm:pr-\[32px\]/);
+  assert.match(primarySections, /sm:absolute sm:bottom-0 sm:right-0 sm:w-\[190px\]/);
 });
 
 test("customer booking dates show four days and derive the nearest available date across the 60-day window", () => {

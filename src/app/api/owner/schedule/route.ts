@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { after, NextRequest } from "next/server";
 
 import { getBootstrap } from "@/server/bootstrap";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
@@ -102,17 +102,20 @@ export async function POST(request: NextRequest) {
       return ownerMobileCorsJson(request, { message: "고객과 반려동물 정보를 확인해 주세요." }, { status: 400 });
     }
 
-    const appointment = await createAppointment({
-      shopId,
-      guardianId,
-      petId,
-      serviceId: getBodyString(body, "serviceId"),
-      staffId: getBodyString(body, "staffId"),
-      appointmentDate: getBodyString(body, "appointmentDate"),
-      appointmentTime: getBodyString(body, "appointmentTime"),
-      memo: getBodyString(body, "memo"),
-      source: "owner",
-    });
+    const appointment = await createAppointment(
+      {
+        shopId,
+        guardianId,
+        petId,
+        serviceId: getBodyString(body, "serviceId"),
+        staffId: getBodyString(body, "staffId"),
+        appointmentDate: getBodyString(body, "appointmentDate"),
+        appointmentTime: getBodyString(body, "appointmentTime"),
+        memo: getBodyString(body, "memo"),
+        source: "owner",
+      },
+      { deferNotifications: (task) => after(task) },
+    );
 
     return ownerMobileCorsJson(request, { guardian, pet, appointment });
   } catch (error) {

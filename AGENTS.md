@@ -199,3 +199,22 @@
 - Before and after PC/API/backend changes that affect shared data shape, read this contract file and update it in the same work session.
 - The mobile app must follow this contract and must not introduce arbitrary column names, local-only persistence for shared data, or direct Supabase writes that bypass the PC/backend contract.
 
+## Notion Work OS Protocol
+
+- Before starting any task, open Notion's `우진 업무 OS` and inspect this project's current goal, this week's deliverable, in-progress/today/P0-P1 work, latest session log, decision log, and waiting/external dependencies.
+- Only after that review, reply to the user with exactly `✅ NOTION READY — 펫매니저 PC`.
+- When asked about actual implementation state, treat Notion as work context only. Also inspect the relevant repository/code and, when relevant, GitHub or deployed state before concluding.
+- Before finishing, leave a `[CODEX HANDOFF]` covering: completed work, changed files, verification results, current state, unfinished work, blockers, one next action, repository/branch, and commit/PR.
+- If Notion is connected and writable, update the relevant task-page comment and the session-log database before finishing. If it is unavailable or not writable, include the full `[CODEX HANDOFF]` block in the final response instead.
+- This protocol is a shared operating rule. Keep it compatible with the project-specific safety and release instructions above; where a conflict appears, preserve the stricter project-specific safety constraint and report the conflict.
+
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

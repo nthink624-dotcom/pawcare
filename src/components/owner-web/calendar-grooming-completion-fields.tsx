@@ -73,6 +73,7 @@ export function CalendarGroomingCompletionFields({
             <span className="mt-1 flex items-baseline gap-px">
               <span className="inline-flex w-[68px] flex-none">
                 <input
+                  data-modal-wheel-scope="self"
                   type="number"
                   inputMode="decimal"
                   min="0.1"
@@ -83,7 +84,7 @@ export function CalendarGroomingCompletionFields({
                   onChange={(event) => onWeightChange(event.target.value)}
                   disabled={disabled}
                   placeholder="0.0"
-                  style={{ fontSize: "28px", lineHeight: "32px", padding: 0, width: "100%" }}
+                  style={{ fontSize: "28px", fontWeight: 600, lineHeight: "32px", padding: 0, width: "100%" }}
                   className="min-w-0 appearance-none bg-transparent text-right text-[28px] font-semibold leading-8 tracking-[-0.03em] text-[#172c46] outline-none disabled:opacity-60"
                 />
               </span>

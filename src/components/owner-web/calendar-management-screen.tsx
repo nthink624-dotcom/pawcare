@@ -32,6 +32,7 @@ import {
   type GroomingCompletionDetails,
 } from "@/components/owner-web/calendar-grooming-completion-fields";
 import { CalendarCareReportCompletionPanel } from "@/components/owner-web/calendar-care-report-completion-panel";
+import { CalendarCareReportChoiceDialog } from "@/components/owner-web/calendar-care-report-choice-dialog";
 import { CalendarCareReportPhotoCard } from "@/components/owner-web/calendar-care-report-photo-card";
 import { CARE_REPORT_TYPOGRAPHY, OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
 import { useExistingCompletionPhotos } from "@/components/owner-web/use-existing-completion-photos";
@@ -1550,10 +1551,6 @@ function hasScheduleItemsOnDate(data: BootstrapPayload, selectedDate: string) {
   return hasAppointmentsOnDate(data, selectedDate);
 }
 
-const initialStaffComments: Record<string, string> = {
-  "우유|정유진": "첫 방문 때 긴장했음. 목 주변은 잡아주면 안정됨.",
-  "몽이|김민지": "물 온도 낮으면 싫어함. 시작 전에 충분히 적셔주기.",
-};
 const customerRequestByBookingId: Record<string, string> = {
   "C-01": "배 쪽은 저자극 샴푸로 부탁드려요.",
   "C-03": "이전처럼 얼굴은 둥글게 정리해 주세요.",
@@ -1575,7 +1572,7 @@ function getStaffCommentValue(comments: Record<string, string>, booking: DailyBo
 }
 
 function buildStaffCommentsFromBootstrap(data: BootstrapPayload) {
-  const comments = { ...initialStaffComments };
+  const comments: Record<string, string> = {};
 
   for (const note of data.petStaffNotes ?? []) {
     const value = note.note?.trim() ?? "";
@@ -1633,6 +1630,9 @@ function BookingSidePanel({
   selectedDate,
   currentHour,
   bookings,
+  statusChanging,
+  careReportWritingBookingId,
+  careReportChoiceOpen,
   onChangeStatus,
   onOpenCareReport,
   onSelectBooking,
@@ -1643,6 +1643,7 @@ function BookingSidePanel({
   onSaveBookingDetail,
   onSavePetProfile,
   onSaveNotificationTiming,
+  onClose,
 }: {
   activeMetric: SummaryMetricKey;
   shopId: string;
@@ -1653,6 +1654,9 @@ function BookingSidePanel({
   selectedDate: string;
   currentHour: number;
   bookings: DailyBooking[];
+  statusChanging: boolean;
+  careReportWritingBookingId?: string;
+  careReportChoiceOpen: boolean;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
   onOpenCareReport: (booking: DailyBooking) => void;
   onSelectBooking: (id: string) => void;
@@ -1672,6 +1676,7 @@ function BookingSidePanel({
     booking: DailyBooking,
     values: { visitReminderOffsetMinutes?: number; pickupReadyEtaMinutes?: number },
   ) => Promise<void>;
+  onClose: () => void;
 }) {
   const timeRange = selectedBooking
     ? `${formatHourLabel(selectedBooking.start)}–${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
@@ -1903,17 +1908,7 @@ function BookingSidePanel({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [detailEditMode, editableStartTime, editableEndTime, editablePhone, editableServiceName, editablePrice]);
 
-  if (!selectedBooking) {
-    return (
-      <aside className="min-w-0">
-        <WebSurface className="min-w-0 overflow-hidden">
-          <div className="px-4 py-3">
-            <p className="text-[14px] leading-6 text-[#64748b]">예약을 선택하면 상세와 알림을 확인할 수 있습니다.</p>
-          </div>
-        </WebSurface>
-      </aside>
-    );
-  }
+  if (!selectedBooking) return null;
 
   const breedLabel = selectedBooking.petBreed || "견종 미입력";
   const biteLevel = normalizePetBiteLevel(selectedBooking.petBiteLevel);
@@ -1921,6 +1916,7 @@ function BookingSidePanel({
   const hasRequestText = Boolean(rawRequestText);
   const requestText = rawRequestText || "고객 요청사항이 없습니다.";
   const workflowCompleted = isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(displayStatus);
+  const careReportWriting = selectedBooking.id === careReportWritingBookingId;
   const canResendCurrentNotification =
     !changeEventSelected &&
     (sourceStatus !== "확정" || selectedBooking.source === "owner");
@@ -2131,9 +2127,17 @@ function BookingSidePanel({
   }
 
   return (
-    <aside className="h-full min-h-0 min-w-0">
-      <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/20" onMouseDown={onClose}>
+      <aside
+        className="h-full w-full max-w-[430px] overflow-hidden border-l border-[#dbe2ea] bg-white shadow-[-18px_0_48px_rgba(15,23,42,0.16)]"
+        role="dialog"
+        aria-modal="true"
+        aria-label="예약 상세"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+      <style>{`.pm-booking-side-panel-scroll { scrollbar-width: none; -ms-overflow-style: none; } .pm-booking-side-panel-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }`}</style>
+      <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-0">
+        <div className="pm-booking-side-panel-scroll min-h-0 flex-1 overflow-y-auto">
           <div className="bg-white px-4 pb-4 pt-5">
             <header className="flex min-w-0 items-start gap-3">
               <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[14px] border border-[#dbe2ea] bg-white">
@@ -2150,6 +2154,14 @@ function BookingSidePanel({
                   <span className="shrink-0 tabular-nums">{panelPhoneLabel}</span>
                 </p>
               </div>
+              <button
+                type="button"
+                aria-label="예약 상세 닫기"
+                onClick={onClose}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </header>
 
             <section className="mt-4 border-b border-[#eef0f2] pb-4">
@@ -2353,7 +2365,7 @@ function BookingSidePanel({
           </div>
         </div>
 
-          {workflowCompleted ? (
+          {!careReportChoiceOpen && (workflowCompleted ? (
           <section className="shrink-0 border-t border-[#f0f2f4] bg-white px-4 pb-4 pt-3">
             <button
               type="button"
@@ -2361,7 +2373,7 @@ function BookingSidePanel({
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[#2f6fd6] px-3 text-[15px] font-semibold text-white transition hover:bg-[#255fc1]"
             >
               <Sparkles className="h-4 w-4 shrink-0" />
-              AI 케어리포트 작성·이어보기
+              {careReportWriting ? "케어리포트 작성 중" : "AI 케어리포트 작성·이어보기"}
             </button>
           </section>
           ) : showWorkflowFooter ? (
@@ -2372,10 +2384,11 @@ function BookingSidePanel({
                   <button
                     type="button"
                     onClick={() => onChangeStatus(selectedBooking.id, "진행 중")}
-                    className="inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b]"
+                    disabled={statusChanging}
+                    className="inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Play className="h-4 w-4 shrink-0" />
-                    미용 시작하기
+                    {statusChanging ? "상태 저장 중" : "미용 시작하기"}
                   </button>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -2403,20 +2416,22 @@ function BookingSidePanel({
                   변경/취소 확인
                 </button>
               ) : sourceStatus === "진행 중" ? (
-                <button
-                  type="button"
-                  onClick={() => onChangeStatus(selectedBooking.id, "픽업 준비")}
-                  className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  픽업 준비
+                  <button
+                    type="button"
+                    onClick={() => onChangeStatus(selectedBooking.id, "픽업 준비")}
+                    disabled={statusChanging}
+                    className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    {statusChanging ? "상태 저장 중" : "픽업 준비"}
                 </button>
               ) : sourceStatus === "픽업 준비" ? (
                 <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     onClick={() => onChangeStatus(selectedBooking.id, "완료")}
-                    className="inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b]"
+                    disabled={statusChanging}
+                    className="inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     미용 완료
@@ -2448,7 +2463,7 @@ function BookingSidePanel({
               ) : null}
             </div>
           </section>
-          ) : null}
+          ) : null)}
       </WebSurface>
       {notificationDialog ? (
         <OwnerNoticeDialog
@@ -2471,7 +2486,8 @@ function BookingSidePanel({
           }}
         />
       ) : null}
-    </aside>
+      </aside>
+    </div>
   );
 
 }
@@ -3478,6 +3494,7 @@ function PhotoStatusDialog({
   services,
   revisitReminderEnabled,
   revisitReminderDefaultDays,
+  previewMode,
   onClose,
   onSubmit,
   onServiceChange,
@@ -3488,6 +3505,7 @@ function PhotoStatusDialog({
   services: Service[];
   revisitReminderEnabled: boolean;
   revisitReminderDefaultDays: number;
+  previewMode: boolean;
   onClose: () => void;
   onSubmit: (
     file: File,
@@ -3497,6 +3515,7 @@ function PhotoStatusDialog({
   onComplete: (mediaAssetIds: string[], groomingRecord?: GroomingCompletionDetails) => Promise<void>;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const completionScrollRef = useRef<HTMLDivElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState("");
@@ -3512,6 +3531,11 @@ function PhotoStatusDialog({
     typeof action.currentWeightKg === "number" ? action.currentWeightKg.toFixed(1) : "",
   );
   const isCompletionMode = action.mode === "completion";
+
+  useEffect(() => {
+    setSelectedServiceId(action.serviceId ?? "");
+    setSelectedServiceName(action.serviceName ?? "");
+  }, [action.bookingId, action.serviceId, action.serviceName]);
   const isCompletedCareReport = isCompletionMode && action.statusAlreadyCompleted;
   const {
     beforePhoto: existingBeforePhoto,
@@ -3520,7 +3544,7 @@ function PhotoStatusDialog({
   } = useExistingCompletionPhotos({
     shopId,
     appointmentId: action.bookingId,
-    enabled: isCompletionMode,
+    enabled: isCompletionMode && !previewMode,
   });
   const draft = useGroomingRecordDraft({
     shopId,
@@ -3533,7 +3557,6 @@ function PhotoStatusDialog({
     if (!isCompletionMode || !selectedServiceName || draft.value.treatmentNotes.trim()) return;
     draft.setValue({ ...draft.value, treatmentNotes: selectedServiceName });
   }, [draft.setValue, draft.value, isCompletionMode, selectedServiceName]);
-  const uploadedAssetIds = [beforeMediaAssetId, draft.afterMediaAssetId].filter((id): id is string => Boolean(id));
   const hasRegisteredPhotos = Boolean(existingBeforePhoto || existingAfterPhoto || beforeMediaAssetId || draft.afterMediaAssetId);
   const busy = uploading || completing || serviceChanging;
   const mobileOwnerPath = `/owner/mobile?appointmentId=${encodeURIComponent(action.bookingId)}&statusAction=${encodeURIComponent(action.nextStatus)}`;
@@ -3564,23 +3587,6 @@ function PhotoStatusDialog({
     } finally {
       setUploading(false);
       event.target.value = "";
-    }
-  }
-
-  async function handleComplete(mediaAssetIds: string[]) {
-    if (busy) return;
-
-    setCompleting(true);
-    setError("");
-    try {
-      if (isCompletionMode) await draft.flushDraft();
-      await onComplete(mediaAssetIds, isCompletionMode ? draft.value : undefined);
-      if (isCompletionMode) await draft.clearDraft();
-      onClose();
-    } catch (skipError) {
-      setError(skipError instanceof Error ? skipError.message : "상태 변경 중 문제가 발생했습니다.");
-    } finally {
-      setCompleting(false);
     }
   }
 
@@ -3645,13 +3651,27 @@ function PhotoStatusDialog({
   const activeCompletionPhotoLabel = activeCompletionPhotoIsBefore ? "미용 전" : "미용 후";
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4" onClick={busy || careReportBusy ? undefined : () => void handleSaveAndClose()}>
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4"
+      onPointerDown={(event) => {
+        if (event.target !== event.currentTarget || busy || careReportBusy) return;
+        void handleSaveAndClose();
+      }}
+    >
       <div
         className={cn(
-          "max-h-[calc(100vh-32px)] w-full overflow-y-auto border border-[#d8dee6] bg-white shadow-[0_24px_80px_rgba(20,39,63,0.18)]",
+          "flex max-h-[calc(100vh-32px)] w-full flex-col overflow-hidden border border-[#d8dee6] bg-white shadow-[0_24px_80px_rgba(20,39,63,0.18)]",
           isCompletionMode ? "max-w-[520px] rounded-[22px]" : "max-w-[540px] rounded-[18px] p-5",
         )}
         onClick={(event) => event.stopPropagation()}
+        onWheelCapture={(event) => {
+          if (!isCompletionMode || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+          if ((event.target as HTMLElement).closest('[data-modal-wheel-scope="self"]')) return;
+          const scrollContainer = completionScrollRef.current;
+          if (!scrollContainer) return;
+          event.preventDefault();
+          scrollContainer.scrollTop += event.deltaY;
+        }}
       >
         <input
           ref={inputRef}
@@ -3662,7 +3682,7 @@ function PhotoStatusDialog({
           onChange={(event) => void handleFileChange(event)}
         />
 
-        <div className={isCompletionMode ? "flex items-center justify-between gap-5 border-b border-[#e5e8ec] bg-white px-4 py-2.5" : "mb-3"}>
+        <div className={isCompletionMode ? "z-[96] flex shrink-0 items-center justify-between gap-5 rounded-t-[22px] border-b border-[#e5e8ec] bg-white px-4 py-2" : "mb-3"}>
           <div className={isCompletionMode ? "flex min-w-0 items-center gap-3" : ""}>
             {isCompletionMode ? (
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-[#edf4ff] text-[#2f6fd6]">
@@ -3688,9 +3708,13 @@ function PhotoStatusDialog({
           ) : null}
         </div>
 
+        <div
+          ref={isCompletionMode ? completionScrollRef : undefined}
+          className={isCompletionMode ? "no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "min-h-0 flex-1 overflow-y-auto"}
+        >
         {isCompletionMode ? (
-          <div className="space-y-2 p-3">
-            <section className="space-y-2">
+          <div className="space-y-1.5 p-2">
+            <section className="space-y-1.5">
                 <div className="flex items-center gap-3">
                   <p className={`${modalTypography.sectionTitle} shrink-0 text-[#1b2d43]`}>사진</p>
                   <div className="flex rounded-[9px] bg-[#f0f2f4] p-0.5" role="tablist" aria-label="미용 사진 선택">
@@ -3728,6 +3752,7 @@ function PhotoStatusDialog({
                 </div>
                 {photoRegistrationEnabled || hasRegisteredPhotos ? (
                   <CalendarCareReportPhotoCard
+                    key={activeMediaKind}
                     label={activeCompletionPhotoLabel}
                     registered={activeCompletionPhotoUploaded}
                     imageUrls={activeCompletionPhoto?.signedUrl ? [activeCompletionPhoto.signedUrl] : []}
@@ -3752,19 +3777,22 @@ function PhotoStatusDialog({
               onRetrySave={() => void draft.flushDraft()}
             />
 
-            <CalendarCareReportCompletionPanel
-              shopId={shopId}
-              appointmentId={action.bookingId}
-              details={draft.value}
-              onDetailsChange={draft.setValue}
-              currentWeightKg={currentWeightKg}
-              hasRegisteredPhotos={hasRegisteredPhotos}
-              serviceName={selectedServiceName}
-              disabled={busy}
-              onPendingChange={setCareReportBusy}
-              onSaveDraft={() => handleSaveAndClose(true)}
-              onReportSent={handleReportSent}
-            />
+            {isCompletedCareReport ? (
+              <CalendarCareReportCompletionPanel
+                shopId={shopId}
+                appointmentId={action.bookingId}
+                details={draft.value}
+                onDetailsChange={draft.setValue}
+                currentWeightKg={currentWeightKg}
+                hasRegisteredPhotos={hasRegisteredPhotos}
+                serviceName={selectedServiceName}
+                previewMode={previewMode}
+                disabled={busy}
+                onPendingChange={setCareReportBusy}
+                onSaveDraft={() => handleSaveAndClose(true)}
+                onReportSent={handleReportSent}
+              />
+            ) : null}
           </div>
         ) : (
           <div className="rounded-[10px] bg-[#fbfcfd] p-4">
@@ -3795,26 +3823,7 @@ function PhotoStatusDialog({
           </p>
         ) : null}
 
-        {!isCompletedCareReport && isCompletionMode ? (
-          <div className="mt-4 space-y-2">
-            <button
-              type="button"
-              onClick={() => void handleComplete(uploadedAssetIds)}
-              disabled={busy || careReportBusy}
-              className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#334155] px-3 text-[15px] text-white hover:bg-[#1f2937] disabled:opacity-50"
-            >
-              {completing ? "완료 처리 중" : uploading ? "사진 업로드 중" : "미용 완료"}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={busy}
-              className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
-            >
-              취소
-            </button>
-          </div>
-        ) : (
+        {!isCompletionMode ? (
           <div className="mt-4 space-y-2">
             <button
               type="button"
@@ -3833,7 +3842,8 @@ function PhotoStatusDialog({
               취소
             </button>
           </div>
-        )}
+        ) : null}
+        </div>
       </div>
     </div>
   );
@@ -3922,6 +3932,9 @@ export default function CalendarManagementScreen({
   const [acknowledgedChangeBookingIds, setAcknowledgedChangeBookingIds] = useState<Set<string>>(() => new Set());
   const [earlyStartBooking, setEarlyStartBooking] = useState<DailyBooking | null>(null);
   const [photoStatusAction, setPhotoStatusAction] = useState<PhotoStatusAction | null>(null);
+  const [careReportChoiceBooking, setCareReportChoiceBooking] = useState<DailyBooking | null>(null);
+  const [basicCareReportPublishing, setBasicCareReportPublishing] = useState(false);
+  const [basicCareReportError, setBasicCareReportError] = useState("");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleForm, setScheduleForm] = useState<ScheduleCreateFormState>(() =>
     buildDefaultScheduleForm(initialData, visibleStaff, currentDateInTimeZone(), "전체 직원"),
@@ -3930,6 +3943,7 @@ export default function CalendarManagementScreen({
   const [scheduleError, setScheduleError] = useState("");
   const [boardError, setBoardError] = useState("");
   const [pendingOutOfHoursMove, setPendingOutOfHoursMove] = useState<PendingOutOfHoursMove | null>(null);
+  const [statusChanging, setStatusChanging] = useState(false);
   const statusChangeInFlightRef = useRef(false);
   const recentStatusOverridesRef = useRef<Record<string, RecentStatusOverride>>({});
   useEffect(() => {
@@ -4067,6 +4081,7 @@ export default function CalendarManagementScreen({
           !scheduleDialogOpen &&
           !scheduleSaving &&
           !statusChangeInFlightRef.current &&
+          !careReportChoiceBooking &&
           !photoStatusAction &&
           !earlyStartBooking);
 
@@ -4102,6 +4117,7 @@ export default function CalendarManagementScreen({
     bootstrapData.mode,
     bootstrapData.shop.id,
     calendarViewMode,
+    careReportChoiceBooking,
     earlyStartBooking,
     onDataChange,
     photoStatusAction,
@@ -4196,17 +4212,9 @@ export default function CalendarManagementScreen({
   const selectedBooking = filteredBookings.find((item) => item.id === selectedBookingId);
 
   useEffect(() => {
-    if (filteredBookings.length === 0) {
-      if (selectedBookingId) setSelectedBookingId("");
-      return;
+    if (selectedBookingId && !filteredBookings.some((booking) => booking.id === selectedBookingId)) {
+      setSelectedBookingId("");
     }
-
-    if (selectedBookingId && filteredBookings.some((booking) => booking.id === selectedBookingId)) return;
-
-    const firstBooking = [...filteredBookings].sort(
-      (a, b) => a.start - b.start || a.staffName.localeCompare(b.staffName) || a.id.localeCompare(b.id),
-    )[0];
-    setSelectedBookingId(firstBooking.id);
   }, [filteredBookings, selectedBookingId]);
 
   function handleOpenWeeklyDay(date: string) {
@@ -4319,6 +4327,63 @@ export default function CalendarManagementScreen({
     }
 
     const durationMinutes = endMinutes - startMinutes;
+
+    if (bootstrapData.mode !== "supabase") {
+      const now = new Date().toISOString();
+      const nextServiceId = getAppointmentCustomServiceId(appointment.id);
+      const baseService: Service = currentService ?? {
+        id: nextServiceId,
+        shop_id: bootstrapData.shop.id,
+        name: booking.service,
+        price: typeof booking.servicePrice === "number" ? booking.servicePrice : 0,
+        duration_minutes: currentDurationMinutes,
+        is_active: false,
+        created_at: now,
+        updated_at: now,
+      };
+      const updatedGuardian = currentGuardian
+        ? { ...currentGuardian, phone: values.phone, updated_at: now }
+        : null;
+      const updatedService: Service = {
+        ...baseService,
+        id: nextServiceId,
+        name: values.serviceName,
+        price: values.price,
+        duration_minutes: durationMinutes,
+        is_active: false,
+        updated_at: now,
+      };
+      const updatedAppointment: Appointment = {
+        ...appointment,
+        service_id: nextServiceId,
+        appointment_time: values.startTime,
+        start_at: `${appointment.appointment_date}T${values.startTime}:00.000+09:00`,
+        end_at: `${appointment.appointment_date}T${formatHourLabel(endMinutes / 60)}:00.000+09:00`,
+        updated_at: now,
+      };
+      let nextBootstrapData = upsertServiceInBootstrap(bootstrapData, updatedService);
+      if (updatedGuardian) nextBootstrapData = replaceGuardianInBootstrap(nextBootstrapData, updatedGuardian);
+      nextBootstrapData = replaceAppointmentInBootstrap(nextBootstrapData, updatedAppointment);
+      setBootstrapData(nextBootstrapData);
+      onDataChange?.(nextBootstrapData);
+      setBookings((current) =>
+        current.map((item) =>
+          item.id === booking.id
+            ? {
+                ...item,
+                start: startMinutes / 60,
+                duration: durationMinutes / 60,
+                guardianPhone: values.phone,
+                service: values.serviceName,
+                servicePrice: values.price,
+                serviceId: nextServiceId,
+              }
+            : item,
+        ),
+      );
+      return;
+    }
+
     let nextBootstrapData = bootstrapData;
 
     if (normalizeSchedulePhone(currentGuardian?.phone ?? "") !== values.phone) {
@@ -4599,6 +4664,7 @@ export default function CalendarManagementScreen({
     mediaAssetIds: string[] = [],
     options: { notifyCustomer?: boolean; groomingRecord?: GroomingCompletionDetails } = {},
   ) {
+    if (statusChangeInFlightRef.current) return false;
     const previousBookings = bookings;
     const previousBootstrapData = bootstrapData;
     const targetBooking = bookings.find((booking) => booking.id === bookingId);
@@ -4618,6 +4684,16 @@ export default function CalendarManagementScreen({
       displayStatus !== "완료 확인 필요"
     ) return;
 
+    // Preview bookings exist only in the browser. Their generated IDs cannot
+    // be PATCHed as real appointments, so keep their test status changes local.
+    if (shouldUseOwnerWebPreviewBookings(bootstrapData)) {
+      setBookings((current) => current.map((booking) => (
+        booking.id === bookingId ? { ...booking, status: nextStatus, sourceStatus: nextStatus } : booking
+      )));
+      setScheduleStatusHour(getCurrentDayHour());
+      return true;
+    }
+
     const nextBooking = { ...targetBooking, status: nextStatus };
     const optimisticBootstrapData = nextAppointmentStatus
       ? {
@@ -4629,6 +4705,7 @@ export default function CalendarManagementScreen({
       : bootstrapData;
 
     statusChangeInFlightRef.current = true;
+    setStatusChanging(true);
     setBoardError("");
     if (nextAppointmentStatus) {
       recentStatusOverridesRef.current[bookingId] = {
@@ -4659,6 +4736,7 @@ export default function CalendarManagementScreen({
       return false;
     } finally {
       statusChangeInFlightRef.current = false;
+      setStatusChanging(false);
     }
     return true;
   }
@@ -4667,12 +4745,14 @@ export default function CalendarManagementScreen({
     const selectedPet = booking.petId
       ? bootstrapData.pets.find((pet) => pet.id === booking.petId)
       : null;
+    const canonicalAppointment = bootstrapData.appointments.find((appointment) => appointment.id === booking.id);
+    const canonicalService = bootstrapData.services.find((service) => service.id === canonicalAppointment?.service_id);
     setPhotoStatusAction({
       bookingId: booking.id,
       petName: booking.pet,
       currentWeightKg: selectedPet?.weight ?? null,
-      serviceId: booking.serviceId,
-      serviceName: booking.service,
+      serviceId: canonicalAppointment?.service_id ?? booking.serviceId,
+      serviceName: canonicalService?.name ?? booking.service,
       staffName: booking.staffName || booking.staff || "담당 미지정",
       nextStatus,
       mediaKind: "grooming_after",
@@ -4684,6 +4764,42 @@ export default function CalendarManagementScreen({
       skipLabel: "미용 기록 저장하고 완료",
       mobileDescription: "휴대폰으로 QR을 스캔해 사진을 촬영하고 미용 완료를 처리하세요.",
     });
+  }
+
+  function openCareReportFromChoice() {
+    const booking = careReportChoiceBooking;
+    if (!booking || basicCareReportPublishing) return;
+    setCareReportChoiceBooking(null);
+    setBasicCareReportError("");
+    requestPhotoStatusChange(booking, "완료");
+  }
+
+  async function publishBasicCareRecord() {
+    const booking = careReportChoiceBooking;
+    if (!booking || basicCareReportPublishing) return;
+
+    setBasicCareReportPublishing(true);
+    setBasicCareReportError("");
+    try {
+      if (shouldUseOwnerWebPreviewBookings(bootstrapData)) {
+        setCareReportChoiceBooking(null);
+        return;
+      }
+      await fetchApiJsonWithAuth("/api/owner/care-reports", {
+        method: "PATCH",
+        body: JSON.stringify({
+          shopId: bootstrapData.shop.id,
+          appointmentId: booking.id,
+          photoConsent: true,
+          action: "publish_basic",
+        }),
+      });
+      setCareReportChoiceBooking(null);
+    } catch (error) {
+      setBasicCareReportError(error instanceof Error ? error.message : "기본 미용 기록을 저장하지 못했습니다.");
+    } finally {
+      setBasicCareReportPublishing(false);
+    }
   }
 
   async function handlePhotoStatusFile(file: File, mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">) {
@@ -4758,6 +4874,7 @@ export default function CalendarManagementScreen({
   }
 
   function handleChangeBookingStatus(bookingId: string, nextStatus: string) {
+    if (statusChangeInFlightRef.current) return;
     const targetBooking = bookings.find((booking) => booking.id === bookingId);
     const sourceStatus = targetBooking?.sourceStatus ?? targetBooking?.status;
     const rollback =
@@ -4792,7 +4909,10 @@ export default function CalendarManagementScreen({
     if (targetBooking && nextStatus === "완료") {
       void (async () => {
         const succeeded = await applyBookingStatusChange(targetBooking.id, nextStatus);
-        if (succeeded === true) requestPhotoStatusChange(targetBooking, nextStatus);
+        if (succeeded === true) {
+          setBasicCareReportError("");
+          setCareReportChoiceBooking(targetBooking);
+        }
       })();
       return;
     }
@@ -4924,6 +5044,48 @@ export default function CalendarManagementScreen({
       setReservationStatusFilter("all");
       setScheduleDialogOpen(false);
     };
+
+    // The owner demo is an isolated reservation sandbox. Keep every test
+    // mutation in the browser state so a signed-in owner cannot accidentally
+    // create development or production appointments from the demo URL.
+    if (bootstrapData.mode !== "supabase") {
+      if (scheduleForm.customerMode === "new") {
+        createdGuardian = buildLocalGuardian({
+          shopId: bootstrapData.shop.id,
+          name: newCustomerName,
+          phone: newCustomerPhone,
+        });
+        createdPet = buildLocalPet({
+          shopId: bootstrapData.shop.id,
+          guardianId: createdGuardian.id,
+          name: newPetName,
+        });
+        selectedGuardian = createdGuardian;
+        selectedPet = createdPet;
+      }
+
+      if (!selectedGuardian || !selectedPet) {
+        setScheduleError("고객과 반려동물 정보를 확인해 주세요.");
+        setScheduleSaving(false);
+        return;
+      }
+
+      applyCreatedAppointment(
+        buildLocalOwnerAppointment({
+          shopId: bootstrapData.shop.id,
+          guardianId: selectedGuardian.id,
+          petId: selectedPet.id,
+          serviceId: selectedService.id,
+          staffId: targetStaff.key,
+          appointmentDate: scheduleForm.date,
+          appointmentTime: scheduleForm.time,
+          memo: scheduleForm.memo,
+          durationMinutes: selectedService.duration_minutes,
+        }),
+      );
+      setScheduleSaving(false);
+      return;
+    }
 
     if (scheduleForm.customerMode === "new") {
       try {
@@ -5156,7 +5318,7 @@ export default function CalendarManagementScreen({
         </div>
       ) : null}
 
-      <div className="grid h-[calc(100vh-134px)] min-h-0 min-w-0 items-stretch gap-3 overflow-hidden xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="h-[calc(100vh-134px)] min-h-0 min-w-0 overflow-hidden">
         <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
           <CalendarToolbar
             shop={bootstrapData.shop}
@@ -5200,6 +5362,8 @@ export default function CalendarManagementScreen({
           )}
         </WebSurface>
 
+      </div>
+
         <BookingSidePanel
           activeMetric={activeMetric}
           shopId={bootstrapData.shop.id}
@@ -5210,6 +5374,9 @@ export default function CalendarManagementScreen({
           selectedDate={selectedDate}
           currentHour={scheduleStatusHour}
           bookings={filteredBookings}
+          statusChanging={statusChanging}
+          careReportWritingBookingId={photoStatusAction?.mode === "completion" ? photoStatusAction.bookingId : undefined}
+          careReportChoiceOpen={Boolean(careReportChoiceBooking)}
           onChangeStatus={handleChangeBookingStatus}
           onOpenCareReport={(booking) => requestPhotoStatusChange(booking, "완료")}
           onAcknowledgeChange={handleAcknowledgeChangeBooking}
@@ -5220,8 +5387,18 @@ export default function CalendarManagementScreen({
             onSaveBookingDetail={persistBookingDetailChange}
             onSavePetProfile={persistBookingPetProfileChange}
             onSaveNotificationTiming={persistBookingNotificationTiming}
+            onClose={() => setSelectedBookingId("")}
           />
-      </div>
+      {careReportChoiceBooking ? (
+        <CalendarCareReportChoiceDialog
+          petName={careReportChoiceBooking.pet}
+          serviceName={careReportChoiceBooking.service}
+          saving={basicCareReportPublishing}
+          error={basicCareReportError}
+          onOpenReport={openCareReportFromChoice}
+          onPublishBasic={() => void publishBasicCareRecord()}
+        />
+      ) : null}
       {photoStatusAction ? (
         <PhotoStatusDialog
           shopId={bootstrapData.shop.id}
@@ -5229,6 +5406,7 @@ export default function CalendarManagementScreen({
           services={bootstrapData.services}
           revisitReminderEnabled={bootstrapData.shop.notification_settings.revisit_enabled}
           revisitReminderDefaultDays={bootstrapData.shop.notification_settings.revisit_reminder_default_days}
+          previewMode={shouldUseOwnerWebPreviewBookings(bootstrapData)}
           onClose={() => setPhotoStatusAction(null)}
           onSubmit={handlePhotoStatusFile}
           onServiceChange={(serviceId) => persistCompletionServiceChange(photoStatusAction.bookingId, serviceId)}

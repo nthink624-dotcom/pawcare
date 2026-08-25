@@ -12,7 +12,7 @@ export const careReportObservationsSchema = z.object({
 });
 
 export const careReportDraftSchema = z.object({
-  oneLineSummary: z.string().trim().min(1).max(280),
+  oneLineSummary: z.string().trim().min(1).max(400),
   treatmentSummary: z.string().trim().min(1).max(800),
   conditionSummary: z.string().trim().max(800).default(""),
   groomingResponse: z.string().trim().max(500).default(""),

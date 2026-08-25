@@ -1,30 +1,27 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ArrowUp, Check, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import PetManagerBrand from "@/components/brand/petmanager-brand";
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import {
-  AutomationSection,
   BookingSystemSection,
+  AutomaticNotificationSection,
   HeroSection,
   PainSection,
   ScheduleProofSection,
 } from "@/components/landing/landing-primary-sections";
-import {
-  FaqAndFinalCtaSection,
-  PricingSection,
-  SavingsSection,
-  TrustSection,
-} from "@/components/landing/landing-conversion-sections";
+import { FaqAndFinalCtaSection } from "@/components/landing/landing-conversion-sections";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+import { billableOwnerPlans } from "@/lib/billing/owner-plans";
+import { won } from "@/lib/utils";
+
+import styles from "./landing-page.module.css";
 
 const navigationItems = [
   { id: "booking-system", label: "예약 시스템" },
-  { id: "savings", label: "시간 가치" },
-  { id: "pricing", label: "요금제" },
 ] as const;
 
 function scrollToSection(sectionId: string) {
@@ -35,22 +32,7 @@ export default function LandingPage() {
   const footerRef = useRef<HTMLDivElement | null>(null);
   const [mobileCtaVisible, setMobileCtaVisible] = useState(false);
   const [footerVisible, setFooterVisible] = useState(false);
-
-  useEffect(() => {
-    if (window.location.pathname !== "/" || window.location.hash) return;
-
-    const previousScrollRestoration = window.history.scrollRestoration;
-    window.history.scrollRestoration = "manual";
-    const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    const frame = window.requestAnimationFrame(resetScroll);
-    const timeouts = [0, 100, 350].map((delay) => window.setTimeout(resetScroll, delay));
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      timeouts.forEach((timeout) => window.clearTimeout(timeout));
-      window.history.scrollRestoration = previousScrollRestoration;
-    };
-  }, []);
+  const [pricingOpen, setPricingOpen] = useState(false);
 
   useEffect(() => {
     const updateMobileCta = () => setMobileCtaVisible(window.scrollY > window.innerHeight * 0.3);
@@ -72,25 +54,38 @@ export default function LandingPage() {
 
   return (
     <main className="landing-theme owner-font min-h-screen overflow-x-clip bg-white text-[#111827]">
-      <LandingHeader onNavigate={scrollToSection} />
+      <LandingHeader onNavigate={scrollToSection} onPricingOpen={() => setPricingOpen(true)} />
       <HeroSection onViewProduct={() => scrollToSection("booking-system")} />
       <PainSection />
       <BookingSystemSection />
-      <ScheduleProofSection />
-      <AutomationSection />
-      <SavingsSection />
-      <PricingSection />
-      <TrustSection />
-      <FaqAndFinalCtaSection />
+        <ScheduleProofSection />
+        <AutomaticNotificationSection />
+        <FaqAndFinalCtaSection />
       <div ref={footerRef} className="mx-auto w-full max-w-[1180px] px-5 pb-10 pt-2">
         <LegalLinksFooter />
       </div>
       <MobileTrialCta visible={mobileCtaVisible && !footerVisible} />
+      <ScrollToTopButton />
+      <PricingModal open={pricingOpen} onClose={() => setPricingOpen(false)} />
     </main>
   );
 }
 
-function LandingHeader({ onNavigate }: { onNavigate: (sectionId: string) => void }) {
+function ScrollToTopButton() {
+  return (
+    <button
+      type="button"
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      className={`${styles.scrollTopButton} items-center justify-center rounded-full border border-white/70 bg-[#17233a] text-white shadow-[0_10px_26px_rgba(15,23,42,0.22)] transition hover:-translate-y-0.5 hover:bg-[#223453] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2`}
+      aria-label="맨 위로 이동"
+      title="맨 위로"
+    >
+      <ArrowUp className="h-5 w-5" aria-hidden="true" />
+    </button>
+  );
+}
+
+function LandingHeader({ onNavigate, onPricingOpen }: { onNavigate: (sectionId: string) => void; onPricingOpen: () => void }) {
   return (
     <header className="sticky top-0 z-50 border-b border-[#e2e8f0] bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-[1180px] items-center justify-between px-5">
@@ -113,9 +108,23 @@ function LandingHeader({ onNavigate }: { onNavigate: (sectionId: string) => void
               {item.label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={onPricingOpen}
+            className="h-10 text-[15px] font-medium text-[#64748b] transition hover:text-[#111827]"
+          >
+            요금제
+          </button>
         </nav>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onPricingOpen}
+            className="inline-flex h-10 items-center px-2 text-[14px] font-medium text-[#526071] transition hover:text-[#111827] lg:hidden"
+          >
+            요금제
+          </button>
           <Link
             href="/login?next=%2Fowner"
             className="hidden h-10 items-center px-3 text-[15px] font-medium text-[#64748b] transition hover:text-[#111827] sm:inline-flex"
@@ -132,6 +141,69 @@ function LandingHeader({ onNavigate }: { onNavigate: (sectionId: string) => void
         </div>
       </div>
     </header>
+  );
+}
+
+function PricingModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onClose, open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/65 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="펫매니저 요금제"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="max-h-[calc(100vh-32px)] w-full max-w-[920px] overflow-y-auto rounded-[22px] bg-white p-5 shadow-[0_28px_80px_rgba(15,23,42,0.3)] sm:p-7">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[14px] font-semibold text-[var(--landing-accent)]">요금제</p>
+            <h2 className="mt-1 text-[26px] font-semibold text-[#111827] sm:text-[30px]">운영 인원에 맞게 고르세요</h2>
+            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">모든 유료 플랜에 핵심 기능이 포함되며 설치비는 없습니다.</p>
+          </div>
+          <button type="button" onClick={onClose} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#111827]" aria-label="요금제 닫기" autoFocus>
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-3 lg:grid-cols-3">
+          {billableOwnerPlans.map((plan) => (
+            <article key={plan.code} className={`flex flex-col rounded-[14px] border p-5 ${plan.featured ? "border-[#2563eb] bg-[#f6f9ff]" : "border-[#dbe2ea] bg-white"}`}>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-[18px] font-semibold text-[#172033]">{plan.title}</h3>
+                {plan.featured ? <span className="rounded-full bg-[#2563eb] px-2.5 py-1 text-[11px] font-semibold text-white">추천</span> : null}
+              </div>
+              <p className="mt-3 text-[28px] font-semibold text-[#111827]">{won(plan.monthlyPrice)}<span className="ml-1 text-[13px] font-medium text-[#64748b]">/월</span></p>
+              <div className="mt-4 space-y-2 border-t border-[#e2e8f0] pt-4 text-[14px] text-[#526071]">
+                {[plan.staffLimitLabel, plan.alimtalkIncludedLabel, "핵심 기능 전체 제공"].map((item) => (
+                  <p key={item} className="flex items-center gap-2"><Check className="h-4 w-4 shrink-0 text-[#2563eb]" aria-hidden="true" />{item}</p>
+                ))}
+              </div>
+              <Link href="/signup" className={`mt-5 flex h-11 items-center justify-center rounded-[9px] text-[14px] font-semibold ${plan.featured ? "bg-[#2563eb] text-white" : "border border-[#cbd5e1] text-[#334155]"}`}>14일 무료 시작</Link>
+            </article>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

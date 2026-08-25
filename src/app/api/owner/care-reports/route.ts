@@ -7,10 +7,12 @@ import {
   generateCareReportDraft,
   hashCareReportInput,
 } from "@/server/care-report-ai";
+import { buildPreviewCareReportDraft } from "@/lib/care-report-draft";
 import { OwnerApiError, requireOwnerShop, type OwnerShopContext } from "@/server/owner-api-auth";
 import {
   careReportDraftSchema,
   careReportGenerationInputSchema,
+  type CareReportDraft,
 } from "@/types/care-report";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +20,39 @@ export const dynamic = "force-dynamic";
 const confirmInputSchema = z.object({
   shopId: z.string().trim().min(1).max(120),
   appointmentId: z.string().trim().min(1).max(120),
-  careReport: careReportDraftSchema,
-  photoConsent: z.boolean(),
-  action: z.enum(["save_draft", "publish"]).default("publish"),
+  careReport: careReportDraftSchema.optional(),
+  photoConsent: z.boolean().default(false),
+  action: z.enum(["save_draft", "publish", "publish_basic"]).default("publish"),
+}).superRefine((value, context) => {
+  if (value.action !== "publish_basic" && !value.careReport) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["careReport"],
+      message: "케어리포트 내용을 확인해 주세요.",
+    });
+  }
 });
+
+const emptyCareReportObservations = {
+  coat: [],
+  skin: [],
+  ears: [],
+  pawsAndNails: [],
+  groomingResponse: [],
+  customNote: "",
+};
+
+async function buildBasicCareReport(appointment: AppointmentScope): Promise<CareReportDraft> {
+  const context = await readCareReportContext(appointment);
+  return buildPreviewCareReportDraft({
+    petName: context.petName,
+    serviceName: context.serviceName,
+    actualDurationMinutes: context.automaticFacts.actualDurationMinutes,
+    nextRecommendedVisitDate: context.automaticFacts.nextRecommendedVisitDate,
+    ownerSourceText: "",
+    observations: emptyCareReportObservations,
+  });
+}
 
 type AppointmentScope = {
   id: string;
@@ -326,9 +357,14 @@ export async function PATCH(request: NextRequest) {
       .maybeSingle();
     if (finalLookup.error) throw new OwnerApiError(finalLookup.error.message, 500);
 
-    if (!draftLookup.data?.care_report_ai_draft && !finalLookup.data?.care_report_data) {
+    if (input.action !== "publish_basic" && !draftLookup.data?.care_report_ai_draft && !finalLookup.data?.care_report_data) {
       throw new OwnerApiError("먼저 AI 초안을 만들어 주세요.", 409);
     }
+
+    const careReport = input.action === "publish_basic"
+      ? await buildBasicCareReport(appointment)
+      : input.careReport;
+    if (!careReport) throw new OwnerApiError("케어리포트 내용을 확인해 주세요.", 400);
 
     if (input.action === "save_draft") {
       if (!draftLookup.data) {
@@ -339,7 +375,7 @@ export async function PATCH(request: NextRequest) {
       const draftUpdate = await admin
         .from("grooming_record_drafts")
         .update({
-          care_report_ai_draft: input.careReport,
+          care_report_ai_draft: careReport,
           care_report_photo_consent: input.photoConsent,
           care_report_owner_confirmed_at: null,
           updated_at: savedAt,
@@ -348,7 +384,7 @@ export async function PATCH(request: NextRequest) {
         .eq("appointment_id", appointment.id);
       if (draftUpdate.error) throw new OwnerApiError(draftUpdate.error.message, 500);
 
-      return NextResponse.json({ status: "draft", savedAt, careReport: input.careReport });
+      return NextResponse.json({ status: "draft", savedAt, careReport });
     }
 
     if (!finalLookup.data) {
@@ -358,7 +394,7 @@ export async function PATCH(request: NextRequest) {
     const publishResult = await admin.rpc("publish_ai_care_report", {
       p_shop_id: owner.shopId,
       p_appointment_id: appointment.id,
-      p_care_report: input.careReport,
+      p_care_report: careReport,
       p_photo_consent: input.photoConsent,
       p_confirmed_at: confirmedAt,
     });
@@ -369,7 +405,11 @@ export async function PATCH(request: NextRequest) {
       throw new OwnerApiError(publishResult.error.message, 500);
     }
 
-    return NextResponse.json({ status: "published", confirmedAt, careReport: input.careReport });
+    return NextResponse.json({
+      status: input.action === "publish_basic" ? "published_basic" : "published",
+      confirmedAt,
+      careReport,
+    });
   } catch (error) {
     return errorResponse(error, "케어리포트 확인 상태를 저장하지 못했습니다.");
   }

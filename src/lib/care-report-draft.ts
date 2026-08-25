@@ -154,7 +154,7 @@ export function finalizeCareReportDraft(
   }) || safeFallback;
 
   return careReportDraftSchema.parse({
-    oneLineSummary: summary.slice(0, 280),
+    oneLineSummary: summary.slice(0, 400),
     treatmentSummary: buildVerifiedTreatmentSummary(context.serviceName, context.actualDurationMinutes),
     conditionSummary,
     groomingResponse,

@@ -55,6 +55,20 @@ test("builds an observation-only prompt without exposing a medical diagnosis ins
   assert.match(prompt.user, /오늘은 전체적으로 편안하게 미용했어요/);
 });
 
+test("allows a 400-character owner-edited core summary and rejects longer copy", () => {
+  const baseDraft = {
+    oneLineSummary: "가".repeat(400),
+    treatmentSummary: "전체미용을 진행했어요.",
+    conditionSummary: "",
+    groomingResponse: "",
+    homeCareTips: [],
+    nextVisitGuide: "",
+  };
+
+  assert.equal(careReportDraftSchema.parse(baseDraft).oneLineSummary.length, 400);
+  assert.equal(careReportDraftSchema.safeParse({ ...baseDraft, oneLineSummary: "가".repeat(401) }).success, false);
+});
+
 test("keeps the current edited draft as context for an iterative owner request", () => {
   const currentDraft = {
     oneLineSummary: "두부는 오늘 눈가를 부드럽게 세정했어요.",

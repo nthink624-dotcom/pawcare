@@ -340,6 +340,7 @@ export function StaffDetailPanel({
   onSave,
   onOpenLeaveDialog,
   onOpenAnnualGrantDialog,
+  showActions = true,
 }: {
   selectedStaff: StaffMember;
   draft: StaffDraft;
@@ -350,6 +351,7 @@ export function StaffDetailPanel({
   onSave: () => void;
   onOpenLeaveDialog: () => void;
   onOpenAnnualGrantDialog: () => void;
+  showActions?: boolean;
 }) {
   const annualUsage = getAnnualLeaveUsage(selectedStaff, requests);
   const internalName = draft.name.trim() || selectedStaff.name;
@@ -425,8 +427,33 @@ export function StaffDetailPanel({
         </div>
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <GhostButton label="취소" onClick={() => onDraftChange(() => buildDraft(selectedStaff))} />
+      {showActions ? (
+        <StaffDetailActions
+          onReset={() => onDraftChange(() => buildDraft(selectedStaff))}
+          onSave={onSave}
+          onOpenLeaveDialog={onOpenLeaveDialog}
+          onOpenAnnualGrantDialog={onOpenAnnualGrantDialog}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+export function StaffDetailActions({
+  onReset,
+  onSave,
+  onOpenLeaveDialog,
+  onOpenAnnualGrantDialog,
+}: {
+  onReset: () => void;
+  onSave: () => void;
+  onOpenLeaveDialog: () => void;
+  onOpenAnnualGrantDialog: () => void;
+}) {
+  return (
+    <div className="grid gap-2">
+      <div className="grid grid-cols-2 gap-2">
+        <GhostButton label="취소" onClick={onReset} />
         <button
           type="button"
           onClick={onSave}
@@ -435,7 +462,7 @@ export function StaffDetailPanel({
           저장
         </button>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <GhostButton label="휴무/연차 등록" onClick={onOpenLeaveDialog} />
         <GhostButton label="연차 일괄 부여" onClick={onOpenAnnualGrantDialog} />
       </div>
@@ -783,7 +810,7 @@ export function StaffScheduleEditModal({
   );
 }
 
-export function StaffModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+export function StaffModal({ title, children, footer, onClose }: { title: string; children: ReactNode; footer?: ReactNode; onClose: () => void }) {
   const mounted = useSyncExternalStore(
     () => () => undefined,
     () => true,
@@ -799,16 +826,24 @@ export function StaffModal({ title, children, onClose }: { title: string; childr
           role="dialog"
           aria-modal="true"
           aria-label={title}
-          className="max-h-[calc(100dvh-48px)] w-full max-w-[500px] overflow-y-auto rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className={cn(
+            "w-full max-w-[500px] rounded-[12px] border border-[#dbe2ea] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]",
+            footer
+              ? "flex h-[calc(100dvh-48px)] flex-col overflow-hidden"
+              : "max-h-[calc(100dvh-48px)] overflow-y-auto p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          )}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
-            <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
-              <X className="h-5 w-5" />
-            </button>
+          <div className={footer ? "shrink-0 px-5 pt-5" : ""}>
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
+              <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
-          <div className="mt-3">{children}</div>
+          <div className={footer ? "mt-3 min-h-0 flex-1 overflow-y-auto px-5 pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "mt-3"}>{children}</div>
+          {footer ? <div className="shrink-0 border-t border-[#edf2f7] bg-white px-5 py-4">{footer}</div> : null}
         </div>
       </div>
     </div>,

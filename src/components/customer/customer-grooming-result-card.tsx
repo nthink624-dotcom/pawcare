@@ -142,6 +142,7 @@ export function CustomerGroomingResultCard({
   mediaAssets,
   previewPhotoUrls,
   weightHistory = [],
+  embedded = false,
 }: {
   shopId: string;
   accessToken: string;
@@ -154,6 +155,7 @@ export function CustomerGroomingResultCard({
   mediaAssets: CustomerResultMediaAsset[];
   previewPhotoUrls?: Record<string, string>;
   weightHistory?: CustomerWeightMeasurement[];
+  embedded?: boolean;
 }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>(previewPhotoUrls ?? {});
   const [photoError, setPhotoError] = useState("");
@@ -236,7 +238,7 @@ export function CustomerGroomingResultCard({
   if (!confirmedCareReport) {
     return (
       <section
-        className="mt-3 overflow-hidden rounded-[26px] bg-white shadow-[0_18px_46px_rgba(171,91,101,0.1)]"
+        className={embedded ? "overflow-hidden bg-white" : "mt-3 overflow-hidden rounded-[26px] bg-white shadow-[0_18px_46px_rgba(171,91,101,0.1)]"}
         aria-labelledby={`grooming-result-${record.id}`}
       >
         <div className="bg-[#fde9e7] px-5 py-7 text-center">
@@ -268,7 +270,7 @@ export function CustomerGroomingResultCard({
 
   return (
     <section
-      className="mt-3 overflow-hidden rounded-[28px] bg-white shadow-[0_22px_54px_rgba(171,91,101,0.1)]"
+      className={embedded ? "overflow-hidden bg-white" : "mt-3 overflow-hidden rounded-[28px] bg-white shadow-[0_22px_54px_rgba(171,91,101,0.1)]"}
       aria-labelledby={`grooming-result-${record.id}`}
     >
       <header className="bg-[#fde9e7] px-5 py-7 text-center">

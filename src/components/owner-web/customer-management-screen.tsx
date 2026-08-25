@@ -119,11 +119,6 @@ const emptyNewCustomerDraft: NewCustomerDraft = {
 const customerListGridClass =
   "grid-cols-[28px_minmax(138px,0.85fr)_minmax(136px,0.8fr)_minmax(150px,0.85fr)_minmax(132px,0.75fr)_minmax(170px,1fr)_40px]";
 
-const initialStaffComments: Record<string, string> = {
-  "우유|정유진": "첫 방문 때 긴장했음. 목 주변은 잡아주면 안정됨.",
-  "몽이|김민지": "물 온도 낮으면 싫어함. 시작 전에 충분히 적셔주기.",
-};
-
 function formatMonthDay(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;

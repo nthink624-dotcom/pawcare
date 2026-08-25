@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   ScheduleTable,
   StaffBoardTabs,
+  StaffDetailActions,
   StaffDetailPanel,
   StaffList,
   StaffModal,
@@ -92,6 +93,8 @@ export default function StaffManagementScreen({
   const [scheduleEditDraft, setScheduleEditDraft] = useState<ScheduleEditDraft | null>(null);
   const [defaultScheduleOpen, setDefaultScheduleOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [staffSaveFeedback, setStaffSaveFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isSavingStaff, setIsSavingStaff] = useState(false);
 
   useEffect(() => {
     setScheduleOverrides(staffScheduleOverrides.map(scheduleOverrideFromBootstrap));
@@ -139,37 +142,43 @@ export default function StaffManagementScreen({
   }
 
   async function saveStaff() {
-    if (!selectedStaff) return;
+    if (!selectedStaff || isSavingStaff) return;
     if (!isValidTimeRange(draft.startTime, draft.endTime)) {
-      setNotice("고정 출근 시간은 고정 퇴근 시간보다 빨라야 합니다.");
+      setStaffSaveFeedback({ type: "error", message: "고정 출근 시간은 고정 퇴근 시간보다 빨라야 합니다." });
       return;
     }
-    const nextDays = parseDefaultDays(draft.defaultDaysText);
-    const saved = await updateStaffMembers((current) =>
-      current.map((item) =>
-        item.id === selectedStaff.id
-          ? {
-              ...item,
-              name: draft.name.trim() || item.name,
-              displayName: draft.displayName.trim(),
-              profileImageUrl: draft.profileImageUrl.trim(),
-              profileMessage: draft.profileMessage.trim(),
-              chipColorIndex: draft.chipColorIndex,
-              phone: draft.phone.trim(),
-              role: draft.role.trim() || item.role || "직원",
-              titlePrefix: draft.titlePrefix.trim(),
-              position: draft.position.trim() || item.position || "직원",
-              defaultDays: nextDays.length > 0 ? nextDays : item.defaultDays,
-              startTime: draft.startTime,
-              endTime: draft.endTime,
-              regularOff: draft.regularOff.trim() || item.regularOff,
-              annualRemain: Number(draft.annualRemain) || 0,
-            }
-          : item,
-      ),
-    );
-    if (saved) {
-      setNotice("직원 정보를 저장했습니다.");
+    setIsSavingStaff(true);
+    try {
+      const nextDays = parseDefaultDays(draft.defaultDaysText);
+      const saved = await updateStaffMembers((current) =>
+        current.map((item) =>
+          item.id === selectedStaff.id
+            ? {
+                ...item,
+                name: draft.name.trim() || item.name,
+                displayName: draft.displayName.trim(),
+                profileImageUrl: draft.profileImageUrl.trim(),
+                profileMessage: draft.profileMessage.trim(),
+                chipColorIndex: draft.chipColorIndex,
+                phone: draft.phone.trim(),
+                role: draft.role.trim() || item.role || "직원",
+                titlePrefix: draft.titlePrefix.trim(),
+                position: draft.position.trim() || item.position || "직원",
+                defaultDays: nextDays.length > 0 ? nextDays : item.defaultDays,
+                startTime: draft.startTime,
+                endTime: draft.endTime,
+                regularOff: draft.regularOff.trim() || item.regularOff,
+                annualRemain: Number(draft.annualRemain) || 0,
+              }
+            : item,
+        ),
+      );
+      if (saved) {
+        setNotice("직원 정보를 저장했습니다.");
+        setStaffSaveFeedback({ type: "success", message: `${draft.name.trim() || selectedStaff.name} 디자이너 정보가 저장되었습니다.` });
+      }
+    } finally {
+      setIsSavingStaff(false);
     }
   }
 
@@ -572,7 +581,24 @@ export default function StaffManagementScreen({
       ) : null}
 
       {staffDetailDialogOpen && selectedStaff ? (
-        <StaffModal title="직원 상세" onClose={() => setStaffDetailDialogOpen(false)}>
+        <StaffModal
+          title="직원 상세"
+          onClose={() => setStaffDetailDialogOpen(false)}
+          footer={
+            <StaffDetailActions
+              onReset={() => setDraft(buildDraft(selectedStaff))}
+              onSave={() => void saveStaff()}
+              onOpenLeaveDialog={() => {
+                setStaffDetailDialogOpen(false);
+                setLeaveDialogOpen(true);
+              }}
+              onOpenAnnualGrantDialog={() => {
+                setStaffDetailDialogOpen(false);
+                setAnnualGrantDialogOpen(true);
+              }}
+            />
+          }
+        >
           <StaffDetailPanel
             selectedStaff={selectedStaff}
             draft={draft}
@@ -581,6 +607,7 @@ export default function StaffManagementScreen({
             fallbackColorIndex={selectedStaffIndex}
             onDraftChange={setDraft}
             onSave={saveStaff}
+            showActions={false}
             onOpenLeaveDialog={() => {
               setStaffDetailDialogOpen(false);
               setLeaveDialogOpen(true);
@@ -590,6 +617,21 @@ export default function StaffManagementScreen({
               setAnnualGrantDialogOpen(true);
             }}
           />
+        </StaffModal>
+      ) : null}
+
+      {staffSaveFeedback ? (
+        <StaffModal title={staffSaveFeedback.type === "success" ? "저장됨" : "저장 실패"} onClose={() => setStaffSaveFeedback(null)}>
+          <div className="space-y-5">
+            <p className={cn("text-[16px] leading-6", staffSaveFeedback.type === "success" ? "text-[#2f7866]" : "text-[#a04455]")}>{staffSaveFeedback.message}</p>
+            <button
+              type="button"
+              onClick={() => setStaffSaveFeedback(null)}
+              className="inline-flex h-10 w-full items-center justify-center rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937]"
+            >
+              확인
+            </button>
+          </div>
         </StaffModal>
       ) : null}
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { BatteryFull, ChevronLeft, Signal, Wifi } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
@@ -9,22 +8,22 @@ import { GalaxyPhoneMockup, LaptopMockup } from "@/components/landing/landing-ui
 const MOBILE_VIEWPORT_WIDTH = 430;
 const DESKTOP_VIEWPORT_WIDTH = 1440;
 
+const BOOKING_PREVIEW_ROUTES = {
+  first: "/book/demo-shop?experience=first&step=1",
+  ai: "/book/demo-shop?experience=ai&step=3&serviceId=svc-full",
+  revisit: "/book/demo-shop?experience=revisit&serviceId=svc-full",
+} as const;
+
 export type BookingSystemFocus = "overview" | "first" | "ai" | "customer-data" | "revisit";
 
 function LivePhone({
   src,
   title,
   className,
-  locked = false,
-  bare = false,
-  systemChrome = true,
 }: {
   src: string;
   title: string;
   className: string;
-  locked?: boolean;
-  bare?: boolean;
-  systemChrome?: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
@@ -53,6 +52,7 @@ function LivePhone({
           <iframe
             src={src}
             title={title}
+            scrolling="no"
             className="absolute left-0 top-0 block border-0 bg-white"
             style={{
               width: `${MOBILE_VIEWPORT_WIDTH}px`,
@@ -63,53 +63,8 @@ function LivePhone({
             loading="eager"
           />
         ) : null}
-        {locked ? <div className="absolute inset-0 z-20" aria-label={`${title} 읽기 전용 화면`} /> : null}
       </div>
   );
-
-  if (bare && !systemChrome) {
-    return (
-      <div className={`relative h-full w-full overflow-hidden bg-white ${className}`}>
-        {screen}
-      </div>
-    );
-  }
-
-  if (bare) {
-    return (
-      <div
-        className={`relative aspect-[490/1080] overflow-hidden rounded-[10.5%/4.75%] bg-transparent ${className}`}
-      >
-        <div className="absolute inset-x-0 bottom-[5.7%] top-[4.8%] overflow-hidden bg-white">
-          {screen}
-        </div>
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[4.8%] items-center justify-between overflow-hidden bg-white px-[5.2%] text-[#111827]"
-          aria-hidden="true"
-        >
-          <time className="text-[8px] font-semibold leading-none">9:41</time>
-          <div className="flex items-center gap-1">
-            <Signal className="h-2.5 w-2.5" strokeWidth={2.4} />
-            <Wifi className="h-2.5 w-2.5" strokeWidth={2.4} />
-            <BatteryFull className="h-3 w-3.5" strokeWidth={2.2} />
-          </div>
-        </div>
-        <span className="pointer-events-none absolute left-1/2 top-[1.35%] z-40 aspect-square w-[2.5%] -translate-x-1/2 rounded-full bg-[#08090a] ring-1 ring-[#34383b]" aria-hidden="true" />
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex h-[5.7%] items-center justify-around overflow-hidden border-t border-[#f0f1f3] bg-white text-[#111827]"
-          aria-hidden="true"
-        >
-          <span className="flex h-3 w-3 items-center justify-center gap-[1.5px]">
-            <i className="h-2.5 w-[1.5px] rounded-full bg-[#111827]" />
-            <i className="h-2.5 w-[1.5px] rounded-full bg-[#111827]" />
-            <i className="h-2.5 w-[1.5px] rounded-full bg-[#111827]" />
-          </span>
-          <span className="h-3 w-4 rounded-[3px] border-[1.5px] border-[#111827]" />
-          <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.4} />
-        </div>
-      </div>
-    );
-  }
 
   return <GalaxyPhoneMockup className={className}>{screen}</GalaxyPhoneMockup>;
 }
@@ -117,21 +72,12 @@ function LivePhone({
 export function CustomerBookingPhonePreview({
   experience,
   className = "max-w-[280px]",
-  bare = false,
-  systemChrome = true,
 }: {
   experience: "first" | "ai" | "revisit";
   className?: string;
-  bare?: boolean;
-  systemChrome?: boolean;
 }) {
   const isAi = experience === "ai";
-  const src =
-    experience === "revisit"
-      ? "/demo/landing-booking?experience=revisit"
-      : isAi
-        ? "/demo/landing-booking?experience=ai"
-        : "/demo/landing-booking?experience=first";
+  const src = BOOKING_PREVIEW_ROUTES[experience];
   const title = experience === "revisit" ? "재방문 고객 예약" : isAi ? "AI 추천 시간 예약" : "첫 방문 고객 예약";
 
   return (
@@ -139,8 +85,6 @@ export function CustomerBookingPhonePreview({
       src={src}
       title={`${title} 실제 고객 예약 페이지`}
       className={`mx-auto w-full ${className}`}
-      bare={bare}
-      systemChrome={systemChrome}
     />
   );
 }
@@ -155,16 +99,13 @@ export function BookingFlowCarousel({
   const bookingExperiences = [
     {
       id: "first",
-      src:
-        focus === "ai"
-          ? "/demo/landing-booking?experience=ai"
-          : "/demo/landing-booking?experience=first",
+      src: focus === "ai" ? BOOKING_PREVIEW_ROUTES.ai : BOOKING_PREVIEW_ROUTES.first,
       title: focus === "ai" ? "AI 추천 시간" : "첫 방문 고객",
       description: focus === "ai" ? ["가능한 시간 중", "가장 자연스러운 시간 먼저"] : ["필요한 정보만 입력하고", "간편하게 예약 시작"],
     },
     {
       id: "revisit",
-      src: "/demo/landing-booking?experience=revisit",
+      src: BOOKING_PREVIEW_ROUTES.revisit,
       title: "재방문 고객",
       description: ["저장된 반려동물 정보로", "더 빠르게 예약"],
     },
@@ -231,7 +172,7 @@ export function OwnerLaptopPreview({
   const ownerWebSrc = view === "customers" ? "/demo/owner-web?screen=customers" : "/demo/owner-web";
 
   return (
-    <LaptopMockup className={large ? "max-w-[940px]" : compact ? "max-w-[570px]" : "max-w-[680px] 2xl:max-w-[822px]"}>
+    <LaptopMockup className={large ? "max-w-[1080px]" : compact ? "max-w-[570px]" : "max-w-[680px] 2xl:max-w-[822px]"}>
       <div ref={viewportRef} className="relative h-full w-full overflow-hidden bg-white">
         {false ? (
           <Image

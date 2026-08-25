@@ -13,6 +13,7 @@ import { defaultStaffProfileMessage, getStaffProfileMessage } from "@/lib/staff-
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime } from "@/lib/utils";
 import { getMockStore } from "@/server/mock-store";
+import { getOwnerMediaSignedUrls } from "@/server/media-service";
 import type {
   Appointment,
   BootstrapPayload,
@@ -208,6 +209,44 @@ function normalizeStaffMember(row: StaffMemberRow): BootstrapStaffMember {
     todayBookings: 0,
     weekBookings: 0,
   };
+}
+
+async function hydrateStaffProfileImageUrls(shopId: string, staffMembers: BootstrapStaffMember[]) {
+  const mediaAssetIds = [
+    ...new Set(
+      staffMembers.flatMap((staffMember) => staffMember.profileImageAssetIds ?? []).filter(Boolean),
+    ),
+  ];
+  if (mediaAssetIds.length === 0) return staffMembers;
+
+  try {
+    const resolved = await getOwnerMediaSignedUrls(
+      { shopId, userId: null },
+      { mediaAssetIds, variantKey: "thumbnail" },
+    );
+    const signedUrlByMediaAssetId = new Map(
+      resolved.items.map((item) => [item.mediaAssetId, item.signedUrl]),
+    );
+
+    return staffMembers.map((staffMember) => {
+      const resolvedUrls = (staffMember.profileImageAssetIds ?? [])
+        .map((mediaAssetId) => signedUrlByMediaAssetId.get(mediaAssetId) ?? "")
+        .filter(Boolean);
+      const profileImageUrls = resolvedUrls.length > 0
+        ? resolvedUrls
+        : staffMember.profileImageUrls ?? (staffMember.profileImageUrl ? [staffMember.profileImageUrl] : []);
+
+      return {
+        ...staffMember,
+        profileImageUrl: profileImageUrls[0] ?? "",
+        profileImageUrls,
+      };
+    });
+  } catch {
+    // A profile photo should never prevent the owner schedule from loading.
+    // Keep the stored legacy URL as a last-resort fallback.
+    return staffMembers;
+  }
 }
 
 function buildDefaultBootstrapOwnerStaffMember(shop: Shop): BootstrapStaffMember {
@@ -485,7 +524,10 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     notification_settings: normalizeShopNotificationSettings((shopRes.data as Shop).notification_settings),
     customer_page_settings: normalizedCustomerPageSettings,
   };
-  const staffMembers = (staffMemberRows as StaffMemberRow[]).map(normalizeStaffMember);
+  const staffMembers = await hydrateStaffProfileImageUrls(
+    shopId,
+    (staffMemberRows as StaffMemberRow[]).map(normalizeStaffMember),
+  );
   let appointmentChangeEvents: AppointmentChangeEvent[] = [];
   if (appointmentChangeEventsRes.error) {
     if (!isMissingAppointmentChangeEventsError(appointmentChangeEventsRes.error)) {

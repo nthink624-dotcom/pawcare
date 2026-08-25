@@ -111,16 +111,19 @@ function AiPolishedMessage({
         </p>
         <span className={`${OWNER_TYPOGRAPHY.badge} rounded-full bg-[#f0f2f4] px-2.5 py-1 text-[#596775]`}>직접 수정 가능</span>
       </div>
-      <textarea
-        value={content}
-        onChange={(event) => onChange(event.target.value.slice(0, 280))}
-        disabled={disabled}
-        maxLength={280}
-        aria-label="AI가 정리한 문장 편집"
-        className={`${OWNER_TYPOGRAPHY.body} mt-2 h-[88px] max-h-[88px] w-full resize-none overflow-y-auto rounded-[10px] border border-[#dde2e8] bg-[#fafbfc] px-3.5 py-2.5 text-[#1b2d43] outline-none focus:border-[#8c99a7] focus:ring-2 focus:ring-[#e2e6eb] disabled:opacity-60`}
-      />
-      <div className="mt-1.5 flex justify-end">
-        <span className={`${OWNER_TYPOGRAPHY.helper} text-[#89939e]`}>{content.length}/280</span>
+      <div className="relative mt-2">
+        <textarea
+          data-modal-wheel-scope="self"
+          value={content}
+          onChange={(event) => onChange(event.target.value.slice(0, 400))}
+          disabled={disabled}
+          maxLength={400}
+          aria-label="AI가 정리한 문장 편집"
+          className={`${OWNER_TYPOGRAPHY.body} no-scrollbar h-[108px] max-h-[108px] w-full resize-none overflow-y-auto overscroll-contain rounded-[10px] border border-[#dde2e8] bg-[#fafbfc] px-3.5 pb-7 pt-2.5 text-[#1b2d43] outline-none focus:border-[#8c99a7] focus:ring-2 focus:ring-[#e2e6eb] disabled:opacity-60`}
+        />
+        <span className={`${OWNER_TYPOGRAPHY.helper} pointer-events-none absolute bottom-2 right-3.5 rounded bg-[#fafbfc]/90 px-1 text-[#89939e]`}>
+          {content.length}/400
+        </span>
       </div>
     </div>
   );
@@ -133,6 +136,7 @@ export function CalendarCareReportCompletionPanel({
   currentWeightKg,
   hasRegisteredPhotos,
   serviceName = "",
+  previewMode: previewModeOverride,
   disabled,
   onPendingChange,
   onSaveDraft,
@@ -145,6 +149,7 @@ export function CalendarCareReportCompletionPanel({
   onDetailsChange: (details: GroomingCompletionDetails) => void;
   hasRegisteredPhotos: boolean;
   serviceName?: string;
+  previewMode?: boolean;
   disabled?: boolean;
   onPendingChange: (pending: boolean) => void;
   onSaveDraft?: () => Promise<void> | void;
@@ -156,7 +161,7 @@ export function CalendarCareReportCompletionPanel({
   const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null);
   const [error, setError] = useState("");
   const [composerValue, setComposerValue] = useState("");
-  const previewMode = typeof window !== "undefined" && (/^\/demo(?:\/|$)/.test(window.location.pathname) || /^\/dev(?:\/|$)/.test(window.location.pathname));
+  const previewMode = previewModeOverride ?? (typeof window !== "undefined" && (/^\/demo(?:\/|$)/.test(window.location.pathname) || /^\/dev(?:\/|$)/.test(window.location.pathname)));
   const saving = savingAction !== null;
   const pending = generating || saving;
 
@@ -292,9 +297,9 @@ export function CalendarCareReportCompletionPanel({
   }
 
   return (
-    <section className="pb-14">
+    <section>
       <div>
-        <div className="max-h-[170px] space-y-2 overflow-y-auto overscroll-contain pr-1">
+        <div className="no-scrollbar max-h-[148px] space-y-2 overflow-y-auto overscroll-contain">
           {!report && !generating ? <EmptyReportMessage /> : null}
 
           {generating ? <AiGeneratingMessage /> : null}
@@ -308,7 +313,7 @@ export function CalendarCareReportCompletionPanel({
           ) : null}
         </div>
 
-        <div className="mt-2">
+        <div className="sticky bottom-0 z-[95] -mx-3 mt-2 rounded-b-[20px] border-t border-[#dde2e8] bg-white/95 px-3 py-2 shadow-[0_-10px_28px_rgba(20,39,63,0.07)] backdrop-blur">
           <CalendarCareNoteInput
             value={composerValue}
             onChange={setComposerValue}
@@ -316,27 +321,27 @@ export function CalendarCareReportCompletionPanel({
             submitting={generating}
             disabled={disabled}
           />
-        </div>
-
-        <div className="fixed bottom-2 left-1/2 z-[95] grid w-[calc(100%-16px)] max-w-[520px] -translate-x-1/2 grid-cols-2 gap-2 rounded-b-[20px] border-t border-[#dde2e8] bg-white/95 px-3 py-2 shadow-[0_-10px_28px_rgba(20,39,63,0.07)] backdrop-blur sm:bottom-4">
-          <button
-            type="button"
-            onClick={() => void publishReport()}
-            disabled={!report || disabled || saving}
-            className={`${OWNER_TYPOGRAPHY.bodyStrong} inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f6fd6] text-white shadow-[0_7px_18px_rgba(47,111,214,0.18)] transition hover:bg-[#245fbd] disabled:cursor-not-allowed disabled:opacity-40`}
-          >
-            {savingAction === "publish" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-            리포트 보내기
-          </button>
-          <button
-            type="button"
-            onClick={() => void saveReportDraft()}
-            disabled={disabled || saving}
-            className={`${OWNER_TYPOGRAPHY.bodyStrong} inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#d5dbe2] bg-white text-[#526171] transition hover:bg-[#f3f5f7] disabled:opacity-50`}
-          >
-            {savingAction === "draft" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            임시저장
-          </button>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => void publishReport()}
+              disabled={!report || disabled || saving}
+              className={`${OWNER_TYPOGRAPHY.bodyStrong} inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f6fd6] text-white shadow-[0_7px_18px_rgba(47,111,214,0.18)] transition hover:bg-[#245fbd] disabled:cursor-not-allowed disabled:opacity-40`}
+            >
+              {savingAction === "publish" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              리포트 보내기
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveReportDraft()}
+              disabled={disabled || saving}
+              aria-label="케어리포트 임시저장"
+              className={`${OWNER_TYPOGRAPHY.bodyStrong} inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#d5dbe2] bg-white text-[#526171] transition hover:bg-[#f3f5f7] disabled:opacity-50`}
+            >
+              {savingAction === "draft" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              임시저장
+            </button>
+          </div>
         </div>
 
         {error ? <p className={`${OWNER_TYPOGRAPHY.label} mt-3 rounded-[9px] border border-[#f1b9c1] bg-white px-3.5 py-3 text-[#a04455]`}>{error}</p> : null}

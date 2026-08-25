@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 import { getBootstrap } from "@/server/bootstrap";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
@@ -10,7 +10,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
     assertOwnerOrManager(owner);
-    const result = await createAppointment({ ...body, source: "owner" });
+    const result = await createAppointment(
+      { ...body, source: "owner" },
+      { deferNotifications: (task) => after(task) },
+    );
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof OwnerApiError) {
@@ -38,7 +41,7 @@ export async function PATCH(request: NextRequest) {
 
     const result =
       typeof body?.status === "string"
-        ? await updateAppointmentStatus(body)
+        ? await updateAppointmentStatus(body, { deferNotifications: (task) => after(task) })
         : await updateAppointmentDetails({ ...body, shopId: owner.shopId });
 
     return NextResponse.json(result);

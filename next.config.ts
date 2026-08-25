@@ -3,6 +3,7 @@
 const nextConfig: NextConfig = {
   typedRoutes: true,
   devIndicators: false,
+  allowedDevOrigins: ["localhost", "127.0.0.1", "192.168.0.226"],
   images: {
     qualities: [75, 90],
   },

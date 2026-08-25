@@ -41,7 +41,7 @@ function getFixture() {
   return { store, guardian, pet, service, staff };
 }
 
-async function createAvailableOwnerAppointment(overrides = {}) {
+async function createAvailableOwnerAppointment(overrides = {}, options) {
   const { guardian, pet, service, staff } = getFixture();
   let lastError = null;
 
@@ -49,18 +49,21 @@ async function createAvailableOwnerAppointment(overrides = {}) {
     const appointmentDate = addDate(currentDateInTimeZone(), offset);
     for (const appointmentTime of ["10:00", "10:30", "11:00", "14:00", "15:00", "16:00"]) {
       try {
-        return await createAppointment({
-          shopId: "demo-shop",
-          guardianId: guardian.id,
-          petId: pet.id,
-          serviceId: service.id,
-          staffId: staff?.id ?? null,
-          appointmentDate,
-          appointmentTime,
-          memo: "flow test",
-          source: "owner",
-          ...overrides,
-        });
+        return await createAppointment(
+          {
+            shopId: "demo-shop",
+            guardianId: guardian.id,
+            petId: pet.id,
+            serviceId: service.id,
+            staffId: staff?.id ?? null,
+            appointmentDate,
+            appointmentTime,
+            memo: "flow test",
+            source: "owner",
+            ...overrides,
+          },
+          options,
+        );
       } catch (error) {
         lastError = error;
       }
@@ -153,6 +156,48 @@ describe("appointment and alimtalk flow guards", () => {
     const confirmations = notificationsFor(appointment.id, "booking_confirmed");
     assert.equal(confirmations.length, 1);
     assert.equal(confirmations[0].status, "mocked");
+  });
+
+  it("can return an owner appointment before its confirmation notification is dispatched", async () => {
+    const deferredTasks = [];
+    const appointment = await createAvailableOwnerAppointment({}, {
+      deferNotifications(task) {
+        deferredTasks.push(task);
+      },
+    });
+
+    assert.equal(getAppointment(appointment.id).status, "confirmed");
+    assert.equal(notificationsFor(appointment.id, "booking_confirmed").length, 0);
+    assert.equal(deferredTasks.length, 1);
+
+    await deferredTasks[0]();
+    assert.equal(notificationsFor(appointment.id, "booking_confirmed").length, 1);
+  });
+
+  it("can return a grooming status change before its customer notification is dispatched", async () => {
+    const appointment = await createAvailableOwnerAppointment({ source: "customer" });
+    const deferredTasks = [];
+
+    const updated = await updateAppointmentStatus(
+      {
+        appointmentId: appointment.id,
+        status: "in_progress",
+        mediaAssetIds: [],
+      },
+      {
+        deferNotifications(task) {
+          deferredTasks.push(task);
+        },
+      },
+    );
+
+    assert.equal(updated.status, "in_progress");
+    assert.equal(getAppointment(appointment.id).status, "in_progress");
+    assert.equal(notificationsFor(appointment.id, "grooming_started").length, 0);
+    assert.equal(deferredTasks.length, 1);
+
+    await deferredTasks[0]();
+    assert.equal(notificationsFor(appointment.id, "grooming_started").length, 1);
   });
 
   it("creates a customer appointment as confirmed without an approval confirmation notification", async () => {

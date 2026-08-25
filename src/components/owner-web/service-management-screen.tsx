@@ -8,6 +8,7 @@ import { serviceRows } from "@/components/owner-web/owner-web-data";
 import type { OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
 import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
+import PriceGuidePhotoOnboarding from "@/components/owner-web/price-guide-photo-onboarding";
 import {
   ServicePriceGuideEditor,
   buildDefaultServicePriceGuide,
@@ -691,7 +692,7 @@ export default function ServiceManagementScreen({
           ? "서비스명과 가격 입력 시 자동 저장"
           : "입력하면 자동 저장됩니다";
 
-  function updatePriceGuide(priceGuide: ServicePriceGuide, forceEnabled = false, saveImmediately = false) {
+  async function updatePriceGuide(priceGuide: ServicePriceGuide, forceEnabled = false, saveImmediately = false) {
     const nextPriceGuide = normalizeServicePriceGuide(forceEnabled ? { ...priceGuide, enabled: true } : priceGuide);
     const nextForm = { ...serviceForm, priceGuide: nextPriceGuide };
     latestServiceFormSignatureRef.current = getServiceFormSignature(nextForm);
@@ -702,8 +703,9 @@ export default function ServiceManagementScreen({
       );
     }
     if (saveImmediately) {
-      void saveService({ showError: false, formToSave: nextForm });
+      return saveService({ showError: false, formToSave: nextForm });
     }
+    return true;
   }
 
   function updateCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
@@ -885,12 +887,10 @@ export default function ServiceManagementScreen({
         </div>
 
         {priceGuideOnboarding ? (
-          <div className="rounded-[12px] border border-[#cfe0ff] bg-[#f5f9ff] p-4">
-            <p className="text-[15px] font-semibold text-[#245bd0]">먼저 상세 요금표 원본을 확인해 주세요</p>
-            <p className="mt-1 text-[13px] font-medium leading-5 text-[#4b6280]">
-              고객 예약페이지의 요금표는 아래 원본에서 만들어집니다. 기본 베이직 그룹을 매장 기준에 맞게 수정하면 고객 화면에도 바로 반영됩니다.
-            </p>
-          </div>
+          <PriceGuidePhotoOnboarding
+            shopId={shopId}
+            onApply={(guide) => updatePriceGuide(guide, true, true)}
+          />
         ) : null}
 
         <div className="space-y-5">
@@ -907,8 +907,8 @@ export default function ServiceManagementScreen({
               <div>
                 <p className="text-[15px] font-medium text-[#334155]">고객에게 보여줄 요금표</p>
                 <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">
-                  <span className="block">상세 요금표 원본의 첫 번째 그룹 항목이 기본으로 고객 예약페이지에 보여집니다.</span>
-                  <span className="block">필요하면 서비스 추가하기로 고객 화면에 노출할 항목을 더 연결할 수 있어요.</span>
+                  <span className="block">동물종과 실제 서비스명이 같은 항목은 한 줄로 묶어 깔끔하게 보여줍니다.</span>
+                  <span className="block">예약할 반려동물의 품종과 몸무게가 확인되면 원본 요금표의 정확한 가격과 시간으로 안내됩니다.</span>
                 </p>
               </div>
               <span className="inline-flex h-7 items-center rounded-full border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-medium text-[#64748b]">

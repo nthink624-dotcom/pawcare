@@ -1,76 +1,65 @@
 import {
   ArrowRight,
-  BellRing,
-  CalendarCheck2,
-  Camera,
+  CalendarDays,
   Check,
   Clock3,
   Database,
-  Link2,
-  Sparkles,
   UsersRound,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { BookingStructureComparison } from "@/components/landing/landing-booking-structure-comparison";
+import { AutomaticNotificationPreview } from "@/components/landing/landing-automatic-notification-preview";
 import { OwnerLaptopPreview } from "@/components/landing/landing-booking-flow-carousel";
 import { BookingSystemStory } from "@/components/landing/landing-booking-system-story";
-import { SectionHeading, ValueItem } from "@/components/landing/landing-ui";
+import { GalaxyPhoneMockup, SectionHeading } from "@/components/landing/landing-ui";
 
-const automationSteps = [
-  { icon: Link2, title: "예약 접수", body: "고객이 예약 링크에서 필요한 정보를 남깁니다." },
-  { icon: CalendarCheck2, title: "방문 안내", body: "예약에 맞는 방문 안내 알림톡을 한 번 보냅니다." },
-  { icon: Camera, title: "미용 전후 사진", body: "미용 전·후 사진을 기록하고 보호자에게 함께 전송합니다." },
-  { icon: BellRing, title: "AI 알림장 초안", body: "미용 기록과 전후 사진을 바탕으로 보호자에게 보낼 문구를 먼저 작성합니다." },
-] as const;
-
-function LiveOwnerScreen({ label, view }: { label: string; view: "schedule" | "customers" }) {
+function LiveOwnerScreen({ view }: { view: "schedule" | "customers" }) {
   return (
-    <figure className="overflow-hidden rounded-[8px] border border-[#d8e0e9] bg-white shadow-[0_14px_38px_rgba(15,23,42,0.08)]">
-      <figcaption className="flex h-11 items-center justify-between border-b border-[#e7edf3] bg-[#fbfcfe] px-4 text-[15px] font-medium text-[#64748b]">
-        <span>{label}</span>
-        <span className="text-[13px] text-[var(--landing-accent)]">실제 제품 화면</span>
-      </figcaption>
-      <div className="bg-[#f4f6f9] px-3 pb-3 pt-4 sm:px-6 sm:pb-5 sm:pt-6">
-        <OwnerLaptopPreview view={view} large />
-      </div>
+    <figure className="min-w-0 w-full">
+      <OwnerLaptopPreview view={view} large />
     </figure>
   );
 }
 
-function NotificationFlowCard() {
+function OwnerMobilePlaceholder() {
   return (
-    <aside className="rounded-[8px] border border-[#d8e0e9] bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.08)] sm:p-6" aria-label="예약 안내 발송 흐름">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[13px] font-semibold text-[var(--landing-accent)]">예약 안내 자동 발송</p>
-          <h3 className="mt-1 text-[20px] font-semibold text-[#172033]">필요한 시점에 한 번만 안내합니다</h3>
+    <figure className="mx-auto flex w-full max-w-[190px] flex-col items-center">
+      <GalaxyPhoneMockup className="w-full">
+        <div
+          className="flex h-full flex-col items-center justify-center bg-[linear-gradient(180deg,#f8fbff_0%,#eef5ff_100%)] px-5 text-center"
+          aria-label="펫매니저 모바일 앱 화면 연결 예정"
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#e0edff] text-[#2563eb]">
+            <CalendarDays className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <strong className="mt-4 break-keep text-[12px] font-semibold leading-5 text-[#172033]">모바일 운영 화면</strong>
+          <span className="mt-1 break-keep text-[9px] leading-4 text-[#7b8ca1]">APP 화면 연결 예정</span>
         </div>
-        <span className="rounded-full bg-[var(--landing-accent-soft)] px-2.5 py-1 text-[12px] font-semibold text-[var(--landing-accent)]">발송 현황 확인</span>
+      </GalaxyPhoneMockup>
+    </figure>
+  );
+}
+
+function ScheduleFeature({ icon, title, body }: { icon: ReactNode; title: string; body: string }) {
+  return (
+    <div className="relative flex min-w-0 gap-4 py-4 first:pt-0 last:pb-0">
+      <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#dbe6f1] bg-white text-[var(--landing-accent)] shadow-[0_5px_16px_rgba(37,99,235,0.09)]">
+        {icon}
       </div>
-      <div className="mt-5 grid gap-3">
-        {[
-          ["예약 접수", "고객이 예약 링크에서 필요한 정보를 직접 입력"],
-          ["방문 전 안내", "내일·오늘·직전 중 가장 알맞은 안내 한 번 발송"],
-          ["발송 뒤 확인", "발송 상태와 매장 알림톡 잔여 건수를 함께 확인"],
-        ].map(([title, body], index) => (
-          <div key={title} className="flex gap-3 rounded-[8px] bg-[#f7f9fb] p-3.5">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-[12px] font-semibold text-[var(--landing-accent)] shadow-sm">0{index + 1}</span>
-            <div>
-              <p className="text-[14px] font-semibold text-[#172033]">{title}</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">{body}</p>
-            </div>
-          </div>
-        ))}
+      <div className="min-w-0 pt-0.5">
+        <h3 className="break-keep text-[17px] font-semibold leading-6 text-[#111827]">{title}</h3>
+        <p className="mt-1.5 break-keep text-[14px] leading-[1.7] text-[#64748b]">{body}</p>
       </div>
-    </aside>
+    </div>
   );
 }
 
 export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
   return (
-    <section className="relative min-h-[760px] overflow-hidden border-b border-[#e2e8f0] bg-[#f6f8fb] md:h-[clamp(680px,calc(100vh-96px),808px)] md:min-h-0" aria-labelledby="landing-hero-title">
+    <section className="relative min-h-[700px] overflow-hidden border-b border-[#e2e8f0] bg-[#f6f8fb] md:h-[clamp(640px,calc(100vh-96px),740px)] md:min-h-0" aria-labelledby="landing-hero-title">
       <div className="absolute inset-x-0 bottom-0 h-[220px] md:inset-0 md:h-full md:w-full">
         <Image
           src="/images/landing/hero-groomer-missed-call-v3.png"
@@ -155,10 +144,10 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
 export function PainSection() {
   return (
     <section id="pain-points" aria-label="고객의 예약 경험" className="scroll-mt-20 bg-white">
-      <div className="bg-white px-5 pb-14 pt-12 text-center md:pb-16 md:pt-14">
+      <div className="bg-white px-5 pb-10 pt-8 text-center md:pb-12 md:pt-10">
         <header className="mx-auto max-w-[1180px]">
           <div>
-            <blockquote className="relative mr-auto w-[94%] max-w-[500px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-5 py-7 text-left sm:px-5 sm:py-8 md:w-[42%]">
+            <blockquote className="relative mr-auto w-[94%] max-w-[500px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-5 py-6 text-left md:w-[42%]">
               <p className="text-[15px] font-semibold text-[#64748b]">예약하려는 고객</p>
               <p className="hidden" aria-hidden="true">
                 전화를 안 받는 매장에는
@@ -170,7 +159,7 @@ export function PainSection() {
               <span className="absolute -bottom-[9px] left-9 h-4 w-4 rotate-45 border-b border-r border-[#d8e0e9] bg-[#f6f8fa]" aria-hidden="true" />
             </blockquote>
 
-            <blockquote className="relative ml-auto mt-10 w-[94%] max-w-[670px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-6 py-7 text-right sm:px-8 sm:py-8 md:mt-16 md:w-[57%]">
+            <blockquote className="relative ml-auto mt-6 w-[94%] max-w-[670px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-6 py-6 text-right sm:px-8 md:mt-8 md:w-[57%]">
               <p className="text-[15px] font-semibold text-[#64748b]">미용을 맡긴 고객</p>
               <p className="hidden" aria-hidden="true">
                 다른 손님 전화 받느라
@@ -182,7 +171,7 @@ export function PainSection() {
               <span className="absolute -bottom-[9px] right-9 h-4 w-4 rotate-45 border-b border-r border-[#d8e0e9] bg-[#f6f8fa]" aria-hidden="true" />
             </blockquote>
 
-            <blockquote className="relative mr-auto mt-10 w-[94%] max-w-[500px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-6 py-7 text-left sm:px-8 sm:py-8 md:mt-16 md:w-[43%]">
+            <blockquote className="relative mr-auto mt-6 w-[94%] max-w-[500px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-6 py-6 text-left sm:px-8 md:mt-8 md:w-[43%]">
               <p className="text-[15px] font-semibold text-[#64748b]">미용 중인 대표님</p>
               <p className="mt-3 break-keep text-[25px] font-semibold leading-[1.35] text-[#111827] md:text-[30px]">
                 미용 중엔 손이 멈출 수 없는데,<br />전화는 계속 울려요.
@@ -218,24 +207,31 @@ export function BookingSystemSection() {
 
 export function ScheduleProofSection() {
   return (
-    <section id="screens" className="scroll-mt-20 border-y border-[#e2e8f0] bg-white py-20 md:py-24">
+    <section id="screens" className="scroll-mt-20 border-y border-[#e2e8f0] bg-white py-12 md:py-14">
       <div className="mx-auto w-full max-w-[1180px] px-5">
-        <SectionHeading
-          eyebrow="실제 운영 화면"
-          title="오늘 예약, 누가 언제 맡는지 한 화면에서"
-          description="예약 시간, 담당자, 진행 상태를 먼저 확인하고, 예약에 남긴 정보는 고객관리 화면에서 바로 이어서 봅니다."
-        />
+        <header className="max-w-[760px]">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#d7e0eb] bg-white px-1.5 py-1 text-[13px] font-semibold shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+            <span className="rounded-full bg-[#111b32] px-2 py-0.5 tracking-[0.04em] text-white">STEP 05</span>
+            <span className="pr-1 text-[#526071]">실시간 운영 관리</span>
+          </div>
+          <h2 className="mt-4 break-keep text-[34px] font-semibold leading-[1.2] text-[#111827] [text-wrap:balance] md:text-[44px]">오늘 운영, 한 화면이면 충분합니다</h2>
+          <p className="mt-5 max-w-[720px] break-keep text-[16px] leading-7 text-[#526071] md:text-[17px] md:leading-8">담당자별 예약과 빈 시간, 서비스, 요청사항을 한 화면에서 확인하고 바로 관리하세요.</p>
+        </header>
 
-        <div className="mt-12">
-          <LiveOwnerScreen label="오늘 예약과 담당자별 일정" view="schedule" />
-        </div>
+        <div className="mt-8 grid items-start gap-10 lg:grid-cols-[292px_minmax(0,1fr)] lg:gap-7">
+          <div className="relative grid gap-1 before:absolute before:bottom-5 before:left-5 before:top-5 before:w-px before:bg-[#dbe6f1] sm:grid-cols-3 sm:gap-6 sm:before:hidden lg:grid-cols-1 lg:gap-1 lg:before:block">
+            <ScheduleFeature icon={<Clock3 className="h-[18px] w-[18px]" />} title="빈 시간까지 바로 확인" body="예약 사이의 빈 시간과 오늘 남은 시간을 한눈에 파악합니다." />
+            <ScheduleFeature icon={<UsersRound className="h-[18px] w-[18px]" />} title="담당별 일정 한눈에" body="고객·반려동물·서비스·담당자를 한 화면에서 확인합니다." />
+            <ScheduleFeature icon={<Database className="h-[18px] w-[18px]" />} title="클릭하면 상세 정보까지" body="예약을 누르면 요청사항과 코멘트가 바로 이어집니다." />
+          </div>
 
-        <div className="mt-8 grid items-start gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:gap-12">
-          <LiveOwnerScreen label="예약과 함께 쌓이는 고객 정보" view="customers" />
-          <div className="grid gap-6 sm:grid-cols-3 lg:pt-4">
-            <ValueItem icon={<UsersRound className="h-[18px] w-[18px]" />} title="담당자별 예약" body="저장된 직원을 기준으로 예약 열과 담당 필터를 구성합니다." />
-            <ValueItem icon={<Clock3 className="h-[18px] w-[18px]" />} title="시간과 상태" body="예약 시간과 확정·진행·완료 상태를 일정 위치에서 확인합니다." />
-            <ValueItem icon={<Database className="h-[18px] w-[18px]" />} title="고객 정보 연결" body="예약을 선택하면 보호자, 반려동물, 서비스 기록을 함께 봅니다." />
+          <div className="grid min-w-0 items-center gap-5 sm:relative sm:block sm:pb-3 sm:pr-[32px]">
+            <div className="relative z-0 min-w-0">
+              <LiveOwnerScreen view="schedule" />
+            </div>
+            <div className="relative z-10 sm:absolute sm:bottom-0 sm:right-0 sm:w-[190px]">
+              <OwnerMobilePlaceholder />
+            </div>
           </div>
         </div>
       </div>
@@ -243,65 +239,20 @@ export function ScheduleProofSection() {
   );
 }
 
-export function AutomationSection() {
+export function AutomaticNotificationSection() {
   return (
-    <section id="automation" className="scroll-mt-20 border-y border-[#e2e8f0] bg-[#f7f8fa] py-20 text-[#111827] md:py-24">
-      <div className="mx-auto grid w-full max-w-[1180px] gap-12 px-5 lg:grid-cols-[0.82fr_1.18fr] lg:items-center lg:gap-16">
-        <div>
-          <SectionHeading
-            eyebrow="예약 이후까지 연결"
-            title="미용 기록을 바탕으로, 알림장 초안을 먼저 준비합니다."
-            description="예약 안내는 놓치지 않게 관리하고, 미용이 끝난 뒤에는 기록과 사진을 바탕으로 보호자에게 보낼 알림장 초안을 준비합니다. 오너가 확인하고 고쳐서 발송합니다."
-          />
-          <div className="mt-8 grid gap-5 sm:grid-cols-2">
-            {automationSteps.map(({ icon: Icon, title, body }) => (
-              <ValueItem key={title} icon={<Icon className="h-[18px] w-[18px]" />} title={title} body={body} />
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          <NotificationFlowCard />
-
-          <aside className="rounded-[8px] border border-[#c9e2da] bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.08)] sm:p-6" aria-label="출시 예정 AI 알림장 초안 예시">
-            <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[#e8f6ef] text-[var(--landing-accent)]">
-                <Sparkles className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-[18px] font-semibold text-[#173f37]">AI 알림장 초안</h3>
-                  <span className="rounded-full border border-[#b7d8cb] bg-[#f0faf5] px-2 py-0.5 text-[12px] font-semibold text-[#247a53]">출시 예정</span>
-                </div>
-                <p className="mt-1 text-[14px] leading-6 text-[#58736c]">사진과 미용 기록을 바탕으로, 보호자에게 보낼 문구를 먼저 작성합니다.</p>
-              </div>
+      <section id="solution-automatic-notifications" className="scroll-mt-20 border-b border-[#e2e8f0] bg-white py-14 md:py-16">
+        <div className="mx-auto w-full max-w-[1180px] px-5">
+          <header className="max-w-[800px]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#d7e0eb] bg-white px-1.5 py-1 text-[13px] font-semibold shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+              <span className="rounded-full bg-[#111b32] px-2 py-0.5 tracking-[0.04em] text-white">STEP 06</span>
+              <span className="pr-1 text-[#526071]">자동 예약 안내</span>
             </div>
+            <h2 className="mt-4 break-keep text-[34px] font-semibold leading-[1.2] text-[#111827] [text-wrap:balance] md:text-[48px]">보내야 할 메시지,<br />손이 갈 일이 없습니다</h2>
+            <p className="mt-5 max-w-[720px] break-keep text-[16px] leading-7 text-[#526071] md:text-[17px] md:leading-8">전화와 메시지를 일일이 확인하지 않아도, 필요한 순간에 딱 한 번 전달돼요.<br /><strong className="font-semibold text-[#172033]">누르는 건 한 번뿐, 놓치는 고객은 없습니다.</strong></p>
+          </header>
 
-            <div className="mt-5 rounded-[8px] border border-[#dce8e2] bg-[#f8fcfa] p-4 text-[14px] leading-6 text-[#355a4d]">
-              <p className="font-semibold text-[#173f37]">보리 보호자님, 오늘 미용이 완료되었어요.</p>
-              <p className="mt-2">목욕과 부분정리를 마쳤고, 발 주변과 귀 상태도 함께 살펴보았습니다. 사진으로 오늘 모습을 확인해 주세요.</p>
-            </div>
-
-            <div className="mt-4 rounded-[8px] border border-[#dce8e2] bg-white p-3.5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-[14px] font-semibold text-[#173f37]"><Camera className="h-4 w-4 text-[var(--landing-accent)]" aria-hidden="true" />미용 전후 사진도 함께 전송</div>
-                <span className="text-[12px] font-medium text-[#58736c]">보호자 알림장 첨부</span>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <div className="flex min-h-16 items-center gap-2 rounded-[6px] border border-dashed border-[#bfd8ca] bg-[#f6fbf8] px-3 text-[13px] font-semibold text-[#3f6c5a]"><span className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-white text-[#26704b]"><Camera className="h-4 w-4" aria-hidden="true" /></span>미용 전 사진</div>
-                <div className="flex min-h-16 items-center gap-2 rounded-[6px] border border-[#b7d8cb] bg-[#edf8f1] px-3 text-[13px] font-semibold text-[#1f714a]"><span className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-white text-[#26704b]"><Camera className="h-4 w-4" aria-hidden="true" /></span>미용 후 사진</div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#e3eee8] pt-4">
-              <div className="flex flex-wrap gap-2 text-[12px] font-medium text-[#58736c]">
-                <span className="rounded-full bg-[#edf5f1] px-2.5 py-1">미용 기록 반영</span>
-                <span className="rounded-full bg-[#edf5f1] px-2.5 py-1">사진 3장 반영</span>
-              </div>
-              <span className="text-[13px] font-semibold text-[var(--landing-accent)]">오너 확인 후 발송</span>
-            </div>
-          </aside>
-        </div>
+          <AutomaticNotificationPreview />
       </div>
     </section>
   );

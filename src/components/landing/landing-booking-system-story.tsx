@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Database, Sparkles, TriangleAlert, UserRoundPen, Zap } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Database, Maximize2, Sparkles, TriangleAlert, UserRoundPen, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 
 import {
@@ -9,6 +9,9 @@ import {
   OwnerLaptopPreview,
   type BookingSystemFocus,
 } from "@/components/landing/landing-booking-flow-carousel";
+import { LandingAiCareReportCard } from "@/components/landing/landing-ai-care-report-card";
+
+import styles from "./landing-booking-system-story.module.css";
 
 type StoryStep = {
   id: BookingSystemFocus;
@@ -127,7 +130,12 @@ function BookingDevicesStage({ focus }: { focus: BookingSystemFocus }) {
   const targetSlide = focus === "revisit" ? "revisit" : focus === "customer-data" ? "owner-pc" : focus === "overview" ? "first" : focus;
 
   useEffect(() => {
-    slideRefs.current[targetSlide]?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    const scroller = scrollerRef.current;
+    const slide = slideRefs.current[targetSlide];
+    if (!scroller || !slide) return;
+
+    const centeredLeft = slide.offsetLeft - (scroller.clientWidth - slide.clientWidth) / 2;
+    scroller.scrollTo({ left: Math.max(0, centeredLeft), behavior: "smooth" });
   }, [targetSlide]);
 
   const move = (direction: -1 | 1) => {
@@ -340,29 +348,47 @@ const solutionTableOfContents = [
   { number: "01", label: "링크로 간편 예약", targetId: "solution-simple-booking" },
   { number: "02", label: "단골 빠른 재예약", targetId: "solution-revisit-booking" },
   { number: "03", label: "AI 예약 최적화", targetId: "solution-ai-scheduling" },
-  { number: "04", label: "고객 정보 자동 관리", targetId: "solution-customer-management" },
-  { number: "05", label: "오늘 예약 한눈에 보기", targetId: "screens" },
-  { number: "06", label: "예약 후 안내까지", targetId: "automation" },
+  { number: "04", label: "AI 케어리포트", targetId: "solution-ai-care-report" },
+  { number: "05", label: "예약 일정 한눈에 관리", targetId: "screens" },
+  { number: "06", label: "자동 예약 안내", targetId: "solution-automatic-notifications" },
 ] as const;
 
 export function BookingSystemStory() {
   const [scheduleSlide, setScheduleSlide] = useState<"before" | "after">("before");
+  const [expandedBookingPreview, setExpandedBookingPreview] = useState<"first" | "revisit" | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setScheduleSlide(scheduleSlide === "before" ? "after" : "before"), 8000);
     return () => window.clearTimeout(timer);
   }, [scheduleSlide]);
 
+  useEffect(() => {
+    if (!expandedBookingPreview) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpandedBookingPreview(null);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [expandedBookingPreview]);
+
   return (
     <section className="flex flex-col bg-white" aria-labelledby="solution-story-title">
       <header className="order-0 mx-auto flex w-full max-w-[1180px] items-start justify-center px-5 pb-5 pt-[10px] text-center md:pb-6">
         <div className="w-full max-w-[980px]">
           <p className="text-[15px] font-semibold text-[var(--landing-accent)]">고객 예약부터 오너 운영까지</p>
-          <h2 id="solution-story-title" className={`mx-auto mt-3 max-w-[760px] text-[36px] font-semibold leading-[1.2] text-[#111827] md:text-[48px] ${COPY_CLASS}`}>예약은 쉽게 받고,<br />운영은 더 편하게 만드는 여섯 가지 방법</h2>
+          <h2 id="solution-story-title" className={`mx-auto mt-3 max-w-[760px] text-[36px] font-semibold leading-[1.2] text-[#111827] md:text-[48px] ${COPY_CLASS}`}>고객은 좋아하고<br />운영은 더 편하게 만드는 6가지 방법</h2>
           <nav className="mt-7 grid gap-2 text-left sm:grid-cols-2 lg:grid-cols-3" aria-label="예약과 운영을 편하게 만드는 여섯 가지 방법 목차">
             {solutionTableOfContents.map((item) => (
               <a key={item.number} href={`#${item.targetId}`} className="group flex min-h-12 items-center gap-3 rounded-[10px] border border-[#dbe3ed] bg-white px-3 py-2.5 text-[14px] font-semibold text-[#334155] transition hover:border-[#93b7a5] hover:bg-[#f4faf6] hover:text-[#1f714a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f9d55] focus-visible:ring-offset-2">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#eef3f8] text-[11px] font-bold text-[#526071] group-hover:bg-[#dff3e7] group-hover:text-[#1f714a]">{item.number}</span>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#eef3f8] text-[12px] font-bold text-[#526071] group-hover:bg-[#dff3e7] group-hover:text-[#1f714a]">{item.number}</span>
                 <span>{item.label}</span>
                 <ChevronRight className="ml-auto h-4 w-4 text-[#94a3b8] transition group-hover:translate-x-0.5 group-hover:text-[#1f714a]" aria-hidden="true" />
               </a>
@@ -371,37 +397,68 @@ export function BookingSystemStory() {
         </div>
       </header>
 
-      <article id="solution-simple-booking" className="order-1 mx-auto w-full max-w-[1180px] scroll-mt-20 border-t border-[#e2e8f0] px-5 py-10 md:py-14">
+      <article id="solution-simple-booking" className="order-1 mx-auto w-full max-w-[1180px] border-t border-[#e2e8f0] px-5 py-8 md:py-10" style={{ scrollMarginTop: 112 }}>
         <StepHeader number="01" label="간편 예약" headline="고객은 링크 하나로, 예약을 끝냅니다" subcopy="전화하거나 메시지를 기다릴 필요 없이, 원하는 서비스와 날짜·시간을 직접 고릅니다." />
         <Conclusion>고객은 편하게 예약하고, 오너에게는 <strong className="font-semibold text-[#111827]">확정된 예약만 바로 들어옵니다</strong></Conclusion>
-        <div className="mt-6 grid max-w-[1140px] overflow-hidden rounded-[24px] bg-[#edf7f1] md:grid-cols-[0.88fr_1.12fr]">
-          <div className="p-7 sm:p-10">
-            <span className="inline-flex rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-[#26704b] shadow-sm">고객 예약 페이지</span>
-            <p className={`mt-7 text-[30px] font-semibold leading-[1.2] text-[#203b2c] ${COPY_CLASS}`}>고객이 직접 고르고,<br />바로 예약을 확정합니다.</p>
-            <div className="mt-9 grid gap-3">
-              {["서비스 선택", "날짜 선택", "예약 가능한 시간 선택"].map((label, index) => (
-                <div key={label} className="flex items-center gap-4 rounded-[12px] bg-white px-4 py-4 shadow-sm"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1f9d55] text-[12px] font-semibold text-white">{index + 1}</span><span className="text-[15px] font-semibold text-[#27513a]">{label}</span><Check className="ml-auto h-5 w-5 text-[#1f9d55]" aria-hidden="true" /></div>
-              ))}
+        <div className={`${styles.compactSplit} ${styles.firstSplit} mt-6 max-w-[1140px] overflow-hidden rounded-[22px] border`}>
+          <div className={`${styles.compactPrimary} ${styles.firstCopy} flex min-w-0 flex-col justify-between px-6 py-6 sm:px-8 lg:py-7`}>
+            <div>
+              <div className="flex items-center gap-3">
+                <span className="rounded-full border border-[#7dd8ae]/35 bg-[#7dd8ae]/10 px-3 py-1 text-[12px] font-bold tracking-[0.11em] text-[#9ce8c2]">NO CALL · NO WAIT</span>
+                <span className="h-px flex-1 bg-white/15" aria-hidden="true" />
+              </div>
+              <p className={`mt-5 max-w-[470px] text-[30px] font-semibold leading-[1.18] sm:text-[34px] ${COPY_CLASS}`}>앱 설치 없이,<br />고객이 직접 예약합니다.</p>
+              <p className="mt-4 max-w-[470px] text-[16px] font-medium leading-7 text-[#c9e8da]">서비스부터 요청사항까지 고객이 남기고,<br className="hidden sm:block" /> 오너는 들어온 예약만 확인하면 됩니다.</p>
+            </div>
+
+            <div className="mt-7 rounded-[16px] border border-white/15 bg-white/[0.07] p-4">
+              <p className="text-[12px] font-bold tracking-[0.1em] text-[#9ce8c2]">BOOKING FLOW</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {[
+                  ["01", "서비스 선택", "원하는 미용을 고릅니다"],
+                  ["02", "날짜·시간 선택", "가능한 시간만 보여요"],
+                  ["03", "예약 확정", "일정에 바로 들어옵니다"],
+                ].map(([number, label, detail], index) => (
+                  <div key={number} className={`rounded-[10px] border px-3 py-3 ${index === 1 ? "border-[#ecd1a0] bg-[#f4e2bd]" : "border-white/10 bg-[#0d3028]"}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${index === 1 ? "bg-[#1f4d41] text-[#fff7e9]" : "bg-[#9ce8c2] text-[#123b32]"}`}>{number}</span>
+                      <p className={`text-[14px] font-semibold ${index === 1 ? "text-[#3d3025]" : "text-white"}`}>{label}</p>
+                    </div>
+                    <p className={`mt-2 text-[13px] leading-5 ${index === 1 ? "text-[#6a513d]" : "text-[#b8d8ca]"}`}>{detail}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="grid overflow-hidden bg-[#10192b] px-7 pt-8 sm:grid-cols-[1fr_220px] sm:gap-7 sm:px-10 sm:pt-10">
-            <div className="text-white">
-              <p className="text-[13px] font-semibold tracking-[0.14em] text-[#9fb5d9]">NO APP. NO CALL.</p>
-              <p className={`mt-4 text-[26px] font-semibold leading-[1.24] ${COPY_CLASS}`}>고객은 바로 예약하고,<br />매장은 확인만 하면 됩니다.</p>
-              <p className="mt-5 text-[14px] leading-6 text-[#bdc9db]">별도의 앱 설치 없이 서비스와 날짜·시간을 직접 고릅니다. 예약이 끝나면 매장 일정에 바로 들어옵니다.</p>
+
+          <div className={`${styles.compactSecondary} ${styles.firstLive} relative flex min-h-80 min-w-0 items-center gap-3 overflow-hidden px-6 py-5 sm:px-8`}>
+            <div className={`${styles.firstLiveCopy} relative z-10 min-w-0`}>
+              <p className="text-[12px] font-bold tracking-[0.12em] text-[#26825a]">LIVE BOOKING</p>
+              <p className={`mt-3 text-[21px] font-semibold leading-[1.32] text-[#172033] sm:text-[24px] ${COPY_CLASS}`}>고객이 고르면,<br />일정표까지 자동으로</p>
+              <p className="mt-3 text-[14px] leading-5 text-[#607080]">화면 크게 보기를 눌러<br />직접 눌러볼 수 있습니다.</p>
+              <button
+                type="button"
+                onClick={() => setExpandedBookingPreview("first")}
+                className="mt-4 flex h-10 items-center gap-1.5 rounded-full border border-[#1f714a] bg-white px-4 text-[13px] font-semibold text-[#1f714a] transition hover:bg-[#eef8f1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f9d55] focus-visible:ring-offset-2"
+                aria-label="첫 방문 예약 화면 크게 보기"
+              >
+                <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+                화면 크게 보기
+              </button>
             </div>
-            <figure className="mt-7 flex -translate-y-5 justify-center sm:mt-0 sm:self-center">
-              <CustomerBookingPhonePreview experience="first" className="max-w-[220px]" />
+            <figure className={`${styles.centeredPhonePreview} relative z-10 flex w-44 shrink-0 items-center justify-center sm:w-48`}>
+              <CustomerBookingPhonePreview experience="first" className="w-full drop-shadow-[0_16px_28px_rgba(15,47,40,0.18)]" />
             </figure>
+            <div className="pointer-events-none absolute -bottom-24 -right-16 h-64 w-64 rounded-full bg-[#dff2e8] opacity-80 blur-2xl" aria-hidden="true" />
           </div>
         </div>
       </article>
 
       <div id="solution-ai-scheduling" className="order-3 scroll-mt-20 border-y border-[#e2e8f0] bg-[#f6f8fb]">
-        <article className="mx-auto w-full max-w-[1180px] px-5 py-8 md:py-10">
+        <article className="mx-auto w-full max-w-[1180px] px-5 py-7 md:py-8">
           <StepHeader wide number="03" label="AI 예약 최적화" headline={<>다음 예약을 받기엔 짧고,<br />그냥 비워두기엔 아까운 시간들</>} subcopy="반복되는 자투리 시간은 한 달 매출의 큰 손실이 됩니다. 펫매니저는 빈 시간을 줄여 대표님의 매출을 지켜드립니다." />
-          <div className="relative mt-7 max-w-[1100px] overflow-hidden rounded-[24px] bg-[#10192b] text-white shadow-[0_22px_55px_rgba(15,23,42,0.18)] lg:h-[314px]">
-            <div className="grid transition-transform duration-300 lg:h-full lg:grid-cols-[minmax(0,0.52fr)_minmax(0,1.48fr)]">
+          <div className="relative mt-7 max-w-[1100px] rounded-[24px] bg-[#10192b] text-white shadow-[0_22px_55px_rgba(15,23,42,0.18)] lg:h-[314px]">
+            <div className="grid overflow-hidden rounded-[24px] transition-transform duration-300 lg:h-full lg:grid-cols-[minmax(0,0.52fr)_minmax(0,1.48fr)]">
               <div className="relative min-w-0 bg-[#10192b] px-7 py-8 lg:h-full lg:rounded-l-[24px] lg:px-8 lg:py-7">
                 <div className="lg:flex lg:h-full lg:flex-col lg:justify-center lg:-translate-y-1">
                   {scheduleSlide === "before" ? <><p className="flex items-center gap-2 text-[12px] font-semibold tracking-[0.1em] text-[#ffb4a3]"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ff735c] opacity-75" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#ff735c]" /></span>고객 원하는 시간 우선</p><p className={`mt-3 text-[24px] font-semibold leading-[1.22] sm:text-[28px] ${COPY_CLASS}`}>원하는 시간만 받으면,<br />애매한 자투리가<br />남습니다</p><p className={`mt-4 max-w-[280px] text-[14px] leading-6 text-[#bdc9db] ${COPY_CLASS}`}>다음 예약을 붙이기 어려운 자투리 시간이 쌓입니다.</p></> : <><p className="text-[12px] font-semibold tracking-[0.1em] text-[#8ee0b1]">AI 예약 최적화</p><p className={`mt-3 text-[23px] font-semibold leading-[1.22] text-white sm:text-[26px] ${COPY_CLASS}`}>예약 흐름을 고려해<br />좋은 시간을 먼저<br />추천합니다</p><p className={`mt-4 max-w-[280px] text-[14px] leading-6 text-[#bdc9db] ${COPY_CLASS}`}>고객은 모든 가능 시간 중에서 편하게 고르고, 매장은 빈 시간을 줄입니다.</p></>}
@@ -416,12 +473,12 @@ export function BookingSystemStory() {
                   <div className="mt-3 grid grid-cols-1 items-center gap-2 rounded-[12px] border border-[#d5eadc] bg-white/70 p-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"><div><p className="text-[11px] font-semibold tracking-[0.1em] text-[#789486]">AI가 계산하는 정보</p><p className="mt-1 whitespace-nowrap text-[13px] font-semibold text-[#26704b]">예약 · 예상 시간 · 영업시간</p></div><ArrowRight className="h-4 w-4 text-[#4e9b6e]" aria-hidden="true" /><div className="sm:text-right"><p className="text-[11px] font-semibold tracking-[0.1em] text-[#789486]">AI가 열어주는 시간</p><p className="mt-1 whitespace-nowrap text-[13px] font-semibold text-[#1f714a]">다음 미용이 바로 가능한 시간</p></div></div>
                   <div className="mt-4 flex items-stretch"><div className="flex min-h-24 flex-[2] flex-col justify-center rounded-l-[8px] border-r border-white bg-[#dbe9f7] px-4 text-[#243e65]"><span className="text-[15px] font-semibold">전체미용 A</span><span className="mt-1.5 text-[13px]">09:00–11:00</span></div><div className="flex min-h-24 flex-[2] flex-col justify-center border-r border-white bg-[#dbe9f7] px-4 text-[#243e65]"><span className="text-[15px] font-semibold">전체미용 B</span><span className="mt-1.5 text-[13px]">11:00–13:00</span></div><div className="flex min-h-24 flex-[2] flex-col justify-center border-r border-white bg-[#dbe9f7] px-4 text-[#243e65]"><span className="text-[15px] font-semibold">전체미용 C</span><span className="mt-1.5 text-[13px]">13:00–15:00</span></div><div className="flex min-h-24 flex-1 flex-col justify-center rounded-r-[8px] border border-dashed border-[#86bb9e] bg-white px-3 text-[#237a59]"><span className="text-[14px] font-semibold">예약 가능</span><span className="mt-1.5 text-[12px]">15:00–16:00</span></div></div>
                 </div>
-                <button type="button" aria-label={scheduleSlide === "before" ? "AI 예약 최적화 화면 보기" : "기존 예약 화면 보기"} onClick={() => setScheduleSlide(scheduleSlide === "before" ? "after" : "before")} className={`absolute right-5 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border text-white transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${scheduleSlide === "before" ? "border-[#ffb1a1] bg-[#cf634d] shadow-[0_4px_12px_rgba(207,99,77,0.28)] hover:bg-[#df7059]" : "border-[#92d5ad] bg-[#26704b] shadow-[0_4px_12px_rgba(31,157,85,0.28)] hover:bg-[#31815a]"}`}>
-                  <span className={`pointer-events-none absolute -inset-0.5 rounded-full border motion-safe:animate-pulse ${scheduleSlide === "before" ? "border-[#ffb1a1]/55" : "border-[#92d5ad]/55"}`} aria-hidden="true" />
-                  <span className="relative z-10">{scheduleSlide === "before" ? <ChevronRight className="h-5 w-5" aria-hidden="true" /> : <ChevronLeft className="h-5 w-5" aria-hidden="true" />}</span>
-                </button>
               </div>
             </div>
+            <button type="button" aria-label={scheduleSlide === "before" ? "AI 예약 최적화 화면 보기" : "기존 예약 화면 보기"} onClick={() => setScheduleSlide(scheduleSlide === "before" ? "after" : "before")} className={`absolute right-0 top-1/2 z-20 flex h-10 w-10 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-white transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${scheduleSlide === "before" ? "border-[#ffb1a1] bg-[#cf634d] shadow-[0_4px_12px_rgba(207,99,77,0.28)] hover:bg-[#df7059]" : "border-[#92d5ad] bg-[#26704b] shadow-[0_4px_12px_rgba(31,157,85,0.28)] hover:bg-[#31815a]"}`}>
+              <span className={`pointer-events-none absolute -inset-0.5 rounded-full border motion-safe:animate-pulse ${scheduleSlide === "before" ? "border-[#ffb1a1]/55" : "border-[#92d5ad]/55"}`} aria-hidden="true" />
+              <span className="relative z-10">{scheduleSlide === "before" ? <ChevronRight className="h-5 w-5" aria-hidden="true" /> : <ChevronLeft className="h-5 w-5" aria-hidden="true" />}</span>
+            </button>
             <div className="sr-only" aria-label="예약 방식 비교 슬라이드">
               <button type="button" aria-label="기존 예약 보기" aria-current={scheduleSlide === "before" ? "true" : undefined} onClick={() => setScheduleSlide("before")} className={`rounded-full transition-all ${scheduleSlide === "before" ? "h-2 w-8 bg-[#ff9b88]" : "h-2 w-2 bg-white/35 hover:bg-white/60"}`} />
               <button type="button" aria-label="AI 예약 최적화 보기" aria-current={scheduleSlide === "after" ? "true" : undefined} onClick={() => setScheduleSlide("after")} className={`rounded-full transition-all ${scheduleSlide === "after" ? "h-2 w-8 bg-[#76e6a8]" : "h-2 w-2 bg-white/35 hover:bg-white/60"}`} />
@@ -430,53 +487,100 @@ export function BookingSystemStory() {
         </article>
       </div>
 
-      <article id="solution-revisit-booking" className="order-2 mx-auto w-full max-w-[1180px] scroll-mt-20 px-5 py-10 md:py-14">
+      <article id="solution-revisit-booking" className="order-2 mx-auto w-full max-w-[1180px] px-5 py-8 md:py-9" style={{ scrollMarginTop: 112 }}>
         <StepHeader number="02" label="재방문 예약" headline="단골 이탈 막는 초스피드 재예약" subcopy="다른 곳은 다시 전화해 담당과 시간을 조율하지만, 펫매니저는 저장된 정보로 몇 번의 터치만 하면 예약이 끝납니다." wide />
         <Conclusion>전화 한 통 없이, <strong className="font-semibold text-[#111827]">단골이 원하는 시간으로 바로 다시 예약</strong></Conclusion>
-        <div className="mt-6 grid max-w-[1140px] overflow-hidden rounded-[24px] bg-[#edf7f1] md:grid-cols-[0.88fr_1.12fr]">
-          <div className="p-7 sm:p-10">
-            <span className="inline-flex rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-[#26704b] shadow-sm">재방문 예약 페이지</span>
-            <p className={`mt-7 text-[30px] font-semibold leading-[1.2] text-[#203b2c] ${COPY_CLASS}`}>저장된 아이로 시작해,<br />시간만 고르면 끝납니다.</p>
-            <div className="mt-9 grid gap-3">
-              {["저장된 아이 확인", "담당자 선택", "예약 가능한 시간 선택"].map((label, index) => (
-                <div key={label} className="flex items-center gap-4 rounded-[12px] bg-white px-4 py-4 shadow-sm"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1f9d55] text-[12px] font-semibold text-white">{index + 1}</span><span className="text-[15px] font-semibold text-[#27513a]">{label}</span><Check className="ml-auto h-5 w-5 text-[#1f9d55]" aria-hidden="true" /></div>
+        <div className={`${styles.compactSplit} ${styles.revisitSplit} mt-6 max-w-[1140px] overflow-hidden rounded-[22px] border`}>
+          <div className={`${styles.compactPrimary} ${styles.revisitPreview} relative flex min-h-96 min-w-0 items-center gap-3 overflow-hidden px-6 py-5 sm:px-8`}>
+            <div className="relative z-10 flex min-w-0 flex-1 flex-col items-center justify-center text-center">
+              <p className="text-[12px] font-bold tracking-[0.12em] text-[#b45b4b]">REVISIT BOOKING</p>
+              <p className={`mt-3 text-[21px] font-semibold leading-[1.32] text-[#4b3033] sm:text-[24px] ${COPY_CLASS}`}>저장된 아이로<br />바로 시작합니다.</p>
+              <p className="mt-3 text-[14px] leading-5 text-[#80615c]">실제 화면을<br />직접 눌러보세요.</p>
+              <span className="mt-5 inline-flex rounded-full border border-white/80 bg-white/75 px-3 py-2 text-[13px] font-semibold text-[#9e5144] shadow-[0_6px_18px_rgba(132,72,61,0.08)]">정보 재입력 없음</span>
+              <button
+                type="button"
+                onClick={() => setExpandedBookingPreview("revisit")}
+                className="mt-3 flex h-10 items-center gap-1.5 rounded-full border border-[#c45f4e] bg-white px-4 text-[13px] font-semibold text-[#a34d40] transition hover:bg-[#fff4f1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c45f4e] focus-visible:ring-offset-2"
+                aria-label="재방문 예약 화면 크게 보기"
+              >
+                <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+                화면 크게 보기
+              </button>
+            </div>
+            <figure className="relative z-10 mx-auto flex w-40 shrink-0 items-center justify-center sm:w-44">
+              <CustomerBookingPhonePreview experience="revisit" className="w-full drop-shadow-[0_16px_28px_rgba(92,52,45,0.16)]" />
+            </figure>
+            <div className="pointer-events-none absolute -bottom-24 -left-20 h-64 w-64 rounded-full bg-white/55 blur-2xl" aria-hidden="true" />
+          </div>
+
+          <div className={`${styles.compactSecondary} ${styles.revisitCopy} flex min-w-0 flex-col justify-start px-6 py-6 sm:px-9 lg:py-7`}>
+            <div className="flex items-center gap-3">
+              <span className="rounded-full border border-[#edc9bf] bg-white px-3 py-1 text-[12px] font-bold tracking-[0.1em] text-[#c45f4e]">RETURNING CUSTOMER</span>
+              <span className="h-px flex-1 bg-[#ead8d3]" aria-hidden="true" />
+            </div>
+            <p className={`mt-5 max-w-[600px] text-[27px] font-semibold leading-[1.22] text-[#382b2e] sm:text-[30px] ${COPY_CLASS}`}>다시 입력하지 않고,<br />고르기만 하면 끝.</p>
+            <p className="mt-3 max-w-[560px] text-[14px] font-medium leading-6 text-[#755f5d]">저장된 아이를 선택하고 담당자와 시간만 고르면 예약이 확정됩니다.</p>
+
+            <div className="mt-6 grid grid-cols-3 overflow-hidden rounded-[14px] border border-[#ead6d0] bg-white">
+              {[["01", "저장된 아이", "두부"], ["02", "담당자", "도윤"], ["03", "시간", "오후 2:00"]].map(([number, label, value], index) => (
+                <div key={label} className={`min-w-0 px-3 py-3.5 sm:px-4 ${index > 0 ? "border-l border-[#ead6d0]" : ""}`}>
+                  <p className="text-[12px] font-bold text-[#d16b59]">{number}</p>
+                  <p className="mt-2 truncate text-[13px] font-medium text-[#9a7b76]">{label}</p>
+                  <p className="mt-0.5 truncate text-[14px] font-semibold text-[#4b3434]">{value}</p>
+                </div>
               ))}
             </div>
-          </div>
-          <div className="grid overflow-hidden bg-[#10192b] px-7 pt-8 sm:grid-cols-[1fr_220px] sm:gap-7 sm:px-10 sm:pt-10">
-            <div className="text-white">
-              <p className="text-[13px] font-semibold tracking-[0.14em] text-[#8ee0b1]">ONE TAP REBOOKING</p>
-              <p className={`mt-4 text-[26px] font-semibold leading-[1.24] ${COPY_CLASS}`}>고객은 몇 번의 터치로,<br />오너는 확정 예약만 받습니다.</p>
-              <p className={`mt-5 text-[14px] leading-6 text-[#bdc9db] ${COPY_CLASS}`}>보호자와 아이 정보를 다시 적거나, 전화로 시간을 맞출 필요가 없습니다.</p>
-            </div>
-            <figure className="mt-7 flex -translate-y-5 justify-center sm:mt-0 sm:self-center">
-              <CustomerBookingPhonePreview experience="revisit" className="max-w-[220px]" />
-            </figure>
+            <div className="mt-4 flex items-center gap-2 text-[14px] font-semibold text-[#9f4f43]"><Zap className="h-4 w-4" aria-hidden="true" /> 링크를 열면 바로 재예약이 시작됩니다.</div>
           </div>
         </div>
       </article>
 
-      <div id="solution-customer-management" className="order-4 scroll-mt-20 border-y border-[#e2e8f0] bg-[#f6f8fb]">
-        <article className="mx-auto w-full max-w-[1180px] px-5 py-10 md:py-14">
-          <StepHeader number="04" label="고객 정보 관리" headline="적어둔 메모장을 다시 뒤지는 일, 이제 그만" subcopy="수기로 적은 정보는 빠뜨리기 쉽고, 재방문 때 다시 물어보게 됩니다." />
-          <Conclusion>한 번 기록되면, <strong className="font-semibold text-[#111827]">다시 찾을 일 없습니다</strong></Conclusion>
-          <div className="mt-6 grid max-w-[1100px] gap-5 md:grid-cols-[0.8fr_1.2fr]">
-            <div className="rounded-[12px] border border-[#dfd7c9] bg-[#fffdf8] p-6 text-[#655e52] sm:p-8">
-              <p className="text-[14px] font-semibold text-[#9a8f7b]">지금 · 메모장</p>
-              <div className="mt-6 space-y-4 font-medium leading-7">
-                <p className="rotate-[-1deg] line-through">두부 · 010-0000-...</p>
-                <p className="rotate-[1deg]">견종: 몰... 티?</p>
-                <p className="rotate-[-1deg]">피부 예민 (어디였지)</p>
-                <p className="border-t border-dashed border-[#d7cdbb] pt-4 text-[14px]">※ 뒷장에 이어 적음</p>
-              </div>
-            </div>
-            <div className="overflow-hidden rounded-[12px] border border-[#d4deed] bg-white p-5 sm:p-7">
-              <ScreenLabel>오너 고객관리 화면 · 예약 정보가 자동 저장</ScreenLabel>
-              <OwnerLaptopPreview compact view="customers" />
-            </div>
+      <div id="solution-ai-care-report" className="order-4 scroll-mt-20 border-y border-[#e2e8f0] bg-[#f6f8fb]">
+        <article className="mx-auto w-full max-w-[1180px] px-5 py-8 md:py-10">
+          <StepHeader number="04" label="AI 케어리포트" headline={<>미용이 끝나면, 고객에게 보낼<br />케어리포트까지 AI가 완성합니다</>} subcopy="미용 전후 사진과 오너의 한마디를 AI가 정리하고, 오너는 확인 후 바로 보냅니다." wide />
+          <Conclusion>작성은 빠르게, 고객에게는 <strong className="font-semibold text-[#111827]">오래 남는 신뢰와 재방문 이유가 됩니다</strong></Conclusion>
+          <div className="mt-6">
+            <LandingAiCareReportCard />
           </div>
         </article>
       </div>
+
+      {expandedBookingPreview ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={expandedBookingPreview === "first" ? "첫 방문 예약 화면 크게 보기" : "재방문 예약 화면 크게 보기"}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setExpandedBookingPreview(null);
+          }}
+        >
+          <div className="relative flex max-h-[calc(100vh-24px)] w-full max-w-[520px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_28px_80px_rgba(15,23,42,0.34)]">
+            <div className="flex shrink-0 items-center justify-between border-b border-[#e2e8f0] px-5 py-4">
+              <div>
+                <p className="text-[18px] font-semibold text-[#172033]">
+                  {expandedBookingPreview === "first" ? "첫 방문 간편 예약" : "단골 재방문 예약"}
+                </p>
+                <p className="mt-1 text-[13px] text-[#64748b]">실제 화면에서 직접 눌러보세요.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExpandedBookingPreview(null)}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#172033] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+                aria-label="확대 화면 닫기"
+                autoFocus
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+            <div className={`${styles.previewModalScroll} min-h-0 overflow-y-auto bg-[#f5f7fa] px-4 py-5 sm:px-6`}>
+              <div className={styles.modalPhone}>
+                <CustomerBookingPhonePreview experience={expandedBookingPreview} className="w-full drop-shadow-[0_20px_40px_rgba(15,23,42,0.2)]" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

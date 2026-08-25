@@ -482,6 +482,22 @@ type AppointmentStatusNotificationType =
   | "grooming_almost_done"
   | "grooming_completed";
 
+type AppointmentMutationOptions = {
+  deferNotifications?: (task: () => Promise<void>) => void;
+};
+
+async function runAppointmentNotificationTask(
+  task: () => Promise<void>,
+  options?: AppointmentMutationOptions,
+) {
+  if (options?.deferNotifications) {
+    options.deferNotifications(task);
+    return;
+  }
+
+  await task();
+}
+
 function getAppointmentNotificationReason(result: Awaited<ReturnType<typeof dispatchNotification>>) {
   if (result.notification.fail_reason) return result.notification.fail_reason;
   if (result.skipped) return "skipped";
@@ -1592,7 +1608,7 @@ export async function deletePet(input: unknown) {
   return { success: true, petId: payload.petId };
 }
 
-export async function createAppointment(input: unknown) {
+export async function createAppointment(input: unknown, options?: AppointmentMutationOptions) {
   const payload = appointmentInputSchema.parse(input);
   const data = await getBootstrap(payload.shopId, {
     includeLanding: false,
@@ -1710,11 +1726,16 @@ export async function createAppointment(input: unknown) {
     store.appointments = [...store.appointments, appointment];
     setMockStore(store);
     if (appointment.status === "confirmed" && appointment.source === "owner") {
-      await dispatchAppointmentNotificationWithLogs({
-        shopId: appointment.shop_id,
-        appointment,
-        type: "booking_confirmed",
-      });
+      await runAppointmentNotificationTask(
+        async () => {
+          await dispatchAppointmentNotificationWithLogs({
+            shopId: appointment.shop_id,
+            appointment,
+            type: "booking_confirmed",
+          });
+        },
+        options,
+      );
     }
     return appointment;
   }
@@ -1777,11 +1798,16 @@ export async function createAppointment(input: unknown) {
 
       if (fallbackError) throw new Error(getAppointmentWriteErrorMessage(fallbackError));
       if (appointment.status === "confirmed" && appointment.source === "owner") {
-        await dispatchAppointmentNotificationWithLogs({
-          shopId: appointment.shop_id,
-          appointment,
-          type: "booking_confirmed",
-        });
+        await runAppointmentNotificationTask(
+          async () => {
+            await dispatchAppointmentNotificationWithLogs({
+              shopId: appointment.shop_id,
+              appointment,
+              type: "booking_confirmed",
+            });
+          },
+          options,
+        );
       }
       return appointment;
     }
@@ -1789,17 +1815,22 @@ export async function createAppointment(input: unknown) {
     throw new Error(getAppointmentWriteErrorMessage(error));
   }
   if (appointment.status === "confirmed" && appointment.source === "owner") {
-    await dispatchAppointmentNotificationWithLogs({
-      shopId: appointment.shop_id,
-      appointment,
-      type: "booking_confirmed",
-    });
+    await runAppointmentNotificationTask(
+      async () => {
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "booking_confirmed",
+        });
+      },
+      options,
+    );
   }
 
   return appointment;
 }
 
-export async function updateAppointmentStatus(input: unknown) {
+export async function updateAppointmentStatus(input: unknown, options?: AppointmentMutationOptions) {
   const payload = appointmentStatusSchema.parse(input);
   const rejectionReason = payload.status === "rejected" ? getRejectionReason(payload) : null;
   const statusMediaAssetIds = payload.mediaAssetIds ?? [];
@@ -1914,61 +1945,73 @@ export async function updateAppointmentStatus(input: unknown) {
       createdAt: statusChangedAt,
     }));
     if (shouldNotifyCustomer && payload.status === "confirmed" && payload.eventType === "booking_rescheduled_confirmed") {
-      await dispatchAppointmentNotificationWithLogs({
-        shopId: appointment.shop_id,
-        appointment,
-        type: "booking_rescheduled_confirmed",
-      });
+      await runAppointmentNotificationTask(async () => {
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "booking_rescheduled_confirmed",
+        });
+      }, options);
     }
     if (shouldNotifyCustomer && payload.status === "rejected") {
-      await dispatchAppointmentNotificationWithLogs({
-        shopId: appointment.shop_id,
-        appointment,
-        type: "booking_rejected",
-      });
+      await runAppointmentNotificationTask(async () => {
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "booking_rejected",
+        });
+      }, options);
     }
     if (shouldNotifyCustomer && payload.status === "cancelled") {
-      await dispatchAppointmentNotificationWithLogs({
-        shopId: appointment.shop_id,
-        appointment,
-        type: "booking_cancelled",
-      });
+      await runAppointmentNotificationTask(async () => {
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "booking_cancelled",
+        });
+      }, options);
     }
     if (shouldNotifyCustomer && payload.status === "in_progress") {
-      await dispatchAppointmentNotificationWithLogs({
-        shopId: appointment.shop_id,
-        appointment,
-        type: "grooming_started",
-        mediaAssetIds: statusMediaAssetIds,
-        force: true,
-      });
+      await runAppointmentNotificationTask(async () => {
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "grooming_started",
+          mediaAssetIds: statusMediaAssetIds,
+          force: true,
+        });
+      }, options);
     }
     if (shouldNotifyCustomer && payload.status === "almost_done") {
-      await dispatchAppointmentNotificationWithLogs({
-        shopId: appointment.shop_id,
-        appointment,
-        type: "grooming_almost_done",
-        mediaAssetIds: statusMediaAssetIds,
-        force: true,
-      });
+      await runAppointmentNotificationTask(async () => {
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "grooming_almost_done",
+          mediaAssetIds: statusMediaAssetIds,
+          force: true,
+        });
+      }, options);
     }
     if (shouldNotifyCustomer && payload.status === "completed") {
-      const completionNotification = await dispatchAppointmentNotificationWithLogs({
-        shopId: appointment.shop_id,
-        appointment,
-        type: "grooming_completed",
-        mediaAssetIds: statusMediaAssetIds,
-        force: true,
-      });
-      if (completedGroomingRecordId && completionNotification?.notification) {
-        const record = store.groomingRecords.find((item) => item.id === completedGroomingRecordId);
-        if (record) {
-          record.customer_notification_id = completionNotification.notification.id;
-          record.shared_with_customer_at = completionNotification.notification.sent_at ?? null;
-          record.updated_at = statusChangedAt;
-          setMockStore(store);
+      await runAppointmentNotificationTask(async () => {
+        const completionNotification = await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "grooming_completed",
+          mediaAssetIds: statusMediaAssetIds,
+          force: true,
+        });
+        if (completedGroomingRecordId && completionNotification?.notification) {
+          const record = store.groomingRecords.find((item) => item.id === completedGroomingRecordId);
+          if (record) {
+            record.customer_notification_id = completionNotification.notification.id;
+            record.shared_with_customer_at = completionNotification.notification.sent_at ?? null;
+            record.updated_at = statusChangedAt;
+            setMockStore(store);
+          }
         }
-      }
+      }, options);
     }
     return appointment;
   }
@@ -2216,68 +2259,80 @@ export async function updateAppointmentStatus(input: unknown) {
   }));
 
   if (shouldNotifyCustomer && payload.status === "confirmed" && payload.eventType === "booking_rescheduled_confirmed") {
-    await dispatchAppointmentNotificationWithLogs({
-      shopId: resolvedAppointment.shop_id,
-      appointment: resolvedAppointment,
-      type: "booking_rescheduled_confirmed",
-    });
+    await runAppointmentNotificationTask(async () => {
+      await dispatchAppointmentNotificationWithLogs({
+        shopId: resolvedAppointment.shop_id,
+        appointment: resolvedAppointment,
+        type: "booking_rescheduled_confirmed",
+      });
+    }, options);
   }
   if (shouldNotifyCustomer && payload.status === "rejected") {
-    await dispatchAppointmentNotificationWithLogs({
-      shopId: resolvedAppointment.shop_id,
-      appointment: resolvedAppointment,
-      type: "booking_rejected",
-    });
+    await runAppointmentNotificationTask(async () => {
+      await dispatchAppointmentNotificationWithLogs({
+        shopId: resolvedAppointment.shop_id,
+        appointment: resolvedAppointment,
+        type: "booking_rejected",
+      });
+    }, options);
   }
   if (shouldNotifyCustomer && payload.status === "cancelled") {
-    await dispatchAppointmentNotificationWithLogs({
-      shopId: resolvedAppointment.shop_id,
-      appointment: resolvedAppointment,
-      type: "booking_cancelled",
-    });
+    await runAppointmentNotificationTask(async () => {
+      await dispatchAppointmentNotificationWithLogs({
+        shopId: resolvedAppointment.shop_id,
+        appointment: resolvedAppointment,
+        type: "booking_cancelled",
+      });
+    }, options);
   }
   if (shouldNotifyCustomer && payload.status === "in_progress") {
-    await dispatchAppointmentNotificationWithLogs({
-      shopId: resolvedAppointment.shop_id,
-      appointment: resolvedAppointment,
-      type: "grooming_started",
-      mediaAssetIds: statusMediaAssetIds,
-      force: true,
-    });
+    await runAppointmentNotificationTask(async () => {
+      await dispatchAppointmentNotificationWithLogs({
+        shopId: resolvedAppointment.shop_id,
+        appointment: resolvedAppointment,
+        type: "grooming_started",
+        mediaAssetIds: statusMediaAssetIds,
+        force: true,
+      });
+    }, options);
   }
   if (shouldNotifyCustomer && payload.status === "almost_done") {
-    await dispatchAppointmentNotificationWithLogs({
-      shopId: resolvedAppointment.shop_id,
-      appointment: resolvedAppointment,
-      type: "grooming_almost_done",
-      mediaAssetIds: statusMediaAssetIds,
-      force: true,
-    });
+    await runAppointmentNotificationTask(async () => {
+      await dispatchAppointmentNotificationWithLogs({
+        shopId: resolvedAppointment.shop_id,
+        appointment: resolvedAppointment,
+        type: "grooming_almost_done",
+        mediaAssetIds: statusMediaAssetIds,
+        force: true,
+      });
+    }, options);
   }
   if (shouldNotifyCustomer && payload.status === "completed") {
-    const completionNotification = await dispatchAppointmentNotificationWithLogs({
-      shopId: resolvedAppointment.shop_id,
-      appointment: resolvedAppointment,
-      type: "grooming_completed",
-      mediaAssetIds: statusMediaAssetIds,
-      force: true,
-    });
-    if (completedGroomingRecordId && completionNotification?.notification) {
-      const notificationLink = await supabase
-        .from("grooming_records")
-        .update({
-          customer_notification_id: completionNotification.notification.id,
-          shared_with_customer_at: completionNotification.notification.sent_at ?? null,
-          care_report_sent_at: completedCareReportConfirmedAt
-            ? completionNotification.notification.sent_at ?? null
-            : null,
-          updated_at: statusChangedAt,
-        })
-        .eq("id", completedGroomingRecordId);
-      if (notificationLink.error) {
-        console.warn("[owner-mutations] grooming record notification link failed", notificationLink.error.message);
+    await runAppointmentNotificationTask(async () => {
+      const completionNotification = await dispatchAppointmentNotificationWithLogs({
+        shopId: resolvedAppointment.shop_id,
+        appointment: resolvedAppointment,
+        type: "grooming_completed",
+        mediaAssetIds: statusMediaAssetIds,
+        force: true,
+      });
+      if (completedGroomingRecordId && completionNotification?.notification) {
+        const notificationLink = await supabase
+          .from("grooming_records")
+          .update({
+            customer_notification_id: completionNotification.notification.id,
+            shared_with_customer_at: completionNotification.notification.sent_at ?? null,
+            care_report_sent_at: completedCareReportConfirmedAt
+              ? completionNotification.notification.sent_at ?? null
+              : null,
+            updated_at: statusChangedAt,
+          })
+          .eq("id", completedGroomingRecordId);
+        if (notificationLink.error) {
+          console.warn("[owner-mutations] grooming record notification link failed", notificationLink.error.message);
+        }
       }
-    }
+    }, options);
   }
 
   return resolvedAppointment;

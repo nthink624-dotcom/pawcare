@@ -3,6 +3,7 @@
 import { ArrowDown, ArrowUp, ChevronDown, Info, Plus, Trash2 } from "lucide-react";
 
 import {
+  formatCustomerServiceDuration,
   normalizeCustomerServiceOverrides,
   type CustomerServiceDisplayOverrides,
   type CustomerServiceSourceOption,
@@ -56,7 +57,7 @@ function cleanOverride(
 
 function getOptionSelectLabel(option: CustomerServiceSourceOption) {
   const name = option.sourceName.startsWith(`${option.category} /`) ? option.sourceName : `${option.category} / ${option.sourceName}`;
-  return `${name} · ${option.durationMinutes}분 · ${formatServicePrice(option.price, option.priceType)}`;
+  return `${name} · ${formatCustomerServiceDuration(option)} · ${formatServicePrice(option.price, option.priceType)}`;
 }
 
 function getOptionDisplayKey(option: CustomerServiceSourceOption) {

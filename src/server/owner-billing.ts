@@ -920,7 +920,9 @@ async function persistSubscriptionRecord(identity: BillingIdentity, record: Owne
     updated_at: nowIso(),
   };
 
-  const updateResult = await admin.from(BILLING_TABLE).upsert(nextRecord).select("*").single();
+  // `billing_key` is nullable in the migration because encrypted records must not retain plaintext.
+  // The untyped Supabase client incorrectly narrows this dynamic-table payload to a non-null key.
+  const updateResult = await admin.from(BILLING_TABLE).upsert(nextRecord as never).select("*").single();
   if (updateResult.error) {
     if (
       isMissingColumnError(updateResult.error, "billing_key_encrypted") ||

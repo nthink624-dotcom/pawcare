@@ -63,7 +63,7 @@ export default function BenefitsManagementPanel({
               className={cn(
                 tabClassName,
                 view === "register"
-                  ? "text-[#2f7866]! after:bg-[#2f7866]"
+                  ? "text-[#111827]! after:bg-[#2563eb]"
                   : "text-[#64748b]! after:bg-transparent hover:text-[#334155]!",
               )}
             >
@@ -77,7 +77,7 @@ export default function BenefitsManagementPanel({
               className={cn(
                 tabClassName,
                 view === "manage"
-                  ? "text-[#2f7866]! after:bg-[#2f7866]"
+                  ? "text-[#111827]! after:bg-[#2563eb]"
                   : "text-[#64748b]! after:bg-transparent hover:text-[#334155]!",
               )}
             >

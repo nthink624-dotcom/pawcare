@@ -1,0 +1,84 @@
+.compactSplit {
+  display: grid;
+}
+
+.firstSplit {
+  border-color: #d8e5df;
+  background: #f7fbf8;
+  box-shadow: 0 18px 45px rgba(15, 47, 40, 0.1);
+}
+
+.firstCopy {
+  background: #123b32;
+  color: #fff;
+}
+
+.firstLive {
+  background: #f7fbf8;
+}
+
+.modalPhone {
+  width: min(390px, calc(100vw - 56px));
+  margin-inline: auto;
+}
+
+.previewModalScroll {
+  scrollbar-width: none;
+}
+
+.previewModalScroll::-webkit-scrollbar {
+  display: none;
+}
+
+.revisitSplit {
+  border-color: #ead9d4;
+  background: #fff8f5;
+  box-shadow: 0 18px 45px rgba(91, 54, 50, 0.09);
+}
+
+.revisitPreview {
+  background: #f8ddd5;
+}
+
+.revisitCopy {
+  background: #fff8f5;
+}
+
+@media (min-width: 1024px) {
+  .compactSplit {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    height: 384px;
+  }
+
+  .firstSplit {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    height: 424px;
+  }
+
+  .compactPrimary {
+    min-height: 0;
+  }
+
+  .compactSecondary {
+    min-height: 0;
+  }
+
+  .firstLiveCopy {
+    position: static;
+    flex: 0 0 228px;
+    width: 228px;
+    transform: none;
+  }
+
+  .centeredPhonePreview {
+    position: static;
+    margin: 0;
+    transform: none;
+  }
+
+  .firstLive {
+    justify-content: center;
+    gap: 28px;
+  }
+
+}

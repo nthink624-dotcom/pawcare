@@ -53,36 +53,40 @@ const mediaAssets: CustomerResultMediaAsset[] = [
 
 export default function CustomerCareReportPreviewPage() {
   return (
-    <main className="min-h-screen bg-white px-0 py-0 sm:px-4 sm:py-8">
-      <div className="mx-auto w-full max-w-[430px]">
-        <CustomerGroomingResultCard
-          shopId="care-report-preview-shop"
-          accessToken="preview-only"
-          appointment={appointment}
-          record={record}
-          petName="두부"
-          serviceName="전체미용"
-          staffName="김서연 디자이너"
-          shopPhone="02-1234-5678"
-          mediaAssets={mediaAssets}
-          previewPhotoUrls={{
-            "care-report-before": "/images/customer-booking-hero-original.jpg",
-            "care-report-after": "/images/customer-booking-hero-retriever-bath.jpg",
-          }}
-          weightHistory={[
-            { measuredAt: "2025-09-20T11:00:00+09:00", weightKg: 4.1 },
-            { measuredAt: "2025-10-25T11:00:00+09:00", weightKg: 4.2 },
-            { measuredAt: "2025-12-02T11:00:00+09:00", weightKg: 4.25 },
-            { measuredAt: "2026-01-10T11:00:00+09:00", weightKg: 4.3 },
-            { measuredAt: "2026-02-21T11:00:00+09:00", weightKg: 4.35 },
-            { measuredAt: "2026-03-28T11:00:00+09:00", weightKg: 4.4 },
-            { measuredAt: "2026-05-09T11:00:00+09:00", weightKg: 4.45 },
-            { measuredAt: "2026-06-13T11:00:00+09:00", weightKg: 4.5 },
-            { measuredAt: "2026-07-11T11:00:00+09:00", weightKg: 4.55 },
-            { measuredAt: "2026-08-18T11:00:00+09:00", weightKg: 4.6 },
-          ]}
-        />
-      </div>
-    </main>
+    <>
+      <style>{`html { scrollbar-width: none; } html::-webkit-scrollbar { display: none; }`}</style>
+      <main className="min-h-screen bg-white px-0 py-0 sm:px-4 sm:py-8">
+        <div className="mx-auto w-full max-w-[430px]">
+          <CustomerGroomingResultCard
+            shopId="care-report-preview-shop"
+            accessToken="preview-only"
+            appointment={appointment}
+            record={record}
+            petName="두부"
+            serviceName="전체미용"
+            staffName="김서연 디자이너"
+            shopPhone="02-1234-5678"
+            mediaAssets={mediaAssets}
+            embedded
+            previewPhotoUrls={{
+              "care-report-before": "/images/customer-booking-hero-original.jpg",
+              "care-report-after": "/images/customer-booking-hero-retriever-bath.jpg",
+            }}
+            weightHistory={[
+              { measuredAt: "2025-09-20T11:00:00+09:00", weightKg: 4.1 },
+              { measuredAt: "2025-10-25T11:00:00+09:00", weightKg: 4.2 },
+              { measuredAt: "2025-12-02T11:00:00+09:00", weightKg: 4.25 },
+              { measuredAt: "2026-01-10T11:00:00+09:00", weightKg: 4.3 },
+              { measuredAt: "2026-02-21T11:00:00+09:00", weightKg: 4.35 },
+              { measuredAt: "2026-03-28T11:00:00+09:00", weightKg: 4.4 },
+              { measuredAt: "2026-05-09T11:00:00+09:00", weightKg: 4.45 },
+              { measuredAt: "2026-06-13T11:00:00+09:00", weightKg: 4.5 },
+              { measuredAt: "2026-07-11T11:00:00+09:00", weightKg: 4.55 },
+              { measuredAt: "2026-08-18T11:00:00+09:00", weightKg: 4.6 },
+            ]}
+          />
+        </div>
+      </main>
+    </>
   );
 }

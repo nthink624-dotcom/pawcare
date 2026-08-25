@@ -18,12 +18,14 @@ export type CustomerServiceSourceOption = {
   category: string;
   description: string;
   durationMinutes: number;
+  durationMinutesMax?: number;
   price: number;
   priceType: "fixed" | "starting";
   weightBand?: string;
   order: number;
   linkedOptionId?: string;
   aliasIds?: string[];
+  priceGuideSpecies?: "dog" | "cat";
 };
 
 type PriceGuideWeightRange = {
@@ -129,6 +131,16 @@ function createMenuOptionId(label: string) {
   return `menu:${normalizeOptionLabelKey(label)}`;
 }
 
+export function formatCustomerServiceDuration(option: Pick<CustomerServiceSourceOption, "durationMinutes" | "durationMinutesMax">) {
+  const minimum = option.durationMinutes;
+  const maximum = option.durationMinutesMax;
+  if (!Number.isFinite(minimum) || minimum <= 0) return "상담 후 안내";
+  if (typeof maximum === "number" && Number.isFinite(maximum) && maximum > minimum) {
+    return `${minimum}~${maximum}분`;
+  }
+  return `${minimum}분`;
+}
+
 function buildPriceGuideOptionName(sectionTitle: string, itemLabel: string) {
   const title = sectionTitle.trim();
   const label = itemLabel.trim();
@@ -141,11 +153,16 @@ function getPriceGuideSpeciesLabel(value: unknown) {
   return value === "cat" ? "고양이" : "강아지";
 }
 
+function getPriceGuideSpecies(value: unknown): "dog" | "cat" {
+  return value === "cat" ? "cat" : "dog";
+}
+
 function getCustomerServiceOptionDisplayKey(option: CustomerServiceSourceOption) {
   return [
     option.category,
     option.sourceName,
     option.durationMinutes,
+    option.durationMinutesMax ?? option.durationMinutes,
     option.price,
     option.priceType,
   ].join("|").replace(/\s+/g, " ").trim().toLocaleLowerCase("ko-KR");
@@ -219,7 +236,8 @@ export function buildCustomerServiceSourceOptions(
     for (const section of priceGuideSections) {
       if (!section || typeof section !== "object") continue;
       const source = section as { id?: unknown; species?: unknown; title?: unknown; weightBands?: unknown; items?: unknown };
-      const speciesLabel = getPriceGuideSpeciesLabel(source.species);
+      const species = getPriceGuideSpecies(source.species);
+      const speciesLabel = getPriceGuideSpeciesLabel(species);
       const sectionTitle = limitText(source.title, 60) || service.category || "미용";
       const priceGuideGroupKey = buildCustomerPriceGuideGroupKey(source.species, sectionTitle);
       if (options.priceGuideGroupKey && priceGuideGroupKey !== options.priceGuideGroupKey) continue;
@@ -244,16 +262,30 @@ export function buildCustomerServiceSourceOptions(
           sourceItem.cells && typeof sourceItem.cells === "object"
             ? (sourceItem.cells as Record<string, { price?: unknown; durationMinutes?: unknown }>)
             : {};
-        const firstCell = selectedWeightBand
-          ? cells[selectedWeightBand]
-          : weightBands.map((band) => cells[band]).find((cell) => numberFromText(cell?.price)) ??
-            Object.values(cells).find((cell) => numberFromText(cell?.price));
-        const price = numberFromText(firstCell?.price);
+        const orderedCells = selectedWeightBand
+          ? [cells[selectedWeightBand]]
+          : [
+              ...weightBands.map((band) => cells[band]),
+              ...Object.entries(cells)
+                .filter(([band]) => !weightBands.includes(band))
+                .map(([, cell]) => cell),
+            ];
+        const pricedCells = orderedCells
+          .map((cell) => ({
+            cell,
+            price: numberFromText(cell?.price),
+            durationMinutes: numberFromText(cell?.durationMinutes) ?? service.duration_minutes,
+          }))
+          .filter((entry): entry is { cell: { price?: unknown; durationMinutes?: unknown }; price: number; durationMinutes: number } => Boolean(entry.cell && entry.price));
+        const lowestPricedCell = pricedCells.slice().sort((left, right) => left.price - right.price)[0];
+        const price = lowestPricedCell?.price ?? null;
         if (!price) continue;
 
         const itemId = String(sourceItem.id ?? "").trim();
         const itemKey = itemId || normalizeOptionLabelKey(label);
-        const durationMinutes = numberFromText(firstCell?.durationMinutes) ?? service.duration_minutes;
+        const durations = pricedCells.map((entry) => entry.durationMinutes).filter((duration) => Number.isFinite(duration) && duration > 0);
+        const durationMinutes = durations.length > 0 ? Math.min(...durations) : service.duration_minutes;
+        const durationMinutesMax = durations.length > 0 ? Math.max(...durations) : durationMinutes;
         const displayName = buildPriceGuideOptionName(sectionCategory, label);
         const stableOptionId = `${service.id}:price-guide:${stableSectionKey}:${itemKey}`;
         const aliasIds = Array.from(
@@ -271,11 +303,13 @@ export function buildCustomerServiceSourceOptions(
           category: sectionCategory,
           description: "",
           durationMinutes,
+          durationMinutesMax: durationMinutesMax > durationMinutes ? durationMinutesMax : undefined,
           price,
-          priceType: service.price_type ?? "starting",
+          priceType: pricedCells.some((entry) => entry.price !== price) ? "starting" : (service.price_type ?? "starting"),
           weightBand: selectedWeightBand ?? undefined,
           order: result.length + 1,
           aliasIds,
+          priceGuideSpecies: species,
         });
       }
 
@@ -305,17 +339,68 @@ export function buildCustomerServiceSourceOptions(
 }
 
 function buildDefaultCustomerServiceMenuOptions(options: CustomerServiceSourceOption[]) {
-  // 고객 메뉴를 별도로 숨기지 않았다면 PC에 저장된 모든 활성 서비스가 기본 노출입니다.
-  // 첫 카테고리만 노출하면 PC 서비스 원본과 고객 예약 페이지가 서로 달라집니다.
-  return uniqueCustomerServiceOptions(options).map((option, index) => ({
-    ...option,
-    id: createMenuOptionId(option.sourceName),
-    name: option.sourceName,
-    sourceName: option.sourceName,
-    category: option.category,
-    order: index + 1,
-    linkedOptionId: option.id,
-  }));
+  const uniqueOptions = uniqueCustomerServiceOptions(options);
+  const priceGuideGroups = new Map<string, CustomerServiceSourceOption[]>();
+  const menuRows: CustomerServiceSourceOption[] = [];
+
+  for (const option of uniqueOptions) {
+    if (!option.priceGuideSpecies) {
+      menuRows.push({
+        ...option,
+        id: createMenuOptionId(option.sourceName),
+        name: option.sourceName,
+        sourceName: option.sourceName,
+        linkedOptionId: option.id,
+      });
+      continue;
+    }
+
+    const groupKey = [option.serviceId, option.priceGuideSpecies, normalizeOptionLabelKey(option.displayName)].join(":");
+    priceGuideGroups.set(groupKey, [...(priceGuideGroups.get(groupKey) ?? []), option]);
+  }
+
+  const speciesByLabel = new Map<string, Set<"dog" | "cat">>();
+  for (const group of priceGuideGroups.values()) {
+    const representative = group[0];
+    const labelKey = normalizeOptionLabelKey(representative.displayName);
+    speciesByLabel.set(labelKey, new Set([...(speciesByLabel.get(labelKey) ?? []), representative.priceGuideSpecies!]));
+  }
+
+  for (const [groupKey, group] of priceGuideGroups) {
+    const representative = group
+      .slice()
+      .sort((left, right) => left.price - right.price || left.order - right.order)[0];
+    const prices = group.map((option) => option.price);
+    const durations = group.flatMap((option) => [option.durationMinutes, option.durationMinutesMax ?? option.durationMinutes]);
+    const minimumPrice = Math.min(...prices);
+    const minimumDuration = Math.min(...durations);
+    const maximumDuration = Math.max(...durations);
+    const labelKey = normalizeOptionLabelKey(representative.displayName);
+    const needsSpeciesLabel = (speciesByLabel.get(labelKey)?.size ?? 0) > 1;
+    const cleanName = needsSpeciesLabel
+      ? `${getPriceGuideSpeciesLabel(representative.priceGuideSpecies)} ${representative.displayName}`
+      : representative.displayName;
+
+    menuRows.push({
+      ...representative,
+      id: createMenuOptionId(groupKey),
+      name: cleanName,
+      displayName: cleanName,
+      sourceName: cleanName,
+      category: getPriceGuideSpeciesLabel(representative.priceGuideSpecies),
+      durationMinutes: minimumDuration,
+      durationMinutesMax: maximumDuration > minimumDuration ? maximumDuration : undefined,
+      price: minimumPrice,
+      priceType: prices.some((price) => price !== minimumPrice) ? "starting" : representative.priceType,
+      order: Math.min(...group.map((option) => option.order)),
+      linkedOptionId: representative.id,
+      aliasIds: group.flatMap((option) => [option.id, ...(option.aliasIds ?? [])]),
+    });
+  }
+
+  return menuRows
+    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "ko"))
+    .map((option, index) => ({ ...option, order: index + 1 }));
 }
 
 export function buildCustomerServiceMenuConnectionOptions(options: CustomerServiceSourceOption[]) {
@@ -351,12 +436,12 @@ export function applyCustomerServiceOverrides(
 
     const linkedOption = optionById.get(override?.linkedOptionId ?? defaultRow.linkedOptionId ?? "") ?? optionById.get(defaultRow.linkedOptionId ?? "");
     if (!linkedOption) continue;
+    const useDefaultProjection =
+      defaultRow.linkedOptionId === linkedOption.id || defaultRow.aliasIds?.includes(linkedOption.id);
+    const projectedOption = useDefaultProjection ? defaultRow : linkedOption;
     rows.push({
-      ...linkedOption,
+      ...projectedOption,
       id: defaultRow.id,
-      name: linkedOption.sourceName,
-      sourceName: linkedOption.sourceName,
-      description: linkedOption.description,
       order: override?.order ?? defaultRow.order,
       linkedOptionId: linkedOption.id,
     });
@@ -411,13 +496,16 @@ export function applyConfiguredCustomerServiceOverrides(
 
       if (!linkedOption) return [];
 
+      const useDefaultProjection = Boolean(
+        defaultRow &&
+        (defaultRow.linkedOptionId === linkedOption.id || defaultRow.aliasIds?.includes(linkedOption.id)),
+      );
+      const projectedOption = useDefaultProjection ? defaultRow! : linkedOption;
+
       return [
         {
-          ...linkedOption,
+          ...projectedOption,
           id: rowId,
-          name: linkedOption.sourceName,
-          sourceName: linkedOption.sourceName,
-          description: linkedOption.description,
           order: override.order ?? defaultRow?.order ?? linkedOption.order,
           linkedOptionId: linkedOption.id,
         },

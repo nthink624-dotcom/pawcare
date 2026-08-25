@@ -224,8 +224,12 @@ async function createUploadIntent(context: OwnerMediaContext, mediaKind: MediaKi
       width: compressed.width,
       height: compressed.height,
       mediaKind,
-      visibility: mediaKind === "shop_profile" || mediaKind === "staff_profile" ? "public" : "customer_shared",
-      retentionPolicy: "standard",
+      visibility: mediaKind === "shop_profile" || mediaKind === "staff_profile"
+        ? "public"
+        : mediaKind === "price_guide_source"
+          ? "private"
+          : "customer_shared",
+      retentionPolicy: mediaKind === "price_guide_source" ? "archive" : "standard",
       uploadedFrom: "owner_web",
       guardianId: context.guardianId ?? null,
       petId: context.petId ?? null,

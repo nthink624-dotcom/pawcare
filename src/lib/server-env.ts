@@ -73,6 +73,8 @@ export const serverEnv = {
   alimtalkTemplateBirthdayGreeting: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BIRTHDAY_GREETING),
   deepseekApiKey: readOptionalSecret(process.env.DEEPSEEK_API_KEY),
   deepseekModel: readOptionalSecret(process.env.DEEPSEEK_MODEL) ?? "deepseek-v4-flash",
+  openaiApiKey: readOptionalSecret(process.env.OPENAI_API_KEY),
+  openaiVisionModel: readOptionalSecret(process.env.OPENAI_VISION_MODEL) ?? "gpt-4o-mini",
   aiSlotRecommendationProvider: readOptionalSecret(process.env.AI_SLOT_RECOMMENDATION_PROVIDER) ?? "deepseek",
   mediaCleanupCronSecret: process.env.MEDIA_CLEANUP_CRON_SECRET,
   adminSetupKey: readOptionalSecret(process.env.ADMIN_SETUP_KEY),

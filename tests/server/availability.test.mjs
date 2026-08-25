@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 const { computeAvailableSlots } = await import("../../src/lib/availability.ts");
 const { buildRuleBasedSlotRecommendations } = await import("../../src/lib/booking-slot-recommendations.ts");
 const { findCustomerBreedPricingGroup } = await import("../../src/lib/customer-breed-pricing-group.ts");
-const { buildCustomerServiceSourceOptions } = await import("../../src/lib/customer-service-options.ts");
+const { applyConfiguredCustomerServiceOverrides, buildCustomerServiceSourceOptions } = await import("../../src/lib/customer-service-options.ts");
 const { getStaffBookingLoads } = await import("../../src/lib/staff-booking-load.ts");
 const { addDate, currentDateInTimeZone } = await import("../../src/lib/utils.ts");
 
@@ -248,6 +248,81 @@ describe("getStaffBookingLoads", () => {
 });
 
 describe("customer breed pricing group", () => {
+  it("groups the default customer menu by species and service label while keeping exact group ids stable", () => {
+    const groupedService = {
+      ...service,
+      price_guide: {
+        enabled: true,
+        sections: [
+          {
+            id: "dog-basic",
+            species: "dog",
+            title: "베이직",
+            note: "말티즈",
+            weightBands: ["4kg 이하", "6kg 이하"],
+            items: [
+              { id: "dog-basic-bath", label: "목욕", cells: {
+                "4kg 이하": { price: "30000", durationMinutes: "60" },
+                "6kg 이하": { price: "35000", durationMinutes: "75" },
+              } },
+              { id: "dog-basic-clipping", label: "클리핑", cells: {
+                "4kg 이하": { price: "45000", durationMinutes: "90" },
+              } },
+            ],
+          },
+          {
+            id: "dog-plus",
+            species: "dog",
+            title: "플러스",
+            note: "푸들",
+            weightBands: ["6kg 이하"],
+            items: [{ id: "dog-plus-bath", label: "목욕", cells: {
+              "6kg 이하": { price: "50000", durationMinutes: "100" },
+            } }],
+          },
+          {
+            id: "cat-short",
+            species: "cat",
+            title: "고양이 단모",
+            note: "코리안숏헤어",
+            weightBands: ["6kg 이하"],
+            items: [{ id: "cat-short-bath", label: "목욕", cells: {
+              "6kg 이하": { price: "60000", durationMinutes: "90" },
+            } }],
+          },
+        ],
+      },
+    };
+
+    const defaults = applyConfiguredCustomerServiceOverrides(
+      buildCustomerServiceSourceOptions([groupedService]),
+      {},
+    );
+
+    assert.equal(defaults.length, 3);
+    const dogBath = defaults.find((option) => option.name === "강아지 목욕");
+    const catBath = defaults.find((option) => option.name === "고양이 목욕");
+    const clipping = defaults.find((option) => option.name === "클리핑");
+    assert.ok(dogBath);
+    assert.ok(catBath);
+    assert.ok(clipping);
+    assert.equal(dogBath.price, 30000);
+    assert.equal(dogBath.priceType, "starting");
+    assert.equal(dogBath.durationMinutes, 60);
+    assert.equal(dogBath.durationMinutesMax, 100);
+
+    const exactDogBath = applyConfiguredCustomerServiceOverrides(
+      buildCustomerServiceSourceOptions([groupedService], { priceGuideGroupKey: "dog:플러스", weightKg: 5.5 }),
+      {},
+    ).find((option) => option.displayName === "목욕");
+
+    assert.ok(exactDogBath);
+    assert.equal(exactDogBath.id, dogBath.id);
+    assert.equal(exactDogBath.price, 50000);
+    assert.equal(exactDogBath.durationMinutes, 100);
+    assert.equal(exactDogBath.durationMinutesMax, undefined);
+  });
+
   it("uses representative breeds to expose only the matching detailed price-guide group", () => {
     const groupedService = {
       ...service,

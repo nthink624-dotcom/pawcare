@@ -5,6 +5,35 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 
 import { CARE_REPORT_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
 
+function CarePhotoSideFrame({
+  imageUrl,
+  direction,
+  disabled,
+  onClick,
+}: {
+  imageUrl?: string | null;
+  direction: "previous" | "next";
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const isPrevious = direction === "previous";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={isPrevious ? "이전 사진 보기" : "다음 사진 보기"}
+      className="absolute left-1/2 top-1/2 z-0 aspect-[4/3] w-[270px] overflow-hidden rounded-[16px] border border-[#d7dde4] bg-[#f3f5f7] opacity-80 transition duration-300 ease-out hover:opacity-100 disabled:cursor-default disabled:opacity-55"
+      style={{ transform: isPrevious ? "translate(-78%, -50%) rotateY(15deg) scale(.86)" : "translate(-22%, -50%) rotateY(-15deg) scale(.86)" }}
+    >
+      {imageUrl ? <img src={imageUrl} alt="" draggable={false} className="pointer-events-none h-full w-full select-none object-cover" /> : <span className="grid h-full w-full place-items-center text-[#a8b1bc]"><ImagePlus className="h-5 w-5" /></span>}
+      <span className="absolute inset-y-0 grid w-9 place-items-center bg-white/60 text-[#526171] backdrop-blur-[1px]" style={{ [isPrevious ? "left" : "right"]: 0 }}>
+        {isPrevious ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      </span>
+    </button>
+  );
+}
+
 export function CalendarCareReportPhotoCard({
   label,
   registered = false,
@@ -21,7 +50,6 @@ export function CalendarCareReportPhotoCard({
   onClick?: () => void;
 }) {
   const availableImageUrls = useMemo(() => imageUrls.filter((url): url is string => Boolean(url)), [imageUrls]);
-  const imageKey = availableImageUrls.join("|");
   const [activeIndex, setActiveIndex] = useState(0);
   const [motionDirection, setMotionDirection] = useState<"previous" | "next" | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
@@ -30,18 +58,15 @@ export function CalendarCareReportPhotoCard({
   const suppressClick = useRef(false);
   const motionTimer = useRef<number | null>(null);
   const swapTimer = useRef<number | null>(null);
-  const imageUrl = availableImageUrls[activeIndex] ?? null;
+  const resolvedActiveIndex = availableImageUrls.length > 0 ? activeIndex % availableImageUrls.length : 0;
+  const imageUrl = availableImageUrls[resolvedActiveIndex] ?? null;
   const previousImageUrl = availableImageUrls.length > 0
-    ? availableImageUrls[(activeIndex - 1 + availableImageUrls.length) % availableImageUrls.length]
+    ? availableImageUrls[(resolvedActiveIndex - 1 + availableImageUrls.length) % availableImageUrls.length]
     : null;
   const nextImageUrl = availableImageUrls.length > 0
-    ? availableImageUrls[(activeIndex + 1) % availableImageUrls.length]
+    ? availableImageUrls[(resolvedActiveIndex + 1) % availableImageUrls.length]
     : null;
   const actionLabel = loading ? "확인 중" : registered || imageUrl ? "교체" : "사진 선택";
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [imageKey, label]);
 
   useEffect(() => () => {
     if (motionTimer.current !== null) window.clearTimeout(motionTimer.current);
@@ -92,25 +117,6 @@ export function CalendarCareReportPhotoCard({
     move(direction);
   }
 
-  function SideFrame({ imageUrl: sideImageUrl, direction }: { imageUrl?: string | null; direction: "previous" | "next" }) {
-    const isPrevious = direction === "previous";
-    return (
-      <button
-        type="button"
-        onClick={() => handleSideClick(direction)}
-        disabled={disabled || availableImageUrls.length === 0}
-        aria-label={isPrevious ? "이전 사진 보기" : "다음 사진 보기"}
-        className="absolute left-1/2 top-1/2 z-0 aspect-[4/3] w-[270px] overflow-hidden rounded-[16px] border border-[#d7dde4] bg-[#f3f5f7] opacity-80 transition duration-300 ease-out hover:opacity-100 disabled:cursor-default disabled:opacity-55"
-        style={{ transform: isPrevious ? "translate(-78%, -50%) rotateY(15deg) scale(.86)" : "translate(-22%, -50%) rotateY(-15deg) scale(.86)" }}
-      >
-        {sideImageUrl ? <img src={sideImageUrl} alt="" draggable={false} className="pointer-events-none h-full w-full select-none object-cover" /> : <span className="grid h-full w-full place-items-center text-[#a8b1bc]"><ImagePlus className="h-5 w-5" /></span>}
-        <span className="absolute inset-y-0 grid w-9 place-items-center bg-white/60 text-[#526171] backdrop-blur-[1px]" style={{ [isPrevious ? "left" : "right"]: 0 }}>
-          {isPrevious ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </span>
-      </button>
-    );
-  }
-
   return (
     <div
       className="relative mx-auto h-[244px] w-full max-w-[460px] cursor-grab select-none overflow-hidden [perspective:1000px] touch-pan-y active:cursor-grabbing"
@@ -135,8 +141,18 @@ export function CalendarCareReportPhotoCard({
         setDragOffset(0);
       }}
     >
-      <SideFrame imageUrl={previousImageUrl} direction="previous" />
-      <SideFrame imageUrl={nextImageUrl} direction="next" />
+      <CarePhotoSideFrame
+        imageUrl={previousImageUrl}
+        direction="previous"
+        disabled={disabled || availableImageUrls.length === 0}
+        onClick={() => handleSideClick("previous")}
+      />
+      <CarePhotoSideFrame
+        imageUrl={nextImageUrl}
+        direction="next"
+        disabled={disabled || availableImageUrls.length === 0}
+        onClick={() => handleSideClick("next")}
+      />
 
       <button
         type="button"

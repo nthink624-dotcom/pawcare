@@ -5,6 +5,7 @@ import {
   Lightbulb,
   MessageSquareText,
   Store,
+  TrendingUp,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
@@ -179,6 +180,13 @@ export default function AdminDashboard({
             <span className="hidden text-[13px] text-[#64748b] sm:inline">
               {currentAccount.fullName} · {currentAccount.loginId}
             </span>
+            <Link
+              href={"/admin/marketing" as never}
+              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#cfe0d9] bg-[#edf6f2] px-3 text-[13px] font-semibold text-[#1f6b5b] hover:bg-[#e4f1eb]"
+            >
+              <TrendingUp className="h-4 w-4" />
+              마케팅 워룸
+            </Link>
             <Link
               href="/owner/admin"
               className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-semibold text-[#334155] hover:bg-[#f8fafc]"

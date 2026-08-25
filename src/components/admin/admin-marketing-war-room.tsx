@@ -99,6 +99,8 @@ export default function AdminMarketingWarRoom({
           </p>
         ) : null}
 
+        <QuickUsageGuide />
+
         <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatusCard
             icon={Activity}
@@ -149,7 +151,7 @@ export default function AdminMarketingWarRoom({
                   rel="noreferrer"
                   className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#1f6b5b] px-3 text-[13px] font-semibold text-white hover:bg-[#195a4d]"
                 >
-                  Studio 열기
+                  고급 보기 · Studio
                   <ExternalLink className="h-4 w-4" />
                 </a>
               ) : null}
@@ -211,6 +213,56 @@ export default function AdminMarketingWarRoom({
         </footer>
       </div>
     </main>
+  );
+}
+
+function QuickUsageGuide() {
+  const steps = [
+    {
+      number: "1",
+      title: "이 채팅에 요청",
+      detail: "“성장팀, [목표] 분석 시작해줘”라고 말합니다.",
+    },
+    {
+      number: "2",
+      title: "워룸 확인",
+      detail: "현재 작업과 승인 대기 건수를 봅니다.",
+    },
+    {
+      number: "3",
+      title: "이 채팅에 결정",
+      detail: "승인 · 수정: 내용 · 보류 · 반려 중 하나를 말합니다.",
+    },
+  ];
+
+  return (
+    <section className="mt-4 rounded-[10px] border border-[#cfe3dc] bg-[#f5faf8] p-4">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="text-[12px] font-semibold text-[#1f6b5b]">30초 사용법</p>
+          <h2 className="mt-0.5 text-[16px] font-semibold text-[#0f172a]">딱 3단계만 하면 됩니다</h2>
+        </div>
+        <p className="text-[11px] text-[#607080]">Studio는 상세 확인이 필요할 때만 엽니다.</p>
+      </div>
+      <ol className="mt-3 grid gap-2 md:grid-cols-3">
+        {steps.map((step) => (
+          <li key={step.number} className="rounded-[8px] border border-[#dbe7e2] bg-white px-3 py-3">
+            <div className="flex items-start gap-2.5">
+              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1f6b5b] text-[12px] font-semibold text-white">
+                {step.number}
+              </span>
+              <div>
+                <p className="text-[13px] font-semibold text-[#1f2937]">{step.title}</p>
+                <p className="mt-1 text-[12px] leading-5 text-[#64748b]">{step.detail}</p>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-[11px] leading-5 text-[#607080]">
+        승인해도 지금은 광고·메시지·예산 변경이 자동 실행되지 않습니다.
+      </p>
+    </section>
   );
 }
 

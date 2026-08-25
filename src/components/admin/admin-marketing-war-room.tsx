@@ -112,13 +112,13 @@ export default function AdminMarketingWarRoom({
           <StatusCard
             icon={Bot}
             label="AI 실행"
-            value="잠김"
+            value="자동 실행 안 함"
             tone="warning"
             detail={status?.ai.keyConfigured ? "키는 감지됐지만 POC 호출은 비활성입니다." : "키·과금 승인 전 호출하지 않습니다."}
           />
           <StatusCard
             icon={GitPullRequestArrow}
-            label="Codex 연결"
+            label="Codex 전달"
             value={status?.codexBridge.packetReady ? "검토 패킷 준비" : "수동 핸드오프"}
             tone={status?.codexBridge.packetReady ? "warning" : "neutral"}
             detail={status?.codexBridge.message ?? "구조화된 검토 패킷을 확인하고 있습니다."}
@@ -146,7 +146,7 @@ export default function AdminMarketingWarRoom({
               </div>
               {status?.studio.reachable && status.studio.url ? (
                 <a
-                  href={status.studio.url}
+                  href={buildStudioWorkflowUrl(status.studio.url)}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#1f6b5b] px-3 text-[13px] font-semibold text-white hover:bg-[#195a4d]"
@@ -184,7 +184,7 @@ export default function AdminMarketingWarRoom({
           </div>
 
           <div className="space-y-3">
-            <Panel title="성장팀 ↔ Codex">
+            <Panel title="성장팀 → Codex">
               <p className="text-[13px] text-[#64748b]">
                 {status?.codexBridge.packetReady
                   ? "성장팀 검토 패킷이 준비됐습니다."
@@ -316,6 +316,10 @@ function formatCheckedAt(value: string | null) {
     minute: "2-digit",
     second: "2-digit",
   }).format(date);
+}
+
+function buildStudioWorkflowUrl(studioUrl: string) {
+  return `${studioUrl.replace(/\/+$/, "")}/workflows/petmanagerGrowthReviewWorkflow/graph`;
 }
 
 function formatRunStatus(

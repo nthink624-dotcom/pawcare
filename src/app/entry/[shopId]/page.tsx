@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
-import { isDevelopmentDemoShopId } from "@/lib/development-demo";
+import { isDevelopmentDemoShopId, isLandingDemoShopId } from "@/lib/development-demo";
 import { getBootstrap } from "@/server/bootstrap";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export default async function EntryPage({
   const requestedMode = resolvedSearchParams?.mode;
   const encodedShopId = encodeURIComponent(shopId);
   const bookingHref =
-    isDevelopmentDemoShopId(shopId) && resolvedSearchParams?.experience === "first"
+    (isDevelopmentDemoShopId(shopId) || isLandingDemoShopId(shopId)) && resolvedSearchParams?.experience === "first"
       ? `/book/${encodedShopId}?experience=first`
       : undefined;
 

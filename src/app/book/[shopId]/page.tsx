@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import CustomerBookingPage from "@/components/customer/customer-booking-page";
-import { isDevelopmentDemoShopId } from "@/lib/development-demo";
+import { isDevelopmentDemoShopId, isLandingDemoShopId } from "@/lib/development-demo";
 import { verifyBookingAccessToken } from "@/server/booking-access-token";
 import { getBootstrap } from "@/server/bootstrap";
 
@@ -21,7 +21,7 @@ export default async function BookPage({
   const requestedAccessToken = resolvedSearchParams?.t || resolvedSearchParams?.token;
   const encodedShopId = encodeURIComponent(shopId);
   const landingExperience = resolvedSearchParams?.experience;
-  const isStableLandingDemoShop = shopId === "demo-shop" || isDevelopmentDemoShopId(shopId);
+  const isStableLandingDemoShop = shopId === "demo-shop" || isDevelopmentDemoShopId(shopId) || isLandingDemoShopId(shopId);
 
   if (requestedMode === "manage") {
     const manageUrl = new URL(`/book/${encodedShopId}/manage`, "http://localhost");
@@ -77,7 +77,7 @@ export default async function BookPage({
       ? {
           ownerName: "김다은",
           phone: "010-0000-0000",
-          pets: [{ id: "mong-pet-1", name: "두부", breed: "말티즈", weight: 3.8 }],
+          pets: [{ id: "30000000-0000-4000-8000-000000000001", name: "두부", breed: "말티즈", weight: 3.8 }],
         }
       : undefined);
 

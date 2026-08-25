@@ -44,7 +44,7 @@ export function FaqAndFinalCtaSection() {
       <section id="faq" className="border-t border-[#e2e8f0] bg-[#f7f8fa] py-14 md:py-16">
         <div className="mx-auto grid w-full max-w-[1180px] gap-10 px-5 lg:grid-cols-[0.68fr_1.32fr]">
           <SectionHeading
-            eyebrow="자주 묻는 질문"
+            eyebrow="QNA"
             title="시작 전에 궁금한 내용을 확인하세요"
             description="실제 제품 정책과 이용 흐름을 기준으로 답변합니다."
           />
@@ -66,19 +66,19 @@ export function FaqAndFinalCtaSection() {
       <section className="border-t border-[#d8e0e9] bg-[#eef1f5] py-12 text-[#111827] md:py-14">
         <div className="mx-auto flex w-full max-w-[1180px] flex-col justify-between gap-8 px-5 lg:flex-row lg:items-end">
           <div>
-            <p className="text-[15px] font-semibold text-[var(--landing-accent)]">다음 예약부터 바로 달라집니다</p>
+            <p className="text-[15px] font-semibold text-[var(--landing-accent)]">PETMANAGER</p>
             <h2 className="mt-3 max-w-[760px] text-[32px] font-semibold leading-[1.2] md:text-[42px]">
-              예약을 받을수록, 매장 운영은 더 정리되도록
+              예약은 쉽게 받고,<br />운영은 더 편하게.
             </h2>
             <p className="mt-4 max-w-[660px] text-[16px] leading-7 text-[#526071]">
-              카드 등록과 설치비 없이 14일 동안 실제 매장 흐름에 맞는지 확인하세요.
+              예약부터 재방문, 일정 관리, 고객 안내까지—펫매니저가 매장의 반복 업무를 한곳에서 정리합니다.
             </p>
           </div>
           <Link
             href="/signup"
             className="inline-flex h-13 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[var(--landing-accent)] px-6 text-[16px] font-semibold text-white transition hover:bg-[var(--landing-accent-hover)]"
           >
-            14일 무료로 시작하기
+            우리 매장에 적용해 보기
             <ArrowRight className="h-[18px] w-[18px]" aria-hidden="true" />
           </Link>
         </div>

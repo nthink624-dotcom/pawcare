@@ -418,13 +418,13 @@ export function BookingSystemStory() {
                   ["01", "서비스 선택", "원하는 미용을 고릅니다"],
                   ["02", "날짜·시간 선택", "가능한 시간만 보여요"],
                   ["03", "예약 확정", "일정에 바로 들어옵니다"],
-                ].map(([number, label, detail], index) => (
-                  <div key={number} className={`rounded-[10px] border px-3 py-3 ${index === 1 ? "border-[#ecd1a0] bg-[#f4e2bd]" : "border-white/10 bg-[#0d3028]"}`}>
+                ].map(([number, label, detail]) => (
+                  <div key={number} className="rounded-[10px] border border-[#ecd1a0] bg-[#f4e2bd] px-3 py-3">
                     <div className="flex items-center gap-2">
-                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${index === 1 ? "bg-[#1f4d41] text-[#fff7e9]" : "bg-[#9ce8c2] text-[#123b32]"}`}>{number}</span>
-                      <p className={`text-[14px] font-semibold ${index === 1 ? "text-[#3d3025]" : "text-white"}`}>{label}</p>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1f4d41] text-[12px] font-bold text-[#fff7e9]">{number}</span>
+                      <p className="text-[14px] font-semibold text-[#3d3025]">{label}</p>
                     </div>
-                    <p className={`mt-2 text-[13px] leading-5 ${index === 1 ? "text-[#6a513d]" : "text-[#b8d8ca]"}`}>{detail}</p>
+                    <p className="mt-2 text-[13px] leading-5 text-[#6a513d]">{detail}</p>
                   </div>
                 ))}
               </div>

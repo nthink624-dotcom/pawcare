@@ -296,7 +296,7 @@ test("landing keeps the product story free from retired pricing and savings clai
   assert.doesNotMatch(landing, /티피보다.*(?:싸|저렴)/);
 });
 
-test("landing media ships with the deploy and booking previews do not depend on production demo data", () => {
+test("landing media ships with the deploy and booking previews use the isolated persistent demo shop", () => {
   const bookingCarousel = readProjectFile("src/components/landing/landing-booking-flow-carousel.tsx");
   const bookingPreview = readProjectFile("src/app/demo/landing-booking/page.tsx");
   const careReportCard = readProjectFile("src/components/landing/landing-ai-care-report-card.tsx");
@@ -312,9 +312,8 @@ test("landing media ships with the deploy and booking previews do not depend on 
     assert.equal(existsSync(new URL(`../../${imagePath}`, import.meta.url)), true, `${imagePath} must ship`);
   }
   assert.doesNotMatch(bookingCarousel, /\/demo\/landing-booking\?experience=/);
-  assert.match(bookingCarousel, /\/book\/demo-shop\?experience=first/);
-  assert.match(bookingCarousel, /\/book\/demo-shop\?experience=ai/);
-  assert.match(bookingCarousel, /\/book\/demo-shop\?experience=revisit/);
+  assert.match(bookingCarousel, /getLandingDemoShopId/);
+  assert.match(bookingCarousel, /petmanager-demo-service-full/);
   assert.match(bookingCarousel, /GalaxyPhoneMockup/);
   assert.match(careReportCard, /GalaxyPhoneMockup/);
   assert.doesNotMatch(careReportCard, /rounded-\[40px\]/);
@@ -325,7 +324,8 @@ test("landing media ships with the deploy and booking previews do not depend on 
   assert.match(careReportCard, /max-w-\[220px\]/);
   assert.match(careReportPreview, /scrollbar-width: none/);
   assert.match(nextConfig, /allowedDevOrigins:[^\n]*"127\.0\.0\.1"/);
-  assert.doesNotMatch(bookingCarousel, /landingDemoShopId|\/entry\/\$\{|\/book\/\$\{/);
+  assert.match(bookingCarousel, /landingDemoShopId/);
+  assert.doesNotMatch(bookingCarousel, /\/entry\/\$\{/);
   assert.doesNotMatch(bookingPreview, /getBootstrap|supabase|owner-demo/);
 });
 

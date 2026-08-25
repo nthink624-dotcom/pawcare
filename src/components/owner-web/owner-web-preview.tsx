@@ -15,6 +15,7 @@ import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+import { LANDING_DEMO_SHOP_ID } from "@/lib/development-demo";
 import { buildCustomerServiceSourceOptions } from "@/lib/customer-service-options";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { currentDateInTimeZone } from "@/lib/utils";
@@ -66,7 +67,7 @@ const StaffManagementScreen = dynamic(
 );
 
 function isDemoOwnerWebData(data: BootstrapPayload) {
-  return data.mode !== "supabase" || data.shop.id === "demo-shop" || data.shop.id === "owner-demo";
+  return data.mode !== "supabase" || data.shop.id === "demo-shop" || data.shop.id === "owner-demo" || data.shop.id === LANDING_DEMO_SHOP_ID;
 }
 
 function buildShopInitials(shopName: string) {

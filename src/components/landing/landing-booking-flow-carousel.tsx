@@ -4,14 +4,16 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 import { GalaxyPhoneMockup, LaptopMockup } from "@/components/landing/landing-ui";
+import { getLandingDemoShopId } from "@/lib/development-demo";
 
 const MOBILE_VIEWPORT_WIDTH = 430;
 const DESKTOP_VIEWPORT_WIDTH = 1440;
 
+const landingDemoShopId = getLandingDemoShopId();
 const BOOKING_PREVIEW_ROUTES = {
-  first: "/book/demo-shop?experience=first&step=1",
-  ai: "/book/demo-shop?experience=ai&step=3&serviceId=svc-full",
-  revisit: "/book/demo-shop?experience=revisit&serviceId=svc-full",
+  first: `/book/${landingDemoShopId}?experience=first&step=1`,
+  ai: `/book/${landingDemoShopId}?experience=ai&step=3&serviceId=petmanager-demo-service-full`,
+  revisit: `/book/${landingDemoShopId}?experience=revisit&serviceId=petmanager-demo-service-full`,
 } as const;
 
 export type BookingSystemFocus = "overview" | "first" | "ai" | "customer-data" | "revisit";

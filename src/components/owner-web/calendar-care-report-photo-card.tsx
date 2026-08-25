@@ -25,6 +25,7 @@ export function CalendarCareReportPhotoCard({
   const [activeIndex, setActiveIndex] = useState(0);
   const [motionDirection, setMotionDirection] = useState<"previous" | "next" | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const pointerStartX = useRef<number | null>(null);
   const suppressClick = useRef(false);
   const motionTimer = useRef<number | null>(null);
@@ -75,6 +76,7 @@ export function CalendarCareReportPhotoCard({
     if (pointerStartX.current === null) return;
     const deltaX = event.clientX - pointerStartX.current;
     pointerStartX.current = null;
+    setDragging(false);
     setDragOffset(0);
     if (availableImageUrls.length === 0 || Math.abs(deltaX) < 34) return;
     suppressClick.current = true;
@@ -116,6 +118,7 @@ export function CalendarCareReportPhotoCard({
       onPointerDown={(event) => {
         if (disabled || availableImageUrls.length === 0) return;
         pointerStartX.current = event.clientX;
+        setDragging(true);
         suppressClick.current = false;
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
@@ -127,6 +130,7 @@ export function CalendarCareReportPhotoCard({
       onPointerUp={handlePointerUp}
       onPointerCancel={() => {
         pointerStartX.current = null;
+        setDragging(false);
         suppressClick.current = false;
         setDragOffset(0);
       }}
@@ -148,7 +152,7 @@ export function CalendarCareReportPhotoCard({
         className={`group absolute left-1/2 top-1/2 z-10 flex aspect-[4/3] w-full max-w-[300px] items-center justify-center overflow-hidden rounded-[16px] border border-[#cfd6de] bg-[#fafbfc] px-5 py-4 text-center hover:border-[#aeb9c5] hover:bg-white disabled:opacity-60 ${motionDirection === "next" ? "care-photo-carousel-next" : motionDirection === "previous" ? "care-photo-carousel-previous" : ""}`}
         style={!motionDirection ? {
           transform: `translate(calc(-50% + ${dragOffset}px), -50%) rotateY(${dragOffset * -0.08}deg) scale(${1 - Math.min(Math.abs(dragOffset) / 900, 0.06)})`,
-          transition: pointerStartX.current === null ? "transform 180ms ease-out" : "none",
+          transition: dragging ? "none" : "transform 180ms ease-out",
         } : undefined}
       >
         {imageUrl ? (

@@ -3,6 +3,12 @@ import type { MarketingWorkStatus, MarketingWorkSummary } from "@/types/marketin
 const LOCAL_MASTRA_STUDIO_URL = "http://localhost:4111";
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
+type MarketingEnvironment = {
+  NODE_ENV?: string;
+  MASTRA_MARKETING_URL?: string;
+  MASTRA_MARKETING_STUDIO_URL?: string;
+};
+
 function isLoopbackHostname(hostname: string) {
   return LOOPBACK_HOSTNAMES.has(hostname.toLowerCase());
 }
@@ -19,12 +25,7 @@ function normalizeRunStatus(value: unknown): MarketingWorkStatus {
     : "unknown";
 }
 
-export function resolveMarketingStudioUrl(
-  environment: { NODE_ENV?: string; MASTRA_MARKETING_URL?: string } = process.env,
-) {
-  const configuredUrl = environment.MASTRA_MARKETING_URL?.trim();
-  const candidate = configuredUrl || (environment.NODE_ENV === "development" ? LOCAL_MASTRA_STUDIO_URL : "");
-
+function normalizeMarketingUrl(candidate: string) {
   if (!candidate) return null;
 
   try {
@@ -35,6 +36,35 @@ export function resolveMarketingStudioUrl(
   } catch {
     return null;
   }
+}
+
+export function resolveMarketingApiUrl(environment: MarketingEnvironment = process.env) {
+  const configuredUrl = environment.MASTRA_MARKETING_URL?.trim();
+  const candidate = configuredUrl || (environment.NODE_ENV === "development" ? LOCAL_MASTRA_STUDIO_URL : "");
+  return normalizeMarketingUrl(candidate);
+}
+
+export function resolveMarketingStudioUrl(environment: MarketingEnvironment = process.env) {
+  const configuredStudioUrl = environment.MASTRA_MARKETING_STUDIO_URL?.trim();
+  if (configuredStudioUrl) return normalizeMarketingUrl(configuredStudioUrl);
+
+  const apiUrl = resolveMarketingApiUrl(environment);
+  if (!apiUrl || resolveMarketingDeployment(apiUrl) === "local") return apiUrl;
+
+  try {
+    const derivedStudioUrl = new URL(apiUrl);
+    if (derivedStudioUrl.hostname.endsWith(".server.mastra.cloud")) {
+      derivedStudioUrl.hostname = derivedStudioUrl.hostname.replace(
+        /\.server\.mastra\.cloud$/,
+        ".studio.mastra.cloud",
+      );
+      return derivedStudioUrl.toString().replace(/\/$/, "");
+    }
+  } catch {
+    return null;
+  }
+
+  return apiUrl;
 }
 
 export function resolveMarketingDeployment(studioUrl: string | null) {

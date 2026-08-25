@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   parseWorkflowRuns,
+  resolveMarketingApiUrl,
   resolveMarketingDeployment,
   resolveMarketingStudioUrl,
 } from "@/lib/marketing-agent-runtime";
@@ -36,18 +37,18 @@ async function fetchWithTimeout(
   }
 }
 
-function resolveMarketingAuthorization(studioUrl: string) {
+function resolveMarketingAuthorization(apiUrl: string) {
   const apiToken = process.env.MASTRA_MARKETING_API_TOKEN?.trim();
-  const explicitlyConfiguredStudioUrl = resolveMarketingStudioUrl({
+  const explicitlyConfiguredApiUrl = resolveMarketingApiUrl({
     NODE_ENV: "production",
     MASTRA_MARKETING_URL: process.env.MASTRA_MARKETING_URL,
   });
 
   if (
     !apiToken ||
-    !explicitlyConfiguredStudioUrl ||
-    explicitlyConfiguredStudioUrl !== studioUrl ||
-    resolveMarketingDeployment(studioUrl) !== "cloud"
+    !explicitlyConfiguredApiUrl ||
+    explicitlyConfiguredApiUrl !== apiUrl ||
+    resolveMarketingDeployment(apiUrl) !== "cloud"
   ) {
     return undefined;
   }
@@ -55,13 +56,13 @@ function resolveMarketingAuthorization(studioUrl: string) {
   return `Bearer ${apiToken}`;
 }
 
-async function readStudioState(studioUrl: string) {
-  const deployment = resolveMarketingDeployment(studioUrl);
+async function readMastraState(apiUrl: string) {
+  const deployment = resolveMarketingDeployment(apiUrl);
   const requestOptions = {
-    authorization: resolveMarketingAuthorization(studioUrl),
+    authorization: resolveMarketingAuthorization(apiUrl),
     timeoutMs: deployment === "cloud" ? CLOUD_PROBE_TIMEOUT_MS : LOCAL_PROBE_TIMEOUT_MS,
   };
-  const runsUrl = `${studioUrl}/api/workflows/${MASTRA_WORKFLOW_RESOURCE_KEY}/runs?limit=20&offset=0`;
+  const runsUrl = `${apiUrl}/api/workflows/${MASTRA_WORKFLOW_RESOURCE_KEY}/runs?limit=20&offset=0`;
   const runsResponse = await fetchWithTimeout(runsUrl, requestOptions);
 
   if (runsResponse?.ok) {
@@ -82,11 +83,11 @@ async function readStudioState(studioUrl: string) {
     }
   }
 
-  const studioResponse = await fetchWithTimeout(studioUrl, requestOptions);
+  const serviceResponse = await fetchWithTimeout(apiUrl, requestOptions);
   const reachable = Boolean(
     runsResponse ||
-      (studioResponse &&
-        (studioResponse.ok || (studioResponse.status >= 300 && studioResponse.status < 400))),
+      (serviceResponse &&
+        (serviceResponse.ok || (serviceResponse.status >= 300 && serviceResponse.status < 400))),
   );
 
   return {
@@ -94,23 +95,24 @@ async function readStudioState(studioUrl: string) {
     reachable,
     apiMessage:
       runsResponse?.status === 401 || runsResponse?.status === 403
-        ? "Studio에는 도달했지만 워크플로 API 인증이 필요합니다."
+        ? "Mastra Cloud에는 도달했지만 워크플로 API 인증이 필요합니다."
         : reachable
-          ? "Studio에는 도달했지만 워크플로 API를 확인하지 못했습니다."
-          : "Mastra Studio에 연결하지 못했습니다.",
+          ? "Mastra Cloud에는 도달했지만 워크플로 API를 확인하지 못했습니다."
+          : "Mastra 서비스에 연결하지 못했습니다.",
     runs: [] as MarketingWorkSummary[],
   };
 }
 
 export async function getMarketingAgentStatus(): Promise<MarketingAgentStatus> {
+  const apiUrl = resolveMarketingApiUrl();
   const studioUrl = resolveMarketingStudioUrl();
-  const deployment = resolveMarketingDeployment(studioUrl);
-  const studioState = studioUrl
-    ? await readStudioState(studioUrl)
+  const deployment = resolveMarketingDeployment(apiUrl);
+  const studioState = apiUrl
+    ? await readMastraState(apiUrl)
     : {
         apiConnected: false,
         reachable: false,
-        apiMessage: "Mastra 주소가 설정되지 않았습니다.",
+        apiMessage: "Mastra API 주소가 설정되지 않았습니다.",
         runs: [] as MarketingWorkSummary[],
       };
   const pendingRuns = studioState.runs.filter((run) => run.status === "suspended");
@@ -126,7 +128,7 @@ export async function getMarketingAgentStatus(): Promise<MarketingAgentStatus> {
           ? "local-poc"
           : "unconfigured",
     studio: {
-      configured: Boolean(studioUrl),
+      configured: Boolean(apiUrl),
       connected: studioState.apiConnected,
       reachable: studioState.reachable,
       deployment,

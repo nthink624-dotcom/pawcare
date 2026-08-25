@@ -56,7 +56,7 @@ export default function AdminMarketingWarRoom({
     : status?.studio.connected
       ? "API 연결됨"
       : status?.studio.reachable
-        ? "Studio 도달"
+        ? "Cloud 도달"
         : status?.studio.configured
           ? "연결 실패"
           : "미설정";
@@ -102,7 +102,7 @@ export default function AdminMarketingWarRoom({
         <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatusCard
             icon={Activity}
-            label="Mastra Studio"
+            label="Mastra 연결"
             value={studioState}
             tone={status?.studio.connected ? "success" : status?.studio.reachable ? "warning" : "neutral"}
             detail={status?.studio.message ?? "연결 상태를 확인하고 있습니다."}

@@ -17,7 +17,7 @@ export type ControlPlaneEvent = {
   source: ControlPlaneSource;
   sourceThreadRef: string | null;
   role: "운영팀" | "성장팀" | "디자인팀" | "분석팀" | "구현팀";
-  eventType: "directive_created" | "directive_received" | "status_changed" | "artifact_ready" | "review_requested" | "approval_waiting";
+  eventType: "directive_created" | "directive_sent" | "directive_received" | "status_changed" | "artifact_ready" | "review_requested" | "approval_waiting";
   status: ControlPlaneStatus;
   title: string;
   originalDirectiveSummary: string;

@@ -16,7 +16,7 @@ test("keeps the canonical flow, three independent gates, and fail-closed flags",
   assert.equal(snapshot.externalExecution, false);
   assert.ok(snapshot.nodes.every((node) => !node.executionEnabled && !node.externalExecution));
   assert.equal(snapshot.plans[0].workId, "PM-GROWTH-20260826-006");
-  assert.equal(snapshot.plans[0].analysisContractReview, "검토 중");
+  assert.equal(snapshot.plans[0].analysisContractReview, "검토 완료");
   assert.equal(snapshot.plans[0].approvalActionVisible, false);
   assert.equal(snapshot.plans[0].externalExecution, false);
 });
@@ -38,10 +38,39 @@ test("admin typography and operations preserve readable controls and support act
   assert.match(dashboard, /href="\/admin"/);
   assert.match(dashboard, /넘친데이 펫매니저 관리자 홈/);
   assert.match(dashboard, /관리 현황/);
+  assert.match(dashboard, /관리 메뉴/);
+  assert.match(dashboard, /href="\/admin\/operations"/);
+  assert.match(dashboard, /label="운영 관리" description="문의·운영 처리"/);
+  assert.match(dashboard, /href="\/admin\/owners"/);
+  assert.match(dashboard, /label="업체 관리" description="가입 업체·계정"/);
+  assert.match(dashboard, /href="\/admin\/marketing"/);
+  assert.match(dashboard, /label="마케팅 워크룸" description="프로젝트·승인"/);
+  assert.match(dashboard, /aria-current=\{active \? "page" : undefined\}/);
+  assert.match(dashboard, /min-h-\[56px\]/);
+  assert.doesNotMatch(dashboard, /label="운영 상세"/);
+  assert.doesNotMatch(dashboard, /label="오너·매장"/);
   assert.match(dashboard, /StatusRow/);
   assert.doesNotMatch(dashboard, /최근 7일/);
   assert.doesNotMatch(dashboard, /marketing\/kpis\?days=7/);
   assert.doesNotMatch(dashboard, /min-h-40/);
+  assert.match(dashboard, /1인 미용샵 체험 모집/);
+  assert.match(dashboard, /신청 페이지 제작 준비/);
+  assert.match(dashboard, /관리자 화면 개선/);
+  assert.match(dashboard, /모바일 앱 연결/);
+  assert.match(dashboard, /단일 요금제·알림톡 포함/);
+  assert.match(dashboard, /전체 흐름 그림 보기/);
+  assert.match(dashboard, /아직 화면 없음/);
+  assert.doesNotMatch(dashboard, /item\.workId/);
+  assert.doesNotMatch(dashboard, /item\.stageLabel/);
+});
+
+test("marketing workroom opens with the representative visual flow and keeps detailed gates behind a control", () => {
+  const workroom = readFileSync(new URL("../../src/components/admin/admin-marketing-war-room.tsx", import.meta.url), "utf8");
+  assert.match(workroom, /\["기획", "검토", "대표 승인", "제작", "배포·실행", "결과 확인"\]/);
+  assert.match(workroom, /현재 · 신청 페이지 제작 준비/);
+  assert.match(workroom, /세부 단계 보기/);
+  assert.match(workroom, /aria-expanded=\{showDetails\}/);
+  assert.match(workroom, /else if \(!work\) setShowDetails\(false\)/);
 });
 
 test("partial live API failures discard stale source values", () => {
@@ -84,17 +113,35 @@ test("a decision preserves gate id, scope, version, decision maker, time, and re
   assert.equal(result.externalExecution, false);
 });
 
-test("R2 manual team ledger preserves confirmed status without invented metrics", () => {
+test("representative projection removes superseded approvals and keeps completed analysis as history", () => {
   const snapshot = buildMarketingWarRoomSnapshot({ representative: true });
   const growth = snapshot.teamWorkItems.find((item) => item.workId === "PM-GROWTH-20260826-006");
   const analysis = snapshot.teamWorkItems.find((item) => item.workId.endsWith("-ANALYSIS"));
   assert.equal(growth.status, "review");
-  assert.match(growth.stageLabel, /소싱 승인 진입 전/);
+  assert.match(growth.stageLabel, /Preview 준비/);
   assert.equal(growth.connectionState, "manual_sync");
-  assert.equal(analysis.status, "approval_waiting");
+  assert.equal(analysis.status, "completed");
   assert.equal(analysis.measurementState, "not_measured");
-  assert.equal(snapshot.pendingRepresentativeDecisions.length, 3);
+  assert.equal(snapshot.pendingRepresentativeDecisions.length, 0);
   assert.doesNotMatch(JSON.stringify(snapshot.teamWorkItems), /progress|percent/i);
+});
+
+test("marketing ledger migration is append-only, idempotent, RLS protected, and fail-closed", () => {
+  const migration = readFileSync(new URL("../../supabase/migrations/20260826110517_marketing_work_ledger.sql", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../../src/app/api/internal/marketing/work-events/route.ts", import.meta.url), "utf8");
+  assert.match(migration, /idempotency_key text not null unique/);
+  assert.match(migration, /marketing_work_events/);
+  assert.match(migration, /marketing_work_approvals/);
+  assert.match(migration, /marketing_work_artifacts/);
+  assert.match(migration, /marketing_work_outbox/);
+  assert.match(migration, /enable row level security/g);
+  assert.match(migration, /revoke all .* from anon, authenticated/g);
+  assert.match(migration, /alter publication supabase_realtime add table public\.marketing_work_items/);
+  assert.match(route, /MARKETING_WORK_EVENT_TOKEN/);
+  assert.match(route, /timingSafeEqual/);
+  assert.match(route, /externalExecution: false/);
+  assert.match(route, /containsForbiddenIdentifier/);
+  assert.doesNotMatch(route, /console\./);
 });
 
 test("work details expose three safe design artifacts and preserve missing-result semantics", () => {
@@ -103,6 +150,7 @@ test("work details expose three safe design artifacts and preserve missing-resul
   assert.equal(artifacts.get("PM-ADMIN-HOME-R2")?.previewUrl, "/admin");
   assert.equal(artifacts.get("PM-GROWTH-20260826-006")?.previewUrl, "/previews/campaign-solo-grooming-trial-r2.png");
   assert.equal(artifacts.get("PM-CALL-ID-P0")?.previewUrl, "/previews/call-id-p0.png");
+  assert.equal(artifacts.get("PM-MOBILE-CONNECTION")?.previewUrl, "/demo/owner-mobile");
   for (const artifact of artifacts.values()) {
     if (artifact.previewUrl) assert.match(artifact.previewUrl, /^\/[a-z0-9/.-]+$/);
   }

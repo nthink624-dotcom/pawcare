@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Check, LockKeyhole, Pause, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, LockKeyhole, Pause, RotateCcw, ShieldCheck, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -27,6 +27,7 @@ export default function AdminMarketingWarRoom({ sessionLoginId, representative }
   const [kpis, setKpis] = useState<MarketingKpiSnapshot | null>(null);
   const [agentConnectionFailed, setAgentConnectionFailed] = useState(false);
   const [kpiConnectionFailed, setKpiConnectionFailed] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const searchParams = useSearchParams();
   const load = useCallback(async () => {
     try {
@@ -48,10 +49,11 @@ export default function AdminMarketingWarRoom({ sessionLoginId, representative }
   useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 10_000); return () => window.clearInterval(timer); }, [load]);
   useEffect(() => {
     const work = searchParams.get("work");
-    if (work && snapshot) { const resolved = resolveMarketingWorkSelection(snapshot, work); if (resolved) setSelectedId(resolved); }
+    if (work && snapshot) { const resolved = resolveMarketingWorkSelection(snapshot, work); if (resolved) { setSelectedId(resolved); setShowDetails(true); } }
     const view = searchParams.get("view");
-    if (view === "approval") setFilter("승인 대기");
-    if (view === "blocked") setFilter("막힘");
+    if (view === "approval") { setFilter("승인 대기"); setShowDetails(true); }
+    else if (view === "blocked") { setFilter("막힘"); setShowDetails(true); }
+    else if (!work) setShowDetails(false);
   }, [searchParams, snapshot]);
 
   const visibleNodes = useMemo(() => (snapshot?.nodes ?? []).filter((node) => {
@@ -75,15 +77,22 @@ export default function AdminMarketingWarRoom({ sessionLoginId, representative }
 
   return <main className={ADMIN_SURFACE}><div className="mx-auto w-full max-w-[1480px]">
     <header className="flex flex-wrap items-center justify-between gap-4"><div><div className="flex items-center gap-2"><p className={`${T.badge} font-semibold text-[#1f6b5b]`}>마케팅 운영 관제</p><span className={`${T.badge} rounded-full border border-[#cfe3dc] bg-white px-3 py-1 font-semibold text-[#1f6b5b]`}>FAIL-CLOSED</span></div><h1 className={`${T.pageTitle} mt-1 font-bold text-[#0f172a]`}>마케팅 워크룸</h1><p className={`${T.body} mt-2 text-[#64748b]`}>{sessionLoginId} · {representative ? "대표 권한" : "조회 권한"}</p></div><Link href="/admin" className={`${T.button} inline-flex items-center gap-2 rounded-xl border border-[#dbe2ea] bg-white px-4 font-semibold text-[#334155]`}><ArrowLeft className="h-5 w-5" />관리자 홈</Link></header>
-    {error ? <div className="mt-3 flex items-center gap-2 rounded-[8px] border border-[#f0d1d1] bg-[#fff7f7] px-3 py-2 text-[13px] text-[#a04455]"><AlertTriangle className="h-4 w-4" />{error}</div> : null}
-    <SafetyBanner violations={snapshot?.nodes.filter((node) => node.safetyViolation) ?? []} />
-    <LiveConnectionBar agent={agentStatus} kpis={kpis} agentConnectionFailed={agentConnectionFailed} kpiConnectionFailed={kpiConnectionFailed} />
-    <TeamLanes snapshot={snapshot} selectedId={selectedId} onSelect={setSelectedId} />
-    <ApprovalGroups snapshot={snapshot} />
-    <MarketingPlanCard snapshot={snapshot} />
-    <div className="mt-3 flex gap-2 overflow-x-auto pb-1" aria-label="보기 필터">{FILTERS.map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-semibold ${filter === item ? "border-[#1f6b5b] bg-[#1f6b5b] text-white" : "border-[#dbe2ea] bg-white text-[#607080]"}`}>{item}</button>)}</div>
-    <section className="mt-3 grid min-h-[620px] gap-3 xl:grid-cols-[minmax(0,1fr)_380px]"><div className="overflow-x-auto rounded-[12px] border border-[#dfe6e3] bg-[#eef2f0] p-4"><div className="grid min-w-[280px] gap-3 md:min-w-[900px] md:grid-cols-4">{visibleNodes.map((node, index) => <div key={node.id} className="relative">{index > 0 ? <span className="absolute -left-3 top-1/2 hidden h-px w-3 bg-[#94a3b8] md:block" aria-hidden /> : null}<WorkflowCard node={node} selected={!selectedTeamWork && selected?.id === node.id} onSelect={() => setSelectedId(node.id)} /></div>)}</div>{!visibleNodes.length ? <p className="py-20 text-center text-[13px] text-[#64748b]">이 보기에 해당하는 단계가 없습니다.</p> : null}</div>{selectedTeamWork ? <TeamWorkDetail item={selectedTeamWork} /> : <DetailPanel node={selected} snapshot={snapshot} busy={busy} onDecision={decide} />}</section>
+    {error ? <div className={`${T.secondary} mt-3 flex items-center gap-2 rounded-lg border border-[#f0d1d1] bg-[#fff7f7] px-3 py-2 text-[#a04455]`}><AlertTriangle className="h-4 w-4" />{error}</div> : null}
+    <RepresentativeFlow showDetails={showDetails} onToggleDetails={() => setShowDetails((value) => !value)} />
+    {showDetails ? <><SafetyBanner violations={snapshot?.nodes.filter((node) => node.safetyViolation) ?? []} />
+      <LiveConnectionBar agent={agentStatus} kpis={kpis} agentConnectionFailed={agentConnectionFailed} kpiConnectionFailed={kpiConnectionFailed} />
+      <TeamLanes snapshot={snapshot} selectedId={selectedId} onSelect={setSelectedId} />
+      <ApprovalGroups snapshot={snapshot} />
+      <MarketingPlanCard snapshot={snapshot} />
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1" aria-label="보기 필터">{FILTERS.map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`${T.badge} min-h-11 shrink-0 rounded-full border px-4 font-semibold ${filter === item ? "border-[#1f6b5b] bg-[#1f6b5b] text-white" : "border-[#dbe2ea] bg-white text-[#607080]"}`}>{item}</button>)}</div>
+      <section className="mt-3 grid min-h-[620px] gap-3 xl:grid-cols-[minmax(0,1fr)_380px]"><div className="overflow-x-auto rounded-[12px] border border-[#dfe6e3] bg-[#eef2f0] p-4"><div className="grid min-w-[280px] gap-3 md:min-w-[900px] md:grid-cols-4">{visibleNodes.map((node, index) => <div key={node.id} className="relative">{index > 0 ? <span className="absolute -left-3 top-1/2 hidden h-px w-3 bg-[#94a3b8] md:block" aria-hidden /> : null}<WorkflowCard node={node} selected={!selectedTeamWork && selected?.id === node.id} onSelect={() => setSelectedId(node.id)} /></div>)}</div>{!visibleNodes.length ? <p className={`${T.secondary} py-20 text-center text-[#64748b]`}>이 보기에 해당하는 단계가 없습니다.</p> : null}</div>{selectedTeamWork ? <TeamWorkDetail item={selectedTeamWork} /> : <DetailPanel node={selected} snapshot={snapshot} busy={busy} onDecision={decide} />}</section>
+    </> : null}
   </div></main>;
+}
+
+function RepresentativeFlow({ showDetails, onToggleDetails }: { showDetails: boolean; onToggleDetails: () => void }) {
+  const steps = ["기획", "검토", "대표 승인", "제작", "배포·실행", "결과 확인"];
+  return <section className="mt-5 overflow-hidden rounded-xl border border-[#d7dfdb] bg-white" aria-labelledby="representative-flow-title"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e4e9e6] bg-[#f8faf9] px-5 py-4"><div><h2 id="representative-flow-title" className={`${T.sectionTitle} font-bold text-[#172033]`}>전체 흐름</h2><p className={`${T.secondary} mt-1 text-[#64748b]`}>현재 · 신청 페이지 제작 준비</p></div><button type="button" onClick={onToggleDetails} aria-expanded={showDetails} className={`${T.button} inline-flex items-center gap-2 rounded-lg border border-[#cbd5e1] bg-white px-4 font-bold text-[#334155]`}>세부 단계 보기<ChevronDown className={`h-5 w-5 transition-transform ${showDetails ? "rotate-180" : ""}`} /></button></div><ol className="grid gap-2 p-4 sm:grid-cols-3 xl:grid-cols-6">{steps.map((step, index) => { const current = step === "제작"; const complete = index < 3; return <li key={step} className={`relative flex min-h-[72px] items-center justify-center rounded-lg border px-3 text-center ${current ? "border-[#2563eb] bg-[#eaf1ff] text-[#1d4ed8]" : complete ? "border-[#b8d4ca] bg-[#f2faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#64748b]"}`}><span className={`${T.body} font-bold`}>{step}</span>{current ? <span className={`${T.badge} absolute right-2 top-2 rounded-full bg-[#2563eb] px-2 py-0.5 font-bold text-white`}>현재</span> : null}</li>; })}</ol></section>;
 }
 
 function WorkflowCard({ node, selected, onSelect }: { node: MarketingWarRoomNode; selected: boolean; onSelect: () => void }) {
@@ -98,7 +107,7 @@ function DetailPanel({ node, snapshot, busy, onDecision }: { node: MarketingWarR
 }
 
 function LiveConnectionBar({ agent, kpis, agentConnectionFailed, kpiConnectionFailed }: { agent: MarketingAgentStatus | null; kpis: MarketingKpiSnapshot | null; agentConnectionFailed: boolean; kpiConnectionFailed: boolean }) {
-  return <section className="mt-5 grid gap-3 md:grid-cols-3"><ConnectionCard label="Mastra 상태 · 실제 API 자동 새로고침" value={agentConnectionFailed ? "연결 실패" : agent?.studio.connected ? "API 연결됨" : agent?.studio.reachable ? "Cloud 도달 · API 미연결" : "미연결"} detail={agentConnectionFailed ? "이전 값을 폐기했습니다" : agent?.checkedAt ? `자동 새로고침 · ${formatTime(agent.checkedAt)}` : "상태 API 집계 대기"} /><ConnectionCard label="운영 KPI · 실제 API 자동 새로고침" value={kpiConnectionFailed ? "연결 실패" : kpis?.availability === "ready" ? "측정 연결됨" : kpis?.availability === "partial" ? "일부 측정 불가" : "미측정"} detail={kpiConnectionFailed ? "이전 값을 폐기했습니다" : kpis?.checkedAt ? `자동 새로고침 · ${formatTime(kpis.checkedAt)}` : "KPI API 집계 대기"} /><ConnectionCard label="팀 업무 원장 · 수동 동기화" value="수동 동기화" detail="2026-08-26 15:48 KST 기준 · 실시간 자동 연결 아님" /></section>;
+  return <section className="mt-5 grid gap-3 md:grid-cols-3"><ConnectionCard label="Mastra 3단계 POC" value={agentConnectionFailed ? "연결 실패" : agent?.studio.connected ? "POC API 연결" : agent?.studio.reachable ? "Cloud 도달 · POC API 미연결" : "미연결"} detail="POC · 실제 팀 상태 미연결" /><ConnectionCard label="운영 KPI · 실제 API 자동 새로고침" value={kpiConnectionFailed ? "연결 실패" : kpis?.availability === "ready" ? "측정 연결됨" : kpis?.availability === "partial" ? "일부 측정 불가" : "미측정"} detail={kpiConnectionFailed ? "이전 값을 폐기했습니다" : kpis?.checkedAt ? `자동 새로고침 · ${formatTime(kpis.checkedAt)}` : "KPI API 집계 대기"} /><ConnectionCard label="팀 업무 원장 · 수동 동기화" value="수동 동기화" detail="20:30 KST 기준 · 실시간 원장 DB 적용 전" /></section>;
 }
 
 function ConnectionCard({ label, value, detail }: { label: string; value: string; detail: string }) { return <div className="rounded-xl border border-[#dbe2ea] bg-white p-4"><p className={`${T.secondary} font-semibold text-[#64748b]`}>{label}</p><p className={`${T.cardTitle} mt-1 font-bold text-[#172033]`}>{value}</p><p className={`${T.secondary} mt-1 text-[#64748b]`}>{detail}</p></div>; }

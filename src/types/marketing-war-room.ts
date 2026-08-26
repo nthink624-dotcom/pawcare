@@ -90,8 +90,8 @@ export type MarketingWarRoomSnapshot = {
     owner: "펫매니저 성장팀";
     nextAction: string;
     approvalRequired: true;
-    analysisContractReview: "검토 중";
-    representativeApproval: "검토 전";
+    analysisContractReview: "검토 완료";
+    representativeApproval: "확정 완료";
     approvalActionVisible: false;
     executionEnabled: false;
     externalExecution: false;

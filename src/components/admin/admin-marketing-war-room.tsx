@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Check, ChevronDown, LockKeyhole, Pause, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Check, ChevronDown, LockKeyhole, Pause, RotateCcw, ShieldCheck, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -76,7 +76,7 @@ export default function AdminMarketingWarRoom({ sessionLoginId, representative }
   }
 
   return <main className={ADMIN_SURFACE}><div className="mx-auto w-full max-w-[1480px]">
-    <header className="flex flex-wrap items-center justify-between gap-4"><div><div className="flex items-center gap-2"><p className={`${T.badge} font-semibold text-[#1f6b5b]`}>마케팅 운영 관제</p><span className={`${T.badge} rounded-full border border-[#cfe3dc] bg-white px-3 py-1 font-semibold text-[#1f6b5b]`}>FAIL-CLOSED</span></div><h1 className={`${T.pageTitle} mt-1 font-bold text-[#0f172a]`}>마케팅 워크룸</h1><p className={`${T.body} mt-2 text-[#64748b]`}>{sessionLoginId} · {representative ? "대표 권한" : "조회 권한"}</p></div><Link href="/admin" className={`${T.button} inline-flex items-center gap-2 rounded-xl border border-[#dbe2ea] bg-white px-4 font-semibold text-[#334155]`}><ArrowLeft className="h-5 w-5" />관리자 홈</Link></header>
+    <header className="flex flex-wrap items-center justify-between gap-4"><div><div className="flex items-center gap-2"><p className={`${T.badge} font-semibold text-[#1f6b5b]`}>마케팅 운영 관제</p><span className={`${T.badge} rounded-full border border-[#cfe3dc] bg-white px-3 py-1 font-semibold text-[#1f6b5b]`}>FAIL-CLOSED</span></div><h1 className={`${T.pageTitle} mt-1 font-bold text-[#0f172a]`}>마케팅 워크룸</h1><p className={`${T.body} mt-2 text-[#64748b]`}>{sessionLoginId} · {representative ? "대표 권한" : "조회 권한"}</p></div><div className="flex flex-wrap gap-2"><Link href={"/admin/marketing/control-plane-preview" as never} className={`${T.button} inline-flex items-center gap-2 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] px-4 font-bold text-[#1d4ed8]`}><Activity className="h-5 w-5" />실시간 관제 Preview</Link><Link href="/admin" className={`${T.button} inline-flex items-center gap-2 rounded-xl border border-[#dbe2ea] bg-white px-4 font-semibold text-[#334155]`}><ArrowLeft className="h-5 w-5" />관리자 홈</Link></div></header>
     {error ? <div className={`${T.secondary} mt-3 flex items-center gap-2 rounded-lg border border-[#f0d1d1] bg-[#fff7f7] px-3 py-2 text-[#a04455]`}><AlertTriangle className="h-4 w-4" />{error}</div> : null}
     <RepresentativeFlow showDetails={showDetails} onToggleDetails={() => setShowDetails((value) => !value)} />
     {showDetails ? <><SafetyBanner violations={snapshot?.nodes.filter((node) => node.safetyViolation) ?? []} />

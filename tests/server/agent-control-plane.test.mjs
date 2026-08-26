@@ -60,6 +60,15 @@ test("the real admin marketing entry defaults to the operational live model", ()
   assert.doesNotMatch(page, /return <AdminMarketingWarRoom[^;]+;\s*}$/);
 });
 
+test("operational UI polls runtime data within five seconds without fixture fallback", () => {
+  const ui = readFileSync(new URL("../../src/components/admin/agent-control-plane-preview.tsx", import.meta.url), "utf8");
+  assert.match(ui, /control-plane-preview\?cursor=/);
+  assert.match(ui, /"\/api\/admin\/marketing\/control-plane"/);
+  assert.match(ui, /3_000/);
+  assert.match(ui, /연결 끊김/);
+  assert.match(ui, /마지막 확인/);
+});
+
 test("gateway uses stdio, authenticated outbound ingest, and never enables external execution", () => {
   const gateway = readFileSync(new URL("../../scripts/control-plane-gateway.mjs", import.meta.url), "utf8");
   assert.match(gateway, /spawn\("codex", \["app-server", "--stdio"\]/);

@@ -8,7 +8,7 @@ if (!ingestUrl || !token) throw new Error("CONTROL_PLANE_INGEST_URL과 MARKETING
 
 const snapshots = [
   work("PM-OPS-CONTROL-PLANE", null, "운영팀", "operations", "운영 업무 관제", "in_progress", "운영 데이터 연결", "실시간 원장 검증", "신규 하위 업무 연결", "sync_limited"),
-  work("PM-GROWTH-20260826-006", "PM-OPS-CONTROL-PLANE", "성장팀", "growth", "1인 미용샵 체험 모집", "review", "캠페인 Preview 검수 완료", "문안·안전 잠금 검수 완료", "외부 공개 승인 대기", "sync_limited"),
+  work("PM-GROWTH-20260826-006", "PM-OPS-CONTROL-PLANE", "성장팀", "growth", "체험 페이지 Preview", "completed", "크리에이티브 검수 완료", "문안·안전 잠금 검수 완료", "외부 공개 전 상태 유지", "sync_limited"),
   work("PM-GROWTH-20260826-006-ANALYSIS", "PM-OPS-CONTROL-PLANE", "분석팀", "analysis", "마케팅 측정 검토", "completed", "측정·정책 계약 검토 완료", "분석 계약 검토 완료", "실행 전 상태 유지", "sync_limited"),
   work("PM-CODEX-CONTROL-PLANE", "PM-OPS-CONTROL-PLANE", "구현팀", "codex", "실시간 워크룸 연결", "in_progress", "운영 원장 연결 구현", "격리 Preview와 계약 테스트 완료", "운영 연결 검증", "sync_limited"),
 ];

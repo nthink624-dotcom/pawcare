@@ -369,7 +369,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f8f6] p-1.5 text-[#172033]">
+    <main className="admin-readable min-h-screen bg-[#f7f8f6] p-3 text-[#172033] md:p-5">
       <div className="mx-auto w-full max-w-[1700px]">
         <div className="grid gap-1.5 xl:grid-cols-[minmax(0,1.35fr)_390px]">
           <section className="flex flex-col overflow-hidden rounded-[10px] border border-[#dfe7e2] bg-white xl:h-[calc(100vh-12px)]">

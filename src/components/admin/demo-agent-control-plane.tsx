@@ -18,7 +18,7 @@ export default function DemoAgentControlPlane({ mode = "operational" }: { mode?:
   const [mobileTab, setMobileTab] = useState<"work" | "detail" | "events">("work");
   const load = useCallback(async (cursor: number) => {
     try {
-      const endpoint = mode === "demo" ? `/api/admin/marketing/control-plane-preview?cursor=${cursor}` : "/api/dev/agent-control-plane";
+      const endpoint = mode === "demo" ? `/api/admin/marketing/control-plane-preview?cursor=${cursor}` : "/api/admin/marketing/demo-control-plane";
       const value = await fetchApiJson<ControlPlaneSnapshot>(endpoint, { cache: "no-store" });
       setSnapshot(value);
       setError(null);

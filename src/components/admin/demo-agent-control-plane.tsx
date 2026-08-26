@@ -6,13 +6,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ADMIN_SURFACE, ADMIN_TYPOGRAPHY as T } from "@/components/admin/admin-typography";
 import { fetchApiJson } from "@/lib/api";
-import type { ControlPlaneNode, ControlPlaneSnapshot, ControlPlaneStatus } from "@/types/agent-control-plane";
+import type { ControlPlaneEvent, ControlPlaneNode, ControlPlaneSnapshot, ControlPlaneStatus } from "@/types/agent-control-plane";
 
-const STATUS: Record<ControlPlaneStatus, string> = { not_started: "시작 전", received: "지시 수신", in_progress: "진행 중", review: "검수 중", approval_waiting: "승인 대기", completed: "완료", blocked: "막힘", failed: "실패" };
+const STATUS: Record<ControlPlaneStatus, string> = { not_started: "시작 전", received: "지시 수신", in_progress: "진행 중", review: "검수 중", approval_waiting: "승인 대기", approved: "승인", rejected: "거절", completed: "완료", blocked: "막힘", failed: "실패" };
 
 export default function DemoAgentControlPlane({ mode = "operational" }: { mode?: "operational" | "demo" }) {
   const [snapshot, setSnapshot] = useState<ControlPlaneSnapshot | null>(null);
   const [selectedWorkId, setSelectedWorkId] = useState("CP-OPS-001");
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<"work" | "detail" | "events">("work");
@@ -30,6 +31,8 @@ export default function DemoAgentControlPlane({ mode = "operational" }: { mode?:
   useEffect(() => { if (snapshot) return; const timer = window.setTimeout(() => void load(0), 0); return () => window.clearTimeout(timer); }, [load, snapshot]);
   useEffect(() => { if (paused || !snapshot) return; const delay = mode === "demo" && snapshot.hasMore ? 1_500 : 3_000; const timer = window.setTimeout(() => void load(snapshot.cursor), delay); return () => window.clearTimeout(timer); }, [load, mode, paused, snapshot]);
   const selected = snapshot?.nodes.find((node) => node.workId === selectedWorkId) ?? snapshot?.nodes[0] ?? null;
+  const selectedEvent = snapshot?.timeline.find((event) => event.eventId === selectedEventId) ?? null;
+  const detailNode = selectedEvent ? eventAsNode(selectedEvent) : selected;
   const connected = mode === "operational" ? Boolean(snapshot?.nodes.length) : snapshot?.sources.codex === "connected" || snapshot?.sources.mastra === "connected";
   const connectionLabel = mode === "demo" ? "데모 데이터" : error || snapshot?.nodes.length === 0 ? "데모 관리자 · 연결 안 됨" : "데모 관리자 · 실제 업무 상태 연결";
   const roots = useMemo(() => snapshot?.nodes.filter((node) => !node.parentWorkId) ?? [], [snapshot]);
@@ -41,9 +44,9 @@ export default function DemoAgentControlPlane({ mode = "operational" }: { mode?:
     {error ? <p className={`${T.body} mt-3 flex items-center gap-2 rounded-md border border-[#d4d4d4] bg-white p-3 text-[#404040]`}><AlertTriangle className="h-5 w-5" />{error} · 이전 상태는 오래됨으로 취급합니다.</p> : null}
     <nav className="mt-2 grid min-h-11 grid-cols-3 overflow-hidden rounded-lg border border-[#dbe2ea] bg-white md:hidden" aria-label="워크룸 보기"><MobileTab label="업무" active={mobileTab === "work"} onClick={() => setMobileTab("work")} /><MobileTab label="상세" active={mobileTab === "detail"} onClick={() => setMobileTab("detail")} /><MobileTab label="이벤트" active={mobileTab === "events"} onClick={() => setMobileTab("events")} /></nav>
     <section className="mt-2 grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(0,1.05fr)_minmax(300px,.85fr)_minmax(280px,.75fr)]">
-      <div className={`${mobileTab === "work" ? "block" : "hidden"} min-h-0 overflow-auto rounded-md border border-[#d4d4d4] bg-white p-3 md:block`}><div className="mb-2 flex items-center justify-between"><h2 className="text-[20px] font-medium leading-7">업무 계보</h2><span className={`${T.badge} rounded-full border border-[#e5e5e5] bg-white px-2.5 py-0.5 font-medium text-[#525252]`}>{snapshot?.timeline.length ?? 0}개 이벤트</span></div><div className="space-y-2">{roots.map((root) => <div key={root.workId}><NodeCard node={root} selected={selected?.workId === root.workId} onSelect={(id) => { setSelectedWorkId(id); setMobileTab("detail"); }} /><div className="ml-4 mt-2 grid gap-2 border-l border-[#d4d4d4] pl-3">{children(root.workId).map((child) => <NodeCard key={child.workId} node={child} selected={selected?.workId === child.workId} onSelect={(id) => { setSelectedWorkId(id); setMobileTab("detail"); }} />)}</div></div>)}</div></div>
-      <div className={`${mobileTab === "detail" ? "block" : "hidden"} min-h-0 overflow-auto md:block`}><Detail node={selected} /></div>
-      <div className={`${mobileTab === "events" ? "block" : "hidden"} min-h-0 overflow-auto rounded-md border border-[#d4d4d4] bg-white p-3 md:block`}><h2 className="text-[20px] font-medium leading-7">최근 이벤트</h2><ol className="mt-2 space-y-1.5">{[...(snapshot?.timeline ?? [])].reverse().map((event) => <li key={event.eventId} className="grid grid-cols-[16px_1fr] gap-2"><span className="mt-1.5 h-2 w-2 rounded-full bg-[#525252]" /><div className="border-b border-[#e5e5e5] pb-2"><div className="flex flex-wrap items-center justify-between gap-1"><span className={`${T.body} font-medium`}>{event.role} · {STATUS[event.status]}</span><time className={`${T.secondary} text-[#737373]`}>{formatTime(event.sourceEventAt)}</time></div><p className={`${T.secondary} truncate text-[#525252]`}>{event.title}</p></div></li>)}</ol></div>
+      <div className={`${mobileTab === "work" ? "block" : "hidden"} min-h-0 overflow-auto rounded-md border border-[#d4d4d4] bg-white p-3 md:block`}><div className="mb-2 flex items-center justify-between"><h2 className="text-[20px] font-medium leading-7">업무 계보</h2><span className={`${T.badge} rounded-full border border-[#e5e5e5] bg-white px-2.5 py-0.5 font-medium text-[#525252]`}>{snapshot?.timeline.length ?? 0}개 이벤트</span></div><p className={`${T.badge} mb-2 text-[#737373]`}>이전 기록 동기화 제한 · 신규 이벤트 자동 갱신</p><div className="space-y-2">{roots.map((root) => <div key={root.workId}><NodeCard node={root} selected={!selectedEventId && selected?.workId === root.workId} onSelect={(id) => { setSelectedEventId(null); setSelectedWorkId(id); setMobileTab("detail"); }} /><div className="ml-4 mt-2 grid gap-2 border-l border-[#d4d4d4] pl-3">{children(root.workId).map((child) => <NodeCard key={child.workId} node={child} selected={!selectedEventId && selected?.workId === child.workId} onSelect={(id) => { setSelectedEventId(null); setSelectedWorkId(id); setMobileTab("detail"); }} />)}</div></div>)}</div></div>
+      <div className={`${mobileTab === "detail" ? "block" : "hidden"} min-h-0 overflow-auto md:block`}><Detail node={detailNode} /></div>
+      <div className={`${mobileTab === "events" ? "block" : "hidden"} min-h-0 overflow-auto rounded-md border border-[#d4d4d4] bg-white p-3 md:block`}><h2 className="text-[20px] font-medium leading-7">최근 이벤트</h2><ol className="mt-2 space-y-1.5">{[...(snapshot?.timeline ?? [])].reverse().map((event) => <li key={event.eventId}><button type="button" onClick={() => { setSelectedEventId(event.eventId); setMobileTab("detail"); }} className="grid min-h-11 w-full grid-cols-[12px_1fr] gap-2 border-b border-[#e5e5e5] py-1.5 text-left"><span className="mt-2 h-2 w-2 rounded-full bg-[#525252]" /><span className="min-w-0"><span className="flex items-center justify-between gap-1"><span className={`${T.body} truncate font-medium`}>{eventSenderLabel(event)} · {event.title}</span><time className={`${T.secondary} shrink-0 text-[#737373]`}>{formatTime(event.sourceEventAt)}</time></span><span className={`${T.secondary} block truncate text-[#525252]`}>{STATUS[event.status]} · {event.operationsDirectiveSummary}</span></span></button></li>)}</ol></div>
     </section>
   </div></main>;
 }
@@ -55,6 +58,8 @@ function NodeCard({ node, selected, onSelect }: { node: ControlPlaneNode; select
 }
 
 function senderLabel(node: ControlPlaneNode) { if (node.source === "growth") return "펫매니저 성장팀"; if (node.source === "analysis") return "펫매니저 마케팅 분석팀"; if (node.source === "operations") return node.role === "구현팀" ? "Codex 구현팀" : "운영팀"; if (node.role === "구현팀") return "Codex 구현팀"; return "발신팀 확인 불가"; }
+function eventSenderLabel(event: ControlPlaneEvent) { if (event.eventType === "owner_request_received") return "대표"; if (event.eventType === "operations_directive_sent") return "운영팀"; return senderLabel(eventAsNode(event)); }
+function eventAsNode(event: ControlPlaneEvent): ControlPlaneNode { const { eventId, sequence: _sequence, eventType: _eventType, receivedAt: _receivedAt, ...node } = event; void _sequence; void _eventType; void _receivedAt; return { ...node, lastEventId: eventId, freshness: "fresh" }; }
 
 function Detail({ node }: { node: ControlPlaneNode | null }) {
   if (!node) return <aside className={`${T.body} rounded-xl border border-dashed border-[#cbd5e1] bg-white p-5 text-[#64748b]`}>이벤트 수신 대기</aside>;

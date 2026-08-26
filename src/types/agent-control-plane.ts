@@ -5,6 +5,8 @@ export type ControlPlaneStatus =
   | "in_progress"
   | "review"
   | "approval_waiting"
+  | "approved"
+  | "rejected"
   | "completed"
   | "blocked"
   | "failed";
@@ -17,7 +19,7 @@ export type ControlPlaneEvent = {
   source: ControlPlaneSource;
   sourceThreadRef: string | null;
   role: "운영팀" | "성장팀" | "디자인팀" | "분석팀" | "구현팀";
-  eventType: "directive_created" | "directive_sent" | "directive_received" | "status_changed" | "artifact_ready" | "review_requested" | "approval_waiting";
+  eventType: "directive_created" | "directive_sent" | "directive_received" | "owner_request_received" | "operations_directive_sent" | "agent_work_started" | "agent_status_changed" | "agent_result_submitted" | "operations_reviewed" | "owner_approval_requested" | "owner_decided" | "status_changed" | "artifact_ready" | "review_requested" | "approval_waiting";
   status: ControlPlaneStatus;
   title: string;
   originalDirectiveSummary: string;

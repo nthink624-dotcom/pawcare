@@ -1,6 +1,7 @@
 import { CAMPAIGN_EVENT_NAMES, CAMPAIGN_SOURCE_CHANNELS, type CampaignConsentState, type CampaignEventName, type CampaignPreviewEvent, type CampaignSourceChannel } from "@/types/campaign-preview";
 
 export const CAMPAIGN_PREVIEW_POLICY = Object.freeze({
+  previewOnly: true,
   personalInformationControllerStatus: "pending",
   retentionPeriodStatus: "pending",
   processorStatus: "pending",
@@ -8,6 +9,9 @@ export const CAMPAIGN_PREVIEW_POLICY = Object.freeze({
   lawfulUseBasisStatus: "policy_review_pending",
   formPublishable: false,
   formSubmissionEnabled: false,
+  analyticsEnabled: false,
+  externalCallsEnabled: false,
+  productionPublishable: false,
   protectedStorageEnabled: false,
   externalAnalyticsEnabled: false,
   pixelEnabled: false,

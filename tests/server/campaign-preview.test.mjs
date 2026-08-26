@@ -6,7 +6,13 @@ import { CAMPAIGN_PREVIEW_POLICY, DEFAULT_CAMPAIGN_CONSENT, PLATFORM_DELIVERY_EL
 import { createApplicationReferenceCode, createSuppressionKey } from "../../src/server/campaign-preview-security.ts";
 
 test("preview remains fail-closed for every write or external delivery path", () => {
+  assert.equal(CAMPAIGN_PREVIEW_POLICY.previewOnly, true);
   assert.equal(CAMPAIGN_PREVIEW_POLICY.formPublishable, false);
+  assert.equal(CAMPAIGN_PREVIEW_POLICY.formSubmissionEnabled, false);
+  assert.equal(CAMPAIGN_PREVIEW_POLICY.marketingDmEnabled, false);
+  assert.equal(CAMPAIGN_PREVIEW_POLICY.analyticsEnabled, false);
+  assert.equal(CAMPAIGN_PREVIEW_POLICY.externalCallsEnabled, false);
+  assert.equal(CAMPAIGN_PREVIEW_POLICY.productionPublishable, false);
   for (const [key, value] of Object.entries(CAMPAIGN_PREVIEW_POLICY)) if (key.endsWith("Enabled") || key === "externalExecution") assert.equal(value, false, key);
   assert.equal(CAMPAIGN_PREVIEW_POLICY.lawfulUseBasisStatus, "policy_review_pending");
 });
@@ -49,5 +55,14 @@ test("route and UI expose preview only with an explicit flag and no submit actio
   assert.match(page, /notFound/);
   assert.match(ui, /disabled/);
   assert.doesNotMatch(ui, /fetch\(|formAction|action=|sendBeacon|pixel|webhook/i);
-  assert.match(ui, /30일 무료 이용을 추가 제공받음/);
+  assert.match(ui, /월 29,000원/);
+  assert.match(ui, /알림톡 포함 · 별도 충전 없음/);
+  assert.match(ui, /카드 등록 없이 14일 무료 체험하세요. 체험 종료 후에는 월 29,000원의 단일 요금제로 계속 이용할 수 있습니다./);
+  assert.match(ui, /매장 사례 활용에 별도 동의한 경우 무료 이용 30일이 추가되며, 이후 동일한 월 29,000원 단일 요금제가 적용됩니다./);
+  assert.doesNotMatch(ui, /부가세 (?:포함|별도)/);
+  assert.match(ui, /Instagram 계정정보 광고 목적 이용/);
+  assert.match(ui, /Instagram DM 광고성 정보 1회 수신/);
+  assert.match(ui, /사례 활용 \+ 30일 추가/);
+  assert.match(ui, /실제 신청·저장·연락·자동 연동 없음/);
+  assert.doesNotMatch(ui, /useState|localStorage|document\.cookie|searchParams/);
 });

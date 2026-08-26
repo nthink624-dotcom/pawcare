@@ -32,6 +32,13 @@ test("marks replayed old data stale and exposes no PII or raw thread id", () => 
 test("preview API is admin protected, read-only, no-store, and does not mutate production", () => {
   const route = readFileSync(new URL("../../src/app/api/admin/marketing/control-plane-preview/route.ts", import.meta.url), "utf8");
   assert.match(route, /requireAdminSession/);
+  assert.match(route, /NODE_ENV !== "development"/);
   assert.match(route, /Cache-Control.*no-store/);
   assert.doesNotMatch(route, /export async function POST|supabase|insert\(|update\(|upsert\(/i);
+});
+
+test("isolated visual route is development-only and production fail-closed", () => {
+  const page = readFileSync(new URL("../../src/app/dev/agent-control-plane-preview/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /NODE_ENV !== "development"/);
+  assert.match(page, /notFound\(\)/);
 });

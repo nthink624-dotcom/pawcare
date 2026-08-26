@@ -12,10 +12,10 @@ import { SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { cn } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
 
-type OwnerWebNavigationKey = OwnerWebScreenKey | "billing";
+type OwnerWebNavigationKey = OwnerWebScreenKey | "billing" | "calls";
 type OwnerWebNavigationItem =
   | { key: OwnerWebScreenKey; label: string; href?: never }
-  | { key: "billing"; label: string; href: Route };
+  | { key: "billing" | "calls"; label: string; href: Route };
 
 const screenIconPaths: Record<OwnerWebNavigationKey, string> = {
   schedule: "/icons/phosphor/clipboard-text.svg",
@@ -33,6 +33,7 @@ const screenIconPaths: Record<OwnerWebNavigationKey, string> = {
   alerts: "/icons/phosphor/bell.svg",
   help: "/icons/phosphor/WarningCircle.svg",
   billing: "/icons/phosphor/projector-screen-chart.svg",
+  calls: "/icons/phosphor/clipboard-text.svg",
 };
 
 const ownerWebNavigationGroups: Array<{
@@ -43,6 +44,7 @@ const ownerWebNavigationGroups: Array<{
     label: "운영",
     items: [
       { key: "schedule", label: "예약 관리" },
+      { key: "calls", label: "전화 예약 접수", href: "/owner/calls" as Route },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
       { key: "profitability", label: "수익 분석" },
@@ -68,6 +70,7 @@ const ownerWebSidebarGroups: Array<{
     label: "운영",
     items: [
       { key: "schedule", label: "예약 관리" },
+      { key: "calls", label: "전화 예약 접수", href: "/owner/calls" as Route },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
       { key: "profitability", label: "수익 분석" },
@@ -308,9 +311,9 @@ export default function OwnerWebAppShell({
                       active &&
                         "bg-[#eff6ff] font-semibold text-[var(--acc)] shadow-none hover:bg-[#eff6ff] hover:text-[var(--acc)]",
                     );
-                    if (screen.key === "billing") {
+                    if (screen.href) {
                       return (
-                        <Link key={screen.key} href={screen.href} prefetch className={itemClassName}>
+                        <Link key={screen.key} href={screen.href as never} prefetch className={itemClassName}>
                           <PhosphorSidebarIcon screen={screen.key} active={false} />
                           <span className="min-w-0 truncate">{screen.label}</span>
                         </Link>

@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { CalendarCareNoteInput } from "@/components/owner-web/calendar-care-note-input";
 import type { GroomingCompletionDetails } from "@/components/owner-web/calendar-grooming-completion-fields";
@@ -161,6 +161,7 @@ export function CalendarCareReportCompletionPanel({
   const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null);
   const [error, setError] = useState("");
   const [composerValue, setComposerValue] = useState("");
+  const aiSummaryScrollRef = useRef<HTMLDivElement>(null);
   const previewMode = previewModeOverride ?? (typeof window !== "undefined" && (/^\/demo(?:\/|$)/.test(window.location.pathname) || /^\/dev(?:\/|$)/.test(window.location.pathname)));
   const saving = savingAction !== null;
   const pending = generating || saving;
@@ -170,6 +171,18 @@ export function CalendarCareReportCompletionPanel({
   }, [onPendingChange, pending]);
 
   useEffect(() => () => onPendingChange(false), [onPendingChange]);
+
+  useEffect(() => {
+    const scrollRegion = aiSummaryScrollRef.current;
+    if (!scrollRegion) return;
+    const containScrollEvent = (event: Event) => event.stopPropagation();
+    scrollRegion.addEventListener("wheel", containScrollEvent, { passive: true });
+    scrollRegion.addEventListener("touchmove", containScrollEvent, { passive: true });
+    return () => {
+      scrollRegion.removeEventListener("wheel", containScrollEvent);
+      scrollRegion.removeEventListener("touchmove", containScrollEvent);
+    };
+  }, []);
 
   useEffect(() => {
     if (previewMode) return;
@@ -299,7 +312,13 @@ export function CalendarCareReportCompletionPanel({
   return (
     <section>
       <div>
-        <div className="no-scrollbar max-h-[148px] space-y-2 overflow-y-auto overscroll-contain">
+        <div
+          ref={aiSummaryScrollRef}
+          data-modal-wheel-scope="self"
+          data-care-report-scroll-region="ai-summary"
+          aria-label="AI가 정리한 내용 스크롤 영역"
+          className="no-scrollbar max-h-[148px] space-y-2 overflow-y-auto overscroll-contain touch-pan-y"
+        >
           {!report && !generating ? <EmptyReportMessage /> : null}
 
           {generating ? <AiGeneratingMessage /> : null}

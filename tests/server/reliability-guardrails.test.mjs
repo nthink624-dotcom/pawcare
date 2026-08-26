@@ -160,6 +160,12 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.match(careReportPanel, /아래에 케어 내용을 남기면 이곳에 정리됩니다/);
   assert.match(careReportPanel, /editReport\(\{ \.\.\.report, oneLineSummary: content \}\)/);
   assert.match(careReportPanel, /max-h-\[148px\].*overflow-y-auto/);
+  assert.match(careReportPanel, /data-care-report-scroll-region="ai-summary"/);
+  assert.match(careReportPanel, /data-modal-wheel-scope="self"/);
+  assert.match(careReportPanel, /overflow-y-auto overscroll-contain touch-pan-y/);
+  assert.match(careReportPanel, /scrollRegion\.addEventListener\("wheel", containScrollEvent, \{ passive: true \}\)/);
+  assert.match(careReportPanel, /scrollRegion\.addEventListener\("touchmove", containScrollEvent, \{ passive: true \}\)/);
+  assert.doesNotMatch(careReportPanel, /(?:window|document)\.addEventListener\(["'](?:wheel|touchmove)["']/);
   assert.match(careReportPanel, /h-\[108px\].*resize-none.*overflow-y-auto/);
   assert.match(careReportPanel, /sticky bottom-0/);
   assert.doesNotMatch(careReportPanel, /fixed bottom-2 left-1\/2/);

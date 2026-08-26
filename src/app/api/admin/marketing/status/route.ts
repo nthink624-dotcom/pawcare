@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { message: "마케팅 워룸 상태를 확인하지 못했습니다." },
+      { message: "마케팅 워크룸 상태를 확인하지 못했습니다." },
       { status: 500 },
     );
   }

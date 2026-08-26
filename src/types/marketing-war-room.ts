@@ -78,7 +78,7 @@ export type MarketingWarRoomSnapshot = {
     judgment: "LEARNING_ONLY | INCONCLUSIVE";
     status: "review";
     owner: "펫매니저 성장팀";
-    nextAction: "분석팀 최종 계약 확인";
+    nextAction: string;
     approvalRequired: true;
     analysisContractReview: "검토 중";
     representativeApproval: "검토 전";
@@ -86,5 +86,21 @@ export type MarketingWarRoomSnapshot = {
     executionEnabled: false;
     externalExecution: false;
   }>;
+  teamWorkItems: Array<{
+    workId: string;
+    title: string;
+    team: "펫매니저 성장팀" | "펫매니저 마케팅 분석팀";
+    status: "review" | "approval_waiting" | "completed";
+    stageLabel: string;
+    completedSummary: string;
+    blocker: string;
+    nextAction: string;
+    dueLabel: string;
+    sourceUpdatedAt: string;
+    connectionState: "manual_sync";
+    measurementState: "not_measured" | "not_applicable";
+    approvalRequired: true;
+  }>;
+  pendingRepresentativeDecisions: string[];
   auditHistory: MarketingAuditEntry[];
 };

@@ -20,7 +20,7 @@ const GATE_IDS = new Set<MarketingApprovalGateId>([
 ]);
 
 const DEFINITIONS: NodeDefinition[] = [
-  node("SOURCING_APPROVAL", "소싱 기준 승인", "안전한 후보 탐색 기준을 확정합니다.", "운영팀", "approval_waiting", [], { scope: "sourcing_criteria_only", version: "v1" }),
+  node("SOURCING_APPROVAL", "소싱 기준 승인", "안전한 후보 탐색 기준을 확정합니다.", "운영팀", "not_started", [], { scope: "sourcing_criteria_only", version: "v1" }),
   node("target_sourced", "후보군 탐색", "승인된 기준으로 후보 세그먼트 존재 여부만 확인합니다.", "성장팀", "not_started", ["SOURCING_APPROVAL"]),
   node("target_qualified", "후보 적합성 검토", "집계 세그먼트의 적합성을 검토합니다.", "분석팀", "not_started", ["target_sourced"]),
   node("TARGET_LIST_APPROVAL", "타깃 목록 승인", "비식별 타깃 범위의 준비 여부를 승인합니다.", "운영팀", "not_started", ["target_qualified"], { scope: "qualified_segments_only", version: "v1" }),
@@ -147,7 +147,7 @@ export function buildMarketingWarRoomSnapshot(input: {
       judgment: "LEARNING_ONLY | INCONCLUSIVE",
       status: "review",
       owner: "펫매니저 성장팀",
-      nextAction: "분석팀 최종 계약 확인",
+      nextAction: "대표 선택 반영 후 최종 랜딩 문안 확정",
       approvalRequired: true,
       analysisContractReview: "검토 중",
       representativeApproval: "검토 전",
@@ -155,6 +155,58 @@ export function buildMarketingWarRoomSnapshot(input: {
       executionEnabled: false,
       externalExecution: false,
     }],
+    teamWorkItems: [
+      {
+        workId: "PM-GROWTH-20260826-006",
+        title: "1인 미용샵 10곳 14일 동행 체험 — Hero 메시지 탐색 R1",
+        team: "펫매니저 성장팀",
+        status: "review",
+        stageLabel: "크리에이티브 검토 필요 · 소싱 승인 진입 전",
+        completedSummary: "ICP·문제·Instagram 인바운드·14일 체험 방향, A/B·KPI 계약, 타이틀 3개·CTA 2개·오퍼 문구 제출",
+        blocker: "대표의 메인 타이틀·CTA·오퍼 선택 없음",
+        nextAction: "대표 선택 반영 후 최종 랜딩 문안 확정",
+        dueLabel: "대표 선택 일정 미정",
+        sourceUpdatedAt: "2026-08-26T15:48:19+09:00",
+        connectionState: "manual_sync",
+        measurementState: "not_applicable",
+        approvalRequired: true,
+      },
+      {
+        workId: "PM-GROWTH-20260826-006-ANALYSIS",
+        title: "펫매니저 마케팅 계획 R1 분석 계약 검토",
+        team: "펫매니저 마케팅 분석팀",
+        status: "approval_waiting",
+        stageLabel: "분석 계약 최종 검토 완료 · 대표 결정 대기",
+        completedSummary: "Hero 노출 세션 KPI, A/B·보호지표·관찰기간, 세션/매장 분리, 3개 승인 게이트 계약 적합 확인",
+        blocker: "대표 결정 3건 미완료",
+        nextAction: "대표 결정 후 실행 전 계약 상태 갱신",
+        dueLabel: "대표 결정 일정 미정",
+        sourceUpdatedAt: "2026-08-26T15:48:13+09:00",
+        connectionState: "manual_sync",
+        measurementState: "not_measured",
+        approvalRequired: true,
+      },
+      {
+        workId: "PM-COMPETITOR-TEEPEE",
+        title: "경쟁사 Teepee 분석",
+        team: "펫매니저 마케팅 분석팀",
+        status: "completed",
+        stageLabel: "완료 보고서 링크 상태 확인",
+        completedSummary: "비식별 완료 보고서 링크 상태만 확인 가능",
+        blocker: "원시 문서 미연결",
+        nextAction: "필요 시 안전한 요약본 연결",
+        dueLabel: "완료",
+        sourceUpdatedAt: "2026-08-26T15:48:13+09:00",
+        connectionState: "manual_sync",
+        measurementState: "not_applicable",
+        approvalRequired: true,
+      },
+    ],
+    pendingRepresentativeDecisions: [
+      "타이틀 A/B/C, CTA 2개, 오퍼 표현",
+      "관찰기간 및 학습 전용 해석 범위",
+      "Instagram 게시·폼·목록·DM의 단계별 외부 실행 범위",
+    ],
     auditHistory: input.auditHistory ?? [],
   };
 }
@@ -180,4 +232,10 @@ export function applyMarketingDecision(input: {
     decidedAt: input.now,
   };
   return { nextStatus, audit, executionEnabled: false as const, externalExecution: false as const };
+}
+
+export function resolveMarketingWorkSelection(snapshot: MarketingWarRoomSnapshot, workId: string) {
+  const node = snapshot.nodes.find((item) => item.workId === workId);
+  if (node) return node.id;
+  return snapshot.teamWorkItems.some((item) => item.workId === workId) ? `team:${workId}` : null;
 }

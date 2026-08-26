@@ -1,92 +1,23 @@
-import {
-  CustomerGroomingResultCard,
-  type CustomerResultMediaAsset,
-} from "@/components/customer/customer-grooming-result-card";
-import type { Appointment, GroomingRecord } from "@/types/domain";
+import { CustomerGroomingResultCard, type CustomerResultMediaAsset } from "@/components/customer/customer-grooming-result-card";
+import { LANDING_DEMO_SHOP_ID } from "@/lib/development-demo";
+import { getBootstrap } from "@/server/bootstrap";
 
-const appointment = {
-  id: "care-report-preview-appointment",
-  appointment_date: "2026-08-18",
-  actual_started_at: "2026-08-18T09:00:00+09:00",
-  actual_completed_at: "2026-08-18T11:05:00+09:00",
-} as Appointment;
+export const dynamic = "force-dynamic";
 
-const record = {
-  id: "care-report-preview-record",
-  service_id: "care-report-preview-service",
-  before_media_asset_id: "care-report-before",
-  after_media_asset_id: "care-report-after",
-  next_recommended_visit_date: "2026-09-22",
-  style_notes: "전체미용 · 몸 6mm · 얼굴 둥글게 · 눈가 세정 · 저자극 샴푸",
-  memo: "오늘 두부는 눈물이 평소보다 많아 눈가 주변을 자극 없이 꼼꼼하게 세정했습니다.",
-  actual_duration_minutes: 125,
-  care_report_owner_confirmed_at: "2026-08-18T11:10:00+09:00",
-  care_report_photo_consent: true,
-  care_report_data: {
-    oneLineSummary:
-      "오늘 두부는 눈물이 평소보다 많아 눈가 주변을 자극 없이 꼼꼼하게 세정했습니다. 피부 부담을 줄이기 위해 기존 샴푸 대신 저자극 샴푸를 사용했어요.",
-    treatmentSummary: "전체미용 · 몸 6mm · 얼굴 둥글게 · 눈가 세정 · 저자극 샴푸",
-    conditionSummary: "눈가가 오래 젖어 있지 않도록 집에서도 부드럽게 닦아 주세요.",
-    groomingResponse: "발 주변은 예민한 반응이 있어 천천히 나누어 진행했어요.",
-    homeCareTips: [
-      "눈가가 젖었을 때 부드러운 거즈로 톡톡 닦아 주세요.",
-      "귀 뒤쪽은 엉킴이 생기기 쉬워 주 2~3회 빗질해 주세요.",
-    ],
-    nextVisitGuide: "지금의 길이와 얼굴 라인을 편하게 유지하려면 약 5주 뒤 관리를 권장드려요.",
-  },
-} as GroomingRecord;
+export default async function CustomerCareReportPreviewPage() {
+  const data = await getBootstrap(LANDING_DEMO_SHOP_ID, { includeLanding: false, includeNotifications: false });
+  const record = data.groomingRecords.find((item) => item.care_report_data && item.appointment_id);
+  const appointment = record ? data.appointments.find((item) => item.id === record.appointment_id) : undefined;
+  const pet = record ? data.pets.find((item) => item.id === record.pet_id) : undefined;
+  const service = record ? data.services.find((item) => item.id === record.service_id) : undefined;
+  const staff = record ? data.staffMembers.find((item) => item.id === record.staff_id) : undefined;
 
-const mediaAssets: CustomerResultMediaAsset[] = [
-  {
-    id: "care-report-before",
-    appointmentId: appointment.id,
-    groomingRecordId: record.id,
-    mediaKind: "grooming_before",
-  },
-  {
-    id: "care-report-after",
-    appointmentId: appointment.id,
-    groomingRecordId: record.id,
-    mediaKind: "grooming_after",
-  },
-];
+  if (!record || !appointment || !pet || !service || !staff) throw new Error("데모 케어리포트 데이터를 불러오지 못했습니다.");
 
-export default function CustomerCareReportPreviewPage() {
-  return (
-    <>
-      <style>{`html { scrollbar-width: none; } html::-webkit-scrollbar { display: none; }`}</style>
-      <main className="min-h-screen bg-white px-0 py-0 sm:px-4 sm:py-8">
-        <div className="mx-auto w-full max-w-[430px]">
-          <CustomerGroomingResultCard
-            shopId="care-report-preview-shop"
-            accessToken="preview-only"
-            appointment={appointment}
-            record={record}
-            petName="두부"
-            serviceName="전체미용"
-            staffName="김서연 디자이너"
-            shopPhone="02-1234-5678"
-            mediaAssets={mediaAssets}
-            embedded
-            previewPhotoUrls={{
-              "care-report-before": "/images/customer-booking-hero-original.jpg",
-              "care-report-after": "/images/customer-booking-hero-retriever-bath.jpg",
-            }}
-            weightHistory={[
-              { measuredAt: "2025-09-20T11:00:00+09:00", weightKg: 4.1 },
-              { measuredAt: "2025-10-25T11:00:00+09:00", weightKg: 4.2 },
-              { measuredAt: "2025-12-02T11:00:00+09:00", weightKg: 4.25 },
-              { measuredAt: "2026-01-10T11:00:00+09:00", weightKg: 4.3 },
-              { measuredAt: "2026-02-21T11:00:00+09:00", weightKg: 4.35 },
-              { measuredAt: "2026-03-28T11:00:00+09:00", weightKg: 4.4 },
-              { measuredAt: "2026-05-09T11:00:00+09:00", weightKg: 4.45 },
-              { measuredAt: "2026-06-13T11:00:00+09:00", weightKg: 4.5 },
-              { measuredAt: "2026-07-11T11:00:00+09:00", weightKg: 4.55 },
-              { measuredAt: "2026-08-18T11:00:00+09:00", weightKg: 4.6 },
-            ]}
-          />
-        </div>
-      </main>
-    </>
-  );
+  const mediaAssets: CustomerResultMediaAsset[] = [
+    { id: "demo-care-before", appointmentId: appointment.id, groomingRecordId: record.id, mediaKind: "grooming_before" },
+    { id: "demo-care-after", appointmentId: appointment.id, groomingRecordId: record.id, mediaKind: "grooming_after" },
+  ];
+
+  return <main className="min-h-screen bg-white"><div className="mx-auto w-full max-w-[430px]"><CustomerGroomingResultCard shopId={data.shop.id} accessToken="preview-only" appointment={appointment} record={record} petName={pet.name} serviceName={service.name} staffName={`${staff.displayName || staff.name} 디자이너`} shopPhone={data.shop.phone} mediaAssets={mediaAssets} embedded previewPhotoUrls={{ "demo-care-before": "/images/customer-booking-hero-original.jpg", "demo-care-after": "/images/customer-booking-hero-retriever-bath.jpg" }} weightHistory={[]} /></div></main>;
 }

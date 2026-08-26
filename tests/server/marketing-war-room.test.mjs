@@ -137,10 +137,14 @@ test("marketing ledger migration is append-only, idempotent, RLS protected, and 
   assert.match(migration, /enable row level security/g);
   assert.match(migration, /revoke all .* from anon, authenticated/g);
   assert.match(migration, /alter publication supabase_realtime add table public\.marketing_work_items/);
+  assert.match(migration, /source_type text not null default 'operational' check \(source_type = 'operational'\)/);
+  assert.match(migration, /parent_work_id text references public\.marketing_work_items/);
+  assert.match(migration, /source_sequence bigint not null/);
   assert.match(route, /MARKETING_WORK_EVENT_TOKEN/);
   assert.match(route, /timingSafeEqual/);
   assert.match(route, /externalExecution: false/);
   assert.match(route, /containsForbiddenIdentifier/);
+  assert.match(route, /sourceType: z\.literal\("operational"\)/);
   assert.doesNotMatch(route, /console\./);
 });
 

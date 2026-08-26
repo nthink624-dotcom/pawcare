@@ -9,5 +9,5 @@ export default async function AgentControlPlanePreviewPage() {
   if (!session) redirect("/admin/login" as never);
   const account = await getAdminAccountById(session.accountId);
   if (!account?.isActive) redirect("/admin/login" as never);
-  return <AgentControlPlanePreview />;
+  return <AgentControlPlanePreview mode="operational" />;
 }

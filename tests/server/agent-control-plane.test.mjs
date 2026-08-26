@@ -10,6 +10,7 @@ test("projects parent-child work and keeps all execution fail-closed", () => {
   assert.equal(snapshot.nodes.find((node) => node.workId === "CP-DESIGN-001")?.parentWorkId, "CP-OPS-001");
   assert.equal(snapshot.executionEnabled, false);
   assert.equal(snapshot.externalExecution, false);
+  assert.equal(snapshot.mode, "demo");
   assert.equal(snapshot.sources.codex, "sync_limited");
   assert.equal(snapshot.sources.mastra, "poc_only");
 });
@@ -41,4 +42,22 @@ test("isolated visual route is development-only and production fail-closed", () 
   const page = readFileSync(new URL("../../src/app/dev/agent-control-plane-preview/page.tsx", import.meta.url), "utf8");
   assert.match(page, /NODE_ENV !== "development"/);
   assert.match(page, /notFound\(\)/);
+});
+
+test("operational read model is admin-only, operational-only, and keeps execution disabled", () => {
+  const route = readFileSync(new URL("../../src/app/api/admin/marketing/control-plane/route.ts", import.meta.url), "utf8");
+  assert.match(route, /requireAdminSession/);
+  assert.match(route, /eq\("source_type", "operational"\)/);
+  assert.match(route, /mode: "operational"/);
+  assert.match(route, /externalExecution: false/);
+  assert.doesNotMatch(route, /export async function POST/);
+});
+
+test("gateway uses stdio, authenticated outbound ingest, and never enables external execution", () => {
+  const gateway = readFileSync(new URL("../../scripts/control-plane-gateway.mjs", import.meta.url), "utf8");
+  assert.match(gateway, /spawn\("codex", \["app-server", "--stdio"\]/);
+  assert.match(gateway, /MARKETING_WORK_EVENT_TOKEN/);
+  assert.match(gateway, /sourceType: "operational"/);
+  assert.match(gateway, /externalExecution: false/);
+  assert.doesNotMatch(gateway, /listen\(|createServer\(|0\.0\.0\.0/);
 });

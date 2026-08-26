@@ -58,6 +58,7 @@
     "android:build": "cap build android",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "control-plane:gateway": "node scripts/control-plane-gateway.mjs",
     "typecheck:backend": "npm --prefix backend run typecheck"
   },
   "dependencies": {

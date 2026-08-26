@@ -41,6 +41,7 @@ export function projectControlPlaneEvents(input: {
     freshness: Number.isFinite(nowMs) && nowMs - Date.parse(event.receivedAt) > STALE_AFTER_MS ? "stale" : "fresh",
   }));
   return {
+    mode: "demo",
     checkedAt: input.now,
     cursor: input.cursor ?? timeline.at(-1)?.sequence ?? 0,
     hasMore: input.hasMore ?? false,

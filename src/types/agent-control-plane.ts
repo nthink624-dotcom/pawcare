@@ -1,4 +1,4 @@
-export type ControlPlaneSource = "codex" | "mastra" | "operations";
+export type ControlPlaneSource = "codex" | "mastra" | "operations" | "growth" | "analysis";
 export type ControlPlaneStatus =
   | "not_started"
   | "received"
@@ -37,6 +37,7 @@ export type ControlPlaneNode = Omit<ControlPlaneEvent, "eventId" | "sequence" | 
 };
 
 export type ControlPlaneSnapshot = {
+  mode: "operational" | "demo";
   checkedAt: string;
   cursor: number;
   hasMore: boolean;

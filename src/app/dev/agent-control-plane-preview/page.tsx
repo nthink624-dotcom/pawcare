@@ -4,5 +4,5 @@ import AgentControlPlanePreview from "@/components/admin/agent-control-plane-pre
 
 export default function DevelopmentAgentControlPlanePreviewPage() {
   if (process.env.NODE_ENV !== "development") notFound();
-  return <AgentControlPlanePreview />;
+  return <AgentControlPlanePreview mode="demo" />;
 }

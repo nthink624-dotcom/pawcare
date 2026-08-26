@@ -15,7 +15,7 @@
 2. Apply `20260826110517_marketing_work_ledger.sql` once.
 3. Confirm RLS is enabled on all five tables and `anon`/`authenticated` privileges are false.
 4. Confirm `ingest_marketing_work_event` is executable by `service_role` only.
-5. Set `MARKETING_WORK_EVENT_TOKEN` as a sensitive Production server secret. Never use a `NEXT_PUBLIC_` name.
+5. Set `MARKETING_WORK_EVENT_TOKEN` as a sensitive Production server secret. Never use a `NEXT_PUBLIC_` name. The same-PC gateway copy is DPAPI-protected for the current Windows user under the gitignored `.local-secrets` directory.
 6. Send one sanitized event twice with the same idempotency key; exactly one event must remain.
 7. Send a newer event followed by an older event; the current projection must keep the newer state while retaining both ledger events.
 

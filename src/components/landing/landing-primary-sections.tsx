@@ -1,6 +1,5 @@
 import {
   ArrowRight,
-  CalendarDays,
   Check,
   Clock3,
   Database,
@@ -24,19 +23,12 @@ function LiveOwnerScreen({ view }: { view: "schedule" | "customers" }) {
   );
 }
 
-function OwnerMobilePlaceholder() {
+function OwnerMobilePreview() {
   return (
     <figure className="mx-auto flex w-full max-w-[190px] flex-col items-center">
       <GalaxyPhoneMockup className="w-full">
-        <div
-          className="flex h-full flex-col items-center justify-center bg-[linear-gradient(180deg,#f8fbff_0%,#eef5ff_100%)] px-5 text-center"
-          aria-label="펫매니저 모바일 앱 화면 연결 예정"
-        >
-          <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#e0edff] text-[#2563eb]">
-            <CalendarDays className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <strong className="mt-4 break-keep text-[12px] font-semibold leading-5 text-[#172033]">모바일 운영 화면</strong>
-          <span className="mt-1 break-keep text-[9px] leading-4 text-[#7b8ca1]">APP 화면 연결 예정</span>
+        <div className="relative h-full w-full overflow-hidden bg-white" aria-label="펫매니저 비식별 모바일 운영 데모">
+          <iframe src="/demo/owner-mobile" title="펫매니저 모바일 운영 데모" tabIndex={-1} className="pointer-events-none absolute left-0 top-0 h-[1840px] w-[430px] origin-top-left scale-[0.43] border-0 bg-white" loading="lazy" />
         </div>
       </GalaxyPhoneMockup>
     </figure>
@@ -230,7 +222,7 @@ export function ScheduleProofSection() {
               <LiveOwnerScreen view="schedule" />
             </div>
             <div className="relative z-10 sm:absolute sm:bottom-0 sm:right-0 sm:w-[190px]">
-              <OwnerMobilePlaceholder />
+              <OwnerMobilePreview />
             </div>
           </div>
         </div>

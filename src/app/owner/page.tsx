@@ -112,7 +112,7 @@ function withOwnerSessionTimeout<T>(promise: Promise<T>): Promise<T> {
   ]);
 }
 
-export default function OwnerPage() {
+export default function OwnerPage({ mobileRoute = false }: { mobileRoute?: boolean }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
@@ -188,7 +188,7 @@ export default function OwnerPage() {
     let active = true;
 
     async function load() {
-      if (shouldOpenMobileOwnerScreen()) {
+      if (!mobileRoute && shouldOpenMobileOwnerScreen()) {
         router.replace("/owner/mobile" as never);
         return;
       }
@@ -328,7 +328,7 @@ export default function OwnerPage() {
     return () => {
       active = false;
     };
-  }, [router, supabase]);
+  }, [mobileRoute, router, supabase]);
 
   useEffect(() => {
     if (!selectedShopId || !accessToken || typeof window === "undefined") return;

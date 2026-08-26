@@ -69,6 +69,15 @@ test("route and UI expose preview only with an explicit flag and no submit actio
   assert.doesNotMatch(ui, /10:00 두부|13:30 보리|16:00 구름/);
   assert.match(ui, /기존 예약이 자동 연동되거나 모든 예약이 자동 처리되는 서비스는 아닙니다/);
   assert.match(ui, /제공사 장애·정책 제한·비정상적이거나 오남용으로 판단되는 발송은 지연 또는 제한/);
+  assert.match(ui, /본 체험 모집의 광고 대상 확인과 광고성 DM 준비 목적/);
+  assert.equal((ui.match(/\[선택\]/g) ?? []).length, 3);
+  assert.match(ui, /선택하지 않아도 기본 14일 체험 조건은 동일합니다/);
+  for (const scope of ["자료 · 매장명", "자료 · 로고", "자료 · 식별정보 제거 화면", "자료 · 최종 확인 후기", "매체 · 공식 웹", "매체 · SNS", "매체 · 소개자료", "매체 · 유료 광고"]) assert.match(ui, new RegExp(scope));
+  assert.match(ui, /이 매장은 사례 제공에 대한 대가로 펫매니저 30일 무료 이용을 추가 제공받았습니다/);
+  assert.match(ui, /Preview 전용 · 외부 공개 전 별도 승인 필요/);
+  assert.doesNotMatch(ui, /대표 확정 후 공개/);
+  assert.match(ui, /영업 종료 후 문의 정리/);
+  assert.match(ui, /미용을 마친 뒤 밀린 예약 문의를 다시 확인합니다/);
   assert.match(ui, /실제 신청·저장·연락·자동 연동 없음/);
   assert.doesNotMatch(ui, /useState|localStorage|document\.cookie|searchParams/);
 });

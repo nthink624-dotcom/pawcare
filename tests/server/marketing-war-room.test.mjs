@@ -37,6 +37,11 @@ test("admin typography and operations preserve readable controls and support act
   assert.match(operations, /method: "PATCH"/);
   assert.match(dashboard, /href="\/admin"/);
   assert.match(dashboard, /넘친데이 펫매니저 관리자 홈/);
+  assert.match(dashboard, /관리 현황/);
+  assert.match(dashboard, /StatusRow/);
+  assert.doesNotMatch(dashboard, /최근 7일/);
+  assert.doesNotMatch(dashboard, /marketing\/kpis\?days=7/);
+  assert.doesNotMatch(dashboard, /min-h-40/);
 });
 
 test("partial live API failures discard stale source values", () => {

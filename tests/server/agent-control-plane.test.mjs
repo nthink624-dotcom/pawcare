@@ -67,6 +67,9 @@ test("operational UI polls runtime data within five seconds without fixture fall
   assert.match(ui, /3_000/);
   assert.match(ui, /연결 끊김/);
   assert.match(ui, /마지막 확인/);
+  assert.match(ui, /연결 안 됨/);
+  assert.match(ui, /일부 연결 · 자동 동기화 대기/);
+  assert.doesNotMatch(ui, /Codex 기존 작업|Mastra ·/);
 });
 
 test("gateway uses stdio, authenticated outbound ingest, and never enables external execution", () => {

@@ -343,6 +343,18 @@ test("the owner operations visual keeps the laptop dominant with a foreground ph
   assert.match(primarySections, /sm:absolute sm:bottom-0 sm:right-0 sm:w-\[190px\]/);
 });
 
+test("appointment card comparison stays development-only and removes colored card chrome", () => {
+  const preview = readProjectFile("src/app/dev/appointment-card-monotone-preview/page.tsx");
+
+  assert.match(preview, /process\.env\.NODE_ENV !== "development"/);
+  assert.match(preview, /OPTION A/);
+  assert.match(preview, /OPTION B/);
+  assert.match(preview, /border-\[#e5e7eb\] bg-white/);
+  assert.match(preview, /bg-\[#111111\].*text-white/);
+  assert.match(preview, /h-1\.5 w-1\.5 rounded-full bg-\[#64748b\]/);
+  assert.doesNotMatch(preview, /border-l-\[3px\]|#1f9d55|#2563eb|shadow-/);
+});
+
 test("customer booking dates show four days and derive the nearest available date across the 60-day window", () => {
   const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
   const bookingFlow = readProjectFile("src/components/customer/customer-first-visit-claude-flow.tsx");

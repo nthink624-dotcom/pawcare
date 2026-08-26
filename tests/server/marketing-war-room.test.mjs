@@ -30,10 +30,13 @@ test("resolves growth and analysis home deep links to team work details", () => 
 test("admin typography and operations preserve readable controls and support actions", () => {
   const css = readFileSync(new URL("../../src/app/globals.css", import.meta.url), "utf8");
   const operations = readFileSync(new URL("../../src/components/admin/admin-operations-summary.tsx", import.meta.url), "utf8");
+  const dashboard = readFileSync(new URL("../../src/components/admin/admin-dashboard.tsx", import.meta.url), "utf8");
   assert.match(css, /font-size: 16px !important/);
   assert.match(css, /min-height: 44px/);
   assert.match(operations, /AdminSupportInbox/);
   assert.match(operations, /method: "PATCH"/);
+  assert.match(dashboard, /href="\/admin"/);
+  assert.match(dashboard, /넘친데이 펫매니저 관리자 홈/);
 });
 
 test("partial live API failures discard stale source values", () => {

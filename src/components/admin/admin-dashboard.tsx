@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { formatWon, isPendingSupportRequest, type AdminDashboardAccount, type AdminRevenueSummary, type OwnerSupportRequestItem } from "@/components/admin/admin-dashboard-model";
 import { ADMIN_SURFACE, ADMIN_TYPOGRAPHY as T } from "@/components/admin/admin-typography";
+import PetManagerBrand from "@/components/brand/petmanager-brand";
 import { fetchApiJson } from "@/lib/api";
 import type { MarketingKpiSnapshot } from "@/types/marketing-kpi";
 import type { MarketingWarRoomSnapshot } from "@/types/marketing-war-room";
@@ -48,7 +49,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
   const currentAccount = account ?? { fullName: "관리자", loginId: sessionLoginId };
 
   return <main className={ADMIN_SURFACE}><div className="mx-auto w-full max-w-[1440px] space-y-6">
-    <header className="flex flex-wrap items-center justify-between gap-4"><div><p className={`${T.badge} font-semibold text-[#1f6b5b]`}>펫매니저 운영 센터</p><h1 className={`${T.pageTitle} mt-1 font-bold text-[#0f172a]`}>관리자 홈</h1><p className={`${T.body} mt-2 text-[#64748b]`}>{currentAccount.fullName} · {currentAccount.loginId}</p></div><nav className="flex flex-wrap gap-2"><NavLink href="/admin/operations" label="운영 상세" /><NavLink href="/admin/owners" label="오너·매장" /><NavLink href="/admin/marketing" label="마케팅 워크룸" primary /><button type="button" onClick={() => void logout()} className={`${T.button} inline-flex items-center gap-2 rounded-xl border border-[#dbe2ea] bg-white px-4 text-[#475569]`}><DoorOpen className="h-5 w-5" />로그아웃</button></nav></header>
+    <header className="flex flex-wrap items-center justify-between gap-4"><div><Link href="/admin" aria-label="넘친데이 펫매니저 관리자 홈" className={`${T.button} inline-flex items-center rounded-xl px-1`}><PetManagerBrand imageClassName="h-6 w-auto" nameClassName="text-[18px] text-[#1f6b5b]" /></Link><h1 className={`${T.pageTitle} mt-1 font-bold text-[#0f172a]`}>관리자 홈</h1><p className={`${T.body} mt-2 text-[#64748b]`}>{currentAccount.fullName} · {currentAccount.loginId}</p></div><nav className="flex flex-wrap gap-2"><NavLink href="/admin/operations" label="운영 상세" /><NavLink href="/admin/owners" label="오너·매장" /><NavLink href="/admin/marketing" label="마케팅 워크룸" primary /><button type="button" onClick={() => void logout()} className={`${T.button} inline-flex items-center gap-2 rounded-xl border border-[#dbe2ea] bg-white px-4 text-[#475569]`}><DoorOpen className="h-5 w-5" />로그아웃</button></nav></header>
     {state === "error" ? <div className={`${T.body} flex items-center gap-2 rounded-xl border border-[#e8c9cf] bg-[#fff7f7] p-4 text-[#a04455]`}><AlertTriangle className="h-5 w-5" />운영 API에 연결하지 못했습니다. 값은 0이 아니라 집계 대기로 표시합니다.</div> : null}
 
     <Section title="지금 확인할 일" subtitle="처리·대표 결정·막힘을 먼저 확인합니다."><div className="grid gap-4 md:grid-cols-3"><MetricLink href="/admin/operations" icon={MessageSquareText} label="미처리 고객 문의" value={countValue(pendingSupport, state)} tone="amber" /><MetricLink href="/admin/marketing?view=approval" icon={ShieldCheck} label="대표 승인 대기" value={warRoom ? `${warRoom.pendingRepresentativeDecisions.length}건` : pendingValue(state)} tone="violet" /><MetricLink href="/admin/marketing?view=blocked" icon={AlertTriangle} label="막힌 업무" value={countValue(blockedWork, state)} tone="burgundy" /></div></Section>

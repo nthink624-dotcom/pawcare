@@ -9,4 +9,4 @@ export const ADMIN_TYPOGRAPHY = {
   badge: "text-sm leading-5",
 } as const;
 
-export const ADMIN_SURFACE = "admin-readable min-h-screen bg-[#f4f6f5] px-4 py-5 text-[#172033] md:px-7 md:py-7";
+export const ADMIN_SURFACE = "admin-readable min-h-screen bg-white px-4 py-4 text-[#171717] md:px-7 md:py-5";

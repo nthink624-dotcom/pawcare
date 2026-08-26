@@ -19,5 +19,8 @@ export default async function CustomerCareReportPreviewPage() {
     { id: "demo-care-after", appointmentId: appointment.id, groomingRecordId: record.id, mediaKind: "grooming_after" },
   ];
 
-  return <main className="min-h-screen bg-white"><div className="mx-auto w-full max-w-[430px]"><CustomerGroomingResultCard shopId={data.shop.id} accessToken="preview-only" appointment={appointment} record={record} petName={pet.name} serviceName={service.name} staffName={`${staff.displayName || staff.name} 디자이너`} shopPhone={data.shop.phone} mediaAssets={mediaAssets} embedded previewPhotoUrls={{ "demo-care-before": "/images/customer-booking-hero-original.jpg", "demo-care-after": "/images/customer-booking-hero-retriever-bath.jpg" }} weightHistory={[]} /></div></main>;
+  return <>
+    <style>{`html { scrollbar-width: none; } html::-webkit-scrollbar { display: none; }`}</style>
+    <main className="min-h-screen bg-white"><div className="mx-auto w-full max-w-[430px]"><CustomerGroomingResultCard shopId={data.shop.id} accessToken="preview-only" appointment={appointment} record={record} petName={pet.name} serviceName={service.name} staffName={`${staff.displayName || staff.name} 디자이너`} shopPhone={data.shop.phone} mediaAssets={mediaAssets} embedded previewPhotoUrls={{ "demo-care-before": "/images/customer-booking-hero-original.jpg", "demo-care-after": "/images/customer-booking-hero-retriever-bath.jpg" }} weightHistory={[]} /></div></main>
+  </>;
 }

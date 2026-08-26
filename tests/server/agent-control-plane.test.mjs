@@ -53,6 +53,13 @@ test("operational read model is admin-only, operational-only, and keeps executio
   assert.doesNotMatch(route, /export async function POST/);
 });
 
+test("the real admin marketing entry defaults to the operational live model", () => {
+  const page = readFileSync(new URL("../../src/app/admin/marketing/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /AgentControlPlanePreview mode="operational"/);
+  assert.match(page, /view === "details"/);
+  assert.doesNotMatch(page, /return <AdminMarketingWarRoom[^;]+;\s*}$/);
+});
+
 test("gateway uses stdio, authenticated outbound ingest, and never enables external execution", () => {
   const gateway = readFileSync(new URL("../../scripts/control-plane-gateway.mjs", import.meta.url), "utf8");
   assert.match(gateway, /spawn\("codex", \["app-server", "--stdio"\]/);

@@ -38,5 +38,5 @@ function handleError(error: unknown) {
   if (error instanceof Error && error.message === "APPROVAL_NOT_ALLOWED") {
     return NextResponse.json({ message: "현재 상태에서는 이 승인을 처리할 수 없습니다." }, { status: 409 });
   }
-  return NextResponse.json({ message: "마케팅 워룸 요청을 처리하지 못했습니다." }, { status: 500 });
+  return NextResponse.json({ message: "마케팅 워크룸 요청을 처리하지 못했습니다." }, { status: 500 });
 }

@@ -1,12 +1,9 @@
-.next
-node_modules
-artifacts
-.local-secrets
-.local-secrets/
-.local-secrets/**
-.local-secrets/yourit_vps_ed25519
-*.log
-tmp-*.png
+# Local-only browser profiles, screenshots, and test artifacts must never be
+# uploaded as deployment source files.
+tmp/
+output/
+artifacts/
+test-results/
+.codex/
 .tmp-*
-public/schedule-lane-demo.html
-.next-dev.err
+tmp-*.png

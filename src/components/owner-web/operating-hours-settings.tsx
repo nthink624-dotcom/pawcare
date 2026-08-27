@@ -301,7 +301,7 @@ function ToggleSwitch({
       onClick={onChange}
       className={cn(
         "relative inline-flex shrink-0 items-center justify-center rounded-full align-middle",
-        compact ? "-my-[9px] h-11 w-[48px]" : "h-[26px] w-[48px]",
+        "-my-[9px] h-11 w-[48px]",
       )}
     >
       <span
@@ -531,14 +531,17 @@ function TimeInput({
         className={cn(
           compact
             ? "group -my-1.5 inline-flex h-11 w-[88px] items-center bg-transparent p-0 text-[14px] font-normal text-[#111827] outline-none"
-            : "inline-flex h-10 w-[116px] items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#111827] outline-none transition hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:ring-[3px] focus:ring-[#64748b]/10 disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
+            : "group -my-0.5 inline-flex h-11 w-[116px] items-center bg-transparent p-0 text-[16px] font-normal text-[#111827] outline-none",
         )}
       >
-        {compact ? (
-          <span className="inline-flex h-8 w-full items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white px-2 transition group-hover:bg-[#f8fafc] group-focus:border-[#94a3b8] group-focus:ring-[3px] group-focus:ring-[#64748b]/10 group-disabled:bg-[#f8fafc] group-disabled:text-[#94a3b8]">
-            {controlContents}
-          </span>
-        ) : controlContents}
+        <span
+          className={cn(
+            "inline-flex w-full items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white transition group-hover:bg-[#f8fafc] group-focus:border-[#94a3b8] group-focus:ring-[3px] group-focus:ring-[#64748b]/10 group-disabled:bg-[#f8fafc] group-disabled:text-[#94a3b8]",
+            compact ? "h-8 px-2" : "h-10 px-3",
+          )}
+        >
+          {controlContents}
+        </span>
       </button>
 
       {open ? (
@@ -1078,11 +1081,18 @@ export default function OperatingHoursSettings({
                     type="button"
                     onClick={applyBulkTimeToAllDays}
                     className={cn(
-                      "rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]",
-                      compact ? "h-8 px-3 text-[14px]" : "h-10 px-4 text-[15px]",
+                      "group inline-flex h-11 items-center bg-transparent p-0 font-normal text-[#334155]",
+                      compact ? "-my-1.5 text-[14px]" : "-my-0.5 text-[15px]",
                     )}
                   >
-                    적용
+                    <span
+                      className={cn(
+                        "inline-flex items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white transition group-hover:border-[#94a3b8] group-hover:bg-[#f8fafc]",
+                        compact ? "h-8 px-3" : "h-10 px-4",
+                      )}
+                    >
+                      적용
+                    </span>
                   </button>
                 </div>
               </div>

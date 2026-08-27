@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -26,7 +27,7 @@ export default function ContentApprovalFocus() {
   }
   return <main className="h-[100dvh] overflow-hidden bg-white p-4 text-[#111111]">
     <div className="mx-auto flex h-full max-w-[1320px] flex-col">
-      <header className="flex min-h-12 items-center justify-between border-b border-[#e5e7eb]"><div className="min-w-0"><p className="truncate text-[16px] font-medium">성장팀 · Instagram 피드 4건 + 자사 웹 콘텐츠 2건 검수 · 대표 승인 대기</p><p className="text-[13px] text-[#6b7280]">현재 검수 자료 v0.2 · 외부 공개·게시·자동 실행 없음</p></div><button type="button" onClick={() => router.back()} className="min-h-11 border border-[#e5e7eb] px-3 text-[15px] font-medium">목록으로</button></header>
+      <header className="flex min-h-12 items-center justify-between border-b border-[#e5e7eb]"><div className="min-w-0"><p className="truncate text-[16px] font-medium">성장팀 · Instagram 피드 4건 + 자사 웹 콘텐츠 2건 검수 · 대표 승인 대기</p><p className="text-[13px] text-[#6b7280]">현재 검수 자료 v0.2 · 외부 공개·게시·자동 실행 없음</p></div><div className="flex gap-2"><Link href="/admin/marketing" className="inline-flex min-h-11 items-center border border-[#e5e7eb] px-3 text-[15px] font-medium">워크룸</Link><button type="button" onClick={() => router.back()} className="min-h-11 border border-[#e5e7eb] px-3 text-[15px] font-medium">뒤로</button></div></header>
       <nav className="mt-3 grid grid-cols-7 border border-[#e5e7eb]" aria-label="검수 콘텐츠 선택">{contents.map((item) => <button key={item.id} type="button" onClick={() => selectContent(item.id)} className={`min-h-11 border-r border-[#e5e7eb] text-[15px] font-medium last:border-r-0 ${active?.id === item.id ? "bg-black text-white" : "bg-white"}`}>{item.id}</button>)}</nav>
       {error ? <div className="mt-3 border border-[#111] p-4 text-[16px]">검토 불가 · {error}</div> : active ? <>
         <section className="mt-3 border border-[#111111] p-3" aria-label="승인 대상 문맥"><div className="grid gap-x-5 gap-y-2 text-[14px] sm:grid-cols-2 lg:grid-cols-4"><Meta label="왜 만들었나" value={active.context.purpose} /><Meta label="어디에 배포하나" value={active.context.distribution} /><Meta label="실제 노출 형식" value={`${active.context.exposure} · ${active.context.format}`} /><Meta label="무엇을 승인하나" value={active.context.review} /><Meta label="배포 기기" value={active.context.deploymentDevice} /><Meta label="콘텐츠 속 제품 화면 기기" value={active.context.depictedDevice} /><Meta label="크기·장수" value={`${active.context.size} · ${active.context.count}장`} /><Meta label="현재 판정" value={active.id === "D4" ? "미검증 · 승인 대상 아님" : "문맥 확인 후 검수 가능"} /></div><button type="button" disabled={!reviewable} onClick={() => setContextConfirmed(true)} className={`mt-3 min-h-11 px-4 text-[15px] font-medium ${contextConfirmed ? "bg-black text-white" : "border border-[#111111] bg-white"} disabled:border-[#e5e7eb] disabled:bg-[#e5e7eb] disabled:text-[#6b7280]`}>{contextConfirmed ? "문맥 확인 완료" : "배포 문맥을 확인했습니다"}</button></section>

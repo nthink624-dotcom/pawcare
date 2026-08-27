@@ -168,4 +168,21 @@ test("approval deep links bypass the event wall and the workroom defaults to a g
   assert.match(security, /팀의 판단/);
   assert.match(security, /대표 요청 → 운영팀 → 보안팀 → 승인 대기/);
   assert.match(sync, /승인 딥링크와 마케팅 워크룸 그래프 구조 수정/);
+  assert.match(workroom, /view.*graph/);
+  assert.match(workroom, /GraphBranch/);
+  assert.match(workroom, /opacity-25/);
+  assert.match(workroom, /lg:grid-cols-\[minmax\(0,1fr\)_360px\]/);
+  assert.match(workroom, /대표 승인 집중 보기/);
+  assert.match(workroom, /팀\/에이전트/);
+  assert.doesNotMatch(workroom, /개 이벤트/);
+});
+
+test("admin approval routes are focused and preserve explicit home and workroom navigation", () => {
+  const dashboard = readFileSync(new URL("../../src/components/admin/admin-dashboard.tsx", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../../src/components/admin/focused-approval-route.tsx", import.meta.url), "utf8");
+  const globalNav = readFileSync(new URL("../../src/components/admin/admin-global-nav.tsx", import.meta.url), "utf8");
+  assert.match(dashboard, /\/admin\/approvals\//);
+  assert.match(route, /GROWTH-CONTENT-D1-D7-REVIEW/);
+  assert.match(route, /SECURITY-PRICE-SOURCE-RETENTION/);
+  assert.match(globalNav, /대표 승인/);
 });

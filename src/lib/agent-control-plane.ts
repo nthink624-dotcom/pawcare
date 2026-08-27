@@ -29,6 +29,7 @@ export function projectControlPlaneEvents(input: {
     source: event.source,
     sourceThreadRef: event.sourceThreadRef,
     role: event.role,
+    eventType: event.eventType,
     status: event.status,
     title: event.title,
     originalDirectiveSummary: event.originalDirectiveSummary,

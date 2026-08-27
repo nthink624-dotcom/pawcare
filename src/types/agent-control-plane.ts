@@ -37,6 +37,7 @@ export type ControlPlaneEvent = {
 };
 
 export type ControlPlaneNode = Omit<ControlPlaneEvent, "eventId" | "sequence" | "eventType" | "receivedAt"> & {
+  eventType: ControlPlaneEvent["eventType"];
   lastEventId: string;
   freshness: "fresh" | "stale" | "source_unavailable";
 };

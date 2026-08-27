@@ -57,13 +57,20 @@ export function CalendarCareNoteInput({
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const valueRef = useRef(value);
   const speechBaseValueRef = useRef(value);
-  const [speechSupported] = useState(() => Boolean(getSpeechRecognitionConstructor()));
+  const [speechSupported, setSpeechSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState("");
   const [speechError, setSpeechError] = useState("");
 
   useEffect(() => {
     return () => recognitionRef.current?.stop();
+  }, []);
+
+  useEffect(() => {
+    const supportCheck = window.setTimeout(() => {
+      setSpeechSupported(Boolean(getSpeechRecognitionConstructor()));
+    }, 0);
+    return () => window.clearTimeout(supportCheck);
   }, []);
 
   useEffect(() => {

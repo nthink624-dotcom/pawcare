@@ -13,6 +13,8 @@ import { defaultStaffProfileMessage, getStaffProfileMessage } from "@/lib/staff-
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime } from "@/lib/utils";
 import { getMockStore } from "@/server/mock-store";
+import { isLandingDemoShopId } from "@/lib/development-demo";
+import { buildLandingDemoBootstrap } from "@/server/landing-demo-bootstrap";
 import { getOwnerMediaSignedUrls } from "@/server/media-service";
 import type {
   Appointment,
@@ -373,6 +375,10 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
 
   if (shopId === "demo-shop") {
     return buildMockBootstrap(shopId);
+  }
+
+  if (isLandingDemoShopId(shopId)) {
+    return buildLandingDemoBootstrap();
   }
 
   if (!hasSupabaseServerEnv()) {

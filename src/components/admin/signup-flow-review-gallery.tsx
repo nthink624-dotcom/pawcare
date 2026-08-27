@@ -17,12 +17,19 @@ export default function SignupFlowReviewGallery({ manifest }: { manifest: Signup
   const happyPath = useMemo(() => manifest.items.filter((item) => item.group === "happy_path"), [manifest.items]);
   const importantStates = useMemo(() => manifest.items.filter((item) => item.group === "important_state"), [manifest.items]);
   const [selectedId, setSelectedId] = useState(captured[0]?.id ?? manifest.items[0]?.id ?? "");
+  const [loadedImageId, setLoadedImageId] = useState("");
   const [expanded, setExpanded] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
   const selected = manifest.items.find((item) => item.id === selectedId) ?? manifest.items[0];
   const selectedIndex = captured.findIndex((item) => item.id === selected?.id);
+  const imageReady = Boolean(selected?.captureUrl && loadedImageId === selected.id);
+
+  const selectItem = useCallback((id: string) => {
+    setLoadedImageId("");
+    setSelectedId(id);
+  }, []);
 
   const closeExpanded = useCallback(() => {
     setExpanded(false);
@@ -57,7 +64,7 @@ export default function SignupFlowReviewGallery({ manifest }: { manifest: Signup
 
   const selectRelative = (delta: number) => {
     if (selectedIndex < 0 || captured.length === 0) return;
-    setSelectedId(captured[(selectedIndex + delta + captured.length) % captured.length].id);
+    selectItem(captured[(selectedIndex + delta + captured.length) % captured.length].id);
   };
 
   return (
@@ -76,24 +83,24 @@ export default function SignupFlowReviewGallery({ manifest }: { manifest: Signup
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="hidden overflow-hidden rounded-[14px] border border-[#e5e7eb] bg-white sm:block" aria-label="회원가입 검수 목차">
-            <ReviewGroup title="기본 가입 흐름" items={happyPath} selectedId={selected?.id} onSelect={setSelectedId} />
-            <ReviewGroup title="중요 상태" items={importantStates} selectedId={selected?.id} onSelect={setSelectedId} />
+            <ReviewGroup title="기본 가입 흐름" items={happyPath} selectedId={selected?.id} onSelect={selectItem} />
+            <ReviewGroup title="중요 상태" items={importantStates} selectedId={selected?.id} onSelect={selectItem} />
           </aside>
 
           <div className="space-y-2 sm:hidden">
             <nav className="flex h-11 snap-x overflow-x-auto rounded-[10px] border border-[#e5e7eb] bg-white" aria-label="기본 가입 흐름">
-              {happyPath.map((item) => <CompactTab key={item.id} item={item} selected={selected?.id === item.id} onSelect={setSelectedId} />)}
+              {happyPath.map((item) => <CompactTab key={item.id} item={item} selected={selected?.id === item.id} onSelect={selectItem} />)}
             </nav>
             <details className="rounded-[10px] border border-[#e5e7eb] bg-white">
               <summary className={`${T.body} flex min-h-11 cursor-pointer list-none items-center justify-between px-3 font-medium`}>중요 상태 <span className={`${T.badge} text-[#6b7280]`}>{importantStates.length}개</span></summary>
               <div className="max-h-[220px] divide-y divide-[#f0f1f3] overflow-y-auto border-t border-[#e5e7eb]">
-                {importantStates.map((item) => <CompactState key={item.id} item={item} selected={selected?.id === item.id} onSelect={setSelectedId} />)}
+                {importantStates.map((item) => <CompactState key={item.id} item={item} selected={selected?.id === item.id} onSelect={selectItem} />)}
               </div>
             </details>
           </div>
 
           {selected ? (
-            <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#e5e7eb] bg-white" aria-live="polite">
+            <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#e5e7eb] bg-white" aria-live="polite" data-selected-id={selected.id} data-selected-title={selected.screenName}>
               <div className="border-b border-[#e5e7eb] px-4 py-2.5 sm:px-5 sm:py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -111,9 +118,10 @@ export default function SignupFlowReviewGallery({ manifest }: { manifest: Signup
               <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_280px]">
                 <div className="min-w-0 border-b border-[#e5e7eb] p-4 xl:border-b-0 xl:border-r sm:p-5">
                   {selected.captureUrl ? (
-                    <button ref={openerRef} type="button" onClick={(event) => { openerRef.current = event.currentTarget; setExpanded(true); }} className="group relative mx-auto block max-w-[390px] overflow-hidden rounded-[18px] border border-[#d1d5db] bg-[#f3f4f6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-black" aria-label={`${selected.screenName} 캡처 크게 보기`}>
+                    <button ref={openerRef} type="button" disabled={!imageReady} aria-busy={!imageReady} onClick={(event) => { openerRef.current = event.currentTarget; setExpanded(true); }} className="group relative mx-auto block aspect-[390/844] w-full max-w-[390px] overflow-hidden rounded-[18px] border border-[#d1d5db] bg-[#f3f4f6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-black disabled:cursor-wait" aria-label={`${selected.screenName} 캡처 크게 보기`}>
+                      {!imageReady ? <span className={`${T.secondary} absolute inset-0 grid place-items-center bg-[#f3f4f6] text-[#6b7280]`}>캡처 불러오는 중</span> : null}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={selected.captureUrl} alt={`${selected.screenName} 390×844 actual local capture`} className="block h-auto w-full" />
+                      <img key={selected.id} src={selected.captureUrl} alt={`${selected.screenName} 390×844 actual local capture`} data-review-item-id={selected.id} onLoad={() => setLoadedImageId(selected.id)} className={`block h-full w-full object-contain object-top ${imageReady ? "opacity-100" : "opacity-0"}`} />
                       <span className="absolute right-3 top-3 inline-flex size-10 items-center justify-center rounded-full bg-black/75 text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"><Expand className="h-4 w-4" /></span>
                     </button>
                   ) : (
@@ -128,6 +136,8 @@ export default function SignupFlowReviewGallery({ manifest }: { manifest: Signup
                   <Meta label="다음 단계" value={selected.nextStep} />
                   <Meta label="source" value={selected.source} />
                   <Meta label="viewport" value={selected.viewport ?? "해당 없음"} />
+                  <Meta label="PNG" value={selected.pixelDimensions ?? "해당 없음"} />
+                  <Meta label="device scale" value={selected.deviceScaleFactor ? `${selected.deviceScaleFactor}×` : "해당 없음"} />
                   <Meta label="fixture" value={selected.fixture ? "synthetic fixture" : "아님"} />
                   {selected.note ? <Meta label="확인 사항" value={selected.note} /> : null}
                 </dl>
@@ -149,7 +159,7 @@ export default function SignupFlowReviewGallery({ manifest }: { manifest: Signup
           <button ref={closeButtonRef} type="button" onClick={closeExpanded} aria-label="확대 보기 닫기" className={`${T.button} absolute right-4 top-4 z-10 inline-flex size-11 items-center justify-center rounded-full bg-white text-black`}><X className="h-5 w-5" /></button>
           <div className="m-auto flex max-h-full max-w-[1180px] items-center justify-center overflow-auto rounded-[14px] bg-white p-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={selected.captureUrl} alt={`${selected.screenName} 확대 캡처`} className="max-h-[calc(100dvh-48px)] w-auto max-w-full" />
+            <img src={selected.captureUrl} alt={`${selected.screenName} 확대 캡처`} className="max-h-[calc(100dvh-48px)] w-auto max-w-full object-contain object-top" />
           </div>
         </div>
       ) : null}
@@ -158,15 +168,15 @@ export default function SignupFlowReviewGallery({ manifest }: { manifest: Signup
 }
 
 function ReviewGroup({ title, items, selectedId, onSelect }: { title: string; items: SignupFlowReviewItem[]; selectedId?: string; onSelect: (id: string) => void }) {
-  return <section className="border-b border-[#e5e7eb] last:border-b-0"><h2 className={`${T.secondary} px-4 py-3 font-semibold text-[#4b5563]`}>{title}</h2><div className="divide-y divide-[#f0f1f3]">{items.map((item) => <button key={item.id} type="button" onClick={() => onSelect(item.id)} className={`flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left ${selectedId === item.id ? "bg-[#111827] text-white" : "bg-white hover:bg-[#f9fafb]"}`}><span className={`${T.badge} w-7 shrink-0 ${selectedId === item.id ? "text-[#d1d5db]" : "text-[#9ca3af]"}`}>{item.stepNumber ? String(item.stepNumber).padStart(2, "0") : "상태"}</span><span className={`${T.body} min-w-0 flex-1 truncate font-medium`}>{item.screenName}</span><span className={`${T.badge} shrink-0 ${selectedId === item.id ? "text-[#d1d5db]" : "text-[#6b7280]"}`}>{item.status === "captured" ? "완료" : "대기"}</span></button>)}</div></section>;
+  return <section className="border-b border-[#e5e7eb] last:border-b-0"><h2 className={`${T.secondary} px-4 py-3 font-semibold text-[#4b5563]`}>{title}</h2><div className="divide-y divide-[#f0f1f3]">{items.map((item) => <button key={item.id} type="button" data-review-item-id={item.id} onClick={() => onSelect(item.id)} className={`flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left ${selectedId === item.id ? "bg-[#111827] text-white" : "bg-white hover:bg-[#f9fafb]"}`}><span className={`${T.badge} w-7 shrink-0 ${selectedId === item.id ? "text-[#d1d5db]" : "text-[#9ca3af]"}`}>{item.stepNumber ? String(item.stepNumber).padStart(2, "0") : "상태"}</span><span className={`${T.body} min-w-0 flex-1 truncate font-medium`}>{item.screenName}</span><span className={`${T.badge} shrink-0 ${selectedId === item.id ? "text-[#d1d5db]" : "text-[#6b7280]"}`}>{item.status === "captured" ? "완료" : "대기"}</span></button>)}</div></section>;
 }
 
 function CompactTab({ item, selected, onSelect }: { item: SignupFlowReviewItem; selected: boolean; onSelect: (id: string) => void }) {
-  return <button type="button" onClick={() => onSelect(item.id)} aria-current={selected ? "step" : undefined} className={`${T.badge} min-h-11 min-w-[112px] snap-start whitespace-nowrap px-3 font-medium ${selected ? "bg-[#111827] text-white" : "bg-white text-[#4b5563]"}`}>{item.stepNumber}. {item.screenName}</button>;
+  return <button type="button" data-review-item-id={item.id} onClick={() => onSelect(item.id)} aria-current={selected ? "step" : undefined} className={`${T.badge} min-h-11 min-w-[112px] snap-start whitespace-nowrap px-3 font-medium ${selected ? "bg-[#111827] text-white" : "bg-white text-[#4b5563]"}`}>{item.stepNumber}. {item.screenName}</button>;
 }
 
 function CompactState({ item, selected, onSelect }: { item: SignupFlowReviewItem; selected: boolean; onSelect: (id: string) => void }) {
-  return <button type="button" onClick={() => onSelect(item.id)} className={`${T.secondary} flex min-h-11 w-full items-center justify-between gap-3 px-3 text-left ${selected ? "bg-[#111827] text-white" : "bg-white text-[#4b5563]"}`}><span className="min-w-0 flex-1 truncate">{item.screenName}</span><span className={`${T.badge} shrink-0`}>{item.status === "captured" ? "완료" : "대기"}</span></button>;
+  return <button type="button" data-review-item-id={item.id} onClick={() => onSelect(item.id)} className={`${T.secondary} flex min-h-11 w-full items-center justify-between gap-3 px-3 text-left ${selected ? "bg-[#111827] text-white" : "bg-white text-[#4b5563]"}`}><span className="min-w-0 flex-1 truncate">{item.screenName}</span><span className={`${T.badge} shrink-0`}>{item.status === "captured" ? "완료" : "대기"}</span></button>;
 }
 
 function Meta({ label, value }: { label: string; value: string }) {

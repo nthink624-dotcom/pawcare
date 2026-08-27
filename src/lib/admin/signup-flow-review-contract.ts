@@ -20,6 +20,8 @@ export type SignupFlowReviewItem = {
   captureUrl?: string;
   source: "actual_local_capture" | "source_inventory";
   viewport: "390x844" | null;
+  pixelDimensions: "780x1688" | null;
+  deviceScaleFactor: 2 | null;
   fixture: true;
   note?: string;
 };
@@ -55,6 +57,8 @@ export const signupFlowReviewItems: SignupFlowReviewItem[] = [
     captureUrl: "/admin/reviews/signup-flow/assets/terms.png",
     source: "actual_local_capture",
     viewport: "390x844",
+    pixelDimensions: "780x1688",
+    deviceScaleFactor: 2,
     fixture: true,
   },
   {
@@ -71,6 +75,8 @@ export const signupFlowReviewItems: SignupFlowReviewItem[] = [
     captureUrl: "/admin/reviews/signup-flow/assets/account.png",
     source: "actual_local_capture",
     viewport: "390x844",
+    pixelDimensions: "780x1688",
+    deviceScaleFactor: 2,
     fixture: true,
   },
   {
@@ -87,6 +93,8 @@ export const signupFlowReviewItems: SignupFlowReviewItem[] = [
     captureUrl: "/admin/reviews/signup-flow/assets/shop.png",
     source: "actual_local_capture",
     viewport: "390x844",
+    pixelDimensions: "780x1688",
+    deviceScaleFactor: 2,
     fixture: true,
     note: "현재 코드에는 가입 완료 전용 페이지가 없고 성공 후 이동만 있습니다.",
   },
@@ -104,6 +112,8 @@ export const signupFlowReviewItems: SignupFlowReviewItem[] = [
     captureUrl: "/admin/reviews/signup-flow/assets/validation-error.png",
     source: "actual_local_capture",
     viewport: "390x844",
+    pixelDimensions: "780x1688",
+    deviceScaleFactor: 2,
     fixture: true,
   },
   {
@@ -120,6 +130,8 @@ export const signupFlowReviewItems: SignupFlowReviewItem[] = [
     captureUrl: "/admin/reviews/signup-flow/assets/duplicate-email.png",
     source: "actual_local_capture",
     viewport: "390x844",
+    pixelDimensions: "780x1688",
+    deviceScaleFactor: 2,
     fixture: true,
   },
   {
@@ -136,6 +148,8 @@ export const signupFlowReviewItems: SignupFlowReviewItem[] = [
     captureUrl: "/admin/reviews/signup-flow/assets/reused-identity.png",
     source: "actual_local_capture",
     viewport: "390x844",
+    pixelDimensions: "780x1688",
+    deviceScaleFactor: 2,
     fixture: true,
   },
   ...[
@@ -154,6 +168,8 @@ export const signupFlowReviewItems: SignupFlowReviewItem[] = [
     status: "implementation_waiting",
     source: "source_inventory",
     viewport: null,
+    pixelDimensions: null,
+    deviceScaleFactor: null,
     fixture: true,
     note: "현재 실제 회원가입 route/component에는 포함되지 않아 이미지 없이 구현 대기로 표시합니다.",
   })),

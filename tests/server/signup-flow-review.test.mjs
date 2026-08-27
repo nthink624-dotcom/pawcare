@@ -52,3 +52,23 @@ test("gallery uses the admin type system and approved radius roles", async () =>
   assert.equal((source.match(/text-\[(?:\d|clamp|calc)/g) ?? []).length, 0);
   assert.equal((source.match(/rounded-(?:xl|lg|md|sm)|rounded-\[(?!(?:8|10|14|18)px\])/g) ?? []).length, 0);
 });
+
+test("gallery binds the selected heading and bitmap to one review item", async () => {
+  const source = await readFile(new URL("../../src/components/admin/signup-flow-review-gallery.tsx", import.meta.url), "utf8");
+  assert.match(source, /data-selected-id=\{selected\.id\}/);
+  assert.match(source, /data-selected-title=\{selected\.screenName\}/);
+  assert.match(source, /key=\{selected\.id\}/);
+  assert.match(source, /loadedImageId === selected\.id/);
+  assert.match(source, /aria-busy=\{!imageReady\}/);
+  assert.match(source, /data-review-item-id=\{selected\.id\}/);
+  assert.match(source, /setLoadedImageId\(""\);\s*setSelectedId\(id\)/);
+  assert.match(source, /aspect-\[390\/844\]/);
+  assert.match(source, /object-contain object-top/);
+});
+
+test("captured manifest records matching CSS and physical image dimensions", () => {
+  const captured = signupFlowReviewItems.filter((item) => item.status === "captured");
+  assert.equal(captured.every((item) => item.viewport === "390x844"), true);
+  assert.equal(captured.every((item) => item.pixelDimensions === "780x1688"), true);
+  assert.equal(captured.every((item) => item.deviceScaleFactor === 2), true);
+});

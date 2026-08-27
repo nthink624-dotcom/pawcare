@@ -1644,6 +1644,7 @@ function BookingSidePanel({
   onSavePetProfile,
   onSaveNotificationTiming,
   onClose,
+  desktopMode,
 }: {
   activeMetric: SummaryMetricKey;
   shopId: string;
@@ -1677,6 +1678,7 @@ function BookingSidePanel({
     values: { visitReminderOffsetMinutes?: number; pickupReadyEtaMinutes?: number },
   ) => Promise<void>;
   onClose: () => void;
+  desktopMode: "persistent" | "drawer";
 }) {
   const timeRange = selectedBooking
     ? `${formatHourLabel(selectedBooking.start)}–${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
@@ -1908,7 +1910,14 @@ function BookingSidePanel({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [detailEditMode, editableStartTime, editableEndTime, editablePhone, editableServiceName, editablePrice]);
 
-  if (!selectedBooking) return null;
+  if (!selectedBooking) {
+    if (desktopMode === "drawer") return null;
+    return (
+      <aside className="hidden h-full min-h-0 border-l border-[#e5e7eb] bg-white lg:flex lg:items-center lg:justify-center" aria-label="예약 상세">
+        <p className="text-[15px] text-[#6b7280]">예약을 선택하세요</p>
+      </aside>
+    );
+  }
 
   const breedLabel = selectedBooking.petBreed || "견종 미입력";
   const biteLevel = normalizePetBiteLevel(selectedBooking.petBiteLevel);
@@ -2127,9 +2136,22 @@ function BookingSidePanel({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/20" onMouseDown={onClose}>
+    <div
+      className={cn(
+        "fixed inset-0 z-[70] flex justify-end bg-black/20",
+        desktopMode === "persistent"
+          ? "lg:static lg:z-auto lg:h-full lg:min-h-0 lg:bg-transparent"
+          : "lg:absolute lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[clamp(360px,28vw,420px)] lg:bg-transparent",
+      )}
+      onMouseDown={onClose}
+    >
       <aside
-        className="h-full w-full max-w-[430px] overflow-hidden border-l border-[#dbe2ea] bg-white shadow-[-18px_0_48px_rgba(15,23,42,0.16)]"
+        className={cn(
+          "h-full w-full max-w-[430px] overflow-hidden border-l border-[#e5e7eb] bg-white",
+          desktopMode === "persistent"
+            ? "lg:max-w-none"
+            : "lg:w-full lg:max-w-none lg:shadow-[-12px_0_28px_rgba(15,23,42,0.08)]",
+        )}
         role="dialog"
         aria-modal="true"
         aria-label="예약 상세"
@@ -4210,6 +4232,29 @@ export default function CalendarManagementScreen({
   );
 
   const selectedBooking = filteredBookings.find((item) => item.id === selectedBookingId);
+  const usesContextualInspector = visibleStaff.length >= 3;
+
+  const closeBookingInspector = useCallback(() => {
+    const bookingId = selectedBookingId;
+    setSelectedBookingId("");
+    window.requestAnimationFrame(() => {
+      const trigger = bookingId
+        ? document.querySelector<HTMLElement>(`[data-booking-id="${CSS.escape(bookingId)}"]`)
+        : null;
+      (trigger ?? document.querySelector<HTMLElement>("[data-schedule-heading]"))?.focus();
+    });
+  }, [selectedBookingId]);
+
+  useEffect(() => {
+    if (!usesContextualInspector || !selectedBooking) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeBookingInspector();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [closeBookingInspector, selectedBooking, usesContextualInspector]);
 
   useEffect(() => {
     if (selectedBookingId && !filteredBookings.some((booking) => booking.id === selectedBookingId)) {
@@ -5318,8 +5363,15 @@ export default function CalendarManagementScreen({
         </div>
       ) : null}
 
-      <div className="h-[calc(100vh-134px)] min-h-0 min-w-0 overflow-hidden">
-        <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      <div
+        className={cn(
+          "relative grid h-full min-h-0 min-w-0",
+          usesContextualInspector ? "grid-cols-[minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1fr)_360px]",
+        )}
+        data-staff-count={visibleStaff.length}
+        data-inspector-mode={usesContextualInspector ? "contextual-drawer" : "persistent"}
+      >
+        <div className="flex h-full min-h-0 min-w-0 flex-col">
           <CalendarToolbar
             shop={bootstrapData.shop}
             selectedDate={selectedDate}
@@ -5360,11 +5412,8 @@ export default function CalendarManagementScreen({
               onResizeBooking={handleResizeBooking}
             />
           )}
-        </WebSurface>
-
-      </div>
-
-        <BookingSidePanel
+        </div>
+        {(!usesContextualInspector || selectedBooking) ? <BookingSidePanel
           activeMetric={activeMetric}
           shopId={bootstrapData.shop.id}
           bootstrapData={bootstrapData}
@@ -5387,8 +5436,10 @@ export default function CalendarManagementScreen({
             onSaveBookingDetail={persistBookingDetailChange}
             onSavePetProfile={persistBookingPetProfileChange}
             onSaveNotificationTiming={persistBookingNotificationTiming}
-            onClose={() => setSelectedBookingId("")}
-          />
+            onClose={closeBookingInspector}
+            desktopMode={usesContextualInspector ? "drawer" : "persistent"}
+        /> : null}
+      </div>
       {careReportChoiceBooking ? (
         <CalendarCareReportChoiceDialog
           petName={careReportChoiceBooking.pet}

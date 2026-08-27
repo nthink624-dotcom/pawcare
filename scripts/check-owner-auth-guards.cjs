@@ -125,6 +125,21 @@ assertIncludes(
   "readOwnerAuthTokenCache",
   "Authenticated API calls must use owner access-token cache as a final recovery path.",
 );
+assertIncludes(
+  "src/app/owner/billing/success/page.tsx",
+  'fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription"',
+  "Billing success must use the shared owner token-cache and refresh recovery path.",
+);
+assertNotIncludes(
+  "src/app/owner/billing/success/page.tsx",
+  "supabase.auth.getSession",
+  "Billing success must not reject an API-issued owner handoff because browser session storage is empty.",
+);
+assertNotIncludes(
+  "src/app/owner/billing/success/page.tsx",
+  "supabase.auth.setSession",
+  "Billing success must not restore the blocking browser-side session handoff.",
+);
 
 assertFile("scripts/smoke-owner-login.cjs", "Owner login API smoke test must exist.");
 assertFile("tests/e2e/owner-login.spec.ts", "Owner login browser E2E test must exist.");

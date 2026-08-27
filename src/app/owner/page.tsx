@@ -6,14 +6,13 @@ import type { Session } from "@supabase/supabase-js";
 
 import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
 import OwnerServiceExpiredScreen from "@/components/owner/owner-service-expired-screen";
-import { fetchApiJsonWithAuth } from "@/lib/api";
+import { fetchApiJsonWithAuth, getOwnerAccessTokenWithRecovery } from "@/lib/api";
 import {
   clearOwnerAuthTokenCache,
   consumeOwnerAuthHandoff,
   readOwnerAuthTokenCache,
   setCurrentOwnerAccessToken,
   writeOwnerAuthSessionCache,
-  writeOwnerAuthTokenCache,
 } from "@/lib/auth/owner-auth-handoff";
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import {
@@ -30,12 +29,6 @@ type OwnedShopSummary = {
   name: string;
   address: string;
   heroImageUrl: string;
-};
-
-type SupabaseSessionResult = {
-  data: {
-    session: Session | null;
-  };
 };
 
 type OwnerAccessContext = {
@@ -160,29 +153,11 @@ export default function OwnerPage() {
       };
     }
 
-    const initialSession = await withOwnerSessionTimeout(
-      supabase.auth.getSession() as Promise<SupabaseSessionResult>,
-    );
-    if (initialSession.data.session?.access_token) {
-      writeOwnerAuthTokenCache(initialSession.data.session.access_token);
-      return {
-        accessToken: initialSession.data.session.access_token,
-        session: initialSession.data.session,
-      };
-    }
-
-    const refreshedSession = await withOwnerSessionTimeout(
-      supabase.auth.refreshSession() as Promise<SupabaseSessionResult>,
-    );
-    if (refreshedSession.data.session?.access_token) {
-      writeOwnerAuthTokenCache(refreshedSession.data.session.access_token);
-      return {
-        accessToken: refreshedSession.data.session.access_token,
-        session: refreshedSession.data.session,
-      };
-    }
-
-    return null;
+    const recoveredAccessToken = await withOwnerSessionTimeout(getOwnerAccessTokenWithRecovery());
+    return {
+      accessToken: recoveredAccessToken,
+      session: null,
+    };
   }
 
   useEffect(() => {

@@ -96,13 +96,13 @@ assertIncludes(
 );
 assertIncludes(
   "src/app/owner/page.tsx",
-  "refreshSession",
-  "Owner page must attempt Supabase session refresh before redirecting to /login.",
+  "readOwnerAuthTokenCache",
+  "Owner page must support access-token cache fallback before redirecting to /login.",
 );
 assertIncludes(
   "src/app/owner/page.tsx",
-  "readOwnerAuthTokenCache",
-  "Owner page must support access-token cache fallback before redirecting to /login.",
+  "getOwnerAccessTokenWithRecovery",
+  "Owner entry must share the same retained-refresh recovery promise as authenticated API calls.",
 );
 assertNotIncludes(
   "src/app/owner/page.tsx",
@@ -124,6 +124,20 @@ assertIncludes(
   "src/lib/api.ts",
   "readOwnerAuthTokenCache",
   "Authenticated API calls must use owner access-token cache as a final recovery path.",
+);
+assertIncludes(
+  "src/lib/api.ts",
+  "clearOwnerAuthAccessTokenCache",
+  "An API auth rejection must invalidate only the access token before refresh recovery.",
+);
+assertIncludes(
+  "src/lib/api.ts",
+  "supabase.auth.refreshSession({ refresh_token: cachedRefreshToken })",
+  "An expired cached access token must exchange its retained refresh token exactly once.",
+);
+assertFile(
+  "tests/server/owner-auth-token-cache.test.mjs",
+  "Owner auth cache expiration and cleanup behavior must have a regression test.",
 );
 assertIncludes(
   "src/app/owner/billing/success/page.tsx",

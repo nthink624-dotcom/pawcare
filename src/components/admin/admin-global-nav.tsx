@@ -4,13 +4,13 @@ import { ArrowLeft, House } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-const LABELS: Record<string, string> = { operations: "운영 관리", owners: "업체 관리", marketing: "마케팅 워크룸" };
+const LABELS: Record<string, string> = { operations: "운영 관리", owners: "업체 관리", marketing: "마케팅 워크룸", reviews: "화면 검수", "signup-flow": "회원가입 흐름" };
 
 export default function AdminGlobalNav() {
   const pathname = usePathname();
   const search = useSearchParams();
   const router = useRouter();
-  if (["/admin", "/admin/login", "/admin/register", "/admin/reset"].includes(pathname)) return null;
+  if (["/admin", "/admin/login", "/admin/register", "/admin/reset"].includes(pathname) || pathname.startsWith("/admin/reviews/signup-flow/capture/")) return null;
   const segments = pathname.split("/").filter(Boolean).slice(1);
   const labels = ["관리자 홈", ...segments.map((segment) => LABELS[segment] ?? "상세")];
   if (pathname.startsWith("/admin/approvals/")) labels.splice(1, labels.length, "마케팅 워크룸", "대표 승인");

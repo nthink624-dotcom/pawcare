@@ -11,6 +11,7 @@ import PetManagerBrand from "@/components/brand/petmanager-brand";
 import { fetchApiJson } from "@/lib/api";
 import type { MarketingWarRoomSnapshot } from "@/types/marketing-war-room";
 import type { ControlPlaneNode, ControlPlaneSnapshot } from "@/types/agent-control-plane";
+import type { SignupFlowReviewManifest } from "@/lib/admin/signup-flow-review-contract";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -21,6 +22,7 @@ export default function AdminDashboard() {
   const [revenue, setRevenue] = useState<AdminRevenueSummary | null>(null);
   const [warRoom, setWarRoom] = useState<MarketingWarRoomSnapshot | null>(null);
   const [demoWorkroom, setDemoWorkroom] = useState<ControlPlaneSnapshot | null>(null);
+  const [signupReview, setSignupReview] = useState<SignupFlowReviewManifest | null>(null);
   const [state, setState] = useState<LoadState>("loading");
 
   const load = useCallback(async () => {
@@ -31,11 +33,15 @@ export default function AdminDashboard() {
       process.env.NODE_ENV === "development"
         ? fetchApiJson<ControlPlaneSnapshot>("/api/admin/marketing/demo-control-plane", { cache: "no-store" })
         : Promise.resolve(null),
+      process.env.NODE_ENV === "development"
+        ? fetchApiJson<SignupFlowReviewManifest>("/api/admin/reviews/signup-flow", { cache: "no-store" })
+        : Promise.resolve(null),
     ]);
     setSupport(results[0].status === "fulfilled" ? results[0].value.requests : null);
     setRevenue(results[1].status === "fulfilled" ? results[1].value : null);
     setWarRoom(results[2].status === "fulfilled" ? results[2].value : null);
     setDemoWorkroom(results[3].status === "fulfilled" ? results[3].value : null);
+    setSignupReview(results[4].status === "fulfilled" ? results[4].value : null);
     setState(results.every((result) => result.status === "rejected") ? "error" : "ready");
   }, []);
 
@@ -65,6 +71,8 @@ export default function AdminDashboard() {
 
       <div className="grid border-b border-[#d4d4d4] lg:grid-cols-[140px_1fr]"><h3 className={`${T.body} px-4 py-2 font-medium text-[#404040]`}>대표 승인</h3><div className="divide-y divide-[#e5e5e5]"><Link href="/admin/approvals/RETENTION-POLICY-V01" className="flex h-11 min-w-0 items-center gap-2 px-4 hover:bg-[#f5f5f5]"><span className={`${T.body} min-w-0 flex-1 truncate text-[#262626]`}>회원 탈퇴 후 어떤 정보를 남길까요?</span><span className={`${T.secondary} shrink-0 text-[#737373]`}>등록 준비 중</span><ArrowRight className="h-4 w-4 shrink-0 text-[#a3a3a3]" /></Link></div></div>
 
+      <div className="grid border-b border-[#d4d4d4] lg:grid-cols-[140px_1fr]"><h3 className={`${T.body} px-4 py-2 font-medium text-[#404040]`}>화면 검수</h3><div><Link href={"/admin/reviews/signup-flow" as never} className="flex h-11 min-w-0 items-center gap-2 px-4 hover:bg-[#f5f5f5]"><span className={`${T.body} min-w-0 flex-1 truncate text-[#262626]`}>회원가입 흐름 검수</span><span className={`${T.secondary} shrink-0 text-[#737373]`}>{signupReview ? `${signupReview.capturedInventoryCount}/${signupReview.inventoryCount} · ${signupReview.generatedAt ? formatReviewTime(signupReview.generatedAt) : "미캡처"}` : "집계 중"}</span><ArrowRight className="h-4 w-4 shrink-0 text-[#a3a3a3]" /></Link></div></div>
+
       <div className="grid border-b border-[#d4d4d4] lg:grid-cols-[168px_1fr]"><div className="grid content-center gap-2 px-4 py-2 sm:grid-cols-[1fr_auto] sm:items-center lg:grid-cols-1"><h3 className={`${T.body} font-medium text-[#404040]`}>팀별 진행</h3><Link href="/admin/marketing" className={`${T.secondary} inline-flex min-h-11 w-full min-w-[132px] items-center justify-center gap-1 whitespace-nowrap rounded-md bg-[#171717] px-4 font-medium text-white sm:w-auto lg:mt-1 lg:w-full`}><span className="whitespace-nowrap break-normal">워크룸 보기</span><ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link></div><div className="grid divide-y divide-[#e5e5e5] lg:grid-cols-2 lg:divide-x lg:divide-y-0">{teamProgress.map((node) => <WorkroomRow key={node.workId} node={node} />)}</div></div>
 
       <div className="grid border-b border-[#d4d4d4] lg:grid-cols-[140px_1fr]"><h3 className={`${T.body} px-4 py-2 font-medium text-[#404040]`}>사용자 행동</h3><div className="divide-y divide-[#e5e5e5]">{userActions.map((node) => <WorkroomRow key={node.workId} node={node} />)}</div></div>
@@ -82,3 +90,4 @@ function statusLabel(status: ControlPlaneNode["status"]) { return ({ not_started
 function CompactValue({ icon: Icon, label, value }: { icon: typeof Store; label: string; value: string }) { return <div className="min-w-0 px-3 py-2"><p className={`${T.secondary} flex items-center gap-2 text-[#737373]`}><Icon className="h-4 w-4" />{label}</p><p className="truncate text-[16px] font-medium leading-6 text-[#171717]">{value}</p></div>; }
 function pendingValue(state: LoadState) { return state === "loading" ? "집계 중" : "집계 대기"; }
 function countValue(value: number | null, state: LoadState) { return value === null ? pendingValue(state) : `${value}건`; }
+function formatReviewTime(value: string) { return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value)); }

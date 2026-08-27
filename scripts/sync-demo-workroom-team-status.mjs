@@ -7,8 +7,21 @@ const startedAt = Date.now();
 
 const definitions = [
   {
-    eventId: "team-sync-security-retention-approval-v01",
+    eventId: "team-sync-owner-approval-graph-request-v01",
+    workId: "OWNER-ADMIN-APPROVAL-GRAPH-REQUEST",
+    role: "운영팀",
+    status: "received",
+    title: "대표 승인 대상을 바로 이해하고 선택하는 관리자 화면",
+    originalDirectiveSummary: "승인 항목을 누르면 해당 대상만 이해하고 결정할 수 있게 개선",
+    operationsDirectiveSummary: "승인 딥링크와 워크룸 그래프 구조를 수정",
+    completedSummary: null,
+    blockerSummary: null,
+    nextAction: "집중 승인과 그래프 클릭 회귀 검증",
+  },
+  {
+    eventId: "team-sync-security-retention-approval-v03",
     workId: "SECURITY-PRICE-SOURCE-RETENTION",
+    parentWorkId: "OWNER-ADMIN-APPROVAL-GRAPH-REQUEST",
     role: "보안팀",
     status: "approval_waiting",
     title: "가입 후 가격표 원본 보관 정책",
@@ -27,11 +40,12 @@ const definitions = [
     ],
   },
   {
-    eventId: "team-sync-growth-content-approval-v01",
+    eventId: "team-sync-growth-content-approval-v03",
     workId: "GROWTH-CONTENT-D1-D7-REVIEW",
+    parentWorkId: "OWNER-ADMIN-APPROVAL-GRAPH-REQUEST",
     role: "성장팀",
     status: "approval_waiting",
-    title: "마케팅 콘텐츠 D1~D7 재검수",
+    title: "Instagram 피드 4건 + 자사 웹 콘텐츠 2건 검수",
     category: "approval",
     originalDirectiveSummary: "D1~D7 콘텐츠를 대표가 다시 검수",
     operationsDirectiveSummary: "미승인 상태를 유지하고 자동 게시·다음 콘텐츠 진행을 차단",
@@ -70,6 +84,7 @@ const definitions = [
   { eventId: "team-sync-android-v01", workId: "ANDROID-FCM-DIAGNOSIS", role: "Android팀", status: "in_progress", title: "알림 토글 비활성·FCM 정적 원인 진단", category: "team_progress", nextAction: "원인 범위 확정" },
   { eventId: "team-sync-ui-v01", workId: "UI-DESIGN-PLAYBOOK", role: "UI 디자인팀", status: "in_progress", title: "관리자 홈·예약 보드 디자인 플레이북 적용", category: "team_progress", nextAction: "적용 시안 제출" },
   { eventId: "team-sync-implementation-v01", workId: "CODEX-IMPLEMENTATION-VERIFY", role: "구현팀", status: "in_progress", title: "예약 보드 구조·관리자 홈·결제 알림 경로 수정/검증", category: "team_progress", nextAction: "수정 결과 검증" },
+  { eventId: "team-sync-approval-deeplink-graph-v03", workId: "ADMIN-APPROVAL-DEEPLINK-GRAPH", parentWorkId: "OWNER-ADMIN-APPROVAL-GRAPH-REQUEST", role: "운영팀", status: "in_progress", title: "승인 딥링크와 마케팅 워크룸 그래프 구조 수정", category: "team_progress", nextAction: "홈→집중 승인→그래프 클릭 회귀 검증" },
   { eventId: "team-sync-android-device-v01", workId: "ANDROID-DEVICE-ACCESS", role: "Android팀", status: "not_started", title: "내부 테스트용 실제 기기·USB·Play 권한 계정 필요", category: "user_action", blockerSummary: "실제 기기·USB·Play 권한 계정 필요", nextAction: "테스트 환경 준비", approvalRequired: false },
 ];
 

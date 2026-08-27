@@ -100,9 +100,9 @@ test("local Codex bridge is allowlisted, bounded, metadata-only, and uses no ext
 test("demo workroom subscribes to the same-origin SSE stream and labels mixed sources honestly", () => {
   const ui = readFileSync(new URL("../../src/components/admin/demo-agent-control-plane.tsx", import.meta.url), "utf8");
   assert.match(ui, /new EventSource\("\/api\/admin\/marketing\/demo-control-plane\/stream"\)/);
-  assert.match(ui, /새 이벤트 자동 반영 · 이전 기록 병행/);
+  assert.match(ui, /새 이벤트 자동 반영/);
   assert.match(ui, /실시간 연결 안 됨 · 마지막 수동 동기화/);
-  assert.match(ui, /timeline\.length/);
+  assert.doesNotMatch(ui, /개 이벤트/);
   assert.doesNotMatch(ui, /3015|https?:\/\//);
 });
 
@@ -133,9 +133,20 @@ test("growth approval opens a focused D1-D7 review with fail-closed decisions", 
   const asset = readFileSync(new URL("../../src/app/api/admin/marketing/content-review/assets/[file]/route.ts", import.meta.url), "utf8");
   assert.match(workroom, /GROWTH-CONTENT-D1-D7-REVIEW/);
   assert.match(workroom, /<ContentApprovalFocus/);
-  assert.match(focus, /성장팀 · D1~D7 마케팅 콘텐츠 재검수 · 승인 대기/);
+  assert.match(focus, /성장팀 · Instagram 피드 4건 \+ 자사 웹 콘텐츠 2건 검수 · 대표 승인 대기/);
+  assert.match(focus, /왜 만들었나/);
+  assert.match(focus, /어디에 배포하나/);
+  assert.match(focus, /배포 기기/);
+  assert.match(focus, /콘텐츠 속 제품 화면 기기/);
+  assert.match(focus, /!contextConfirmed/);
+  assert.match(api, /\["D2", "D3", "D6", "D7"\]/);
+  assert.match(api, /\["D1", "D5"\]/);
+  assert.match(api, /exposure: "미검증"/);
+  assert.match(api, /format: "승인 대상 아님"/);
   assert.match(focus, /\["승인", "수정 요청", "보류"\]/);
-  assert.match(focus, /disabled=\{!reviewable\}/);
+  assert.match(focus, /disabled=\{!reviewable \|\| !contextConfirmed\}/);
+  assert.match(focus, /배포 문맥을 확인했습니다/);
+  assert.match(focus, /현재 검수 자료 v0\.2/);
   assert.match(focus, /외부 공개·게시·자동 실행 없음/);
   assert.match(focus, /customerCopy/);
   assert.match(focus, /changeReasons/);
@@ -144,4 +155,17 @@ test("growth approval opens a focused D1-D7 review with fail-closed decisions", 
   assert.match(api, /externalExecution: false/);
   assert.match(asset, /allowed = \/\^d\[1-7\]/);
   assert.doesNotMatch(focus + api, /method:\s*["']POST|supabase|localStorage|sessionStorage/);
+});
+
+test("approval deep links bypass the event wall and the workroom defaults to a graph", () => {
+  const workroom = readFileSync(new URL("../../src/components/admin/demo-agent-control-plane.tsx", import.meta.url), "utf8");
+  const security = readFileSync(new URL("../../src/components/admin/security-approval-focus.tsx", import.meta.url), "utf8");
+  const sync = readFileSync(new URL("../../scripts/sync-demo-workroom-team-status.mjs", import.meta.url), "utf8");
+  assert.match(workroom, /SECURITY-PRICE-SOURCE-RETENTION/);
+  assert.match(workroom, /업무 오케스트레이션 그래프/);
+  assert.match(workroom, /<details/);
+  assert.match(security, /요청 내용/);
+  assert.match(security, /팀의 판단/);
+  assert.match(security, /대표 요청 → 운영팀 → 보안팀 → 승인 대기/);
+  assert.match(sync, /승인 딥링크와 마케팅 워크룸 그래프 구조 수정/);
 });

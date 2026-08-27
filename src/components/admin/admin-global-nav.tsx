@@ -13,7 +13,7 @@ export default function AdminGlobalNav() {
   if (["/admin", "/admin/login", "/admin/register", "/admin/reset"].includes(pathname)) return null;
   const segments = pathname.split("/").filter(Boolean).slice(1);
   const labels = ["관리자 홈", ...segments.map((segment) => LABELS[segment] ?? "상세")];
-  if (pathname === "/admin/marketing" && search.get("work") === "GROWTH-CONTENT-D1-D7-REVIEW") labels.push("대표 승인");
+  if (pathname === "/admin/marketing" && ["GROWTH-CONTENT-D1-D7-REVIEW", "SECURITY-PRICE-SOURCE-RETENTION"].includes(search.get("work") ?? "")) labels.push("대표 승인");
   return <div className="fixed left-1/2 top-2 z-50 flex max-w-[calc(100vw-16px)] -translate-x-1/2 items-center border border-[#e5e7eb] bg-white text-[#111]">
     <button type="button" onClick={() => router.back()} aria-label="이전 화면으로 돌아가기" className="inline-flex size-12 items-center justify-center border-r border-[#e5e7eb] bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-black"><ArrowLeft className="h-4 w-4" /></button>
     <Link href="/admin" aria-label="관리자 홈으로 이동" className="inline-flex size-12 items-center justify-center border-r border-[#e5e7eb] bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-black"><House className="h-4 w-4" /></Link>

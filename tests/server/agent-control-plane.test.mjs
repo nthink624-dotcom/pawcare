@@ -170,8 +170,13 @@ test("approval deep links bypass the event wall and the workroom defaults to a g
   assert.match(sync, /승인 딥링크와 마케팅 워크룸 그래프 구조 수정/);
   assert.match(workroom, /view.*graph/);
   assert.match(workroom, /GraphBranch/);
-  assert.match(workroom, /opacity-25/);
-  assert.match(workroom, /lg:grid-cols-\[minmax\(0,1fr\)_360px\]/);
+  assert.doesNotMatch(workroom, /opacity-25|opacity-\[0\.24\]|white overlay/i);
+  assert.match(workroom, /highlighted.*border-2 border-black shadow-sm/);
+  assert.match(workroom, /inspectorWidth.*440/);
+  assert.match(workroom, /Math\.min\(560, Math\.max\(380/);
+  assert.match(workroom, /회원가입 중 서비스·가격 최초 등록/);
+  assert.match(workroom, /가입 첫 단계에서 서비스명과 가격을 입력하고, 가입 완료 시 매장 계정에 저장합니다/);
+  assert.match(workroom, /xl:grid-cols-\[minmax\(0,1fr\)_var\(--inspector-width\)\]/);
   assert.match(workroom, /대표 승인 집중 보기/);
   assert.match(workroom, /팀\/에이전트/);
   assert.doesNotMatch(workroom, /개 이벤트/);

@@ -122,6 +122,66 @@ async function verifyAuthenticatedReturn(browser, viewport, screenshotName) {
   return result;
 }
 
+async function verifyExpiredAccessRefresh(browser, viewport, screenshotName) {
+  const context = await browser.newContext({ viewport });
+  const page = await context.newPage();
+  const diagnostics = createDiagnostics(page);
+  let refreshRequestCount = 0;
+  let subscriptionBearerCount = 0;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (request.method() === "POST" && url.pathname.endsWith("/auth/v1/token")) {
+      refreshRequestCount += 1;
+    }
+    if (url.pathname === "/api/subscription" && request.headers().authorization?.startsWith("Bearer ")) {
+      subscriptionBearerCount += 1;
+    }
+  });
+
+  await loginToUsableOwner(page);
+  const retainedRefresh = await page.evaluate(() => {
+    const cacheKey = "petmanager.ownerAuthTokenCache";
+    const raw = window.localStorage.getItem(cacheKey);
+    if (!raw) return false;
+    const payload = JSON.parse(raw);
+    if (typeof payload.refreshToken !== "string" || !payload.refreshToken) return false;
+    const expiredPayload = JSON.stringify({ ...payload, expiresAt: Date.now() - 1 });
+    window.localStorage.setItem(cacheKey, expiredPayload);
+    window.sessionStorage.setItem(cacheKey, expiredPayload);
+    return true;
+  });
+
+  await page.goto(`${baseUrl}${successPath}`, { waitUntil: "domcontentloaded" });
+  await waitForBillingSuccess(page);
+  await page.screenshot({ path: path.join(outputDir, screenshotName), fullPage: true });
+  const cacheRotated = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("petmanager.ownerAuthTokenCache");
+    if (!raw) return false;
+    const payload = JSON.parse(raw);
+    return typeof payload.expiresAt === "number" && payload.expiresAt > Date.now() + 60_000;
+  });
+
+  await page.getByRole("button", { name: "확인" }).click();
+  await page.waitForURL(/\/owner(?:\/mobile)?(?:$|\?)/, { timeout: 30_000 });
+  await page.waitForFunction(() => document.body.textContent?.includes("테스트 미용실") === true);
+
+  const result = {
+    viewport,
+    retainedRefresh,
+    refreshRequestCount,
+    subscriptionBearerCount,
+    cacheRotated,
+    ownerUsable: new URL(page.url()).pathname.startsWith("/owner"),
+    horizontalOverflow: await page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth)),
+    consoleErrorCount: diagnostics.consoleErrors.length,
+    pageErrorCount: diagnostics.pageErrors.length,
+    failedRequests: diagnostics.failedRequests,
+    screenshot: path.join(outputDir, screenshotName),
+  };
+  await context.close();
+  return result;
+}
+
 async function verifyFailClosed(browser, mode) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   if (mode !== "absent") {
@@ -144,12 +204,26 @@ async function verifyFailClosed(browser, mode) {
   }
   const page = await context.newPage();
   const diagnostics = createDiagnostics(page);
+  let refreshRequestCount = 0;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (request.method() === "POST" && url.pathname.endsWith("/auth/v1/token")) {
+      refreshRequestCount += 1;
+    }
+  });
   await page.goto(`${baseUrl}${successPath}`, { waitUntil: "domcontentloaded" });
   await page.waitForURL(/\/login\?next=/, { timeout: 20_000 });
+  const cacheCleared = await page.evaluate(
+    () =>
+      window.localStorage.getItem("petmanager.ownerAuthTokenCache") === null &&
+      window.sessionStorage.getItem("petmanager.ownerAuthTokenCache") === null,
+  );
   const result = {
     mode,
     failedClosed: new URL(page.url()).pathname === "/login",
     next: new URL(page.url()).searchParams.get("next"),
+    refreshRequestCount,
+    cacheCleared,
     pageErrorCount: diagnostics.pageErrors.length,
     unexpectedConsoleErrorCount: diagnostics.consoleErrors.filter(
       (message) => !message.includes("401") && !message.includes("400"),
@@ -172,12 +246,23 @@ async function main() {
       generatedAt: new Date().toISOString(),
       success1440: await verifyAuthenticatedReturn(browser, { width: 1440, height: 900 }, "billing-success-1440.png"),
       success390: await verifyAuthenticatedReturn(browser, { width: 390, height: 844 }, "billing-success-390.png"),
+      expiredAccessValidRefresh1440: await verifyExpiredAccessRefresh(
+        browser,
+        { width: 1440, height: 900 },
+        "billing-success-refreshed-1440.png",
+      ),
+      expiredAccessValidRefresh390: await verifyExpiredAccessRefresh(
+        browser,
+        { width: 390, height: 844 },
+        "billing-success-refreshed-390.png",
+      ),
       absentCredentials: await verifyFailClosed(browser, "absent"),
       expiredCredentials: await verifyFailClosed(browser, "expired"),
       tamperedCredentials: await verifyFailClosed(browser, "tampered"),
     };
 
     const successes = [report.success1440, report.success390];
+    const refreshSuccesses = [report.expiredAccessValidRefresh1440, report.expiredAccessValidRefresh390];
     const failures = [report.absentCredentials, report.expiredCredentials, report.tamperedCredentials];
     report.pass =
       successes.every(
@@ -196,10 +281,24 @@ async function main() {
           entry.pageErrorCount === 0 &&
           entry.failedRequests.filter((request) => request.error !== "net::ERR_ABORTED").length === 0,
       ) &&
+      refreshSuccesses.every(
+        (entry) =>
+          entry.retainedRefresh &&
+          entry.refreshRequestCount === 1 &&
+          entry.subscriptionBearerCount > 0 &&
+          entry.cacheRotated &&
+          entry.ownerUsable &&
+          entry.horizontalOverflow === 0 &&
+          entry.consoleErrorCount === 0 &&
+          entry.pageErrorCount === 0 &&
+          entry.failedRequests.filter((request) => request.error !== "net::ERR_ABORTED").length === 0,
+      ) &&
       failures.every(
         (entry) =>
           entry.failedClosed &&
           entry.next === "/owner/billing/success" &&
+          entry.refreshRequestCount === (entry.mode === "absent" ? 0 : 1) &&
+          entry.cacheCleared &&
           entry.pageErrorCount === 0 &&
           entry.unexpectedConsoleErrorCount === 0,
       );

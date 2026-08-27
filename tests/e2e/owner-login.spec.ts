@@ -61,6 +61,44 @@ test("billing success recovers the API-issued owner handoff without a browser Su
   await expect(page.getByText(devShopName).filter({ visible: true }).first()).toBeVisible();
 });
 
+test("billing success exchanges a retained refresh token after the cached access token expires", async ({ page }) => {
+  let refreshRequestCount = 0;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (request.method() === "POST" && url.pathname.endsWith("/auth/v1/token")) {
+      refreshRequestCount += 1;
+    }
+  });
+
+  await page.goto("/login?next=%2Fowner");
+  await page.getByTestId("owner-login-email").fill(email);
+  await page.getByTestId("owner-login-password").fill(password);
+  await page.getByTestId("owner-login-submit").click();
+  await expect(page).toHaveURL(/\/owner(?:$|\?)/);
+
+  const retainedRefresh = await page.evaluate(() => {
+    const cacheKey = "petmanager.ownerAuthTokenCache";
+    const raw = window.localStorage.getItem(cacheKey);
+    if (!raw) return false;
+    const payload = JSON.parse(raw);
+    if (typeof payload.refreshToken !== "string" || !payload.refreshToken) return false;
+    const expiredPayload = JSON.stringify({ ...payload, expiresAt: Date.now() - 1 });
+    window.localStorage.setItem(cacheKey, expiredPayload);
+    window.sessionStorage.setItem(cacheKey, expiredPayload);
+    return true;
+  });
+  expect(retainedRefresh).toBe(true);
+
+  await page.goto("/owner/billing/success?plan=quarterly&endAt=2026-12-31&method=%EC%B9%B4%EB%93%9C");
+  await expect(page.getByRole("heading", { name: "결제가 완료되었습니다" })).toBeVisible();
+  await expect.poll(() => refreshRequestCount).toBe(1);
+  await expect(page).toHaveURL(/\/owner\/billing\/success/);
+
+  await page.getByRole("button", { name: "확인" }).click();
+  await expect(page).toHaveURL(/\/owner(?:$|\?)/);
+  await expect(page.getByText(devShopName).filter({ visible: true }).first()).toBeVisible();
+});
+
 test("billing success direct access fails closed when owner recovery credentials are absent", async ({ page }) => {
   await page.goto("/owner/billing/success?plan=quarterly");
   await expect(page).toHaveURL(/\/login\?next=(?:%2F|\/)owner(?:%2F|\/)billing(?:%2F|\/)success/i);

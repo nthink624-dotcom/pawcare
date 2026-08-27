@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -43,4 +44,11 @@ test("review metadata contains no private query, token, or raw credential values
   assert.equal(/[?&](?:email|phone|token|password)=/i.test(serialized), false);
   assert.equal(/\b\d{3}-\d{3,4}-\d{4}\b/.test(serialized), false);
   assert.equal(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(serialized), false);
+});
+
+test("gallery uses the admin type system and approved radius roles", async () => {
+  const source = await readFile(new URL("../../src/components/admin/signup-flow-review-gallery.tsx", import.meta.url), "utf8");
+  assert.match(source, /ADMIN_TYPOGRAPHY as T/);
+  assert.equal((source.match(/text-\[(?:\d|clamp|calc)/g) ?? []).length, 0);
+  assert.equal((source.match(/rounded-(?:xl|lg|md|sm)|rounded-\[(?!(?:8|10|14|18)px\])/g) ?? []).length, 0);
 });

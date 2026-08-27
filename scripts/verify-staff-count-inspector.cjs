@@ -53,12 +53,27 @@ function staffFixture(count) {
           inspectorCount: await selectedInspector.count(),
           inspector: await selectedInspector.boundingBox(),
           selectedTextMatches: await selectedInspector.getByText("보리", { exact: false }).count() > 0,
+          closeFullyVisible: await page.getByRole("button", { name: "예약 상세 닫기" }).evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.top >= 0 && rect.bottom <= innerHeight && rect.left >= 0 && rect.right <= innerWidth;
+          }),
+          initialFocusOnClose: await page.getByRole("button", { name: "예약 상세 닫기" }).evaluate((element) => document.activeElement === element),
         };
         await page.screenshot({ path: path.join(outputDir, `${viewport.width}-${staffCount}staff-selected.png`) });
+        await page.getByRole("button", { name: "예약 상세 닫기" }).click();
+        const clickClosed = {
+          selectedContentCount: await page.getByText("보리", { exact: true }).count(),
+          inspectorCount: await page.locator('[aria-label="예약 상세"]').count(),
+        };
+        if (await booking.count()) await booking.click();
         await page.keyboard.press("Escape");
-        const closed = { inspectorCount: await page.locator('[aria-label="예약 상세"]').count() };
+        const closed = {
+          inspectorCount: await page.locator('[aria-label="예약 상세"]').count(),
+          selectedContentCount: await page.getByText("보리", { exact: true }).count(),
+          focusReturned: await booking.evaluate((element) => document.activeElement === element),
+        };
         await page.screenshot({ path: path.join(outputDir, `${viewport.width}-${staffCount}staff-closed.png`) });
-        results.push({ viewport, staffCount, noSelection, selected, closed });
+        results.push({ viewport, staffCount, noSelection, selected, clickClosed, closed });
         await page.close();
       }
     }
@@ -79,10 +94,11 @@ function staffFixture(count) {
     if (item.noSelection.inspectorCount !== 0 || item.noSelection.emptyTextCount !== 0) throw new Error("3+ staff empty inspector regression");
     if (Math.abs(item.noSelection.surface.right - item.noSelection.schedule.right) > 1) throw new Error("3+ staff reserved right gap regression");
     if (item.noSelection.documentOverflow > 0) throw new Error("desktop horizontal overflow");
-    if (item.selected.inspectorCount !== 1 || !item.selected.selectedTextMatches || item.closed.inspectorCount !== 0) throw new Error("contextual drawer lifecycle regression");
+    if (item.selected.inspectorCount !== 1 || !item.selected.selectedTextMatches || !item.selected.closeFullyVisible || !item.selected.initialFocusOnClose) throw new Error("contextual drawer visibility/focus regression");
+    if (item.clickClosed.inspectorCount !== 0 || item.closed.inspectorCount !== 0 || !item.closed.focusReturned) throw new Error("contextual drawer close lifecycle regression");
   }
   for (const item of results.filter((item) => item.viewport.width >= 1024 && item.staffCount <= 2)) {
-    if (item.noSelection.inspectorCount !== 1 || item.noSelection.emptyTextCount !== 1) throw new Error("1-2 staff persistent inspector regression");
+    if (item.noSelection.inspectorCount !== 1 || item.noSelection.emptyTextCount !== 1 || !item.selected.closeFullyVisible || item.closed.selectedContentCount !== 0 || !item.closed.focusReturned) throw new Error("1-2 staff persistent inspector regression");
   }
   const mobileResult = results.at(-1);
   if (!mobileResult.mobileInspector || mobileResult.mobileInspector.width > 390 || mobileResult.documentOverflow > 0) throw new Error("mobile sheet regression");

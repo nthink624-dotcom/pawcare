@@ -1680,6 +1680,8 @@ function BookingSidePanel({
   onClose: () => void;
   desktopMode: "persistent" | "drawer";
 }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [desktopViewport, setDesktopViewport] = useState(false);
   const timeRange = selectedBooking
     ? `${formatHourLabel(selectedBooking.start)}–${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
     : "";
@@ -1862,6 +1864,20 @@ function BookingSidePanel({
       }
     };
   }, [selectedBooking?.id]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const updateViewport = () => setDesktopViewport(media.matches);
+    updateViewport();
+    media.addEventListener("change", updateViewport);
+    return () => media.removeEventListener("change", updateViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedBooking || (desktopMode === "persistent" && desktopViewport)) return;
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [desktopMode, desktopViewport, selectedBooking]);
 
   useEffect(() => {
     if (!selectedBooking) return;
@@ -2141,7 +2157,7 @@ function BookingSidePanel({
         "fixed inset-0 z-[70] flex justify-end bg-black/20",
         desktopMode === "persistent"
           ? "lg:static lg:z-auto lg:h-full lg:min-h-0 lg:bg-transparent"
-          : "lg:absolute lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[clamp(360px,28vw,420px)] lg:bg-transparent",
+          : "lg:fixed lg:inset-auto lg:top-[60px] lg:right-[10px] lg:h-[calc(100dvh-60px)] lg:w-[clamp(360px,28vw,420px)] lg:bg-transparent",
       )}
       onMouseDown={onClose}
     >
@@ -2149,11 +2165,11 @@ function BookingSidePanel({
         className={cn(
           "h-full w-full max-w-[430px] overflow-hidden border-l border-[#e5e7eb] bg-white",
           desktopMode === "persistent"
-            ? "lg:max-w-none"
+            ? "lg:sticky lg:top-[60px] lg:h-[calc(100dvh-60px)] lg:max-w-none lg:self-start"
             : "lg:w-full lg:max-w-none lg:shadow-[-12px_0_28px_rgba(15,23,42,0.08)]",
         )}
         role="dialog"
-        aria-modal="true"
+        aria-modal={!desktopViewport}
         aria-label="예약 상세"
         onMouseDown={(event) => event.stopPropagation()}
       >
@@ -2161,7 +2177,7 @@ function BookingSidePanel({
       <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-0">
         <div className="pm-booking-side-panel-scroll min-h-0 flex-1 overflow-y-auto">
           <div className="bg-white px-4 pb-4 pt-5">
-            <header className="flex min-w-0 items-start gap-3">
+            <header className="sticky top-0 z-[1] flex min-w-0 items-start gap-3 bg-white">
               <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[14px] border border-[#dbe2ea] bg-white">
                 <img src="/images/default-pet-profile.png" alt="" className="h-full w-full object-contain" />
               </div>
@@ -2177,6 +2193,7 @@ function BookingSidePanel({
                 </p>
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
                 aria-label="예약 상세 닫기"
                 onClick={onClose}
@@ -4246,7 +4263,7 @@ export default function CalendarManagementScreen({
   }, [selectedBookingId]);
 
   useEffect(() => {
-    if (!usesContextualInspector || !selectedBooking) return;
+    if (!selectedBooking) return;
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -4254,7 +4271,7 @@ export default function CalendarManagementScreen({
     };
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [closeBookingInspector, selectedBooking, usesContextualInspector]);
+  }, [closeBookingInspector, selectedBooking]);
 
   useEffect(() => {
     if (selectedBookingId && !filteredBookings.some((booking) => booking.id === selectedBookingId)) {
@@ -5371,7 +5388,7 @@ export default function CalendarManagementScreen({
         data-staff-count={visibleStaff.length}
         data-inspector-mode={usesContextualInspector ? "contextual-drawer" : "persistent"}
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-col">
+        <div className="flex h-full min-h-0 min-w-0 flex-col" data-schedule-heading tabIndex={-1} aria-label="예약 일정">
           <CalendarToolbar
             shop={bootstrapData.shop}
             selectedDate={selectedDate}

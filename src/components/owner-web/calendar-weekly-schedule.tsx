@@ -180,6 +180,7 @@ function WeekBookingCard({
   return (
     <button
       type="button"
+      data-booking-id={booking.id}
       onClick={onClick}
       className={cn(
         "h-full w-full overflow-hidden rounded-[6px] border text-left outline-none transition hover:brightness-[0.985] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
@@ -354,6 +355,7 @@ function AllStaffWeeklyOverview({
                         <button
                           key={booking.id}
                           type="button"
+                          data-booking-id={booking.id}
                           onClick={() => onSelectBooking(booking)}
                           className={`w-full rounded-lg border border-l-[3px] px-3 py-2.5 text-left transition-transform hover:-translate-y-0.5 hover:shadow-sm ${toneClass}`}
                         >

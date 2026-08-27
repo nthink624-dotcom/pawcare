@@ -17,7 +17,6 @@ import {
   type AdminAlimtalkCreditBalance,
   type AdminOwnerItem,
   type OwnerDraft,
-  type TemporaryPasswordResult,
 } from "@/components/admin/owner-admin-model";
 
 async function fetchOwners() {
@@ -35,9 +34,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [refundingPaymentId, setRefundingPaymentId] = useState<string | null>(null);
   const [resettingPaymentMethodUserId, setResettingPaymentMethodUserId] = useState<string | null>(null);
-  const [issuingTemporaryPasswordUserId, setIssuingTemporaryPasswordUserId] = useState<string | null>(null);
   const [withdrawingUserId, setWithdrawingUserId] = useState<string | null>(null);
-  const [temporaryPasswords, setTemporaryPasswords] = useState<Record<string, TemporaryPasswordResult>>({});
   const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
   const [alimtalkBalances, setAlimtalkBalances] = useState<AdminAlimtalkCreditBalance[]>([]);
   const [loadingAlimtalkCredits, setLoadingAlimtalkCredits] = useState(false);
@@ -273,58 +270,6 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
     }
   }
 
-  async function issueOwnerTemporaryPassword(item: AdminOwnerItem) {
-    const email = item.ownerEmail ?? item.loginId;
-    if (!email) {
-      setError("로그인 이메일이 없는 오너 계정에는 임시비밀번호를 발급할 수 없습니다.");
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `${item.ownerName} 오너에게 임시비밀번호를 발급할까요?\n발급 즉시 기존 비밀번호는 사용할 수 없습니다.`,
-    );
-    if (!confirmed) return;
-
-    setIssuingTemporaryPasswordUserId(item.userId);
-    setError(null);
-    setNotice(null);
-
-    try {
-      const response = await fetchApiJson<
-        TemporaryPasswordResult & {
-          success: true;
-          message: string;
-        }
-      >("/api/admin/owners/temporary-password", {
-        method: "POST",
-        body: JSON.stringify({
-          userId: item.userId,
-          shopId: item.shopId,
-        }),
-        headers: { "Content-Type": "application/json" },
-      });
-
-      setTemporaryPasswords((prev) => ({
-        ...prev,
-        [item.userId]: {
-          email: response.email,
-          temporaryPassword: response.temporaryPassword,
-          issuedAt: response.issuedAt,
-        },
-      }));
-
-      const nextOwners = await fetchOwners();
-      setOwners(nextOwners);
-      setDrafts(Object.fromEntries(nextOwners.map((nextItem) => [nextItem.userId, buildDraft(nextItem)])));
-      setSelectedUserId(item.userId);
-      setNotice(response.message);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "임시비밀번호를 발급하지 못했습니다.");
-    } finally {
-      setIssuingTemporaryPasswordUserId(null);
-    }
-  }
-
   async function withdrawOwner(item: AdminOwnerItem) {
     const firstConfirmed = window.confirm(
       `${item.ownerName} 오너를 회원탈퇴 처리할까요?\n\n로그인 계정과 소유 매장 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`,
@@ -511,9 +456,6 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
             selectedOwner={selectedOwner}
             selectedDraft={selectedDraft}
             selectedAlimtalkBalance={selectedAlimtalkBalance}
-            issuingTemporaryPasswordUserId={issuingTemporaryPasswordUserId}
-            temporaryPasswords={temporaryPasswords}
-            issueOwnerTemporaryPassword={issueOwnerTemporaryPassword}
             loadingAlimtalkCredits={loadingAlimtalkCredits}
             savingAlimtalkCredits={savingAlimtalkCredits}
             loadAlimtalkBalances={loadAlimtalkBalances}

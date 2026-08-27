@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Loader2, MessageSquareText, RefreshCcw, RotateCcw, ShieldAlert, Store, Trash2 } from "lucide-react";
+import { ChevronDown, Loader2, MessageSquareText, RefreshCcw, RotateCcw, ShieldAlert, Store } from "lucide-react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 
 import OwnerAdminPasswordPanel from "@/components/admin/owner-admin-password-panel";
@@ -23,16 +23,12 @@ import {
   type OwnerDraft,
   type OwnerLastPaymentStatus,
   type OwnerPlanCode,
-  type TemporaryPasswordResult,
 } from "@/components/admin/owner-admin-model";
 
 type OwnerAdminDetailPanelProps = {
   selectedOwner: AdminOwnerItem | null;
   selectedDraft: OwnerDraft | null;
   selectedAlimtalkBalance: AdminAlimtalkCreditBalance | null;
-  issuingTemporaryPasswordUserId: string | null;
-  temporaryPasswords: Record<string, TemporaryPasswordResult>;
-  issueOwnerTemporaryPassword: (item: AdminOwnerItem) => Promise<void>;
   loadingAlimtalkCredits: boolean;
   savingAlimtalkCredits: boolean;
   loadAlimtalkBalances: () => Promise<void>;
@@ -60,9 +56,6 @@ export default function OwnerAdminDetailPanel({
   selectedOwner,
   selectedDraft,
   selectedAlimtalkBalance,
-  issuingTemporaryPasswordUserId,
-  temporaryPasswords,
-  issueOwnerTemporaryPassword,
   loadingAlimtalkCredits,
   savingAlimtalkCredits,
   loadAlimtalkBalances,
@@ -158,13 +151,7 @@ export default function OwnerAdminDetailPanel({
                     </section>
                   ) : null}
 
-                  <OwnerAdminPasswordPanel
-                    ownerName={selectedOwner.ownerName}
-                    email={selectedOwner.ownerEmail ?? selectedOwner.loginId}
-                    issuing={issuingTemporaryPasswordUserId === selectedOwner.userId}
-                    result={temporaryPasswords[selectedOwner.userId] ?? null}
-                    onIssue={() => void issueOwnerTemporaryPassword(selectedOwner)}
-                  />
+                  <OwnerAdminPasswordPanel />
 
                   <div className="rounded-[9px] border border-[#edf2f7] bg-white p-3">
                     <div className="flex items-center justify-between gap-3">
@@ -399,19 +386,7 @@ export default function OwnerAdminDetailPanel({
                           계정과 매장 데이터를 삭제하며 동일 로그인 수단 재가입이 가능합니다.
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void withdrawOwner(selectedOwner)}
-                        disabled={withdrawingUserId === selectedOwner.userId}
-                        className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[#e8c6cc] bg-white px-2.5 text-[13px] font-semibold text-[#a04455] disabled:opacity-50"
-                      >
-                        {withdrawingUserId === selectedOwner.userId ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                        {withdrawingUserId === selectedOwner.userId ? "탈퇴 중" : "회원탈퇴"}
-                      </button>
+                      <span className="shrink-0 text-[12px] text-[#64748b]">보안 승인 흐름 준비 중</span>
                     </div>
                   </div>
 
@@ -433,38 +408,9 @@ export default function OwnerAdminDetailPanel({
                             {selectedOwner.paymentMethodExists ? selectedOwner.paymentMethodLabel ?? "등록된 카드" : "등록 카드 없음"}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => void resetOwnerPaymentMethod(selectedOwner)}
-                          disabled={!selectedOwner.paymentMethodExists || resettingPaymentMethodUserId === selectedOwner.userId}
-                          className="inline-flex h-8 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] text-[#475569] disabled:opacity-50"
-                        >
-                          {resettingPaymentMethodUserId === selectedOwner.userId ? (
-                            <span className="inline-flex items-center gap-2">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              초기화 중...
-                            </span>
-                          ) : (
-                            "결제수단 초기화"
-                          )}
-                        </button>
+                        <span className="shrink-0 text-[12px] text-[#64748b]">보안 승인 흐름 준비 중</span>
                       </div>
                     </div>
-
-                    <label className="mt-2 block">
-                      <span className="mb-1.5 block text-[13px] text-[#64748b]">취소 사유</span>
-                      <textarea
-                        value={refundReasons[selectedOwner.userId] ?? ""}
-                        onChange={(event) =>
-                          setRefundReasons((prev) => ({
-                            ...prev,
-                            [selectedOwner.userId]: event.target.value,
-                          }))
-                        }
-                        className="min-h-[56px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 py-2 text-[13px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
-                        placeholder="예: 중복 결제 확인, 고객 요청 환불"
-                      />
-                    </label>
 
                     <div className="mt-2 space-y-1.5">
                       {selectedOwner.recentPayments.length === 0 ? (
@@ -493,23 +439,7 @@ export default function OwnerAdminDetailPanel({
                                 {getRecentPaymentStatusMeta(payment.status).label}
                               </span>
                             </div>
-                            {payment.refundable ? (
-                              <button
-                                type="button"
-                                onClick={() => void refundOwner(selectedOwner, payment.paymentId)}
-                                disabled={refundingPaymentId === payment.paymentId}
-                                className="mt-3 inline-flex h-[38px] w-full items-center justify-center rounded-[10px] border border-[#efcfc2] bg-[#fff8f4] px-3 text-[13px] text-[#b45d3c] disabled:opacity-50"
-                              >
-                                {refundingPaymentId === payment.paymentId ? (
-                                  <span className="inline-flex items-center gap-2">
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    취소 처리 중...
-                                  </span>
-                                ) : (
-                                  "이 결제 취소"
-                                )}
-                              </button>
-                            ) : null}
+                            {payment.refundable ? <p className="mt-2 text-[12px] text-[#64748b]">환불 실행은 보안 승인 흐름 준비 후 제공됩니다.</p> : null}
                           </div>
                         ))
                       )}

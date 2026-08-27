@@ -125,3 +125,23 @@ test("global route recovery returns admin failures to admin and performs a fresh
   assert.match(boundary, /reset\(\); router\.refresh\(\)/);
   assert.doesNotMatch(boundary, /href="\/owner"/);
 });
+
+test("growth approval opens a focused D1-D7 review with fail-closed decisions", () => {
+  const workroom = readFileSync(new URL("../../src/components/admin/demo-agent-control-plane.tsx", import.meta.url), "utf8");
+  const focus = readFileSync(new URL("../../src/components/admin/content-approval-focus.tsx", import.meta.url), "utf8");
+  const api = readFileSync(new URL("../../src/app/api/admin/marketing/content-review/route.ts", import.meta.url), "utf8");
+  const asset = readFileSync(new URL("../../src/app/api/admin/marketing/content-review/assets/[file]/route.ts", import.meta.url), "utf8");
+  assert.match(workroom, /GROWTH-CONTENT-D1-D7-REVIEW/);
+  assert.match(workroom, /<ContentApprovalFocus/);
+  assert.match(focus, /성장팀 · D1~D7 마케팅 콘텐츠 재검수 · 승인 대기/);
+  assert.match(focus, /\["승인", "수정 요청", "보류"\]/);
+  assert.match(focus, /disabled=\{!reviewable\}/);
+  assert.match(focus, /외부 공개·게시·자동 실행 없음/);
+  assert.match(focus, /customerCopy/);
+  assert.match(focus, /changeReasons/);
+  assert.match(api, /requireAdminSession/);
+  assert.match(api, /NODE_ENV !== "development"/);
+  assert.match(api, /externalExecution: false/);
+  assert.match(asset, /allowed = \/\^d\[1-7\]/);
+  assert.doesNotMatch(focus + api, /method:\s*["']POST|supabase|localStorage|sessionStorage/);
+});

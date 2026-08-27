@@ -2,17 +2,20 @@
 
 import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Link2, RefreshCw } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ADMIN_SURFACE, ADMIN_TYPOGRAPHY as T } from "@/components/admin/admin-typography";
+import ContentApprovalFocus from "@/components/admin/content-approval-focus";
 import { fetchApiJson } from "@/lib/api";
 import type { ControlPlaneEvent, ControlPlaneNode, ControlPlaneSnapshot, ControlPlaneStatus } from "@/types/agent-control-plane";
 
 const STATUS: Record<ControlPlaneStatus, string> = { not_started: "시작 전", received: "지시 수신", in_progress: "진행 중", review: "검수 중", approval_waiting: "승인 대기", approved: "승인", rejected: "거절", completed: "완료", blocked: "막힘", failed: "실패" };
 
 export default function DemoAgentControlPlane({ mode = "operational" }: { mode?: "operational" | "demo" }) {
+  const searchParams = useSearchParams();
   const [snapshot, setSnapshot] = useState<ControlPlaneSnapshot | null>(null);
-  const [selectedWorkId, setSelectedWorkId] = useState(() => typeof window === "undefined" ? "CP-OPS-001" : new URLSearchParams(window.location.search).get("work") ?? "CP-OPS-001");
+  const [selectedWorkId, setSelectedWorkId] = useState(() => searchParams.get("work") ?? "CP-OPS-001");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +53,12 @@ export default function DemoAgentControlPlane({ mode = "operational" }: { mode?:
   const connectionLabel = mode === "demo" ? "데모 데이터" : liveConnected && manualCount > 0 ? "데모 관리자 · 새 이벤트 자동 반영 · 이전 기록 병행" : liveConnected ? "데모 관리자 · 새 이벤트 자동 반영" : "데모 관리자 · 실시간 연결 안 됨 · 마지막 수동 동기화";
   const roots = useMemo(() => snapshot?.nodes.filter((node) => !node.parentWorkId) ?? [], [snapshot]);
   const children = useCallback((id: string) => snapshot?.nodes.filter((node) => node.parentWorkId === id) ?? [], [snapshot]);
+  useEffect(() => {
+    if (!selectedWorkId) return;
+    document.querySelector(`[data-work-id="${CSS.escape(selectedWorkId)}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [selectedWorkId]);
+
+  if (selectedWorkId === "GROWTH-CONTENT-D1-D7-REVIEW") return <ContentApprovalFocus />;
 
   return <main className={`${ADMIN_SURFACE} h-[100dvh] overflow-hidden !bg-white py-3 !text-[#171717] md:py-4`}><div className="mx-auto flex h-full w-full max-w-[1380px] flex-col">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d4d4d4] pb-3"><div><p className={`${T.badge} font-medium text-[#525252]`}>{connectionLabel}</p><h1 className="mt-0.5 text-[clamp(24px,2.2vw,30px)] font-bold leading-tight text-[#171717]">마케팅 워크룸</h1></div><Link href={mode === "demo" ? "/admin/marketing" : "/admin/marketing?view=details"} className={`${T.button} inline-flex items-center gap-2 rounded-md border border-[#d4d4d4] bg-white px-3 font-medium text-[#262626] focus-visible:outline focus-visible:outline-2 focus-visible:outline-black`}><ArrowLeft className="h-4 w-4" />{mode === "demo" ? "마케팅 워크룸" : "세부 단계 보기"}</Link></header>
@@ -67,7 +76,7 @@ export default function DemoAgentControlPlane({ mode = "operational" }: { mode?:
 function MobileTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} className={`${T.button} min-h-11 border-r border-[#e5e5e5] px-2 font-medium last:border-r-0 ${active ? "bg-[#171717] text-white" : "bg-white text-[#525252]"}`}>{label}</button>; }
 
 function NodeCard({ node, selected, onSelect }: { node: ControlPlaneNode; selected: boolean; onSelect: (id: string) => void }) {
-  return <button type="button" onClick={() => onSelect(node.workId)} aria-label={`${senderLabel(node)}의 ${node.title} 보고 상세 열기`} className={`flex min-h-11 w-full items-center gap-2 rounded-md border bg-white px-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-black ${selected ? "border-[#171717]" : "border-[#d4d4d4]"}`}><span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-base"><span className="font-medium">{senderLabel(node)}</span> · {node.title} {STATUS[node.status]} · {sourceLabel(node.eventSource)}</span></button>;
+  return <button data-work-id={node.workId} type="button" onClick={() => onSelect(node.workId)} aria-label={`${senderLabel(node)}의 ${node.title} 보고 상세 열기`} className={`flex min-h-11 w-full items-center gap-2 rounded-md bg-white px-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-black ${selected ? "border-2 border-[#111]" : "border border-[#d4d4d4]"}`}><span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-base"><span className="font-medium">{senderLabel(node)}</span> · {node.title} {STATUS[node.status]} · {sourceLabel(node.eventSource)}</span>{selected ? <span className={`${T.badge} shrink-0 bg-black px-2 py-0.5 text-white`}>선택</span> : null}</button>;
 }
 
 function sourceLabel(source: ControlPlaneNode["eventSource"]) { return source === "codex_live" ? "새 이벤트" : source === "local_snapshot" ? "이전 기록" : source === "fixture" ? "데모" : source === "unavailable" ? "연결 안 됨" : "수동"; }

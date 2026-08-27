@@ -17,8 +17,10 @@ test("schedule inspector follows canonical schedulable staff count", () => {
   assert.match(screen, /CSS\.escape\(bookingId\)/);
   assert.equal((screen.match(/예약을 선택하세요/g) ?? []).length, 1);
   assert.doesNotMatch(screen, /<WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">/);
-  assert.match(shell, /activeScreen === "schedule"/);
-  assert.match(shell, /<section className="min-h-0 flex-1 bg-white">\{children\}<\/section>/);
+  assert.match(screen, /data-owner-screen-root="schedule"/);
+  assert.match(shell, /data-owner-content-plane/);
+  assert.match(shell, /pm-owner-content-plane h-full min-w-0 overflow-hidden rounded-\[14px\] border border-\[var\(--bd\)\] bg-white shadow-none/);
+  assert.match(shell, /p-3 md:p-4">\{children\}<\/div>/);
 });
 
 test("schedule creation dialog uses monochrome interaction tokens", () => {

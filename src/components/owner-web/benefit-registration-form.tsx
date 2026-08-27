@@ -15,12 +15,12 @@ type Props = {
 };
 
 const inputClassName =
-  "h-11 w-full rounded-[6px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]";
+  "h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]";
 
 function FormRow({ label, required = false, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
     <div className="grid gap-4 border-b border-[#e5e7eb] px-1 py-5 lg:grid-cols-[150px_minmax(0,1fr)]">
-      <div className="flex items-start gap-1 pt-2 text-[14px] font-semibold text-[#475569]">
+      <div className="flex items-start gap-1 pt-2 text-[14px] font-medium text-[#475569]">
         <span>{label}</span>
         {required ? <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#c85b67]" aria-label="필수" /> : null}
       </div>
@@ -49,7 +49,7 @@ function ChoiceButton({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "benefit-registration-choice flex h-[74px] min-w-[132px] flex-col items-center justify-center gap-2 rounded-[6px] border px-4 text-[14px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-55",
+        "benefit-registration-choice flex h-[74px] min-w-[132px] flex-col items-center justify-center gap-2 rounded-[8px] border px-4 text-[14px] font-medium transition disabled:cursor-not-allowed disabled:opacity-55",
         selected
           ? "border-[#2f7866]! bg-[#f4faf8]! text-[#2f7866]!"
           : "border-[#dbe2ea] bg-white text-[#475569]! hover:bg-[#f8fafc]",
@@ -184,10 +184,10 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
                   const value = Number(event.target.value.replace(/[^0-9]/g, ""));
                   onChange({ discount_value: draft.discount_type === "percent" ? Math.min(value, 100) : value });
                 }}
-                className="h-11 min-w-0 flex-1 rounded-l-[6px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:z-10 focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]"
+                className="h-11 min-w-0 flex-1 rounded-l-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:z-10 focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]"
                 placeholder={draft.discount_type === "percent" ? "10" : "10000"}
               />
-              <span className="inline-flex h-11 w-[62px] shrink-0 items-center justify-center rounded-r-[6px] border border-l-0 border-[#dbe2ea] bg-[#f8fafc] text-[14px] font-semibold text-[#475569]">
+              <span className="inline-flex h-11 w-[62px] shrink-0 items-center justify-center rounded-r-[8px] border border-l-0 border-[#dbe2ea] bg-[#f8fafc] text-[14px] font-medium text-[#475569]">
                 {draft.discount_type === "percent" ? "%" : "원"}
               </span>
             </div>
@@ -206,7 +206,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.combination_policy === policy}
               onClick={() => onChange({ combination_policy: policy })}
               className={cn(
-                "benefit-registration-choice h-10 min-w-[132px] rounded-[6px] border px-4 text-[14px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-55",
+                "benefit-registration-choice h-11 min-w-[132px] rounded-[8px] border px-4 text-[14px] font-medium transition disabled:cursor-not-allowed disabled:opacity-55",
                 draft.combination_policy === policy
                   ? "border-[#2f7866]! bg-[#f4faf8]! text-[#2f7866]!"
                   : "border-[#dbe2ea] bg-white text-[#475569]! hover:bg-[#f8fafc]",
@@ -239,7 +239,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.service_scope !== "specific"}
               onClick={() => onChange({ service_scope: "all", service_option_ids: [] })}
               className={cn(
-                "benefit-registration-choice h-10 min-w-[150px] rounded-[6px] border px-4 text-[14px] font-semibold transition",
+                "benefit-registration-choice h-11 min-w-[150px] rounded-[8px] border px-4 text-[14px] font-medium transition",
                 draft.service_scope !== "specific"
                   ? "border-[#2f7866]! bg-[#f4faf8]! text-[#2f7866]!"
                   : "border-[#dbe2ea] bg-white text-[#475569]! hover:bg-[#f8fafc]",
@@ -252,7 +252,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.service_scope === "specific"}
               onClick={() => onChange({ service_scope: "specific", service_option_ids: [] })}
               className={cn(
-                "benefit-registration-choice h-10 min-w-[150px] rounded-[6px] border px-4 text-[14px] font-semibold transition",
+                "benefit-registration-choice h-11 min-w-[150px] rounded-[8px] border px-4 text-[14px] font-medium transition",
                 draft.service_scope === "specific"
                   ? "border-[#2f7866]! bg-[#f4faf8]! text-[#2f7866]!"
                   : "border-[#dbe2ea] bg-white text-[#475569]! hover:bg-[#f8fafc]",
@@ -262,13 +262,13 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
             </button>
           </div>
           {draft.service_scope === "specific" ? (
-          <div className="mt-3 grid max-h-[170px] gap-1 overflow-y-auto rounded-[6px] border border-[#dbe2ea] bg-white p-2 sm:grid-cols-2">
+          <div className="mt-3 grid max-h-[170px] gap-1 overflow-y-auto rounded-[8px] border border-[#dbe2ea] bg-white p-2 sm:grid-cols-2">
             {scopeOptions.length === 0 ? (
               <p className="col-span-full px-2 py-4 text-center text-[13px] text-[#64748b]">등록된 서비스가 없습니다.</p>
             ) : scopeOptions.map((option) => {
               const selected = option.linkedOptionIds.some((optionId) => draft.service_option_ids.includes(optionId));
               return (
-                <label key={option.id} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-[5px] px-3 text-[14px] text-[#334155] hover:bg-[#f8fafc]">
+                <label key={option.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[8px] px-3 text-[14px] text-[#334155] hover:bg-[#f8fafc]">
                   <input
                     type="checkbox"
                     checked={selected}

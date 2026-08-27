@@ -16,7 +16,7 @@ import { StaffAddModal, StaffAnnualLeaveGrantModal, StaffLeaveModal } from "@/co
 import { StaffMonthlySchedule } from "@/components/owner-web/staff-monthly-schedule";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
 import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
-import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { staffChipPalette } from "@/lib/staff-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
@@ -464,7 +464,7 @@ export default function StaffManagementScreen({
                 <button
                   type="button"
                   onClick={() => setMonthStart((current) => formatMonthShift(current, -1))}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                   aria-label="이전 달"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -472,14 +472,14 @@ export default function StaffManagementScreen({
                 <button
                   type="button"
                   onClick={() => setMonthStart(getMonthStart())}
-                  className="h-9 min-w-[72px] rounded-[8px] px-3 text-[18px] font-medium text-[#111827] hover:bg-[#f8fafc]"
+                  className="h-11 min-w-[72px] rounded-[8px] px-3 text-[16px] font-medium text-[#111827] hover:bg-[#f8fafc]"
                 >
                   {formatMonthLabel(monthStart).replace(/^\d{4}년\s*/, "")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMonthStart((current) => formatMonthShift(current, 1))}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                   aria-label="다음 달"
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -491,7 +491,10 @@ export default function StaffManagementScreen({
 
       <div className="grid min-h-0 flex-1 gap-5 xl:grid-cols-1">
         <div className="min-h-0 min-w-0">
-          <WebSurface className={cn("overflow-hidden", boardTab === "monthly" && "flex h-full min-h-0 flex-col")}>
+          <section
+            data-owner-screen-root="staff"
+            className={cn("overflow-hidden", boardTab === "monthly" && "flex h-full min-h-0 flex-col")}
+          >
             {boardTab !== "monthly" ? (
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-2.5">
               {boardTab === "schedule" ? (
@@ -499,18 +502,18 @@ export default function StaffManagementScreen({
                     <button
                       type="button"
                       onClick={() => setWeekStart((current) => formatDateShift(current, -7))}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                       aria-label="이전 주"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => setWeekStart(getWeekStart())} className="h-8 px-3 text-[16px] font-medium text-[#111827]">
+                    <button type="button" onClick={() => setWeekStart(getWeekStart())} className="h-11 rounded-[8px] px-3 text-[16px] font-medium text-[#111827] hover:bg-[#f8fafc]">
                       {formatWeekLabel(weekStart)}
                     </button>
                     <button
                       type="button"
                       onClick={() => setWeekStart((current) => formatDateShift(current, 7))}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                       aria-label="다음 주"
                     >
                       <ChevronRight className="h-4 w-4" />
@@ -537,7 +540,7 @@ export default function StaffManagementScreen({
             </div>
             ) : null}
 
-            {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[16px] text-[#475569]">{notice}</div> : null}
+            {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[14px] text-[#475569]">{notice}</div> : null}
 
             {boardTab === "schedule" ? (
               <ScheduleTable staff={staff} weekDates={weekDates} requests={requests} overrides={scheduleOverrides} onOpenScheduleEditor={openScheduleEditor} />
@@ -559,7 +562,7 @@ export default function StaffManagementScreen({
                 onSelect={selectStaff}
               />
             )}
-          </WebSurface>
+          </section>
         </div>
 
       </div>

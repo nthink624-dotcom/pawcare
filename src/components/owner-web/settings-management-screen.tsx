@@ -810,7 +810,7 @@ function SettingSelectControl({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          "flex h-10 w-full items-center justify-between gap-3 rounded-[10px] border bg-white px-3 text-[14px] font-medium text-[#111827] outline-none transition",
+          "flex h-11 w-full items-center justify-between gap-3 rounded-[8px] border bg-white px-3 text-[14px] font-medium text-[#111827] outline-none transition",
           open ? "border-[#1f6b5b] shadow-[0_0_0_3px_rgba(31,107,91,0.08)]" : "border-[#dbe2ea] hover:border-[#bfd3cb]",
         )}
       >
@@ -821,7 +821,7 @@ function SettingSelectControl({
       {open ? (
         <div
           role="listbox"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-max min-w-full overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-max min-w-full overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]"
         >
           {options.map((option) => {
             const selected = option === value;
@@ -836,7 +836,7 @@ function SettingSelectControl({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex h-9 w-full items-center justify-between gap-4 rounded-[8px] px-3 text-left text-[14px] transition",
+                  "flex h-11 w-full items-center justify-between gap-4 rounded-[8px] px-3 text-left text-[14px] transition",
                   selected ? "bg-[#edf7f3] font-semibold text-[#1f6b5b]" : "text-[#334155] hover:bg-[#f8fafc]",
                 )}
               >
@@ -2263,10 +2263,10 @@ export default function SettingsManagementScreen({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto">
+    <div data-owner-screen-root={`settings-${activeTab}`} className="h-full min-h-0 overflow-y-auto">
       {saveCompleteVisible ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none" aria-live="polite">
-          <div className="flex min-w-[252px] items-center justify-center gap-3 rounded-[12px] border border-[#dbe2ea] bg-white px-6 py-5 text-[18px] font-semibold text-[#111827] shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
+          <div className="flex min-w-[252px] items-center justify-center gap-3 rounded-[10px] border border-[#dbe2ea] bg-white px-6 py-5 text-[16px] font-semibold text-[#111827] shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#e6f3ef] text-[#2f7866]">
               <Check className="h-5 w-5" strokeWidth={2.5} />
             </span>
@@ -2275,7 +2275,7 @@ export default function SettingsManagementScreen({
         </div>
       ) : null}
 
-      <div className={cn("grid min-h-0 gap-6", (activeTab === "shop" || activeTab === "benefits") && "h-full", showTabNavigation && "xl:grid-cols-[316px_minmax(0,1fr)]")}>
+      <div className={cn("grid min-h-0 gap-3", (activeTab === "shop" || activeTab === "benefits") && "h-full", showTabNavigation && "xl:grid-cols-[280px_minmax(0,1fr)]")}>
         {showTabNavigation ? (
           <WebSurface className="p-3">
             <div className="space-y-1.5">
@@ -2285,7 +2285,7 @@ export default function SettingsManagementScreen({
                   type="button"
                   onClick={() => changeActiveTab(tab.key)}
                   className={cn(
-                    "flex w-full items-center justify-between rounded-[16px] px-4 py-3 text-left transition",
+                    "flex min-h-11 w-full items-center justify-between rounded-[8px] px-3 py-2 text-left transition",
                     activeTab === tab.key ? "bg-[#f1f7f4] text-[#2f7866]" : "text-[#5f5851] hover:bg-[#fbfaf8]",
                   )}
                 >
@@ -2297,7 +2297,7 @@ export default function SettingsManagementScreen({
           </WebSurface>
         ) : null}
 
-        <div className={cn("min-w-0 space-y-4", (activeTab === "shop" || activeTab === "benefits") && "h-full min-h-0")}>
+        <div className={cn("min-w-0 space-y-3", (activeTab === "shop" || activeTab === "benefits") && "h-full min-h-0")}>
           {activeTab === "alerts" ? (
             <SettingsAlertsPanel
               value={alertSettings}
@@ -2407,7 +2407,7 @@ export default function SettingsManagementScreen({
               />
             </CustomerPagePreviewLayout>
           ) : (
-            <WebSurface className="p-6">
+            <WebSurface className="p-4">
               <div className="divide-y divide-[#f1e8e0]">
                 {current.rows.map((row) => (
                   <div

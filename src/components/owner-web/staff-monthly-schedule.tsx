@@ -157,7 +157,7 @@ function MonthlyDayCell({
                 onOpenScheduleEditor(staffMember, day);
               }}
               className={cn(
-                "pm-wrap-indicator flex h-[21px] w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[6px] border bg-white px-[7px] text-left text-[12px] leading-none transition hover:bg-[#f7f7f4]",
+                "pm-wrap-indicator flex h-[21px] w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[8px] border bg-white px-[7px] text-left text-[12px] leading-none transition hover:bg-[#f7f7f4]",
                 getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
               )}
               style={{ "--pm-wrap-indicator-color": staffTone.selectedBackground } as CSSProperties}

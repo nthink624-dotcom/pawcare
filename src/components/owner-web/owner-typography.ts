@@ -1,13 +1,13 @@
 export const OWNER_TYPOGRAPHY = {
-  helper: "text-[14px] leading-[18px] font-normal",
-  meta: "text-[14px] leading-5 font-medium",
-  badge: "text-[14px] leading-5 font-semibold",
-  label: "text-[16px] leading-6 font-medium",
-  control: "text-[16px] leading-6 font-semibold",
-  body: "text-[16px] leading-6 font-medium",
-  bodyStrong: "text-[16px] leading-6 font-semibold",
-  sectionTitle: "text-[20px] leading-7 font-semibold",
-  modalTitle: "text-[28px] leading-9 font-semibold",
+  helper: "text-[13px] leading-[19px] font-normal",
+  meta: "text-[12px] leading-[18px] font-normal",
+  badge: "text-[12px] leading-[18px] font-medium",
+  label: "text-[14px] leading-5 font-normal",
+  control: "text-[14px] leading-5 font-medium",
+  body: "text-[14px] leading-5 font-normal",
+  bodyStrong: "text-[14px] leading-5 font-medium",
+  sectionTitle: "text-[16px] leading-6 font-semibold",
+  modalTitle: "text-[20px] leading-7 font-semibold",
 } as const;
 
 export const CARE_REPORT_TYPOGRAPHY = {

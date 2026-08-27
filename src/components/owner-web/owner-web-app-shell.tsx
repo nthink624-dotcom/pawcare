@@ -111,7 +111,7 @@ function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey
 }
 
 const OWNER_HEADER_UTILITY_BUTTON_CLASS =
-  "inline-flex h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-transparent bg-transparent px-3 text-[13px] font-semibold text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]";
+  "inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] border border-transparent bg-transparent px-3 text-[13px] font-medium text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]";
 
 function AlimtalkCreditMenu({
   open,
@@ -143,17 +143,14 @@ function AlimtalkCreditMenu({
             <button
               type="button"
               onClick={() => setHelpOpen((prev) => !prev)}
-              className="inline-flex h-7 items-center rounded-[8px] border border-[#dbe6f2] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#475569] transition hover:border-[#bfd2ea] hover:bg-white"
+              className="inline-flex min-h-11 items-center rounded-[8px] border border-[#dbe6f2] bg-[#f8fafc] px-2.5 text-[12px] font-medium text-[#475569] transition hover:border-[#bfd2ea] hover:bg-white"
               aria-expanded={helpOpen}
             >
               도움말
             </button>
           </div>
-          <div className="mt-3 rounded-[9px] border border-[#dbe6f2] bg-[#f8fbff] px-3 py-2.5">
+          <div className="mt-3 rounded-[10px] border border-[#dbe6f2] bg-[#f8fbff] px-3 py-2.5">
             <p className="text-[13px] font-semibold text-[var(--ink)]">요금제 포함 · 별도 충전 없음</p>
-            <p className="mt-1 text-[12px] font-medium leading-5 text-[#64748b]">
-              별도 충전이나 건별 추가 결제 없이 요금제에 포함됩니다.
-            </p>
           </div>
           {helpOpen ? (
             <div className="mt-3 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[12px] font-medium leading-5 text-[#64748b]">
@@ -239,7 +236,7 @@ export default function OwnerWebAppShell({
                   {group.items.map((screen) => {
                     const active = activeScreen === screen.key;
                     const itemClassName = cn(
-                      "relative flex h-[40px] w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[15px] font-medium text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
+                      "relative flex h-11 w-full items-center gap-3 rounded-[8px] px-3.5 text-left text-[14px] font-medium text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
                       active &&
                         "bg-[#eff6ff] font-semibold text-[var(--acc)] shadow-none hover:bg-[#eff6ff] hover:text-[var(--acc)]",
                     );
@@ -274,11 +271,11 @@ export default function OwnerWebAppShell({
             href="/owner/billing?compare=1"
             prefetch
             aria-label={`${currentPlanLabel} 요금표 보기`}
-            className="block rounded-[13px] border border-[#dbe2ea] bg-white px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:border-[#b8c7dc] hover:bg-[#f8fbff]"
+            className="block rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-3 shadow-none transition hover:border-[#b8c7dc] hover:bg-[#f8fbff]"
           >
             <div className="flex items-center justify-between gap-3">
               <p className="min-w-0 truncate text-[14px] font-semibold text-[#273142]">{currentPlanLabel}</p>
-              <span className="shrink-0 rounded-full bg-[#edf4ff] px-2.5 py-1 text-[12px] font-bold text-[#316fe8]">
+              <span className="shrink-0 rounded-full bg-[#edf4ff] px-2.5 py-1 text-[12px] font-medium text-[#316fe8]">
                 이용 플랜
               </span>
             </div>
@@ -288,7 +285,7 @@ export default function OwnerWebAppShell({
 
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="hidden h-[60px] shrink-0 items-center gap-4 border-b border-[var(--line2)] bg-[var(--card)] px-[22px] lg:flex">
-          <label className="flex h-[38px] w-[300px] items-center gap-2 rounded-[10px] border border-transparent bg-[#eef1f5] px-3 text-[14px] text-[var(--mid)] transition focus-within:border-[var(--acc)] focus-within:bg-white focus-within:shadow-[0_0_0_3px_var(--acc-tint)]">
+          <label className="flex h-11 w-[300px] items-center gap-2 rounded-[8px] border border-transparent bg-[#eef1f5] px-3 text-[14px] text-[var(--mid)] transition focus-within:border-[var(--acc)] focus-within:bg-white focus-within:shadow-[0_0_0_3px_var(--acc-tint)]">
             <Search className="h-4 w-4 shrink-0" strokeWidth={1.7} />
             <input className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--mut)]" placeholder="검색" />
           </label>
@@ -319,24 +316,24 @@ export default function OwnerWebAppShell({
               <button
                 type="button"
                 onClick={onStoreMenuToggle}
-                className="grid h-[42px] min-w-[178px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[10px] px-2.5 text-left transition hover:bg-[#eef1f5]"
+                className="grid h-11 min-w-[178px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] px-2.5 text-left transition hover:bg-[#eef1f5]"
                 aria-expanded={storeMenuOpen}
               >
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[var(--acc-soft)] text-[12px] font-bold text-[var(--acc-dk)]">
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[var(--acc-soft)] text-[12px] font-semibold text-[var(--acc-dk)]">
                   {shopInitials}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-[13.5px] font-bold leading-[18px] text-[var(--ink)]">{shopDisplayName}</span>
+                  <span className="block truncate text-[13px] font-semibold leading-[18px] text-[var(--ink)]">{shopDisplayName}</span>
                   <span className="block truncate text-[11px] font-medium leading-[14px] text-[var(--mut)]">운영 계정</span>
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-[var(--mid)]" strokeWidth={1.6} />
               </button>
               {storeMenuOpen ? (
                 <div className="absolute right-0 top-12 z-50 w-full overflow-hidden rounded-[10px] border border-[var(--bd)] bg-white py-1 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
-                  <button type="button" onClick={onOpenProfile} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
+                  <button type="button" onClick={onOpenProfile} className="block min-h-11 w-full rounded-[8px] px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
                     프로필
                   </button>
-                  <button type="button" onClick={onOpenShop} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
+                  <button type="button" onClick={onOpenShop} className="block min-h-11 w-full rounded-[8px] px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
                     매장 정보
                   </button>
                   <div className="my-1 border-t border-[var(--line)]" />
@@ -344,7 +341,7 @@ export default function OwnerWebAppShell({
                     type="button"
                     onClick={onLogout}
                     disabled={loggingOut}
-                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-[#a04455] hover:bg-[#fff1f2] disabled:opacity-60"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-[8px] px-3 py-2.5 text-left text-[13px] font-medium text-[#a04455] hover:bg-[#fff1f2] disabled:opacity-60"
                   >
                     <LogOut className="h-4 w-4" strokeWidth={1.6} />
                     {loggingOut ? "로그아웃 중..." : "로그아웃"}
@@ -364,7 +361,7 @@ export default function OwnerWebAppShell({
             <button
               type="button"
               onClick={() => setFeatureRequestOpen(true)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569]"
               aria-label="기능 개선 요청"
               title="기능 개선 요청"
             >
@@ -376,7 +373,7 @@ export default function OwnerWebAppShell({
               options={ownerWebNavigationItems.map((screen) => ({ value: screen.key, label: screen.label }))}
               align="right"
               className="max-w-[180px]"
-              buttonClassName="h-10"
+              buttonClassName="h-11"
             />
           </div>
         </header>
@@ -394,13 +391,12 @@ export default function OwnerWebAppShell({
           </div>
         ) : null}
 
-        <section className="min-h-0 flex-1 overflow-hidden bg-[var(--bg)] p-4">
+        <section className="min-h-0 flex-1 overflow-hidden bg-[var(--bg)] p-3 md:p-4">
           <div
-            className="h-full min-w-0 overflow-hidden rounded-[14px] border border-[var(--bd)] bg-white shadow-none"
+            data-owner-content-plane
+            className="pm-owner-content-plane h-full min-w-0 overflow-hidden rounded-[14px] border border-[var(--bd)] bg-white shadow-none"
           >
-            <div className="h-full min-h-0 overflow-hidden overscroll-contain p-4">
-              {children}
-            </div>
+            <div className="h-full min-h-0 overflow-hidden overscroll-contain p-3 md:p-4">{children}</div>
           </div>
         </section>
       </main>

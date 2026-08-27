@@ -34,7 +34,7 @@ const initialFilters: BenefitFilters = {
 };
 
 const fieldClassName =
-  "h-10 w-full rounded-[6px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827] outline-none focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]";
+  "h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827] outline-none focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]";
 
 function getAudienceLabel(audience: CustomerDiscountCoupon["audience"]) {
   if (audience === "first_visit") return "첫 방문 고객";
@@ -128,7 +128,7 @@ export default function BenefitManagementTable({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <form
-        className="grid shrink-0 grid-cols-[minmax(180px,1.35fr)_repeat(3,minmax(140px,1fr))_auto] gap-3 border-b border-[#e5e7eb] pb-4"
+        className="grid shrink-0 grid-cols-2 gap-3 border-b border-[#e5e7eb] pb-4 lg:grid-cols-[minmax(180px,1.35fr)_repeat(3,minmax(140px,1fr))_auto]"
         onSubmit={(event) => {
           event.preventDefault();
           setFilters(filterDraft);
@@ -190,10 +190,10 @@ export default function BenefitManagementTable({
             <option value="disabled">중지됨</option>
           </select>
         </label>
-        <div className="flex items-end gap-2">
+        <div className="col-span-2 flex items-end gap-2 lg:col-span-1">
           <button
             type="submit"
-            className="inline-flex h-10 items-center gap-1.5 rounded-[6px] border border-[#475569] bg-[#475569] px-4 text-[14px] font-semibold text-white hover:bg-[#3d4958]"
+            className="inline-flex h-11 items-center gap-1.5 rounded-[8px] border border-[#475569] bg-[#475569] px-4 text-[14px] font-medium text-white hover:bg-[#3d4958]"
           >
             <Search className="h-4 w-4" />
             조회
@@ -201,7 +201,7 @@ export default function BenefitManagementTable({
           <button
             type="button"
             onClick={resetFilters}
-            className="inline-flex h-10 items-center gap-1.5 rounded-[6px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#475569] hover:bg-[#f8fafc]"
+            className="inline-flex h-11 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] hover:bg-[#f8fafc]"
           >
             <RotateCcw className="h-4 w-4" />
             초기화
@@ -209,7 +209,7 @@ export default function BenefitManagementTable({
         </div>
       </form>
 
-      <div className="flex shrink-0 items-center justify-between gap-3 py-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 py-3">
         <p className="text-[15px] font-medium text-[#334155]">
           혜택 목록 <span className="font-normal text-[#64748b]">총 {filteredCoupons.length}개</span>
         </p>
@@ -218,14 +218,14 @@ export default function BenefitManagementTable({
             type="button"
             disabled={selectedCount === 0}
             onClick={deleteSelected}
-            className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3.5 text-[14px] font-medium text-[#64748b] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3.5 text-[14px] font-medium text-[#64748b] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-40"
           >
             선택 삭제{selectedCount > 0 ? ` (${selectedCount})` : ""}
           </button>
           <button
             type="button"
             onClick={onOpenRegister}
-            className="inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#9bb8f4] bg-white px-3.5 text-[14px] font-medium text-[#2f6bd4] hover:bg-[#f3f7ff]"
+            className="inline-flex h-11 items-center gap-1.5 rounded-[8px] border border-[#9bb8f4] bg-white px-3.5 text-[14px] font-medium text-[#2f6bd4] hover:bg-[#f3f7ff]"
           >
             <Plus className="h-4 w-4" />
             새 혜택 등록
@@ -233,10 +233,10 @@ export default function BenefitManagementTable({
         </div>
       </div>
 
-      <div className="min-h-[210px] shrink-0 overflow-auto rounded-[6px] border border-[#dbe2ea]">
+      <div className="min-h-[210px] shrink-0 overflow-auto rounded-[8px] border border-[#dbe2ea]">
         <table className="w-full min-w-[1060px] border-collapse text-center text-[14px]">
-          <thead className="sticky top-0 z-10 bg-[#f8fafc] font-medium text-[#475569]">
-            <tr className="border-b border-[#dbe2ea]">
+          <thead className="sticky top-0 z-10 bg-[#f8fafc] text-[14px] font-medium text-[#475569]">
+            <tr className="border-b border-[#dbe2ea] [&>th]:font-medium">
               <th className="w-11 px-3 py-3">
                 <input
                   type="checkbox"
@@ -256,7 +256,7 @@ export default function BenefitManagementTable({
               <th className="px-3 py-3 text-center">관리</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#e5e7eb] bg-white text-[16px]">
+          <tbody className="divide-y divide-[#e5e7eb] bg-white text-[14px]">
             {filteredCoupons.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-12 text-center text-[#64748b]">
@@ -303,7 +303,7 @@ export default function BenefitManagementTable({
                       <button
                         type="button"
                         onClick={() => setEditingCouponId((current) => current === coupon.id ? null : coupon.id)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                         title="수정"
                         aria-label={`${coupon.owner_label || coupon.name} 수정`}
                       >
@@ -312,14 +312,14 @@ export default function BenefitManagementTable({
                       <button
                         type="button"
                         onClick={() => onToggleEnabled(coupon.id)}
-                        className="h-9 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-medium text-[#475569] hover:bg-[#f8fafc]"
+                        className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-medium text-[#475569] hover:bg-[#f8fafc]"
                       >
                         {coupon.enabled ? "중지" : "재사용"}
                       </button>
                       <button
                         type="button"
                         onClick={() => deleteOne(coupon)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] border border-[#ead6dc] bg-white text-[#a04455] hover:bg-[#fffafa]"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white text-[#a04455] hover:bg-[#fffafa]"
                         title="삭제"
                         aria-label={`${coupon.owner_label || coupon.name} 삭제`}
                       >

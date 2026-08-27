@@ -110,15 +110,15 @@ function AlertHelp({
         type="button"
         aria-label={`${label} 도움말`}
         onClick={(event) => event.stopPropagation()}
-        className="inline-flex h-5 w-5 items-center justify-center text-[#94a3b8] transition hover:text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cbd5e1]"
+        className="-m-3 inline-flex h-11 w-11 items-center justify-center rounded-[8px] text-[#94a3b8] transition hover:text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cbd5e1]"
       >
         <CircleHelp className="h-4 w-4" aria-hidden="true" />
       </button>
       <span
         role="tooltip"
         className={cn(
-          "pointer-events-none invisible absolute top-[calc(100%+8px)] z-30 w-max whitespace-nowrap rounded-[6px] border border-[#dbe2ea] bg-white px-3 py-2 text-left text-[13px] font-normal leading-5 text-[#475569] opacity-0 shadow-[0_8px_22px_rgba(15,23,42,0.12)] transition group-hover/help:visible group-hover/help:opacity-100 group-focus-within/help:visible group-focus-within/help:opacity-100",
-          align === "right" ? "right-0" : "left-0",
+          "pointer-events-none invisible fixed inset-x-6 bottom-6 z-30 whitespace-normal rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-left text-[13px] font-normal leading-5 text-[#475569] opacity-0 shadow-[0_8px_22px_rgba(15,23,42,0.12)] transition group-hover/help:visible group-hover/help:opacity-100 group-focus-within/help:visible group-focus-within/help:opacity-100 sm:absolute sm:inset-x-auto sm:bottom-auto sm:top-[calc(100%+8px)] sm:w-max sm:whitespace-nowrap",
+          align === "right" ? "sm:right-0" : "sm:left-0",
         )}
       >
         {children}
@@ -251,7 +251,7 @@ function TimingOptionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "h-10 rounded-[8px] border px-4 text-[16px] transition",
+        "h-11 rounded-[8px] border px-4 text-[14px] font-medium transition",
         selected
           ? "border-[#202020] bg-[#f5f5f5] text-[#111827] shadow-[inset_0_0_0_1px_rgba(17,17,17,0.03)]"
           : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#cbd5e1] hover:bg-[#fafafa]",
@@ -287,7 +287,7 @@ function MinuteTimingControl({
     <div className="rounded-[10px] border border-[#e5e7eb] bg-[#fbfbfb] p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[16px] font-medium text-[#111827]">{title}</p>
-        <label className="flex h-10 items-center overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+        <label className="flex h-11 items-center overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
           <input
             type="number"
             min={min}
@@ -305,10 +305,10 @@ function MinuteTimingControl({
               const nextValue = Number.parseInt(event.target.value, 10);
               onChange(clampMinuteValue(Number.isFinite(nextValue) ? nextValue : value, min, max));
             }}
-            className="h-full w-[76px] border-0 bg-transparent px-3 text-right text-[16px] font-medium text-[#111827] outline-none"
+            className="h-full w-[76px] border-0 bg-transparent px-3 text-right text-[14px] font-medium text-[#111827] outline-none"
             aria-label={`${title} 분 단위 입력`}
           />
-          <span className="border-l border-[#e5e7eb] px-3 text-[16px] text-[#475569]">{unitLabel}</span>
+          <span className="border-l border-[#e5e7eb] px-3 text-[14px] text-[#475569]">{unitLabel}</span>
         </label>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -338,7 +338,7 @@ function KakaoAlimtalkPreview({
   const message = preview?.body ?? "";
 
   return (
-    <div className="rounded-[12px] border border-[#dbe2ea] bg-white p-4">
+    <div className="rounded-[10px] border border-[#dbe2ea] bg-white p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <p className="text-[16px] font-semibold text-[#111827]">실제 발송 미리보기</p>
@@ -504,11 +504,11 @@ export default function SettingsAlertsPanel({
   const showSenderChannelSettings = false;
 
   return (
-    <section className="rounded-[16px] border border-[#e5e7eb] bg-white p-5 shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="space-y-4">
+    <section className="min-h-full">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="space-y-3">
           {showSenderChannelSettings ? (
-          <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
+          <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-[16px] text-[#111827]">알림톡 발신 채널</p>
@@ -579,7 +579,7 @@ export default function SettingsAlertsPanel({
                         })
                       }
                       placeholder="예: 우진만세"
-                      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7d68]"
+                      className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827] outline-none focus:border-[#2f7d68]"
                     />
                   </label>
                   <label className="block">
@@ -593,7 +593,7 @@ export default function SettingsAlertsPanel({
                         })
                       }
                       placeholder="카카오 채널 링크 또는 검색 가능한 이름"
-                      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7d68]"
+                      className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827] outline-none focus:border-[#2f7d68]"
                     />
                   </label>
                 </div>
@@ -644,7 +644,7 @@ export default function SettingsAlertsPanel({
           </div>
           ) : null}
 
-          <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
+          <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-4">
             <div className="flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-1.5">
                 <p className="text-[16px] font-semibold text-[#111827]">알림톡 전체 사용</p>
@@ -669,7 +669,7 @@ export default function SettingsAlertsPanel({
           />
 
           {alertGroups.map((group) => (
-            <div key={group.key} className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
+            <div key={group.key} className="rounded-[10px] border border-[#e5e7eb] bg-white p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <p className="text-[16px] font-semibold text-[#111827]">{group.title}</p>
@@ -682,7 +682,7 @@ export default function SettingsAlertsPanel({
                 </span>
               </div>
               {group.key === "reservationGuide" ? (
-                <div className="mb-3 rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-3">
+                <div className="mb-3 rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-1.5">
                       <p className="text-[16px] font-medium text-[#111827]">예약 안내 자동 발송</p>
@@ -721,7 +721,7 @@ export default function SettingsAlertsPanel({
                         aria-expanded={selected}
                         onClick={() => setSelectedAlertType(item.type)}
                         className={cn(
-                          "flex cursor-pointer items-center justify-between gap-4 rounded-[10px] border bg-white p-3 text-left transition",
+                          "flex cursor-pointer items-center justify-between gap-4 rounded-[8px] border bg-white p-3 text-left transition",
                           selected
                             ? "border-[#cbd5e1] shadow-[0_6px_16px_rgba(15,23,42,0.06)]"
                             : checked
@@ -772,7 +772,7 @@ export default function SettingsAlertsPanel({
           ))}
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+        <div className="space-y-3 xl:sticky xl:top-4 xl:self-start">
           <KakaoAlimtalkPreview
             item={previewItem}
             preview={templatePreviews[previewItem.type] ?? null}

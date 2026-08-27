@@ -790,7 +790,7 @@ export function DailyScheduleGrid({
                                   onSelectStaff(booking.staffKey || firstStaffKey);
                                 }}
                                 className={cn(
-                                  "absolute z-20 box-border flex min-h-10 items-center justify-start overflow-hidden rounded-[9px] px-2.5 py-1.5 text-left text-[12px] font-medium leading-[14px] text-[#334155]",
+                                  "absolute z-20 box-border flex min-h-11 items-center justify-start overflow-hidden rounded-[8px] px-2.5 py-1.5 text-left text-[12px] font-medium leading-[14px] text-[#334155]",
                                   getBookingCardToneClass(cardTone),
                                 )}
                                 style={{
@@ -822,7 +822,7 @@ export function DailyScheduleGrid({
                                 setExpandedMicroBookingId(density === "micro" ? booking.id : null);
                               }}
                               className={cn(
-                                "absolute z-20 box-border cursor-grab overflow-hidden rounded-[12px] p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1 active:cursor-grabbing",
+                                "absolute z-20 box-border cursor-grab overflow-hidden rounded-[8px] p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1 active:cursor-grabbing",
                                 !canAdjustBookingTime && "cursor-pointer active:cursor-pointer",
                                 resizingBooking?.bookingId === booking.id && "cursor-ns-resize",
                                 draggingBookingId === booking.id && "opacity-70 ring-1 ring-[#93c5fd]",

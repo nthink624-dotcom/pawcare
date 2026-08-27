@@ -5286,7 +5286,7 @@ export default function CalendarManagementScreen({
   );
 
   return (
-    <div className="space-y-2">
+    <div className="h-full min-h-0">
       {scheduleDialogOpen ? (
         <ScheduleCreateDialog
           data={bootstrapData}
@@ -5381,6 +5381,7 @@ export default function CalendarManagementScreen({
       ) : null}
 
       <div
+        data-owner-screen-root="schedule"
         className={cn(
           "relative grid h-full min-h-0 min-w-0",
           usesContextualInspector ? "grid-cols-[minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1fr)_360px]",

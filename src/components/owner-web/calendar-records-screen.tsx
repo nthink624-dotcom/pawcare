@@ -815,23 +815,23 @@ export default function CalendarRecordsScreen({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <WebSurface className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div data-owner-screen-root="calendar-records" className="flex h-full min-h-0 flex-col overflow-hidden">
+      <section className="flex h-full min-h-0 flex-col overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-[#e5e7eb] bg-white px-5 py-2.5">
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => setMonthAnchor((current) => moveMonth(current, -1))}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]"
               aria-label="이전 달"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <p className="flex h-9 min-w-[78px] items-center justify-center px-3 text-center text-[16px] font-medium text-[#111827]">{formatMonthLabel(monthAnchor)}</p>
+            <p className="flex h-11 min-w-[78px] items-center justify-center px-3 text-center text-[16px] font-medium text-[#111827]">{formatMonthLabel(monthAnchor)}</p>
             <button
               type="button"
               onClick={() => setMonthAnchor((current) => moveMonth(current, 1))}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]"
               aria-label="다음 달"
             >
               <ChevronRight className="h-4 w-4" />
@@ -843,17 +843,17 @@ export default function CalendarRecordsScreen({
                 setMonthAnchor(today);
                 openDate(today);
               }}
-              className="h-9 rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937]"
+              className="h-11 rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937]"
             >
               오늘
             </button>
           </div>
-          <label className="flex h-9 min-w-[280px] flex-1 items-center gap-3 rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-[#64748b]">
+          <label className="flex h-11 min-w-[280px] flex-1 items-center gap-3 rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-[#64748b]">
             <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-4 w-4 text-[#94a3b8]" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="w-full bg-transparent text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
+              className="w-full bg-transparent text-[14px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
               placeholder="반려동물명, 보호자명, 메모 검색"
             />
           </label>
@@ -862,7 +862,7 @@ export default function CalendarRecordsScreen({
               <select
                 value={staffFilter}
                 onChange={(event) => setStaffFilter(event.target.value)}
-                className="h-9 min-w-[132px] appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[15px] font-normal text-[#111827] outline-none focus:border-[#111827]"
+                className="h-11 min-w-[132px] appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[14px] font-normal text-[#111827] outline-none focus:border-[#111827]"
               >
                 {staffOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -874,7 +874,7 @@ export default function CalendarRecordsScreen({
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as CalendarStatusFilter)}
-                className="h-9 min-w-[132px] appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[15px] font-normal text-[#111827] outline-none focus:border-[#111827]"
+                className="h-11 min-w-[132px] appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[14px] font-normal text-[#111827] outline-none focus:border-[#111827]"
               >
                 {statusOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -936,9 +936,9 @@ export default function CalendarRecordsScreen({
                         className={cn(
                           "leading-5",
                           isToday
-                            ? "text-[15px] font-bold text-[#111827]"
+                            ? "text-[15px] font-semibold text-[#111827]"
                             : active
-                              ? "text-[13px] font-bold text-[#111827]"
+                              ? "text-[13px] font-semibold text-[#111827]"
                               : hasItems
                                 ? "text-[13px] font-medium text-[#111827]"
                                 : "text-[13px] font-medium text-[#111827]",
@@ -1003,7 +1003,7 @@ export default function CalendarRecordsScreen({
             onAddReservation={onCreateReservationForDate ? () => onCreateReservationForDate(selectedDate) : undefined}
           />
         </div>
-      </WebSurface>
+      </section>
 
       {selectedItem ? (
         <GroomingRecordSheet

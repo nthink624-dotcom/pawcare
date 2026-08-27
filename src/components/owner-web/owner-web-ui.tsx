@@ -35,8 +35,8 @@ export function WebSectionTitle({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 className="text-[24px] font-semibold text-[#1f2937]">{title}</h2>
-        {description ? <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{description}</p> : null}
+        <h2 className="text-[20px] font-semibold leading-7 text-[#1f2937]">{title}</h2>
+        {description ? <p className="mt-1 text-[13px] leading-[19px] text-[#64748b]">{description}</p> : null}
       </div>
       {action}
     </div>
@@ -49,10 +49,10 @@ export function ToolbarRow({ children, className }: { children: React.ReactNode;
 
 export function SearchField({ placeholder }: { placeholder: string }) {
   return (
-    <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[9px] border border-[#e8edf3] bg-white px-3 text-[#64748b] transition focus-within:border-[#93c5fd] focus-within:ring-[3px] focus-within:ring-[#dbeafe]/60">
+    <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#e8edf3] bg-white px-3 text-[#64748b] transition focus-within:border-[#93c5fd] focus-within:ring-[3px] focus-within:ring-[#dbeafe]/60">
       <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#94a3b8]" />
       <input
-        className="w-full bg-transparent text-[16px] text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
+        className="w-full bg-transparent text-[14px] leading-5 text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
         placeholder={placeholder}
       />
     </label>
@@ -64,7 +64,7 @@ export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-[42px] items-center gap-2 whitespace-nowrap rounded-[9px] border border-[#e8edf3] bg-white px-4 text-[14px] font-medium text-[#334155] transition hover:border-[#cbd5e1] hover:bg-[#f8fbff]"
+      className="inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-[8px] border border-[#e8edf3] bg-white px-4 text-[14px] font-medium text-[#334155] transition hover:border-[#cbd5e1] hover:bg-[#f8fbff]"
     >
       <span>{label}</span>
       <Icon className="h-4 w-4 text-[#64748b]" />
@@ -131,7 +131,7 @@ export function SoftSelect<T extends string = string>({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          "grid h-10 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[9px] border border-[#e8edf3] bg-white px-3 text-left transition",
+          "grid h-11 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#e8edf3] bg-white px-3 text-left transition",
           "hover:border-[#cbd5e1] hover:bg-[#f8fbff] focus:outline-none focus:ring-[3px] focus:ring-[#dbeafe]/60 disabled:cursor-not-allowed disabled:opacity-60",
           open && "border-[#93c5fd] bg-white",
           buttonClassName,
@@ -165,7 +165,7 @@ export function SoftSelect<T extends string = string>({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex h-9 w-full items-center justify-between gap-3 rounded-[8px] px-3 text-left text-[14px] transition",
+                  "flex h-11 w-full items-center justify-between gap-3 rounded-[8px] px-3 text-left text-[14px] transition",
                   selected ? "bg-[#eff6ff] font-semibold text-[#1677ff]" : "text-[#334155] hover:bg-[#f8fbff]",
                   option.disabled && "cursor-not-allowed opacity-45",
                 )}
@@ -244,7 +244,7 @@ export function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-[34px] items-center justify-center rounded-[8px] border px-3.5 text-[13px] font-medium transition",
+        "inline-flex min-h-11 items-center justify-center rounded-full border px-3.5 text-[13px] font-medium transition",
         active && tone === "default" && "border-[#bfdbfe] bg-[#eff6ff] text-[#1677ff]",
         active && tone === "soft" && "border-[#bae6fd] bg-[#f0f9ff] text-[#0369a1]",
         active && tone === "danger" && "border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]",
@@ -266,11 +266,10 @@ export function DetailPanel({
   children: React.ReactNode;
 }) {
   return (
-    <WebSurface className="sticky top-6 p-5">
-      <p className="text-[12px] font-semibold tracking-[0.12em] text-[#94a3b8]">DETAIL</p>
-      <h3 className="mt-2 text-[22px] font-semibold text-[#111827]">{title}</h3>
-      {subtitle ? <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{subtitle}</p> : null}
-      <div className="mt-6 space-y-5">{children}</div>
+    <WebSurface className="sticky top-4 p-4">
+      <h3 className="text-[16px] font-semibold leading-6 text-[#111827]">{title}</h3>
+      {subtitle ? <p className="mt-1 text-[13px] leading-[19px] text-[#64748b]">{subtitle}</p> : null}
+      <div className="mt-3 space-y-3">{children}</div>
     </WebSurface>
   );
 }
@@ -285,10 +284,10 @@ export function DetailBlock({
   description?: string;
 }) {
   return (
-    <div className="border-b border-[#edf2f7] pb-4 last:border-b-0 last:pb-0">
-      <p className="text-[12px] font-medium text-[#94a3b8]">{label}</p>
-      <p className="mt-2 text-[16px] font-semibold text-[#111827]">{value}</p>
-      {description ? <p className="mt-2 text-[13px] leading-6 text-[#64748b]">{description}</p> : null}
+    <div className="border-b border-[#edf2f7] pb-3 last:border-b-0 last:pb-0">
+      <p className="text-[12px] font-normal leading-[18px] text-[#94a3b8]">{label}</p>
+      <p className="mt-1 text-[14px] font-medium leading-5 text-[#111827]">{value}</p>
+      {description ? <p className="mt-1 text-[13px] leading-[19px] text-[#64748b]">{description}</p> : null}
     </div>
   );
 }
@@ -306,7 +305,7 @@ export function TableShell({
     <WebSurface className="overflow-hidden">
       <div
         className={cn(
-          "grid border-b border-[#e2e8f0] bg-[#f8fafc] px-5 py-3 text-[15px] font-semibold tracking-[0.08em] text-[#64748b]",
+          "grid border-b border-[#e2e8f0] bg-[#f8fafc] px-4 py-2 text-[14px] font-medium leading-5 text-[#64748b]",
           align === "center" && "text-center",
         )}
         style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}
@@ -351,7 +350,7 @@ export function TableRow({
       onKeyDown={handleKeyDown}
       className={cn(
         "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155]/20",
-        "grid w-full border-b border-[#edf2f7] px-5 py-4 transition last:border-b-0",
+        "grid min-h-11 w-full border-b border-[#edf2f7] px-4 py-2 transition last:border-b-0",
         align === "center" ? "items-center text-center" : "text-left",
         active ? "bg-[#f8fafc]" : "bg-white hover:bg-[#f8fafc]",
         className,
@@ -390,9 +389,9 @@ export function MetricCard({
             : "border-[#e5e3df] bg-[#fbfaf8]";
 
   return (
-    <WebSurface className={cn("p-5", toneClasses)}>
+    <WebSurface className={cn("p-4", toneClasses)}>
       <p className="text-[13px] font-medium text-[#7c746b]">{label}</p>
-      <p className="mt-3 text-[32px] font-semibold tracking-[-0.05em] text-[#17211f]">{value}</p>
+      <p className="mt-2 text-[20px] font-semibold leading-7 text-[#17211f]">{value}</p>
       {meta ? <p className="mt-2 text-[13px] text-[#7a7269]">{meta}</p> : null}
     </WebSurface>
   );
@@ -408,12 +407,12 @@ export function MiniSection({
   children: React.ReactNode;
 }) {
   return (
-    <WebSurface className="p-5">
+    <WebSurface className="p-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-[18px] font-semibold tracking-[-0.03em] text-[#17211f]">{title}</h3>
+        <h3 className="text-[16px] font-semibold leading-6 text-[#17211f]">{title}</h3>
         {action}
       </div>
-      <div className="mt-4">{children}</div>
+      <div className="mt-3">{children}</div>
     </WebSurface>
   );
 }
@@ -528,7 +527,7 @@ export function SimpleBarChart({
 
 export function EmptyCalendarHint() {
   return (
-    <div className="rounded-[18px] border border-dashed border-[#dfd8d1] bg-[#fcfaf8] p-4 text-[13px] leading-6 text-[#81796f]">
+    <div className="rounded-[10px] border border-dashed border-[#dfd8d1] bg-[#fcfaf8] p-4 text-[13px] leading-[19px] text-[#81796f]">
       예약 블록을 클릭하면 오른쪽 패널에서 고객, 서비스, 메모, 빠른 상태 변경을 바로 처리할 수 있어요.
     </div>
   );

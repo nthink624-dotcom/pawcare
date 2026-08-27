@@ -104,7 +104,7 @@ function TextInput({
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
       onBlur={(event) => onCommit?.(event.target.value)}
-      className="h-10 w-full rounded-[10px] border border-[#d8dce3] bg-[#f6f8fb] px-3 text-[16px] font-normal text-[#181b21] outline-none transition placeholder:text-[#969ba4] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#181b21] focus:border-[#2f6bd4] focus:bg-white focus:ring-4 focus:ring-[#2f6bd4]/10"
+      className="h-11 w-full rounded-[8px] border border-[#d8dce3] bg-[#f6f8fb] px-3 text-[14px] font-normal text-[#181b21] outline-none transition placeholder:text-[#969ba4] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#181b21] focus:border-[#2f6bd4] focus:bg-white focus:ring-4 focus:ring-[#2f6bd4]/10"
     />
   );
 }
@@ -144,7 +144,7 @@ function PanelCard({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-5 overflow-hidden rounded-[16px] border border-[#e1e4ea] bg-white shadow-[0_1px_2px_rgba(30,35,45,0.03)]">
+    <section id={id} className="scroll-mt-5 overflow-hidden rounded-[10px] border border-[#e1e4ea] bg-white shadow-none">
       {!hideHeader ? (
         <div className="flex items-start gap-3 px-5 pt-5">
           <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[10px] bg-[#2f6bd4]/10 text-[#2f6bd4]">
@@ -655,18 +655,18 @@ export default function ShopInfoSettingsPanel({
   }
 
   return (
-    <div className="grid h-full min-h-0 gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-transparent bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)] after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[18px] after:border after:border-[#dbe2ea] after:content-['']">
+    <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-white">
           <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-5 py-3 backdrop-blur">
             <div className="flex items-center justify-between gap-4">
-              <div className="flex h-[42px] min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-h-11 min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full border border-[#d8dce3] bg-[#eef1f5] p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {sectionTabs.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => scrollToSection(tab.id)}
                     className={cn(
-                      "inline-flex h-8 shrink-0 items-center rounded-full px-4 text-[15px] font-medium transition",
+                      "inline-flex h-11 shrink-0 items-center rounded-full px-4 text-[14px] font-medium transition",
                       activeSectionId === tab.id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]",
                     )}
                   >
@@ -713,7 +713,7 @@ export default function ShopInfoSettingsPanel({
                         onTouchEnd={handleProfileTouchEnd}
                         disabled={!editable || profileImagesBusy}
                         className={cn(
-                          "group relative h-[276px] max-h-[276px] min-h-[276px] w-full overflow-hidden rounded-[13px] border bg-[#f6f8fb] text-[#2f6bd4] transition disabled:cursor-not-allowed disabled:opacity-70",
+                          "group relative h-[276px] max-h-[276px] min-h-[276px] w-full overflow-hidden rounded-[10px] border bg-[#f6f8fb] text-[#2f6bd4] transition disabled:cursor-not-allowed disabled:opacity-70",
                           activeProfileImage ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]" : "border-dashed border-[#cfd7e3] hover:border-[#2f6bd4]",
                         )}
                         aria-label="대표 매장 사진"
@@ -784,7 +784,7 @@ export default function ShopInfoSettingsPanel({
                       />
                     </div>
 
-                    <div className="h-[276px] max-h-[276px] min-h-[276px] min-w-0 overflow-hidden rounded-[13px] border border-[#e1e5ec] bg-[#fbfcfd] p-2">
+                    <div className="h-[276px] max-h-[276px] min-h-[276px] min-w-0 overflow-hidden rounded-[10px] border border-[#e1e5ec] bg-[#fbfcfd] p-2">
                       <div className="h-full overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]">
                         <div className="grid min-w-0 grid-cols-4 content-start gap-2">
                           {carouselProfileImages.map((imageUrl, imageIndex) => {
@@ -866,7 +866,7 @@ export default function ShopInfoSettingsPanel({
                   </div>
 
                   {hasProfileImages ? (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-[#e1e5ec] bg-[#f8fafc] px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-[#e1e5ec] bg-[#f8fafc] px-3 py-2">
                       <span className="text-[13px] font-medium text-[#64748b]">
                         {selectedProfileImageIndexes.length > 0 ? `선택 ${selectedProfileImageIndexes.length}장` : `사진 ${carouselProfileImages.length}장`}
                       </span>
@@ -880,7 +880,7 @@ export default function ShopInfoSettingsPanel({
                               return !current;
                             });
                           }}
-                          className="inline-flex h-8 items-center rounded-[9px] border border-[#d8dce3] bg-white px-3 text-[13px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-11 items-center rounded-[8px] border border-[#d8dce3] bg-white px-3 text-[13px] font-medium text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {profileImageSelectionMode ? "선택 종료" : "부분 선택"}
                         </button>
@@ -888,7 +888,7 @@ export default function ShopInfoSettingsPanel({
                           type="button"
                           disabled={!editable || profileImagesBusy}
                           onClick={toggleAllProfileImages}
-                          className="inline-flex h-8 items-center rounded-[9px] border border-[#d8dce3] bg-white px-3 text-[13px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-11 items-center rounded-[8px] border border-[#d8dce3] bg-white px-3 text-[13px] font-medium text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {allProfileImagesSelected ? "전체해제" : "전체선택"}
                         </button>
@@ -896,7 +896,7 @@ export default function ShopInfoSettingsPanel({
                           type="button"
                           disabled={!editable || profileImagesBusy || selectedProfileImageIndexes.length === 0}
                           onClick={removeSelectedProfileImages}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-[#e2b6be] bg-white px-3 text-[13px] font-semibold text-[#a04455] transition hover:border-[#a04455] disabled:cursor-not-allowed disabled:border-[#e5e7eb] disabled:text-[#b9c3cf]"
+                          className="inline-flex h-11 items-center gap-1.5 rounded-[8px] border border-[#e2b6be] bg-white px-3 text-[13px] font-medium text-[#a04455] transition hover:border-[#a04455] disabled:cursor-not-allowed disabled:border-[#e5e7eb] disabled:text-[#b9c3cf]"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           선택삭제
@@ -925,7 +925,7 @@ export default function ShopInfoSettingsPanel({
                         type="button"
                         onClick={onOpenAddressSearch}
                         disabled={!editable}
-                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#d8dce3] bg-white px-3 text-[16px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:text-[#969ba4]"
+                        className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] border border-[#d8dce3] bg-white px-3 text-[14px] font-medium text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:text-[#969ba4]"
                       >
                         검색
                       </button>
@@ -1033,7 +1033,7 @@ export default function ShopInfoSettingsPanel({
                                     type="button"
                                     disabled={!editable || isSaving || !onStaffMembersChange}
                                     onClick={() => void saveStaffProfile(staffMember.id)}
-                                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#2f6bd4] px-3.5 text-[13px] font-semibold text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:bg-[#bdc2cb]"
+                                    className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[8px] bg-[#2f6bd4] px-3.5 text-[13px] font-medium text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:bg-[#bdc2cb]"
                                   >
                                     <Save className="h-3.5 w-3.5" />
                                     {isSaving ? "저장 중" : "저장"}
@@ -1055,7 +1055,7 @@ export default function ShopInfoSettingsPanel({
                     })}
                   </div>
                 ) : (
-                  <div className="rounded-[12px] border border-dashed border-[#cfd7e3] bg-[#f8fafc] px-4 py-8 text-center text-[15px] text-[#64748b]">
+                  <div className="rounded-[10px] border border-dashed border-[#cfd7e3] bg-[#f8fafc] px-4 py-8 text-center text-[14px] text-[#64748b]">
                     등록된 직원이 없습니다.
                   </div>
                 )}
@@ -1089,7 +1089,7 @@ export default function ShopInfoSettingsPanel({
           </div>
         </div>
 
-        <aside className="hidden h-full min-h-0 min-w-0 rounded-[18px] border border-transparent bg-white shadow-[inset_0_0_0_1px_#dbe2ea,0_14px_34px_rgba(15,23,42,0.06)] xl:flex xl:flex-col">
+        <aside className="hidden h-full min-h-0 min-w-0 rounded-[14px] border border-[#dbe2ea] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)] xl:flex xl:flex-col">
           <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-5">
             <CustomerPagePhonePreview
               shop={customerPreviewShop}

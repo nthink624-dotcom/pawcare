@@ -31,7 +31,7 @@ type Props = {
 };
 
 const tabClassName =
-  "relative h-10 px-1 text-[14px] font-semibold transition after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full";
+  "relative h-11 min-w-0 px-2 text-[14px] font-semibold transition after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full";
 
 export default function BenefitsManagementPanel({
   view,
@@ -53,8 +53,8 @@ export default function BenefitsManagementPanel({
 }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className="flex shrink-0 items-end justify-between gap-4 px-1">
-        <div className="flex items-center gap-5" role="tablist" aria-label="혜택 관리 보기">
+      <div className="flex shrink-0 flex-col gap-2 px-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:gap-5" role="tablist" aria-label="혜택 관리 보기">
             <button
               type="button"
               role="tab"
@@ -89,14 +89,14 @@ export default function BenefitsManagementPanel({
             type="button"
             onClick={onReload}
             disabled={!dirty}
-            className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
+            className={cn(OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS, "w-full sm:w-auto")}
           >
             저장된 내용 불러오기
           </button>
         ) : null}
       </div>
 
-      <WebSurface className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
+      <WebSurface className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
         <div className="min-h-0 flex-1 overflow-hidden">
           {view === "register" ? (
             <BenefitRegistrationForm
@@ -122,7 +122,7 @@ export default function BenefitsManagementPanel({
             <button
               type="button"
               onClick={onCancelRegistration}
-              className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-5 text-[14px] font-medium text-[#64748b] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+              className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-5 text-[14px] font-medium text-[#64748b] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
             >
               취소
             </button>
@@ -130,7 +130,7 @@ export default function BenefitsManagementPanel({
               type="button"
               disabled={!canRegister}
               onClick={onRegister}
-              className="h-10 rounded-[8px] border border-[#94a3b8] bg-white px-5 text-[14px] font-semibold text-[#334155] transition hover:border-[#64748b] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:bg-[#f8fafc] disabled:text-[#a8b2c0]"
+              className="h-11 rounded-[8px] border border-[#94a3b8] bg-white px-5 text-[14px] font-medium text-[#334155] transition hover:border-[#64748b] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:bg-[#f8fafc] disabled:text-[#a8b2c0]"
             >
               혜택 등록
             </button>

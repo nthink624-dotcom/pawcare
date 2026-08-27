@@ -1305,16 +1305,16 @@ export default function CustomerManagementScreen({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-hidden">
-      <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+    <div data-owner-screen-root="customers" className="h-full min-h-0 overflow-hidden">
+      <section className="flex h-full min-h-0 flex-col overflow-hidden">
         <div className="border-b border-[#dbe2ea] px-4 py-2">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex h-9 min-w-[320px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b] focus-within:border-[#111827]">
+            <label className="flex h-11 min-w-[320px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b] focus-within:border-[#111827]">
               <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-4 w-4 text-[#94a3b8]" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                className="w-full bg-transparent text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
+                className="w-full bg-transparent text-[14px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
                 placeholder="보호자명, 연락처, 반려동물 이름 검색"
               />
             </label>
@@ -1338,7 +1338,7 @@ export default function CustomerManagementScreen({
               aria-label={deleteMode ? "고객 삭제 모드 닫기" : "고객 삭제 모드"}
               onClick={toggleDeleteMode}
               className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-[8px] border transition",
+                "inline-flex h-11 w-11 items-center justify-center rounded-[8px] border transition",
                 deleteMode
                   ? "border-[#ead9cf] bg-[#fff7ed] text-[#9a4f1f]"
                   : "border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc] hover:text-[#334155]",
@@ -1359,10 +1359,10 @@ export default function CustomerManagementScreen({
             {deleteError ? <p className="mt-1 text-[16px] font-medium text-[#b42318]">{deleteError}</p> : null}
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#334155] transition hover:bg-[#f8fafc]" disabled={deletingCustomers}>
+              <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc]" disabled={deletingCustomers}>
                 {allDisplayedCustomersSelected ? "선택 해제" : "전체 선택"}
               </button>
-              <button type="button" onClick={moveSelectedCustomersToDeleted} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#9f3a3a] transition hover:border-[#efcaca] hover:bg-[#fffafa] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]" disabled={selectedDeleteIds.length === 0 || deletingCustomers}>
+              <button type="button" onClick={moveSelectedCustomersToDeleted} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#9f3a3a] transition hover:border-[#efcaca] hover:bg-[#fffafa] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]" disabled={selectedDeleteIds.length === 0 || deletingCustomers}>
                 선택 삭제
               </button>
             </div>

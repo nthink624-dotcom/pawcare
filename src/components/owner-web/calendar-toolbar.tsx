@@ -82,11 +82,11 @@ export function CalendarToolbar({
   return (
     <div className="border-b border-[#e4eaf1] bg-white px-4 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-1 rounded-[10px] border border-[#e1e7ef] bg-[#f8fafc] p-1">
+        <div className="flex min-w-0 items-center gap-1 rounded-[10px] border border-[#e1e7ef] bg-[#f8fafc] p-0.5">
           <button
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, -dateStep))}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-white hover:text-[#0f172a] hover:shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-white hover:text-[#0f172a] hover:shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
             aria-label="이전 날짜"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -94,14 +94,14 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={() => onDateChange(currentDateInTimeZone())}
-            className="inline-flex h-8 min-w-[158px] items-center justify-center rounded-[7px] px-3 text-[16px] font-semibold tracking-[-0.015em] text-[#172033] transition hover:bg-white"
+            className="inline-flex h-11 min-w-[158px] items-center justify-center rounded-[8px] px-3 text-[16px] font-semibold tracking-[-0.015em] text-[#172033] transition hover:bg-white"
           >
             {viewMode === "week" ? formatScheduleWeekLabel(selectedDate) : formatSchedulePickerRelativeLabel(selectedDate, shop)}
           </button>
           <button
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, dateStep))}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-white hover:text-[#0f172a] hover:shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-white hover:text-[#0f172a] hover:shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
             aria-label="다음 날짜"
           >
             <ChevronRight className="h-4 w-4" />
@@ -109,12 +109,12 @@ export function CalendarToolbar({
         </div>
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
-          <div className="inline-flex h-9 rounded-[9px] border border-[#dfe6ee] bg-[#f8fafc] p-0.5" role="group" aria-label="일정 보기 방식">
+          <div className="inline-flex h-11 rounded-[8px] border border-[#dfe6ee] bg-[#f8fafc] p-0.5" role="group" aria-label="일정 보기 방식">
             <button
               type="button"
               onClick={() => handleViewModeChange("day")}
               className={cn(
-                "rounded-[7px] px-3.5 text-[13px] transition",
+                "h-full rounded-[8px] px-3.5 text-[13px] transition",
                 viewMode === "day" ? "bg-white font-semibold text-[#2563eb] shadow-[0_1px_3px_rgba(15,23,42,0.08)]" : "text-[#64748b] hover:text-[#334155]",
               )}
             >
@@ -124,7 +124,7 @@ export function CalendarToolbar({
               type="button"
               onClick={() => handleViewModeChange("week")}
               className={cn(
-                "rounded-[7px] px-3.5 text-[13px] transition",
+                "h-full rounded-[8px] px-3.5 text-[13px] transition",
                 viewMode === "week" ? "bg-white font-semibold text-[#2563eb] shadow-[0_1px_3px_rgba(15,23,42,0.08)]" : "text-[#64748b] hover:text-[#334155]",
               )}
             >
@@ -132,7 +132,7 @@ export function CalendarToolbar({
             </button>
           </div>
           {singleStaff ? (
-            <div className="inline-flex h-9 w-[164px] items-center justify-between rounded-[9px] border border-[#dfe6ee] bg-white px-3 text-[#0f172a]">
+            <div className="inline-flex h-11 w-[164px] items-center justify-between rounded-[8px] border border-[#dfe6ee] bg-white px-3 text-[#0f172a]">
               <span className="text-[12px] font-medium text-[#94a3b8]">담당</span>
               <span className="truncate text-[14px] font-medium">{staffLabel}</span>
             </div>
@@ -146,7 +146,7 @@ export function CalendarToolbar({
                 ...visibleStaff.map((option) => ({ value: option.key, label: option.name })),
               ]}
               className="w-[164px]"
-              buttonClassName="h-9"
+              buttonClassName="h-11"
               labelClassName="text-[12px] font-medium text-[#94a3b8]"
               valueClassName="text-[14px] font-medium"
               menuClassName="w-[164px] min-w-0"

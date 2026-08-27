@@ -80,7 +80,7 @@ function StaffPhotoField({
     <div className="flex items-center justify-center gap-3">
       <label className={cn(
         "group relative flex shrink-0 cursor-pointer flex-col items-center justify-center border border-[#dbe2ea] bg-white text-center font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]/20",
-        compact ? "h-[104px] w-[96px] rounded-[12px] px-2 py-3 text-[14px]" : "h-[136px] w-[118px] rounded-[14px] px-3 py-4 text-[16px]",
+        compact ? "h-[104px] w-[96px] rounded-[10px] px-2 py-3 text-[14px]" : "h-[136px] w-[118px] rounded-[14px] px-3 py-4 text-[16px]",
       )}>
         <span className={cn("relative flex items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#475569]", compact ? "h-11 w-11" : "h-[54px] w-[54px]")}>
           {value ? (
@@ -96,7 +96,7 @@ function StaffPhotoField({
         </span>
         <span className={cn("max-w-full truncate font-medium", compact ? "mt-2 text-[14px] leading-[18px]" : "mt-3 text-[16px] leading-[19px]")}>{title}</span>
         {subtitle ? <span className="mt-1 max-w-full truncate text-[13px] leading-[15px] text-[#64748b]">{subtitle}</span> : null}
-        <span className={cn("pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/[0.025]", compact ? "rounded-[12px]" : "rounded-[14px]")} />
+        <span className={cn("pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/[0.025]", compact ? "rounded-[10px]" : "rounded-[14px]")} />
         <input
           type="file"
           accept="image/*"
@@ -113,7 +113,7 @@ function StaffPhotoField({
         />
       </label>
       {value ? (
-        <button type="button" onClick={() => onChange("")} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]" aria-label="프로필 사진 삭제">
+        <button type="button" onClick={() => onChange("")} className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]" aria-label="프로필 사진 삭제">
           <X className="h-4 w-4" />
         </button>
       ) : null}
@@ -195,12 +195,12 @@ function StaffChipColorPicker({ value, fallbackIndex = 0, onChange }: { value: n
               type="button"
               onClick={() => onChange(index)}
               className={cn(
-                "h-9 rounded-[8px] border bg-white p-1 transition hover:bg-[#f8fafc]",
+                "h-11 rounded-[8px] border bg-white p-1 transition hover:bg-[#f8fafc]",
                 selected ? "border-[#64748b] ring-1 ring-[#64748b]/30" : "border-[#dbe2ea]",
               )}
               aria-label={`직원 칩 색 ${index + 1}`}
             >
-              <span className="block h-full rounded-[6px]" style={{ backgroundColor: tone.selectedBackground }} />
+              <span className="block h-full rounded-[8px]" style={{ backgroundColor: tone.selectedBackground }} />
             </button>
           );
         })}
@@ -208,7 +208,7 @@ function StaffChipColorPicker({ value, fallbackIndex = 0, onChange }: { value: n
       <button
         type="button"
         onClick={() => setExpanded((current) => !current)}
-        className="h-8 rounded-[8px] px-2 text-[15px] text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+        className="h-11 rounded-[8px] px-2 text-[14px] font-medium text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
       >
         {expanded ? "간단히 보기" : "더보기"}
       </button>
@@ -253,7 +253,7 @@ export function StaffList({
                 type="button"
                 onClick={() => onSelect(staffMember)}
                 className={cn(
-                  "grid w-full gap-3 rounded-[10px] border bg-white p-4 text-left transition hover:border-[#cbd5e1] hover:bg-[#fbfcfd]",
+                  "grid w-full gap-3 rounded-[8px] border bg-white p-4 text-left transition hover:border-[#cbd5e1] hover:bg-[#fbfcfd]",
                   getWrapIndicatorClass(getCellIndicatorTone(todayCell.status)),
                   active ? "border-[#cbd5e1] shadow-[0_10px_26px_rgba(15,23,42,0.06)]" : "border-[#dbe2ea]",
                 )}
@@ -401,10 +401,10 @@ export function StaffDetailPanel({
         </Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="고정 출근 시간">
-            <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => ({ ...current, startTime }))} align="left" buttonClassName="h-10" />
+            <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => ({ ...current, startTime }))} align="left" buttonClassName="h-11" />
           </Field>
           <Field label="고정 퇴근 시간">
-            <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => ({ ...current, endTime }))} align="left" buttonClassName="h-10" />
+            <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => ({ ...current, endTime }))} align="left" buttonClassName="h-11" />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -457,7 +457,7 @@ export function StaffDetailActions({
         <button
           type="button"
           onClick={onSave}
-          className="inline-flex h-[40px] items-center justify-center rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937]"
+          className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937]"
         >
           저장
         </button>
@@ -495,7 +495,7 @@ export function TextInput({ value, onChange, type = "text", placeholder }: { val
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#94a3b8] focus:bg-white"
+      className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827] outline-none focus:border-[#94a3b8] focus:bg-white"
     />
   );
 }
@@ -533,7 +533,7 @@ export function WeekdayColorPicker({ value, onChange }: { value: string; onChang
               type="button"
               onClick={() => toggleDay(day.key)}
               className={cn(
-                "h-8 min-w-8 rounded-full border px-2 text-[16px] font-normal transition",
+                "h-11 min-w-11 rounded-full border px-2 text-[14px] font-normal transition",
                 selected ? "border-[#111827] bg-white text-[#111827]" : "border-[#d5dde6] bg-white text-[#64748b]",
               )}
               aria-pressed={selected}
@@ -568,8 +568,8 @@ export function TimeSelect({
       options={options}
       align={align}
       className={className}
-      buttonClassName={cn("h-9 bg-white px-2", buttonClassName)}
-      valueClassName="text-[16px] font-normal"
+      buttonClassName={cn("h-11 bg-white px-2", buttonClassName)}
+      valueClassName="text-[14px] font-normal"
       menuClassName="max-h-[180px] overflow-y-auto overscroll-contain"
     />
   );
@@ -595,7 +595,7 @@ export function CompactInput({
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       aria-label={ariaLabel}
-      className="h-8 min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-2 text-right text-[16px] text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:bg-white"
+      className="h-11 min-w-0 flex-1 rounded-[8px] border border-transparent bg-transparent px-2 text-right text-[14px] text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:bg-white"
     />
   );
 }
@@ -628,7 +628,7 @@ export function StaffBoardTabs({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="relative flex min-h-10 flex-wrap items-center gap-3 pb-2">
+    <div className="relative flex min-h-11 flex-wrap items-center gap-3 pb-2">
       <div className="flex flex-wrap items-center gap-3">
         {[
           { key: "monthly" as StaffBoardTab, label: "월간 근무표" },
@@ -639,7 +639,7 @@ export function StaffBoardTabs({
             type="button"
             onClick={() => onChange(tab.key)}
             className={cn(
-              "h-10 rounded-[8px] px-4 text-[16px] transition",
+              "h-11 rounded-[8px] px-4 text-[14px] font-medium transition",
               activeTab === tab.key ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-sm" : "text-[#475569] hover:bg-[#f8fafc]",
             )}
           >
@@ -647,7 +647,11 @@ export function StaffBoardTabs({
           </button>
         ))}
       </div>
-      {trailing ? <div className="absolute left-1/2 top-0 shrink-0 -translate-x-1/2">{trailing}</div> : null}
+      {trailing ? (
+        <div className="flex w-full shrink-0 justify-center sm:absolute sm:left-1/2 sm:top-0 sm:w-auto sm:-translate-x-1/2">
+          {trailing}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -737,16 +741,16 @@ export function StaffScheduleEditModal({
               { value: "half", label: "반차" },
             ]}
             align="left"
-            buttonClassName="h-10"
+            buttonClassName="h-11"
           />
         </Field>
         {draft.status === "work" ? (
           <div className="grid grid-cols-2 gap-2">
             <Field label="출근 시간">
-              <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => (current ? { ...current, startTime } : current))} align="left" buttonClassName="h-10" />
+              <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => (current ? { ...current, startTime } : current))} align="left" buttonClassName="h-11" />
             </Field>
             <Field label="퇴근 시간">
-              <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => (current ? { ...current, endTime } : current))} align="left" buttonClassName="h-10" />
+              <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => (current ? { ...current, endTime } : current))} align="left" buttonClassName="h-11" />
             </Field>
           </div>
         ) : null}
@@ -760,7 +764,7 @@ export function StaffScheduleEditModal({
                 { value: "오후", label: "오후 반차" },
               ]}
               align="left"
-              buttonClassName="h-10"
+              buttonClassName="h-11"
             />
           </Field>
         ) : null}
@@ -791,10 +795,10 @@ export function StaffScheduleEditModal({
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Field label="출근 기준">
-                <TimeSelect value={draft.defaultStartTime} onChange={(defaultStartTime) => onDraftChange((current) => (current ? { ...current, defaultStartTime } : current))} align="left" buttonClassName="h-10" />
+                <TimeSelect value={draft.defaultStartTime} onChange={(defaultStartTime) => onDraftChange((current) => (current ? { ...current, defaultStartTime } : current))} align="left" buttonClassName="h-11" />
               </Field>
               <Field label="퇴근 기준">
-                <TimeSelect value={draft.defaultEndTime} onChange={(defaultEndTime) => onDraftChange((current) => (current ? { ...current, defaultEndTime } : current))} align="left" buttonClassName="h-10" />
+                <TimeSelect value={draft.defaultEndTime} onChange={(defaultEndTime) => onDraftChange((current) => (current ? { ...current, defaultEndTime } : current))} align="left" buttonClassName="h-11" />
               </Field>
             </div>
           </div>
@@ -827,7 +831,7 @@ export function StaffModal({ title, children, footer, onClose }: { title: string
           aria-modal="true"
           aria-label={title}
           className={cn(
-            "w-full max-w-[500px] rounded-[12px] border border-[#dbe2ea] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]",
+            "w-full max-w-[500px] rounded-[14px] border border-[#dbe2ea] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]",
             footer
               ? "flex h-[calc(100dvh-48px)] flex-col overflow-hidden"
               : "max-h-[calc(100dvh-48px)] overflow-y-auto p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
@@ -837,7 +841,7 @@ export function StaffModal({ title, children, footer, onClose }: { title: string
           <div className={footer ? "shrink-0 px-5 pt-5" : ""}>
             <div className="flex items-start justify-between gap-3">
               <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
-              <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
+              <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
                 <X className="h-5 w-5" />
               </button>
             </div>

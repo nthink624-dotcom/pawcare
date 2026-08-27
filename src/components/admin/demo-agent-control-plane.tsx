@@ -87,7 +87,8 @@ function displayTitle(node: Pick<ControlPlaneNode, "workId" | "title">) { return
 function projectSelectedWorkflow(node: ControlPlaneNode): ControlPlaneNode[] {
   const prefix = `GRAPH-${node.workId}`;
   const stage = (workId: string, parentWorkId: string | null, role: ControlPlaneNode["role"], eventType: ControlPlaneNode["eventType"], status: ControlPlaneStatus, title: string): ControlPlaneNode => ({ ...node, workId, parentWorkId, role, eventType, status, title, eventSource: "local_snapshot", approvalRequired: false, artifact: null, completedSummary: null, blockerSummary: null, lastEventId: `${node.lastEventId}-${workId}` });
-  const owner = stage(`${prefix}-OWNER`, null, "운영팀", "owner_request_received", "received", node.originalDirectiveSummary);
+  const ownerTitle = node.workId === "SETUP-SERVICE-PRICE-ONCE" ? "회원가입 중 서비스·가격 최초 등록 요청" : node.originalDirectiveSummary;
+  const owner = stage(`${prefix}-OWNER`, null, "운영팀", "owner_request_received", "received", ownerTitle);
   const operations = stage(`${prefix}-OPERATIONS`, owner.workId, "운영팀", "operations_directive_sent", "received", node.operationsDirectiveSummary);
   const team = stage(`${prefix}-TEAM`, operations.workId, node.role, "agent_work_started", "in_progress", `${senderLabel(node)} 업무 착수`);
   const selectedTask = { ...node, parentWorkId: team.workId };

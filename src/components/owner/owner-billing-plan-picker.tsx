@@ -131,7 +131,7 @@ export function OwnerBillingPlanPicker({
   if (!selectedPlan) return null;
 
   return (
-    <div className="owner-font pm-owner-web min-h-screen bg-[var(--bg)] px-4 py-6 text-[var(--ink)] lg:px-8 lg:py-8">
+    <div className="owner-font pm-owner-web min-h-screen bg-[var(--bg)] px-4 py-6 text-[var(--ink)] lg:h-dvh lg:min-h-0 lg:overflow-y-auto lg:px-8 lg:py-8">
       <div className="mx-auto w-full max-w-[1180px]">
         <section className="rounded-[14px] border border-[var(--bd)] bg-white px-5 py-5 shadow-none lg:px-7 lg:py-6">
           <header className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#e7edf3] pb-5">

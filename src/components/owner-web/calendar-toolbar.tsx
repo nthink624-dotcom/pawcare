@@ -113,22 +113,30 @@ export function CalendarToolbar({
             <button
               type="button"
               onClick={() => handleViewModeChange("day")}
-              className={cn(
-                "h-full rounded-[8px] px-3.5 text-[13px] transition",
-                viewMode === "day" ? "bg-white font-semibold text-[#2563eb] shadow-[0_1px_3px_rgba(15,23,42,0.08)]" : "text-[#64748b] hover:text-[#334155]",
-              )}
+              className="-my-[3px] inline-flex h-11 items-center text-[13px] focus-visible:outline-none"
             >
-              일간
+              <span
+                className={cn(
+                  "inline-flex h-[38px] items-center rounded-[8px] px-3.5 transition",
+                  viewMode === "day" ? "bg-white font-semibold text-[#2563eb] shadow-[0_1px_3px_rgba(15,23,42,0.08)]" : "text-[#64748b] hover:text-[#334155]",
+                )}
+              >
+                일간
+              </span>
             </button>
             <button
               type="button"
               onClick={() => handleViewModeChange("week")}
-              className={cn(
-                "h-full rounded-[8px] px-3.5 text-[13px] transition",
-                viewMode === "week" ? "bg-white font-semibold text-[#2563eb] shadow-[0_1px_3px_rgba(15,23,42,0.08)]" : "text-[#64748b] hover:text-[#334155]",
-              )}
+              className="-my-[3px] inline-flex h-11 items-center text-[13px] focus-visible:outline-none"
             >
-              주간
+              <span
+                className={cn(
+                  "inline-flex h-[38px] items-center rounded-[8px] px-3.5 transition",
+                  viewMode === "week" ? "bg-white font-semibold text-[#2563eb] shadow-[0_1px_3px_rgba(15,23,42,0.08)]" : "text-[#64748b] hover:text-[#334155]",
+                )}
+              >
+                주간
+              </span>
             </button>
           </div>
           {singleStaff ? (

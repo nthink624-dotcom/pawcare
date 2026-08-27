@@ -28,31 +28,43 @@ const thumbPositionClasses: Record<SwitchSize, { checked: string; unchecked: str
 export type SwitchProps = Omit<React.ComponentPropsWithoutRef<typeof BaseSwitch.Root>, "children"> & {
   size?: SwitchSize;
   thumbClassName?: string;
+  touchTarget?: boolean;
 };
 
 export const Switch = React.forwardRef<React.ElementRef<typeof BaseSwitch.Root>, SwitchProps>(function Switch(
-  { checked = false, className, disabled, size = "md", thumbClassName, ...props },
+  { checked = false, className, disabled, size = "md", thumbClassName, touchTarget = false, ...props },
   ref,
 ) {
+  const visualSize = touchTarget ? "md" : size;
+
   return (
     <BaseSwitch.Root
       ref={ref}
       checked={checked}
       disabled={disabled}
       className={cn(
-        "relative inline-flex translate-y-px shrink-0 items-center rounded-full border align-middle transition-colors duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f7866]",
-        rootSizeClasses[size],
-        checked ? "border-[#2f7866] bg-[#2f7866]" : "border-[#d6dee8] bg-[#f1f5f9]",
+        "relative inline-flex translate-y-px shrink-0 items-center rounded-full align-middle transition-colors duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f7866]",
+        touchTarget ? "-my-2.5 h-11 w-[52px] px-1" : cn("border", rootSizeClasses[size]),
+        !touchTarget && (checked ? "border-[#2f7866] bg-[#2f7866]" : "border-[#d6dee8] bg-[#f1f5f9]"),
         disabled && "cursor-not-allowed opacity-50",
         className,
       )}
       {...props}
     >
+      {touchTarget ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute left-1 top-2.5 h-6 w-11 rounded-full border transition-colors duration-200 ease-out",
+            checked ? "border-[#2f7866] bg-[#2f7866]" : "border-[#d6dee8] bg-[#f1f5f9]",
+          )}
+        />
+      ) : null}
       <BaseSwitch.Thumb
         className={cn(
-          "pointer-events-none block rounded-full border border-black/5 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.20)] transition-transform duration-200 ease-out",
-          thumbSizeClasses[size],
-          checked ? thumbPositionClasses[size].checked : thumbPositionClasses[size].unchecked,
+          "pointer-events-none relative z-[1] block rounded-full border border-black/5 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.20)] transition-transform duration-200 ease-out",
+          thumbSizeClasses[visualSize],
+          checked ? thumbPositionClasses[visualSize].checked : thumbPositionClasses[visualSize].unchecked,
           thumbClassName,
         )}
       />

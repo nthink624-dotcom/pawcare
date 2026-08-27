@@ -50,6 +50,7 @@ export function SettingsRevisitReminderDefault({
           </div>
         </div>
         <Switch
+          touchTarget
           checked={enabled}
           disabled={disabled}
           aria-label="재예약 알림 기본 사용"
@@ -70,7 +71,7 @@ export function SettingsRevisitReminderDefault({
             onKeyDown={(event) => {
               if (event.key === "Enter") event.currentTarget.blur();
             }}
-            className="h-10 w-20 rounded-[8px] border border-[#cfdbe7] bg-white px-3 text-right text-[16px] font-semibold text-[#172c46] outline-none focus:border-[#7eaae0] disabled:bg-[#f3f6f9] disabled:text-[#94a3b8]"
+            className="-my-0.5 h-11 w-20 rounded-[8px] border border-[#cfdbe7] bg-white px-3 text-right text-[16px] font-semibold text-[#172c46] outline-none focus:border-[#7eaae0] disabled:bg-[#f3f6f9] disabled:text-[#94a3b8]"
           />
           <span className="text-[15px] text-[#52677e]">일 후</span>
         </span>

@@ -708,7 +708,7 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .gslot{flex:0 0 54px;height:238px;border-radius:16px;background:repeating-linear-gradient(135deg,#f4e6fb 0,#f4e6fb 9px,#ecd8f7 9px,#ecd8f7 18px);opacity:.78}
         .pm-entry-proto .gcard .ovl{position:absolute;inset:0;background:linear-gradient(to top,rgba(28,16,12,.5) 0%,transparent 42%)}
         .pm-entry-proto .gcard .id{position:absolute;left:16px;bottom:15px;color:#fff}
-        .pm-entry-proto .gcard .id .nm{font-size:22px;font-weight:700;letter-spacing:-.03em;text-shadow:0 1px 6px rgba(0,0,0,.35)}
+        .pm-entry-proto .gcard .id .nm{font-size:22px;font-weight:600;letter-spacing:-.03em;text-shadow:0 1px 6px rgba(0,0,0,.35)}
         .pm-entry-proto .gcard .cnt{position:absolute;right:12px;top:12px;border:0;font-family:inherit;font-size:11px;font-weight:600;color:#fff;background:rgba(20,12,10,.45);backdrop-filter:blur(4px);border-radius:20px;padding:5px 11px;cursor:pointer}
         .pm-entry-proto .gcard.empty{border:1px solid rgba(213,220,230,.95);background:linear-gradient(135deg,#fff8f5 0%,#f7f9fc 58%,#eef4ff 100%)}
         .pm-entry-proto .gcard.empty .id{color:#241b18}
@@ -753,7 +753,7 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .benefit{display:flex;min-height:38px;width:calc(min(100vw,430px) - 32px);flex:0 0 auto;align-items:center;justify-content:space-between;gap:10px;border:1px solid #f2d8d2;background:rgba(255,255,255,.72);border-radius:11px;padding:8px 11px}
         .pm-entry-proto .benefit .txt{min-width:0}
         .pm-entry-proto .benefit .name{font-size:13.5px;font-weight:600;letter-spacing:-.02em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .pm-entry-proto .benefit .val{flex-shrink:0;font-size:13.5px;font-weight:700;color:var(--primaryDk);white-space:nowrap}
+        .pm-entry-proto .benefit .val{flex-shrink:0;font-size:13.5px;font-weight:600;color:var(--primaryDk);white-space:nowrap}
         .pm-entry-proto .pcard{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
         .pm-entry-proto .pcard .pr{display:flex;width:100%;align-items:center;padding:13px 15px;border:0;background:var(--card);font-family:inherit;color:inherit;text-align:left;cursor:pointer;transition:background .15s,box-shadow .15s}
         .pm-entry-proto .pcard .pr + .pr{border-top:1px solid var(--borderSoft)}
@@ -767,7 +767,8 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .dock{position:fixed;bottom:0;left:50%;transform:translateX(-50%);right:auto;z-index:7;width:100%;max-width:430px;padding:10px 16px 16px;background:rgba(253,247,245,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
         .pm-entry-proto .dock .actions{display:flex;width:100%;align-items:center;gap:9px}
         .pm-entry-proto .dock .quick{width:48px;height:52px;border-radius:var(--rbtn);border:1px solid var(--border);background:var(--card);color:var(--primaryDk);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(60,40,30,.1);flex-shrink:0}
-        .pm-entry-proto .cta{flex:1;min-width:0;padding:17px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:#fff;font-family:inherit;font-size:16.5px;font-weight:700;letter-spacing:-.02em;cursor:pointer;box-shadow:0 6px 16px rgba(236,127,114,.38);display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .cta{flex:1;min-width:0;padding:17px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:#fff;font-family:inherit;font-size:16.5px;font-weight:500;letter-spacing:-.02em;cursor:pointer;box-shadow:0 6px 16px rgba(236,127,114,.38);display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto.is-preview .cta{min-height:78px;padding-top:0;padding-bottom:0}
         .pm-entry-proto .cta:disabled{background:#e7d8d2;color:#b29f97;box-shadow:none;cursor:not-allowed}
         .pm-entry-proto .staff-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(43,28,23,.3);padding:18px 16px}
         .pm-entry-proto.is-preview .staff-modal{position:absolute}

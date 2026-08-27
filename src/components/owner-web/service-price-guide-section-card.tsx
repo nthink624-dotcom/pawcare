@@ -74,7 +74,7 @@ export function ServicePriceGuideSectionCard({
       <div className="mb-5 flex min-w-0 items-center justify-between">
         <div className="flex min-w-0 items-center gap-[10px]">
           {isEditing ? (
-            <label className="flex h-9 min-w-0 shrink-0 items-center gap-[7px] whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-[14px] text-[15px] font-extrabold tracking-[-0.84px] text-[#0f172a] transition focus-within:border-[#cbd5e1]">
+            <label className="flex h-9 min-w-0 shrink-0 items-center gap-[7px] whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-[14px] text-[15px] font-semibold tracking-[-0.84px] text-[#0f172a] transition focus-within:border-[#cbd5e1]">
               <span className="sr-only">그룹명</span>
               <input
                 type="text"
@@ -82,8 +82,8 @@ export function ServicePriceGuideSectionCard({
                 onChange={(event) => onChangeTitle(event.target.value)}
                 placeholder="그룹명"
                 aria-label={`${formatGroupDisplayName(section.title)} 그룹명 수정`}
-                style={{ fontSize: "15px", fontWeight: 800, lineHeight: "normal" }}
-                className="min-w-[1ch] max-w-[120px] border-0 bg-transparent p-0 text-[15px] font-extrabold leading-none tracking-[-0.02em] text-[#0f172a] outline-none placeholder:text-[#94a3b8] [field-sizing:content]"
+                style={{ fontSize: "15px", fontWeight: 600, lineHeight: "normal" }}
+                className="min-w-[1ch] max-w-[120px] border-0 bg-transparent p-0 text-[15px] font-semibold leading-none tracking-[-0.02em] text-[#0f172a] outline-none placeholder:text-[#94a3b8] [field-sizing:content]"
               />
               {section.title.trim() && !section.title.trim().endsWith("그룹") ? (
                 <span className="shrink-0 leading-none tracking-[-0.02em]" aria-hidden="true">
@@ -96,7 +96,7 @@ export function ServicePriceGuideSectionCard({
               />
             </label>
           ) : (
-            <h3 className="truncate text-[17px] font-extrabold tracking-[-0.02em] text-[#0f172a]">
+            <h3 className="truncate text-[17px] font-semibold tracking-[-0.02em] text-[#0f172a]">
               {formatGroupDisplayName(section.title)}
             </h3>
           )}
@@ -201,17 +201,17 @@ export function ServicePriceGuideSectionCard({
           </colgroup>
           <thead>
             <tr>
-              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-bold leading-[18px] text-[#334155]">
+              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-medium leading-[18px] text-[#334155]">
                 그룹
               </th>
-              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-bold leading-[18px] text-[#334155]">
+              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-medium leading-[18px] text-[#334155]">
                 무게
               </th>
               {section.items.map((item, itemIndex) => (
                 <th
                   key={item.id}
                   className={cn(
-                    "whitespace-nowrap border-b border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-bold leading-[18px] text-[#334155]",
+                    "whitespace-nowrap border-b border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-medium leading-[18px] text-[#334155]",
                     (isEditing || itemIndex < section.items.length - 1) && "border-r",
                   )}
                 >
@@ -226,8 +226,8 @@ export function ServicePriceGuideSectionCard({
                           value={item.label}
                           onChange={(event) => onUpdateItemLabel(item.id, event.target.value)}
                           aria-label={`${item.label} 항목명 수정`}
-                          style={{ fontSize: "12px", fontWeight: 700, lineHeight: "16px" }}
-                          className="absolute inset-0 w-full border-0 bg-transparent p-0 text-left text-[12px] font-bold leading-normal text-[#334155] outline-none"
+                          style={{ fontSize: "12px", fontWeight: 500, lineHeight: "16px" }}
+                          className="absolute inset-0 w-full border-0 bg-transparent p-0 text-left text-[12px] font-medium leading-normal text-[#334155] outline-none"
                         />
                       ) : null}
                     </span>
@@ -247,7 +247,7 @@ export function ServicePriceGuideSectionCard({
               ))}
               {isEditing ? (
                 <th
-                  className="w-[34px] border-b border-[#e2e7ed] bg-[#f6f7f9] px-[14px] py-[11px]"
+                  className="w-[34px] border-b border-[#e2e7ed] bg-[#f6f7f9] px-[14px] py-[11px] font-medium"
                   aria-label="행 관리"
                 />
               ) : null}
@@ -262,7 +262,7 @@ export function ServicePriceGuideSectionCard({
                   {bandIndex === 0 ? (
                     <td
                       rowSpan={section.weightBands.length}
-                      className="min-w-28 whitespace-nowrap border-b border-r border-[#edf1f5] bg-[#f6f7f9] px-4 py-[14px] align-middle text-left font-extrabold tracking-[-0.84px] text-[#0f172a]"
+                      className="min-w-28 whitespace-nowrap border-b border-r border-[#edf1f5] bg-[#f6f7f9] px-4 py-[14px] align-middle text-left font-semibold tracking-[-0.84px] text-[#0f172a]"
                     >
                       {formatGroupDisplayName(section.title)}
                     </td>
@@ -273,7 +273,7 @@ export function ServicePriceGuideSectionCard({
                       !isLastBand && "border-b border-[#edf1f5]",
                     )}
                   >
-                    <div className="flex min-w-0 items-center gap-1.5 font-bold text-[#0f172a]">
+                    <div className="flex min-w-0 items-center gap-1.5 font-medium text-[#0f172a]">
                       <span className="relative min-w-0 flex-1 whitespace-nowrap">
                         <span
                           className={cn(
@@ -291,11 +291,11 @@ export function ServicePriceGuideSectionCard({
                             aria-label={`${band} 무게 구간 수정`}
                             style={{
                               fontSize: "13.5px",
-                              fontWeight: 700,
+                              fontWeight: 500,
                               letterSpacing: "-0.7px",
                               lineHeight: "17px",
                             }}
-                            className="absolute inset-0 w-full border-0 bg-transparent p-0 text-left text-[13.5px] font-bold leading-normal text-[#0f172a] outline-none"
+                            className="absolute inset-0 w-full border-0 bg-transparent p-0 text-left text-[13.5px] font-medium leading-normal text-[#0f172a] outline-none"
                           />
                         ) : null}
                       </span>
@@ -340,11 +340,11 @@ export function ServicePriceGuideSectionCard({
                                 aria-label={`${item.label} ${band} 가격 수정`}
                                 style={{
                                   fontSize: "13.5px",
-                                  fontWeight: 800,
+                                  fontWeight: 600,
                                   lineHeight: "17px",
                                   width: priceInputWidth,
                                 }}
-                                className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-left text-[13.5px] font-extrabold leading-normal tabular-nums text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
+                                className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-left text-[13.5px] font-semibold leading-normal tabular-nums text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
                               />
                               <span className="inline-flex items-baseline whitespace-nowrap text-[12px] leading-[normal] text-[#64748b]">
                                 <span>/&nbsp;</span>
@@ -372,7 +372,7 @@ export function ServicePriceGuideSectionCard({
                             </>
                           ) : (
                             <>
-                              <span className="font-extrabold tabular-nums text-[#0f172a]">
+                              <span className="font-semibold tabular-nums text-[#0f172a]">
                                 {formattedPrice || "-"}
                               </span>
                               <span className="text-[12px] leading-[normal] text-[#64748b]">

@@ -300,17 +300,23 @@ function ToggleSwitch({
       aria-label={label}
       onClick={onChange}
       className={cn(
-        "relative inline-flex translate-y-px shrink-0 items-center rounded-full align-middle transition",
-        compact ? "h-[26px] w-[48px]" : "h-[26px] w-[48px]",
-        checked ? "bg-[#2f7866]" : "bg-[#e2e8f0]",
+        "relative inline-flex shrink-0 items-center justify-center rounded-full align-middle",
+        compact ? "-my-[9px] h-11 w-[48px]" : "h-[26px] w-[48px]",
       )}
     >
       <span
         className={cn(
-          "absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition",
-          checked ? "left-[24px]" : "left-[2px]",
+          "relative inline-flex h-[26px] w-[48px] translate-y-px items-center rounded-full transition",
+          checked ? "bg-[#2f7866]" : "bg-[#e2e8f0]",
         )}
-      />
+      >
+        <span
+          className={cn(
+            "absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition",
+            checked ? "left-[24px]" : "left-[2px]",
+          )}
+        />
+      </span>
     </button>
   );
 }
@@ -463,6 +469,12 @@ function TimeInput({
   const displayHourValue = hourOptions.includes(hourText) ? hourText : "10";
   const displayMinuteValue = minuteOptions.includes(minuteText) ? minuteText : "00";
   const displayValue = `${displayHourValue}:${displayMinuteValue}`;
+  const controlContents = (
+    <>
+      <span>{displayValue}</span>
+      <ChevronDown className={cn("text-[#64748b]", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+    </>
+  );
 
   const updatePopoverPosition = useCallback(() => {
     const rect = buttonRef.current?.getBoundingClientRect();
@@ -517,12 +529,16 @@ function TimeInput({
           setOpen((current) => !current);
         }}
         className={cn(
-          "inline-flex items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none transition hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:ring-[3px] focus:ring-[#64748b]/10 disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
-          compact ? "h-8 w-[88px] px-2 text-[14px]" : "h-10 w-[116px] px-3 text-[16px]",
+          compact
+            ? "group -my-1.5 inline-flex h-11 w-[88px] items-center bg-transparent p-0 text-[14px] font-normal text-[#111827] outline-none"
+            : "inline-flex h-10 w-[116px] items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#111827] outline-none transition hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:ring-[3px] focus:ring-[#64748b]/10 disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
         )}
       >
-        <span>{displayValue}</span>
-        <ChevronDown className={cn("text-[#64748b]", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+        {compact ? (
+          <span className="inline-flex h-8 w-full items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white px-2 transition group-hover:bg-[#f8fafc] group-focus:border-[#94a3b8] group-focus:ring-[3px] group-focus:ring-[#64748b]/10 group-disabled:bg-[#f8fafc] group-disabled:text-[#94a3b8]">
+            {controlContents}
+          </span>
+        ) : controlContents}
       </button>
 
       {open ? (
@@ -870,9 +886,11 @@ export default function OperatingHoursSettings({
               <button
                 type="button"
                 onClick={applyBulkTimeToAllDays}
-                className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]"
+                className="group -my-1.5 inline-flex h-11 items-center bg-transparent p-0 text-[14px] font-normal text-[#334155]"
               >
-                적용
+                <span className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 group-hover:bg-[#f8fafc]">
+                  적용
+                </span>
               </button>
             </div>
           </div>

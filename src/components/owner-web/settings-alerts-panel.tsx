@@ -653,6 +653,7 @@ export default function SettingsAlertsPanel({
                 </AlertHelp>
               </div>
               <Switch
+                touchTarget
                 checked={value.enabled}
                 aria-label="알림톡 전체 사용"
                 onCheckedChange={(checked) => onChange({ ...value, enabled: checked })}
@@ -691,6 +692,7 @@ export default function SettingsAlertsPanel({
                       </AlertHelp>
                     </div>
                     <Switch
+                      touchTarget
                       checked={visitReminderEnabled}
                       disabled={!value.enabled || !automaticVisitReminderAvailable}
                       aria-label="예약 안내 자동 발송"
@@ -734,7 +736,7 @@ export default function SettingsAlertsPanel({
                           <button
                             type="button"
                             onClick={() => setSelectedAlertType(item.type)}
-                            className="min-w-0 text-left text-[16px] text-[#111827] focus-visible:outline-none focus-visible:underline"
+                            className="-my-2.5 inline-flex min-h-11 min-w-0 items-center text-left text-[16px] text-[#111827] focus-visible:outline-none focus-visible:underline"
                           >
                             {item.title}
                           </button>
@@ -754,6 +756,7 @@ export default function SettingsAlertsPanel({
                         ) : (
                           <span onClick={(event) => event.stopPropagation()}>
                             <Switch
+                              touchTarget
                               checked={checked}
                               disabled={disabled}
                               aria-label={`${item.title} 알림`}

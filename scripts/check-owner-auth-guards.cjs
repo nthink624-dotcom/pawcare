@@ -53,10 +53,10 @@ assertIncludes(
   "Owner password login must return a refresh token to the browser.",
 );
 
-assertIncludes(
+assertNotIncludes(
   "src/components/auth/login-form.tsx",
   "supabase.auth.setSession",
-  "Login form must store the returned Supabase session before redirecting to /owner.",
+  "Login must not block navigation on a redundant browser-side session rehydration.",
 );
 assertIncludes(
   "src/components/auth/login-form.tsx",
@@ -67,6 +67,21 @@ assertIncludes(
   "src/components/auth/login-form.tsx",
   "writeOwnerAuthSessionCache",
   "Login form must write an owner auth session cache for API recovery.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  "writeCurrentOwnerShopId(result.shopId)",
+  "Login must persist the verified shop hint so owner bootstrap can avoid a serial shop lookup.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  "loginAttemptInFlightRef.current",
+  "Login must reject synchronous duplicate submits before React state catches up.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  "requestController.abort()",
+  "Login must bound the authentication request and restore retry controls on timeout.",
 );
 assertNotIncludes(
   "src/components/auth/login-form.tsx",
@@ -88,6 +103,16 @@ assertIncludes(
   "src/app/owner/page.tsx",
   "readOwnerAuthTokenCache",
   "Owner page must support access-token cache fallback before redirecting to /login.",
+);
+assertNotIncludes(
+  "src/app/owner/page.tsx",
+  ".setSession({",
+  "Owner entry must not duplicate the API-issued session with a second browser auth request.",
+);
+assertNotIncludes(
+  "src/lib/supabase/client.ts",
+  "lock:",
+  "Browser Supabase auth must use the maintained internal lock instead of a deprecated custom lock.",
 );
 
 assertIncludes(
@@ -217,6 +242,11 @@ assertIncludes(
   "src/app/owner/page.tsx",
   "void loadSubscription().catch",
   "Owner home must not block its first render on the secondary subscription summary request.",
+);
+assertIncludes(
+  "src/app/owner/page.tsx",
+  "ownerBootstrapInFlight",
+  "Owner home must deduplicate concurrent StrictMode bootstrap requests.",
 );
 assertNotIncludes(
   "src/app/api/auth/verify-pass/route.ts",

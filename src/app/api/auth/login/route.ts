@@ -84,20 +84,35 @@ function createLoginResponse({
   profile,
   email,
   session,
+  timings,
 }: {
   request: NextRequest;
   profile: OwnerLoginProfile;
   email: string;
   session: OwnerSignInSession;
+  timings: {
+    profileLookupMs: number;
+    signInMs: number;
+    profileVerifyMs: number;
+  };
 }) {
   const response = NextResponse.json({
     success: true,
+    shopId: profile.shop_id,
     session: {
       accessToken: session.access_token,
       refreshToken: session.refresh_token,
     },
   });
   const sessionTrackingId = resolveOwnerLoginSessionTrackingId(request);
+  response.headers.set(
+    "Server-Timing",
+    [
+      `profile_lookup;dur=${timings.profileLookupMs.toFixed(1)}`,
+      `supabase_sign_in;dur=${timings.signInMs.toFixed(1)}`,
+      `profile_verify;dur=${timings.profileVerifyMs.toFixed(1)}`,
+    ].join(", "),
+  );
   attachOwnerLoginSessionCookie(response, request, sessionTrackingId);
   after(() =>
     recordOwnerLoginSession(
@@ -131,41 +146,65 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "로그인 환경이 아직 준비되지 않았어요." }, { status: 503 });
     }
 
-    const ownerProfileLookup = await admin
-      .from("owner_profiles")
-      .select("user_id")
-      .eq("login_id", email)
-      .maybeSingle<{ user_id: string }>();
-
-    if (ownerProfileLookup.error) {
-      return NextResponse.json({ message: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
-    }
-
-    if (!ownerProfileLookup.data?.user_id) {
-      return NextResponse.json(
-        { reason: "email_not_registered", message: "등록되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요." },
-        { status: 401 },
-      );
-    }
-
+    const signInStartedAt = performance.now();
     const signInResult = await signInWithoutEmailConfirmationBlock({
       authClient,
       admin,
       email,
       password: body.password,
     });
+    const signInMs = performance.now() - signInStartedAt;
     if (signInResult.error || !signInResult.data.user || !signInResult.data.session) {
+      const profileLookupStartedAt = performance.now();
+      const ownerProfileLookup = await admin
+        .from("owner_profiles")
+        .select("user_id")
+        .eq("login_id", email)
+        .maybeSingle<{ user_id: string }>();
+      const profileLookupMs = performance.now() - profileLookupStartedAt;
+
+      if (ownerProfileLookup.error) {
+        const response = NextResponse.json(
+          { message: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." },
+          { status: 503 },
+        );
+        response.headers.set(
+          "Server-Timing",
+          `profile_lookup;dur=${profileLookupMs.toFixed(1)}, supabase_sign_in;dur=${signInMs.toFixed(1)}`,
+        );
+        return response;
+      }
+
+      if (!ownerProfileLookup.data?.user_id) {
+        const response = NextResponse.json(
+          { reason: "email_not_registered", message: "등록되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요." },
+          { status: 401 },
+        );
+        response.headers.set(
+          "Server-Timing",
+          `profile_lookup;dur=${profileLookupMs.toFixed(1)}, supabase_sign_in;dur=${signInMs.toFixed(1)}`,
+        );
+        return response;
+      }
+
       return NextResponse.json(
         { reason: "invalid_password", message: getLoginErrorMessage(signInResult.error?.message) },
-        { status: 401 },
+        {
+          status: 401,
+          headers: {
+            "Server-Timing": `profile_lookup;dur=${profileLookupMs.toFixed(1)}, supabase_sign_in;dur=${signInMs.toFixed(1)}`,
+          },
+        },
       );
     }
 
+    const profileVerifyStartedAt = performance.now();
     const profileResult = await admin
       .from("owner_profiles")
       .select("user_id, shop_id, login_id")
       .eq("user_id", signInResult.data.user.id)
       .maybeSingle<OwnerLoginProfile>();
+    const profileVerifyMs = performance.now() - profileVerifyStartedAt;
 
     if (profileResult.error) {
       return NextResponse.json({ message: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 400 });
@@ -183,6 +222,11 @@ export async function POST(request: NextRequest) {
       profile: profileResult.data,
       email,
       session: signInResult.data.session,
+      timings: {
+        profileLookupMs: 0,
+        signInMs,
+        profileVerifyMs,
+      },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

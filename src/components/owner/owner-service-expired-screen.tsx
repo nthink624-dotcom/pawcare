@@ -12,7 +12,6 @@ import {
 
 import PetManagerBrand from "@/components/brand/petmanager-brand";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 
@@ -31,8 +30,8 @@ function formatServiceEndDate(summary: OwnerSubscriptionSummary) {
   }).format(date);
 }
 
-function getResumePlanCode(summary: OwnerSubscriptionSummary) {
-  return summary.currentPlanCode === "free" ? "monthly" : summary.currentPlanCode;
+function getResumePlanCode(_summary: OwnerSubscriptionSummary) {
+  return "quarterly";
 }
 
 const preservedItems = [
@@ -175,7 +174,7 @@ export default function OwnerServiceExpiredScreen({
                   <p className="text-right text-[14px] font-semibold text-[#273142]">
                     {summary.currentPlanCode === "free"
                       ? "무료 체험 플랜"
-                      : getOwnerPlanDisplayName(summary.currentPlanCode)}
+                      : "펫매니저 단일 요금제"}
                   </p>
                 </div>
               </div>

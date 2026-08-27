@@ -15,7 +15,11 @@ import {
 } from "@/components/landing/landing-primary-sections";
 import { FaqAndFinalCtaSection } from "@/components/landing/landing-conversion-sections";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { billableOwnerPlans } from "@/lib/billing/owner-plans";
+import {
+  billableOwnerPlans,
+  OWNER_SINGLE_PLAN_INCLUDED_COPY,
+  OWNER_SINGLE_PLAN_LIMIT_COPY,
+} from "@/lib/billing/owner-plans";
 import { won } from "@/lib/utils";
 
 import styles from "./landing-page.module.css";
@@ -177,28 +181,27 @@ function PricingModal({ open, onClose }: { open: boolean; onClose: () => void })
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[14px] font-semibold text-[var(--landing-accent)]">요금제</p>
-            <h2 className="mt-1 text-[26px] font-semibold text-[#111827] sm:text-[30px]">운영 인원에 맞게 고르세요</h2>
-            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">모든 유료 플랜에 핵심 기능이 포함되며 설치비는 없습니다.</p>
+            <h2 className="mt-1 text-[26px] font-semibold text-[#111827] sm:text-[30px]">펫매니저 단일 요금제</h2>
+            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">카드 없이 14일 체험한 뒤 월 29,000원으로 이용할 수 있습니다.</p>
           </div>
           <button type="button" onClick={onClose} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#111827]" aria-label="요금제 닫기" autoFocus>
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="mt-6 grid gap-3 lg:grid-cols-3">
+        <div className="mx-auto mt-6 grid max-w-[560px] gap-3">
           {billableOwnerPlans.map((plan) => (
-            <article key={plan.code} className={`flex flex-col rounded-[14px] border p-5 ${plan.featured ? "border-[#2563eb] bg-[#f6f9ff]" : "border-[#dbe2ea] bg-white"}`}>
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[18px] font-semibold text-[#172033]">{plan.title}</h3>
-                {plan.featured ? <span className="rounded-full bg-[#2563eb] px-2.5 py-1 text-[11px] font-semibold text-white">추천</span> : null}
-              </div>
+            <article key={plan.code} className="flex flex-col rounded-[14px] border border-[#dbe2ea] bg-white p-5">
+              <h3 className="text-[18px] font-semibold text-[#172033]">{plan.title}</h3>
               <p className="mt-3 text-[28px] font-semibold text-[#111827]">{won(plan.monthlyPrice)}<span className="ml-1 text-[13px] font-medium text-[#64748b]">/월</span></p>
               <div className="mt-4 space-y-2 border-t border-[#e2e8f0] pt-4 text-[14px] text-[#526071]">
-                {[plan.staffLimitLabel, plan.alimtalkIncludedLabel, "핵심 기능 전체 제공"].map((item) => (
+                {["카드 없이 14일 체험", "핵심 운영 기능 포함", "알림톡 포함 · 별도 충전 없음"].map((item) => (
                   <p key={item} className="flex items-center gap-2"><Check className="h-4 w-4 shrink-0 text-[#2563eb]" aria-hidden="true" />{item}</p>
                 ))}
               </div>
-              <Link href="/signup" className={`mt-5 flex h-11 items-center justify-center rounded-[9px] text-[14px] font-semibold ${plan.featured ? "bg-[#2563eb] text-white" : "border border-[#cbd5e1] text-[#334155]"}`}>14일 무료 시작</Link>
+              <p className="mt-4 text-[14px] leading-6 text-[#475569]">{OWNER_SINGLE_PLAN_INCLUDED_COPY}</p>
+              <p className="mt-2 text-[13px] leading-5 text-[#64748b]">{OWNER_SINGLE_PLAN_LIMIT_COPY}</p>
+              <Link href="/signup" className="mt-5 flex h-11 items-center justify-center rounded-[9px] bg-[#2563eb] text-[14px] font-semibold text-white">14일 무료 시작</Link>
             </article>
           ))}
         </div>

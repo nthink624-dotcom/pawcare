@@ -106,7 +106,7 @@ function OwnerBillingSuccessPageContent() {
     };
   }, [hasSnapshot, router, supabase]);
 
-  const displayPlan: OwnerPlan | null = summary?.currentPlan ?? snapshotPlan ?? getOwnerPlanByCode("monthly");
+  const displayPlan: OwnerPlan | null = summary?.currentPlan ?? snapshotPlan ?? getOwnerPlanByCode("quarterly");
   const displayEndAt =
     summary?.currentPeriodEndsAt ?? summary?.nextBillingAt ?? snapshotEndAt ?? summary?.trialEndsAt ?? null;
   const displayMethod = summary?.paymentMethodLabel ?? snapshotMethod;

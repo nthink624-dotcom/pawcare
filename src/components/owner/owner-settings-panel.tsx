@@ -10,7 +10,12 @@ import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { Switch } from "@/components/ui/switch";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
-import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel } from "@/lib/billing/owner-plans";
+import {
+  OWNER_CANONICAL_PLAN_CODE,
+  OWNER_SINGLE_PLAN_INCLUDED_COPY,
+  OWNER_SINGLE_PLAN_MONTHLY_PRICE,
+  OWNER_SINGLE_PLAN_NAME,
+} from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
@@ -685,23 +690,22 @@ export default function OwnerSettingsPanel({
           !subscriptionSummary.currentPeriodEndsAt &&
           subscriptionSummary.lastPaymentStatus === "none";
         const isFreePlan = currentPlan.code === "free";
-        const currentTotalShopCount = subscriptionSummary.billingAmount.multiShopDiscount.totalShopCount;
-        const currentPlanTitle = isFreePlan || showTrialCard ? "체험 플랜" : getOwnerPlanDisplayName(currentPlan.code);
+        const currentPlanTitle = isFreePlan || showTrialCard ? "체험 플랜" : OWNER_SINGLE_PLAN_NAME;
         const currentPlanLine = isFreePlan || showTrialCard
           ? "카드 등록 없이 이용 중"
-          : `${getOwnerPlanStaffLimitLabel(currentPlan, currentTotalShopCount)} · ${currentPlan.alimtalkIncludedLabel}`;
-        const currentPlanPriceLabel = isFreePlan || showTrialCard ? "무료" : `월 ${won(currentPlan.monthlyPrice)}`;
+          : OWNER_SINGLE_PLAN_INCLUDED_COPY;
+        const currentPlanPriceLabel = isFreePlan || showTrialCard ? "무료" : `월 ${won(OWNER_SINGLE_PLAN_MONTHLY_PRICE)}`;
         const currentPlanSubLabel = isFreePlan
           ? "관리자 설정"
           : showTrialCard
             ? "체험 플랜"
-          : currentPlan.excessAlimtalkLabel;
+          : "알림톡 포함 · 별도 충전 없음";
         const endDateLabel = "서비스 종료일";
         const isInService =
           subscriptionSummary.status === "active" ||
           subscriptionSummary.status === "trialing" ||
           subscriptionSummary.status === "trial_will_end";
-        const planCtaLabel = isInService ? "플랜 보기" : "업그레이드 플랜";
+        const planCtaLabel = "요금제 확인";
 
         return (
       <div className="overflow-hidden rounded-[10px] border border-[#d9d4cb] bg-white shadow-[0_4px_12px_rgba(21,22,19,0.03)]">
@@ -729,7 +733,7 @@ export default function OwnerSettingsPanel({
                 <p className="mt-1 text-[17px] font-medium tracking-[-0.02em] text-[#171411]">{subscriptionEndDate}</p>
               </div>
               <Link
-                href={`/owner/billing?compare=1&plan=${currentPlan.code}`}
+                href={`/owner/billing?compare=1&plan=${OWNER_CANONICAL_PLAN_CODE}`}
                 prefetch
                 onClick={() => writeOwnerBillingSummaryCache(subscriptionSummary)}
                 className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent)] px-4 text-[14px] font-normal tracking-[-0.01em] text-white transition hover:bg-[#195748]"
@@ -1037,13 +1041,11 @@ export default function OwnerSettingsPanel({
               표시됩니다.
             </p>
           </div>
-          <Link
-            href={{ pathname: "/owner/alimtalk-credits" }}
-            prefetch
-            className="inline-flex h-10 w-full items-center justify-center rounded-[10px] bg-[image:var(--pm-brand-blue-button-gradient)] text-[14px] font-semibold text-white shadow-[0_10px_22px_rgba(37,99,235,0.18)]"
-          >
-            추가 발송 이용권 구매
-          </Link>
+          <div className="rounded-[12px] border border-[#e4ebe7] bg-white px-3 py-2.5">
+            <p className="text-[12px] leading-[18px] tracking-[-0.01em] text-[#5f6c66]">
+              알림톡 포함 · 별도 충전이나 건별 추가 결제 없음
+            </p>
+          </div>
           <div className="space-y-2">
             <ToggleRow
               label="예약 확정 안내"

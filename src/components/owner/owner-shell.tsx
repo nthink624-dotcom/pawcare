@@ -8,7 +8,6 @@ import { X } from "lucide-react";
 import OwnerApp, { type OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -38,11 +37,11 @@ function isTrialSummary(summary: OwnerSubscriptionSummary) {
 }
 
 function getCurrentPlanLabel(summary: OwnerSubscriptionSummary) {
-  return isTrialSummary(summary) ? "체험 플랜" : getOwnerPlanDisplayName(summary.currentPlanCode);
+  return isTrialSummary(summary) ? "체험 플랜" : "펫매니저 단일 요금제";
 }
 
-function getResumePlanCode(summary: OwnerSubscriptionSummary) {
-  return isTrialSummary(summary) ? "monthly" : summary.currentPlanCode;
+function getResumePlanCode(_summary: OwnerSubscriptionSummary) {
+  return "quarterly";
 }
 
 function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
@@ -91,7 +90,7 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
           href="/owner/billing"
           className="mt-4 flex h-[46px] w-full items-center justify-center rounded-[10px] border border-[#d8dfda] bg-white px-4 text-[15px] font-medium tracking-[-0.02em] text-[#2f5f55]"
         >
-          업그레이드 플랜
+          요금제 확인
         </a>
       </div>
     </div>

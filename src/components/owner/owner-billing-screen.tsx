@@ -24,7 +24,9 @@ import {
   calculateOwnerBillingAmountBreakdown,
   getOwnerPlanByCode,
   getOwnerPlanDisplayName,
-  getOwnerPlanStaffLimitLabel,
+  OWNER_SINGLE_PLAN_INCLUDED_COPY,
+  OWNER_SINGLE_PLAN_LIMIT_COPY,
+  toCanonicalOwnerPlanCode,
   type OwnerPlanCode,
 } from "@/lib/billing/owner-plans";
 import { addDaysIso, addMonthsIso, type OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
@@ -118,15 +120,7 @@ function clearPendingBillingRegistration() {
 }
 
 function getDefaultPickerPlanCode(currentPlanCode: OwnerPlanCode, fallbackPlanCode: OwnerPlanCode) {
-  if (currentPlanCode === "free" || currentPlanCode === "monthly") {
-    return "quarterly";
-  }
-
-  if (currentPlanCode === "halfyearly") {
-    return "quarterly";
-  }
-
-  return currentPlanCode || fallbackPlanCode;
+  return toCanonicalOwnerPlanCode(currentPlanCode || fallbackPlanCode);
 }
 
 function buildBillingSuccessUrl(summary: OwnerSubscriptionSummary) {
@@ -161,7 +155,7 @@ function statusCopy(summary: OwnerSubscriptionSummary) {
   if (summary.status === "expired") {
     return {
       title: summary.currentPlanCode === "free" ? "체험 플랜이 종료되었습니다" : "이용 기간이 종료되었습니다",
-      body: "계속 사용하려면 매장 규모에 맞는 요금제를 선택하고 결제를 진행해 주세요.",
+      body: "계속 사용하려면 단일 요금제를 확인하고 결제를 진행해 주세요.",
     };
   }
 
@@ -216,7 +210,7 @@ export default function OwnerBillingScreen({
   );
   const [summary, setSummary] = useState(initialSummary);
   const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlanCode>(
-    preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode),
+    toCanonicalOwnerPlanCode(preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode)),
   );
   const [isSelectingPlan, setIsSelectingPlan] = useState((forcePlanPicker || !preferredPlanCode) && !showPaymentRequiredNotice);
   const [selectionStep, setSelectionStep] = useState<"plan" | "agreement">(
@@ -250,8 +244,6 @@ export default function OwnerBillingScreen({
       ),
     [selectedPlan, summary.billingAmount.multiShopDiscount.totalShopCount],
   );
-  const selectedMultiShopDiscount = selectedBillingAmount.multiShopDiscount;
-  const selectedStaffLimitLabel = getOwnerPlanStaffLimitLabel(selectedPlan, selectedMultiShopDiscount.totalShopCount);
   const isFreePlan = selectedPlan.code === "free";
   const usesOneTimePayment = selectedPlan.billingType === "one_time";
   const selectedPlanLabel = getOwnerPlanDisplayName(selectedPlan.code);
@@ -279,7 +271,8 @@ export default function OwnerBillingScreen({
     : [
         "선택한 요금제는 등록된 카드로 매월 자동 결제됩니다.",
         "카드 등록이 완료되면 선택한 플랜 결제가 바로 진행됩니다.",
-        `${selectedPlan.alimtalkIncludedLabel}이며, 초과 알림톡은 11원/건으로 부가세가 포함됩니다.`,
+        OWNER_SINGLE_PLAN_INCLUDED_COPY,
+        OWNER_SINGLE_PLAN_LIMIT_COPY,
         `카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, ${PETMANAGER_SERVICE_NAME}에는 저장되지 않습니다.`,
       ];
   const agreementContinueLabel =
@@ -336,7 +329,9 @@ export default function OwnerBillingScreen({
       return;
     }
 
-    setSelectedPlanCode(preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode));
+    setSelectedPlanCode(
+      toCanonicalOwnerPlanCode(preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode)),
+    );
   }, [defaultPickerPlanCode, forcePlanPicker, initialSummary.currentPlanCode, preferredPlanCode]);
 
   useEffect(() => {
@@ -369,7 +364,7 @@ export default function OwnerBillingScreen({
     }
 
     let cancelled = false;
-    const pendingPlanCode = pending.planCode;
+    const pendingPlanCode = toCanonicalOwnerPlanCode(pending.planCode);
 
     async function resumePayment() {
       setResumingRegisteredCardPayment(true);
@@ -380,7 +375,7 @@ export default function OwnerBillingScreen({
           const savedSummary = await saveOwnerSubscriptionPreferences({ currentPlanCode: pendingPlanCode });
           if (cancelled) return;
           setSummary(savedSummary);
-          setSelectedPlanCode(savedSummary.currentPlanCode);
+          setSelectedPlanCode(toCanonicalOwnerPlanCode(savedSummary.currentPlanCode));
         }
 
         clearPendingBillingRegistration();
@@ -389,7 +384,7 @@ export default function OwnerBillingScreen({
         if (cancelled) return;
 
         setSummary(nextSummary);
-        setSelectedPlanCode(nextSummary.currentPlanCode);
+        setSelectedPlanCode(toCanonicalOwnerPlanCode(nextSummary.currentPlanCode));
         if (hasSuccessfulPayment(nextSummary)) {
           setMessage(null);
           router.replace(buildBillingSuccessUrl(nextSummary) as never);
@@ -445,11 +440,11 @@ export default function OwnerBillingScreen({
       }
 
       setSummary(registeredSummary);
-      setSelectedPlanCode(registeredSummary.currentPlanCode);
+      setSelectedPlanCode(toCanonicalOwnerPlanCode(registeredSummary.currentPlanCode));
 
       const paidSummary = await retryOwnerSubscriptionPayment();
       setSummary(paidSummary);
-      setSelectedPlanCode(paidSummary.currentPlanCode);
+      setSelectedPlanCode(toCanonicalOwnerPlanCode(paidSummary.currentPlanCode));
       clearPendingBillingRegistration();
       if (hasSuccessfulPayment(paidSummary)) {
         setMessage(null);
@@ -474,7 +469,7 @@ export default function OwnerBillingScreen({
       await persistSelectedPlanIfNeeded();
       const nextSummary = await retryOwnerSubscriptionPayment();
       setSummary(nextSummary);
-      setSelectedPlanCode(nextSummary.currentPlanCode);
+      setSelectedPlanCode(toCanonicalOwnerPlanCode(nextSummary.currentPlanCode));
       if (hasSuccessfulPayment(nextSummary)) {
         setMessage(null);
         router.replace(buildBillingSuccessUrl(nextSummary) as never);
@@ -508,7 +503,7 @@ export default function OwnerBillingScreen({
       });
 
       setSummary(nextSummary);
-      setSelectedPlanCode(nextSummary.currentPlanCode);
+      setSelectedPlanCode(toCanonicalOwnerPlanCode(nextSummary.currentPlanCode));
       if (hasSuccessfulPayment(nextSummary)) {
         setMessage(null);
         router.replace(buildBillingSuccessUrl(nextSummary) as never);
@@ -558,7 +553,7 @@ export default function OwnerBillingScreen({
 
   function handleSelectPlanCode(planCode: OwnerPlanCode) {
     hasUserSelectedPlanRef.current = true;
-    setSelectedPlanCode(planCode);
+    setSelectedPlanCode(toCanonicalOwnerPlanCode(planCode));
     setAgreementAccepted(false);
     setMessage(null);
   }
@@ -601,7 +596,7 @@ export default function OwnerBillingScreen({
     try {
       const nextSummary = await cancelOwnerSubscriptionRenewal();
       setSummary(nextSummary);
-      setSelectedPlanCode(nextSummary.currentPlanCode);
+      setSelectedPlanCode(toCanonicalOwnerPlanCode(nextSummary.currentPlanCode));
       setCancelRenewalDialogOpen(false);
       setCancelReason("");
       setCancelAcknowledged(false);
@@ -650,7 +645,7 @@ export default function OwnerBillingScreen({
               현재 이용 기간까지는 계속 사용할 수 있고, 다음 결제일에는 자동 결제가 진행되지 않습니다.
             </p>
             <p className="mt-1.5 text-[12px] leading-5 text-[#8f5d66]">
-              포함 알림톡은 다음 유료 결제 주기에 다시 제공되지 않으며, 구매한 추가 발송 이용권은 정책에 따라 유지됩니다.
+              정기결제가 중단되면 요금제에 포함된 알림톡도 이용 기간 종료 후 제공되지 않습니다.
             </p>
           </div>
 
@@ -828,38 +823,16 @@ export default function OwnerBillingScreen({
             월 {won(selectedBillingAmount.monthlyTotalAmount)}
           </p>
           <p className="mt-1 text-sm leading-6 text-[var(--mid)]">다음 결제 기준일 {projectedServiceEndDate}</p>
-          <div className="mt-3 rounded-[16px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3">
-            <div className="flex items-center justify-between gap-3 text-[13px]">
-              <span className="font-medium text-[#64748b]">총 매장 수</span>
-              <span className="font-semibold text-[#111827]">{selectedMultiShopDiscount.totalShopCount}개</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-[13px]">
-              <span className="font-medium text-[#64748b]">매장 정가</span>
-              <span className="font-semibold text-[#111827]">월 {won(selectedMultiShopDiscount.perShopListMonthlyPrice)}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-[13px]">
-              <span className="font-medium text-[#64748b]">할인 전 금액</span>
-              <span className="font-semibold text-[#111827]">월 {won(selectedMultiShopDiscount.subtotalBeforeDiscount)}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-[13px]">
-              <span className="font-medium text-[#64748b]">다점포 할인</span>
-              <span className="font-semibold text-[#2563eb]">
-                {selectedMultiShopDiscount.discountPercent > 0
-                  ? `${selectedMultiShopDiscount.discountPercent}% · -${won(selectedMultiShopDiscount.discountAmount)}`
-                  : "없음"}
-              </span>
-            </div>
-            <p className="mt-2 text-[12px] font-medium leading-5 text-[#64748b]">
-              {selectedMultiShopDiscount.appliedLabel} 매장 추가/삭제 변경분은 다음 결제일부터 반영됩니다.
-            </p>
-          </div>
           <p className="mt-2 text-[13px] leading-5 text-[var(--mid)]">
             {isFreePlan
               ? "체험 플랜은 관리자 배정용 플랜입니다. 유료 결제로 전환하려면 플랜을 변경해 주세요."
               : usesOneTimePayment
               ? "선택한 플랜은 결제 후 바로 시작할 수 있습니다."
-              : `${selectedStaffLimitLabel} 기준, ${selectedPlan.alimtalkIncludedLabel} 요금제입니다.`}
+              : OWNER_SINGLE_PLAN_INCLUDED_COPY}
           </p>
+          {!isFreePlan && !usesOneTimePayment ? (
+            <p className="mt-2 text-[13px] leading-5 text-[var(--mid)]">{OWNER_SINGLE_PLAN_LIMIT_COPY}</p>
+          ) : null}
         </div>
 
         <div className="mt-4 rounded-[12px] border border-[#e8edf3] bg-white px-4 py-4">

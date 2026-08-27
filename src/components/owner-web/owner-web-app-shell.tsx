@@ -110,53 +110,18 @@ function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey
   );
 }
 
-function formatAlimtalkCount(value: number | null | undefined) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
-  return value.toLocaleString("ko-KR");
-}
-
-function getAlimtalkIncludedProgress(summary: BootstrapPayload["alimtalkCreditSummary"]) {
-  const total = typeof summary?.included_total === "number" && Number.isFinite(summary.included_total)
-    ? Math.max(0, summary.included_total)
-    : 0;
-  const remaining = typeof summary?.included_remaining === "number" && Number.isFinite(summary.included_remaining)
-    ? Math.max(0, summary.included_remaining)
-    : 0;
-
-  if (total <= 0) {
-    return {
-      total,
-      remaining,
-      percent: 0,
-    };
-  }
-
-  return {
-    total,
-    remaining: Math.min(remaining, total),
-    percent: Math.max(0, Math.min(100, (remaining / total) * 100)),
-  };
-}
-
 const OWNER_HEADER_UTILITY_BUTTON_CLASS =
   "inline-flex h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-transparent bg-transparent px-3 text-[13px] font-semibold text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]";
 
 function AlimtalkCreditMenu({
-  summary,
   open,
   onToggle,
   containerRef,
 }: {
-  summary: BootstrapPayload["alimtalkCreditSummary"];
   open: boolean;
   onToggle: () => void;
   containerRef?: RefObject<HTMLDivElement | null>;
 }) {
-  const includedRemaining = formatAlimtalkCount(summary?.included_remaining);
-  const includedTotal = formatAlimtalkCount(summary?.included_total);
-  const purchasedRemaining = formatAlimtalkCount(summary?.purchased_remaining);
-  const totalRemaining = formatAlimtalkCount(summary?.remaining_total);
-  const includedProgress = getAlimtalkIncludedProgress(summary);
   const [helpOpen, setHelpOpen] = useState(false);
 
   return (
@@ -174,7 +139,7 @@ function AlimtalkCreditMenu({
       {open ? (
         <div className="absolute right-0 top-11 z-[80] w-[260px] rounded-[10px] border border-[var(--bd)] bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
           <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-2.5">
-            <p className="text-[12px] font-semibold text-[var(--ink)]">알림톡 잔여 건수</p>
+            <p className="text-[12px] font-semibold text-[var(--ink)]">알림톡</p>
             <button
               type="button"
               onClick={() => setHelpOpen((prev) => !prev)}
@@ -184,47 +149,17 @@ function AlimtalkCreditMenu({
               도움말
             </button>
           </div>
-          <div className="mt-3 space-y-2">
-            <div className="rounded-[9px] border border-[#dbeafe] bg-[#f8fbff] px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] font-semibold text-[#334155]">무료 잔여</span>
-                <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">
-                  {includedRemaining}/{includedTotal}
-                </span>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#dbeafe]">
-                <div
-                  className="h-full rounded-full bg-[#2563eb] transition-[width]"
-                  style={{ width: `${includedProgress.percent}%` }}
-                />
-              </div>
-            </div>
-            <div className="rounded-[9px] border border-[#dbe6f2] bg-[#f8fbff] px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] font-semibold text-[#334155]">추가 이용권</span>
-                <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">
-                  {purchasedRemaining}건
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-2.5">
-              <span className="text-[12px] font-semibold text-[var(--ink2)]">남은 발송 건수</span>
-              <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">{totalRemaining}건</span>
-            </div>
+          <div className="mt-3 rounded-[9px] border border-[#dbe6f2] bg-[#f8fbff] px-3 py-2.5">
+            <p className="text-[13px] font-semibold text-[var(--ink)]">요금제 포함 · 별도 충전 없음</p>
+            <p className="mt-1 text-[12px] font-medium leading-5 text-[#64748b]">
+              별도 충전이나 건별 추가 결제 없이 요금제에 포함됩니다.
+            </p>
           </div>
           {helpOpen ? (
             <div className="mt-3 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[12px] font-medium leading-5 text-[#64748b]">
-              <p>월 제공분을 먼저 사용하고, 부족하면 구매한 추가 발송 이용권을 사용합니다.</p>
-              <p className="mt-1">월 제공분은 다음 결제 주기에 새로 제공되며, 구매한 이용권은 모두 사용할 때까지 유지됩니다.</p>
+              승인된 템플릿과 서비스 운영 정책에 따라 제공되며, 제공사 상태 또는 비정상·오남용 발송에는 제한될 수 있습니다.
             </div>
           ) : null}
-          <Link
-            href={{ pathname: "/owner/alimtalk-credits" }}
-            prefetch
-            className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-[9px] border border-[#cbd5e1] bg-white text-[13px] font-semibold text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]"
-          >
-            추가 발송 이용권 구매
-          </Link>
         </div>
       ) : null}
     </div>
@@ -375,7 +310,6 @@ export default function OwnerWebAppShell({
               1:1 문의
             </button>
             <AlimtalkCreditMenu
-              summary={alimtalkCreditSummary}
               open={alimtalkCreditMenuOpen}
               containerRef={alimtalkCreditMenuRef}
               onToggle={onAlimtalkCreditToggle}
@@ -451,18 +385,11 @@ export default function OwnerWebAppShell({
           <div className="shrink-0 border-b border-[#f3d7aa] bg-[#fff8ec] px-5 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[14px] font-semibold text-[#8a4f08]">알림톡 잔여 건수가 모두 소진되었습니다</p>
+                <p className="text-[14px] font-semibold text-[#8a4f08]">현재 알림톡 발송이 제한되었습니다</p>
                 <p className="mt-0.5 text-[13px] font-medium text-[#9a5d12]">
-                  고객 예약 안내와 미용 상태 알림톡을 더 보낼 수 없습니다. 추가 발송 이용권을 구매하거나 상위 플랜을 확인해 주세요.
+                  제공사 상태와 서비스 운영 정책을 확인해 주세요. 별도 충전이나 건별 추가 결제는 없습니다.
                 </p>
               </div>
-              <Link
-                href={{ pathname: "/owner/alimtalk-credits" }}
-                prefetch
-                className="inline-flex h-9 shrink-0 items-center rounded-[9px] bg-[#b98121] px-3 text-[13px] font-semibold text-white transition hover:bg-[#9a681a]"
-              >
-                추가 발송 이용권 구매
-              </Link>
             </div>
           </div>
         ) : null}

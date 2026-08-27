@@ -29,8 +29,15 @@ export type OwnerPlan = {
   hidden?: boolean;
 };
 
-const EXCESS_ALIMTALK_LABEL = "초과 알림톡 11원/건, 부가세 포함";
+const LEGACY_EXCESS_ALIMTALK_LABEL = "기존 계약 기준";
 export const OWNER_STORE_LIST_MONTHLY_PRICE = 19000;
+export const OWNER_CANONICAL_PLAN_CODE = "quarterly" as const satisfies OwnerPlanCode;
+export const OWNER_SINGLE_PLAN_MONTHLY_PRICE = 29000;
+export const OWNER_SINGLE_PLAN_NAME = "펫매니저 단일 요금제";
+export const OWNER_SINGLE_PLAN_INCLUDED_COPY =
+  "펫매니저 핵심 운영 기능과 알림톡이 포함됩니다. 별도 충전이나 건별 추가 결제는 없습니다.";
+export const OWNER_SINGLE_PLAN_LIMIT_COPY =
+  "승인된 템플릿과 서비스 운영 정책에 따라 제공되며, 제공사 상태 또는 비정상·오남용 발송에는 제한될 수 있습니다.";
 
 export type OwnerMultiShopDiscountBilling = {
   totalShopCount: number;
@@ -99,9 +106,15 @@ export function calculateOwnerBillingAmountBreakdown(
   totalShopCount: number,
 ): OwnerBillingAmountBreakdown {
   const multiShopDiscount = calculateOwnerMultiShopDiscountBilling(
-    totalShopCount,
+    plan.code === OWNER_CANONICAL_PLAN_CODE ? 1 : totalShopCount,
     plan.code === "free" ? 0 : plan.monthlyPrice,
   );
+
+  if (plan.code === OWNER_CANONICAL_PLAN_CODE) {
+    multiShopDiscount.totalShopCount = Math.max(1, Math.floor(Number.isFinite(totalShopCount) ? totalShopCount : 1));
+    multiShopDiscount.policyLabel = "매장 수 과금 정책 미확정";
+    multiShopDiscount.appliedLabel = "단일 요금제 월 금액만 적용";
+  }
 
   return {
     planCode: plan.code,
@@ -220,7 +233,7 @@ function makePlan({
     badge,
     staffLimitLabel,
     alimtalkIncludedLabel,
-    excessAlimtalkLabel: EXCESS_ALIMTALK_LABEL,
+    excessAlimtalkLabel: LEGACY_EXCESS_ALIMTALK_LABEL,
     targetLabel,
     highlights,
     featured,
@@ -246,7 +259,7 @@ export const ownerPlans: OwnerPlan[] = [
     discountPercent: 0,
     staffLimitLabel: "체험 설정",
     alimtalkIncludedLabel: "테스트 기준",
-    excessAlimtalkLabel: EXCESS_ALIMTALK_LABEL,
+    excessAlimtalkLabel: LEGACY_EXCESS_ALIMTALK_LABEL,
     targetLabel: "도입 전 확인",
     highlights: ["14일 무료체험", "카드 등록 없이 시작", "오너 화면 기본 기능 확인"],
   },
@@ -260,18 +273,18 @@ export const ownerPlans: OwnerPlan[] = [
     alimtalkIncludedLabel: "월 500건",
     targetLabel: "1개 사업자/1개 매장 1인샵",
     highlights: ["운영 기준: 1개 사업자/1개 매장", "타 업체·타 지점 분리 운영 불가", "예약 담당자: 1명"],
+    hidden: true,
   }),
   makePlan({
     code: "quarterly",
-    title: "2~4인 운영",
-    shortTitle: "2~4인 운영",
-    monthlyPrice: 29000,
-    description: "상시 직원, 파트타임, 프리랜서가 함께 일하는 단일 매장을 위한 추천 플랜입니다. 여러 담당자가 한 매장 안에서 예약을 나눠 맡는 기준입니다.",
-    badge: "추천",
-    staffLimitLabel: "2~4인 단일 매장",
-    alimtalkIncludedLabel: "월 1,500건",
-    targetLabel: "1개 사업자/1개 매장 2~4인",
-    highlights: ["운영 기준: 1개 사업자/1개 매장", "예약 담당자: 상시 4명 + 프리랜서 2명", "타 업체·타 지점 공동 사용 불가"],
+    title: OWNER_SINGLE_PLAN_NAME,
+    shortTitle: OWNER_SINGLE_PLAN_NAME,
+    monthlyPrice: OWNER_SINGLE_PLAN_MONTHLY_PRICE,
+    description: OWNER_SINGLE_PLAN_INCLUDED_COPY,
+    staffLimitLabel: "핵심 운영 기능 포함",
+    alimtalkIncludedLabel: "알림톡 포함 · 별도 충전 없음",
+    targetLabel: "카드 없이 14일 체험",
+    highlights: ["카드 없이 14일 체험", "핵심 운영 기능 포함", "알림톡 포함 · 별도 충전 없음"],
     featured: true,
   }),
   makePlan({
@@ -296,10 +309,15 @@ export const ownerPlans: OwnerPlan[] = [
     alimtalkIncludedLabel: "월 5,000건",
     targetLabel: "1개 사업자/1개 매장 5인 이상",
     highlights: ["운영 기준: 1개 사업자/1개 매장", "여러 지점/타 업체 공동 사용 불가", "지점 확장·공동 운영은 별도 문의"],
+    hidden: true,
   }),
 ];
 
-export const billableOwnerPlans = ownerPlans.filter((plan) => plan.code !== "free" && !plan.hidden);
+export const billableOwnerPlans = ownerPlans.filter((plan) => plan.code === OWNER_CANONICAL_PLAN_CODE);
+
+export function toCanonicalOwnerPlanCode(_code?: OwnerPlanCode | string | null): OwnerPlanCode {
+  return OWNER_CANONICAL_PLAN_CODE;
+}
 
 export function ownerPlanAllowsAutomaticVisitReminder(code: OwnerPlanCode | string | null | undefined) {
   return code === "quarterly" || code === "halfyearly" || code === "yearly";
@@ -314,13 +332,13 @@ export function getOwnerPlanDisplayName(code: string | null | undefined) {
     case "free":
       return "체험 플랜";
     case "monthly":
-      return "1인 운영";
+      return "기존 유료 플랜";
     case "quarterly":
-      return "2~4인 운영";
+      return OWNER_SINGLE_PLAN_NAME;
     case "halfyearly":
-      return "2~4인 운영";
+      return "기존 유료 플랜";
     case "yearly":
-      return "5인 이상 운영";
+      return "기존 유료 플랜";
     default:
       return getOwnerPlanByCode(code)?.shortTitle ?? "-";
   }

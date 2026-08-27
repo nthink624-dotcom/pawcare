@@ -1,6 +1,8 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { OWNER_CANONICAL_PLAN_CODE } from "@/lib/billing/owner-plans";
+
 import {
   getOwnerSubscriptionSummary,
   OwnerBillingError,
@@ -9,7 +11,7 @@ import {
 import { requireOwnerBillingSession } from "@/server/owner-billing-session";
 
 const patchSchema = z.object({
-  currentPlanCode: z.enum(["monthly", "quarterly", "halfyearly", "yearly"]).optional(),
+  currentPlanCode: z.literal(OWNER_CANONICAL_PLAN_CODE).optional(),
 });
 
 export async function GET(request: NextRequest) {

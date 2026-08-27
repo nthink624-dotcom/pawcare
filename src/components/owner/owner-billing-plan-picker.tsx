@@ -3,9 +3,8 @@
 import { CalendarX2, ChevronLeft } from "lucide-react";
 
 import {
-  getOwnerPlanStaffAccountLabel,
-  getOwnerPlanStaffLimitLabel,
-  ownerPlanUsesMultiShopStaffAllowance,
+  OWNER_SINGLE_PLAN_INCLUDED_COPY,
+  OWNER_SINGLE_PLAN_LIMIT_COPY,
   type OwnerPlan,
   type OwnerPlanCode,
 } from "@/lib/billing/owner-plans";
@@ -26,47 +25,8 @@ type OwnerBillingPlanPickerProps = {
   message: string | null;
 };
 
-type PlanUi = {
-  title: string;
-  subtitle: string;
-};
-
-const planUiByCode: Partial<Record<OwnerPlanCode, PlanUi>> = {
-  monthly: {
-    title: "1인 운영",
-    subtitle: "혼자 운영하는 단일 매장 기준",
-  },
-  quarterly: {
-    title: "2~4인 운영",
-    subtitle: "직원·파트타임과 함께 일하는 단일 매장 기준",
-  },
-  halfyearly: {
-    title: "2~4인 운영",
-    subtitle: "직원·파트타임과 함께 일하는 단일 매장 기준",
-  },
-  yearly: {
-    title: "5인 이상 운영",
-    subtitle: "담당자가 많은 단일 대형 매장 기준",
-  },
-};
-
-function getPlanUi(plan: OwnerPlan): PlanUi {
-  return (
-    planUiByCode[plan.code] ?? {
-      title: plan.title,
-      subtitle: plan.targetLabel,
-    }
-  );
-}
-
-function getRecommendedPlanCode(currentPlanCode: OwnerPlanCode): OwnerPlanCode {
-  if (currentPlanCode === "monthly" || currentPlanCode === "free") return "quarterly";
-  if (currentPlanCode === "halfyearly") return "quarterly";
-  return currentPlanCode;
-}
-
 function isCurrentVisiblePlan(currentPlanCode: OwnerPlanCode, planCode: OwnerPlanCode) {
-  return currentPlanCode === planCode || (currentPlanCode === "halfyearly" && planCode === "quarterly");
+  return currentPlanCode === planCode;
 }
 
 function PlanFact({ label, value }: { label: string; value: string }) {
@@ -82,28 +42,18 @@ function PlanCard({
   plan,
   current,
   selected,
-  recommended,
   loading,
-  totalShopCount,
   onSelect,
   onContinue,
 }: {
   plan: OwnerPlan;
   current: boolean;
   selected: boolean;
-  recommended: boolean;
   loading: boolean;
-  totalShopCount: number;
   onSelect: () => void;
   onContinue: () => void;
 }) {
-  const ui = getPlanUi(plan);
-  const usesMultiShopStaffAllowance = ownerPlanUsesMultiShopStaffAllowance(totalShopCount);
-  const subtitle = usesMultiShopStaffAllowance ? "다점포 기본 직원 1명 추가 기준" : ui.subtitle;
-  const operatingLabel = getOwnerPlanStaffLimitLabel(plan, totalShopCount);
-  const staffAccountLabel = getOwnerPlanStaffAccountLabel(plan, totalShopCount);
-  const actionLabel = current ? "현재 이용 중" : selected ? "이 플랜으로 계속" : `${ui.title} 선택`;
-  const badgeLabel = current ? "현재" : recommended ? "추천" : plan.code === "yearly" ? "대형" : null;
+  const actionLabel = current ? "현재 이용 중" : "이 요금제로 이용하기";
 
   return (
     <article
@@ -125,21 +75,9 @@ function PlanCard({
           : "border-[#e8edf3] hover:border-[#bfd3ea]",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-[20px] font-semibold leading-tight text-[#0f172a]">{ui.title}</h2>
-          <p className="mt-1 text-[13px] leading-5 text-[#64748b]">{subtitle}</p>
-        </div>
-        {badgeLabel ? (
-          <span
-            className={cn(
-              "shrink-0 rounded-full px-2.5 py-1 text-[12px] font-medium",
-              current ? "bg-[#ecfdf3] text-[#1f9d55]" : selected || recommended ? "bg-[#eff6ff] text-[#2563eb]" : "bg-[#f1f5f9] text-[#64748b]",
-            )}
-          >
-            {badgeLabel}
-          </span>
-        ) : null}
+      <div className="min-w-0">
+        <h2 className="text-[20px] font-semibold leading-tight text-[#0f172a]">{plan.title}</h2>
+        <p className="mt-2 text-[14px] leading-6 text-[#475569]">카드 없이 14일 체험</p>
       </div>
 
       <div className="mt-6 border-t border-[#e7edf3] pt-5">
@@ -153,11 +91,13 @@ function PlanCard({
       </div>
 
       <div className="mt-4 grid gap-1.5">
-        <PlanFact label="운영 기준" value={operatingLabel} />
-        <PlanFact label="이용 기간" value={plan.code === "free" ? "14일 무료 체험" : "결제일부터 1개월"} />
-        <PlanFact label="포함 알림톡" value={plan.alimtalkIncludedLabel} />
-        <PlanFact label="직원 계정·권한" value={staffAccountLabel} />
+        <PlanFact label="체험" value="카드 없이 14일" />
+        <PlanFact label="기능" value="핵심 운영 기능 포함" />
+        <PlanFact label="알림톡" value="포함 · 별도 충전 없음" />
       </div>
+
+      <p className="mt-4 text-[14px] leading-6 text-[#475569]">{OWNER_SINGLE_PLAN_INCLUDED_COPY}</p>
+      <p className="mt-2 text-[13px] leading-5 text-[#64748b]">{OWNER_SINGLE_PLAN_LIMIT_COPY}</p>
 
       <button
         type="button"
@@ -185,7 +125,7 @@ export function OwnerBillingPlanPicker({
   plans,
   currentPlanCode,
   selectedPlanCode,
-  totalShopCount,
+  totalShopCount: _totalShopCount,
   onSelectPlanCode,
   onContinue,
   onBack,
@@ -197,7 +137,6 @@ export function OwnerBillingPlanPicker({
 }: OwnerBillingPlanPickerProps) {
   const visiblePlans = plans.filter((plan) => !plan.hidden);
   const selectedPlan = visiblePlans.find((plan) => plan.code === selectedPlanCode) ?? visiblePlans[0];
-  const recommendedPlanCode = getRecommendedPlanCode(currentPlanCode);
 
   if (!selectedPlan) return null;
 
@@ -217,7 +156,7 @@ export function OwnerBillingPlanPicker({
 
             <div className="min-w-0 text-center">
               <h1 className="text-[19px] font-semibold leading-7 text-[#0f172a] sm:text-[22px]">
-                매장 운영 인원에 맞는 플랜을 선택하세요
+                펫매니저 단일 요금제
               </h1>
             </div>
 
@@ -240,35 +179,21 @@ export function OwnerBillingPlanPicker({
           </header>
 
           <section className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[10px] border border-[#e8edf3] bg-[#f8fbff] px-4 py-3">
-            <p className="text-[14px] font-medium text-[#334155]">모든 플랜에 기본 제공</p>
-            <p className="text-[13px] text-[#64748b]">간편 예약 · 고객 관리 · 예약 스케줄 · 자동 알림톡 · 직원 관리</p>
+            <p className="text-[14px] font-medium text-[#334155]">월 29,000원 · 알림톡 포함 · 별도 충전 없음</p>
           </section>
 
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          <div className="mx-auto mt-5 grid max-w-[560px] gap-4">
             {visiblePlans.map((plan) => (
               <PlanCard
                 key={plan.code}
                 plan={plan}
                 current={isCurrentVisiblePlan(currentPlanCode, plan.code)}
                 selected={selectedPlan.code === plan.code}
-                recommended={recommendedPlanCode === plan.code}
                 loading={loading}
-                totalShopCount={totalShopCount}
                 onSelect={() => onSelectPlanCode(plan.code)}
                 onContinue={onContinue}
               />
             ))}
-          </div>
-
-          <div className="mt-5 grid gap-4 border-t border-[#e7edf3] pt-4 lg:grid-cols-2">
-            <section>
-              <p className="text-[13px] font-medium text-[#334155]">이용 기준</p>
-              <p className="mt-1 text-[12px] leading-5 text-[#64748b]">모든 플랜은 1개 사업자/1개 매장 기준입니다. 동일 브랜드라도 지점이 다르거나, 타 업체 예약·고객·직원 관리를 함께 사용하는 경우에는 별도 문의가 필요합니다.</p>
-            </section>
-            <section>
-              <p className="text-[13px] font-medium text-[#334155]">다점포 할인</p>
-              <p className="mt-1 text-[12px] leading-5 text-[#64748b]">선택한 플랜의 매장당 월 금액을 기준으로 2개 매장부터 10%, 3개 매장부터 20% 할인이 적용됩니다. 변경분은 다음 결제일부터 반영됩니다.</p>
-            </section>
           </div>
 
           {message ? (

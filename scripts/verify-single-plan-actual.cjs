@@ -150,6 +150,18 @@ async function main() {
       await page.getByRole("heading", { name: "펫매니저 단일 요금제" }).first().waitFor();
       const text = await page.locator("body").innerText();
       const cardCount = await page.locator("article").filter({ hasText: "펫매니저 단일 요금제" }).count();
+      const planCard = page.locator("article").filter({ hasText: "펫매니저 단일 요금제" }).first();
+      const previousButton = page.getByRole("button", { name: "이전" });
+      const primaryButton = page.getByRole("button", { name: "이 요금제로 이용하기" });
+      const controlHeights = {
+        previous: (await previousButton.boundingBox())?.height ?? 0,
+        primary: (await primaryButton.boundingBox())?.height ?? 0,
+      };
+      const cardInteractiveElementCount = await planCard.locator("button, a, input, select, textarea, [tabindex]:not([tabindex='-1'])").count();
+      await page.keyboard.press("Tab");
+      const firstFocus = await page.evaluate(() => document.activeElement?.textContent?.trim() ?? "");
+      await page.keyboard.press("Tab");
+      const secondFocus = await page.evaluate(() => document.activeElement?.textContent?.trim() ?? "");
       const dimensions = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
@@ -168,6 +180,9 @@ async function main() {
         monthlyPriceVisible: text.includes("29,000"),
         includedCopyVisible: text.includes("별도 충전이나 건별 추가 결제는 없습니다"),
         limitationCopyVisible: text.includes("비정상·오남용 발송에는 제한될 수 있습니다"),
+        controlHeights,
+        cardInteractiveElementCount,
+        keyboardFocusOrder: [firstFocus, secondFocus],
         forbiddenCopy: forbiddenCopy.filter((value) => text.includes(value)),
         dimensions,
         horizontalOverflow: Math.max(0, dimensions.scrollWidth - dimensions.clientWidth),
@@ -191,6 +206,11 @@ async function main() {
       !result.includedCopyVisible ||
       !result.limitationCopyVisible ||
       result.forbiddenCopy.length > 0 ||
+      result.controlHeights.previous < 44 ||
+      result.controlHeights.primary < 44 ||
+      result.cardInteractiveElementCount !== 1 ||
+      result.keyboardFocusOrder[0] !== "이전" ||
+      result.keyboardFocusOrder[1] !== "이 요금제로 이용하기" ||
       result.horizontalOverflow !== 0 ||
       result.consoleErrors.length > 0 ||
       result.pageErrors.length > 0

@@ -57,19 +57,9 @@ function PlanCard({
 
   return (
     <article
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
       aria-current={current ? "true" : undefined}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
       className={cn(
-        "flex min-w-0 cursor-pointer flex-col rounded-[10px] border bg-white p-5 transition",
+        "flex min-w-0 flex-col rounded-[10px] border bg-white p-5 transition",
         selected
           ? "border-[#1677ff] bg-[#f8fbff] shadow-none"
           : "border-[#e8edf3] hover:border-[#bfd3ea]",
@@ -111,7 +101,7 @@ function PlanCard({
         }}
         disabled={loading || current}
         className={cn(
-          "mt-5 flex h-10 w-full items-center justify-center rounded-[8px] border text-[14px] font-medium transition disabled:cursor-default disabled:opacity-60",
+          "mt-5 flex min-h-11 w-full items-center justify-center rounded-[8px] border text-[14px] font-medium transition disabled:cursor-default disabled:opacity-60",
           selected && !current ? "border-[#1677ff] bg-[#1677ff] text-white hover:bg-[#0e65d8]" : "border-[#e8edf3] bg-white text-[#334155] hover:bg-[#f8fbff]",
         )}
       >
@@ -148,7 +138,7 @@ export function OwnerBillingPlanPicker({
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex h-10 shrink-0 items-center gap-1 rounded-[9px] border border-[#e8edf3] bg-white px-3 text-[13px] font-medium text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fbff]"
+              className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-[9px] border border-[#e8edf3] bg-white px-3 text-[13px] font-medium text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fbff]"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               이전

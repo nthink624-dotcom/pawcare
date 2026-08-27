@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function AppError({
   error,
@@ -9,6 +10,9 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const recoveryPath = pathname.startsWith("/admin") ? "/admin" : "/owner";
   useEffect(() => {
     console.error("[petmanager-ui] recovered from a route error", {
       message: error.message,
@@ -26,14 +30,14 @@ export default function AppError({
         </p>
         <div className="mt-6 grid grid-cols-2 gap-2">
           <a
-            href="/owner"
+            href={recoveryPath}
             className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]"
           >
             관리자 메인
           </a>
           <button
             type="button"
-            onClick={reset}
+            onClick={() => { reset(); router.refresh(); }}
             className="h-11 rounded-[8px] bg-[#111827] text-[14px] font-semibold text-white hover:bg-[#1f2937]"
           >
             다시 불러오기

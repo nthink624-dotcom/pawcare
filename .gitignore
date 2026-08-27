@@ -16,3 +16,5 @@ supabase/**/.temp/
 artifacts/
 # Local runtime ledgers
 .petmanager-status/*.json
+.petmanager-status/*token*
+.petmanager-status/*.sqlite*

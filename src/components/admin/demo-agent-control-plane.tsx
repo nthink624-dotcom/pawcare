@@ -12,7 +12,7 @@ const STATUS: Record<ControlPlaneStatus, string> = { not_started: "시작 전", 
 
 export default function DemoAgentControlPlane({ mode = "operational" }: { mode?: "operational" | "demo" }) {
   const [snapshot, setSnapshot] = useState<ControlPlaneSnapshot | null>(null);
-  const [selectedWorkId, setSelectedWorkId] = useState("CP-OPS-001");
+  const [selectedWorkId, setSelectedWorkId] = useState(() => typeof window === "undefined" ? "CP-OPS-001" : new URLSearchParams(window.location.search).get("work") ?? "CP-OPS-001");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,11 +30,24 @@ export default function DemoAgentControlPlane({ mode = "operational" }: { mode?:
   }, [mode]);
   useEffect(() => { if (snapshot) return; const timer = window.setTimeout(() => void load(0), 0); return () => window.clearTimeout(timer); }, [load, snapshot]);
   useEffect(() => { if (paused || !snapshot) return; const delay = mode === "demo" && snapshot.hasMore ? 1_500 : 3_000; const timer = window.setTimeout(() => void load(snapshot.cursor), delay); return () => window.clearTimeout(timer); }, [load, mode, paused, snapshot]);
+  useEffect(() => {
+    if (mode !== "operational" || paused) return;
+    const stream = new EventSource("/api/admin/marketing/demo-control-plane/stream");
+    stream.onmessage = (message) => {
+      try { setSnapshot(JSON.parse(message.data) as ControlPlaneSnapshot); setError(null); }
+      catch { setError("업무 상태 형식을 확인하지 못했습니다."); }
+    };
+    stream.onerror = () => setError("실시간 연결 안 됨");
+    return () => stream.close();
+  }, [mode, paused]);
   const selected = snapshot?.nodes.find((node) => node.workId === selectedWorkId) ?? snapshot?.nodes[0] ?? null;
   const selectedEvent = snapshot?.timeline.find((event) => event.eventId === selectedEventId) ?? null;
   const detailNode = selectedEvent ? eventAsNode(selectedEvent) : selected;
-  const connected = mode === "operational" ? Boolean(snapshot?.nodes.length) : snapshot?.sources.codex === "connected" || snapshot?.sources.mastra === "connected";
-  const connectionLabel = mode === "demo" ? "데모 데이터" : error || snapshot?.nodes.length === 0 ? "데모 관리자 · 연결 안 됨" : "데모 관리자 · 실제 업무 상태 연결";
+  const liveCount = snapshot?.nodes.filter((node) => node.eventSource === "codex_live").length ?? 0;
+  const manualCount = snapshot?.nodes.filter((node) => node.eventSource === "manual" || node.eventSource === "local_snapshot").length ?? 0;
+  const liveConnected = liveCount > 0;
+  const connected = mode === "demo" ? snapshot?.sources.codex === "connected" || snapshot?.sources.mastra === "connected" : liveConnected;
+  const connectionLabel = mode === "demo" ? "데모 데이터" : liveConnected && manualCount > 0 ? "데모 관리자 · 새 이벤트 자동 반영 · 이전 기록 병행" : liveConnected ? "데모 관리자 · 새 이벤트 자동 반영" : "데모 관리자 · 실시간 연결 안 됨 · 마지막 수동 동기화";
   const roots = useMemo(() => snapshot?.nodes.filter((node) => !node.parentWorkId) ?? [], [snapshot]);
   const children = useCallback((id: string) => snapshot?.nodes.filter((node) => node.parentWorkId === id) ?? [], [snapshot]);
 
@@ -54,18 +67,30 @@ export default function DemoAgentControlPlane({ mode = "operational" }: { mode?:
 function MobileTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} className={`${T.button} min-h-11 border-r border-[#e5e5e5] px-2 font-medium last:border-r-0 ${active ? "bg-[#171717] text-white" : "bg-white text-[#525252]"}`}>{label}</button>; }
 
 function NodeCard({ node, selected, onSelect }: { node: ControlPlaneNode; selected: boolean; onSelect: (id: string) => void }) {
-  return <button type="button" onClick={() => onSelect(node.workId)} aria-label={`${senderLabel(node)}의 ${node.title} 보고 상세 열기`} className={`flex min-h-11 w-full items-center gap-2 rounded-md border bg-white px-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-black ${selected ? "border-[#171717]" : "border-[#d4d4d4]"}`}><span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-base"><span className="font-medium">{senderLabel(node)}</span> · {node.title} {STATUS[node.status]}</span></button>;
+  return <button type="button" onClick={() => onSelect(node.workId)} aria-label={`${senderLabel(node)}의 ${node.title} 보고 상세 열기`} className={`flex min-h-11 w-full items-center gap-2 rounded-md border bg-white px-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-black ${selected ? "border-[#171717]" : "border-[#d4d4d4]"}`}><span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-base"><span className="font-medium">{senderLabel(node)}</span> · {node.title} {STATUS[node.status]} · {sourceLabel(node.eventSource)}</span></button>;
 }
 
-function senderLabel(node: ControlPlaneNode) { if (node.source === "growth") return "펫매니저 성장팀"; if (node.source === "analysis") return "펫매니저 마케팅 분석팀"; if (node.source === "operations") return node.role === "구현팀" ? "Codex 구현팀" : "운영팀"; if (node.role === "구현팀") return "Codex 구현팀"; return "발신팀 확인 불가"; }
+function sourceLabel(source: ControlPlaneNode["eventSource"]) { return source === "codex_live" ? "새 이벤트" : source === "local_snapshot" ? "이전 기록" : source === "fixture" ? "데모" : source === "unavailable" ? "연결 안 됨" : "수동"; }
+
+function senderLabel(node: ControlPlaneNode) {
+  if (node.role === "성장팀") return "펫매니저 성장팀";
+  if (node.role === "마케팅 분석팀" || node.role === "분석팀") return "펫매니저 마케팅 분석팀";
+  if (node.role === "구현팀") return "Codex 구현팀";
+  if (["운영팀", "보안팀", "초기 세팅팀", "경쟁사 분석팀", "Android팀", "UI 디자인팀"].includes(node.role)) return node.role;
+  return "발신팀 확인 불가";
+}
 function eventSenderLabel(event: ControlPlaneEvent) { if (event.eventType === "owner_request_received") return "대표"; if (event.eventType === "operations_directive_sent") return "운영팀"; return senderLabel(eventAsNode(event)); }
 function eventAsNode(event: ControlPlaneEvent): ControlPlaneNode { const { eventId, sequence: _sequence, eventType: _eventType, receivedAt: _receivedAt, ...node } = event; void _sequence; void _eventType; void _receivedAt; return { ...node, lastEventId: eventId, freshness: "fresh" }; }
 
 function Detail({ node }: { node: ControlPlaneNode | null }) {
   if (!node) return <aside className={`${T.body} rounded-xl border border-dashed border-[#cbd5e1] bg-white p-5 text-[#64748b]`}>이벤트 수신 대기</aside>;
-  const rows = [["원지시", node.originalDirectiveSummary], ["운영팀 지시", node.operationsDirectiveSummary], ["담당", node.role], ["현재 단계", STATUS[node.status]], ["완료", node.completedSummary ?? "아직 없음"], ["막힘", node.blockerSummary ?? "없음"], ["다음 행동", node.nextAction], ["승인", node.approvalRequired ? "대표 승인 필요" : "현재 승인 불필요"], ["갱신", formatTime(node.sourceEventAt)]];
+  const rows = node.detailRows?.map(({ label, value }) => [label, value]) ?? [["원지시", node.originalDirectiveSummary], ["운영팀 지시", node.operationsDirectiveSummary], ["담당", node.role], ["현재 단계", STATUS[node.status]], ["완료", node.completedSummary ?? "아직 없음"], ["막힘", node.blockerSummary ?? "없음"], ["다음 행동", node.nextAction], ["승인", node.approvalRequired ? "대표 승인 필요" : "현재 승인 불필요"], ["연결", sourceLabel(node.eventSource)], ["갱신", formatTime(node.sourceEventAt)]];
   return <aside className="rounded-md border border-[#d4d4d4] bg-white p-3 xl:sticky xl:top-3 xl:h-fit"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className={`${T.badge} font-medium text-[#525252]`}>선택된 업무</p><h2 className="mt-0.5 text-[18px] font-medium leading-6">{node.title}</h2></div><Status status={node.status} /></div><dl className="mt-2 divide-y divide-[#e5e5e5]">{rows.map(([label, value]) => <div key={label} className="grid gap-0.5 py-2 sm:grid-cols-[78px_1fr]"><dt className={`${T.secondary} text-[#737373]`}>{label}</dt><dd className={`${T.body} text-[#404040]`}>{value}</dd></div>)}</dl>{node.artifact ? <Link href={node.artifact.url as never} className={`${T.button} mt-3 inline-flex min-h-11 items-center gap-2 rounded-md bg-[#171717] px-3 font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black`}><Link2 className="h-4 w-4" />{node.artifact.title}</Link> : <p className={`${T.secondary} mt-3 text-[#737373]`}>안전한 산출물 링크 없음</p>}<p className={`${T.secondary} mt-3 flex items-center gap-2 text-[#737373]`}>{node.freshness === "fresh" ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}{node.freshness === "fresh" ? "원장 갱신 최신" : "오래됨"}</p></aside>;
 }
 
 function Status({ status }: { status: ControlPlaneStatus }) { const tone = status === "completed" ? "border-[#a3a3a3] text-[#525252]" : status === "blocked" || status === "failed" ? "border-[#171717] text-[#171717]" : "border-[#d4d4d4] text-[#404040]"; return <span className={`${T.badge} shrink-0 rounded-full border bg-white px-3 py-1 font-medium ${tone}`}>{STATUS[status]}</span>; }
-function formatTime(value: string) { return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Seoul", hour12: false }).format(new Date(value)); }
+function formatTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "시각 확인 불가";
+  return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Seoul", hour12: false }).format(date);
+}

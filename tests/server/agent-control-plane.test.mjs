@@ -24,6 +24,14 @@ test("deduplicates events and resolves out-of-order delivery by source time", ()
   assert.equal(snapshot.nodes.find((node) => node.workId === "CP-OPS-001")?.status, "approval_waiting");
 });
 
+test("codex live state supersedes a later manual snapshot for the same work", () => {
+  const manual = { ...CONTROL_PLANE_FIXTURE_EVENTS[0], eventId: "manual-later", workId: "same-work", sequence: 20, sourceEventAt: "2026-08-27T01:10:00+09:00", eventSource: "manual", status: "in_progress" };
+  const live = { ...manual, eventId: "live-earlier", sequence: 10, sourceEventAt: "2026-08-27T01:03:00+09:00", eventSource: "codex_live", status: "completed" };
+  const snapshot = projectControlPlaneEvents({ events: [live, manual], now: "2026-08-27T01:11:00+09:00" });
+  assert.equal(snapshot.nodes[0]?.eventSource, "codex_live");
+  assert.equal(snapshot.nodes[0]?.status, "completed");
+});
+
 test("marks replayed old data stale and exposes no PII or raw thread id", () => {
   const snapshot = projectControlPlaneEvents({ events: CONTROL_PLANE_FIXTURE_EVENTS, now: "2026-08-26T22:00:00+09:00" });
   assert.ok(snapshot.nodes.every((node) => node.freshness === "stale"));
@@ -38,10 +46,9 @@ test("preview API is admin protected, read-only, no-store, and does not mutate p
   assert.doesNotMatch(route, /export async function POST|supabase|insert\(|update\(|upsert\(/i);
 });
 
-test("isolated visual route is development-only and production fail-closed", () => {
-  const page = readFileSync(new URL("../../src/app/dev/agent-control-plane-preview/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /NODE_ENV !== "development"/);
-  assert.match(page, /notFound\(\)/);
+test("the removed alternate-port visual route cannot become a production fallback", () => {
+  const page = readFileSync(new URL("../../src/app/admin/marketing/page.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(page, /\/dev\/agent-control-plane-preview|3015/);
 });
 
 test("operational read model is admin-only, operational-only, and keeps execution disabled", () => {
@@ -79,4 +86,42 @@ test("gateway uses stdio, authenticated outbound ingest, and never enables exter
   assert.match(gateway, /sourceType: "operational"/);
   assert.match(gateway, /externalExecution: false/);
   assert.doesNotMatch(gateway, /listen\(|createServer\(|0\.0\.0\.0/);
+});
+
+test("local Codex bridge is allowlisted, bounded, metadata-only, and uses no extra HTTP listener", () => {
+  const bridge = readFileSync(new URL("../../scripts/codex-workroom-readonly-bridge.mjs", import.meta.url), "utf8");
+  assert.match(bridge, /allowlist = new Map/);
+  assert.match(bridge, /32 \* 1024 \* 1024/);
+  assert.match(bridge, /task_started.*task_complete.*turn_aborted/);
+  assert.match(bridge, /eventSource: "codex_live"/);
+  assert.doesNotMatch(bridge, /payload\.message|payload\.text|listen\(|createServer\(|3015/);
+});
+
+test("demo workroom subscribes to the same-origin SSE stream and labels mixed sources honestly", () => {
+  const ui = readFileSync(new URL("../../src/components/admin/demo-agent-control-plane.tsx", import.meta.url), "utf8");
+  assert.match(ui, /new EventSource\("\/api\/admin\/marketing\/demo-control-plane\/stream"\)/);
+  assert.match(ui, /새 이벤트 자동 반영 · 이전 기록 병행/);
+  assert.match(ui, /실시간 연결 안 됨 · 마지막 수동 동기화/);
+  assert.match(ui, /timeline\.length/);
+  assert.doesNotMatch(ui, /3015|https?:\/\//);
+});
+
+test("local workroom ledger uses authenticated SQLite WAL and changed-event SSE", () => {
+  const ledger = readFileSync(new URL("../../src/lib/demo-control-plane-ledger.ts", import.meta.url), "utf8");
+  const api = readFileSync(new URL("../../src/app/api/admin/marketing/demo-control-plane/route.ts", import.meta.url), "utf8");
+  const stream = readFileSync(new URL("../../src/app/api/admin/marketing/demo-control-plane/stream/route.ts", import.meta.url), "utf8");
+  assert.match(ledger, /DatabaseSync/);
+  assert.match(ledger, /journal_mode=WAL/);
+  assert.match(ledger, /INSERT OR IGNORE/);
+  assert.match(api, /verifyDemoControlPlaneToken/);
+  assert.match(api, /requireAdminSession/);
+  assert.match(stream, /requireAdminSession/);
+  assert.match(stream, /signature === previousPayload/);
+});
+
+test("global route recovery returns admin failures to admin and performs a fresh render", () => {
+  const boundary = readFileSync(new URL("../../src/app/error.tsx", import.meta.url), "utf8");
+  assert.match(boundary, /pathname\.startsWith\("\/admin"\) \? "\/admin"/);
+  assert.match(boundary, /reset\(\); router\.refresh\(\)/);
+  assert.doesNotMatch(boundary, /href="\/owner"/);
 });

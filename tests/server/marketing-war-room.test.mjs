@@ -46,22 +46,21 @@ test("admin typography and operations preserve readable controls and support act
   assert.match(dashboard, /href="\/admin\/marketing"/);
   assert.match(dashboard, /label="마케팅 워크룸" description="프로젝트·승인"/);
   assert.match(dashboard, /aria-current=\{active \? "page" : undefined\}/);
-  assert.match(dashboard, /min-h-\[56px\]/);
+  assert.match(dashboard, /min-h-11/);
   assert.doesNotMatch(dashboard, /label="운영 상세"/);
   assert.doesNotMatch(dashboard, /label="오너·매장"/);
   assert.match(dashboard, /StatusRow/);
   assert.doesNotMatch(dashboard, /최근 7일/);
   assert.doesNotMatch(dashboard, /marketing\/kpis\?days=7/);
   assert.doesNotMatch(dashboard, /min-h-40/);
-  assert.match(dashboard, /1인 미용샵 체험 모집/);
-  assert.match(dashboard, /신청 페이지 제작 준비/);
-  assert.match(dashboard, /관리자 화면 개선/);
-  assert.match(dashboard, /모바일 앱 연결/);
-  assert.match(dashboard, /단일 요금제·알림톡 포함/);
-  assert.match(dashboard, /전체 흐름 그림 보기/);
-  assert.match(dashboard, /아직 화면 없음/);
+  assert.match(dashboard, /demo-control-plane/);
+  assert.match(dashboard, /category === "approval"/);
+  assert.match(dashboard, /category === "team_progress"/);
+  assert.match(dashboard, /category === "user_action"/);
   assert.doesNotMatch(dashboard, /item\.workId/);
   assert.doesNotMatch(dashboard, /item\.stageLabel/);
+  assert.doesNotMatch(dashboard, /currentAccount|sessionLoginId|fullName|loginId/);
+  assert.doesNotMatch(dashboard, /\/api\/admin\/session/);
 });
 
 test("marketing workroom opens with the representative visual flow and keeps detailed gates behind a control", () => {

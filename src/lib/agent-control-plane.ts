@@ -16,7 +16,9 @@ export function projectControlPlaneEvents(input: {
   const latest = new Map<string, ControlPlaneEvent>();
   for (const event of timeline) {
     const previous = latest.get(event.workId);
-    if (!previous || event.sourceEventAt > previous.sourceEventAt || (event.sourceEventAt === previous.sourceEventAt && event.sequence > previous.sequence)) {
+    const eventRank = sourceRank(event.eventSource);
+    const previousRank = sourceRank(previous?.eventSource);
+    if (!previous || eventRank > previousRank || (eventRank === previousRank && (event.sourceEventAt > previous.sourceEventAt || (event.sourceEventAt === previous.sourceEventAt && event.sequence > previous.sequence)))) {
       latest.set(event.workId, event);
     }
   }
@@ -36,6 +38,9 @@ export function projectControlPlaneEvents(input: {
     nextAction: event.nextAction,
     approvalRequired: event.approvalRequired,
     artifact: event.artifact,
+    category: event.category,
+    detailRows: event.detailRows,
+    eventSource: event.eventSource,
     sourceEventAt: event.sourceEventAt,
     lastEventId: event.eventId,
     freshness: Number.isFinite(nowMs) && nowMs - Date.parse(event.receivedAt) > STALE_AFTER_MS ? "stale" : "fresh",
@@ -51,6 +56,10 @@ export function projectControlPlaneEvents(input: {
     executionEnabled: false,
     externalExecution: false,
   };
+}
+
+function sourceRank(source: ControlPlaneEvent["eventSource"]) {
+  return source === "codex_live" ? 4 : source === "local_snapshot" ? 3 : source === "manual" ? 2 : source === "fixture" ? 1 : 0;
 }
 
 export const CONTROL_PLANE_FIXTURE_EVENTS: ControlPlaneEvent[] = [

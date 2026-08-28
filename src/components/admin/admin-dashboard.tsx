@@ -160,6 +160,11 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             <FlowCard step="2" label="계획" title={marketingStatus?.workflow.label ?? "계획 연결 확인 중"} status={marketingStatus?.studio.connected ? "연결됨" : "확인 필요"} owner="마케팅 워룸" nextAction={marketingStatus?.studio.connected ? "현재 실행 단계를 확인하세요." : "연결 상태를 확인하세요."} tone={marketingStatus?.studio.connected ? "confirmed" : "amber"} />
             <FlowCard step="3" label="현황" title={`문의 ${pendingSupport}건 · 승인 ${marketingStatus?.workflow.pendingApprovals ?? 0}건`} status={loadState === "ready" ? "최신" : loadState === "loading" ? "확인 중" : "일부 확인"} owner="운영 관리자" nextAction={pendingSupport ? "미처리 문의를 확인하세요." : "추가 조치가 없습니다."} tone={pendingSupport ? "amber" : loadState === "ready" ? "confirmed" : "neutral"} />
           </div>
+          <WorkflowGraph
+            hasInstruction={Boolean(currentWork)}
+            planConnected={Boolean(marketingStatus?.studio.connected)}
+            statusReady={loadState === "ready"}
+          />
         </section>
 
         <section className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="운영 요약">
@@ -195,6 +200,30 @@ function FlowCard({ step, label, title, status, owner, nextAction, tone }: { ste
         <dt className="text-[#94a3b8]">다음 행동</dt><dd className="text-[#2563eb]">{nextAction}</dd>
       </dl>
     </article>
+  );
+}
+
+function WorkflowGraph({ hasInstruction, planConnected, statusReady }: { hasInstruction: boolean; planConnected: boolean; statusReady: boolean }) {
+  const stages = [
+    { label: "업무지시", ready: hasInstruction },
+    { label: "계획", ready: planConnected },
+    { label: "현황", ready: statusReady },
+  ];
+
+  return (
+    <div className="mt-2 rounded-[8px] border border-[#e2e8f0] bg-white px-4 py-3" aria-label="업무 진행 그래프">
+      <div className="grid grid-cols-[auto_1fr_auto_1fr_auto] items-center gap-2" role="img" aria-label={stages.map((stage) => `${stage.label} ${stage.ready ? "준비됨" : "확인 필요"}`).join(", ")}>
+        {stages.map((stage, index) => (
+          <div key={stage.label} className="contents">
+            <div className="flex min-w-0 flex-col items-center gap-1 text-center">
+              <span className={`h-3 w-3 rounded-full ${stage.ready ? "bg-[#1f9d55]" : "bg-[#b9c3cf]"}`} aria-hidden="true" />
+              <span className="text-[12px] leading-[18px] text-[#475569]">{stage.label}</span>
+            </div>
+            {index < stages.length - 1 ? <span className={`h-px ${stages[index + 1].ready ? "bg-[#1f9d55]" : "bg-[#dbe2ea]"}`} aria-hidden="true" /> : null}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

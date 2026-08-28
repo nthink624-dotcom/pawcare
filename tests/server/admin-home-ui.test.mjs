@@ -37,3 +37,16 @@ test("home keeps compact typography and canonical status indicators", () => {
   assert.match(dashboard, /getDotIndicatorClass/);
   assert.doesNotMatch(dashboard, /font-bold|text-\[24px\]|rounded-\[12px\]|rounded-xl/);
 });
+
+test("home includes a live instruction-to-status graph", () => {
+  assert.match(dashboard, /<WorkflowGraph/);
+  assert.match(dashboard, /aria-label="업무 진행 그래프"/);
+  assert.match(dashboard, /hasInstruction=\{Boolean\(currentWork\)\}/);
+  assert.match(dashboard, /planConnected=\{Boolean\(marketingStatus\?\.studio\.connected\)\}/);
+  assert.match(dashboard, /statusReady=\{loadState === "ready"\}/);
+});
+
+test("canonical left edge establishes a positioned parent", () => {
+  const globals = readFileSync(new URL("../../src/app/globals.css", import.meta.url), "utf8");
+  assert.match(globals, /\.pm-wrap-indicator\s*\{[^}]*position:\s*relative;/s);
+});

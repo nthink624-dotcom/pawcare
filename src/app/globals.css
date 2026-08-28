@@ -1119,6 +1119,7 @@ textarea {
 }
 
 .pm-wrap-indicator {
+  position: relative;
   border-left-color: var(--pm-wrap-indicator-color);
   border-left-width: 3px;
   overflow: hidden;

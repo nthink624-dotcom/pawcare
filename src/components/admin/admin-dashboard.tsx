@@ -1,76 +1,214 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, Building2, CircleDollarSign, DoorOpen, Megaphone, MessageSquareText, Settings2, ShieldCheck, Store } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronDown,
+  DoorOpen,
+  MessageSquareText,
+  RefreshCcw,
+  Store,
+  TrendingUp,
+  WalletCards,
+} from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { formatWon, isPendingSupportRequest, type AdminDashboardAccount, type AdminRevenueSummary, type OwnerSupportRequestItem } from "@/components/admin/admin-dashboard-model";
-import { ADMIN_SURFACE, ADMIN_TYPOGRAPHY as T } from "@/components/admin/admin-typography";
+import {
+  formatWon,
+  isPendingSupportRequest,
+  type AdminDashboardAccount,
+  type AdminRevenueSummary,
+  type OwnerSupportRequestItem,
+  type OwnerSupportRequestStatus,
+} from "@/components/admin/admin-dashboard-model";
+import AdminRevenueOverview from "@/components/admin/admin-revenue-overview";
+import AdminSupportInbox from "@/components/admin/admin-support-inbox";
 import PetManagerBrand from "@/components/brand/petmanager-brand";
+import {
+  getDotIndicatorClass,
+  getWrapIndicatorClass,
+  type StatusIndicatorTone,
+} from "@/components/owner-web/status-indicators";
 import { fetchApiJson } from "@/lib/api";
-import type { MarketingWarRoomSnapshot } from "@/types/marketing-war-room";
+import type { MarketingAgentStatus, MarketingWorkStatus } from "@/types/marketing-agent";
 
-type LoadState = "loading" | "ready" | "error";
+type LoadState = "loading" | "ready" | "partial" | "error";
+
+const WORK_STATUS: Record<MarketingWorkStatus, { label: string; tone: StatusIndicatorTone }> = {
+  running: { label: "진행 중", tone: "active" },
+  suspended: { label: "승인 대기", tone: "amber" },
+  success: { label: "완료", tone: "confirmed" },
+  failed: { label: "막힘", tone: "burgundy" },
+  unknown: { label: "확인 필요", tone: "neutral" },
+};
 
 export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: string }) {
   const router = useRouter();
-  const pathname = usePathname();
   const [account, setAccount] = useState<AdminDashboardAccount | null>(null);
-  const [support, setSupport] = useState<OwnerSupportRequestItem[] | null>(null);
-  const [revenue, setRevenue] = useState<AdminRevenueSummary | null>(null);
-  const [warRoom, setWarRoom] = useState<MarketingWarRoomSnapshot | null>(null);
-  const [state, setState] = useState<LoadState>("loading");
+  const [supportRequests, setSupportRequests] = useState<OwnerSupportRequestItem[]>([]);
+  const [revenueSummary, setRevenueSummary] = useState<AdminRevenueSummary | null>(null);
+  const [marketingStatus, setMarketingStatus] = useState<MarketingAgentStatus | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [error, setError] = useState<string | null>(null);
+  const [supportSavingId, setSupportSavingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const loadDashboard = useCallback(async () => {
     const results = await Promise.allSettled([
       fetchApiJson<AdminDashboardAccount>("/api/admin/session", { cache: "no-store" }),
       fetchApiJson<{ requests: OwnerSupportRequestItem[] }>("/api/admin/support-requests?limit=50", { cache: "no-store" }),
       fetchApiJson<AdminRevenueSummary>("/api/admin/revenue-summary", { cache: "no-store" }),
-      fetchApiJson<MarketingWarRoomSnapshot>("/api/admin/marketing/work-room", { cache: "no-store" }),
+      fetchApiJson<MarketingAgentStatus>("/api/admin/marketing/status", { cache: "no-store" }),
     ]);
-    setAccount(results[0].status === "fulfilled" ? results[0].value : null);
-    setSupport(results[1].status === "fulfilled" ? results[1].value.requests : null);
-    setRevenue(results[2].status === "fulfilled" ? results[2].value : null);
-    setWarRoom(results[3].status === "fulfilled" ? results[3].value : null);
-    setState(results.every((result) => result.status === "rejected") ? "error" : "ready");
+
+    if (results[0].status === "fulfilled") setAccount(results[0].value);
+    if (results[1].status === "fulfilled") setSupportRequests(results[1].value.requests);
+    if (results[2].status === "fulfilled") setRevenueSummary(results[2].value);
+    if (results[3].status === "fulfilled") setMarketingStatus(results[3].value);
+
+    const failedCount = results.filter((result) => result.status === "rejected").length;
+    setLoadState(failedCount === 0 ? "ready" : failedCount === results.length ? "error" : "partial");
+    setError(failedCount ? "일부 운영 정보를 확인하지 못했습니다. 확인되지 않은 값은 집계 대기로 표시합니다." : null);
   }, []);
 
-  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 30_000); return () => window.clearInterval(timer); }, [load]);
-  async function logout() { try { await fetchApiJson("/api/admin/auth/logout", { method: "POST" }); } finally { router.replace("/admin/login" as never); router.refresh(); } }
+  useEffect(() => {
+    void loadDashboard();
+    const timer = window.setInterval(() => void loadDashboard(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [loadDashboard]);
 
-  const pendingSupport = support?.filter(isPendingSupportRequest).length ?? null;
-  const blockedWork = warRoom?.nodes.filter((node) => node.status === "blocked" || node.status === "rejected" || node.safetyViolation).length ?? null;
-  const growth = warRoom?.teamWorkItems.find((item) => item.team === "펫매니저 성장팀");
+  async function updateSupportRequest(
+    id: string,
+    status: OwnerSupportRequestStatus,
+    adminNote: string,
+    answerMessage = "",
+  ) {
+    setSupportSavingId(id);
+    try {
+      const response = await fetchApiJson<{ request: OwnerSupportRequestItem }>("/api/admin/support-requests", {
+        method: "PATCH",
+        body: JSON.stringify({ id, status, adminNote, answerMessage }),
+      });
+      setSupportRequests((current) => current.map((item) => (item.id === id ? response.request : item)));
+      setError(null);
+      return true;
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "문의 내용을 저장하지 못했습니다.");
+      return false;
+    } finally {
+      setSupportSavingId(null);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await fetchApiJson<{ success: true }>("/api/admin/auth/logout", { method: "POST" });
+    } finally {
+      router.replace("/admin/login" as never);
+      router.refresh();
+    }
+  }
+
   const currentAccount = account ?? { fullName: "관리자", loginId: sessionLoginId };
+  const currentWork = marketingStatus?.workflow.currentWork ?? null;
+  const workMeta = currentWork ? WORK_STATUS[currentWork.status] : { label: "업무 없음", tone: "neutral" as const };
+  const pendingSupport = supportRequests.filter(isPendingSupportRequest).length;
+  const nextAction = currentWork
+    ? currentWork.status === "suspended"
+      ? "승인 대기 내용을 확인하세요."
+      : currentWork.status === "failed"
+        ? "막힌 원인을 확인하세요."
+        : "마케팅 워룸에서 다음 단계를 확인하세요."
+    : "새 업무 지시를 기다립니다.";
 
-  return <main className={ADMIN_SURFACE}><div className="mx-auto w-full max-w-[1380px]">
-    <header className="flex items-start justify-between gap-3 border-b border-[#dbe2df] pb-4"><div className="flex min-w-0 items-center gap-4"><Link href="/admin" aria-label="넘친데이 펫매니저 관리자 홈" className={`${T.button} inline-flex shrink-0 items-center rounded-lg`}><PetManagerBrand imageClassName="h-6 w-auto" nameClassName="text-[18px] text-[#1f6b5b]" /></Link><div className="min-w-0 border-l border-[#dbe2df] pl-4"><h1 className="text-[clamp(24px,2.2vw,30px)] font-bold leading-tight text-[#0f172a]">관리자 홈</h1><p className={`${T.secondary} truncate text-[#64748b]`}>{currentAccount.fullName} · {currentAccount.loginId}</p></div></div><button type="button" onClick={() => void logout()} className={`${T.secondary} inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-[#dbe2ea] bg-white px-3 font-semibold text-[#475569]`}><DoorOpen className="h-4 w-4" />로그아웃</button></header>
-    <section className="mt-4 overflow-hidden rounded-xl border border-[#d7dfdb] bg-white" aria-labelledby="admin-menu-title">
-      <h2 id="admin-menu-title" className={`${T.secondary} border-b border-[#e4e9e6] bg-[#f8faf9] px-5 py-2 font-bold text-[#475569]`}>관리 메뉴</h2>
-      <nav className="grid divide-y divide-[#e4e9e6] sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-3">
-        <NavLink href="/admin/operations" icon={Settings2} label="운영 관리" description="문의·운영 처리" active={pathname.startsWith("/admin/operations")} />
-        <NavLink href="/admin/owners" icon={Building2} label="업체 관리" description="가입 업체·계정" active={pathname.startsWith("/admin/owners")} />
-        <NavLink href="/admin/marketing" icon={Megaphone} label="마케팅 워크룸" description="프로젝트·승인" active={pathname.startsWith("/admin/marketing")} />
-      </nav>
-    </section>
-    {state === "error" ? <div className={`${T.body} mt-4 flex items-center gap-2 border-l-4 border-[#a04455] bg-[#fff7f7] px-4 py-3 text-[#a04455]`}><AlertTriangle className="h-5 w-5" />운영 API 연결 실패 · 값은 집계 대기로 표시</div> : null}
+  return (
+    <main className="min-h-screen bg-[#f4f6f5] px-4 py-5 text-[#172033] md:px-7 md:py-6">
+      <div className="mx-auto w-full max-w-[1380px]">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe2df] pb-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <Link href="/admin" aria-label="펫매니저 관리자 홈" className="inline-flex min-h-11 items-center rounded-[8px]">
+              <PetManagerBrand imageClassName="h-6" nameClassName="text-[17px] text-[#1f6b5b]" />
+            </Link>
+            <div className="min-w-0 border-l border-[#dbe2df] pl-4">
+              <h1 className="text-[20px] font-semibold leading-7 text-[#0f172a]">관리자 홈</h1>
+              <p className="truncate text-[13px] leading-5 text-[#64748b]">{currentAccount.fullName} · {currentAccount.loginId}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => void loadDashboard()} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] hover:bg-[#f8fafc]">
+              <RefreshCcw className="h-4 w-4" aria-hidden="true" />새로고침
+            </button>
+            <button type="button" onClick={() => void handleLogout()} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] hover:bg-[#f8fafc]">
+              <DoorOpen className="h-4 w-4" aria-hidden="true" />로그아웃
+            </button>
+          </div>
+        </header>
 
-    <section className="mt-5 overflow-hidden rounded-xl border border-[#d7dfdb] bg-white" aria-labelledby="management-status-title">
-      <div className="flex items-center justify-between border-b border-[#dfe6e2] bg-[#f8faf9] px-5 py-4"><h2 id="management-status-title" className="text-[clamp(22px,2vw,26px)] font-bold text-[#111827]">관리 현황</h2><span className={`${T.secondary} text-[#64748b]`}>수동 원장 2026-08-26 15:48 KST</span></div>
+        {error ? <p role="alert" className={`${getWrapIndicatorClass("burgundy")} mt-3 rounded-[8px] px-4 py-3 text-[13px] leading-5 text-[#a04455]`}>{error}</p> : null}
 
-      <div className="grid border-b border-[#dfe6e2] lg:grid-cols-[180px_1fr]"><h3 className={`${T.body} bg-[#fbfcfb] px-5 py-4 font-bold text-[#334155]`}>확인할 일</h3><div className="divide-y divide-[#edf1ef]"><StatusRow href="/admin/operations" icon={MessageSquareText} label="미처리 고객 문의" value={countValue(pendingSupport, state)} /><StatusRow href="/admin/marketing?view=approval" icon={ShieldCheck} label="대표 승인 대기" value={warRoom ? `${warRoom.pendingRepresentativeDecisions.length}건` : pendingValue(state)} emphasized={Boolean(warRoom?.pendingRepresentativeDecisions.length)} /><StatusRow href="/admin/marketing?view=blocked" icon={AlertTriangle} label="막힌 업무" value={countValue(blockedWork, state)} /></div></div>
+        <section className="mt-4" aria-labelledby="work-flow-title">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-[12px] leading-[18px] text-[#1f6b5b]">현재 운영 흐름</p>
+              <h2 id="work-flow-title" className="text-[16px] font-semibold leading-6 text-[#0f172a]">업무지시 → 계획 → 현황</h2>
+            </div>
+            <Link href="/admin/marketing" className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#cfe0d9] bg-white px-4 text-[14px] font-medium text-[#1f6b5b] hover:bg-[#f5faf8]">상세 워룸<ArrowRight className="h-4 w-4" /></Link>
+          </div>
 
-      <div className="grid border-b border-[#dfe6e2] lg:grid-cols-[180px_1fr]"><div className="flex items-center justify-between gap-3 bg-[#fbfcfb] px-5 py-4 lg:block"><h3 className={`${T.body} font-bold text-[#334155]`}>진행 중 업무</h3><Link href="/admin/marketing?view=flow" className={`${T.secondary} mt-0 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#1f6b5b] px-4 font-bold text-white lg:mt-3`}>전체 흐름 그림 보기<ArrowRight className="h-4 w-4" /></Link></div><div className="divide-y divide-[#edf1ef]"><SimpleWorkRow name="1인 미용샵 체험 모집" status="신청 페이지 제작 준비" nextAction="미리보기 확인 예정" href="/admin/marketing?work=PM-GROWTH-20260826-006" previewUrl={growth?.artifact.previewUrl} /><SimpleWorkRow name="관리자 화면 개선" status="배포 후 화면 점검" nextAction="불편한 부분 수정" href="/admin/marketing?work=PM-ADMIN-HOME-R2" previewUrl="/admin" /><SimpleWorkRow name="모바일 앱 연결" status="운영 화면 연결 완료" nextAction="기기 확인 예정" href="/admin/marketing?work=PM-MOBILE-CONNECTION" previewUrl="/demo/owner-mobile" /><SimpleWorkRow name="단일 요금제·알림톡 포함" status="변경 범위 확인 중" nextAction="가격안 검토 예정" href="/admin/marketing?view=flow" previewUrl={null} /></div></div>
+          <div className="mt-2 grid gap-2 lg:grid-cols-3">
+            <FlowCard step="1" label="업무지시" title={currentWork?.goal ?? "진행 중인 업무 없음"} status={workMeta.label} owner="성장팀" nextAction={nextAction} tone={workMeta.tone} />
+            <FlowCard step="2" label="계획" title={marketingStatus?.workflow.label ?? "계획 연결 확인 중"} status={marketingStatus?.studio.connected ? "연결됨" : "확인 필요"} owner="마케팅 워룸" nextAction={marketingStatus?.studio.connected ? "현재 실행 단계를 확인하세요." : "연결 상태를 확인하세요."} tone={marketingStatus?.studio.connected ? "confirmed" : "amber"} />
+            <FlowCard step="3" label="현황" title={`문의 ${pendingSupport}건 · 승인 ${marketingStatus?.workflow.pendingApprovals ?? 0}건`} status={loadState === "ready" ? "최신" : loadState === "loading" ? "확인 중" : "일부 확인"} owner="운영 관리자" nextAction={pendingSupport ? "미처리 문의를 확인하세요." : "추가 조치가 없습니다."} tone={pendingSupport ? "amber" : loadState === "ready" ? "confirmed" : "neutral"} />
+          </div>
+        </section>
 
-      <div className="grid lg:grid-cols-[180px_1fr]"><h3 className={`${T.body} bg-[#fbfcfb] px-5 py-4 font-bold text-[#334155]`}>운영 요약</h3><Link href="/admin/operations" className="grid min-h-14 grid-cols-2 divide-x divide-[#edf1ef] hover:bg-[#fbfdfc] sm:grid-cols-4"><CompactValue icon={CircleDollarSign} label="이번 달 매출" value={revenue ? formatWon(revenue.monthRevenue) : pendingValue(state)} /><CompactValue icon={CircleDollarSign} label="예상 반복 매출" value={revenue ? formatWon(revenue.expectedMonthlyRecurringRevenue) : pendingValue(state)} /><CompactValue icon={Store} label="유료 이용 매장" value={revenue ? `${revenue.activePaidSubscriptions}곳` : pendingValue(state)} /><CompactValue icon={Store} label="활성 오너·전체 매장" value="미연결" /></Link></div>
-    </section>
-  </div></main>;
+        <section className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="운영 요약">
+          <Metric icon={MessageSquareText} label="미처리 문의" value={`${pendingSupport}건`} />
+          <Metric icon={WalletCards} label="이번 달 매출" value={revenueSummary ? formatWon(revenueSummary.monthRevenue) : "집계 대기"} />
+          <Metric icon={TrendingUp} label="예상 월 매출" value={revenueSummary ? formatWon(revenueSummary.expectedMonthlyRecurringRevenue) : "집계 대기"} />
+          <Metric icon={Store} label="유료 이용 매장" value={revenueSummary ? `${revenueSummary.activePaidSubscriptions}곳` : "집계 대기"} />
+        </section>
+
+        <section className="mt-4 grid gap-3 lg:grid-cols-2" aria-label="상세 업무">
+          <DetailEntry title="문의 상세" summary={`미처리 ${pendingSupport}건`}>
+            <AdminSupportInbox requests={supportRequests} error={error} loading={loadState === "loading"} savingId={supportSavingId} onRefresh={() => void loadDashboard()} onUpdate={updateSupportRequest} />
+          </DetailEntry>
+          <DetailEntry title="매출 상세" summary={revenueSummary ? `이번 달 ${formatWon(revenueSummary.monthRevenue)}` : "집계 대기"}>
+            <AdminRevenueOverview summary={revenueSummary} error={error} onRefresh={() => void loadDashboard()} />
+          </DetailEntry>
+        </section>
+      </div>
+    </main>
+  );
 }
 
-function NavLink({ href, icon: Icon, label, description, active }: { href: string; icon: typeof Store; label: string; description: string; active: boolean }) { return <Link href={href as never} aria-current={active ? "page" : undefined} className={`group flex min-h-[56px] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-[#f5faf8] ${active ? "bg-[#edf7f3] text-[#175c4e]" : "text-[#243447]"}`}><Icon className="h-6 w-6 shrink-0 text-[#1f6b5b]" /><span className="min-w-0 flex-1"><strong className="block text-[18px] leading-6">{label}</strong><span className={`${T.secondary} block text-[#64748b]`}>{description}</span></span><ArrowRight className="h-5 w-5 shrink-0 text-[#94a3b8] transition-transform group-hover:translate-x-0.5" /></Link>; }
-function StatusRow({ href, icon: Icon, label, value, emphasized = false }: { href: string; icon: typeof Store; label: string; value: string; emphasized?: boolean }) { return <Link href={href as never} className={`flex min-h-14 items-center gap-3 px-5 py-3 hover:bg-[#f8faf9] ${emphasized ? "bg-[#fffaf0]" : ""}`}><Icon className={`h-5 w-5 shrink-0 ${emphasized ? "text-[#b98121]" : "text-[#607080]"}`} /><span className={`${T.body} flex-1 text-[#334155]`}>{label}</span><strong className={`${emphasized ? "text-[24px] text-[#9a6818]" : "text-[20px] text-[#172033]"} leading-none`}>{value}</strong><ArrowRight className="h-4 w-4 text-[#94a3b8]" /></Link>; }
-function SimpleWorkRow({ name, status, nextAction, href, previewUrl }: { name: string; status: string; nextAction: string; href: string; previewUrl: string | null | undefined }) { return <div className="grid min-h-[68px] gap-2 px-5 py-3 lg:grid-cols-[minmax(180px,1fr)_minmax(160px,.8fr)_minmax(150px,.8fr)_auto] lg:items-center"><Link href={href as never} className="contents"><strong className={`${T.body} text-[#172033] hover:text-[#1f6b5b]`}>{name}</strong><span className={`${T.body} font-semibold text-[#2563eb]`}>{status}</span><span className={`${T.body} text-[#475569]`}>{nextAction}</span></Link>{previewUrl ? <Link href={previewUrl as never} target="_blank" rel="noreferrer" className={`${T.button} inline-flex min-h-11 items-center justify-center rounded-lg border border-[#b8d4ca] bg-white px-4 font-bold text-[#1f6b5b]`}>화면 보기</Link> : <span className={`${T.secondary} inline-flex min-h-11 items-center text-[#64748b]`}>아직 화면 없음</span>}</div>; }
-function CompactValue({ icon: Icon, label, value }: { icon: typeof Store; label: string; value: string }) { return <div className="min-w-0 px-4 py-4"><p className={`${T.secondary} flex items-center gap-2 text-[#64748b]`}><Icon className="h-4 w-4" />{label}</p><p className="mt-1 truncate text-[20px] font-bold leading-tight text-[#172033]">{value}</p></div>; }
-function pendingValue(state: LoadState) { return state === "loading" ? "집계 중" : "집계 대기"; }
-function countValue(value: number | null, state: LoadState) { return value === null ? pendingValue(state) : `${value}건`; }
+function FlowCard({ step, label, title, status, owner, nextAction, tone }: { step: string; label: string; title: string; status: string; owner: string; nextAction: string; tone: StatusIndicatorTone }) {
+  return (
+    <article className={`${getWrapIndicatorClass(tone)} rounded-[8px] px-4 py-3`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[12px] leading-[18px] text-[#64748b]">{step}. {label}</p>
+        <span className="inline-flex items-center gap-2 text-[12px] font-medium text-[#475569]"><span className={getDotIndicatorClass(tone)} aria-hidden="true" />{status}</span>
+      </div>
+      <h3 className="mt-1 line-clamp-2 text-[14px] font-medium leading-5 text-[#0f172a]">{title}</h3>
+      <dl className="mt-2 grid gap-1 text-[12px] leading-[18px] sm:grid-cols-[64px_1fr]">
+        <dt className="text-[#94a3b8]">담당</dt><dd className="text-[#475569]">{owner}</dd>
+        <dt className="text-[#94a3b8]">다음 행동</dt><dd className="text-[#2563eb]">{nextAction}</dd>
+      </dl>
+    </article>
+  );
+}
+
+function Metric({ icon: Icon, label, value }: { icon: typeof Store; label: string; value: string }) {
+  return <div className="flex min-h-[68px] items-center gap-3 rounded-[8px] border border-[#e2e8f0] bg-white px-4 py-3"><Icon className="h-4 w-4 shrink-0 text-[#607080]" aria-hidden="true" /><div className="min-w-0"><p className="text-[12px] leading-[18px] text-[#64748b]">{label}</p><p className="truncate text-[16px] font-semibold leading-6 text-[#111827]">{value}</p></div></div>;
+}
+
+function DetailEntry({ title, summary, children }: { title: string; summary: string; children: React.ReactNode }) {
+  return (
+    <details className="group overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+        <span>{title}</span><span className="flex items-center gap-2 text-[13px] font-normal text-[#64748b]">{summary}<ChevronDown className="h-4 w-4 transition group-open:rotate-180" /></span>
+      </summary>
+      <div className="border-t border-[#eef2f6] p-2">{children}</div>
+    </details>
+  );
+}

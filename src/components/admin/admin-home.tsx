@@ -1,221 +1,91 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ChevronRight, DoorOpen, RefreshCw } from "lucide-react";
+import { ArrowRight, ChevronDown, DoorOpen, RefreshCcw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { formatWon, isPendingSupportRequest, type AdminDashboardAccount, type AdminRevenueSummary, type OwnerSupportRequestItem } from "@/components/admin/admin-dashboard-model";
 import AdminSectionNav from "@/components/admin/admin-section-nav";
 import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 import { getDotIndicatorClass, getWrapIndicatorClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { fetchApiJson } from "@/lib/api";
-import type { ReleaseReadinessItem, ReleaseReadinessStatus, ReleaseReadinessSummary } from "@/lib/admin-release-readiness";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+import type { MarketingAgentStatus, MarketingWorkStatus } from "@/types/marketing-agent";
 
-type DetailResponse = { items: ReleaseReadinessItem[]; nextOffset: number | null; total: number; version: string };
-
-const statusLabel: Record<ReleaseReadinessStatus, string> = {
-  blocked: "차단",
-  approval: "승인 필요",
-  checking: "확인 필요",
-  ready: "완료",
-};
-
-const statusTone: Record<ReleaseReadinessStatus, StatusIndicatorTone> = {
-  blocked: "burgundy",
-  approval: "amber",
-  checking: "active",
-  ready: "confirmed",
+type LoadState = "idle" | "loading" | "ready" | "partial" | "error";
+const WORK_STATUS: Record<MarketingWorkStatus, { label: string; tone: StatusIndicatorTone }> = {
+  running: { label: "진행 중", tone: "active" }, suspended: { label: "승인 대기", tone: "amber" },
+  success: { label: "완료", tone: "confirmed" }, failed: { label: "막힘", tone: "burgundy" }, unknown: { label: "확인 필요", tone: "neutral" },
 };
 
 export default function AdminHome({ sessionLoginId }: { sessionLoginId: string }) {
   const router = useRouter();
-  const [summary, setSummary] = useState<ReleaseReadinessSummary | null>(null);
-  const [summaryState, setSummaryState] = useState<"loading" | "ready" | "partial" | "error">("loading");
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [details, setDetails] = useState<ReleaseReadinessItem[]>([]);
-  const [nextOffset, setNextOffset] = useState<number | null>(0);
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  const [detailsError, setDetailsError] = useState<string | null>(null);
-  const detailsButtonRef = useRef<HTMLButtonElement>(null);
-  const summaryRef = useRef<ReleaseReadinessSummary | null>(null);
+  const [activated, setActivated] = useState(false);
+  const [loadState, setLoadState] = useState<LoadState>("idle");
+  const [account, setAccount] = useState<AdminDashboardAccount | null>(null);
+  const [requests, setRequests] = useState<OwnerSupportRequestItem[]>([]);
+  const [revenue, setRevenue] = useState<AdminRevenueSummary | null>(null);
+  const [marketing, setMarketing] = useState<MarketingAgentStatus | null>(null);
+  const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [error, setError] = useState<string | null>(null);
 
-  const loadSummary = useCallback(async (onlyWhenChanged = false) => {
-    try {
-      const next = await fetchApiJson<ReleaseReadinessSummary>("/api/admin/release-readiness", { cache: "no-store" });
-      if (!onlyWhenChanged || summaryRef.current?.version !== next.version) {
-        summaryRef.current = next;
-        setSummary(next);
-      }
-      setSummaryState("ready");
-    } catch {
-      setSummaryState((current) => (summaryRef.current || current === "ready" ? "partial" : "error"));
-    }
+  const refresh = useCallback(async () => {
+    setLoadState("loading");
+    const results = await Promise.allSettled([
+      fetchApiJson<AdminDashboardAccount>("/api/admin/session", { cache: "no-store" }),
+      fetchApiJson<{ requests: OwnerSupportRequestItem[] }>("/api/admin/support-requests?limit=50", { cache: "no-store" }),
+      fetchApiJson<AdminRevenueSummary>("/api/admin/revenue-summary", { cache: "no-store" }),
+      fetchApiJson<MarketingAgentStatus>("/api/admin/marketing/status", { cache: "no-store" }),
+    ]);
+    if (results[0].status === "fulfilled") setAccount(results[0].value);
+    if (results[1].status === "fulfilled") setRequests(results[1].value.requests);
+    if (results[2].status === "fulfilled") setRevenue(results[2].value);
+    if (results[3].status === "fulfilled") setMarketing(results[3].value);
+    const failed = results.filter((result) => result.status === "rejected").length;
+    setLoadState(failed === 0 ? "ready" : failed === results.length ? "error" : "partial");
+    setError(failed ? `운영 정보 ${failed}개를 불러오지 못했습니다.` : null);
   }, []);
 
   useEffect(() => {
-    void loadSummary();
-  }, [loadSummary]);
+    if (!activated) return;
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [activated, refresh]);
 
-  useEffect(() => {
-    const refreshVisible = () => {
-      if (document.visibilityState === "visible") void loadSummary(true);
-    };
-    const interval = window.setInterval(refreshVisible, 60_000);
-    window.addEventListener("focus", refreshVisible);
-    document.addEventListener("visibilitychange", refreshVisible);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refreshVisible);
-      document.removeEventListener("visibilitychange", refreshVisible);
-    };
-  }, [loadSummary]);
-
-  useEffect(() => {
-    if (!detailsOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setDetailsOpen(false);
-      detailsButtonRef.current?.focus();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [detailsOpen]);
-
-  const loadDetails = useCallback(async (offset: number) => {
-    setDetailsLoading(true);
-    setDetailsError(null);
-    try {
-      const result = await fetchApiJson<DetailResponse>(`/api/admin/release-readiness?view=details&offset=${offset}&limit=${offset === 0 ? 5 : 10}`, { cache: "no-store" });
-      setDetails((current) => (offset === 0 ? result.items : [...current, ...result.items]));
-      setNextOffset(result.nextOffset);
-    } catch {
-      setDetailsError("상세 근거를 불러오지 못했습니다. 요약의 차단 상태는 유지됩니다.");
-    } finally {
-      setDetailsLoading(false);
-    }
-  }, []);
-
-  async function toggleDetails() {
-    const nextOpen = !detailsOpen;
-    setDetailsOpen(nextOpen);
-    if (nextOpen && details.length === 0 && !detailsLoading) await loadDetails(0);
+  async function logout() {
+    try { await fetchApiJson<{ success: true }>("/api/admin/auth/logout", { method: "POST" }); }
+    finally { router.replace("/admin/login" as never); router.refresh(); }
   }
 
-  async function handleLogout() {
-    try {
-      await fetchApiJson<{ success: true }>("/api/admin/auth/logout", { method: "POST" });
-    } finally {
-      router.replace("/admin/login" as never);
-      router.refresh();
-    }
-  }
+  const currentAccount = account ?? { fullName: "관리자", loginId: sessionLoginId, isActive: true };
+  const pending = requests.filter(isPendingSupportRequest);
+  const visible = filter === "pending" ? pending : requests;
+  const work = marketing?.workflow.currentWork ?? null;
+  const workMeta = work ? WORK_STATUS[work.status] : { label: "상세 대기", tone: "neutral" as const };
 
-  const p0Items = summary?.important.filter((item) => item.priority === "P0") ?? [];
-  const approvalItems = summary?.important.filter((item) => item.approval) ?? [];
-  const generalItems = summary?.important.filter((item) => item.priority !== "P0" && !item.approval) ?? [];
-
-  return (
-    <main className="min-h-screen bg-[#f4f6f8] px-4 py-5 text-[#172033] sm:px-5 lg:px-8 lg:py-7">
-      <div className="mx-auto w-full max-w-[1440px]">
-        <header className="rounded-[10px] border border-[#dbe2ea] bg-white px-4 py-4 sm:px-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className={`${ADMIN_TYPOGRAPHY.meta} text-[#2563eb]`}>관리자 운영</p>
-              <h1 className={`mt-1 text-[#0f172a] ${ADMIN_TYPOGRAPHY.pageTitle}`}>출시 준비 현황</h1>
-              <p className={`mt-1 text-[#64748b] ${ADMIN_TYPOGRAPHY.body}`}>출시 불가 원인과 지금 할 일을 한 화면에서 확인합니다.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`hidden text-[#64748b] sm:inline ${ADMIN_TYPOGRAPHY.meta}`}>{sessionLoginId}</span>
-              <button type="button" onClick={() => void handleLogout()} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium outline-none hover:bg-[#f8fafc] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">
-                <DoorOpen className="h-4 w-4" aria-hidden="true" />로그아웃
-              </button>
-            </div>
-          </div>
-          <div className="mt-4 border-t border-[#edf2f7] pt-4"><AdminSectionNav active="home" /></div>
-        </header>
-
-        <section aria-labelledby="release-summary" className="mt-4 grid gap-3 lg:grid-cols-[2fr_1fr]">
-          <div className={`${getWrapIndicatorClass(summary?.releaseStatus === "ready" ? "confirmed" : "burgundy")} rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-4`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className={`${ADMIN_TYPOGRAPHY.meta} text-[#64748b]`}>전체 상태</p>
-                <h2 id="release-summary" className={`mt-1 text-[#0f172a] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>{summaryState === "loading" ? "확인 중" : summary?.releaseStatus === "ready" ? "출시 준비 완료" : "현재 출시 불가"}</h2>
-              </div>
-              <button type="button" onClick={() => void loadSummary()} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] px-3 text-[14px] font-medium outline-none hover:bg-[#f8fafc] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">
-                <RefreshCw className="h-4 w-4" aria-hidden="true" />다시 확인
-              </button>
-            </div>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <Metric label="P0" value={summary?.counts.p0 ?? "—"} tone="burgundy" />
-              <Metric label="P1" value={summary?.counts.p1 ?? "—"} tone="active" />
-              <Metric label="승인" value={summary?.counts.approvals ?? "—"} tone="amber" />
-            </div>
-            <p className={`mt-3 text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>{summary ? `${formatTime(summary.checkedAt)} 확인 · 로컬 스냅샷` : "상태를 불러오는 중입니다."}</p>
-          </div>
-
-          <section aria-labelledby="immediate-actions" className="rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-4">
-            <h2 id="immediate-actions" className={`text-[#0f172a] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>즉시 행동</h2>
-            <ol className="mt-2 space-y-2">
-              {(summary?.actions ?? ["상태 확인 중"]).map((action, index) => <li key={action} className={`flex gap-2 text-[#334155] ${ADMIN_TYPOGRAPHY.body}`}><span className="text-[#2563eb]">{index + 1}.</span><span>{action}</span></li>)}
-            </ol>
-          </section>
-        </section>
-
-        {summaryState === "error" ? <FailureBanner title="전체 상태를 확인하지 못했습니다" body="확인 실패 상태에서는 운영 반영을 계속 차단합니다." /> : null}
-        {summaryState === "partial" ? <FailureBanner title="표시된 정보가 오래됐을 수 있습니다" body="마지막 정상 요약을 유지합니다. 다시 확인하기 전에는 운영 반영을 진행하지 마세요." /> : null}
-
-        <ReadinessSection title="P0 출시 차단" items={p0Items} empty={summaryState === "loading" ? "차단 항목 확인 중" : "표시할 P0 차단 항목이 없습니다."} />
-        <ReadinessSection title="승인 필요" items={approvalItems.filter((item) => item.priority !== "P0")} empty="추가 승인 항목이 없습니다." />
-        <ReadinessSection title="일반 준비" items={generalItems} empty="표시할 일반 준비 항목이 없습니다." />
-
-        <section className="mt-4 rounded-[8px] border border-[#dbe2ea] bg-white">
-          <button ref={detailsButtonRef} type="button" onClick={() => void toggleDetails()} aria-expanded={detailsOpen} aria-controls="release-evidence" className="flex min-h-11 w-full items-center justify-between gap-3 px-4 py-3 text-left text-[14px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]">
-            <span>근거와 확인 이력</span><ChevronDown className={`h-4 w-4 transition ${detailsOpen ? "rotate-180" : ""}`} aria-hidden="true" />
-          </button>
-          {detailsOpen ? (
-            <div id="release-evidence" className="border-t border-[#edf2f7] px-4 py-4">
-              {detailsError ? <p className={`text-[#a04455] ${ADMIN_TYPOGRAPHY.body}`}>{detailsError}</p> : null}
-              <div className="space-y-3">{details.map((item) => <article key={item.id} className="rounded-[8px] bg-[#f8fafc] px-4 py-3"><p className={`text-[#0f172a] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{item.title}</p><p className={`mt-1 text-[#64748b] ${ADMIN_TYPOGRAPHY.body}`}>{item.detail}</p><p className={`mt-2 text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>{formatTime(item.evidenceAt)} 근거</p></article>)}</div>
-              {nextOffset !== null ? <button type="button" disabled={detailsLoading} onClick={() => void loadDetails(nextOffset)} className="mt-3 inline-flex min-h-11 items-center rounded-[8px] border border-[#dbe2ea] px-4 text-[14px] font-medium outline-none hover:bg-[#f8fafc] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:opacity-50">{detailsLoading ? "불러오는 중" : "10건 더 보기"}</button> : null}
-            </div>
-          ) : null}
-        </section>
-
-        <section aria-labelledby="work-links" className="mt-4 rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-4">
-          <h2 id="work-links" className={`text-[#0f172a] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>업무 이동</h2>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <WorkLink href="/owner/admin" label="오너 계정 관리" />
-            <WorkLink href="/admin/marketing" label="마케팅 워룸" />
-          </div>
-        </section>
-      </div>
-    </main>
-  );
+  return <main className="min-h-screen bg-[#f4f7fb] px-5 py-6 text-[#172033] lg:px-8 lg:py-8">
+    <div className="mx-auto w-full max-w-[1440px]">
+      <header className="rounded-[20px] border border-[#dce5f0] bg-white px-6 py-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)] lg:px-8">
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div><p className={`${ADMIN_TYPOGRAPHY.meta} text-[#2563eb]`}>{PETMANAGER_SERVICE_NAME} ADMIN</p><h1 className={`mt-1 text-[#0f172a] ${ADMIN_TYPOGRAPHY.pageTitle}`}>관리자 홈</h1><p className={`mt-2 text-[#64748b] ${ADMIN_TYPOGRAPHY.body}`}>업무 흐름을 확인하고 필요한 상세만 열어보세요.</p></div>
+          <div className="flex items-center gap-2"><span className="hidden text-[13px] text-[#64748b] md:inline">{currentAccount.fullName} · {currentAccount.loginId}</span><button type="button" disabled={!activated} onClick={() => void refresh()} className="inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-[#dbe4ef] bg-white px-4 text-[14px] text-[#475569] disabled:opacity-50"><RefreshCcw className="h-4 w-4" />새로고침</button><button type="button" onClick={() => void logout()} className="inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-[#dbe4ef] bg-white px-4 text-[14px] text-[#475569]"><DoorOpen className="h-4 w-4" />로그아웃</button></div>
+        </div><div className="mt-5 border-t border-[#edf2f7] pt-5"><AdminSectionNav active="home" /></div>
+      </header>
+      {error ? <p className={`${getWrapIndicatorClass("burgundy")} mt-4 px-4 py-3 text-[13px] text-[#a04455]`}>{error}</p> : null}
+      <section className="mt-6" aria-labelledby="workflow-title">
+        <div className="flex items-end justify-between gap-4"><div><p className={`${ADMIN_TYPOGRAPHY.meta} text-[#2563eb]`}>WORKFLOW</p><h2 id="workflow-title" className={`mt-1 text-[#0f172a] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>업무지시 → 계획 → 현황</h2></div><Link href="/admin/marketing" className="inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-[#cfe0d9] bg-white px-4 text-[14px] font-medium text-[#1f6b5b]">상세 워룸<ArrowRight className="h-4 w-4" /></Link></div>
+        <div className="mt-3 grid gap-3 lg:grid-cols-3"><Flow step="1" label="업무지시" title={work?.goal ?? "상세를 열어 현재 업무 확인"} status={workMeta.label} tone={workMeta.tone} /><Flow step="2" label="계획" title={marketing?.workflow.label ?? "상세를 열어 계획 연결 확인"} status={marketing?.studio.connected ? "연결됨" : "상세 대기"} tone={marketing?.studio.connected ? "confirmed" : "neutral"} /><Flow step="3" label="현황" title={activated ? `미처리 문의 ${pending.length}건 · 승인 ${marketing?.workflow.pendingApprovals ?? 0}건` : "상세를 열면 최신 현황을 조회합니다"} status={loadState === "ready" ? "최신" : loadState === "loading" ? "조회 중" : "상세 대기"} tone={loadState === "ready" ? "confirmed" : "neutral"} /></div>
+      </section>
+      <section className="mt-6 grid gap-3 lg:grid-cols-2" aria-label="상세 업무">
+        <Details title="문의 상세" summary={activated ? `미처리 ${pending.length}건` : "열어서 조회"} onOpen={() => setActivated(true)}><div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f7] p-4"><div className="flex gap-2">{(["pending", "all"] as const).map((value) => <button key={value} type="button" onClick={() => setFilter(value)} className={`inline-flex min-h-11 items-center rounded-[8px] px-4 text-[13px] font-medium ${filter === value ? "bg-[#1f6b5b] text-white" : "bg-[#f1f5f9] text-[#64748b]"}`}>{value === "pending" ? "미처리" : "전체"}</button>)}</div><button type="button" onClick={() => void refresh()} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] px-4 text-[13px] text-[#64748b]"><RefreshCcw className="h-4 w-4" />새로고침</button></div><div className="divide-y divide-[#edf2f7]">{visible.slice(0, 5).map((request) => <div key={request.id} className="px-4 py-3"><p className="text-[14px] font-medium text-[#0f172a]">{request.title}</p><p className="mt-1 text-[12px] text-[#64748b]">{request.shopName ?? request.shopId}</p></div>)}{loadState !== "loading" && visible.length === 0 ? <p className="px-4 py-6 text-center text-[13px] text-[#94a3b8]">표시할 문의가 없습니다.</p> : null}</div></Details>
+        <Details title="매출 상세" summary={revenue ? `이번 달 ${formatWon(revenue.monthRevenue)}` : "열어서 조회"} onOpen={() => setActivated(true)}><div className="grid grid-cols-2 gap-px bg-[#edf2f7]"><Metric label="이번 달" value={formatWon(revenue?.monthRevenue ?? 0)} /><Metric label="예상 월 매출" value={formatWon(revenue?.expectedMonthlyRecurringRevenue ?? 0)} /><Metric label="오늘" value={formatWon(revenue?.todayRevenue ?? 0)} /><Metric label="유료 이용 매장" value={`${revenue?.activePaidSubscriptions ?? 0}곳`} /></div><Link href="/owner/admin" className="flex min-h-11 items-center justify-between border-t border-[#edf2f7] px-4 text-[13px] font-semibold text-[#1f6b5b]">오너 계정 관리<ArrowRight className="h-4 w-4" /></Link></Details>
+      </section>
+    </div>
+  </main>;
 }
 
-function ReadinessSection({ title, items, empty }: { title: string; items: Array<Omit<ReleaseReadinessItem, "detail">>; empty: string }) {
-  return <section className="mt-4" aria-labelledby={`section-${title}`}><h2 id={`section-${title}`} className={`text-[#0f172a] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>{title}</h2><div className="mt-2 space-y-2">{items.length ? items.map((item) => <ReadinessRow key={item.id} item={item} />) : <p className={`rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-3 text-[#64748b] ${ADMIN_TYPOGRAPHY.body}`}>{empty}</p>}</div></section>;
-}
-
-function ReadinessRow({ item }: { item: Omit<ReleaseReadinessItem, "detail"> }) {
-  const tone = statusTone[item.status];
-  return <article className={`${getWrapIndicatorClass(tone)} grid gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_160px_110px]`}><div className="min-w-0"><div className="flex items-center gap-2"><span className={getDotIndicatorClass(tone)} aria-hidden="true" /><span className={`text-[#475569] ${ADMIN_TYPOGRAPHY.badge}`}>{item.priority} · {statusLabel[item.status]}</span>{item.approval ? <span className={`text-[#b98121] ${ADMIN_TYPOGRAPHY.badge}`}>승인</span> : null}</div><h3 className={`mt-1 line-clamp-2 text-[#0f172a] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{item.title}</h3></div><div className="min-w-0"><p className={`line-clamp-2 text-[#475569] ${ADMIN_TYPOGRAPHY.body}`}>{item.reason}</p><p className={`mt-1 line-clamp-2 text-[#2563eb] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{item.nextAction}</p></div><p className={`text-[#64748b] ${ADMIN_TYPOGRAPHY.meta}`}>{item.approval ?? "승인 불필요"}</p><p className={`text-[#64748b] md:text-right ${ADMIN_TYPOGRAPHY.helper}`}>{formatTime(item.evidenceAt)}</p></article>;
-}
-
-function Metric({ label, value, tone }: { label: string; value: number | string; tone: StatusIndicatorTone }) {
-  return <div className="rounded-[8px] border border-[#edf2f7] px-3 py-2"><p className={`flex items-center gap-2 text-[#64748b] ${ADMIN_TYPOGRAPHY.meta}`}><span className={getDotIndicatorClass(tone)} aria-hidden="true" />{label}</p><p className={`mt-1 text-[#0f172a] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>{value}</p></div>;
-}
-
-function FailureBanner({ title, body }: { title: string; body: string }) {
-  return <div role="alert" className={`${getWrapIndicatorClass("burgundy")} mt-4 flex gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-3`}><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#a04455]" aria-hidden="true" /><div><p className={`text-[#a04455] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{title}</p><p className={`mt-1 text-[#64748b] ${ADMIN_TYPOGRAPHY.body}`}>{body}</p></div></div>;
-}
-
-function WorkLink({ href, label }: { href: string; label: string }) {
-  return <Link href={href as never} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] px-4 text-[14px] font-medium outline-none hover:bg-[#f8fafc] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">{label}<ChevronRight className="h-4 w-4" aria-hidden="true" /></Link>;
-}
-
-function formatTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
-}
+function Flow({ step, label, title, status, tone }: { step: string; label: string; title: string; status: string; tone: StatusIndicatorTone }) { return <article className={`${getWrapIndicatorClass(tone)} px-4 py-4`}><div className="flex items-center justify-between gap-3"><p className="text-[12px] text-[#64748b]">{step}. {label}</p><span className="inline-flex items-center gap-2 text-[12px] text-[#475569]"><span className={getDotIndicatorClass(tone)} />{status}</span></div><p className="mt-2 text-[14px] font-medium text-[#0f172a]">{title}</p></article>; }
+function Details({ title, summary, onOpen, children }: { title: string; summary: string; onOpen: () => void; children: React.ReactNode }) { return <details onToggle={(event) => { if (event.currentTarget.open) onOpen(); }} className="group overflow-hidden rounded-[12px] border border-[#dce5f0] bg-white"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-medium text-[#334155]"><span>{title}</span><span className="flex items-center gap-2 text-[13px] font-normal text-[#64748b]">{summary}<ChevronDown className="h-4 w-4 transition group-open:rotate-180" /></span></summary><div className="border-t border-[#edf2f7]">{children}</div></details>; }
+function Metric({ label, value }: { label: string; value: string }) { return <div className="bg-white px-4 py-4"><p className="text-[12px] text-[#64748b]">{label}</p><p className="mt-1 text-[17px] font-semibold text-[#0f172a]">{value}</p></div>; }

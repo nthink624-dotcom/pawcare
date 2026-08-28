@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { refundOwnerLatestPayment, refundOwnerPayment } from "@/server/owner-billing";
-import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
+import { AdminApiError, requireSuperAdminSession } from "@/server/admin-api-auth";
 
 const bodySchema = z.object({
   userId: z.string().min(1),
@@ -14,7 +14,7 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdminSession(request);
+    await requireSuperAdminSession(request);
     const body = bodySchema.parse(await request.json());
     const admin = getSupabaseAdmin();
     if (!admin) {

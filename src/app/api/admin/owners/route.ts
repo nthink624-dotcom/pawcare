@@ -10,7 +10,7 @@ import {
 } from "@/lib/billing/owner-subscription";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/utils";
-import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
+import { AdminApiError, requireAdminSession, requireSuperAdminSession } from "@/server/admin-api-auth";
 import { syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";
 
 type OwnerProfileRow = {
@@ -890,7 +890,7 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const adminSession = await requireAdminSession(request);
+    const adminSession = await requireSuperAdminSession(request);
     const body = patchSchema.parse(await request.json());
     const admin = getSupabaseAdmin();
     if (!admin) {

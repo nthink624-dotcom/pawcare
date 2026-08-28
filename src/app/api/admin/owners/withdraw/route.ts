@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
+import { AdminApiError, requireSuperAdminSession } from "@/server/admin-api-auth";
 
 export const runtime = "nodejs";
 
@@ -26,7 +26,7 @@ type OwnedShopTarget = {
 
 export async function POST(request: NextRequest) {
   try {
-    const adminAccount = await requireAdminSession(request);
+    const adminAccount = await requireSuperAdminSession(request);
     const body = withdrawOwnerSchema.parse(await request.json());
 
     if (body.confirmation !== body.shopId) {

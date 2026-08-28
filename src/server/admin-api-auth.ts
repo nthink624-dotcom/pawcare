@@ -35,4 +35,14 @@ export async function requireAdminSession(request: NextRequest) {
   }
 }
 
+export async function requireSuperAdminSession(request: NextRequest) {
+  const account = await requireAdminSession(request);
+
+  if (!account.isSuperAdmin) {
+    throw new AdminApiError("최고 관리자 권한이 필요한 작업입니다.", 403);
+  }
+
+  return account;
+}
+
 export const requireAdminUser = requireAdminSession;

@@ -23,16 +23,12 @@ import {
   type OwnerDraft,
   type OwnerLastPaymentStatus,
   type OwnerPlanCode,
-  type TemporaryPasswordResult,
 } from "@/components/admin/owner-admin-model";
 
 type OwnerAdminDetailPanelProps = {
   selectedOwner: AdminOwnerItem | null;
   selectedDraft: OwnerDraft | null;
   selectedAlimtalkBalance: AdminAlimtalkCreditBalance | null;
-  issuingTemporaryPasswordUserId: string | null;
-  temporaryPasswords: Record<string, TemporaryPasswordResult>;
-  issueOwnerTemporaryPassword: (item: AdminOwnerItem) => Promise<void>;
   loadingAlimtalkCredits: boolean;
   savingAlimtalkCredits: boolean;
   loadAlimtalkBalances: () => Promise<void>;
@@ -60,9 +56,6 @@ export default function OwnerAdminDetailPanel({
   selectedOwner,
   selectedDraft,
   selectedAlimtalkBalance,
-  issuingTemporaryPasswordUserId,
-  temporaryPasswords,
-  issueOwnerTemporaryPassword,
   loadingAlimtalkCredits,
   savingAlimtalkCredits,
   loadAlimtalkBalances,
@@ -158,13 +151,7 @@ export default function OwnerAdminDetailPanel({
                     </section>
                   ) : null}
 
-                  <OwnerAdminPasswordPanel
-                    ownerName={selectedOwner.ownerName}
-                    email={selectedOwner.ownerEmail ?? selectedOwner.loginId}
-                    issuing={issuingTemporaryPasswordUserId === selectedOwner.userId}
-                    result={temporaryPasswords[selectedOwner.userId] ?? null}
-                    onIssue={() => void issueOwnerTemporaryPassword(selectedOwner)}
-                  />
+                  <OwnerAdminPasswordPanel />
 
                   <div className="rounded-[9px] border border-[#edf2f7] bg-white p-3">
                     <div className="flex items-center justify-between gap-3">

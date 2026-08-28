@@ -1119,9 +1119,12 @@ textarea {
 }
 
 .pm-wrap-indicator {
-  border-left-color: var(--pm-wrap-indicator-color);
-  border-left-width: 3px;
+  position: relative;
   overflow: hidden;
+  border: 1px solid #dbe2ea;
+  border-left: 3px solid var(--pm-wrap-indicator-color);
+  border-radius: 8px;
+  background: #ffffff;
 }
 
 .pm-mobile-owner {
@@ -1273,4 +1276,21 @@ textarea {
   display: none;
   width: 0;
   height: 0;
+}
+
+/* Canonical administrator readability floor. ADMIN_TYPOGRAPHY owns component tokens;
+   this scope protects legacy admin descendants until they are migrated. */
+.admin-readable {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.admin-readable :where(p, span, a, button, input, select, textarea, dt, dd, li, summary) {
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+}
+
+.admin-readable :where(button, a) {
+  min-height: 44px;
+  font-size: 16px !important;
 }

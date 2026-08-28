@@ -6,6 +6,16 @@ const dashboard = readFileSync(
   new URL("../../src/components/admin/admin-dashboard.tsx", import.meta.url),
   "utf8",
 );
+const adminRoute = readFileSync(
+  new URL("../../src/app/admin/page.tsx", import.meta.url),
+  "utf8",
+);
+
+test("admin route renders the integrated dashboard", () => {
+  assert.match(adminRoute, /import AdminDashboard from "@\/components\/admin\/admin-dashboard"/);
+  assert.match(adminRoute, /<AdminDashboard sessionLoginId=\{session\.loginId\}/);
+  assert.doesNotMatch(adminRoute, /AdminHome/);
+});
 
 test("admin home prioritizes instruction, plan, and status", () => {
   const instruction = dashboard.indexOf('label="업무지시"');

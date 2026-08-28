@@ -1,12 +1,16 @@
 export const ADMIN_TYPOGRAPHY = {
-  pageTitle: "text-[clamp(1.875rem,3vw,2.25rem)] leading-[1.2] tracking-[-0.03em]",
-  sectionTitle: "text-[clamp(1.375rem,2vw,1.75rem)] leading-[1.3] tracking-[-0.02em]",
-  cardTitle: "text-[clamp(1rem,1.4vw,1.125rem)] leading-[1.5]",
-  body: "text-base leading-6",
-  secondary: "text-sm leading-[1.5]",
-  metric: "text-[clamp(1.5rem,2.4vw,2rem)] leading-[1.25]",
-  button: "min-h-11 text-base leading-6",
-  badge: "text-sm leading-5",
+  helper: "text-[12px] leading-[18px] font-normal",
+  meta: "text-[13px] leading-5 font-medium",
+  secondary: "text-[13px] leading-5 font-normal",
+  badge: "text-[12px] leading-[18px] font-medium",
+  control: "text-[14px] leading-5 font-medium",
+  button: "min-h-11 text-[14px] leading-5 font-medium",
+  body: "text-[14px] leading-5 font-normal",
+  bodyStrong: "text-[14px] leading-5 font-medium",
+  cardTitle: "text-[16px] leading-6 font-semibold",
+  sectionTitle: "text-[16px] leading-6 font-semibold",
+  metric: "text-[20px] leading-7 font-semibold",
+  pageTitle: "text-[20px] leading-7 font-semibold",
 } as const;
 
 export const ADMIN_SURFACE = "admin-readable min-h-screen bg-[#f4f6f5] px-4 py-5 text-[#172033] md:px-7 md:py-7";

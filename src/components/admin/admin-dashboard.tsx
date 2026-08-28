@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  ArrowRight,
+  ChevronDown,
   DoorOpen,
-  Lightbulb,
   MessageSquareText,
+  RefreshCcw,
   Store,
   TrendingUp,
   WalletCards,
@@ -22,93 +24,58 @@ import {
 } from "@/components/admin/admin-dashboard-model";
 import AdminRevenueOverview from "@/components/admin/admin-revenue-overview";
 import AdminSupportInbox from "@/components/admin/admin-support-inbox";
+import PetManagerBrand from "@/components/brand/petmanager-brand";
+import {
+  getDotIndicatorClass,
+  getWrapIndicatorClass,
+  type StatusIndicatorTone,
+} from "@/components/owner-web/status-indicators";
 import { fetchApiJson } from "@/lib/api";
-import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+import type { MarketingAgentStatus, MarketingWorkStatus } from "@/types/marketing-agent";
 
-export default function AdminDashboard({
-  sessionLoginId,
-}: {
-  sessionLoginId: string;
-}) {
+type LoadState = "loading" | "ready" | "partial" | "error";
+
+const WORK_STATUS: Record<MarketingWorkStatus, { label: string; tone: StatusIndicatorTone }> = {
+  running: { label: "진행 중", tone: "active" },
+  suspended: { label: "승인 대기", tone: "amber" },
+  success: { label: "완료", tone: "confirmed" },
+  failed: { label: "막힘", tone: "burgundy" },
+  unknown: { label: "확인 필요", tone: "neutral" },
+};
+
+export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: string }) {
   const router = useRouter();
   const [account, setAccount] = useState<AdminDashboardAccount | null>(null);
-  const [accountError, setAccountError] = useState<string | null>(null);
-  const [supportRequests, setSupportRequests] = useState<
-    OwnerSupportRequestItem[]
-  >([]);
-  const [supportError, setSupportError] = useState<string | null>(null);
-  const [supportLoading, setSupportLoading] = useState(true);
+  const [supportRequests, setSupportRequests] = useState<OwnerSupportRequestItem[]>([]);
+  const [revenueSummary, setRevenueSummary] = useState<AdminRevenueSummary | null>(null);
+  const [marketingStatus, setMarketingStatus] = useState<MarketingAgentStatus | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [error, setError] = useState<string | null>(null);
   const [supportSavingId, setSupportSavingId] = useState<string | null>(null);
-  const [revenueSummary, setRevenueSummary] =
-    useState<AdminRevenueSummary | null>(null);
-  const [revenueError, setRevenueError] = useState<string | null>(null);
 
-  const loadAccount = useCallback(async () => {
-    try {
-      const nextAccount = await fetchApiJson<AdminDashboardAccount>(
-        "/api/admin/session",
-        { cache: "no-store" },
-      );
-      setAccount(nextAccount);
-      setAccountError(null);
-    } catch (error) {
-      setAccountError(
-        error instanceof Error
-          ? error.message
-          : "관리자 정보를 불러오지 못했습니다.",
-      );
-    }
-  }, []);
+  const loadDashboard = useCallback(async () => {
+    const results = await Promise.allSettled([
+      fetchApiJson<AdminDashboardAccount>("/api/admin/session", { cache: "no-store" }),
+      fetchApiJson<{ requests: OwnerSupportRequestItem[] }>("/api/admin/support-requests?limit=50", { cache: "no-store" }),
+      fetchApiJson<AdminRevenueSummary>("/api/admin/revenue-summary", { cache: "no-store" }),
+      fetchApiJson<MarketingAgentStatus>("/api/admin/marketing/status", { cache: "no-store" }),
+    ]);
 
-  const loadSupportRequests = useCallback(async () => {
-    setSupportLoading(true);
-    try {
-      const response = await fetchApiJson<{
-        requests: OwnerSupportRequestItem[];
-      }>("/api/admin/support-requests?limit=50", { cache: "no-store" });
-      setSupportRequests(response.requests);
-      setSupportError(null);
-    } catch (error) {
-      setSupportError(
-        error instanceof Error
-          ? error.message
-          : "문의 내역을 불러오지 못했습니다.",
-      );
-    } finally {
-      setSupportLoading(false);
-    }
-  }, []);
+    if (results[0].status === "fulfilled") setAccount(results[0].value);
+    if (results[1].status === "fulfilled") setSupportRequests(results[1].value.requests);
+    if (results[2].status === "fulfilled") setRevenueSummary(results[2].value);
+    if (results[3].status === "fulfilled") setMarketingStatus(results[3].value);
 
-  const loadRevenueSummary = useCallback(async () => {
-    try {
-      const response = await fetchApiJson<AdminRevenueSummary>(
-        "/api/admin/revenue-summary",
-        { cache: "no-store" },
-      );
-      setRevenueSummary(response);
-      setRevenueError(null);
-    } catch (error) {
-      setRevenueError(
-        error instanceof Error
-          ? error.message
-          : "매출 요약을 불러오지 못했습니다.",
-      );
-    }
+    const failedCount = results.filter((result) => result.status === "rejected").length;
+    setLoadState(failedCount === 0 ? "ready" : failedCount === results.length ? "error" : "partial");
+    setError(failedCount ? "일부 운영 정보를 확인하지 못했습니다. 확인되지 않은 값은 집계 대기로 표시합니다." : null);
   }, []);
 
   useEffect(() => {
-    void Promise.all([
-      loadAccount(),
-      loadSupportRequests(),
-      loadRevenueSummary(),
-    ]);
-
-    const refreshTimer = window.setInterval(() => {
-      void loadSupportRequests();
-    }, 30_000);
-
-    return () => window.clearInterval(refreshTimer);
-  }, [loadAccount, loadRevenueSummary, loadSupportRequests]);
+    void loadDashboard();
+    const timer = window.setInterval(() => void loadDashboard(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [loadDashboard]);
 
   async function updateSupportRequest(
     id: string,
@@ -118,23 +85,15 @@ export default function AdminDashboard({
   ) {
     setSupportSavingId(id);
     try {
-      const response = await fetchApiJson<{
-        request: OwnerSupportRequestItem;
-      }>("/api/admin/support-requests", {
+      const response = await fetchApiJson<{ request: OwnerSupportRequestItem }>("/api/admin/support-requests", {
         method: "PATCH",
         body: JSON.stringify({ id, status, adminNote, answerMessage }),
       });
-      setSupportRequests((current) =>
-        current.map((item) => (item.id === id ? response.request : item)),
-      );
-      setSupportError(null);
+      setSupportRequests((current) => current.map((item) => (item.id === id ? response.request : item)));
+      setError(null);
       return true;
-    } catch (error) {
-      setSupportError(
-        error instanceof Error
-          ? error.message
-          : "문의 내용을 저장하지 못했습니다.",
-      );
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "문의 내용을 저장하지 못했습니다.");
       return false;
     } finally {
       setSupportSavingId(null);
@@ -143,147 +102,113 @@ export default function AdminDashboard({
 
   async function handleLogout() {
     try {
-      await fetchApiJson<{ success: true }>("/api/admin/auth/logout", {
-        method: "POST",
-      });
+      await fetchApiJson<{ success: true }>("/api/admin/auth/logout", { method: "POST" });
     } finally {
       router.replace("/admin/login" as never);
       router.refresh();
     }
   }
 
-  const currentAccount = account ?? {
-    fullName: "관리자",
-    loginId: sessionLoginId,
-    isActive: true,
-  };
-  const pendingCount = supportRequests.filter(isPendingSupportRequest).length;
-  const pendingFeatureCount = supportRequests.filter(
-    (request) =>
-      request.category === "feature_request" &&
-      isPendingSupportRequest(request),
-  ).length;
+  const currentAccount = account ?? { fullName: "관리자", loginId: sessionLoginId };
+  const currentWork = marketingStatus?.workflow.currentWork ?? null;
+  const workMeta = currentWork ? WORK_STATUS[currentWork.status] : { label: "업무 없음", tone: "neutral" as const };
+  const pendingSupport = supportRequests.filter(isPendingSupportRequest).length;
+  const nextAction = currentWork
+    ? currentWork.status === "suspended"
+      ? "승인 대기 내용을 확인하세요."
+      : currentWork.status === "failed"
+        ? "막힌 원인을 확인하세요."
+        : "마케팅 워룸에서 다음 단계를 확인하세요."
+    : "새 업무 지시를 기다립니다.";
 
   return (
-    <main className="min-h-screen bg-[#f4f6f5] px-4 py-4 text-[#172033] md:px-6">
-      <div className="mx-auto w-full max-w-[1360px]">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[13px] font-semibold text-[#1f6b5b]">
-              {PETMANAGER_SERVICE_NAME}
-            </p>
-            <h1 className="mt-0.5 text-[24px] font-semibold tracking-[-0.03em] text-[#0f172a]">
-              운영 관리자
-            </h1>
+    <main className="min-h-screen bg-[#f4f6f5] px-4 py-5 text-[#172033] md:px-7 md:py-6">
+      <div className="mx-auto w-full max-w-[1380px]">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe2df] pb-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <Link href="/admin" aria-label="펫매니저 관리자 홈" className="inline-flex min-h-11 items-center rounded-[8px]">
+              <PetManagerBrand imageClassName="h-6" nameClassName="text-[17px] text-[#1f6b5b]" />
+            </Link>
+            <div className="min-w-0 border-l border-[#dbe2df] pl-4">
+              <h1 className="text-[20px] font-semibold leading-7 text-[#0f172a]">관리자 홈</h1>
+              <p className="truncate text-[13px] leading-5 text-[#64748b]">{currentAccount.fullName} · {currentAccount.loginId}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden text-[13px] text-[#64748b] sm:inline">
-              {currentAccount.fullName} · {currentAccount.loginId}
-            </span>
-            <Link
-              href={"/admin/marketing" as never}
-              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#cfe0d9] bg-[#edf6f2] px-3 text-[13px] font-semibold text-[#1f6b5b] hover:bg-[#e4f1eb]"
-            >
-              <TrendingUp className="h-4 w-4" />
-              마케팅 워룸
-            </Link>
-            <Link
-              href="/owner/admin"
-              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-semibold text-[#334155] hover:bg-[#f8fafc]"
-            >
-              <Store className="h-4 w-4" />
-              오너 계정
-            </Link>
-            <button
-              type="button"
-              onClick={() => void handleLogout()}
-              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] text-[#64748b] hover:bg-[#f8fafc]"
-            >
-              <DoorOpen className="h-4 w-4" />
-              로그아웃
+            <button type="button" onClick={() => void loadDashboard()} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] hover:bg-[#f8fafc]">
+              <RefreshCcw className="h-4 w-4" aria-hidden="true" />새로고침
+            </button>
+            <button type="button" onClick={() => void handleLogout()} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] hover:bg-[#f8fafc]">
+              <DoorOpen className="h-4 w-4" aria-hidden="true" />로그아웃
             </button>
           </div>
         </header>
 
-        {accountError ? (
-          <p className="mt-3 rounded-[8px] border border-[#f0d1d1] bg-[#fff7f7] px-3 py-2 text-[13px] text-[#a04455]">
-            {accountError}
-          </p>
-        ) : null}
+        {error ? <p role="alert" className={`${getWrapIndicatorClass("burgundy")} mt-3 rounded-[8px] px-4 py-3 text-[13px] leading-5 text-[#a04455]`}>{error}</p> : null}
 
-        <section className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
-            icon={MessageSquareText}
-            label="미처리 문의"
-            value={`${pendingCount}건`}
-            emphasis={pendingCount > 0}
-          />
-          <SummaryCard
-            icon={Lightbulb}
-            label="기능 개선 미처리"
-            value={`${pendingFeatureCount}건`}
-            emphasis={pendingFeatureCount > 0}
-          />
-          <SummaryCard
-            icon={WalletCards}
-            label="이번 달 매출"
-            value={formatWon(revenueSummary?.monthRevenue ?? 0)}
-          />
-          <SummaryCard
-            icon={Store}
-            label="유료 이용 매장"
-            value={`${revenueSummary?.activePaidSubscriptions ?? 0}곳`}
-          />
+        <section className="mt-4" aria-labelledby="work-flow-title">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-[12px] leading-[18px] text-[#1f6b5b]">현재 운영 흐름</p>
+              <h2 id="work-flow-title" className="text-[16px] font-semibold leading-6 text-[#0f172a]">업무지시 → 계획 → 현황</h2>
+            </div>
+            <Link href="/admin/marketing" className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#cfe0d9] bg-white px-4 text-[14px] font-medium text-[#1f6b5b] hover:bg-[#f5faf8]">상세 워룸<ArrowRight className="h-4 w-4" /></Link>
+          </div>
+
+          <div className="mt-2 grid gap-2 lg:grid-cols-3">
+            <FlowCard step="1" label="업무지시" title={currentWork?.goal ?? "진행 중인 업무 없음"} status={workMeta.label} owner="성장팀" nextAction={nextAction} tone={workMeta.tone} />
+            <FlowCard step="2" label="계획" title={marketingStatus?.workflow.label ?? "계획 연결 확인 중"} status={marketingStatus?.studio.connected ? "연결됨" : "확인 필요"} owner="마케팅 워룸" nextAction={marketingStatus?.studio.connected ? "현재 실행 단계를 확인하세요." : "연결 상태를 확인하세요."} tone={marketingStatus?.studio.connected ? "confirmed" : "amber"} />
+            <FlowCard step="3" label="현황" title={`문의 ${pendingSupport}건 · 승인 ${marketingStatus?.workflow.pendingApprovals ?? 0}건`} status={loadState === "ready" ? "최신" : loadState === "loading" ? "확인 중" : "일부 확인"} owner="운영 관리자" nextAction={pendingSupport ? "미처리 문의를 확인하세요." : "추가 조치가 없습니다."} tone={pendingSupport ? "amber" : loadState === "ready" ? "confirmed" : "neutral"} />
+          </div>
         </section>
 
-        <div className="mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <AdminSupportInbox
-            requests={supportRequests}
-            error={supportError}
-            loading={supportLoading}
-            savingId={supportSavingId}
-            onRefresh={() => void loadSupportRequests()}
-            onUpdate={updateSupportRequest}
-          />
-          <AdminRevenueOverview
-            summary={revenueSummary}
-            error={revenueError}
-            onRefresh={() => void loadRevenueSummary()}
-          />
-        </div>
+        <section className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="운영 요약">
+          <Metric icon={MessageSquareText} label="미처리 문의" value={`${pendingSupport}건`} />
+          <Metric icon={WalletCards} label="이번 달 매출" value={revenueSummary ? formatWon(revenueSummary.monthRevenue) : "집계 대기"} />
+          <Metric icon={TrendingUp} label="예상 월 매출" value={revenueSummary ? formatWon(revenueSummary.expectedMonthlyRecurringRevenue) : "집계 대기"} />
+          <Metric icon={Store} label="유료 이용 매장" value={revenueSummary ? `${revenueSummary.activePaidSubscriptions}곳` : "집계 대기"} />
+        </section>
+
+        <section className="mt-4 grid gap-3 lg:grid-cols-2" aria-label="상세 업무">
+          <DetailEntry title="문의 상세" summary={`미처리 ${pendingSupport}건`}>
+            <AdminSupportInbox requests={supportRequests} error={error} loading={loadState === "loading"} savingId={supportSavingId} onRefresh={() => void loadDashboard()} onUpdate={updateSupportRequest} />
+          </DetailEntry>
+          <DetailEntry title="매출 상세" summary={revenueSummary ? `이번 달 ${formatWon(revenueSummary.monthRevenue)}` : "집계 대기"}>
+            <AdminRevenueOverview summary={revenueSummary} error={error} onRefresh={() => void loadDashboard()} />
+          </DetailEntry>
+        </section>
       </div>
     </main>
   );
 }
 
-function SummaryCard({
-  icon: Icon,
-  label,
-  value,
-  emphasis = false,
-}: {
-  icon: typeof MessageSquareText;
-  label: string;
-  value: string;
-  emphasis?: boolean;
-}) {
+function FlowCard({ step, label, title, status, owner, nextAction, tone }: { step: string; label: string; title: string; status: string; owner: string; nextAction: string; tone: StatusIndicatorTone }) {
   return (
-    <div className="flex min-h-[74px] items-center gap-3 rounded-[10px] border border-[#e2e8f0] bg-white px-4 py-3">
-      <span
-        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] ${
-          emphasis
-            ? "bg-[#fff4e8] text-[#a46619]"
-            : "bg-[#edf6f2] text-[#1f6b5b]"
-        }`}
-      >
-        <Icon className="h-4 w-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-[12px] text-[#64748b]">{label}</p>
-        <p className="mt-0.5 truncate text-[18px] font-semibold text-[#111827]">
-          {value}
-        </p>
+    <article className={`${getWrapIndicatorClass(tone)} rounded-[8px] px-4 py-3`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[12px] leading-[18px] text-[#64748b]">{step}. {label}</p>
+        <span className="inline-flex items-center gap-2 text-[12px] font-medium text-[#475569]"><span className={getDotIndicatorClass(tone)} aria-hidden="true" />{status}</span>
       </div>
-    </div>
+      <h3 className="mt-1 line-clamp-2 text-[14px] font-medium leading-5 text-[#0f172a]">{title}</h3>
+      <dl className="mt-2 grid gap-1 text-[12px] leading-[18px] sm:grid-cols-[64px_1fr]">
+        <dt className="text-[#94a3b8]">담당</dt><dd className="text-[#475569]">{owner}</dd>
+        <dt className="text-[#94a3b8]">다음 행동</dt><dd className="text-[#2563eb]">{nextAction}</dd>
+      </dl>
+    </article>
+  );
+}
+
+function Metric({ icon: Icon, label, value }: { icon: typeof Store; label: string; value: string }) {
+  return <div className="flex min-h-[68px] items-center gap-3 rounded-[8px] border border-[#e2e8f0] bg-white px-4 py-3"><Icon className="h-4 w-4 shrink-0 text-[#607080]" aria-hidden="true" /><div className="min-w-0"><p className="text-[12px] leading-[18px] text-[#64748b]">{label}</p><p className="truncate text-[16px] font-semibold leading-6 text-[#111827]">{value}</p></div></div>;
+}
+
+function DetailEntry({ title, summary, children }: { title: string; summary: string; children: React.ReactNode }) {
+  return (
+    <details className="group overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+        <span>{title}</span><span className="flex items-center gap-2 text-[13px] font-normal text-[#64748b]">{summary}<ChevronDown className="h-4 w-4 transition group-open:rotate-180" /></span>
+      </summary>
+      <div className="border-t border-[#eef2f6] p-2">{children}</div>
+    </details>
   );
 }

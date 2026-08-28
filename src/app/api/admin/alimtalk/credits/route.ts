@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
+import { AdminApiError, requireAdminSession, requireSuperAdminSession } from "@/server/admin-api-auth";
 import {
   getAdminAlimtalkCreditBalances,
   grantShopAlimtalkCredits,
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const adminSession = await requireAdminSession(request);
+    const adminSession = await requireSuperAdminSession(request);
     const body = grantCreditsSchema.parse(await request.json());
     const metadata = { adminLoginId: adminSession.loginId };
     const result =

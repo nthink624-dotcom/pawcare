@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { ServerEnvError } from "@/lib/server-env";
+import {
+  assertAdminAuthAttemptAllowed,
+  buildAdminAuthAttemptKey,
+  clearAdminAuthFailures,
+  getAdminAuthClientAddress,
+  recordAdminAuthFailure,
+} from "@/lib/admin-auth-rate-limit";
 import { AdminAccountError, getAdminAccountByLoginId, verifyAdminPassword } from "@/server/admin-account";
 import { ADMIN_SESSION_COOKIE, createAdminSessionToken, getAdminSessionCookieOptions } from "@/server/admin-session";
 
@@ -18,11 +25,20 @@ export async function POST(request: NextRequest) {
 
   try {
     const { loginId, password } = parsed.data;
+    const attemptKey = buildAdminAuthAttemptKey({
+      action: "login",
+      loginId,
+      clientAddress: getAdminAuthClientAddress(request.headers),
+    });
+    assertAdminAuthAttemptAllowed(attemptKey);
     const account = await getAdminAccountByLoginId(loginId);
 
     if (!account || !account.is_active || !verifyAdminPassword(password, account.password_hash)) {
+      recordAdminAuthFailure(attemptKey);
       return NextResponse.json({ message: "관리자 아이디 또는 비밀번호를 다시 확인해 주세요." }, { status: 401 });
     }
+
+    clearAdminAuthFailures(attemptKey);
 
     const response = NextResponse.json({
       success: true,
@@ -44,6 +60,12 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
+    if (error instanceof Error && "retryAfterSeconds" in error && typeof error.retryAfterSeconds === "number") {
+      return NextResponse.json(
+        { message: "인증 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요." },
+        { status: 429, headers: { "Retry-After": String(error.retryAfterSeconds) } },
+      );
+    }
     if (error instanceof ServerEnvError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }

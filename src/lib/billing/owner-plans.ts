@@ -1,4 +1,14 @@
-﻿export type OwnerPlanCode = "free" | "monthly" | "quarterly" | "halfyearly" | "yearly";
+export const OWNER_SINGLE_MONTHLY_PLAN_CODE = "single_monthly_v1" as const;
+export const OWNER_SINGLE_MONTHLY_PRODUCT_VERSION = "2026-08-v1" as const;
+export const OWNER_SINGLE_MONTHLY_PRICE_KRW = 29000;
+
+export type OwnerPlanCode =
+  | "free"
+  | typeof OWNER_SINGLE_MONTHLY_PLAN_CODE
+  | "monthly"
+  | "quarterly"
+  | "halfyearly"
+  | "yearly";
 
 export type OwnerPlanBillingType = "one_time" | "subscription";
 
@@ -27,6 +37,9 @@ export type OwnerPlan = {
   featured?: boolean;
   recommended?: boolean;
   hidden?: boolean;
+  productVersion?: string;
+  priceSnapshotCurrency?: "KRW";
+  legacy?: boolean;
 };
 
 const EXCESS_ALIMTALK_LABEL = "초과 알림톡 11원/건, 부가세 포함";
@@ -98,6 +111,27 @@ export function calculateOwnerBillingAmountBreakdown(
   plan: Pick<OwnerPlan, "code" | "name" | "billingType" | "monthlyPrice" | "totalPrice">,
   totalShopCount: number,
 ): OwnerBillingAmountBreakdown {
+  if (plan.code === OWNER_SINGLE_MONTHLY_PLAN_CODE) {
+    const normalizedTotalShopCount = Math.max(1, Math.floor(Number.isFinite(totalShopCount) ? totalShopCount : 1));
+    return {
+      planCode: plan.code,
+      planName: plan.name,
+      baseMonthlyAmount: plan.monthlyPrice,
+      multiShopDiscount: {
+        totalShopCount: normalizedTotalShopCount,
+        perShopListMonthlyPrice: plan.monthlyPrice,
+        discountRate: 0,
+        discountPercent: 0,
+        subtotalBeforeDiscount: plan.monthlyPrice,
+        discountAmount: 0,
+        finalMonthlyAmount: plan.monthlyPrice,
+        policyLabel: "계정당 단일 요금",
+        appliedLabel: "매장 수와 관계없이 가입 시 확정한 월 요금이 적용돼요.",
+      },
+      monthlyTotalAmount: plan.monthlyPrice,
+    };
+  }
+
   const multiShopDiscount = calculateOwnerMultiShopDiscountBilling(
     totalShopCount,
     plan.code === "free" ? 0 : plan.monthlyPrice,
@@ -155,6 +189,7 @@ export function getOwnerPlanStaffAccountLabel(
 
 export const ownerPlanIncludedAlimtalkCredits: Record<OwnerPlanCode, number> = {
   free: 100,
+  [OWNER_SINGLE_MONTHLY_PLAN_CODE]: 0,
   monthly: 500,
   quarterly: 1500,
   halfyearly: 1500,
@@ -162,7 +197,14 @@ export const ownerPlanIncludedAlimtalkCredits: Record<OwnerPlanCode, number> = {
 };
 
 export function getOwnerPlanIncludedAlimtalkCredits(code: OwnerPlanCode | string | null | undefined) {
-  if (code === "free" || code === "monthly" || code === "quarterly" || code === "halfyearly" || code === "yearly") {
+  if (
+    code === "free" ||
+    code === OWNER_SINGLE_MONTHLY_PLAN_CODE ||
+    code === "monthly" ||
+    code === "quarterly" ||
+    code === "halfyearly" ||
+    code === "yearly"
+  ) {
     return ownerPlanIncludedAlimtalkCredits[code];
   }
 
@@ -250,6 +292,32 @@ export const ownerPlans: OwnerPlan[] = [
     targetLabel: "도입 전 확인",
     highlights: ["14일 무료체험", "카드 등록 없이 시작", "오너 화면 기본 기능 확인"],
   },
+  {
+    code: OWNER_SINGLE_MONTHLY_PLAN_CODE,
+    productVersion: OWNER_SINGLE_MONTHLY_PRODUCT_VERSION,
+    priceSnapshotCurrency: "KRW",
+    name: "펫매니저 월 정기 이용",
+    title: "월 정기 이용",
+    shortTitle: "월 정기 이용",
+    months: 1,
+    price: OWNER_SINGLE_MONTHLY_PRICE_KRW,
+    totalPrice: OWNER_SINGLE_MONTHLY_PRICE_KRW,
+    monthlyPrice: OWNER_SINGLE_MONTHLY_PRICE_KRW,
+    monthlyEquivalent: OWNER_SINGLE_MONTHLY_PRICE_KRW,
+    billingType: "subscription",
+    billingLabel: "월 정기결제",
+    totalLabel: "월 29,000원",
+    description: "예약·고객·직원·알림톡 운영 기능을 하나의 월 요금으로 이용합니다.",
+    discountPercent: 0,
+    badge: "단일 요금제",
+    staffLimitLabel: "직원 운영 포함",
+    alimtalkIncludedLabel: "알림톡 기능 포함",
+    excessAlimtalkLabel: "별도 건수 충전 없음",
+    targetLabel: "신규 가입 매장",
+    highlights: ["월 29,000원", "알림톡 기능 포함", "추가 충전·월별 크레딧 리셋 없음"],
+    featured: true,
+    recommended: true,
+  },
   makePlan({
     code: "monthly",
     title: "1인 운영",
@@ -260,6 +328,7 @@ export const ownerPlans: OwnerPlan[] = [
     alimtalkIncludedLabel: "월 500건",
     targetLabel: "1개 사업자/1개 매장 1인샵",
     highlights: ["운영 기준: 1개 사업자/1개 매장", "타 업체·타 지점 분리 운영 불가", "예약 담당자: 1명"],
+    hidden: true,
   }),
   makePlan({
     code: "quarterly",
@@ -272,7 +341,7 @@ export const ownerPlans: OwnerPlan[] = [
     alimtalkIncludedLabel: "월 1,500건",
     targetLabel: "1개 사업자/1개 매장 2~4인",
     highlights: ["운영 기준: 1개 사업자/1개 매장", "예약 담당자: 상시 4명 + 프리랜서 2명", "타 업체·타 지점 공동 사용 불가"],
-    featured: true,
+    hidden: true,
   }),
   makePlan({
     code: "halfyearly",
@@ -296,13 +365,14 @@ export const ownerPlans: OwnerPlan[] = [
     alimtalkIncludedLabel: "월 5,000건",
     targetLabel: "1개 사업자/1개 매장 5인 이상",
     highlights: ["운영 기준: 1개 사업자/1개 매장", "여러 지점/타 업체 공동 사용 불가", "지점 확장·공동 운영은 별도 문의"],
+    hidden: true,
   }),
 ];
 
 export const billableOwnerPlans = ownerPlans.filter((plan) => plan.code !== "free" && !plan.hidden);
 
 export function ownerPlanAllowsAutomaticVisitReminder(code: OwnerPlanCode | string | null | undefined) {
-  return code === "quarterly" || code === "halfyearly" || code === "yearly";
+  return code === OWNER_SINGLE_MONTHLY_PLAN_CODE || code === "quarterly" || code === "halfyearly" || code === "yearly";
 }
 
 export function getOwnerPlanByCode(code: string | null | undefined) {

@@ -1,5 +1,6 @@
 import {
   calculateOwnerBillingAmountBreakdown,
+  OWNER_SINGLE_MONTHLY_PLAN_CODE,
   ownerPlans,
   type OwnerBillingAmountBreakdown,
   type OwnerPlan,
@@ -53,6 +54,9 @@ export type OwnerSubscriptionSummary = {
   ownerPhoneNumber: string | null;
   ownerEmail: string | null;
   billingAmount: OwnerBillingAmountBreakdown;
+  productVersion: string | null;
+  priceSnapshotAmount: number | null;
+  priceSnapshotCurrency: "KRW" | null;
 };
 
 export const OWNER_TRIAL_DAYS = 14;
@@ -64,7 +68,11 @@ function isOwnerPlanCode(value: unknown): value is OwnerPlanCode {
 }
 
 function getPlanOrDefault(code: string | null | undefined) {
-  return ownerPlans.find((plan) => plan.code === code) ?? ownerPlans.find((plan) => plan.code === "monthly") ?? ownerPlans[0];
+  return (
+    ownerPlans.find((plan) => plan.code === code) ??
+    ownerPlans.find((plan) => plan.code === OWNER_SINGLE_MONTHLY_PLAN_CODE) ??
+    ownerPlans[0]
+  );
 }
 
 export function addDaysIso(baseIso: string, days: number) {
@@ -110,10 +118,10 @@ export function normalizeOwnerSubscriptionMetadata(
 
   const featuredPlanCode = isOwnerPlanCode(metadata?.featured_plan_code)
     ? metadata.featured_plan_code
-    : "quarterly";
+    : OWNER_SINGLE_MONTHLY_PLAN_CODE;
   const autoRenewPlanCode = isOwnerPlanCode(metadata?.auto_renew_plan_code)
     ? metadata.auto_renew_plan_code
-    : "quarterly";
+    : OWNER_SINGLE_MONTHLY_PLAN_CODE;
   const currentPlanCode = isOwnerPlanCode(metadata?.current_plan_code)
     ? metadata.current_plan_code
     : autoRenewPlanCode;
@@ -224,5 +232,11 @@ export function normalizeOwnerSubscriptionMetadata(
     ownerPhoneNumber: options?.ownerPhoneNumber ?? null,
     ownerEmail: options?.ownerEmail ?? null,
     billingAmount,
+    productVersion: typeof metadata?.product_version === "string" ? metadata.product_version : null,
+    priceSnapshotAmount:
+      typeof metadata?.price_snapshot_amount === "number" && Number.isInteger(metadata.price_snapshot_amount)
+        ? metadata.price_snapshot_amount
+        : null,
+    priceSnapshotCurrency: metadata?.price_snapshot_currency === "KRW" ? "KRW" : null,
   } satisfies OwnerSubscriptionSummary;
 }

@@ -1,9 +1,17 @@
 ﻿import { randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac } from "node:crypto";
 import { z } from "zod";
 
-import { hashIdentityStableValue } from "@/lib/auth/owner-identity";
+import {
+  acceptsAtomicOwnerSignupContract,
+  ATOMIC_OWNER_SIGNUP_SUPPORTED_VERSIONS,
+} from "@/lib/auth/atomic-signup-contract";
+import {
+  hashIdentityStableValue,
+  buildOwnerTrialPhoneIdentityKeys,
+} from "@/lib/auth/owner-identity";
 import {
   isValidBirthDate8,
   isValidOwnerEmail,
@@ -13,16 +21,20 @@ import {
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
-import { OWNER_TRIAL_DAYS } from "@/lib/billing/owner-subscription";
+import { buildSignupServicePriceGuide, normalizeSignupServicePrices, signupServicePricesSchema } from "@/lib/auth/signup-service-pricing";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
-import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { hasSupabaseServerEnv, ServerEnvError } from "@/lib/server-env";
 import { nowIso } from "@/lib/utils";
-import { insertOwnerDefaultSetup } from "@/server/owner-default-setup";
-import { consumeVerifiedIdentity, getVerifiedIdentityForToken } from "@/server/owner-identity-verification";
-import { upsertOwnerShopMembership } from "@/server/owner-shop-memberships";
+import { getVerifiedIdentityForToken } from "@/server/owner-identity-verification";
+import {
+  orchestrateDevelopmentSignup,
+  SignupFlowError,
+  type SignupRequestRecord,
+} from "@/server/signup-development-orchestration";
+import { parseBoundedAtomicSignupJson, SignupJsonBodyError } from "@/server/signup-json-body";
 
 const schema = z.object({
   email: z.string().min(1),
@@ -42,6 +54,8 @@ const schema = z.object({
     marketing: z.boolean(),
   }),
   termsVersion: z.string().optional(),
+  signupRequestId: z.string().uuid(),
+  servicePrices: signupServicePricesSchema,
 });
 
 function isValidPhoneNumber(value: string) {
@@ -52,84 +66,51 @@ function isValidShopPhone(value: string) {
   return /^(?:02\d{7,8}|0[3-6]\d{7,8}|070\d{7,8}|050\d{8}|01\d{8,9})$/.test(normalizeOwnerPhoneNumber(value));
 }
 
-const duplicateAccountMessage = "이미 가입된 계정이 있어요. 이메일 찾기 또는 비밀번호 찾기를 이용해 주세요.";
-
-function isMissingSchemaFieldError(error: { code?: string; message?: string } | null | undefined, fields: string[]) {
-  const message = error?.message ?? "";
-  return (
-    error?.code === "PGRST204" ||
-    error?.code === "PGRST205" ||
-    fields.some((field) => message.includes(field)) ||
-    /schema cache|column .* does not exist|Could not find .* column/i.test(message)
-  );
-}
-
 function logSignupIssue(stage: string, error: unknown) {
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : JSON.stringify(error);
   console.error("[owner-signup]", stage, message);
 }
 
-async function findExistingOwnerByIdentity(input: {
-  supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>;
-  name: string;
-  birthDate: string;
-  phoneNumber: string;
-  ciHash: string | null;
-  diHash: string | null;
-}) {
-  const identityFilters = [
-    input.ciHash ? `ci_hash.eq.${input.ciHash}` : null,
-    input.diHash ? `di_hash.eq.${input.diHash}` : null,
-  ].filter((value): value is string => Boolean(value));
-
-  if (identityFilters.length > 0) {
-    const identityResult = await input.supabase
-      .from("owner_profiles")
-      .select("login_id")
-      .or(identityFilters.join(","))
-      .limit(1)
-      .maybeSingle<{ login_id: string }>();
-
-    if (identityResult.error) {
-      if (isMissingSchemaFieldError(identityResult.error, ["ci_hash", "di_hash"])) {
-        logSignupIssue("identity-hash-columns-missing", identityResult.error.message);
-      } else {
-        throw new Error(identityResult.error.message || "가입된 계정 확인 중 문제가 발생했습니다.");
-      }
-    }
-
-    if (identityResult.data?.login_id) {
-      return identityResult.data;
-    }
-  }
-
-  const profileResult = await input.supabase
-    .from("owner_profiles")
-    .select("login_id")
-    .eq("name", input.name.trim())
-    .eq("birth_date", input.birthDate)
-    .eq("phone_number", input.phoneNumber)
-    .limit(1)
-    .maybeSingle<{ login_id: string }>();
-
-  if (profileResult.error) {
-    throw new Error(profileResult.error.message || "가입된 계정 확인 중 문제가 발생했습니다.");
-  }
-
-  return profileResult.data ?? null;
+function buildSignupPayloadHash(payload: z.infer<typeof schema>) {
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.OWNER_SESSION_SECRET;
+  if (!secret) throw new Error("회원가입 요청 서명 환경 변수가 설정되지 않았습니다.");
+  return createHmac("sha256", secret)
+    .update(JSON.stringify({
+      ...payload,
+      passwordConfirm: undefined,
+      servicePrices: [...payload.servicePrices].sort((left, right) => left.id.localeCompare(right.id)),
+    }))
+    .digest("hex");
 }
 
 export async function POST(request: NextRequest) {
   try {
+    if (!acceptsAtomicOwnerSignupContract(request.headers)) {
+      return NextResponse.json(
+        {
+          code: "SIGNUP_CONTRACT_VERSION_UNSUPPORTED",
+          message: "현재 앱에서는 안전한 회원가입을 진행할 수 없습니다. 앱을 업데이트한 뒤 다시 시도해 주세요.",
+          supportedVersions: ATOMIC_OWNER_SIGNUP_SUPPORTED_VERSIONS,
+        },
+        { status: 426 },
+      );
+    }
+    const decodedBody = await parseBoundedAtomicSignupJson(request);
+    if (!decodedBody || typeof decodedBody !== "object" || Array.isArray(decodedBody)) {
+      throw new SignupJsonBodyError("SIGNUP_BODY_INVALID", "회원가입 요청을 확인해 주세요.", 400);
+    }
+    const body = decodedBody as Record<string, unknown>;
     if (!hasSupabaseServerEnv()) {
       return NextResponse.json({ message: "Supabase 환경 변수가 설정되지 않았습니다." }, { status: 503 });
     }
-
-    const body = await request.json();
     const payload = schema.parse({
       ...body,
-      phoneNumber: normalizeOwnerPhoneNumber(body?.phoneNumber ?? ""),
-      shopPhone: normalizeOwnerPhoneNumber(body?.shopPhone ?? ""),
+      phoneNumber: normalizeOwnerPhoneNumber(
+        typeof body.phoneNumber === "string" ? body.phoneNumber : "",
+      ),
+      shopPhone: normalizeOwnerPhoneNumber(
+        typeof body.shopPhone === "string" ? body.shopPhone : "",
+      ),
     });
 
     const email = normalizeOwnerEmail(payload.email);
@@ -165,6 +146,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "필수 약관에 동의해 주세요." }, { status: 400 });
     }
 
+    const supabase = getSupabaseAdmin();
+    const authClient = getSupabaseAuthClient();
+    if (!supabase || !authClient) {
+      return NextResponse.json({ message: "Supabase 관리자 클라이언트를 만들 수 없습니다." }, { status: 503 });
+    }
+    const payloadHash = buildSignupPayloadHash(payload);
     const verifiedIdentity = await getVerifiedIdentityForToken({
       verificationToken: payload.identityVerificationToken,
       purpose: "signup",
@@ -176,12 +163,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "본인인증이 완료되지 않았습니다." }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
-    const authClient = getSupabaseAuthClient();
-    if (!supabase || !authClient) {
-      return NextResponse.json({ message: "Supabase 관리자 클라이언트를 만들 수 없습니다." }, { status: 503 });
-    }
-
     const duplicate = await supabase.from("owner_profiles").select("login_id").eq("login_id", email).maybeSingle();
     if (duplicate.data?.login_id) {
       return NextResponse.json({ message: "이미 사용 중인 이메일입니다." }, { status: 409 });
@@ -189,190 +170,165 @@ export async function POST(request: NextRequest) {
 
     const ciHash = verifiedIdentity.ci ? hashIdentityStableValue(verifiedIdentity.ci) : null;
     const diHash = verifiedIdentity.di ? hashIdentityStableValue(verifiedIdentity.di) : null;
-    const existingOwner = await findExistingOwnerByIdentity({
-      supabase,
-      name: payload.name,
-      birthDate: payload.birthDate,
-      phoneNumber: payload.phoneNumber,
-      ciHash,
-      diHash,
-    });
+    const trialIdentity = buildOwnerTrialPhoneIdentityKeys(verifiedIdentity.phone_number);
 
-    if (existingOwner?.login_id) {
-      return NextResponse.json({ message: duplicateAccountMessage }, { status: 409 });
-    }
-
-    const trialStartedAt = nowIso();
-    const trialEndsAt = new Date(Date.now() + OWNER_TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
-
-    const createdUser = await supabase.auth.admin.createUser({
-      email,
-      password: payload.password,
-      email_confirm: true,
-      user_metadata: {
-        login_id: email,
-        name: payload.name.trim(),
-        subscription_status: "trialing",
-        trial_started_at: trialStartedAt,
-        trial_ends_at: trialEndsAt,
-        next_billing_at: null,
-        current_plan_code: "quarterly",
-        auto_renew_enabled: false,
-        auto_renew_plan_code: "quarterly",
-        cancel_at_period_end: false,
-        featured_plan_code: "quarterly",
-      },
-    });
-
-    if (createdUser.error || !createdUser.data.user) {
-      const message = createdUser.error?.message || "회원가입 처리 중 문제가 발생했습니다.";
-      return NextResponse.json(
-        { message: message.includes("already") ? "이미 사용 중인 이메일입니다." : message },
-        { status: message.includes("already") ? 409 : 400 },
-      );
-    }
-
-    const user = createdUser.data.user;
     const shopId = `shop-${randomUUID().slice(0, 8)}`;
     const now = nowIso();
-
-    const shopPayload = {
-      id: shopId,
-      owner_user_id: user.id,
-      name: payload.shopName,
-      phone: payload.shopPhone,
-      address: payload.shopAddress,
-      description: "",
-      business_hours: defaultOwnerBusinessHours,
-      regular_closed_days: defaultOwnerRegularClosedDays,
-      temporary_closed_dates: [],
-      concurrent_capacity: 1,
-      booking_slot_interval_minutes: 30,
-      booking_slot_offset_minutes: 0,
-      booking_available_start_time: "10:00",
-      booking_available_end_time: "17:00",
-      approval_mode: "auto",
-      notification_settings: defaultShopNotificationSettings,
-      customer_page_settings: buildDefaultCustomerPageSettings({
-        shopName: payload.shopName,
-        description: "",
-      }),
-      created_at: now,
-      updated_at: now,
-    };
-
-    let shopInsert = await supabase.from("shops").insert(shopPayload);
-
-    if (
-      shopInsert.error &&
-      isMissingSchemaFieldError(shopInsert.error, [
-        "booking_slot_interval_minutes",
-        "booking_slot_offset_minutes",
-        "booking_available_start_time",
-        "booking_available_end_time",
-      ])
-    ) {
-      logSignupIssue("shop-booking-slot-columns-missing", shopInsert.error.message);
-      const {
-        booking_slot_interval_minutes,
-        booking_slot_offset_minutes,
-        booking_available_start_time,
-        booking_available_end_time,
-        ...fallbackShopPayload
-      } = shopPayload;
-      shopInsert = await supabase.from("shops").insert(fallbackShopPayload);
-    }
-
-    if (shopInsert.error) {
-      logSignupIssue("shop-insert-failed", shopInsert.error.message);
-      await supabase.auth.admin.deleteUser(user.id);
-      return NextResponse.json({ message: "매장 정보를 저장하지 못했습니다." }, { status: 400 });
-    }
-
-    try {
-      await insertOwnerDefaultSetup(supabase, {
-        shopId,
-        ownerName: payload.name.trim(),
-        ownerPhone: payload.phoneNumber,
-        now,
-      });
-    } catch (error) {
-      logSignupIssue("default-setup-failed", error);
-      await supabase.from("shops").delete().eq("id", shopId);
-      await supabase.auth.admin.deleteUser(user.id);
-      return NextResponse.json({ message: "기본 운영 정보를 저장하지 못했습니다." }, { status: 400 });
-    }
-
     const agreementPayload = {
       agreed_at: now,
       terms_version: payload.termsVersion || OWNER_SIGNUP_TERMS_VERSION,
       agreements: payload.agreements,
     };
+    const normalizedServices = normalizeSignupServicePrices(payload.servicePrices).map((service, index) => ({
+      id: `${shopId}-svc-signup-${index + 1}`,
+      name: service.name,
+      price: service.price,
+      duration_minutes: service.durationMinutes,
+      description: [service.detailName, service.breedGroup, service.weightBand].filter(Boolean).join(" · "),
+      sort_order: index + 1,
+      price_guide: buildSignupServicePriceGuide(service),
+    }));
 
-    const profilePayload = {
-      user_id: user.id,
-      shop_id: shopId,
-      login_id: email,
-      name: payload.name.trim(),
-      birth_date: payload.birthDate,
-      phone_number: payload.phoneNumber,
-      ci_hash: ciHash,
-      di_hash: diHash,
-      identity_verified_at: now,
-      agreements: agreementPayload,
-      created_at: now,
-      updated_at: now,
-    };
-
-    let profileInsert = await supabase.from("owner_profiles").upsert(profilePayload);
-
-    if (profileInsert.error && isMissingSchemaFieldError(profileInsert.error, ["ci_hash", "di_hash"])) {
-      logSignupIssue("profile-identity-hash-columns-missing", profileInsert.error.message);
-      const { ci_hash, di_hash, ...fallbackProfilePayload } = profilePayload;
-      profileInsert = await supabase.from("owner_profiles").upsert(fallbackProfilePayload);
-    }
-
-    if (profileInsert.error) {
-      logSignupIssue("profile-insert-failed", profileInsert.error.message);
-      await supabase.from("shops").delete().eq("id", shopId);
-      await supabase.auth.admin.deleteUser(user.id);
-      return NextResponse.json(
-        {
-          message:
-            profileInsert.error.code === "23505"
-              ? "이미 사용 중인 이메일이거나 이미 가입된 계정입니다. 이메일 찾기 또는 비밀번호 찾기를 이용해 주세요."
-              : "회원 정보를 저장하지 못했습니다.",
+    const orchestration = await orchestrateDevelopmentSignup({
+      requestId: payload.signupRequestId,
+      payloadHash,
+      dependencies: {
+        claimRequest: async ({ requestId, payloadHash: requestHash }) => {
+          const result = await supabase.rpc("claim_owner_signup_v4", {
+            p_signup_request_id: requestId,
+            p_payload_hash: requestHash,
+          });
+          if (result.error) throw new Error(`ATOMIC_SIGNUP_MIGRATION_REQUIRED:${result.error.message}`);
+          const value = result.data as {
+            action?: "claimed" | "completed" | "in_progress" | "compensation_pending" | "payload_mismatch";
+            status?: SignupRequestRecord["status"];
+            authUserId?: string | null;
+            shopId?: string | null;
+            trialEligible?: boolean | null;
+            trialDays?: 0 | 14 | null;
+            billingRequired?: boolean | null;
+          } | null;
+          return {
+            action: value?.action ?? "in_progress",
+            record: value?.status
+              ? {
+                  requestId,
+                  payloadHash: requestHash,
+                  status: value.status,
+                  authUserId: value.authUserId ?? null,
+                  shopId: value.shopId ?? null,
+                  trialEligible: value.trialEligible ?? null,
+                  trialDays: value.trialDays ?? null,
+                  billingRequired: value.billingRequired ?? null,
+                }
+              : null,
+          };
         },
-        { status: profileInsert.error.code === "23505" ? 409 : 400 },
-      );
-    }
-
-    try {
-      await upsertOwnerShopMembership(supabase, {
-        ownerUserId: user.id,
-        shopId,
-        isPrimary: true,
-        now,
-      });
-    } catch {
-      await supabase.from("owner_profiles").delete().eq("user_id", user.id);
-      await supabase.from("shops").delete().eq("id", shopId);
-      await supabase.auth.admin.deleteUser(user.id);
-      return NextResponse.json({ message: "매장 소유권 정보를 저장하지 못했습니다." }, { status: 400 });
-    }
-
-    const consumed = await consumeVerifiedIdentity({
-      verificationId: verifiedIdentity.id,
-      tokenId: verifiedIdentity.tokenId,
-      action: "signup",
+        createAuthUser: async () => {
+          const createdUser = await supabase.auth.admin.createUser({
+            email,
+            password: payload.password,
+            email_confirm: true,
+            user_metadata: {
+              login_id: email,
+              name: payload.name.trim(),
+            },
+          });
+          if (createdUser.error || !createdUser.data.user) {
+            const signupMessage = createdUser.error?.message || "회원가입 처리 중 문제가 발생했습니다.";
+            throw new Error(signupMessage.includes("already") ? "이미 사용 중인 이메일입니다." : signupMessage);
+          }
+          return { userId: createdUser.data.user.id };
+        },
+        markAuthCreated: async ({ requestId, payloadHash: requestHash, authUserId }) => {
+          const result = await supabase.rpc("mark_owner_signup_auth_created_v2", {
+            p_signup_request_id: requestId,
+            p_payload_hash: requestHash,
+            p_auth_user_id: authUserId,
+          });
+          if (result.error) throw new Error(result.error.message);
+        },
+        writeAtomicSignup: async (authUserId) => {
+          const result = await supabase.rpc("complete_owner_signup_v4", {
+            p_signup_request_id: payload.signupRequestId,
+            p_payload_hash: payloadHash,
+            p_auth_user_id: authUserId,
+            p_shop: {
+              id: shopId,
+              name: payload.shopName.trim(),
+              phone: payload.shopPhone,
+              address: payload.shopAddress,
+              business_hours: defaultOwnerBusinessHours,
+              regular_closed_days: defaultOwnerRegularClosedDays,
+              notification_settings: defaultShopNotificationSettings,
+              customer_page_settings: buildDefaultCustomerPageSettings({ shopName: payload.shopName, description: "" }),
+            },
+            p_profile: {
+              login_id: email,
+              name: payload.name.trim(),
+              birth_date: payload.birthDate,
+              phone_number: payload.phoneNumber,
+              ci_hash: ciHash,
+              di_hash: diHash,
+              identity_verified_at: now,
+              agreements: agreementPayload,
+            },
+            p_services: normalizedServices,
+            p_staff: { name: "원장", phone: payload.phoneNumber },
+            p_identity_verification_id: verifiedIdentity.id,
+            p_identity_token_id: verifiedIdentity.tokenId,
+            p_trial_identity_keys: trialIdentity.keys,
+            p_trial_identity_current_version: trialIdentity.currentVersion,
+          });
+          if (result.error) throw new Error(result.error.message);
+          const value = result.data as {
+            shopId?: string;
+            reused?: boolean;
+            trialEligible?: boolean;
+            trialDays?: 0 | 14;
+            billingRequired?: boolean;
+          } | null;
+          if (
+            typeof value?.trialEligible !== "boolean" ||
+            (value.trialDays !== 0 && value.trialDays !== 14) ||
+            typeof value.billingRequired !== "boolean"
+          ) {
+            throw new Error("PM_SIGNUP_TRIAL_RESULT_MISSING");
+          }
+          return {
+            shopId: value.shopId ?? shopId,
+            reused: value.reused ?? false,
+            trialEligible: value.trialEligible,
+            trialDays: value.trialDays,
+            billingRequired: value.billingRequired,
+          };
+        },
+        deleteAuthUser: async (authUserId) => {
+          const deleted = await supabase.auth.admin.deleteUser(authUserId);
+          return !deleted.error;
+        },
+        markCompensationPending: async (record) => {
+          await supabase.from("signup_idempotency_requests").upsert({
+            signup_request_id: record.requestId,
+            payload_hash: record.payloadHash,
+            status: "compensation_pending",
+            auth_user_id: record.authUserId,
+            failure_reason: record.reason,
+            updated_at: nowIso(),
+          });
+        },
+        markFailureCompensated: async (record) => {
+          await supabase.from("signup_idempotency_requests").upsert({
+            signup_request_id: record.requestId,
+            payload_hash: record.payloadHash,
+            status: "failed_compensated",
+            auth_user_id: null,
+            failure_reason: record.reason,
+            updated_at: nowIso(),
+          });
+        },
+      },
     });
-
-    if (!consumed) {
-      await supabase.from("owner_profiles").delete().eq("user_id", user.id);
-      await supabase.from("shops").delete().eq("id", shopId);
-      await supabase.auth.admin.deleteUser(user.id);
-      return NextResponse.json({ message: "이미 사용된 본인인증입니다. 다시 인증해 주세요." }, { status: 400 });
-    }
 
     const signInResult = await authClient.auth.signInWithPassword({ email, password: payload.password });
     if (signInResult.error || !signInResult.data.session) {
@@ -380,7 +336,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         session: null,
-        message: "회원가입이 완료됐어요. 이메일과 비밀번호로 로그인해 주세요.",
+        trial: { eligible: orchestration.trialEligible, days: orchestration.trialDays },
+        billingRequired: orchestration.billingRequired,
+        nextAction: orchestration.billingRequired ? "billing" : "initial_setup",
+        message: orchestration.billingRequired
+          ? "이 번호로 무료 체험을 이미 사용했습니다. 계속 이용하려면 결제를 진행해 주세요."
+          : "회원가입이 완료됐어요. 이메일과 비밀번호로 로그인해 주세요.",
       });
     }
 
@@ -390,14 +351,41 @@ export async function POST(request: NextRequest) {
         accessToken: signInResult.data.session.access_token,
         refreshToken: signInResult.data.session.refresh_token,
       },
-      message: "회원가입이 완료됐어요. 바로 서비스를 시작할 수 있어요.",
+      trial: { eligible: orchestration.trialEligible, days: orchestration.trialDays },
+      billingRequired: orchestration.billingRequired,
+      nextAction: orchestration.billingRequired ? "billing" : "initial_setup",
+      message: orchestration.billingRequired
+        ? "이 번호로 무료 체험을 이미 사용했습니다. 계속 이용하려면 결제를 진행해 주세요."
+        : "회원가입이 완료됐어요. 14일 무료 체험이 시작됐어요.",
     });
   } catch (error) {
+    if (error instanceof SignupJsonBodyError) {
+      return NextResponse.json({ code: error.code, message: error.message }, { status: error.status });
+    }
+    if (error instanceof SignupFlowError) {
+      return NextResponse.json({ code: error.code, message: error.message }, { status: error.status });
+    }
+    if (error instanceof ServerEnvError) {
+      return NextResponse.json(
+        { code: "SIGNUP_SECURITY_CONFIGURATION_REQUIRED", message: "회원가입 보안 설정을 확인하고 있습니다. 잠시 후 다시 시도해 주세요." },
+        { status: error.status },
+      );
+    }
+
     if (error instanceof z.ZodError) {
       return NextResponse.json({ message: "입력 정보를 다시 확인해 주세요." }, { status: 400 });
     }
 
     const message = error instanceof Error ? error.message : "";
+    if (message.startsWith("ATOMIC_SIGNUP_MIGRATION_REQUIRED:")) {
+      return NextResponse.json(
+        {
+          code: "ATOMIC_SIGNUP_MIGRATION_REQUIRED",
+          message: "Development 원자 가입 migration이 아직 적용되지 않아 가입 저장을 중단했습니다.",
+        },
+        { status: 503 },
+      );
+    }
     if (message.toLowerCase().includes("not sent")) {
       return NextResponse.json({ message: "회원가입 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
     }

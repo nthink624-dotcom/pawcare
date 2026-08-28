@@ -4,6 +4,7 @@ import { ChevronDown, Loader2, MessageSquareText, RefreshCcw, RotateCcw, ShieldA
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 
 import OwnerAdminPasswordPanel from "@/components/admin/owner-admin-password-panel";
+import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 import {
   formatDateTimeLabel,
   getEventLabel,
@@ -96,28 +97,28 @@ export default function OwnerAdminDetailPanel({
                         <Store className="h-3.5 w-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-[13px] font-semibold leading-4 text-[#0f172a]">{selectedOwner.ownerName}</p>
-                        <p className="truncate text-[11px] leading-4 text-[#64748b]">{selectedOwner.shopName}</p>
+            <p className={`truncate text-[#0f172a] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{selectedOwner.ownerName}</p>
+            <p className={`truncate text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>{selectedOwner.shopName}</p>
                       </div>
                     </div>
-                    <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] ${statusToneMap[selectedOwner.status]}`}>
+            <span className={`inline-flex shrink-0 rounded-full px-2.5 py-1 ${ADMIN_TYPOGRAPHY.badge} ${statusToneMap[selectedOwner.status]}`}>
                       {statusOptions.find((option) => option.value === selectedOwner.status)?.label ?? selectedOwner.status}
                     </span>
                   </div>
 
                   <details className="group mt-1.5 rounded-[7px] border border-[#edf2f7] bg-[#fbfcfd]">
-                    <summary className="grid h-7 cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 px-2 text-[11px] text-[#64748b] [&::-webkit-details-marker]:hidden">
+            <summary className={`grid min-h-10 cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 text-[#64748b] [&::-webkit-details-marker]:hidden ${ADMIN_TYPOGRAPHY.meta}`}>
                       <div className="flex gap-1">
                         {selectedOwner.loginMethods.map((method) => (
-                          <span key={`${selectedOwner.userId}-detail-${method}`} className={`rounded-full border px-1.5 py-0.5 text-[10px] ${loginMethodToneMap[method]}`}>
+                  <span key={`${selectedOwner.userId}-detail-${method}`} className={`rounded-full border px-2.5 py-1 ${ADMIN_TYPOGRAPHY.badge} ${loginMethodToneMap[method]}`}>
                             {loginMethodLabels[method]}
                           </span>
                         ))}
                       </div>
-                      <span className="truncate text-right text-[11px] text-[#0f172a]">
+              <span className={`truncate text-right text-[#0f172a] ${ADMIN_TYPOGRAPHY.meta}`}>
                         {selectedOwner.ownerEmail ?? selectedOwner.loginId ?? "-"}
                       </span>
-                      <span className="inline-flex items-center gap-0.5 text-[10px]">
+              <span className={`inline-flex items-center gap-1 ${ADMIN_TYPOGRAPHY.meta}`}>
                         상세
                         <ChevronDown className="h-3 w-3 transition group-open:rotate-180" />
                       </span>
@@ -134,17 +135,17 @@ export default function OwnerAdminDetailPanel({
                   {selectedOwner.usageWarnings.length > 0 ? (
                     <section className="rounded-[9px] border border-[#f1dfb7] bg-[#fffaf0] p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-[13px] font-semibold text-[#7c5208]">운영 검토 필요</h3>
-                        <span className="rounded-full bg-white/70 px-2.5 py-1 text-[13px] font-semibold text-[#8a6211]">
+              <h3 className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#7c5208]`}>운영 검토 필요</h3>
+              <span className={`rounded-full bg-white/70 px-2.5 py-1 text-[#8a6211] ${ADMIN_TYPOGRAPHY.badge}`}>
                           {selectedOwner.usageWarnings.length}건
                         </span>
                       </div>
                       <div className="mt-2 space-y-1.5">
                         {selectedOwner.usageWarnings.map((warning) => (
                           <div key={warning.code} className={`rounded-[8px] border bg-white px-2.5 py-2 ${usageWarningToneMap[warning.level]}`}>
-                            <p className="text-[13px] font-semibold">{warning.message}</p>
+                    <p className={ADMIN_TYPOGRAPHY.bodyStrong}>{warning.message}</p>
                             {warning.evidence.length > 0 ? (
-                              <ul className="mt-2 space-y-1 text-[13px] leading-5">
+                      <ul className={`mt-2 space-y-1 ${ADMIN_TYPOGRAPHY.body}`}>
                                 {warning.evidence.map((evidence) => (
                                   <li key={evidence} className="break-words">
                                     {evidence}
@@ -172,13 +173,13 @@ export default function OwnerAdminDetailPanel({
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] bg-[#eef7f2] text-[#1f6b5b]">
                           <MessageSquareText className="h-4 w-4" />
                         </div>
-                        <h3 className="text-[13px] text-[#0f172a]">알림톡</h3>
+              <h3 className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#0f172a]`}>알림톡</h3>
                       </div>
                       <button
                         type="button"
                         onClick={() => void loadAlimtalkBalances()}
                         disabled={loadingAlimtalkCredits || savingAlimtalkCredits}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] text-[#475569] disabled:opacity-50"
+                className={`inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#475569] disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
                       >
                         <RefreshCcw className="h-3.5 w-3.5" />
                         새로고침
@@ -195,7 +196,7 @@ export default function OwnerAdminDetailPanel({
                       <select
                         value={alimtalkAction}
                         onChange={(event) => setAlimtalkAction(event.target.value === "reset-included" ? "reset-included" : "grant")}
-                        className="h-8 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] text-[#172033] outline-none focus:border-[#2f7866]"
+                  className={`h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] outline-none focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}
                       >
                         <option value="grant">건수 추가</option>
                         <option value="reset-included">포함 건수 리셋</option>
@@ -204,7 +205,7 @@ export default function OwnerAdminDetailPanel({
                         value={alimtalkAmount}
                         onChange={(event) => setAlimtalkAmount(event.target.value.replace(/[^\d]/g, ""))}
                         inputMode="numeric"
-                        className="h-8 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] text-[#172033] outline-none focus:border-[#2f7866]"
+                  className={`h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] outline-none focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}
                       />
                     </div>
 
@@ -213,14 +214,14 @@ export default function OwnerAdminDetailPanel({
                         <button
                           type="button"
                           onClick={() => setAlimtalkBucket("purchased")}
-                          className={`h-8 rounded-[7px] border text-[12px] ${alimtalkBucket === "purchased" ? "border-[#1f6b5b] bg-[#f4faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#475569]"}`}
+                  className={`h-10 rounded-[8px] border ${ADMIN_TYPOGRAPHY.control} ${alimtalkBucket === "purchased" ? "border-[#1f6b5b] bg-[#f4faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#475569]"}`}
                         >
                           추가
                         </button>
                         <button
                           type="button"
                           onClick={() => setAlimtalkBucket("included")}
-                          className={`h-8 rounded-[7px] border text-[12px] ${alimtalkBucket === "included" ? "border-[#1f6b5b] bg-[#f4faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#475569]"}`}
+                  className={`h-10 rounded-[8px] border ${ADMIN_TYPOGRAPHY.control} ${alimtalkBucket === "included" ? "border-[#1f6b5b] bg-[#f4faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#475569]"}`}
                         >
                           포함
                         </button>
@@ -231,7 +232,7 @@ export default function OwnerAdminDetailPanel({
                       type="button"
                       onClick={() => void saveOwnerAlimtalkCredits(selectedOwner)}
                       disabled={savingAlimtalkCredits || loadingAlimtalkCredits}
-                      className="mt-2 inline-flex h-8 w-full items-center justify-center rounded-[7px] bg-[#1f6b5b] px-3 text-[13px] text-white disabled:opacity-50"
+                className={`mt-3 inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-4 text-white disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
                     >
                       {savingAlimtalkCredits ? "저장 중..." : "알림톡 저장"}
                     </button>
@@ -321,7 +322,7 @@ export default function OwnerAdminDetailPanel({
                       type="button"
                       onClick={() => void saveOwner(selectedOwner)}
                       disabled={savingUserId === selectedOwner.userId}
-                      className="inline-flex h-9 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-3 text-[13px] text-white disabled:opacity-50"
+            className={`inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-4 text-white disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
                     >
                       {savingUserId === selectedOwner.userId ? (
                         <span className="inline-flex items-center gap-2">
@@ -340,7 +341,7 @@ export default function OwnerAdminDetailPanel({
                         <ShieldAlert className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[13px] text-[#0f172a]">계정 정지 / 정지 해제</p>
+              <p className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#0f172a]`}>계정 정지 / 정지 해제</p>
                       </div>
                     </div>
 
@@ -357,7 +358,7 @@ export default function OwnerAdminDetailPanel({
                             },
                           }))
                         }
-                        className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#f0d1d1] bg-[#fff7f7] px-2.5 text-[13px] text-[#b54b4b]"
+                    className={`inline-flex h-10 items-center justify-center rounded-[8px] border border-[#f0d1d1] bg-[#fff7f7] px-3 text-[#b54b4b] ${ADMIN_TYPOGRAPHY.control}`}
                       >
                         계정 정지
                       </button>
@@ -369,7 +370,7 @@ export default function OwnerAdminDetailPanel({
                             [selectedOwner.userId]: { ...prev[selectedOwner.userId], suspended: false, suspensionReason: "" },
                           }))
                         }
-                        className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#d7e7e1] bg-[#f4faf7] px-2.5 text-[13px] text-[#1f6b5b]"
+                    className={`inline-flex h-10 items-center justify-center rounded-[8px] border border-[#d7e7e1] bg-[#f4faf7] px-3 text-[#1f6b5b] ${ADMIN_TYPOGRAPHY.control}`}
                       >
                         정지 해제
                       </button>
@@ -377,7 +378,7 @@ export default function OwnerAdminDetailPanel({
 
                     {selectedDraft.suspended ? (
                       <label className="mt-3 block">
-                        <span className="mb-1.5 block text-[13px] text-[#64748b]">정지 사유</span>
+                <span className={`mb-2 block text-[#64748b] ${ADMIN_TYPOGRAPHY.label}`}>정지 사유</span>
                         <textarea
                           value={selectedDraft.suspensionReason}
                           onChange={(event) =>
@@ -386,7 +387,7 @@ export default function OwnerAdminDetailPanel({
                               [selectedOwner.userId]: { ...prev[selectedOwner.userId], suspensionReason: event.target.value },
                             }))
                           }
-                          className="min-h-[64px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 py-2 text-[13px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                  className={`min-h-[84px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}
                           placeholder="왜 계정을 정지했는지 운영 메모를 남겨 주세요."
                         />
                       </label>
@@ -394,8 +395,8 @@ export default function OwnerAdminDetailPanel({
 
                     <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#eadede] pt-3">
                       <div className="min-w-0">
-                        <p className="text-[13px] font-semibold text-[#8f3f4d]">회원탈퇴</p>
-                        <p className="mt-0.5 text-[12px] leading-4 text-[#7d6a6d]">
+                <p className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#8f3f4d]`}>회원탈퇴</p>
+                <p className={`mt-1 text-[#7d6a6d] ${ADMIN_TYPOGRAPHY.helper}`}>
                           계정과 매장 데이터를 삭제하며 동일 로그인 수단 재가입이 가능합니다.
                         </p>
                       </div>
@@ -403,7 +404,7 @@ export default function OwnerAdminDetailPanel({
                         type="button"
                         onClick={() => void withdrawOwner(selectedOwner)}
                         disabled={withdrawingUserId === selectedOwner.userId}
-                        className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[#e8c6cc] bg-white px-2.5 text-[13px] font-semibold text-[#a04455] disabled:opacity-50"
+                className={`inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[#e8c6cc] bg-white px-3 text-[#a04455] disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
                       >
                         {withdrawingUserId === selectedOwner.userId ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -421,15 +422,15 @@ export default function OwnerAdminDetailPanel({
                         <RotateCcw className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[13px] text-[#0f172a]">결제 내역 / 취소</p>
+              <p className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#0f172a]`}>결제 내역 / 취소</p>
                       </div>
                     </div>
 
                     <div className="mt-2 rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[13px] text-[#0f172a]">등록 결제수단 복구</p>
-                          <p className="mt-1 text-[13px] leading-5 text-[#6f665f]">
+                    <p className={`${ADMIN_TYPOGRAPHY.bodyStrong} text-[#0f172a]`}>등록 결제수단 복구</p>
+                    <p className={`mt-1 text-[#6f665f] ${ADMIN_TYPOGRAPHY.body}`}>
                             {selectedOwner.paymentMethodExists ? selectedOwner.paymentMethodLabel ?? "등록된 카드" : "등록 카드 없음"}
                           </p>
                         </div>
@@ -437,7 +438,7 @@ export default function OwnerAdminDetailPanel({
                           type="button"
                           onClick={() => void resetOwnerPaymentMethod(selectedOwner)}
                           disabled={!selectedOwner.paymentMethodExists || resettingPaymentMethodUserId === selectedOwner.userId}
-                          className="inline-flex h-8 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] text-[#475569] disabled:opacity-50"
+                    className={`inline-flex h-10 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#475569] disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
                         >
                           {resettingPaymentMethodUserId === selectedOwner.userId ? (
                             <span className="inline-flex items-center gap-2">
@@ -452,7 +453,7 @@ export default function OwnerAdminDetailPanel({
                     </div>
 
                     <label className="mt-2 block">
-                      <span className="mb-1.5 block text-[13px] text-[#64748b]">취소 사유</span>
+                  <span className={`mb-2 block text-[#64748b] ${ADMIN_TYPOGRAPHY.label}`}>취소 사유</span>
                       <textarea
                         value={refundReasons[selectedOwner.userId] ?? ""}
                         onChange={(event) =>
@@ -461,14 +462,14 @@ export default function OwnerAdminDetailPanel({
                             [selectedOwner.userId]: event.target.value,
                           }))
                         }
-                        className="min-h-[56px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 py-2 text-[13px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                    className={`min-h-[76px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}
                         placeholder="예: 중복 결제 확인, 고객 요청 환불"
                       />
                     </label>
 
                     <div className="mt-2 space-y-1.5">
                       {selectedOwner.recentPayments.length === 0 ? (
-                        <p className="rounded-[10px] border border-[#edf2f7] bg-white px-3 py-3 text-[13px] leading-5 text-[#64748b]">
+                <p className={`rounded-[10px] border border-[#edf2f7] bg-white px-3 py-3 text-[#64748b] ${ADMIN_TYPOGRAPHY.body}`}>
                           확인된 결제 내역이 아직 없습니다.
                         </p>
                       ) : (
@@ -476,19 +477,19 @@ export default function OwnerAdminDetailPanel({
                           <div key={payment.paymentId} className="rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2.5">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="text-[13px] text-[#0f172a]">
+                          <p className={`${ADMIN_TYPOGRAPHY.bodyStrong} text-[#0f172a]`}>
                                   {payment.planCode ? planOptions.find((option) => option.value === payment.planCode)?.label ?? payment.planCode : "플랜 정보 없음"}
                                 </p>
-                                <p className="mt-1 text-[13px] text-[#475569]">
+                          <p className={`mt-1 text-[#475569] ${ADMIN_TYPOGRAPHY.body}`}>
                                   {payment.amount !== null ? `${payment.amount.toLocaleString("ko-KR")}원` : "금액 확인 필요"}
                                 </p>
-                                <p className="mt-2 text-[13px] text-[#8a8277]">결제 시각 · {formatDateTimeLabel(payment.createdAt)}</p>
-                                <p className="mt-1 break-all rounded-[8px] bg-[#f8fafc] px-2.5 py-2 text-[13px] text-[#64748b]">
+                          <p className={`mt-2 text-[#8a8277] ${ADMIN_TYPOGRAPHY.meta}`}>결제 시각 · {formatDateTimeLabel(payment.createdAt)}</p>
+                          <p className={`mt-1 break-all rounded-[8px] bg-[#f8fafc] px-2.5 py-2 text-[#64748b] ${ADMIN_TYPOGRAPHY.meta}`}>
                                   결제 번호 · {payment.paymentId}
                                 </p>
                               </div>
                               <span
-                                className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[13px] ${getRecentPaymentStatusMeta(payment.status).tone}`}
+                          className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 ${ADMIN_TYPOGRAPHY.badge} ${getRecentPaymentStatusMeta(payment.status).tone}`}
                               >
                                 {getRecentPaymentStatusMeta(payment.status).label}
                               </span>
@@ -498,7 +499,7 @@ export default function OwnerAdminDetailPanel({
                                 type="button"
                                 onClick={() => void refundOwner(selectedOwner, payment.paymentId)}
                                 disabled={refundingPaymentId === payment.paymentId}
-                                className="mt-3 inline-flex h-[38px] w-full items-center justify-center rounded-[10px] border border-[#efcfc2] bg-[#fff8f4] px-3 text-[13px] text-[#b45d3c] disabled:opacity-50"
+                          className={`mt-3 inline-flex h-10 w-full items-center justify-center rounded-[10px] border border-[#efcfc2] bg-[#fff8f4] px-3 text-[#b45d3c] disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
                               >
                                 {refundingPaymentId === payment.paymentId ? (
                                   <span className="inline-flex items-center gap-2">
@@ -518,21 +519,21 @@ export default function OwnerAdminDetailPanel({
 
                   <div className="rounded-[9px] border border-[#edf2f7] bg-[#fbfcfd] p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-[13px] text-[#0f172a]">최근 변경 이력</h3>
-                      <span className="text-[13px] font-medium text-[#8a8277]">{selectedOwner.recentEvents.length}건</span>
+              <h3 className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#0f172a]`}>최근 변경 이력</h3>
+              <span className={`${ADMIN_TYPOGRAPHY.meta} text-[#8a8277]`}>{selectedOwner.recentEvents.length}건</span>
                     </div>
                     <div className="mt-2 space-y-1.5">
                       {selectedOwner.recentEvents.length === 0 ? (
-                        <p className="text-[13px] leading-5 text-[#8a8277]">아직 기록된 변경 이력이 없습니다.</p>
+              <p className={`${ADMIN_TYPOGRAPHY.body} text-[#8a8277]`}>아직 기록된 변경 이력이 없습니다.</p>
                       ) : (
                         selectedOwner.recentEvents.map((event) => (
                           <div key={event.id} className="rounded-[8px] border border-[#edf2f7] bg-white px-2.5 py-2">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-[13px] text-[#0f172a]">{getEventLabel(event)}</p>
-                              <span className="text-[13px] font-medium text-[#8a8277]">{formatDateTimeLabel(event.createdAt)}</span>
+                    <p className={`${ADMIN_TYPOGRAPHY.bodyStrong} text-[#0f172a]`}>{getEventLabel(event)}</p>
+                    <span className={`${ADMIN_TYPOGRAPHY.meta} text-[#8a8277]`}>{formatDateTimeLabel(event.createdAt)}</span>
                             </div>
-                            <p className="mt-1.5 text-[13px] leading-5 text-[#6f665f]">{summarizeEvent(event)}</p>
-                            <p className="mt-1 text-[13px] font-medium text-[#8a8277]">{event.adminEmail}</p>
+                  <p className={`mt-1.5 text-[#6f665f] ${ADMIN_TYPOGRAPHY.body}`}>{summarizeEvent(event)}</p>
+                  <p className={`mt-1 text-[#8a8277] ${ADMIN_TYPOGRAPHY.meta}`}>{event.adminEmail}</p>
                           </div>
                         ))
                       )}
@@ -545,7 +546,7 @@ export default function OwnerAdminDetailPanel({
                     type="button"
                     onClick={() => void saveOwner(selectedOwner)}
                     disabled={savingUserId === selectedOwner.userId}
-                    className="inline-flex h-9 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-3 text-[13px] text-white disabled:opacity-50"
+            className={`inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-4 text-white disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
                   >
                     {savingUserId === selectedOwner.userId ? (
                       <span className="inline-flex items-center gap-2">
@@ -559,7 +560,7 @@ export default function OwnerAdminDetailPanel({
                 </div>
               </>
             ) : (
-              <div className="px-5 py-14 text-center text-[13px] text-[#6f665f]">왼쪽에서 오너 계정을 선택하면 상세 정보와 편집 영역이 열립니다.</div>
+      <div className={`px-5 py-14 text-center text-[#6f665f] ${ADMIN_TYPOGRAPHY.body}`}>왼쪽에서 오너 계정을 선택하면 상세 정보와 편집 영역이 열립니다.</div>
             )}
           </section>
   );
@@ -568,17 +569,17 @@ export default function OwnerAdminDetailPanel({
 function DetailRow({ label, value, children, mono = false }: { label: string; value?: string; children?: ReactNode; mono?: boolean }) {
   return (
     <div className="grid grid-cols-[78px_minmax(0,1fr)] items-center gap-2">
-      <span className="text-[12px] text-[#64748b]">{label}</span>
-      <div className={`min-w-0 truncate text-right text-[12px] text-[#0f172a] ${mono ? "font-mono" : ""}`}>{children ?? value ?? "-"}</div>
+      <span className={`${ADMIN_TYPOGRAPHY.meta} text-[#64748b]`}>{label}</span>
+      <div className={`min-w-0 truncate text-right text-[#0f172a] ${ADMIN_TYPOGRAPHY.body} ${mono ? "font-mono" : ""}`}>{children ?? value ?? "-"}</div>
     </div>
   );
 }
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[7px] border border-[#edf2f7] bg-[#fbfcfd] px-2 py-1.5">
-      <p className="text-[11px] text-[#64748b]">{label}</p>
-      <p className="mt-0.5 truncate text-[12px] text-[#0f172a]">{value}</p>
+    <div className="rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] px-3 py-2.5">
+      <p className={`${ADMIN_TYPOGRAPHY.helper} text-[#64748b]`}>{label}</p>
+      <p className={`mt-1 truncate text-[#0f172a] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{value}</p>
     </div>
   );
 }
@@ -586,8 +587,8 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[12px] text-[#64748b]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] text-[#172033] outline-none focus:border-[#2f7866]">
+      <span className={`mb-1.5 block text-[#64748b] ${ADMIN_TYPOGRAPHY.label}`}>{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className={`h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] outline-none focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -601,15 +602,15 @@ function SelectField({ label, value, onChange, options }: { label: string; value
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[12px] text-[#64748b]">{label}</span>
-      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] text-[#172033] outline-none focus:border-[#2f7866]" />
+      <span className={`mb-1.5 block text-[#64748b] ${ADMIN_TYPOGRAPHY.label}`}>{label}</span>
+      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} className={`h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] outline-none focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`} />
     </label>
   );
 }
 
 function ActionButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] text-[#172033] transition hover:bg-[#f8fafc]">
+    <button type="button" onClick={onClick} className={`inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] transition hover:bg-[#f8fafc] ${ADMIN_TYPOGRAPHY.control}`}>
       {children}
     </button>
   );

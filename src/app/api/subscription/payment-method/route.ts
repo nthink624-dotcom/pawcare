@@ -8,7 +8,7 @@ const bodySchema = z.object({
   billingKey: z.string().min(1),
   issueId: z.string().optional().nullable(),
   paymentMethodLabel: z.string().optional().nullable(),
-  planCode: z.enum(["monthly", "quarterly", "halfyearly", "yearly"]).optional(),
+  planCode: z.enum(["single_monthly_v1", "monthly", "quarterly", "halfyearly", "yearly"]).optional(),
 });
 
 export async function POST(request: NextRequest) {

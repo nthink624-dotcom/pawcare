@@ -39,6 +39,14 @@ export const serverEnv = {
       process.env.ADMIN_SESSION_SECRET ||
       process.env.BILLING_KEY_ENCRYPTION_SECRET,
   ),
+  ownerTrialIdentityCurrentVersion:
+    readOptionalSecret(process.env.OWNER_TRIAL_IDENTITY_CURRENT_VERSION) ?? "v1",
+  ownerTrialIdentityHmacSecretV1: readOptionalSecret(
+    process.env.OWNER_TRIAL_IDENTITY_HMAC_SECRET_V1 || process.env.OWNER_TRIAL_IDENTITY_HMAC_SECRET,
+  ),
+  ownerTrialIdentityHmacSecretV2: readOptionalSecret(
+    process.env.OWNER_TRIAL_IDENTITY_HMAC_SECRET_V2,
+  ),
   bookingAccessSecret: readOptionalSecret(process.env.BOOKING_ACCESS_SECRET),
   portoneStoreId: readOptionalSecret(process.env.PORTONE_STORE_ID || process.env.NEXT_PUBLIC_PORTONE_STORE_ID),
   portoneBillingChannelKey: readOptionalSecret(
@@ -75,6 +83,21 @@ export const serverEnv = {
   deepseekModel: readOptionalSecret(process.env.DEEPSEEK_MODEL) ?? "deepseek-v4-flash",
   openaiApiKey: readOptionalSecret(process.env.OPENAI_API_KEY),
   openaiVisionModel: readOptionalSecret(process.env.OPENAI_VISION_MODEL) ?? "gpt-4o-mini",
+  signupPriceGuideTokenSecret: readOptionalSecret(
+    process.env.SIGNUP_PRICE_GUIDE_TOKEN_SECRET || process.env.AUTH_FLOW_SECRET,
+  ),
+  signupPriceGuideCacheSecret: readOptionalSecret(
+    process.env.SIGNUP_PRICE_GUIDE_CACHE_SECRET || process.env.SIGNUP_PRICE_GUIDE_TOKEN_SECRET || process.env.AUTH_FLOW_SECRET,
+  ),
+  signupPriceGuideMeteringSecret: readOptionalSecret(
+    process.env.SIGNUP_PRICE_GUIDE_METERING_SECRET,
+  ),
+  signupPriceGuideFixtureMode:
+    process.env.NODE_ENV !== "production" && process.env.SIGNUP_PRICE_GUIDE_FIXTURE_MODE === "true",
+  signupPriceGuideDailyCostCapMicroUsd: Math.max(
+    1_000,
+    Number.parseInt(process.env.SIGNUP_PRICE_GUIDE_MAX_DAILY_COST_MICRO_USD || "500000", 10) || 500_000,
+  ),
   aiSlotRecommendationProvider: readOptionalSecret(process.env.AI_SLOT_RECOMMENDATION_PROVIDER) ?? "deepseek",
   mediaCleanupCronSecret: process.env.MEDIA_CLEANUP_CRON_SECRET,
   adminSetupKey: readOptionalSecret(process.env.ADMIN_SETUP_KEY),

@@ -6,7 +6,13 @@ import { useRouter } from "next/navigation";
 import SignupRedesignView, {
   type SignupProfileStage,
 } from "@/components/auth/signup-redesign-view";
+import SignupReviewStep from "@/components/auth/signup-review-step";
+import SignupServicePricingStep from "@/components/auth/signup-service-pricing-step";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
+import {
+  ATOMIC_OWNER_SIGNUP_CONTRACT_HEADER,
+  ATOMIC_OWNER_SIGNUP_CONTRACT_VERSION,
+} from "@/lib/auth/atomic-signup-contract";
 import {
   OWNER_SIGNUP_TERMS_VERSION,
   type OwnerSignupTermId,
@@ -21,6 +27,7 @@ import { env } from "@/lib/env";
 import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { clearOwnerAuthTokenCache, writeOwnerAuthHandoff, writeOwnerAuthSessionCache } from "@/lib/auth/owner-auth-handoff";
+import type { SignupServicePrice } from "@/lib/auth/signup-service-pricing";
 
 type AgreementState = Record<OwnerSignupTermId, boolean>;
 
@@ -52,6 +59,8 @@ type VerificationApiResponse = {
     phoneNumber?: string | null;
   } | null;
 };
+
+type SignupStage = SignupProfileStage | "pricing" | "review";
 
 const initialAgreements: AgreementState = {
   service: false,
@@ -91,7 +100,9 @@ export default function SignupForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [stage, setStage] = useState<SignupProfileStage>("terms");
+  const [stage, setStage] = useState<SignupStage>("pricing");
+  const [servicePrices, setServicePrices] = useState<SignupServicePrice[]>([]);
+  const [signupRequestId] = useState(() => crypto.randomUUID());
   const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
   const [fields, setFields] = useState<SignupFields>(initialFields);
   const [shopDetailAddress, setShopDetailAddress] = useState("");
@@ -201,6 +212,23 @@ export default function SignupForm({
     setStage("account");
   };
 
+  const continueShop = () => {
+    if (!fields.shopName.trim()) {
+      setMessage("매장명을 입력해 주세요.");
+      return;
+    }
+    if (!isValidShopPhone(fields.shopPhone)) {
+      setMessage("매장 연락처를 올바르게 입력해 주세요.");
+      return;
+    }
+    if (!fields.shopAddress.trim()) {
+      setMessage("매장 주소를 입력해 주세요.");
+      return;
+    }
+    setMessage(null);
+    setStage("review");
+  };
+
   const continueAccount = () => {
     const email = normalizeOwnerEmail(fields.email);
     if (!isValidOwnerEmail(email)) {
@@ -238,7 +266,10 @@ export default function SignupForm({
     try {
       const requestResponse = await fetch("/api/auth/request-verification-code", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          [ATOMIC_OWNER_SIGNUP_CONTRACT_HEADER]: ATOMIC_OWNER_SIGNUP_CONTRACT_VERSION,
+        },
         body: JSON.stringify({ purpose: "signup", method: "portone" }),
       });
       const requestResult = (await requestResponse.json()) as VerificationApiResponse;
@@ -319,13 +350,20 @@ export default function SignupForm({
       setMessage("매장 주소를 입력해 주세요.");
       return;
     }
+    if (servicePrices.length === 0) {
+      setMessage("서비스·상세 요금을 한 개 이상 확인해 주세요.");
+      return;
+    }
 
     setLoading(true);
     setMessage(null);
     try {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          [ATOMIC_OWNER_SIGNUP_CONTRACT_HEADER]: ATOMIC_OWNER_SIGNUP_CONTRACT_VERSION,
+        },
         body: JSON.stringify({
           email,
           password: fields.password,
@@ -339,6 +377,8 @@ export default function SignupForm({
           shopAddress: [fields.shopAddress.trim(), shopDetailAddress.trim()].filter(Boolean).join(" "),
           agreements,
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
+          signupRequestId,
+          servicePrices,
         }),
       });
       const result = (await response.json().catch(() => ({}))) as {
@@ -348,6 +388,8 @@ export default function SignupForm({
           accessToken?: string;
           refreshToken?: string;
         } | null;
+        billingRequired?: boolean;
+        nextAction?: "billing" | "initial_setup";
       };
       if (!response.ok || !result.success) {
         setMessage(result.message ?? "회원가입 처리 중 문제가 발생했습니다.");
@@ -356,15 +398,19 @@ export default function SignupForm({
 
       const accessToken = result.session?.accessToken;
       const refreshToken = result.session?.refreshToken;
+      const destinationPath = result.billingRequired ? "/owner/billing?notice=trial-used" : nextPath;
       if (accessToken && refreshToken) {
         const session = { accessToken, refreshToken };
         clearOwnerAuthTokenCache();
         writeOwnerAuthHandoff(session);
         writeOwnerAuthSessionCache(session);
         await supabase?.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-        router.replace(nextPath as never);
+        router.replace(destinationPath as never);
       } else {
-        router.replace(`/login?next=${encodeURIComponent(nextPath)}&message=signup-success` as never);
+        const loginMessage = result.billingRequired ? "trial-used" : "signup-success";
+        router.replace(
+          `/login?next=${encodeURIComponent(destinationPath)}&message=${loginMessage}` as never,
+        );
       }
       router.refresh();
     } catch {
@@ -373,6 +419,40 @@ export default function SignupForm({
       setLoading(false);
     }
   };
+
+  if (stage === "pricing") {
+    return (
+      <SignupServicePricingStep
+        services={servicePrices}
+        onChange={setServicePrices}
+        onBack={() => router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never)}
+        onNext={() => {
+          setMessage(null);
+          setStage("terms");
+        }}
+      />
+    );
+  }
+
+  if (stage === "review") {
+    return (
+      <SignupReviewStep
+        services={servicePrices}
+        ownerName={fields.name}
+        email={normalizedEmail}
+        shopName={fields.shopName}
+        shopPhone={fields.shopPhone}
+        shopAddress={[fields.shopAddress.trim(), shopDetailAddress.trim()].filter(Boolean).join(" ")}
+        loading={loading}
+        message={message}
+        onBack={() => {
+          setMessage(null);
+          setStage("shop");
+        }}
+        onSubmit={() => void submitSignup()}
+      />
+    );
+  }
 
   return (
     <>
@@ -399,7 +479,7 @@ export default function SignupForm({
         onBack={() => {
           setMessage(null);
           if (stage === "terms") {
-            router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never);
+            setStage("pricing");
           } else if (stage === "account") {
             setStage("terms");
           } else {
@@ -416,7 +496,7 @@ export default function SignupForm({
         onContinueTerms={continueTerms}
         onNextAccount={continueAccount}
         onOpenAddress={() => setAddressSheetOpen(true)}
-        onSubmit={() => void submitSignup()}
+        onSubmit={continueShop}
       />
       {addressSheetOpen ? (
         <KakaoPostcodeSheet

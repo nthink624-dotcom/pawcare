@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
+import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 import type { MarketingKpiSnapshot } from "@/types/marketing-kpi";
 
 export default function AdminMarketingKpiPanel({
@@ -37,21 +38,21 @@ export default function AdminMarketingKpiPanel({
     <section className="mt-3 rounded-[10px] border border-[#dbe7e2] bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[12px] font-semibold text-[#1f6b5b]">실제 운영 KPI · 최근 7일</p>
-          <h2 className="mt-1 text-[18px] font-semibold text-[#111827]">
+          <p className={`${ADMIN_TYPOGRAPHY.meta} text-[#2563eb]`}>실제 운영 KPI · 최근 7일</p>
+          <h2 className={`mt-1 text-[#111827] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>
             가입 → 첫 예약 → 첫 구독 결제
           </h2>
-          <p className="mt-1 text-[12px] text-[#64748b]">
+          <p className={`mt-1 text-[#64748b] ${ADMIN_TYPOGRAPHY.body}`}>
             {snapshot ? formatKpiDateRange(snapshot) : "같은 길이의 직전 7일과 비교합니다."}
           </p>
         </div>
-        <span className="rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-2.5 py-1 text-[11px] font-semibold text-[#607080]">
+        <span className={`rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-2.5 py-1 text-[#607080] ${ADMIN_TYPOGRAPHY.badge}`}>
           {sourceLabel} · {availabilityLabel}
         </span>
       </div>
 
       {error ? (
-        <p className="mt-3 rounded-[8px] border border-[#f0d1d1] bg-[#fff7f7] px-3 py-2 text-[13px] text-[#a04455]">
+        <p className={`mt-3 rounded-[8px] border border-[#f0d1d1] bg-[#fff7f7] px-4 py-3 text-[#a04455] ${ADMIN_TYPOGRAPHY.body}`}>
           {error}
         </p>
       ) : null}
@@ -104,15 +105,15 @@ export default function AdminMarketingKpiPanel({
 
       {snapshot ? (
         <div className="mt-3 rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3">
-          <p className="text-[12px] font-semibold text-[#334155]">
+          <p className={`${ADMIN_TYPOGRAPHY.bodyStrong} text-[#334155]`}>
             활성화는 가입 후 첫 유효 예약, 유료 전환은 첫 구독 결제 완료로 계산합니다.
           </p>
-          <ul className="mt-1.5 space-y-1 text-[11px] leading-5 text-[#64748b]">
+          <ul className={`mt-1.5 space-y-1 text-[#64748b] ${ADMIN_TYPOGRAPHY.body}`}>
             {snapshot.warnings.slice(0, 3).map((warning) => (
               <li key={warning}>· {warning}</li>
             ))}
           </ul>
-          <p className="mt-1 text-[11px] text-[#94a3b8]">
+          <p className={`mt-1 text-[#94a3b8] ${ADMIN_TYPOGRAPHY.helper}`}>
             마지막 집계 {formatCheckedAt(snapshot.checkedAt)} · 개인정보와 개별 매장 ID는 화면으로 보내지 않습니다.
           </p>
         </div>
@@ -144,9 +145,9 @@ function KpiCard({
         </span>
         <span className={dotClass} aria-hidden="true" />
       </div>
-      <p className="mt-3 text-[12px] text-[#64748b]">{label}</p>
-      <p className="mt-0.5 text-[17px] font-semibold text-[#111827]">{value}</p>
-      <p className="mt-1 min-h-10 text-[12px] leading-5 text-[#64748b]">{detail}</p>
+      <p className={`mt-3 text-[#64748b] ${ADMIN_TYPOGRAPHY.meta}`}>{label}</p>
+      <p className={`mt-1 text-[#111827] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>{value}</p>
+      <p className={`mt-1 min-h-10 text-[#64748b] ${ADMIN_TYPOGRAPHY.body}`}>{detail}</p>
     </div>
   );
 }

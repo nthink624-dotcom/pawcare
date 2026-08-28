@@ -8,6 +8,7 @@ import DataImportDialog from "@/components/owner-web/data-import-dialog";
 import type { ServicePriceGuide } from "@/components/owner-web/service-price-guide";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
+import { consumePreferredPriceGuideOnboardingMode } from "@/lib/price-guide-onboarding";
 import { cn } from "@/lib/utils";
 import type { PriceGuidePhotoImportResponse } from "@/types/price-guide-photo-import";
 
@@ -134,6 +135,11 @@ export default function PriceGuidePhotoOnboarding({
   const [excelOpen, setExcelOpen] = useState(false);
 
   useEffect(() => {
+    const preferredMode = consumePreferredPriceGuideOnboardingMode(shopId);
+    if (preferredMode) setMode(preferredMode);
+  }, [shopId]);
+
+  useEffect(() => {
     const urls = files.map((file) => URL.createObjectURL(file));
     setPreviewUrls(urls);
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
@@ -219,8 +225,8 @@ export default function PriceGuidePhotoOnboarding({
           <div className="flex items-start justify-between gap-4">
             <div>
               <span className="inline-flex h-6 items-center rounded-full bg-[#2563eb] px-2.5 text-[11px] font-semibold text-white">가장 빠른 시작</span>
-              <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#111827]">사용 중인 요금표를 사진으로 올려주세요</h3>
-              <p className="mt-1.5 text-[13px] leading-5 text-[#526174]">사진에 있는 내용을 그대로 옮기고, 읽기 어려운 부분만 확인 필요로 표시합니다.</p>
+              <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#111827]">요금표 사진만 올리면 상세 요금표 초안이 완성됩니다</h3>
+              <p className="mt-1.5 text-[13px] leading-5 text-[#526174]">AI가 서비스명·가격·예상 시간·품종·체중 구간을 옮기고, 읽기 어려운 부분만 확인 필요로 표시합니다.</p>
             </div>
             <button type="button" onClick={() => setMode("hidden")} className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#718096] hover:bg-white" aria-label="나중에 설정"><X className="h-4 w-4" /></button>
           </div>

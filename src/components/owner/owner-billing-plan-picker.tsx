@@ -6,6 +6,7 @@ import {
   getOwnerPlanStaffAccountLabel,
   getOwnerPlanStaffLimitLabel,
   ownerPlanUsesMultiShopStaffAllowance,
+  OWNER_SINGLE_MONTHLY_PLAN_CODE,
   type OwnerPlan,
   type OwnerPlanCode,
 } from "@/lib/billing/owner-plans";
@@ -32,6 +33,10 @@ type PlanUi = {
 };
 
 const planUiByCode: Partial<Record<OwnerPlanCode, PlanUi>> = {
+  [OWNER_SINGLE_MONTHLY_PLAN_CODE]: {
+    title: "월 정기 이용",
+    subtitle: "예약·고객·직원·알림톡 운영 기능 전체 포함",
+  },
   monthly: {
     title: "1인 운영",
     subtitle: "혼자 운영하는 단일 매장 기준",
@@ -60,9 +65,7 @@ function getPlanUi(plan: OwnerPlan): PlanUi {
 }
 
 function getRecommendedPlanCode(currentPlanCode: OwnerPlanCode): OwnerPlanCode {
-  if (currentPlanCode === "monthly" || currentPlanCode === "free") return "quarterly";
-  if (currentPlanCode === "halfyearly") return "quarterly";
-  return currentPlanCode;
+  return currentPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE ? currentPlanCode : OWNER_SINGLE_MONTHLY_PLAN_CODE;
 }
 
 function isCurrentVisiblePlan(currentPlanCode: OwnerPlanCode, planCode: OwnerPlanCode) {

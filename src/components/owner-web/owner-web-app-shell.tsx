@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Lightbulb, LogOut, Search } from "lucide-react";
+import { ChevronDown, ClipboardCheck, Lightbulb, LogOut, Search } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useState, type CSSProperties, type ReactNode, type RefObject } from "react";
@@ -218,13 +218,6 @@ function AlimtalkCreditMenu({
               <p className="mt-1">월 제공분은 다음 결제 주기에 새로 제공되며, 구매한 이용권은 모두 사용할 때까지 유지됩니다.</p>
             </div>
           ) : null}
-          <Link
-            href={{ pathname: "/owner/alimtalk-credits" }}
-            prefetch
-            className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-[9px] border border-[#cbd5e1] bg-white text-[13px] font-semibold text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]"
-          >
-            추가 발송 이용권 구매
-          </Link>
         </div>
       ) : null}
     </div>
@@ -251,6 +244,7 @@ export default function OwnerWebAppShell({
   onOpenShop,
   onOpenAlerts,
   onOpenHelp,
+  onOpenInitialSetup,
   onLogout,
   loggingOut,
   children,
@@ -274,6 +268,7 @@ export default function OwnerWebAppShell({
   onOpenShop: () => void;
   onOpenAlerts: () => void;
   onOpenHelp: () => void;
+  onOpenInitialSetup: () => void;
   onLogout: () => void;
   loggingOut: boolean;
   children: ReactNode;
@@ -361,6 +356,14 @@ export default function OwnerWebAppShell({
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
+              onClick={onOpenInitialSetup}
+              className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
+            >
+              <ClipboardCheck className="h-4 w-4" strokeWidth={1.8} />
+              초기 설정
+            </button>
+            <button
+              type="button"
               onClick={() => setFeatureRequestOpen(true)}
               className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
             >
@@ -429,6 +432,15 @@ export default function OwnerWebAppShell({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={onOpenInitialSetup}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
+              aria-label="초기 설정 가이드"
+              title="초기 설정 가이드"
+            >
+              <ClipboardCheck className="h-4.5 w-4.5" strokeWidth={1.8} />
+            </button>
+            <button
+              type="button"
               onClick={() => setFeatureRequestOpen(true)}
               className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
               aria-label="기능 개선 요청"
@@ -453,15 +465,15 @@ export default function OwnerWebAppShell({
               <div className="min-w-0">
                 <p className="text-[14px] font-semibold text-[#8a4f08]">알림톡 잔여 건수가 모두 소진되었습니다</p>
                 <p className="mt-0.5 text-[13px] font-medium text-[#9a5d12]">
-                  고객 예약 안내와 미용 상태 알림톡을 더 보낼 수 없습니다. 추가 발송 이용권을 구매하거나 상위 플랜을 확인해 주세요.
+                  고객 예약 안내와 미용 상태 알림톡을 더 보낼 수 없습니다. 현재 구독 상태를 확인해 주세요.
                 </p>
               </div>
               <Link
-                href={{ pathname: "/owner/alimtalk-credits" }}
+                href={{ pathname: "/owner/billing" }}
                 prefetch
                 className="inline-flex h-9 shrink-0 items-center rounded-[9px] bg-[#b98121] px-3 text-[13px] font-semibold text-white transition hover:bg-[#9a681a]"
               >
-                추가 발송 이용권 구매
+                요금제 확인
               </Link>
             </div>
           </div>

@@ -6,6 +6,55 @@ function readProjectFile(path) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
+test("owner admin keeps the shared readable typography hierarchy", () => {
+  const typography = readProjectFile("src/components/admin/admin-typography.ts");
+  const adminFiles = [
+    "src/components/admin/owner-admin-screen.tsx",
+    "src/components/admin/owner-admin-detail-panel.tsx",
+    "src/components/admin/owner-admin-password-panel.tsx",
+  ].map(readProjectFile);
+
+  assert.match(typography, /helper: "text-\[14px\]/);
+  assert.match(typography, /body: "text-\[16px\]/);
+  assert.match(typography, /sectionTitle: "text-\[20px\]/);
+  assert.match(typography, /pageTitle: "text-\[28px\]/);
+
+  for (const source of adminFiles) {
+    assert.match(source, /ADMIN_TYPOGRAPHY/);
+    assert.doesNotMatch(source, /text-\[(?:10|11|12|13)px\]/);
+  }
+});
+
+test("admin entry keeps only the new home and current workspaces", () => {
+  const adminPage = readProjectFile("src/app/admin/page.tsx");
+  const adminHome = readProjectFile("src/components/admin/admin-home.tsx");
+  const adminNav = readProjectFile("src/components/admin/admin-section-nav.tsx");
+
+  assert.match(adminPage, /<AdminHome sessionLoginId=/);
+  assert.match(adminHome, /관리자 홈/);
+  assert.match(adminHome, /오늘 먼저 볼 것/);
+  assert.match(adminHome, /관리 업무 선택/);
+  assert.doesNotMatch(adminHome, /href="\/admin\/operations"/);
+  assert.doesNotMatch(adminNav, /href: "\/admin\/operations"/);
+  assert.equal(existsSync(new URL("../../src/app/admin/operations/page.tsx", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../../src/components/admin/admin-dashboard.tsx", import.meta.url)), false);
+  assert.match(adminNav, /href: "\/owner\/admin"/);
+  assert.match(adminNav, /href: "\/admin\/marketing"/);
+});
+
+test("core admin workspaces use the shared typography scale", () => {
+  const adminFiles = [
+    "src/components/admin/admin-home.tsx",
+    "src/components/admin/admin-marketing-war-room.tsx",
+    "src/components/admin/admin-marketing-kpi-panel.tsx",
+  ].map(readProjectFile);
+
+  for (const source of adminFiles) {
+    assert.match(source, /ADMIN_TYPOGRAPHY/);
+    assert.doesNotMatch(source, /text-\[(?:10|11|12|13)px\]/);
+  }
+});
+
 test("local preview refuses stale builds instead of serving an older landing", () => {
   const startScript = readProjectFile("scripts/start-local-server.ps1");
 

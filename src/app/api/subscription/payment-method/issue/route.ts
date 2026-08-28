@@ -16,7 +16,7 @@ const bodySchema = z.object({
   expiryMonth: z.preprocess(digits, z.string().regex(/^(0[1-9]|1[0-2])$/)),
   birthOrBusinessRegistrationNumber: z.preprocess(digits, z.string().regex(/^(\d{6}|\d{10})$/)),
   passwordTwoDigits: z.preprocess(digits, z.string().regex(/^\d{2}$/)),
-  planCode: z.enum(["monthly", "quarterly", "halfyearly", "yearly"]),
+  planCode: z.enum(["single_monthly_v1", "monthly", "quarterly", "halfyearly", "yearly"]),
   customerName: z.string().trim().min(1).max(100).optional(),
   phoneNumber: z.string().trim().max(30).optional(),
   email: z.string().trim().email().max(254).optional(),

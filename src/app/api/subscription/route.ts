@@ -9,7 +9,7 @@ import {
 import { requireOwnerBillingSession } from "@/server/owner-billing-session";
 
 const patchSchema = z.object({
-  currentPlanCode: z.enum(["monthly", "quarterly", "halfyearly", "yearly"]).optional(),
+  currentPlanCode: z.enum(["single_monthly_v1", "monthly", "quarterly", "halfyearly", "yearly"]).optional(),
 });
 
 export async function GET(request: NextRequest) {

@@ -213,8 +213,6 @@ export default function OwnerSettingsPanel({
   const [businessHours, setBusinessHours] = useState<BusinessHours>(
     createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days),
   );
-  const [bookingSlotIntervalMinutes, setBookingSlotIntervalMinutes] = useState(data.shop.booking_slot_interval_minutes);
-  const [bookingSlotOffsetMinutes, setBookingSlotOffsetMinutes] = useState(data.shop.booking_slot_offset_minutes);
   const [timeEditorTarget, setTimeEditorTarget] = useState<number | "all" | null>(null);
   const [timeDraft, setTimeDraft] = useState({ open: defaultBusinessHoursEntry.open, close: defaultBusinessHoursEntry.close, closed: false });
   const [operatingHoursNote, setOperatingHoursNote] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.operating_hours_note ?? ""));
@@ -274,15 +272,11 @@ export default function OwnerSettingsPanel({
 
   useEffect(() => {
     setBusinessHours(createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days));
-    setBookingSlotIntervalMinutes(data.shop.booking_slot_interval_minutes);
-    setBookingSlotOffsetMinutes(data.shop.booking_slot_offset_minutes);
     setTimeEditorTarget(null);
   }, [
     data.shop.id,
     data.shop.business_hours,
     data.shop.regular_closed_days,
-    data.shop.booking_slot_interval_minutes,
-    data.shop.booking_slot_offset_minutes,
   ]);
 
   useEffect(() => {
@@ -579,8 +573,8 @@ export default function OwnerSettingsPanel({
           address: combinedAddress,
           description,
           concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
-          bookingSlotIntervalMinutes,
-          bookingSlotOffsetMinutes,
+          bookingSlotIntervalMinutes: 15,
+          bookingSlotOffsetMinutes: 0,
           bookingAvailableStartTime: data.shop.booking_available_start_time,
           bookingAvailableEndTime: data.shop.booking_available_end_time,
           approvalMode: data.shop.approval_mode,
@@ -1037,13 +1031,6 @@ export default function OwnerSettingsPanel({
               표시됩니다.
             </p>
           </div>
-          <Link
-            href={{ pathname: "/owner/alimtalk-credits" }}
-            prefetch
-            className="inline-flex h-10 w-full items-center justify-center rounded-[10px] bg-[image:var(--pm-brand-blue-button-gradient)] text-[14px] font-semibold text-white shadow-[0_10px_22px_rgba(37,99,235,0.18)]"
-          >
-            추가 발송 이용권 구매
-          </Link>
           <div className="space-y-2">
             <ToggleRow
               label="예약 확정 안내"

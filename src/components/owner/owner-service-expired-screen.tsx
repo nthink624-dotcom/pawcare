@@ -12,7 +12,7 @@ import {
 
 import PetManagerBrand from "@/components/brand/petmanager-brand";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
+import { getOwnerPlanDisplayName, OWNER_SINGLE_MONTHLY_PLAN_CODE } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 
@@ -32,7 +32,7 @@ function formatServiceEndDate(summary: OwnerSubscriptionSummary) {
 }
 
 function getResumePlanCode(summary: OwnerSubscriptionSummary) {
-  return summary.currentPlanCode === "free" ? "monthly" : summary.currentPlanCode;
+  return summary.currentPlanCode === "free" ? OWNER_SINGLE_MONTHLY_PLAN_CODE : summary.currentPlanCode;
 }
 
 const preservedItems = [

@@ -21,6 +21,92 @@
 - Do not move mobile app code into `petmanager`.
 - PC and mobile must stay consistent through Supabase data, migrations, API contracts, and environment variable parity.
 
+## Owner-To-Orchestrator Interaction
+- The owner may give work in ordinary Korean using only one or two sentences, such as `로그인 느린 거 고쳐줘` or `관리자 예전 화면 없애줘`.
+- Never require the owner to fill in a work ID, acceptance checklist, file list, team assignment, test plan, or reporting template.
+- The lead orchestrator must translate the owner's plain-language request into an internal work ID, scope, owner, acceptance criteria, verification plan, and evidence requirements.
+- Ask the owner at most one short question only when a material product choice, irreversible action, missing authority, or approval-gated action genuinely requires a decision.
+- When the request can be completed safely from repository evidence, proceed through implementation and verification without asking the owner to manage the agents.
+
+## Team Orchestration Rules
+- Use a lead orchestrator, an implementation owner, a UI reviewer when visible UI is involved, and an independent QA owner. Create roles only when the work needs them.
+- Before spawning any implementation writer in a fresh worktree, verify that its base actually contains the previously accepted commits and uncommitted canonical source relevant to the request. If accepted work is split across branches, detached worktrees, or a dirty canonical checkout, run a read-only baseline reconciliation first and do not implement on a stale base.
+- One work ID has one implementation owner from reproduction through implementation, tests, and evidence submission.
+- Parallelize only independent work. Never give concurrent write access to the same files.
+- Judge activity from the latest actual message, tool call, result, and timestamp rather than an `active` label alone.
+- If an in-progress task has no real output for 10 minutes, send at most one resume signal. If it remains empty or stalled, record one blocker, preserve its changes, and reassign ownership without repeating the same instruction.
+- `completed` or `idle` is not accepted as completion until the full acceptance criteria and independent QA pass.
+- A QA failure stays on the same work ID. Return the smallest exact delta once, then re-run independent QA after the fix.
+- Preserve unrelated dirty and untracked changes as user-owned work.
+
+## AO UI Gate And Worker Lanes
+- Every new request must begin with one internal classification: `UI_GATE=Y` or `UI_GATE=N`, plus one short reason. The owner does not need to provide this classification.
+- Use `UI_GATE=Y` when the request can change any user-visible layout, copy, color, typography, responsive behavior, interaction, accessibility behavior, screenshot, admin/owner screen, or other design result. If uncertain, choose `Y`.
+- Use `UI_GATE=N` only for work with no user-visible UI judgment, such as backend-only logic, database or Auth internals, performance diagnostics, infrastructure, non-visual tests, or read-only analysis.
+- For `UI_GATE=Y`, create separate AO worker sessions and enforce this exact graph: `UI_DESIGN -> IMPLEMENTATION -> UI_QA -> complete`.
+- `UI_DESIGN` is strictly read-only. It may inspect actual UI and source, but it must never edit code, implement components, commit, or deploy. Its only deliverable is a compact design packet containing target routes/components, exact keep/remove decisions, design tokens, responsive behavior, interaction/accessibility rules, and measurable acceptance criteria.
+- `IMPLEMENTATION` is the only writer for that work ID. It implements the approved design packet, does not invent a separate redesign, tests the result, and commits only task-owned files.
+- `UI_QA` is read-only and independent from implementation. It verifies the actual result against the design packet and acceptance criteria at the required viewports, and returns only `PASS` or exact P0/P1 deltas. It must never fix the code itself.
+- For `UI_GATE=N`, use `IMPLEMENTATION -> FUNCTION_QA`. `FUNCTION_QA` is a different read-only verifier. Pure read-only research or diagnosis may use one `ANALYSIS` worker without an implementation worker.
+- A worker may not switch lanes. A design or QA worker never becomes the implementation writer for the same work ID.
+- Every user-visible AO session title must be short, natural Korean and show both the lane and the actual work. Use `[UI 설계] <업무명>`, `[구현] <업무명>`, `[UI 검수] <업무명>`, `[기능 검수] <업무명>`, or `[분석] <업무명>` within AO's title-length limit.
+- Do not expose English-only internal labels such as `branch-audit`, `baseline-audit`, `qa-lane-audit`, `impl-*`, or opaque work IDs as the visible title. Internal branch names and work IDs may remain machine-oriented, but the card title must tell the owner in Korean what is being worked on.
+- All owner-visible AO content must be Korean-first: worker task prompts, orchestrator-to-worker messages, automation follow-ups, progress updates, approval explanations, QA summaries, blockers, and completion reports. Do not send an English paragraph when a Korean instruction conveys the same meaning.
+- Exact code identifiers, command names, file paths, branch names, error strings, and third-party UI labels may remain in their original form, but immediately explain their meaning in easy Korean when they are shown to the owner.
+- Keep one reusable AO roster visible at all times. The coordinator title is `[총괄] 대기`, and the five worker titles are exactly `[UI 설계팀] 대기`, `[구현팀 1] 대기`, `[구현팀 2] 대기`, `[UI 검수팀] 대기`, and `[기능 QA팀] 대기`.
+- Idle roster sessions do no work but remain visible on the AO board. Reuse them for the next request; do not create duplicate role sessions.
+- When an owner request is accepted, the coordinator must first shorten it into one natural Korean work name and rename itself to `[총괄] <업무명>`. Before dispatch, rename each assigned roster card to `[역할] <같은 업무명>` within AO's title-length limit. The visible title must describe the owner's actual order, not a generic phase or opaque work ID.
+- Every assigned worker's first update and latest owner-visible update must begin with these easy Korean fields: `대표 요청: ...`, `내 담당: ...`, `현재 상태: 대기/진행/검수/막힘/완료`, and `다음 단계: ...`. Never expose raw reasoning, commands, or internal messages in these fields.
+- After the coordinator confirms full acceptance and independent QA, clear the completed task context and rename the reused cards back to their exact `[역할] 대기` titles. Keep them idle and visible instead of terminating them.
+- The persistent title does not authorize idle work. Start only the lanes required by `UI_GATE`, and keep at most three roster workers actively working at once. Additional temporary workers are allowed only when the five-role roster is genuinely insufficient for independent work; give each a short Korean title and close it after verified completion.
+- After accepting one owner order, the coordinator owns automatic continuation through every required lane, worker handoff, test, and independent QA. The owner must not need to send periodic `continue` messages. Check real session activity and results, dispatch the next eligible lane, and stop only for verified completion, a genuine owner approval boundary, or a blocker that cannot be resolved safely inside the approved scope.
+
+## AO Performance And Safe Rotation
+- The AO coordinator is a router and operations controller only. It classifies, coalesces, renames cards, dispatches, observes receipts, advances lanes, and reports compact status; it never performs product research or implementation itself.
+- For each new owner intake, the coordinator must classify and dispatch within 60 seconds, using at most three AO control calls, one compact state read, and a 300-token owner-facing update. Apart from the single bounded Notion read defined below, do not browse the repository, web, source files, logs, diffs, tests, builds, browsers, Git, database, or deployment systems from the coordinator session.
+- At the start of each new top-level owner work boundary, the AO coordinator must read Notion's `우진 업무 OS` itself once and extract a compact brief of the current goal, priorities, decisions, active work, and waiting dependencies. This is coordinator context, not implementation work.
+- The coordinator must not repeat the Notion lookup at every lane handoff. Re-read only when the owner says the plan changed, the Notion state is known to have changed, or a new top-level owner order begins. Keep the retained brief within 300 tokens and do not load raw pages into later turns.
+- Required source, repository, runtime, web, or deep external research must be delegated to the appropriate read-only worker and performed in parallel with other independent preflight work. Deep Notion research beyond the one coordinator brief may also be delegated. The coordinator consumes only compact results.
+- Worker progress is sent only when state changes and is limited to 120 tokens. A worker final result is limited to 600 tokens and ten evidence lines; raw logs and large diffs stay in files and are referenced by path or ID.
+- Give each order a stable `scope_key`, `order_id`, and `revision`. For one `scope_key`, keep only one active revision and one latest pending revision. Merge new same-scope constraints into the latest pending revision instead of creating another queue item. Never merge or automatically retry deploys, external writes, payments, destructive actions, or approval-gated work.
+- Keep at most three distinct pending scopes. If the queue reaches three items or the oldest wait exceeds three minutes, stop duplicate dispatch and coalesce the queue before accepting more internal work.
+- Do not send periodic keepalive, duplicate continuation, or repeated acceptance messages. At 60 seconds without classification/dispatch, mark the intake late and inspect state once. At 90 seconds without a dispatch receipt, retry once with the same idempotency key. For a worker with no event for five minutes, check actual tool/process activity before judging it stale. Only after two unchanged checks with no active work may it be treated as stalled.
+- AO's session status label is not sufficient evidence of activity. For compact checks, run `D:\petmanager-shared\ao-compact-status.ps1` with only the relevant session IDs and use its latest actual message/activity timestamp, running turn, pending approval, and context percentage. Never load the full conversation transcript just to poll status.
+- Treat `needs_input` or a pending approval as a real blocker, not active work. Surface one compact owner action and do not add more worker messages while that input is pending.
+- Run Git operations as one explicit subcommand per tool call. Never chain `git add`, `git commit`, branch changes, or verification through PowerShell separators. Request only the narrow Git approval actually needed; never ask the owner to remember or allow a broad shell command.
+- A failed command does not end or complete a role session. Preserve the worktree, report the exact compact blocker, and remain available for one recovery decision.
+- Warn and prepare a compact handoff when a coordinator reaches 45% context. Rotate at 55%. At 65%, stop new assignments until rotation completes. If context usage is unavailable, rotate at the first of: 20 coordinator tool calls, six substantial reads, 30 active minutes, or three accepted top-level owner orders.
+- Rotate a persistent worker after the first of: 55% context, 40 tool calls, 45 active minutes, or three completed work IDs. Preserve the visible Korean role title by replacing only the underlying session after a safe handoff.
+- A rotation handoff is at most 800 tokens and contains only: objective, decisions, active order/revision, worker session IDs and lease, changed files, verified results, blockers, and one next action.
+- Safe rotation order is: lock new dispatch -> write compact handoff -> verify existing worker IDs and actual activity -> connect the fresh coordinator to those existing workers -> make the old coordinator read-only and stop it. Never create a second writer for the same work ID or file set. Use one `(order_id, revision, role)` idempotency key and one active lease.
+- A coordinator turn lasting eight minutes is a warning. At twelve minutes, take over only when no real worker/tool/process activity exists. An approval-gated or externally destructive action is never an automatic takeover or retry target.
+
+## UI Delivery And Independent QA
+- For visible UI work, follow: actual/source inspection -> one compact UI direction -> implementation -> actual independent QA.
+- The implementing agent must not be the final independent QA owner.
+- Unless the surface has a different explicit contract, verify actual UI at 1440px, 1024px, and 390px, including interaction, document overflow, console/page errors, responsive layout, and accessible targets.
+- Interactive targets should be at least 44px unless a documented fixed-geometry exception applies.
+- When the shared PetManager UI playbook is available, read it once at the start of a new UI work boundary and apply it.
+
+## Admin Workroom Presentation
+- Show the owner's request as one easy Korean sentence.
+- Show the minimum graph `UI 설계 -> 구현 담당 -> UI 최종 검수 -> 완료` and the actual current stage.
+- Show a plain-language reason, waiting owner/team, next action, whether the owner must decide, checked time, and evidence source.
+- Do not expose generic filler, raw conversations, personal data, internal reasoning, commands, or raw tool output.
+- Show at most one CTA, and only when the owner's decision is genuinely required. Otherwise state that no additional instruction is needed.
+
+## Approval, Server, And Cleanup Boundaries
+- Local repository reading, editing, tests, builds, and task-owned development servers are allowed as normal implementation work.
+- Production deploys, remote database or Auth writes, real payments, operational-data changes, advertising, publishing, data collection, DMs, customer contact, and budget use require explicit owner approval before execution.
+- `127.0.0.1:3000` is the canonical owner-review server. Do not present a different port as the updated canonical product unless the owner explicitly requests it.
+- Keep the canonical port 3000 server running when the owner asks to review it. Clean up only task-owned noncanonical servers, automated browsers, and temporary profiles.
+- Never stop or modify a personal browser profile or another task's processes.
+
+## Owner-Facing Status
+- Do not spam routine unchanged progress. Notify the owner for meaningful completion, a new blocker, or a decision/approval request.
+- For a brief operational status, default to four lines: `접수 / 현재 진행 / 대기 순서 / 담당 팀`.
+- Use easy Korean and summarize verified outcomes and evidence locations instead of pasting raw logs.
+
 ## Shared Folder Rules
 - `D:\petmanager-shared` is the canonical source for local env and agent instruction files.
 - Env source files:
@@ -103,8 +189,9 @@
 - Owner PC web and owner mobile web must treat appointment status as one shared source of truth through the same appointment APIs.
 - Mobile status changes must sync back to PC views.
 - PC views must periodically refresh visible schedule data for external changes.
-- Grooming start and pickup-ready status changes require an owner/staff-captured photo before the status update.
-- This applies to PC web, mobile web, demo seeds, manual API calls, and future owner/staff surfaces unless the owner explicitly changes the product rule.
+- Grooming-start photo capture is optional. It must never block a grooming-start status update on PC web, mobile web, demo seeds, manual API calls, or future owner/staff surfaces.
+- At grooming start, owner/staff surfaces must ask whether to `사진 촬영 후 시작` or `사진 촬영 없이 시작`. The capture option saves the photo before changing status; the no-photo option changes status immediately. Cancel changes nothing.
+- `픽업 준비` is the owner/staff action that sends the pickup-ready Alimtalk before grooming is finished. It is not grooming completion, must not request or require a photo, and must remain subject to the existing notification setting, opt-out, duplicate-send, template, and credit rules.
 - The schedule board current-work anchor must be the earliest-starting active booking whose scheduled time window contains the current time.
 - Active work statuses include `진행 중` and `픽업 준비`.
 - Expired active-status bookings must not become anchors.
@@ -201,8 +288,12 @@
 
 ## Notion Work OS Protocol
 
-- Before starting any task, open Notion's `우진 업무 OS` and inspect this project's current goal, this week's deliverable, in-progress/today/P0-P1 work, latest session log, decision log, and waiting/external dependencies.
-- Only after that review, reply to the user with exactly `✅ NOTION READY — 펫매니저 PC`.
+- In direct single-agent work outside AO, before starting a task, open Notion's `우진 업무 OS` and inspect this project's current goal, this week's deliverable, in-progress/today/P0-P1 work, latest session log, decision log, and waiting/external dependencies.
+- In direct single-agent work outside AO, only after that review, reply to the user with exactly `✅ NOTION READY — 펫매니저 PC`.
+- In an AO hierarchy, the coordinator itself performs the one bounded `우진 업무 OS` read at the start of each new top-level owner work boundary. It uses that brief to set priority, UI gate, worker order, dependencies, and acceptance criteria while remaining a coordination-only role.
+- The coordinator does not inspect product repository files, source, runtime logs, or deployment systems itself. If Notion requires deep cross-page research, delegate only that deeper research to one temporary Korean-titled read-only `ANALYSIS` worker and consume a compact result.
+- AO workers must not repeat the coordinator's Notion lookup, emit their own `NOTION READY`, or write separate Notion handoffs; they use the compact context supplied by the coordinator and return their role result to it.
+- A task-specific `read-only`, `no external writes`, or `do not update Notion` instruction overrides the generic Notion logging steps for that task. In that case, neither the lead nor workers may create or update Notion records; report that logging was intentionally skipped.
 - When asked about actual implementation state, treat Notion as work context only. Also inspect the relevant repository/code and, when relevant, GitHub or deployed state before concluding.
 - Before finishing, leave a `[CODEX HANDOFF]` covering: completed work, changed files, verification results, current state, unfinished work, blockers, one next action, repository/branch, and commit/PR.
 - If Notion is connected and writable, update the relevant task-page comment and the session-log database before finishing. If it is unavailable or not writable, include the full `[CODEX HANDOFF]` block in the final response instead.
@@ -218,3 +309,4 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+

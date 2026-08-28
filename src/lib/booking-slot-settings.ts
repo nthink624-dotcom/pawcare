@@ -1,7 +1,7 @@
 import type { Shop } from "@/types/domain";
 
 export const bookingSlotIntervalOptions = [10, 15, 20, 30, 60] as const;
-export const defaultBookingSlotIntervalMinutes = 30;
+export const defaultBookingSlotIntervalMinutes = 15;
 export const defaultBookingSlotOffsetMinutes = 0;
 export const defaultBookingAvailableStartTime = "10:00";
 export const defaultBookingAvailableEndTime = "17:00";
@@ -25,26 +25,17 @@ export function normalizePendingHoldLimit(value: number | null | undefined) {
   return Math.min(maxManualPendingHoldCapacity, Math.max(manualPendingHoldCapacity, numeric));
 }
 
-export function normalizeBookingSlotIntervalMinutes(value: number | null | undefined) {
-  if (typeof value === "number" && bookingSlotIntervalOptions.includes(value as (typeof bookingSlotIntervalOptions)[number])) {
-    return value;
-  }
-
+export function normalizeBookingSlotIntervalMinutes(_value: number | null | undefined) {
+  // 예약 간격은 매장별 선택값이 아니라 제품 공통 기준입니다.
+  // 이전 클라이언트나 오래된 DB 값이 들어와도 실제 슬롯 계산은 15분으로 고정합니다.
   return defaultBookingSlotIntervalMinutes;
 }
 
 export function normalizeBookingSlotOffsetMinutes(
-  value: number | null | undefined,
-  interval = defaultBookingSlotIntervalMinutes,
+  _value: number | null | undefined,
+  _interval = defaultBookingSlotIntervalMinutes,
 ) {
-  const normalizedInterval = normalizeBookingSlotIntervalMinutes(interval);
-  const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : defaultBookingSlotOffsetMinutes;
-
-  if (numeric < 0 || numeric >= normalizedInterval || numeric % 5 !== 0) {
-    return defaultBookingSlotOffsetMinutes;
-  }
-
-  return numeric;
+  return defaultBookingSlotOffsetMinutes;
 }
 
 export function normalizeBookingAvailableTime(value: string | null | undefined, fallback: string) {

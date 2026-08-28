@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import CalendarManagementScreen, { type OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
+import OwnerInitialSetupGuide, { getOwnerInitialSetupGuideStorageKey } from "@/components/owner-web/owner-initial-setup-guide";
 import {
   demoOwnerWebStaffStorageKey,
   parseStoredOwnerWebStaff,
@@ -251,6 +252,7 @@ export default function OwnerWebPreview({
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [initialSetupOpen, setInitialSetupOpen] = useState(false);
   const [ownerData, setOwnerData] = useState(initialData);
   const [scheduleCreateRequest, setScheduleCreateRequest] = useState<OwnerScheduleCreateRequest | null>(null);
   const storeMenuRef = useRef<HTMLDivElement | null>(null);
@@ -279,6 +281,19 @@ export default function OwnerWebPreview({
       setLiveStaffMembers(initialData.staffMembers ?? []);
     }
   }, [initialData]);
+
+  useEffect(() => {
+    if (demoMode || typeof window === "undefined") return;
+    const hasOperationalData =
+      ownerData.appointments.length > 0 ||
+      ownerData.guardians.length > 0 ||
+      ownerData.pets.length > 0 ||
+      ownerData.groomingRecords.length > 0;
+    const key = getOwnerInitialSetupGuideStorageKey(ownerData.shop.id);
+    if (!hasOperationalData && !window.localStorage.getItem(key)) {
+      setInitialSetupOpen(true);
+    }
+  }, [demoMode, ownerData.appointments.length, ownerData.groomingRecords.length, ownerData.guardians.length, ownerData.pets.length, ownerData.shop.id]);
 
   useEffect(() => {
     const warmProfitability = () => {
@@ -481,6 +496,11 @@ export default function OwnerWebPreview({
         setStoreMenuOpen(false);
         setAlimtalkCreditMenuOpen(false);
       }}
+      onOpenInitialSetup={() => {
+        setInitialSetupOpen(true);
+        setStoreMenuOpen(false);
+        setAlimtalkCreditMenuOpen(false);
+      }}
       onLogout={handleLogout}
       loggingOut={loggingOut}
     >
@@ -499,6 +519,13 @@ export default function OwnerWebPreview({
         automaticVisitReminderAvailable,
         priceGuideOnboarding,
       )}
+      <OwnerInitialSetupGuide
+        key={ownerData.shop.id}
+        open={initialSetupOpen}
+        data={ownerData}
+        onClose={() => setInitialSetupOpen(false)}
+        onNavigate={handleScreenSelect}
+      />
     </OwnerWebAppShell>
   );
 }

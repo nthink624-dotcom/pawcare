@@ -36,7 +36,7 @@ import {
 } from "@/lib/media/profile-image-collection";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
-import type { BootstrapStaffMember, CustomerDiscountCoupon, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
+import type { BootstrapStaffMember, CustomerDiscountCoupon, OwnerProfile, Service, Shop, ShopNotificationSettings } from "@/types/domain";
 
 type SettingControl = "text" | "address" | "select" | "toggle" | "readonly" | "stepper" | "businessHours" | "closedDays";
 
@@ -67,34 +67,6 @@ type ShopProfilePatch = Pick<Shop, "name" | "phone" | "address" | "description">
   postalCode: string;
   addressDetail: string;
 };
-type ShopPolicyPatch = {
-  cancelWindow: ReservationPolicySettings["cancel_window"];
-};
-
-function cancelWindowLabel(value: ReservationPolicySettings["cancel_window"] | string | null | undefined) {
-  switch (value) {
-    case "none":
-      return "불가";
-    case "1h":
-      return "예약 1시간 전까지";
-    case "6h":
-      return "예약 6시간 전까지";
-    case "24h":
-      return "예약 1일 전까지";
-    case "2h":
-    default:
-      return "예약 2시간 전까지";
-  }
-}
-
-function cancelWindowFromLabel(value: string): ReservationPolicySettings["cancel_window"] {
-  if (value === "불가") return "none";
-  if (value === "예약 1시간 전까지") return "1h";
-  if (value === "예약 6시간 전까지") return "6h";
-  if (value === "예약 하루 전까지" || value === "예약 1일 전까지") return "24h";
-  return "2h";
-}
-
 function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | null | undefined): AlertSettingsDraft {
   const normalized = normalizeShopNotificationSettings(settings);
   return {
@@ -240,7 +212,7 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
     key: "shop",
     label: "매장 정보",
     title: "매장 정보",
-    description: "고객에게 보여지는 매장 기본 정보와 예약 정책을 관리하세요.",
+    description: "고객에게 보여지는 매장 기본 정보를 관리하세요.",
     rows: [
       {
         id: "shopName",
@@ -341,21 +313,6 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
         description: "건물, 층, 호수 등 상세 위치",
         control: "text",
       },
-      {
-        id: "slotPolicy",
-        label: "예약 방식",
-        value: "같은 시간대 1건만 접수",
-        description: "고객에게 실제 가능한 시간만 보여주고, 선택 즉시 예약이 확정됩니다.",
-        control: "readonly",
-      },
-      {
-        id: "cancelWindow",
-        label: "취소 허용 시간",
-        value: "예약 2시간 전까지",
-        description: "고객이 직접 변경/취소할 수 있는 범위",
-        control: "select",
-        options: ["예약 2시간 전까지", "예약 6시간 전까지", "예약 1일 전까지", "불가"],
-      },
     ],
   },
   hours: {
@@ -453,9 +410,6 @@ function applyShopToSettings(settings: Record<SettingsTabKey, SettingsTab>, shop
         if (row.id === "postalCode") return { ...row, value: shop.customer_page_settings.postal_code || "" };
         if (row.id === "address") return { ...row, value: shop.address };
         if (row.id === "addressDetail") return { ...row, value: shop.customer_page_settings.address_detail || "" };
-        if (row.id === "cancelWindow") {
-          return { ...row, value: cancelWindowLabel(shop.reservation_policy_settings?.cancel_window) };
-        }
         return row;
       }),
     },
@@ -608,13 +562,6 @@ function readShopProfileFromSettings(settings: Record<SettingsTabKey, SettingsTa
     additionalContact: String(rows.find((row) => row.id === "additionalContact")?.value ?? "").trim(),
     postalCode: String(rows.find((row) => row.id === "postalCode")?.value ?? "").trim(),
     addressDetail: String(rows.find((row) => row.id === "addressDetail")?.value ?? "").trim(),
-  };
-}
-
-function readShopPolicyFromSettings(settings: Record<SettingsTabKey, SettingsTab>): ShopPolicyPatch {
-  const rows = settings.shop.rows;
-  return {
-    cancelWindow: cancelWindowFromLabel(String(rows.find((row) => row.id === "cancelWindow")?.value ?? "")),
   };
 }
 
@@ -1289,12 +1236,11 @@ export default function SettingsManagementScreen({
 
   async function saveShopSettings(
     settings: Record<SettingsTabKey, SettingsTab>,
-    options: { profile?: boolean; policy?: boolean },
+    options: { profile?: boolean },
   ) {
     if (!shop) return;
 
     const profilePatch = options.profile ? readShopProfileFromSettings(settings) : {};
-    const policyPatch = options.policy ? readShopPolicyFromSettings(settings) : null;
     const profileName = "name" in profilePatch && typeof profilePatch.name === "string" ? profilePatch.name : "";
     const businessCategory =
       "businessCategory" in profilePatch && typeof profilePatch.businessCategory === "string" ? profilePatch.businessCategory : "";
@@ -1310,15 +1256,6 @@ export default function SettingsManagementScreen({
     const optimisticShop: Shop = {
       ...shop,
       ...profilePatch,
-      ...(policyPatch
-        ? {
-            reservation_policy_settings: {
-              ...shop.reservation_policy_settings,
-              cancel_window: policyPatch.cancelWindow,
-              customer_change_enabled: policyPatch.cancelWindow !== "none",
-            },
-          }
-        : {}),
       customer_page_settings: {
         ...shop.customer_page_settings,
         shop_name: profileName || shop.customer_page_settings.shop_name,
@@ -1359,7 +1296,6 @@ export default function SettingsManagementScreen({
           showcaseTitle,
           showcaseBody,
           socialLinks,
-          ...(policyPatch ?? {}),
         }),
       },
     );
@@ -1936,7 +1872,7 @@ export default function SettingsManagementScreen({
       setSavingShopInfo(true);
       setShopInfoFeedback("");
       setIsShopInfoDirty(false);
-      void saveShopSettings(settingsToSave, { profile: true, policy: true })
+      void saveShopSettings(settingsToSave, { profile: true })
         .then(() => {
           showSaveCompletePopup();
         })

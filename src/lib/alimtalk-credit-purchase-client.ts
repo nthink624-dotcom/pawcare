@@ -1,57 +1,23 @@
-import { requestPayment } from "@portone/browser-sdk/v2";
+import type { AlimtalkCreditProductId } from "@/lib/alimtalk-credit-products";
 
-import { getAlimtalkCreditProduct, type AlimtalkCreditProductId } from "@/lib/alimtalk-credit-products";
-import { fetchApiJsonWithAuth } from "@/lib/api";
-import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { createPortoneId } from "@/lib/billing/portone-ids";
-import { env } from "@/lib/env";
-import { kpnApprovedCardCompanies } from "@/lib/portone/cards";
-import type { AlimtalkCreditSummary } from "@/types/domain";
+const SALES_ENDED_MESSAGE = "알림톡 추가 발송 이용권 판매가 종료되었습니다.";
 
-type PurchaseConfirmResponse = {
-  ok: true;
-  alreadyProcessed: boolean;
-  summary: AlimtalkCreditSummary | null;
-};
-
-const DEFAULT_PUBLIC_NOTICE_ORIGIN = "https://www.petmanager.co.kr";
-
-function isLocalOrigin(value: string | null | undefined) {
-  return Boolean(value && /localhost|127\.0\.0\.1/i.test(value));
+function salesEnded(): never {
+  throw new Error(SALES_ENDED_MESSAGE);
 }
 
-function buildNoticeUrl() {
-  const currentOrigin = window.location.origin.replace(/\/$/, "");
-  if (!isLocalOrigin(currentOrigin)) {
-    return `${currentOrigin}/api/webhooks/portone`;
-  }
-
-  const configuredOrigin = env.siteUrl?.replace(/\/$/, "");
-  if (configuredOrigin && !isLocalOrigin(configuredOrigin)) {
-    return `${configuredOrigin}/api/webhooks/portone`;
-  }
-
-  return `${DEFAULT_PUBLIC_NOTICE_ORIGIN}/api/webhooks/portone`;
+export async function confirmAlimtalkCreditPurchase(_paymentId: string) {
+  return salesEnded();
 }
 
-export async function confirmAlimtalkCreditPurchase(paymentId: string) {
-  return fetchApiJsonWithAuth<PurchaseConfirmResponse>("/api/alimtalk-credits/purchase/confirm", {
-    method: "POST",
-    body: JSON.stringify({ paymentId }),
-  });
-}
-
-export async function purchaseAlimtalkCreditsWithRegisteredCard(params: {
+export async function purchaseAlimtalkCreditsWithRegisteredCard(_params: {
   productId: AlimtalkCreditProductId;
   requestId: string;
 }) {
-  return fetchApiJsonWithAuth<PurchaseConfirmResponse>("/api/alimtalk-credits/purchase/registered-card", {
-    method: "POST",
-    body: JSON.stringify(params),
-  });
+  return salesEnded();
 }
 
-export async function requestAlimtalkCreditPurchase(params: {
+export async function requestAlimtalkCreditPurchase(_params: {
   productId: AlimtalkCreditProductId;
   userId: string;
   shopId: string;
@@ -59,56 +25,5 @@ export async function requestAlimtalkCreditPurchase(params: {
   phoneNumber?: string | null;
   email?: string | null;
 }) {
-  const product = getAlimtalkCreditProduct(params.productId);
-  if (!product) {
-    throw new Error("알림톡 추가 발송 이용권을 찾지 못했습니다.");
-  }
-
-  if (!env.portoneStoreId || !env.portonePaymentChannelKey) {
-    throw new Error("PortOne 일반결제 설정을 먼저 확인해 주세요.");
-  }
-
-  const paymentId = createPortoneId("talk");
-  const result = await requestPayment({
-    storeId: env.portoneStoreId,
-    channelKey: env.portonePaymentChannelKey,
-    paymentId,
-    orderName: `${PETMANAGER_SERVICE_NAME} 알림톡 추가 발송 이용권 ${product.creditCount.toLocaleString("ko-KR")}건`,
-    totalAmount: product.price,
-    currency: "KRW",
-    payMethod: "CARD",
-    card: {
-      availableCards: kpnApprovedCardCompanies,
-    },
-    customer: {
-      customerId: `owner_${params.userId}`,
-      fullName: params.customerName,
-      phoneNumber: params.phoneNumber || undefined,
-      email: params.email || undefined,
-    },
-    redirectUrl: `${window.location.origin}/owner/alimtalk-credits`,
-    customData: {
-      kind: "alimtalk-credit-purchase",
-      userId: params.userId,
-      shopId: params.shopId,
-      productId: product.id,
-      creditCount: product.creditCount,
-      amount: product.price,
-    },
-    noticeUrls: [buildNoticeUrl()],
-  });
-
-  if (!result) {
-    throw new Error("결제창을 열지 못했습니다.");
-  }
-
-  if (result.code || result.message) {
-    throw new Error(result.message || "결제를 완료하지 못했습니다.");
-  }
-
-  if (!result.paymentId) {
-    throw new Error("결제 정보를 확인하지 못했습니다.");
-  }
-
-  return confirmAlimtalkCreditPurchase(result.paymentId);
+  return salesEnded();
 }

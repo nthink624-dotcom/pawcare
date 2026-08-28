@@ -39,6 +39,7 @@ const updateShopSchema = z.object({
   additionalContact: z.string().trim().max(30).optional(),
   postalCode: z.string().trim().max(20).optional(),
   addressDetail: z.string().trim().max(120).optional(),
+  // 구버전 앱 요청은 수신하되 제품 공통 예약 정책을 바꾸지는 않습니다.
   cancelWindow: z.enum(["none", "1h", "2h", "6h", "24h"]).optional(),
   customerServiceOverrides: z.unknown().optional(),
   discountCoupons: z.unknown().optional(),
@@ -170,9 +171,8 @@ export async function PATCH(request: NextRequest) {
           approval_mode: "auto",
           concurrent_capacity: 1,
           reservation_policy_settings: {
-            cancel_window: body.cancelWindow ?? "2h",
-            customer_change_enabled: body.cancelWindow !== "none",
-            pending_hold_limit: 1,
+            cancel_window: "2h",
+            customer_change_enabled: true,
           },
           customer_page_settings: {
             shop_name: body.name ?? "?곕え 留ㅼ옣",
@@ -307,12 +307,8 @@ export async function PATCH(request: NextRequest) {
       if (body.cancelWindow !== undefined) {
         updates.reservation_policy_settings = {
           ...(currentShop?.reservation_policy_settings ?? {}),
-          ...(body.cancelWindow !== undefined
-            ? {
-                cancel_window: body.cancelWindow,
-                customer_change_enabled: body.cancelWindow !== "none",
-              }
-            : {}),
+          cancel_window: "2h",
+          customer_change_enabled: true,
         };
       }
     }

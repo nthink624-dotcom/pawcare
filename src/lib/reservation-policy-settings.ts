@@ -39,10 +39,6 @@ export function normalizeBookingBlockedWindows(value: unknown): BookingBlockedWi
 export function normalizeReservationPolicySettings(value: unknown): ReservationPolicySettings {
   const source = value && typeof value === "object" ? (value as Partial<ReservationPolicySettings>) : {};
   const hasBlockedWindows = Object.prototype.hasOwnProperty.call(source, "booking_blocked_windows");
-  const cancelWindow =
-    source.cancel_window && ["none", "1h", "2h", "6h", "24h"].includes(source.cancel_window)
-      ? source.cancel_window
-      : defaultReservationPolicySettings.cancel_window;
   const regularClosedCycle = regularClosedCycles.has(source.regular_closed_cycle as RegularClosedCycle)
     ? (source.regular_closed_cycle as RegularClosedCycle)
     : "weekly";
@@ -51,9 +47,10 @@ export function normalizeReservationPolicySettings(value: unknown): ReservationP
       ? source.regular_closed_anchor_date
       : null;
   return {
-    cancel_window: cancelWindow,
-    customer_change_enabled:
-      typeof source.customer_change_enabled === "boolean" ? source.customer_change_enabled : cancelWindow !== "none",
+    // 고객 변경·취소는 보안 관리 링크에서 예약 2시간 전까지 허용하는
+    // 제품 공통 정책입니다. 매장별 저장값은 더 이상 동작을 바꾸지 않습니다.
+    cancel_window: "2h",
+    customer_change_enabled: true,
     booking_blocked_windows: hasBlockedWindows
       ? normalizeBookingBlockedWindows(source.booking_blocked_windows)
       : defaultReservationPolicySettings.booking_blocked_windows,

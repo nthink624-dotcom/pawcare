@@ -7,8 +7,38 @@ const { findCustomerBreedPricingGroup } = await import("../../src/lib/customer-b
 const { applyConfiguredCustomerServiceOverrides, buildCustomerServiceSourceOptions } = await import("../../src/lib/customer-service-options.ts");
 const { getStaffBookingLoads } = await import("../../src/lib/staff-booking-load.ts");
 const { addDate, currentDateInTimeZone } = await import("../../src/lib/utils.ts");
+const {
+  defaultBookingSlotIntervalMinutes,
+  normalizeBookingSlotIntervalMinutes,
+  normalizeBookingSlotOffsetMinutes,
+  normalizeConcurrentCapacity,
+} = await import("../../src/lib/booking-slot-settings.ts");
+const { normalizeReservationPolicySettings } = await import("../../src/lib/reservation-policy-settings.ts");
 
 const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+describe("product-wide booking defaults", () => {
+  it("ignores legacy shop choices and keeps the fixed booking policy", () => {
+    assert.equal(defaultBookingSlotIntervalMinutes, 15);
+    assert.equal(normalizeBookingSlotIntervalMinutes(30), 15);
+    assert.equal(normalizeBookingSlotOffsetMinutes(10, 15), 0);
+    assert.equal(normalizeConcurrentCapacity(5), 1);
+
+    const policy = normalizeReservationPolicySettings({
+      cancel_window: "24h",
+      customer_change_enabled: false,
+      ai_booking_time_optimization_enabled: false,
+      ai_booking_recommendation_mode: "custom",
+      ai_booking_custom_instruction: "빈 시간을 모두 보여주세요",
+    });
+
+    assert.equal(policy.cancel_window, "2h");
+    assert.equal(policy.customer_change_enabled, true);
+    assert.equal(policy.ai_booking_time_optimization_enabled, true);
+    assert.equal(policy.ai_booking_recommendation_mode, "continuity");
+    assert.equal(policy.ai_booking_custom_instruction, "");
+  });
+});
 
 function futureDate(offset = 14) {
   return addDate(currentDateInTimeZone(), offset);

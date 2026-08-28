@@ -8,7 +8,7 @@ import { X } from "lucide-react";
 import OwnerApp, { type OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
+import { getOwnerPlanDisplayName, OWNER_SINGLE_MONTHLY_PLAN_CODE } from "@/lib/billing/owner-plans";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -42,7 +42,7 @@ function getCurrentPlanLabel(summary: OwnerSubscriptionSummary) {
 }
 
 function getResumePlanCode(summary: OwnerSubscriptionSummary) {
-  return isTrialSummary(summary) ? "monthly" : summary.currentPlanCode;
+  return isTrialSummary(summary) ? OWNER_SINGLE_MONTHLY_PLAN_CODE : summary.currentPlanCode;
 }
 
 function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {

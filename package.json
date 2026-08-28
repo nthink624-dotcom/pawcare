@@ -32,6 +32,7 @@
     "supabase:db:push:dev:dry-run": "node scripts/verify-supabase-cli-target.cjs --target dev && npx supabase db push --linked --dry-run",
     "supabase:db:reconcile:dev:dry-run": "node scripts/verify-supabase-cli-target.cjs --target dev && npx supabase db push --linked --include-all --dry-run",
     "supabase:db:reconcile:dev": "node scripts/verify-supabase-cli-target.cjs --target dev && npx supabase db push --linked --include-all",
+    "verify:signup-repair": "node scripts/verify-development-schema-and-atomic-signup-repair.cjs",
     "supabase:db:push:prod": "node scripts/verify-supabase-cli-target.cjs --target prod --require-production-intent && npx supabase db push --linked",
     "supabase:db:push:prod:dry-run": "node scripts/verify-supabase-cli-target.cjs --target prod --require-production-intent && npx supabase db push --linked --dry-run",
     "check:alimtalk-env": "node scripts/check-alimtalk-template-env-consistency.cjs",
@@ -77,6 +78,7 @@
     "react-dom": "^19.2.4",
     "react-hook-form": "^7.71.2",
     "read-excel-file": "9.3.4",
+    "sharp": "0.35.3",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6"
   },

@@ -1,10 +1,12 @@
 ﻿"use client";
 
-import { ChevronLeft, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import OwnerAdminDetailPanel from "@/components/admin/owner-admin-detail-panel";
+import AdminSectionNav from "@/components/admin/admin-section-nav";
+import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 import { fetchApiJson } from "@/lib/api";
 import {
   buildDraft,
@@ -377,64 +379,60 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[12px] text-[#1f6b5b]">운영자 모드</p>
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[12px] ${adminSurfaceTone}`}>
+            <p className={`${ADMIN_TYPOGRAPHY.meta} text-[#1f6b5b]`}>운영자 모드</p>
+            <span className={`inline-flex rounded-full border px-2.5 py-1 ${ADMIN_TYPOGRAPHY.badge} ${adminSurfaceTone}`}>
                       {adminSurfaceLabel}
                     </span>
                   </div>
-                  <h1 className="mt-0.5 text-[18px] font-semibold tracking-[-0.03em] text-[#0f172a]">오너 계정 관리</h1>
+          <h1 className={`mt-1 tracking-[-0.03em] text-[#0f172a] ${ADMIN_TYPOGRAPHY.pageTitle}`}>오너 계정 관리</h1>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <div className="px-1.5 text-right">
-                    <p className="text-[10px] text-[#64748b]">현재 운영자</p>
-                    <p className="text-[12px] text-[#0f172a]">{adminId}</p>
+            <p className={`${ADMIN_TYPOGRAPHY.helper} text-[#64748b]`}>현재 운영자</p>
+            <p className={`${ADMIN_TYPOGRAPHY.meta} text-[#0f172a]`}>{adminId}</p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => router.push("/admin" as never)}
-                    className="inline-flex h-7 items-center gap-0.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2 text-[11px] text-[#172033] transition hover:bg-[#f8fafc]"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                    관리자 메인
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => void logoutAdmin()}
-                    className="inline-flex h-7 items-center rounded-[7px] border border-[#dbe2ea] bg-white px-2 text-[11px] text-[#172033] transition hover:bg-[#f8fafc]"
+              className={`inline-flex h-10 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] transition hover:bg-[#f8fafc] ${ADMIN_TYPOGRAPHY.control}`}
                   >
                     로그아웃
                   </button>
                 </div>
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <div className="mt-4 border-t border-[#edf2f7] pt-4">
+                <AdminSectionNav active="owners" />
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 <label className="relative min-w-[320px] flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9b9084]" />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="오너 이름, 상호명, 전화번호, 매장명, 로그인 계정으로 검색"
-                    className="h-8 w-full rounded-[7px] border border-[#dbe2ea] bg-white pl-9 pr-3 text-[12px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+              className={`h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white pl-10 pr-3 text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}
                   />
                 </label>
-                <div className="inline-flex h-8 items-center rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] text-[#475569]">
+          <div className={`inline-flex h-11 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#475569] ${ADMIN_TYPOGRAPHY.meta}`}>
                   총 {filteredOwners.length}명
                 </div>
               </div>
 
               {error ? (
-                <p className="mt-2 rounded-[8px] border border-[#f0d1d1] bg-[#fff7f7] px-3 py-2 text-[13px] leading-5 text-[#b54b4b]">
+          <p className={`mt-3 rounded-[8px] border border-[#f0d1d1] bg-[#fff7f7] px-4 py-3 text-[#b54b4b] ${ADMIN_TYPOGRAPHY.body}`}>
                   {error}
                 </p>
               ) : null}
               {notice ? (
-                <p className="mt-2 rounded-[8px] border border-[#d7e7e1] bg-[#f4faf7] px-3 py-2 text-[13px] leading-5 text-[#1f6b5b]">
+          <p className={`mt-3 rounded-[8px] border border-[#d7e7e1] bg-[#f4faf7] px-4 py-3 text-[#1f6b5b] ${ADMIN_TYPOGRAPHY.body}`}>
                   {notice}
                 </p>
               ) : null}
             </div>
 
-            <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(140px,0.8fr)_130px_120px] border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-2 text-[12px] text-[#64748b]">
+        <div className={`grid grid-cols-[minmax(0,1.25fr)_minmax(160px,0.8fr)_140px_130px] border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-[#64748b] ${ADMIN_TYPOGRAPHY.meta}`}>
               <span>오너 / 매장</span>
               <span>로그인 수단</span>
               <span>전화번호</span>
@@ -443,9 +441,9 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
 
             <div className="min-h-0 flex-1 overflow-y-auto">
               {loading ? (
-                <div className="px-4 py-12 text-center text-[13px] text-[#6f665f]">오너 계정을 불러오는 중이에요.</div>
+          <div className={`px-4 py-12 text-center text-[#6f665f] ${ADMIN_TYPOGRAPHY.body}`}>오너 계정을 불러오는 중이에요.</div>
               ) : filteredOwners.length === 0 ? (
-                <div className="px-4 py-12 text-center text-[13px] text-[#6f665f]">검색 결과가 없습니다.</div>
+          <div className={`px-4 py-12 text-center text-[#6f665f] ${ADMIN_TYPOGRAPHY.body}`}>검색 결과가 없습니다.</div>
               ) : (
                 filteredOwners.map((item) => {
                   const selected = item.userId === selectedUserId;
@@ -460,19 +458,19 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="truncate text-[13px] font-semibold text-[#171411]">{item.ownerName}</p>
+                      <p className={`truncate text-[#171411] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{item.ownerName}</p>
                           {item.suspended ? (
-                            <span className="rounded-full bg-[#fff2f2] px-1.5 py-0.5 text-[11px] font-semibold text-[#b54b4b]">정지</span>
+                        <span className={`rounded-full bg-[#fff2f2] px-2.5 py-1 text-[#b54b4b] ${ADMIN_TYPOGRAPHY.badge}`}>정지</span>
                           ) : null}
                         </div>
-                        <p className="mt-0.5 truncate text-[12px] font-medium text-[#36302b]">{item.shopName}</p>
-                        <p className="mt-0.5 truncate text-[11px] text-[#8a8277]">{item.shopAddress}</p>
+                    <p className={`mt-1 truncate text-[#36302b] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{item.shopName}</p>
+                    <p className={`mt-1 truncate text-[#8a8277] ${ADMIN_TYPOGRAPHY.helper}`}>{item.shopAddress}</p>
                         {item.usageWarnings.length > 0 ? (
                           <div className="mt-1 flex flex-wrap gap-1">
                             {item.usageWarnings.slice(0, 2).map((warning) => (
                               <span
                                 key={`${item.userId}-${warning.code}`}
-                                className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${usageWarningToneMap[warning.level]}`}
+                          className={`rounded-full border px-2.5 py-1 ${ADMIN_TYPOGRAPHY.badge} ${usageWarningToneMap[warning.level]}`}
                               >
                                 운영 검토 · {warning.message}
                               </span>
@@ -486,17 +484,17 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                           <span
                             key={`${item.userId}-${method}`}
                             title={method === "email" ? item.ownerEmail ?? item.loginId ?? loginMethodLabels[method] : loginMethodLabels[method]}
-                            className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[12px] font-semibold ${loginMethodToneMap[method]}`}
+                          className={`max-w-full truncate rounded-full border px-2.5 py-1 ${ADMIN_TYPOGRAPHY.badge} ${loginMethodToneMap[method]}`}
                           >
                             {method === "email" && (item.ownerEmail ?? item.loginId) ? item.ownerEmail ?? item.loginId : loginMethodLabels[method]}
                           </span>
                         ))}
                       </div>
 
-                      <div className="text-[12px] text-[#5e564f]">{item.ownerPhoneNumber ?? "-"}</div>
+                  <div className={`text-[#5e564f] ${ADMIN_TYPOGRAPHY.body}`}>{item.ownerPhoneNumber ?? "-"}</div>
 
                       <div>
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[12px] font-semibold ${statusToneMap[item.status]}`}>
+                    <span className={`inline-flex rounded-full px-2.5 py-1 ${ADMIN_TYPOGRAPHY.badge} ${statusToneMap[item.status]}`}>
                           {statusOptions.find((option) => option.value === item.status)?.label ?? item.status}
                         </span>
                       </div>

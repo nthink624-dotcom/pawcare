@@ -39,7 +39,6 @@ type TemporaryHoliday = {
 type BookingSettingsState = {
   firstBookingTime: string;
   lastBookingTime: string;
-  intervalMinutes: string;
   blockedWindows: BookingWindow[];
   temporaryHolidays: TemporaryHoliday[];
 };
@@ -249,7 +248,6 @@ function defaultBookingSettings(shop?: Shop): BookingSettingsState {
   const base: BookingSettingsState = {
     firstBookingTime: shop?.booking_available_start_time ?? "10:00",
     lastBookingTime: shop?.booking_available_end_time ?? "17:00",
-    intervalMinutes: String(shop?.booking_slot_interval_minutes ?? 30),
     blockedWindows: blockedWindows.map((windowItem, index) => ({
       id: windowItem.id ?? `block-${index + 1}`,
       start: windowItem.start,
@@ -620,7 +618,7 @@ export default function OperatingHoursSettings({
         .map((holiday) => holiday.date)
         .filter((date) => date >= todayKey())
         .sort(),
-      booking_slot_interval_minutes: Number(nextSettings.intervalMinutes),
+      booking_slot_interval_minutes: 15,
       booking_available_start_time: nextSettings.firstBookingTime,
       booking_available_end_time: nextSettings.lastBookingTime,
       reservation_policy_settings: {

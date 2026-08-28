@@ -9,6 +9,29 @@ import type { PriceGuidePhotoImportIssue, PriceGuidePhotoImportResponse } from "
 
 const openAiResponsesUrl = "https://api.openai.com/v1/responses";
 
+export const PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD = 13_000;
+
+export type PriceGuideProviderUsage = {
+  inputTokens: number;
+  outputTokens: number;
+};
+
+export function calculatePriceGuideProviderCostMicroUsd(
+  model: string,
+  usage: PriceGuideProviderUsage | null,
+) {
+  if (!usage || !/^gpt-4o-mini(?:-|$)/i.test(model)) {
+    return PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD;
+  }
+  // gpt-4o-mini: $0.15 / 1M input tokens, $0.60 / 1M output tokens.
+  // micro-USD arithmetic: tokens * USD-per-million.
+  const measured = Math.ceil((usage.inputTokens * 0.15) + (usage.outputTokens * 0.6));
+  if (!Number.isSafeInteger(measured) || measured < 0) {
+    return PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD;
+  }
+  return measured;
+}
+
 const confidenceSchema = z.enum(["high", "medium", "low"]);
 const extractedCellSchema = z.object({
   weightBand: z.string(),
@@ -231,7 +254,18 @@ function getResponseOutputText(payload: unknown) {
   return "";
 }
 
-export async function extractPriceGuideFromImages(imageUrls: string[]) {
+function getResponseUsage(payload: unknown): PriceGuideProviderUsage | null {
+  if (!payload || typeof payload !== "object") return null;
+  const usage = (payload as { usage?: unknown }).usage;
+  if (!usage || typeof usage !== "object") return null;
+  const inputTokens = (usage as { input_tokens?: unknown }).input_tokens;
+  const outputTokens = (usage as { output_tokens?: unknown }).output_tokens;
+  if (!Number.isSafeInteger(inputTokens) || !Number.isSafeInteger(outputTokens)) return null;
+  if ((inputTokens as number) < 0 || (outputTokens as number) < 0) return null;
+  return { inputTokens: inputTokens as number, outputTokens: outputTokens as number };
+}
+
+export async function extractPriceGuideFromImages(imageUrls: string[], options?: { timeoutMs?: number }) {
   if (!serverEnv.openaiApiKey) {
     throw new Error("요금표 사진 분석 서버가 아직 연결되지 않았습니다. OPENAI_API_KEY 설정을 확인해 주세요.");
   }
@@ -240,7 +274,7 @@ export async function extractPriceGuideFromImages(imageUrls: string[]) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60_000);
+  const timeout = setTimeout(() => controller.abort(), Math.min(Math.max(options?.timeoutMs ?? 60_000, 5_000), 60_000));
   try {
     const response = await fetch(openAiResponsesUrl, {
       method: "POST",
@@ -291,7 +325,13 @@ export async function extractPriceGuideFromImages(imageUrls: string[]) {
     if ((normalized.guide.sections?.length ?? 0) === 0) {
       throw new Error("사진에서 요금표 행을 찾지 못했습니다. 더 선명한 사진으로 다시 시도해 주세요.");
     }
-    return { ...normalized, model: serverEnv.openaiVisionModel };
+    const providerUsage = getResponseUsage(payload);
+    return {
+      ...normalized,
+      model: serverEnv.openaiVisionModel,
+      providerUsage,
+      providerCostMicroUsd: calculatePriceGuideProviderCostMicroUsd(serverEnv.openaiVisionModel, providerUsage),
+    };
   } finally {
     clearTimeout(timeout);
   }

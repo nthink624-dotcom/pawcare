@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizePriceGuidePhotoExtraction } from "../../src/server/price-guide-photo-import.ts";
+import {
+  calculatePriceGuideProviderCostMicroUsd,
+  normalizePriceGuidePhotoExtraction,
+  PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD,
+} from "../../src/server/price-guide-photo-import.ts";
+import {
+  consumePreferredPriceGuideOnboardingMode,
+  setPreferredPriceGuideOnboardingMode,
+} from "../../src/lib/price-guide-onboarding.ts";
 
 test("photo price guide normalization preserves visible values and flags uncertain cells", () => {
   const result = normalizePriceGuidePhotoExtraction({
@@ -52,4 +60,49 @@ test("photo price guide normalization does not invent rows when no weight band i
 
   assert.deepEqual(result.guide.sections, []);
   assert.equal(result.issues[0].path, "원본 전체");
+});
+
+test("Vision metering uses provider usage and fails closed when usage or model pricing is unknown", () => {
+  assert.equal(
+    calculatePriceGuideProviderCostMicroUsd("gpt-4o-mini", { inputTokens: 10_000, outputTokens: 2_000 }),
+    2_700,
+  );
+  assert.equal(
+    calculatePriceGuideProviderCostMicroUsd("gpt-4o-mini", null),
+    PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD,
+  );
+  assert.equal(
+    calculatePriceGuideProviderCostMicroUsd("unpriced-vision-model", { inputTokens: 1, outputTokens: 1 }),
+    PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD,
+  );
+});
+
+test("initial setup hands the selected price-guide entry mode to the service screen once", () => {
+  const values = new Map();
+  const previousWindow = globalThis.window;
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      sessionStorage: {
+        getItem: (key) => values.get(key) ?? null,
+        removeItem: (key) => values.delete(key),
+        setItem: (key, value) => values.set(key, value),
+      },
+    },
+  });
+
+  try {
+    setPreferredPriceGuideOnboardingMode("shop-onboarding", "photo");
+    assert.equal(consumePreferredPriceGuideOnboardingMode("shop-onboarding"), "photo");
+    assert.equal(consumePreferredPriceGuideOnboardingMode("shop-onboarding"), null);
+
+    setPreferredPriceGuideOnboardingMode("shop-onboarding", "manual");
+    assert.equal(consumePreferredPriceGuideOnboardingMode("shop-onboarding"), "manual");
+  } finally {
+    if (previousWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      Object.defineProperty(globalThis, "window", { configurable: true, value: previousWindow });
+    }
+  }
 });

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import AdminDashboard from "@/components/admin/admin-dashboard";
+import AdminHome from "@/components/admin/admin-home";
 import { getServerAdminSession } from "@/server/admin-session";
 
 export default async function AdminPage() {
@@ -10,5 +10,5 @@ export default async function AdminPage() {
     redirect("/admin/login" as never);
   }
 
-  return <AdminDashboard sessionLoginId={session.loginId} />;
+  return <AdminHome sessionLoginId={session.loginId} />;
 }

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { OwnerBillingSuccessCard } from "@/components/owner/owner-billing-flow-shared";
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import { getOwnerPlanByCode, type OwnerPlan } from "@/lib/billing/owner-plans";
+import { getOwnerPlanByCode, OWNER_SINGLE_MONTHLY_PLAN_CODE, type OwnerPlan } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -106,7 +106,8 @@ function OwnerBillingSuccessPageContent() {
     };
   }, [hasSnapshot, router, supabase]);
 
-  const displayPlan: OwnerPlan | null = summary?.currentPlan ?? snapshotPlan ?? getOwnerPlanByCode("monthly");
+  const displayPlan: OwnerPlan | null =
+    summary?.currentPlan ?? snapshotPlan ?? getOwnerPlanByCode(OWNER_SINGLE_MONTHLY_PLAN_CODE);
   const displayEndAt =
     summary?.currentPeriodEndsAt ?? summary?.nextBillingAt ?? snapshotEndAt ?? summary?.trialEndsAt ?? null;
   const displayMethod = summary?.paymentMethodLabel ?? snapshotMethod;

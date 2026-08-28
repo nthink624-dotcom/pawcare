@@ -1,9 +1,8 @@
-import { getAlimtalkCreditProduct } from "@/lib/alimtalk-credit-products";
-import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+import { getLegacyAlimtalkCreditProduct } from "@/lib/alimtalk-credit-products";
 import { serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { grantShopAlimtalkCredits } from "@/server/alimtalk-credit-service";
-import { chargeOwnerRegisteredCard, OwnerBillingError, type BillingIdentity } from "@/server/owner-billing";
+import { OwnerBillingError, type BillingIdentity } from "@/server/owner-billing";
 import type { AlimtalkCreditSummary } from "@/types/domain";
 
 type PortonePaymentResponse = {
@@ -31,6 +30,14 @@ type CreditLedgerPayload = {
   amount?: unknown;
   creditGrantedEventId?: unknown;
 };
+
+export const OWNER_ALIMTALK_TOPUP_SALES_CUTOFF_ISO = "2026-08-26T15:00:00.000Z";
+
+function isHistoricalTopupPayment(paidAt: string | null) {
+  if (!paidAt) return false;
+  const paidAtMs = Date.parse(paidAt);
+  return Number.isFinite(paidAtMs) && paidAtMs < Date.parse(OWNER_ALIMTALK_TOPUP_SALES_CUTOFF_ISO);
+}
 
 function getAdmin() {
   const admin = getSupabaseAdmin();
@@ -142,7 +149,12 @@ async function recordPurchaseEvent(input: {
 export async function confirmOwnerAlimtalkCreditPurchase(
   paymentId: string,
   expected: { identity: BillingIdentity; shopId: string },
+  options: { allowHistoricalReconcile?: boolean } = {},
 ) {
+  if (!options.allowHistoricalReconcile) {
+    throw new OwnerBillingError("알림톡 추가 발송 이용권 판매가 종료되었습니다.", 410);
+  }
+
   const admin = getAdmin();
   const existingLedger = await admin
     .from("owner_payment_ledger")
@@ -186,7 +198,7 @@ export async function confirmOwnerAlimtalkCreditPurchase(
   const userId = typeof customData.userId === "string" ? customData.userId : null;
   const shopId = typeof customData.shopId === "string" ? customData.shopId : null;
   const productId = typeof customData.productId === "string" ? customData.productId : null;
-  const product = getAlimtalkCreditProduct(productId);
+  const product = getLegacyAlimtalkCreditProduct(productId);
 
   if (!userId || !shopId || userId !== expected.identity.id || shopId !== expected.shopId || !product) {
     throw new OwnerBillingError("현재 매장의 알림톡 추가 발송 이용권 결제가 아닙니다.", 403);
@@ -194,6 +206,10 @@ export async function confirmOwnerAlimtalkCreditPurchase(
 
   if (payment.status !== "PAID") {
     throw new OwnerBillingError("결제가 완료된 뒤 추가 발송 이용권이 반영됩니다.", 400);
+  }
+
+  if (!isHistoricalTopupPayment(payment.paidAt)) {
+    throw new OwnerBillingError("판매 종료 이후 결제는 추가 발송 이용권으로 반영할 수 없습니다.", 410);
   }
 
   if (payment.amount !== product.price) {
@@ -280,44 +296,12 @@ export async function confirmOwnerAlimtalkCreditPurchase(
 }
 
 export async function purchaseOwnerAlimtalkCreditsWithRegisteredCard(
-  identity: BillingIdentity,
-  shopId: string,
-  productId: string,
-  requestId: string,
+  _identity: BillingIdentity,
+  _shopId: string,
+  _productId: string,
+  _requestId: string,
 ) {
-  const product = getAlimtalkCreditProduct(productId);
-  if (!product) {
-    throw new OwnerBillingError("알림톡 추가 발송 이용권을 찾지 못했습니다.", 400);
-  }
-
-  const paymentId = `talk-${requestId.replace(/-/g, "")}`;
-  const customData = {
-    kind: "alimtalk-credit-purchase",
-    paymentFlow: "registered-card",
-    requestId,
-    userId: identity.id,
-    shopId,
-    productId: product.id,
-    creditCount: product.creditCount,
-    amount: product.price,
-  };
-
-  try {
-    await chargeOwnerRegisteredCard(identity, shopId, {
-      paymentId,
-      orderName: `${PETMANAGER_SERVICE_NAME} 알림톡 추가 발송 이용권 ${product.creditCount.toLocaleString("ko-KR")}건`,
-      amount: product.price,
-      customData,
-    });
-  } catch (chargeError) {
-    try {
-      return await confirmOwnerAlimtalkCreditPurchase(paymentId, { identity, shopId });
-    } catch {
-      throw chargeError;
-    }
-  }
-
-  return confirmOwnerAlimtalkCreditPurchase(paymentId, { identity, shopId });
+  throw new OwnerBillingError("알림톡 추가 발송 이용권 판매가 종료되었습니다.", 410);
 }
 
 export async function syncOwnerAlimtalkCreditPurchaseFromPayment(paymentId: string) {
@@ -338,5 +322,5 @@ export async function syncOwnerAlimtalkCreditPurchaseFromPayment(paymentId: stri
   return confirmOwnerAlimtalkCreditPurchase(paymentId, {
     identity: { id: userId },
     shopId,
-  });
+  }, { allowHistoricalReconcile: true });
 }

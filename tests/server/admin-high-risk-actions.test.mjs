@@ -19,7 +19,11 @@ test("all high-risk actions are disabled after authentication until backend gate
   assert.equal(ADMIN_HIGH_RISK_ACTIONS_READY, false);
   assert.deepEqual(Object.keys(ADMIN_HIGH_RISK_SCOPE_MATRIX), ["refund", "withdraw", "credential_reset", "payment_method_reset"]);
   for (const source of routes) {
-    assert.ok(source.indexOf("requireAdminSession") < source.indexOf("assertAdminHighRiskActionReady"));
+    const superAdminGuard = source.indexOf("requireSuperAdminSession(request)");
+    const readinessGate = source.indexOf("assertAdminHighRiskActionReady(");
+    const directFailClosedGate = source.indexOf("원자적 감사 절차");
+    const highRiskGate = readinessGate >= 0 ? readinessGate : directFailClosedGate;
+    assert.ok(superAdminGuard >= 0 && superAdminGuard < highRiskGate);
     assert.doesNotMatch(source, /refundOwner|deleteUser|updateUserById|resetOwnerPaymentMethod|temporaryPassword/);
   }
 });

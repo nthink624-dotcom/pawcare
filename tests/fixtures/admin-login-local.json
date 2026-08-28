@@ -1,0 +1,6 @@
+{
+  "testOnly": true,
+  "loginId": "local-fixture-admin",
+  "password": "LocalFixtureOnly!123",
+  "fullName": "로컬 검수 관리자"
+}

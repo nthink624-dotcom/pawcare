@@ -27,6 +27,13 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
+  if (specifier === "next/headers") {
+    return {
+      shortCircuit: true,
+      url: pathToFileURL(path.join(root, "node_modules", "next", "headers.js")).href,
+    };
+  }
+
   if (specifier.startsWith("@/")) {
     const target = resolveExistingPath(path.join(srcRoot, specifier.slice(2)));
     if (!target) {

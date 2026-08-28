@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 
 import OwnerApp, { type OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { clearOwnerAuthTokenCache, waitForOwnerAuthHydration } from "@/lib/auth/owner-auth-handoff";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getOwnerPlanDisplayName, OWNER_SINGLE_MONTHLY_PLAN_CODE } from "@/lib/billing/owner-plans";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
@@ -257,6 +258,8 @@ export default function OwnerShell({
     setLoggingOut(true);
 
     try {
+      await waitForOwnerAuthHydration();
+      clearOwnerAuthTokenCache();
       if (supabase) {
         await supabase.auth.signOut();
       }

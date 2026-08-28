@@ -10,8 +10,10 @@ import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   clearOwnerAuthTokenCache,
   consumeOwnerAuthHandoff,
+  readOwnerAuthRefreshTokenCache,
   readOwnerAuthTokenCache,
   setCurrentOwnerAccessToken,
+  waitForOwnerAuthHydration,
   writeOwnerAuthSessionCache,
   writeOwnerAuthTokenCache,
 } from "@/lib/auth/owner-auth-handoff";
@@ -47,6 +49,22 @@ const OWNER_LOAD_TIMEOUT_MS = 30000;
 const OWNER_SESSION_SLOW_NOTICE_MS = 8000;
 const OWNER_SESSION_TIMEOUT_MS = 10000;
 const OWNER_BACKGROUND_REFRESH_MS = 60_000;
+const ownerBootstrapInFlight = new Map<string, Promise<BootstrapPayload>>();
+
+function loadOwnerBootstrapOnce(shopId: string) {
+  const existing = ownerBootstrapInFlight.get(shopId);
+  if (existing) return existing;
+
+  const request = fetchApiJsonWithAuth<BootstrapPayload>(
+    `/api/bootstrap?shopId=${encodeURIComponent(shopId)}`,
+  ).finally(() => {
+    if (ownerBootstrapInFlight.get(shopId) === request) {
+      ownerBootstrapInFlight.delete(shopId);
+    }
+  });
+  ownerBootstrapInFlight.set(shopId, request);
+  return request;
+}
 
 function shouldOpenMobileOwnerScreen() {
   if (typeof window === "undefined") return false;
@@ -129,21 +147,6 @@ export default function OwnerPage() {
     const handoffSession = consumeOwnerAuthHandoff();
     if (handoffSession) {
       writeOwnerAuthSessionCache(handoffSession);
-      void supabase.auth
-        .setSession({
-          access_token: handoffSession.accessToken,
-          refresh_token: handoffSession.refreshToken,
-        })
-        .then((sessionResult: SupabaseSessionResult) => {
-          const nextSession = sessionResult.data.session;
-          if (nextSession?.access_token) {
-            writeOwnerAuthTokenCache(nextSession.access_token, nextSession.refresh_token);
-            setCurrentOwnerAccessToken(nextSession.access_token);
-          }
-        })
-        .catch(() => {
-          // The freshly issued API token is enough for owner endpoints; do not block entry on browser session persistence.
-        });
 
       return {
         accessToken: handoffSession.accessToken,
@@ -163,18 +166,35 @@ export default function OwnerPage() {
       supabase.auth.getSession() as Promise<SupabaseSessionResult>,
     );
     if (initialSession.data.session?.access_token) {
-      writeOwnerAuthTokenCache(initialSession.data.session.access_token);
+      writeOwnerAuthTokenCache(initialSession.data.session.access_token, initialSession.data.session.refresh_token);
       return {
         accessToken: initialSession.data.session.access_token,
         session: initialSession.data.session,
       };
     }
 
+    const cachedRefreshToken = readOwnerAuthRefreshTokenCache();
+    if (cachedRefreshToken) {
+      const refreshedFromCache = await withOwnerSessionTimeout(
+        supabase.auth.refreshSession({ refresh_token: cachedRefreshToken }) as Promise<SupabaseSessionResult>,
+      );
+      if (refreshedFromCache.data.session?.access_token) {
+        writeOwnerAuthTokenCache(
+          refreshedFromCache.data.session.access_token,
+          refreshedFromCache.data.session.refresh_token,
+        );
+        return {
+          accessToken: refreshedFromCache.data.session.access_token,
+          session: refreshedFromCache.data.session,
+        };
+      }
+    }
+
     const refreshedSession = await withOwnerSessionTimeout(
       supabase.auth.refreshSession() as Promise<SupabaseSessionResult>,
     );
     if (refreshedSession.data.session?.access_token) {
-      writeOwnerAuthTokenCache(refreshedSession.data.session.access_token);
+      writeOwnerAuthTokenCache(refreshedSession.data.session.access_token, refreshedSession.data.session.refresh_token);
       return {
         accessToken: refreshedSession.data.session.access_token,
         session: refreshedSession.data.session,
@@ -186,6 +206,7 @@ export default function OwnerPage() {
 
   useEffect(() => {
     let active = true;
+    window.performance.mark("petmanager:owner-login:owner-route-mounted");
 
     async function load() {
       if (shouldOpenMobileOwnerScreen()) {
@@ -245,9 +266,7 @@ export default function OwnerPage() {
           );
         const loadBootstrap = (shopId: string) =>
           withOwnerLoadTimeout(
-            fetchApiJsonWithAuth<BootstrapPayload>(
-              `/api/bootstrap?shopId=${encodeURIComponent(shopId)}`,
-            ),
+            loadOwnerBootstrapOnce(shopId),
             "오너 초기 데이터를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
           );
 
@@ -290,6 +309,7 @@ export default function OwnerPage() {
         writeCurrentOwnerShopId(resolvedShopId);
         setSelectedShopId(resolvedShopId);
         setData(bootstrap);
+        window.performance.mark("petmanager:owner-login:owner-usable");
         backgroundRefreshReadyAtRef.current = Date.now() + 5000;
         void loadSubscription().catch(() => {
           // The bootstrap endpoint already validated access. Keep the home visible if this secondary summary misses.
@@ -381,6 +401,7 @@ export default function OwnerPage() {
     setLoggingOut(true);
 
     try {
+      await waitForOwnerAuthHydration();
       clearOwnerAuthTokenCache();
       await supabase?.auth.signOut();
     } finally {

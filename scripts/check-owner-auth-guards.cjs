@@ -56,7 +56,22 @@ assertIncludes(
 assertIncludes(
   "src/components/auth/login-form.tsx",
   "supabase.auth.setSession",
-  "Login form must store the returned Supabase session before redirecting to /owner.",
+  "Login must hydrate the browser SDK session so token refresh and logout remain reliable.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  "void trackOwnerAuthHydration(",
+  "Browser SDK session hydration must run without blocking owner navigation.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  "supabase.auth.setSession",
+  "Login must track background browser session hydration for race-free logout.",
+);
+assertNotIncludes(
+  "src/components/auth/login-form.tsx",
+  "await supabase.auth.setSession",
+  "Login must not await browser-side session hydration before navigation.",
 );
 assertIncludes(
   "src/components/auth/login-form.tsx",
@@ -67,6 +82,21 @@ assertIncludes(
   "src/components/auth/login-form.tsx",
   "writeOwnerAuthSessionCache",
   "Login form must write an owner auth session cache for API recovery.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  "writeCurrentOwnerShopId(result.shopId)",
+  "Login must persist the verified shop hint so owner bootstrap can avoid a serial shop lookup.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  "loginAttemptInFlightRef.current",
+  "Login must reject synchronous duplicate submits before React state catches up.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  "requestController.abort()",
+  "Login must bound the authentication request and restore retry controls on timeout.",
 );
 assertNotIncludes(
   "src/components/auth/login-form.tsx",
@@ -88,6 +118,42 @@ assertIncludes(
   "src/app/owner/page.tsx",
   "readOwnerAuthTokenCache",
   "Owner page must support access-token cache fallback before redirecting to /login.",
+);
+assertIncludes(
+  "src/app/owner/page.tsx",
+  "readOwnerAuthRefreshTokenCache",
+  "Owner page must recover an expired access token from the cached refresh token.",
+);
+for (const logoutFile of [
+  "src/app/owner/page.tsx",
+  "src/components/owner/owner-shell.tsx",
+  "src/components/owner-web/owner-web-preview.tsx",
+]) {
+  assertIncludes(
+    logoutFile,
+    "waitForOwnerAuthHydration",
+    "Owner logout must wait for background session hydration before clearing the session.",
+  );
+}
+assertNotIncludes(
+  "src/app/owner/page.tsx",
+  ".setSession({",
+  "Owner entry must not duplicate the background browser session hydration started by login.",
+);
+assertNotIncludes(
+  "src/app/owner/billing/success/page.tsx",
+  "supabase.auth.getSession()",
+  "Billing return must use the resilient owner auth cache instead of racing browser session hydration.",
+);
+assertIncludes(
+  "src/app/owner/billing/success/page.tsx",
+  "fetchApiJsonWithAuth",
+  "Billing return must verify the active owner through the authenticated API recovery path.",
+);
+assertNotIncludes(
+  "src/lib/supabase/client.ts",
+  "lock:",
+  "Browser Supabase auth must use the maintained internal lock instead of a deprecated custom lock.",
 );
 
 assertIncludes(
@@ -217,6 +283,11 @@ assertIncludes(
   "src/app/owner/page.tsx",
   "void loadSubscription().catch",
   "Owner home must not block its first render on the secondary subscription summary request.",
+);
+assertIncludes(
+  "src/app/owner/page.tsx",
+  "ownerBootstrapInFlight",
+  "Owner home must deduplicate concurrent StrictMode bootstrap requests.",
 );
 assertNotIncludes(
   "src/app/api/auth/verify-pass/route.ts",

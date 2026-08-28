@@ -1,14 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { OwnerBillingSuccessCard } from "@/components/owner/owner-billing-flow-shared";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { getOwnerPlanByCode, OWNER_SINGLE_MONTHLY_PLAN_CODE, type OwnerPlan } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
-import { hasSupabaseBrowserEnv } from "@/lib/env";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { won } from "@/lib/utils";
 
 function hasSuccessfulPayment(summary: OwnerSubscriptionSummary) {
@@ -29,7 +27,6 @@ function sleep(ms: number) {
 function OwnerBillingSuccessPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [summary, setSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [message, setMessage] = useState("결제 완료 내용을 확인하고 있어요.");
 
@@ -42,23 +39,6 @@ function OwnerBillingSuccessPageContent() {
     let active = true;
 
     async function load() {
-      if (!hasSupabaseBrowserEnv() || !supabase) {
-        if (active) {
-          setMessage("결제 완료 내용을 확인할 수 없어요.");
-        }
-        return;
-      }
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        router.replace("/login?next=/owner/billing/success" as never);
-        router.refresh();
-        return;
-      }
-
       const maxAttempts = hasSnapshot ? 4 : 1;
 
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -77,7 +57,7 @@ function OwnerBillingSuccessPageContent() {
         } catch (error) {
           if (!active) return;
           const nextMessage = error instanceof Error ? error.message : "결제 완료 정보를 불러오는 중 문제가 발생했습니다.";
-          if (nextMessage === "인증 정보가 필요합니다.") {
+          if (nextMessage === "인증 정보가 필요합니다." || nextMessage === "로그인이 필요합니다.") {
             router.replace("/login?next=/owner/billing/success" as never);
             router.refresh();
             return;
@@ -104,7 +84,7 @@ function OwnerBillingSuccessPageContent() {
     return () => {
       active = false;
     };
-  }, [hasSnapshot, router, supabase]);
+  }, [hasSnapshot, router]);
 
   const displayPlan: OwnerPlan | null =
     summary?.currentPlan ?? snapshotPlan ?? getOwnerPlanByCode(OWNER_SINGLE_MONTHLY_PLAN_CODE);

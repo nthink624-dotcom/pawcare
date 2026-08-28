@@ -13,7 +13,7 @@ import {
   type OwnerWebStaffMember,
 } from "@/components/owner-web/owner-web-staff-data";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
-import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
+import { clearOwnerAuthTokenCache, waitForOwnerAuthHydration } from "@/lib/auth/owner-auth-handoff";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { LANDING_DEMO_SHOP_ID } from "@/lib/development-demo";
@@ -455,11 +455,12 @@ export default function OwnerWebPreview({
     setLoggingOut(true);
 
     try {
+      await waitForOwnerAuthHydration();
+      clearOwnerAuthTokenCache();
       const supabase = getSupabaseBrowserClient();
       if (supabase) {
         await supabase.auth.signOut();
       }
-      clearOwnerAuthTokenCache();
     } finally {
       window.location.href = "/login";
     }

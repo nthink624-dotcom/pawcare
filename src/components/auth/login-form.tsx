@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 
@@ -10,9 +10,12 @@ import { getSupabaseRuntimeStage } from "@/lib/env";
 import {
   clearOwnerAuthHandoff,
   clearOwnerAuthTokenCache,
+  trackOwnerAuthHydration,
+  waitForOwnerAuthHydration,
   writeOwnerAuthHandoff,
   writeOwnerAuthSessionCache,
 } from "@/lib/auth/owner-auth-handoff";
+import { writeCurrentOwnerShopId } from "@/lib/owner-current-shop";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
@@ -21,6 +24,7 @@ type OwnerLoginApiResponse = {
   success?: boolean;
   reason?: "email_not_registered" | "invalid_password";
   message?: string;
+  shopId?: string | null;
   session?: {
     accessToken: string;
     refreshToken: string;
@@ -30,7 +34,7 @@ type OwnerLoginApiResponse = {
 const SAVED_EMAIL_KEY = "petmanager.savedEmail";
 const FAILED_LOGIN_STATE_PREFIX = "petmanager.failedLogin";
 const FAILED_LOGIN_LIMIT = 5;
-const BROWSER_SESSION_PERSIST_TIMEOUT_MS = 3000;
+const LOGIN_REQUEST_TIMEOUT_MS = 15000;
 const STORAGE_HEALTH_CHECK_KEY = "petmanager.storageHealthCheck";
 const OVERSIZED_PREVIEW_STORAGE_KEYS = ["petmanager.ownerWeb.shopProfileImages", "petmanager.ownerWeb.shopProfileImage"];
 const STORAGE_WARNING_USAGE_RATIO = 0.8;
@@ -67,30 +71,26 @@ async function reportStoragePressure(email: string, payload: { reason: string; u
   }
 }
 
-async function makeRoomForAuthStorage(email: string) {
+function makeRoomForAuthStorage(email: string) {
   if (typeof window === "undefined") return;
 
-  let reported = false;
-
-  try {
-    if (navigator.storage?.estimate) {
-      const estimate = await navigator.storage.estimate();
+  if (navigator.storage?.estimate) {
+    void navigator.storage.estimate().then((estimate) => {
       const usage = typeof estimate.usage === "number" ? estimate.usage : null;
       const quota = typeof estimate.quota === "number" && estimate.quota > 0 ? estimate.quota : null;
       const usageRatio = usage != null && quota != null ? usage / quota : null;
 
       if (usageRatio != null && usageRatio >= STORAGE_WARNING_USAGE_RATIO) {
-        reported = true;
-        await reportStoragePressure(email, {
+        void reportStoragePressure(email, {
           reason: "storage_usage_over_80_percent",
           usage,
           quota,
           usageRatio,
         });
       }
-    }
-  } catch {
-    // Browser storage estimate may be unavailable in some environments.
+    }).catch(() => {
+      // Browser storage estimate may be unavailable in some environments.
+    });
   }
 
   try {
@@ -98,14 +98,12 @@ async function makeRoomForAuthStorage(email: string) {
     window.localStorage.removeItem(STORAGE_HEALTH_CHECK_KEY);
     return;
   } catch {
-    if (!reported) {
-      await reportStoragePressure(email, {
-        reason: "local_storage_write_failed",
-        usage: null,
-        quota: null,
-        usageRatio: null,
-      });
-    }
+    void reportStoragePressure(email, {
+      reason: "local_storage_write_failed",
+      usage: null,
+      quota: null,
+      usageRatio: null,
+    });
   }
 
   for (const key of OVERSIZED_PREVIEW_STORAGE_KEYS) {
@@ -200,6 +198,7 @@ export default function LoginForm({
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
   const [rememberEmail, setRememberEmail] = useState(false);
   const [findEmailFlow, setFindEmailFlow] = useState<FindEmailFlow>({ status: "idle" });
+  const loginAttemptInFlightRef = useRef(false);
 
   useEffect(() => {
     if (nextPath.startsWith("/")) {
@@ -218,6 +217,8 @@ export default function LoginForm({
   }, []);
 
   const handleLogin = async (credentials?: { email: string; password: string }) => {
+    if (loginAttemptInFlightRef.current) return;
+
     const currentEmail = (credentials?.email ?? email).trim().toLowerCase();
     const currentPassword = credentials?.password ?? password;
 
@@ -237,13 +238,23 @@ export default function LoginForm({
       return;
     }
 
+    loginAttemptInFlightRef.current = true;
     setLoading(true);
     setMessage(null);
+    window.performance.clearMarks("petmanager:owner-login:submit");
+    window.performance.clearMarks("petmanager:owner-login:api-response");
+    window.performance.clearMarks("petmanager:owner-login:handoff-ready");
+    window.performance.clearMarks("petmanager:owner-login:session-ready");
+    window.performance.clearMarks("petmanager:owner-login:redirect-start");
+    window.performance.mark("petmanager:owner-login:submit");
+    const requestController = new AbortController();
+    const requestTimeoutId = window.setTimeout(() => requestController.abort(), LOGIN_REQUEST_TIMEOUT_MS);
 
     const clearPreviousLogin = async () => {
       clearOwnerAuthHandoff();
       clearOwnerAuthTokenCache();
       if (supabase) {
+        await waitForOwnerAuthHydration();
         await supabase.auth.signOut({ scope: "local" });
       }
     };
@@ -253,10 +264,12 @@ export default function LoginForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: currentEmail, password: currentPassword }),
+        signal: requestController.signal,
       });
       const result = (await response.json().catch(() => ({
         message: "로그인 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
       }))) as OwnerLoginApiResponse;
+      window.performance.mark("petmanager:owner-login:api-response");
 
       if (!response.ok || !result.success) {
         const nextMessage = result.message ?? "이메일 또는 비밀번호를 다시 확인해 주세요.";
@@ -299,24 +312,22 @@ export default function LoginForm({
       clearOwnerAuthTokenCache();
       writeOwnerAuthHandoff(authenticatedSession);
       writeOwnerAuthSessionCache(authenticatedSession);
-      await makeRoomForAuthStorage(currentEmail);
+      if (result.shopId) {
+        writeCurrentOwnerShopId(result.shopId);
+      }
+      window.performance.mark("petmanager:owner-login:handoff-ready");
+      makeRoomForAuthStorage(currentEmail);
 
       if (supabase) {
-        const sessionResult = await Promise.race([
+        void trackOwnerAuthHydration(
           supabase.auth.setSession({
             access_token: authenticatedSession.accessToken,
             refresh_token: authenticatedSession.refreshToken,
           }),
-          new Promise<null>((resolve) => {
-            window.setTimeout(() => resolve(null), BROWSER_SESSION_PERSIST_TIMEOUT_MS);
-          }),
-        ]);
-        if (sessionResult?.error) {
-          await clearPreviousLogin();
-          setMessage("로그인 상태를 저장하지 못했습니다. 다시 시도해 주세요.");
-          return;
-        }
+        );
       }
+
+      window.performance.mark("petmanager:owner-login:session-ready");
 
       try {
         if (rememberEmail && currentEmail) {
@@ -329,14 +340,21 @@ export default function LoginForm({
       }
 
       if (nextPath.startsWith("/")) {
+        window.performance.mark("petmanager:owner-login:redirect-start");
         router.replace(nextPath as Route);
       } else {
         window.location.assign(nextPath);
       }
-    } catch {
+    } catch (error) {
       await clearPreviousLogin().catch(() => undefined);
-      setMessage("로그인 요청 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.");
+      setMessage(
+        error instanceof DOMException && error.name === "AbortError"
+          ? "로그인 서버 응답이 늦어 요청을 중단했어요. 잠시 후 다시 시도해 주세요."
+          : "로그인 요청 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
+      );
     } finally {
+      window.clearTimeout(requestTimeoutId);
+      loginAttemptInFlightRef.current = false;
       setLoading(false);
     }
   };

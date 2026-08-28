@@ -1,11 +1,29 @@
 export const OWNER_AUTH_HANDOFF_STORAGE_KEY = "petmanager.ownerAuthHandoff";
 const OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY = "petmanager.ownerAuthTokenCache";
 let currentOwnerAccessToken: { accessToken: string; expiresAt: number | null } | null = null;
+let ownerAuthHydrationPromise: Promise<void> | null = null;
 
 export type OwnerAuthHandoffSession = {
   accessToken: string;
   refreshToken: string;
 };
+
+export function trackOwnerAuthHydration(hydration: Promise<unknown>) {
+  const tracked = hydration
+    .then(() => undefined)
+    .catch(() => undefined)
+    .finally(() => {
+      if (ownerAuthHydrationPromise === tracked) {
+        ownerAuthHydrationPromise = null;
+      }
+    });
+  ownerAuthHydrationPromise = tracked;
+  return tracked;
+}
+
+export async function waitForOwnerAuthHydration() {
+  await ownerAuthHydrationPromise;
+}
 
 type OwnerAuthTokenCachePayload = {
   accessToken: string;
@@ -136,8 +154,7 @@ export function readOwnerAuthTokenCache() {
     }
 
     if (parsed.expiresAt <= Date.now() + 60_000) {
-      safeRemoveItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
-      safeRemoveItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+      // Keep the cached refresh token available to the authenticated API recovery path.
       return null;
     }
 

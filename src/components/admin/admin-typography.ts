@@ -1,12 +1,22 @@
+/**
+ * 관리자 화면의 공통 가독성 체계.
+ *
+ * 오너 PC에서 합의된 14 / 16 / 20 / 28px 역할을 그대로 사용해
+ * 관리자 화면 안에서 임의의 작은 글자 크기가 다시 생기지 않게 한다.
+ */
 export const ADMIN_TYPOGRAPHY = {
-  pageTitle: "text-[clamp(1.875rem,3vw,2.25rem)] leading-[1.2] tracking-[-0.03em]",
-  sectionTitle: "text-[clamp(1.375rem,2vw,1.75rem)] leading-[1.3] tracking-[-0.02em]",
-  cardTitle: "text-[clamp(1rem,1.4vw,1.125rem)] leading-[1.5]",
-  body: "text-base leading-6",
-  secondary: "text-sm leading-[1.5]",
-  metric: "text-[clamp(1.5rem,2.4vw,2rem)] leading-[1.25]",
-  button: "min-h-11 text-base leading-6",
-  badge: "text-sm leading-5",
+  helper: "text-[14px] leading-[18px] font-normal",
+  meta: "text-[14px] leading-5 font-medium",
+  badge: "text-[14px] leading-5 font-semibold",
+  label: "text-[16px] leading-6 font-medium",
+  control: "text-[16px] leading-6 font-semibold",
+  body: "text-[16px] leading-6 font-medium",
+  bodyStrong: "text-[16px] leading-6 font-semibold",
+  sectionTitle: "text-[20px] leading-7 font-semibold",
+  pageTitle: "text-[28px] leading-9 font-semibold",
+  cardTitle: "text-[16px] leading-6 font-medium",
+  secondary: "text-[14px] leading-5 font-normal",
+  button: "min-h-11 text-[16px] leading-6 font-semibold",
 } as const;
 
 export const ADMIN_SURFACE = "admin-readable min-h-screen bg-[#f4f6f5] px-4 py-5 text-[#172033] md:px-7 md:py-7";

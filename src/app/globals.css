@@ -1119,9 +1119,12 @@ textarea {
 }
 
 .pm-wrap-indicator {
-  border-left-color: var(--pm-wrap-indicator-color);
-  border-left-width: 3px;
+  position: relative;
   overflow: hidden;
+  border: 1px solid #dbe2ea;
+  border-left: 3px solid var(--pm-wrap-indicator-color);
+  border-radius: 8px;
+  background: #ffffff;
 }
 
 .pm-mobile-owner {

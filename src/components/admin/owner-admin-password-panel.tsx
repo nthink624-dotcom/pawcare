@@ -10,7 +10,7 @@ export default function OwnerAdminPasswordPanel() {
       </div>
       <div className="min-w-0">
         <p className="text-[13px] text-[#0f172a]">계정 접근 관리</p>
-        <p className="mt-0.5 text-[12px] leading-4 text-[#64748b]">추가 인증과 2인 승인 흐름이 준비될 때까지 계정 복구 실행은 차단됩니다.</p>
+        <p className="mt-0.5 text-[12px] leading-4 text-[#64748b]">원자적 감사와 추가 인증 절차가 준비될 때까지 임시비밀번호 발급은 차단됩니다.</p>
       </div>
     </div>
   </section>;

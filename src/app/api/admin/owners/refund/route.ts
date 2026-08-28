@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
+import { AdminApiError, requireSuperAdminSession } from "@/server/admin-api-auth";
 import { assertAdminHighRiskActionReady } from "@/server/admin-high-risk-actions";
 
 export async function POST(request: NextRequest) {
   try {
-    const account = await requireAdminSession(request);
+    const account = await requireSuperAdminSession(request);
     assertAdminHighRiskActionReady("refund", account);
   } catch (error) {
     if (error instanceof AdminApiError) return NextResponse.json({ message: error.message }, { status: error.status });

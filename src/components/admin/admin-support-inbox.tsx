@@ -112,7 +112,7 @@ export default function AdminSupportInbox({
           type="button"
           onClick={onRefresh}
           disabled={loading}
-          className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] px-2.5 text-[13px] text-[#64748b] hover:bg-[#f8fafc] disabled:opacity-50"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] px-3 text-[13px] text-[#64748b] hover:bg-[#f8fafc] disabled:opacity-50"
         >
           <RefreshCcw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           새로고침
@@ -133,7 +133,7 @@ export default function AdminSupportInbox({
                 setFilter(item.key);
                 setSelectedId(null);
               }}
-              className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] px-3 text-[13px] font-medium ${
+              className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-[7px] px-3 text-[13px] font-medium ${
                 active
                   ? "bg-[#1f6b5b] text-white"
                   : "text-[#64748b] hover:bg-[#f1f5f9]"

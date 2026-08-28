@@ -52,6 +52,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
   const [supportSavingId, setSupportSavingId] = useState<string | null>(null);
+  const [detailsActivated, setDetailsActivated] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     const results = await Promise.allSettled([
@@ -72,10 +73,11 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
   }, []);
 
   useEffect(() => {
+    if (!detailsActivated) return;
     void loadDashboard();
     const timer = window.setInterval(() => void loadDashboard(), 30_000);
     return () => window.clearInterval(timer);
-  }, [loadDashboard]);
+  }, [detailsActivated, loadDashboard]);
 
   async function updateSupportRequest(
     id: string,
@@ -135,7 +137,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => void loadDashboard()} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] hover:bg-[#f8fafc]">
+            <button type="button" onClick={() => void loadDashboard()} disabled={!detailsActivated} title={detailsActivated ? "운영 정보 새로고침" : "상세를 열면 새로고침할 수 있습니다"} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50">
               <RefreshCcw className="h-4 w-4" aria-hidden="true" />새로고침
             </button>
             <button type="button" onClick={() => void handleLogout()} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] hover:bg-[#f8fafc]">
@@ -175,10 +177,10 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
         </section>
 
         <section className="mt-4 grid gap-3 lg:grid-cols-2" aria-label="상세 업무">
-          <DetailEntry title="문의 상세" summary={`미처리 ${pendingSupport}건`}>
+          <DetailEntry title="문의 상세" summary={`미처리 ${pendingSupport}건`} onOpen={() => setDetailsActivated(true)}>
             <AdminSupportInbox requests={supportRequests} error={error} loading={loadState === "loading"} savingId={supportSavingId} onRefresh={() => void loadDashboard()} onUpdate={updateSupportRequest} />
           </DetailEntry>
-          <DetailEntry title="매출 상세" summary={revenueSummary ? `이번 달 ${formatWon(revenueSummary.monthRevenue)}` : "집계 대기"}>
+          <DetailEntry title="매출 상세" summary={revenueSummary ? `이번 달 ${formatWon(revenueSummary.monthRevenue)}` : "집계 대기"} onOpen={() => setDetailsActivated(true)}>
             <AdminRevenueOverview summary={revenueSummary} error={error} onRefresh={() => void loadDashboard()} />
           </DetailEntry>
         </section>
@@ -231,9 +233,9 @@ function Metric({ icon: Icon, label, value }: { icon: typeof Store; label: strin
   return <div className="flex min-h-[68px] items-center gap-3 rounded-[8px] border border-[#e2e8f0] bg-white px-4 py-3"><Icon className="h-4 w-4 shrink-0 text-[#607080]" aria-hidden="true" /><div className="min-w-0"><p className="text-[12px] leading-[18px] text-[#64748b]">{label}</p><p className="truncate text-[16px] font-semibold leading-6 text-[#111827]">{value}</p></div></div>;
 }
 
-function DetailEntry({ title, summary, children }: { title: string; summary: string; children: React.ReactNode }) {
+function DetailEntry({ title, summary, onOpen, children }: { title: string; summary: string; onOpen: () => void; children: React.ReactNode }) {
   return (
-    <details className="group overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+    <details onToggle={(event) => { if (event.currentTarget.open) onOpen(); }} className="group overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc]">
         <span>{title}</span><span className="flex items-center gap-2 text-[13px] font-normal text-[#64748b]">{summary}<ChevronDown className="h-4 w-4 transition group-open:rotate-180" /></span>
       </summary>

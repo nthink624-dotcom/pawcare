@@ -30,7 +30,7 @@ export default function AdminRevenueOverview({
         <button
           type="button"
           onClick={onRefresh}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-[7px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]"
           aria-label="매출 새로고침"
         >
           <RefreshCcw className="h-4 w-4" />
@@ -98,7 +98,7 @@ export default function AdminRevenueOverview({
 
       <Link
         href="/owner/admin"
-        className="flex h-10 items-center justify-between border-t border-[#eef2f6] px-4 text-[13px] font-semibold text-[#1f6b5b] hover:bg-[#f7fbf9]"
+        className="flex min-h-11 items-center justify-between border-t border-[#eef2f6] px-4 text-[13px] font-semibold text-[#1f6b5b] hover:bg-[#f7fbf9]"
       >
         오너 계정 관리
         <ChevronRight className="h-4 w-4" />

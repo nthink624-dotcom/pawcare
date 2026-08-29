@@ -1,6 +1,69 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+import OwnerServiceExpiredScreen from "@/components/owner/owner-service-expired-screen";
+import { fetchApiJsonWithAuth } from "@/lib/api";
+import { clearOwnerAuthTokenCache, waitForOwnerAuthHydration } from "@/lib/auth/owner-auth-handoff";
+import {
+  isOwnerSubscriptionBlocked,
+  type OwnerSubscriptionSummary,
+} from "@/lib/billing/owner-subscription";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function OwnerAlimtalkCreditsPage() {
+  const router = useRouter();
+  const [summary, setSummary] = useState<OwnerSubscriptionSummary | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSubscription() {
+      try {
+        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
+          cache: "no-store",
+        });
+        if (active) setSummary(nextSummary);
+      } catch (error) {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : "";
+        if (message === "로그인이 필요합니다." || message.includes("로그인 상태를 확인하지 못했습니다")) {
+          router.replace("/login?next=/owner/alimtalk-credits" as never);
+          router.refresh();
+        }
+      }
+    }
+
+    void loadSubscription();
+    return () => {
+      active = false;
+    };
+  }, [router]);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+
+    try {
+      await waitForOwnerAuthHydration();
+      clearOwnerAuthTokenCache();
+      await getSupabaseBrowserClient()?.auth.signOut();
+    } finally {
+      router.replace("/login" as never);
+      router.refresh();
+      setLoggingOut(false);
+    }
+  };
+
+  if (!summary) return null;
+
+  if (isOwnerSubscriptionBlocked(summary.status)) {
+    return <OwnerServiceExpiredScreen summary={summary} onLogout={handleLogout} loggingOut={loggingOut} />;
+  }
+
   return (
     <main className="owner-font min-h-screen bg-[#f8fafc] px-5 py-10 text-[#0f172a]">
       <section className="mx-auto max-w-[520px] rounded-[14px] border border-[#dbe2ea] bg-white px-6 py-7">

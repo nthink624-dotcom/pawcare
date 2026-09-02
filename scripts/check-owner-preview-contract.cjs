@@ -9,6 +9,7 @@ const CONTRACT = Object.freeze({
   validationRef: "qefxdtmdtvnzgupmjlom",
   stage: "development",
 });
+const CANDIDATE_ENV_FILE = ".env.release-gate.local";
 
 function normalizeWindowsPath(value) {
   return path.resolve(value).replaceAll("/", "\\").replace(/\\+$/, "").toLowerCase();
@@ -62,15 +63,27 @@ function parseRefSet(...values) {
   );
 }
 
-function validateContract({ cwd, projectRoot, env, routeExists }) {
+function validateContract({ cwd, projectRoot, env, routeExists, mode = "canonical", candidateRoot = "" }) {
   const issues = [];
   const expectedRoot = normalizeWindowsPath(CONTRACT.projectRoot);
+  const actualProjectRoot = normalizeWindowsPath(projectRoot);
+  const actualCwd = normalizeWindowsPath(cwd);
 
-  if (normalizeWindowsPath(projectRoot) !== expectedRoot) {
-    issues.push("PC 구현 저장소가 D:\\petmanager가 아닙니다.");
-  }
-  if (normalizeWindowsPath(cwd) !== expectedRoot) {
-    issues.push("반드시 D:\\petmanager에서 실행해야 합니다.");
+  if (mode === "candidate") {
+    const expectedCandidateRoot = normalizeWindowsPath(candidateRoot);
+    if (!candidateRoot || expectedCandidateRoot === expectedRoot) {
+      issues.push("출시 후보 검증에는 정본과 다른 후보 root를 명시해야 합니다.");
+    }
+    if (actualProjectRoot !== expectedCandidateRoot || actualCwd !== expectedCandidateRoot) {
+      issues.push("출시 후보 root와 현재 실행 위치가 일치하지 않습니다.");
+    }
+  } else {
+    if (actualProjectRoot !== expectedRoot) {
+      issues.push("PC 구현 저장소가 D:\\petmanager가 아닙니다.");
+    }
+    if (actualCwd !== expectedRoot) {
+      issues.push("반드시 D:\\petmanager에서 실행해야 합니다.");
+    }
   }
   if (env.NEXT_PUBLIC_SITE_URL !== CONTRACT.origin) {
     issues.push("PC 로컬 주소가 http://127.0.0.1:3000으로 고정되지 않았습니다.");
@@ -118,11 +131,41 @@ function validateContract({ cwd, projectRoot, env, routeExists }) {
   return issues;
 }
 
+function parseRunArguments(argv, projectRoot) {
+  if (argv.length === 0) return { mode: "canonical", envPath: path.join(projectRoot, ".env.local") };
+  if (argv.length !== 4 || argv[0] !== "--candidate-root" || argv[2] !== "--candidate-env-file") {
+    return { error: "출시 후보 검증은 --candidate-root <root> --candidate-env-file .env.release-gate.local 형식으로만 실행할 수 있습니다." };
+  }
+
+  const candidateRoot = path.resolve(argv[1]);
+  const expectedEnvPath = path.join(candidateRoot, CANDIDATE_ENV_FILE);
+  const suppliedEnvPath = path.resolve(candidateRoot, argv[3]);
+  if (normalizeWindowsPath(candidateRoot) === normalizeWindowsPath(CONTRACT.projectRoot)) {
+    return { error: "정본은 출시 후보 모드로 검증할 수 없습니다." };
+  }
+  if (normalizeWindowsPath(candidateRoot) !== normalizeWindowsPath(projectRoot)) {
+    return { error: "명시한 출시 후보 root가 현재 스크립트가 있는 후보와 다릅니다." };
+  }
+  if (normalizeWindowsPath(suppliedEnvPath) !== normalizeWindowsPath(expectedEnvPath)) {
+    return { error: `출시 후보 환경 파일은 ${CANDIDATE_ENV_FILE} 하나만 사용할 수 있습니다.` };
+  }
+
+  return { mode: "candidate", candidateRoot, envPath: expectedEnvPath };
+}
+
 function run() {
   const projectRoot = path.resolve(__dirname, "..");
-  const envPath = path.join(projectRoot, ".env.local");
+  const runArgs = parseRunArguments(process.argv.slice(2), projectRoot);
+  if (runArgs.error) {
+    console.error(`[PC 로컬] BLOCKED: ${runArgs.error}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const envPath = runArgs.envPath;
   if (!fs.existsSync(envPath)) {
-    console.error("[PC 로컬] BLOCKED: D:\\petmanager\\.env.local이 없습니다.");
+    const envLabel = runArgs.mode === "candidate" ? CANDIDATE_ENV_FILE : "D:\\petmanager\\.env.local";
+    console.error(`[PC 로컬] BLOCKED: ${envLabel}이 없습니다.`);
     process.exitCode = 1;
     return;
   }
@@ -132,6 +175,8 @@ function run() {
     cwd: process.cwd(),
     projectRoot,
     env,
+    mode: runArgs.mode,
+    candidateRoot: runArgs.candidateRoot,
     routeExists(routePath) {
       return fs.existsSync(path.join(projectRoot, "src", "app", routePath.slice(1), "page.tsx"));
     },
@@ -144,18 +189,27 @@ function run() {
     return;
   }
 
-  console.log("[PC 로컬] OK 저장소=D:\\petmanager");
-  console.log(`[PC 로컬] OK 오너=${CONTRACT.origin}${CONTRACT.ownerPath}`);
-  console.log(`[PC 로컬] OK 관리자=${CONTRACT.origin}${CONTRACT.adminPath}`);
-  console.log(`[PC 로컬 + 검수용 연습 DB] OK project_ref=${CONTRACT.validationRef}`);
+  if (runArgs.mode === "candidate") {
+    console.log(`[출시 후보] OK 저장소=${projectRoot}`);
+    console.log("[출시 후보] OK 정본 서버 시작·대체 링크 사용 없음");
+    console.log("[출시 후보] OK /owner 및 /admin route 존재");
+    console.log(`[출시 후보 + 검수용 연습 DB] OK project_ref=${CONTRACT.validationRef}`);
+  } else {
+    console.log("[PC 로컬] OK 저장소=D:\\petmanager");
+    console.log(`[PC 로컬] OK 오너=${CONTRACT.origin}${CONTRACT.ownerPath}`);
+    console.log(`[PC 로컬] OK 관리자=${CONTRACT.origin}${CONTRACT.adminPath}`);
+    console.log(`[PC 로컬 + 검수용 연습 DB] OK project_ref=${CONTRACT.validationRef}`);
+  }
   console.log("[운영 서버 + 고객용 운영 DB] 변경 없음");
 }
 
 module.exports = {
   CONTRACT,
+  CANDIDATE_ENV_FILE,
   decodeJwtRef,
   normalizeWindowsPath,
   parseEnvText,
+  parseRunArguments,
   refFromSupabaseUrl,
   validateContract,
 };

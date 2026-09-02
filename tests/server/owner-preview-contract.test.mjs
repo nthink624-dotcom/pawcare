@@ -3,7 +3,13 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
-const { CONTRACT, parseEnvText, validateContract } = require("../../scripts/check-owner-preview-contract.cjs");
+const {
+  CANDIDATE_ENV_FILE,
+  CONTRACT,
+  parseEnvText,
+  parseRunArguments,
+  validateContract,
+} = require("../../scripts/check-owner-preview-contract.cjs");
 const packageJson = require("../../package.json");
 
 function validEnv(overrides = {}) {
@@ -24,6 +30,8 @@ function validate(env = validEnv(), options = {}) {
     cwd: options.cwd ?? CONTRACT.projectRoot,
     projectRoot: options.projectRoot ?? CONTRACT.projectRoot,
     env,
+    mode: options.mode,
+    candidateRoot: options.candidateRoot,
     routeExists: options.routeExists ?? (() => true),
   });
 }
@@ -38,6 +46,39 @@ test("localhost는 대표 확인 주소로 거부한다", () => {
 
 test("다른 저장소에서의 실행을 거부한다", () => {
   assert.match(validate(validEnv(), { cwd: "D:\\copied-petmanager" }).join("\n"), /D:\\petmanager/);
+});
+
+test("후보 검증은 후보 root와 전용 비밀 없는 환경 파일을 명시해야 한다", () => {
+  const candidateRoot = "D:\\petmanager-release-candidate-20260903";
+  assert.deepEqual(validate(validEnv(), {
+    cwd: candidateRoot,
+    projectRoot: candidateRoot,
+    mode: "candidate",
+    candidateRoot,
+  }), []);
+
+  assert.match(
+    validate(validEnv(), {
+      cwd: CONTRACT.projectRoot,
+      projectRoot: CONTRACT.projectRoot,
+      mode: "candidate",
+      candidateRoot: CONTRACT.projectRoot,
+    }).join("\n"),
+    /정본과 다른 후보 root/,
+  );
+
+  assert.deepEqual(
+    parseRunArguments(["--candidate-root", candidateRoot, "--candidate-env-file", CANDIDATE_ENV_FILE], candidateRoot),
+    {
+      mode: "candidate",
+      candidateRoot,
+      envPath: `${candidateRoot}\\${CANDIDATE_ENV_FILE}`,
+    },
+  );
+  assert.match(
+    parseRunArguments(["--candidate-root", candidateRoot, "--candidate-env-file", ".env.local"], candidateRoot).error,
+    /환경 파일/,
+  );
 });
 
 test("다른 DB 프로젝트를 거부한다", () => {
@@ -86,4 +127,8 @@ test("대표용 3000 서버 시작 명령은 사전검사를 자동 실행한다
   ]) {
     assert.equal(packageJson.scripts[hook], "npm run check:owner-preview", `${hook} is not guarded`);
   }
+  assert.equal(
+    packageJson.scripts["check:owner-preview:candidate"],
+    "node scripts/check-owner-preview-contract.cjs --candidate-root . --candidate-env-file .env.release-gate.local",
+  );
 });

@@ -28,6 +28,7 @@
     "status:list": "node --experimental-transform-types ./scripts/job-status.ts list",
     "check:supabase-env": "node scripts/check-supabase-env-consistency.cjs",
     "check:owner-preview": "node scripts/check-owner-preview-contract.cjs",
+    "check:owner-preview:candidate": "node scripts/check-owner-preview-contract.cjs --candidate-root . --candidate-env-file .env.release-gate.local",
     "check:supabase-cli-target:dev": "node scripts/verify-supabase-cli-target.cjs --target dev",
     "check:supabase-cli-target:prod": "node scripts/verify-supabase-cli-target.cjs --target prod",
     "check:data-safety": "node scripts/check-data-safety-guardrails.cjs",

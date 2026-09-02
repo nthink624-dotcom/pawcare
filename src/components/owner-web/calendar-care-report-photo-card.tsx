@@ -166,7 +166,7 @@ export function CalendarCareReportPhotoCard({
         }}
         disabled={disabled}
         aria-label={`${label} 사진 ${imageUrl || registered ? "교체" : "추가"}`}
-        className={`group absolute left-1/2 top-1/2 z-10 flex aspect-[4/3] w-full max-w-[228px] items-center justify-center overflow-hidden rounded-[14px] border border-[#cfd6de] bg-[#fafbfc] px-4 py-3 text-center hover:border-[#aeb9c5] hover:bg-white disabled:opacity-60 ${motionDirection === "next" ? "care-photo-carousel-next" : motionDirection === "previous" ? "care-photo-carousel-previous" : ""}`}
+        className={`group absolute left-1/2 top-1/2 z-10 flex aspect-[4/3] w-full max-w-[228px] items-center justify-center overflow-hidden rounded-[14px] border border-[#cfd6de] bg-[#fafbfc] px-4 py-3 text-center transition hover:border-[#aeb9c5] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-60 ${motionDirection === "next" ? "care-photo-carousel-next" : motionDirection === "previous" ? "care-photo-carousel-previous" : ""}`}
         style={!motionDirection ? {
           transform: `translate(calc(-50% + ${dragOffset}px), -50%) rotateY(${dragOffset * -0.08}deg) scale(${1 - Math.min(Math.abs(dragOffset) / 900, 0.06)})`,
           transition: dragging ? "none" : "transform 180ms ease-out",

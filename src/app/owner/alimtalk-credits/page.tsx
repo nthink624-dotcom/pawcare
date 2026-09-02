@@ -5,9 +5,10 @@ export default function OwnerAlimtalkCreditsPage() {
     <main className="owner-font min-h-screen bg-[#f8fafc] px-5 py-10 text-[#0f172a]">
       <section className="mx-auto max-w-[520px] rounded-[14px] border border-[#dbe2ea] bg-white px-6 py-7">
         <p className="text-[12px] font-semibold text-[#607080]">알림톡 이용 안내</p>
-        <h1 className="mt-2 text-[24px] font-bold tracking-[-0.03em]">추가 발송 이용권 판매가 종료되었습니다</h1>
+        <h1 className="mt-2 text-[24px] font-bold tracking-[-0.03em]">알림톡 이용 설정이 요금제로 통합되었습니다</h1>
         <p className="mt-3 text-[14px] leading-6 text-[#526070]">
-          신규 월 정기 요금에는 알림톡 기능이 포함됩니다. 별도 건수 충전이나 월별 크레딧 리셋은 없습니다.
+          알림톡 발송 기능은 현재 요금제의 이용 정책에 따라 제공됩니다. 발송 설정과 이력은 오너 화면에서
+          계속 확인할 수 있습니다.
         </p>
         <Link
           href="/owner/billing"

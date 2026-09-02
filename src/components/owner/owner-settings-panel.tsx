@@ -683,13 +683,13 @@ export default function OwnerSettingsPanel({
         const currentPlanTitle = isFreePlan || showTrialCard ? "체험 플랜" : getOwnerPlanDisplayName(currentPlan.code);
         const currentPlanLine = isFreePlan || showTrialCard
           ? "카드 등록 없이 이용 중"
-          : `${getOwnerPlanStaffLimitLabel(currentPlan, currentTotalShopCount)} · ${currentPlan.alimtalkIncludedLabel}`;
+          : getOwnerPlanStaffLimitLabel(currentPlan, currentTotalShopCount);
         const currentPlanPriceLabel = isFreePlan || showTrialCard ? "무료" : `월 ${won(currentPlan.monthlyPrice)}`;
         const currentPlanSubLabel = isFreePlan
           ? "관리자 설정"
           : showTrialCard
             ? "체험 플랜"
-          : currentPlan.excessAlimtalkLabel;
+          : "현재 요금제로 이용 중";
         const endDateLabel = "서비스 종료일";
         const isInService =
           subscriptionSummary.status === "active" ||

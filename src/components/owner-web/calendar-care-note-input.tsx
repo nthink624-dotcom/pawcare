@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUp, Loader2, Mic, MicOff, Sparkles, Square } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type FocusEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { CARE_REPORT_TYPOGRAPHY as OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
 
@@ -61,6 +61,8 @@ export function CalendarCareNoteInput({
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState("");
   const [speechError, setSpeechError] = useState("");
+  const [textareaInputModality, setTextareaInputModality] = useState<"keyboard" | "pointer">("keyboard");
+  const [textareaFocused, setTextareaFocused] = useState(false);
 
   useEffect(() => {
     return () => recognitionRef.current?.stop();
@@ -123,12 +125,36 @@ export function CalendarCareNoteInput({
     setListening(true);
   }
 
+  function markKeyboardTextareaFocus(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Tab") setTextareaInputModality("keyboard");
+  }
+
+  function resetTextareaFocusAfterLeave(event: FocusEvent<HTMLDivElement>) {
+    const scope = event.currentTarget;
+    queueMicrotask(() => {
+      if (!scope.contains(document.activeElement)) setTextareaInputModality("keyboard");
+    });
+  }
+
+  const textareaFocusStyle = textareaFocused && textareaInputModality === "keyboard"
+    ? { outline: "2px solid #2563eb", outlineOffset: 2 }
+    : undefined;
+
   return (
-    <div className="overflow-hidden rounded-[14px] border border-[#d7dde4] bg-white shadow-[0_7px_20px_rgba(20,39,63,0.06)] transition focus-within:border-[#8c99a7] focus-within:shadow-[0_9px_24px_rgba(20,39,63,0.10)]">
+    <div
+      data-textarea-input-modality={textareaInputModality}
+      onPointerDownCapture={() => setTextareaInputModality("pointer")}
+      onMouseDownCapture={() => setTextareaInputModality("pointer")}
+      onKeyDownCapture={markKeyboardTextareaFocus}
+      onBlurCapture={resetTextareaFocusAfterLeave}
+      className="overflow-visible rounded-[14px] border border-[#d7dde4] bg-white shadow-[0_7px_20px_rgba(20,39,63,0.06)] transition focus-within:border-[#8c99a7] focus-within:shadow-[0_9px_24px_rgba(20,39,63,0.10)]"
+    >
       <textarea
         data-modal-wheel-scope="self"
         value={value}
         onChange={(event) => onChange(event.target.value.slice(0, 2000))}
+        onFocus={() => setTextareaFocused(true)}
+        onBlur={() => setTextareaFocused(false)}
         onKeyDown={(event) => {
           if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
           event.preventDefault();
@@ -137,7 +163,8 @@ export function CalendarCareNoteInput({
         disabled={disabled}
         maxLength={2000}
         placeholder={"오늘 진행한 미용 · 아이 상태 · 집에서 관리할 점\n예) 발톱과 발바닥 털을 정리했어요. 피부가 조금 건조해 보여 보습 관리를 부탁드려요."}
-        className={`${OWNER_TYPOGRAPHY.body} h-[58px] max-h-[58px] w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent px-4 pb-1 pt-2 text-[#263547] outline-none placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
+        className={`${OWNER_TYPOGRAPHY.body} h-[58px] max-h-[58px] w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent px-4 pb-1 pt-2 text-[#263547] outline-none focus:outline-none focus:ring-0 placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
+        style={textareaFocusStyle}
       />
 
       {speechError ? (
@@ -169,7 +196,7 @@ export function CalendarCareNoteInput({
             title={listening ? "음성 입력 마치기" : "음성으로 입력하기"}
             onClick={listening ? stopListening : startListening}
             disabled={disabled || (!speechSupported && !listening)}
-            className={`grid h-8 w-8 place-items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
+            className={`grid h-11 w-11 place-items-center rounded-full transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-35 ${
               listening
                 ? "bg-[#edf0f3] text-[#14273f]"
                 : "text-[#44566a] hover:bg-[#f0f4f8]"
@@ -183,7 +210,7 @@ export function CalendarCareNoteInput({
             title="AI에게 정리 맡기기"
             onClick={onSubmit}
             disabled={disabled || submitting}
-            className="grid h-9 w-9 place-items-center rounded-full bg-[#14273f] text-white shadow-[0_8px_20px_rgba(20,39,63,0.22)] transition hover:bg-[#274563] disabled:cursor-not-allowed disabled:opacity-45"
+            className="grid h-11 w-11 place-items-center rounded-full bg-[#14273f] text-white shadow-[0_8px_20px_rgba(20,39,63,0.22)] transition hover:bg-[#274563] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-45"
           >
             {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowUp className="h-5 w-5" />}
           </button>

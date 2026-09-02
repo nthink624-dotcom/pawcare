@@ -32,7 +32,7 @@ export function CalendarStaffLaneHeader({
   const staffTone = getStaffChipTone(staffKey, chipColorIndex);
   const selectedStyle = selected
     ? {
-        backgroundColor: staffTone.background,
+        backgroundColor: "#eff6ff",
         "--staff-selected-color": staffTone.selectedBackground,
       }
     : {};
@@ -67,13 +67,13 @@ export function CalendarStaffLaneHeader({
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 truncate text-[15px] font-semibold leading-5 text-[#334155]" style={selected ? { color: staffTone.text } : undefined}>{name}</p>
+            <p className="min-w-0 truncate text-[15px] font-semibold leading-5 text-[#334155]">{name}</p>
             <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: selected ? staffTone.selectedBackground : "#1f9d55" }} aria-label="근무 중" />
           </div>
-          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[11px] font-medium leading-4 text-[#64748b]" style={selected ? { color: staffTone.mutedText } : undefined}>
+          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[13px] font-medium leading-5 text-[#64748b] tabular-nums">
             {startLabel && endLabel ? <span className="truncate">{startLabel}–{endLabel}</span> : null}
             <span className="h-3 w-px shrink-0 bg-[#dbe3ec]" aria-hidden="true" />
-            <span className="shrink-0 text-[#475569]" style={selected ? { color: staffTone.text } : undefined}>예약 {bookingCount}건</span>
+            <span className="shrink-0 text-[#475569]">예약 {bookingCount}건</span>
           </div>
         </div>
       </div>

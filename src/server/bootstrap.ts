@@ -37,6 +37,8 @@ type BootstrapOptions = {
   includeLanding?: boolean;
   includeNotifications?: boolean;
   includeGroomingRecords?: boolean;
+  includeOwnerExtras?: boolean;
+  includeStaffProfileImages?: boolean;
   appointmentsFrom?: string;
   appointmentsTo?: string;
   groomingRecordsFrom?: string;
@@ -249,17 +251,18 @@ async function hydrateStaffProfileImageUrls(shopId: string, staffMembers: Bootst
   }
 }
 
-function buildDefaultBootstrapOwnerStaffMember(shop: Shop): BootstrapStaffMember {
+function buildDefaultBootstrapOwnerStaffMember(shop: Shop, ownerProfile: OwnerProfile | null): BootstrapStaffMember {
+  const ownerName = ownerProfile?.name.trim() || "대표자";
   return {
     id: `${shop.id}-staff-owner`,
-    name: "원장",
-    displayName: "원장",
+    name: ownerName,
+    displayName: ownerName,
     profileImageUrl: "",
     profileMessage: defaultStaffProfileMessage,
     chipColorIndex: 0,
     phone: shop.phone ?? "",
-    role: "원장 / 전체 미용",
-    position: "원장",
+    role: "대표",
+    position: "대표",
     defaultDays: defaultOwnerStaffDays,
     startTime: "10:00",
     endTime: "19:00",
@@ -364,6 +367,8 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   const includeLanding = options.includeLanding ?? true;
   const includeNotifications = options.includeNotifications ?? true;
   const includeGroomingRecords = options.includeGroomingRecords ?? true;
+  const includeOwnerExtras = options.includeOwnerExtras ?? true;
+  const includeStaffProfileImages = options.includeStaffProfileImages ?? true;
   const appointmentsFrom = options.appointmentsFrom;
   const appointmentsTo = options.appointmentsTo;
   const groomingRecordsFrom = options.groomingRecordsFrom;
@@ -429,21 +434,19 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   const feedbackQuery = includeLanding
     ? supabase.from("landing_feedback").select("*").order("created_at", { ascending: false })
     : Promise.resolve({ data: [], error: null });
-  const alimtalkCreditSummaryQuery = supabase
-    .from("shop_alimtalk_credit_summaries")
-    .select("*")
-    .eq("shop_id", shopId)
-    .maybeSingle();
-  const petStaffNotesQuery = supabase
-    .from("pet_staff_notes")
-    .select("*")
-    .eq("shop_id", shopId)
-    .order("updated_at", { ascending: false });
-  const ownerProfileQuery = supabase
-    .from("owner_profiles")
-    .select("user_id,shop_id,login_id,name,birth_date,phone_number,identity_verified_at,agreements,created_at,updated_at")
-    .eq("shop_id", shopId)
-    .maybeSingle();
+  const alimtalkCreditSummaryQuery = includeOwnerExtras
+    ? supabase.from("shop_alimtalk_credit_summaries").select("*").eq("shop_id", shopId).maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+  const petStaffNotesQuery = includeOwnerExtras
+    ? supabase.from("pet_staff_notes").select("*").eq("shop_id", shopId).order("updated_at", { ascending: false })
+    : Promise.resolve({ data: [], error: null });
+  const ownerProfileQuery = includeOwnerExtras
+    ? supabase
+        .from("owner_profiles")
+        .select("user_id,shop_id,login_id,name,birth_date,phone_number,identity_verified_at,agreements,created_at,updated_at")
+        .eq("shop_id", shopId)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
 
   const [shopRes, guardiansRes, petsRes, servicesRes, staffMembersRes, staffScheduleOverridesRes, appointmentsRes, appointmentChangeEventsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes, ownerProfileRes] =
     await Promise.all([
@@ -524,10 +527,10 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     notification_settings: normalizeShopNotificationSettings((shopRes.data as Shop).notification_settings),
     customer_page_settings: normalizedCustomerPageSettings,
   };
-  const staffMembers = await hydrateStaffProfileImageUrls(
-    shopId,
-    (staffMemberRows as StaffMemberRow[]).map(normalizeStaffMember),
-  );
+  const normalizedStaffMembers = (staffMemberRows as StaffMemberRow[]).map(normalizeStaffMember);
+  const staffMembers = includeStaffProfileImages
+    ? await hydrateStaffProfileImageUrls(shopId, normalizedStaffMembers)
+    : normalizedStaffMembers;
   let appointmentChangeEvents: AppointmentChangeEvent[] = [];
   if (appointmentChangeEventsRes.error) {
     if (!isMissingAppointmentChangeEventsError(appointmentChangeEventsRes.error)) {
@@ -542,15 +545,19 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     appointmentChangeEvents,
   ).map(normalizeAppointmentForBootstrap);
 
+  const normalizedOwnerProfile = ownerProfileRes.error
+    ? null
+    : normalizeOwnerProfile(ownerProfileRes.data as OwnerProfileRow | null);
+
   return normalizeBootstrapNotifications({
     mode: "supabase",
     shop: normalizedShop,
-    ownerProfile: ownerProfileRes.error ? null : normalizeOwnerProfile(ownerProfileRes.data as OwnerProfileRow | null),
+    ownerProfile: normalizedOwnerProfile,
     guardians: activeGuardians,
     deletedGuardians,
     pets: ((petsRes.data ?? []) as Pet[]).filter((pet) => activeGuardianIds.has(pet.guardian_id)),
     services: (servicesRes.data ?? []) as Service[],
-    staffMembers: staffMembers.length > 0 ? staffMembers : [buildDefaultBootstrapOwnerStaffMember(normalizedShop)],
+    staffMembers: staffMembers.length > 0 ? staffMembers : [buildDefaultBootstrapOwnerStaffMember(normalizedShop, normalizedOwnerProfile)],
     staffScheduleOverrides: ((staffScheduleOverridesRes.data ?? []) as StaffScheduleOverrideRow[]).map(normalizeStaffScheduleOverride),
     appointments,
     appointmentChangeEvents,

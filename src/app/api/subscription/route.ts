@@ -7,6 +7,7 @@ import {
   updateOwnerSubscriptionPreferences,
 } from "@/server/owner-billing";
 import { requireOwnerBillingSession } from "@/server/owner-billing-session";
+import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
 const patchSchema = z.object({
   currentPlanCode: z.enum(["single_monthly_v1", "monthly", "quarterly", "halfyearly", "yearly"]).optional(),
@@ -16,14 +17,18 @@ export async function GET(request: NextRequest) {
   try {
     const { identity, shopId } = await requireOwnerBillingSession(request);
     const summary = await getOwnerSubscriptionSummary(identity, shopId);
-    return NextResponse.json(summary);
+    return ownerMobileCorsJson(request, summary);
   } catch (error) {
     if (error instanceof OwnerBillingError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return ownerMobileCorsJson(request, { message: error.message }, { status: error.status });
     }
 
-    return NextResponse.json({ message: "구독 정보를 불러오지 못했습니다." }, { status: 500 });
+    return ownerMobileCorsJson(request, { message: "구독 정보를 불러오지 못했습니다." }, { status: 500 });
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return ownerMobileCorsPreflight(request);
 }
 
 export async function PATCH(request: NextRequest) {

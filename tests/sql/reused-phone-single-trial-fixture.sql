@@ -3,7 +3,7 @@ do $$ begin if not exists (select 1 from pg_roles where rolname = 'authenticated
 do $$ begin if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin; end if; end $$;
 create schema auth;
 
-create table auth.users (id uuid primary key);
+create table auth.users (id uuid primary key, email text unique);
 
 create table public.shops (
   id text primary key, owner_user_id uuid references auth.users(id),

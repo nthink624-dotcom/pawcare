@@ -1,6 +1,5 @@
 import {
   ArrowRight,
-  CalendarDays,
   Check,
   Clock3,
   Database,
@@ -12,9 +11,9 @@ import type { ReactNode } from "react";
 
 import { BookingStructureComparison } from "@/components/landing/landing-booking-structure-comparison";
 import { AutomaticNotificationPreview } from "@/components/landing/landing-automatic-notification-preview";
-import { OwnerLaptopPreview } from "@/components/landing/landing-booking-flow-carousel";
+import { OwnerLaptopPreview, OwnerMobilePreview } from "@/components/landing/landing-booking-flow-carousel";
 import { BookingSystemStory } from "@/components/landing/landing-booking-system-story";
-import { GalaxyPhoneMockup, SectionHeading } from "@/components/landing/landing-ui";
+import { SectionHeading } from "@/components/landing/landing-ui";
 
 function LiveOwnerScreen({ view }: { view: "schedule" | "customers" }) {
   return (
@@ -24,21 +23,10 @@ function LiveOwnerScreen({ view }: { view: "schedule" | "customers" }) {
   );
 }
 
-function OwnerMobilePlaceholder() {
+function LiveOwnerMobileScreen() {
   return (
     <figure className="mx-auto flex w-full max-w-[190px] flex-col items-center">
-      <GalaxyPhoneMockup className="w-full">
-        <div
-          className="flex h-full flex-col items-center justify-center bg-[linear-gradient(180deg,#f8fbff_0%,#eef5ff_100%)] px-5 text-center"
-          aria-label="펫매니저 모바일 앱 화면 연결 예정"
-        >
-          <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#e0edff] text-[#2563eb]">
-            <CalendarDays className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <strong className="mt-4 break-keep text-[12px] font-semibold leading-5 text-[#172033]">모바일 운영 화면</strong>
-          <span className="mt-1 break-keep text-[9px] leading-4 text-[#7b8ca1]">APP 화면 연결 예정</span>
-        </div>
-      </GalaxyPhoneMockup>
+      <OwnerMobilePreview />
     </figure>
   );
 }
@@ -230,7 +218,7 @@ export function ScheduleProofSection() {
               <LiveOwnerScreen view="schedule" />
             </div>
             <div className="relative z-10 sm:absolute sm:bottom-0 sm:right-0 sm:w-[190px]">
-              <OwnerMobilePlaceholder />
+              <LiveOwnerMobileScreen />
             </div>
           </div>
         </div>

@@ -208,3 +208,25 @@ test("DB email uniqueness race is reported as an email error", async () => {
       error.message === "이미 사용 중인 이메일입니다.",
   );
 });
+
+test("기존 부분 데이터는 보상 정리 후 명시적인 409로 차단한다", async () => {
+  const deleted = [];
+  const compensated = [];
+  await assert.rejects(
+    orchestrateDevelopmentSignup({
+      requestId: "req-partial",
+      payloadHash: "hash-a",
+      dependencies: dependencies({
+        writeAtomicSignup: async () => { throw new Error("PM_SIGNUP_EXISTING_PARTIAL_DATA"); },
+        deleteAuthUser: async (userId) => { deleted.push(userId); return true; },
+        markFailureCompensated: async (record) => compensated.push(record),
+      }),
+    }),
+    (error) =>
+      error instanceof SignupFlowError &&
+      error.status === 409 &&
+      error.message.includes("자동으로 덮어쓰지 않았습니다"),
+  );
+  assert.deepEqual(deleted, ["user-1"]);
+  assert.equal(compensated.length, 1);
+});

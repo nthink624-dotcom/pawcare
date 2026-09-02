@@ -14,6 +14,8 @@ export async function POST(request: NextRequest) {
       phone: body?.phone,
       memo: body?.memo ?? "",
       enabled: body?.enabled,
+      customerGradeOverride: body?.customerGradeOverride ?? null,
+      customerMemberType: body?.customerMemberType ?? "guardian",
     });
     const pet = await createPet({
       shopId: owner.shopId,

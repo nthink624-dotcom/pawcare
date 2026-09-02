@@ -22,7 +22,7 @@ import MobileLoginScreenTemplate from "./mobile-login-screen-template";
 
 type OwnerLoginApiResponse = {
   success?: boolean;
-  reason?: "email_not_registered" | "invalid_password";
+  reason?: "invalid_credentials";
   message?: string;
   shopId?: string | null;
   session?: {
@@ -31,10 +31,19 @@ type OwnerLoginApiResponse = {
   };
 };
 
+type DevTestOwnerApiResponse = {
+  ready?: boolean;
+  message?: string;
+  shopId?: string | null;
+  session?: OwnerLoginApiResponse["session"];
+};
+
 const SAVED_EMAIL_KEY = "petmanager.savedEmail";
 const FAILED_LOGIN_STATE_PREFIX = "petmanager.failedLogin";
 const FAILED_LOGIN_LIMIT = 5;
-const LOGIN_REQUEST_TIMEOUT_MS = 15000;
+const LOGIN_REQUEST_TIMEOUT_MS = 10_000;
+const RECOVERY_REQUEST_TIMEOUT_MS = 10_000;
+const INVALID_LOGIN_MESSAGE = "아이디 또는 비밀번호를 확인해 주세요.";
 const STORAGE_HEALTH_CHECK_KEY = "petmanager.storageHealthCheck";
 const OVERSIZED_PREVIEW_STORAGE_KEYS = ["petmanager.ownerWeb.shopProfileImages", "petmanager.ownerWeb.shopProfileImage"];
 const STORAGE_WARNING_USAGE_RATIO = 0.8;
@@ -163,6 +172,7 @@ function isInvalidCredentialMessage(message?: string) {
   const normalized = (message ?? "").toLowerCase();
   return (
     normalized.includes("invalid login credentials") ||
+    normalized.includes("아이디") ||
     normalized.includes("이메일") ||
     normalized.includes("비밀번호")
   );
@@ -170,6 +180,16 @@ function isInvalidCredentialMessage(message?: string) {
 
 function getRateLimitMessage() {
   return "로그인 요청이 잠시 제한되었어요. 10분 뒤 다시 시도하거나 아래의 비밀번호 찾기로 재설정해 주세요.";
+}
+
+function waitForClientAbort(signal: AbortSignal) {
+  return new Promise<never>((_, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Request timed out", "AbortError"));
+      return;
+    }
+    signal.addEventListener("abort", () => reject(new DOMException("Request timed out", "AbortError")), { once: true });
+  });
 }
 
 function recordFailedLoginAttempt(email: string) {
@@ -199,6 +219,10 @@ export default function LoginForm({
   const [rememberEmail, setRememberEmail] = useState(false);
   const [findEmailFlow, setFindEmailFlow] = useState<FindEmailFlow>({ status: "idle" });
   const loginAttemptInFlightRef = useRef(false);
+  const loginAbortControllerRef = useRef<AbortController | null>(null);
+  const loginAttemptIdRef = useRef(0);
+  const findEmailAbortControllerRef = useRef<AbortController | null>(null);
+  const findEmailAttemptIdRef = useRef(0);
 
   useEffect(() => {
     if (nextPath.startsWith("/")) {
@@ -214,6 +238,11 @@ export default function LoginForm({
       setEmail(savedEmail);
       setRememberEmail(true);
     }
+  }, []);
+
+  useEffect(() => () => {
+    loginAbortControllerRef.current?.abort();
+    findEmailAbortControllerRef.current?.abort();
   }, []);
 
   const handleLogin = async (credentials?: { email: string; password: string }) => {
@@ -239,6 +268,7 @@ export default function LoginForm({
     }
 
     loginAttemptInFlightRef.current = true;
+    const loginAttemptId = ++loginAttemptIdRef.current;
     setLoading(true);
     setMessage(null);
     window.performance.clearMarks("petmanager:owner-login:submit");
@@ -248,7 +278,9 @@ export default function LoginForm({
     window.performance.clearMarks("petmanager:owner-login:redirect-start");
     window.performance.mark("petmanager:owner-login:submit");
     const requestController = new AbortController();
+    loginAbortControllerRef.current = requestController;
     const requestTimeoutId = window.setTimeout(() => requestController.abort(), LOGIN_REQUEST_TIMEOUT_MS);
+    const isCurrentLoginAttempt = () => loginAttemptIdRef.current === loginAttemptId && !requestController.signal.aborted;
 
     const clearPreviousLogin = async () => {
       clearOwnerAuthHandoff();
@@ -270,29 +302,21 @@ export default function LoginForm({
         message: "로그인 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
       }))) as OwnerLoginApiResponse;
       window.performance.mark("petmanager:owner-login:api-response");
+      if (!isCurrentLoginAttempt()) return;
 
       if (!response.ok || !result.success) {
         const nextMessage = result.message ?? "이메일 또는 비밀번호를 다시 확인해 주세요.";
         await clearPreviousLogin();
+        if (!isCurrentLoginAttempt()) return;
 
         if (isRateLimitMessage(nextMessage)) {
           setMessage(getRateLimitMessage());
           return;
         }
 
-        if (result.reason === "email_not_registered") {
-          setMessage("등록되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요.");
-          return;
-        }
-
-        if (result.reason === "invalid_password" || isInvalidCredentialMessage(nextMessage)) {
-          const failedState = recordFailedLoginAttempt(currentEmail);
-          const remainingAttempts = Math.max(1, FAILED_LOGIN_LIMIT - failedState.count);
-          setMessage(
-            failedState.count >= FAILED_LOGIN_LIMIT
-              ? "이메일 또는 비밀번호를 다시 확인해 주세요. 계속 안 되면 비밀번호 찾기로 재설정해 주세요."
-              : `이메일 또는 비밀번호를 다시 확인해 주세요. ${remainingAttempts}회 더 틀리면 비밀번호 찾기를 권장해 드릴게요.`,
-          );
+        if (result.reason === "invalid_credentials" || isInvalidCredentialMessage(nextMessage)) {
+          recordFailedLoginAttempt(currentEmail);
+          setMessage(INVALID_LOGIN_MESSAGE);
           return;
         }
 
@@ -305,6 +329,7 @@ export default function LoginForm({
       const authenticatedSession = result.session;
       if (!authenticatedSession?.accessToken || !authenticatedSession.refreshToken) {
         await clearPreviousLogin();
+        if (!isCurrentLoginAttempt()) return;
         setMessage("로그인 정보를 확인하지 못했습니다. 다시 시도해 주세요.");
         return;
       }
@@ -347,6 +372,9 @@ export default function LoginForm({
       }
     } catch (error) {
       await clearPreviousLogin().catch(() => undefined);
+      // An abort is still the current attempt: show its bounded-timeout result,
+      // while late successful responses remain ignored by the signal-aware guard.
+      if (loginAttemptIdRef.current !== loginAttemptId) return;
       setMessage(
         error instanceof DOMException && error.name === "AbortError"
           ? "로그인 서버 응답이 늦어 요청을 중단했어요. 잠시 후 다시 시도해 주세요."
@@ -354,8 +382,11 @@ export default function LoginForm({
       );
     } finally {
       window.clearTimeout(requestTimeoutId);
-      loginAttemptInFlightRef.current = false;
-      setLoading(false);
+      if (loginAttemptIdRef.current === loginAttemptId) {
+        loginAbortControllerRef.current = null;
+        loginAttemptInFlightRef.current = false;
+        setLoading(false);
+      }
     }
   };
 
@@ -368,35 +399,71 @@ export default function LoginForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
-      const result = (await response.json()) as { email?: string; password?: string | null; message?: string };
+      const result = (await response.json().catch(() => ({}))) as DevTestOwnerApiResponse;
 
-      if (!response.ok || !result.email) {
+      if (!response.ok || !result.ready || !result.session?.accessToken || !result.session.refreshToken) {
         setMessage(result.message ?? "개발용 테스트 계정을 만들지 못했어요.");
         return;
       }
 
-      setEmail(result.email);
-      if (result.password) {
-        setPassword(result.password);
+      clearOwnerAuthHandoff();
+      clearOwnerAuthTokenCache();
+      writeOwnerAuthHandoff(result.session);
+      writeOwnerAuthSessionCache(result.session);
+      if (result.shopId) writeCurrentOwnerShopId(result.shopId);
+      if (supabase) {
+        void trackOwnerAuthHydration(
+          supabase.auth.setSession({
+            access_token: result.session.accessToken,
+            refresh_token: result.session.refreshToken,
+          }),
+        );
       }
-      setRememberEmail(true);
-      window.localStorage.setItem(SAVED_EMAIL_KEY, result.email);
-      setMessage(result.message ?? "개발용 테스트 계정을 준비했어요. 바로 로그인해 보세요.");
+
+      setMessage(result.message ?? "검수용 테스트 오너로 로그인했습니다.");
+      if (nextPath.startsWith("/")) {
+        router.replace(nextPath as Route);
+      } else {
+        window.location.assign(nextPath);
+      }
+    } catch {
+      setMessage("개발용 테스트 계정을 준비하는 중 문제가 생겼어요. 다시 시도해 주세요.");
     } finally {
       setCreatingDevOwner(false);
     }
   };
 
   const startFindEmail = async () => {
+    if (findEmailAbortControllerRef.current) return;
+
+    const findEmailAttemptId = ++findEmailAttemptIdRef.current;
+    const requestController = new AbortController();
+    findEmailAbortControllerRef.current = requestController;
+    const requestTimeoutId = window.setTimeout(() => requestController.abort(), RECOVERY_REQUEST_TIMEOUT_MS);
+    const isCurrentFindEmailAttempt = () => findEmailAttemptIdRef.current === findEmailAttemptId && !requestController.signal.aborted;
     setFindEmailFlow({ status: "preparing" });
     setMessage(null);
 
     try {
-      const foundEmail = await findEmailWithKcpIdentityVerification();
+      const foundEmail = await Promise.race([
+        findEmailWithKcpIdentityVerification(),
+        waitForClientAbort(requestController.signal),
+      ]);
+      if (!isCurrentFindEmailAttempt()) return;
       setFindEmailFlow({ status: "result", email: foundEmail });
-    } catch (error) {
+    } catch {
+      if (findEmailAttemptIdRef.current !== findEmailAttemptId) return;
       setFindEmailFlow({ status: "idle" });
-      setMessage(error instanceof Error ? error.message : "본인인증을 진행하는 중 문제가 발생했어요. 다시 시도해 주세요.");
+      setMessage(
+        requestController.signal.aborted
+          ? "본인인증 확인 시간이 길어 요청을 중단했어요. 다시 시도해 주세요."
+          : "본인인증을 진행하지 못했어요. 다시 시도해 주세요.",
+      );
+    } finally {
+      window.clearTimeout(requestTimeoutId);
+      if (findEmailAttemptIdRef.current === findEmailAttemptId) {
+        findEmailAbortControllerRef.current = null;
+      }
     }
   };
 
@@ -475,7 +542,7 @@ export default function LoginForm({
           <div className="rounded-[22px] border border-[#dfe7e2] bg-[#f6fbf9] p-4">
             <p className="text-[13px] font-semibold text-[#1f6b5b]">개발용 테스트 계정</p>
             <p className="mt-2 text-[13px] leading-6 text-[#5f6c66]">
-              새 개발용 DB에서는 운영 계정이 자동으로 복사되지 않아요. 버튼 한 번으로 테스트 오너 계정을 만들고 바로 로그인할 수 있어요.
+              검수용 연습 DB의 테스트 오너를 안전하게 확인하고, 빠진 연결만 보충한 뒤 바로 로그인해요.
             </p>
             <button
               type="button"
@@ -483,7 +550,7 @@ export default function LoginForm({
               disabled={creatingDevOwner || loading}
               className="mt-4 flex h-[48px] w-full items-center justify-center rounded-[16px] border border-[#cfe3dc] bg-white text-[15px] font-semibold text-[#1f6b5b] disabled:opacity-60"
             >
-              {creatingDevOwner ? "테스트 계정 준비 중..." : "개발용 테스트 오너 만들기"}
+              {creatingDevOwner ? "테스트 오너 확인 중..." : "검수용 테스트 오너로 시작하기"}
             </button>
           </div>
         </div>

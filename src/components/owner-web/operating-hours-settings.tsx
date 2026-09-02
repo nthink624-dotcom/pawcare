@@ -4,6 +4,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Info, Plus, Trash2 } from "luci
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { OwnerInitialSetupSaveNextActions } from "@/components/owner-web/owner-initial-setup-guide";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { normalizeBookingBlockedWindows, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
@@ -562,7 +563,10 @@ export default function OperatingHoursSettings({
   onClosedDaysChange,
   shop,
   onShopChange,
+  onSaveSuccess,
+  onInitialSetupNext,
   persistToSupabase = false,
+  initialSetupMode = false,
   compact = false,
 }: {
   businessHoursValue: string | boolean | number;
@@ -571,7 +575,10 @@ export default function OperatingHoursSettings({
   onClosedDaysChange: (value: string) => void;
   shop?: Shop;
   onShopChange?: (shop: Shop) => void;
+  onSaveSuccess?: () => void;
+  onInitialSetupNext?: () => void;
   persistToSupabase?: boolean;
+  initialSetupMode?: boolean;
   compact?: boolean;
 }) {
   const [businessDays, setBusinessDays] = useState(() => (shop ? createBusinessDaysFromShop(shop) : createInitialBusinessDays(businessHoursValue, closedDaysValue)));
@@ -585,11 +592,20 @@ export default function OperatingHoursSettings({
     return (initialDays.find((day) => day.enabled) ?? initialDays[0])?.close ?? "19:00";
   });
   const [activeTab, setActiveTab] = useState<OperatingHoursTab>("business");
+  const [initialSetupSubview, setInitialSetupSubview] = useState<"hours" | "closures">("hours");
   const [regularHolidayCycle, setRegularHolidayCycle] = useState<RegularHolidayCycle>(getRegularHolidayCycle(shop));
   const [regularHolidayAnchorDate, setRegularHolidayAnchorDate] = useState(getRegularHolidayAnchorDate(shop) ?? getWeekAnchorDateKey());
+
+  useEffect(() => {
+    if (initialSetupMode) {
+      setActiveTab("business");
+      setInitialSetupSubview("hours");
+    }
+  }, [initialSetupMode]);
   const [regularHolidayMonth, setRegularHolidayMonth] = useState(() => createMonthCursor());
   const [pendingTemporaryHolidayDate, setPendingTemporaryHolidayDate] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [isCompletingInitialSetup, setIsCompletingInitialSetup] = useState(false);
   useEffect(() => {
     if (persistToSupabase) return;
     try {
@@ -630,12 +646,21 @@ export default function OperatingHoursSettings({
     };
   }
 
-  async function persistShopOperatingHours(nextDays: BusinessDay[], nextSettings: BookingSettingsState, cycle = regularHolidayCycle, anchorDate = regularHolidayAnchorDate) {
+  async function persistShopOperatingHours(
+    nextDays: BusinessDay[],
+    nextSettings: BookingSettingsState,
+    cycle = regularHolidayCycle,
+    anchorDate = regularHolidayAnchorDate,
+    notifySuccess = !initialSetupMode,
+  ) {
     const nextShop = buildNextShop(nextDays, nextSettings, cycle, anchorDate);
     if (!nextShop) return;
 
     onShopChange?.(nextShop);
-    if (!persistToSupabase || nextShop.id === "demo-shop" || nextShop.id === "owner-demo") return;
+    if (!persistToSupabase || nextShop.id === "demo-shop" || nextShop.id === "owner-demo") {
+      if (notifySuccess) onSaveSuccess?.();
+      return;
+    }
 
     try {
       setSaveError("");
@@ -676,6 +701,7 @@ export default function OperatingHoursSettings({
         }),
       });
       onShopChange?.(savedShop);
+      if (notifySuccess) onSaveSuccess?.();
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to save operating hours", error);
       setSaveError(error instanceof Error ? error.message : "운영시간 저장에 실패했습니다. 새로고침 후 다시 시도해 주세요.");
@@ -687,7 +713,7 @@ export default function OperatingHoursSettings({
     const firstOpenDay = nextDays.find((day) => day.open && day.close) ?? nextDays[0];
     if (firstOpenDay) onBusinessHoursChange(`${firstOpenDay.open} - ${firstOpenDay.close}`);
     onClosedDaysChange(formatClosedDays(nextDays.filter((day) => !day.enabled).map((day) => day.shortLabel)));
-    void persistShopOperatingHours(nextDays, nextSettings);
+    if (!initialSetupMode) void persistShopOperatingHours(nextDays, nextSettings);
   }
 
   function updateBusinessDay(dayKey: BusinessDayKey, patch: Partial<BusinessDay>) {
@@ -701,12 +727,12 @@ export default function OperatingHoursSettings({
   function updateBookingSetting<K extends keyof BookingSettingsState>(key: K, value: BookingSettingsState[K], shouldPersistShop = false) {
     const nextSettings = { ...bookingSettings, [key]: value };
     setBookingSettings(nextSettings);
-    if (shouldPersistShop) void persistShopOperatingHours(businessDays, nextSettings);
+    if (shouldPersistShop && !initialSetupMode) void persistShopOperatingHours(businessDays, nextSettings);
   }
 
   function updateRegularHolidayCycle(cycle: RegularHolidayCycle) {
     setRegularHolidayCycle(cycle);
-    void persistShopOperatingHours(businessDays, bookingSettings, cycle, regularHolidayAnchorDate);
+    if (!initialSetupMode) void persistShopOperatingHours(businessDays, bookingSettings, cycle, regularHolidayAnchorDate);
   }
 
   function addTemporaryHoliday(dateKey: string) {
@@ -722,7 +748,7 @@ export default function OperatingHoursSettings({
       ].sort((left, right) => left.date.localeCompare(right.date)),
     };
     setBookingSettings(nextSettings);
-    void persistShopOperatingHours(businessDays, nextSettings);
+    if (!initialSetupMode) void persistShopOperatingHours(businessDays, nextSettings);
     setPendingTemporaryHolidayDate("");
   }
 
@@ -732,7 +758,7 @@ export default function OperatingHoursSettings({
       temporaryHolidays: bookingSettings.temporaryHolidays.filter((holiday) => holiday.id !== id),
     };
     setBookingSettings(nextSettings);
-    void persistShopOperatingHours(businessDays, nextSettings);
+    if (!initialSetupMode) void persistShopOperatingHours(businessDays, nextSettings);
   }
 
   function addBlockedWindow() {
@@ -744,7 +770,7 @@ export default function OperatingHoursSettings({
       ],
     };
     setBookingSettings(nextSettings);
-    void persistShopOperatingHours(businessDays, nextSettings);
+    if (!initialSetupMode) void persistShopOperatingHours(businessDays, nextSettings);
   }
 
   function updateBlockedWindow(id: string, patch: Partial<BookingWindow>) {
@@ -767,6 +793,23 @@ export default function OperatingHoursSettings({
     if (regularHolidayCycle === "monthly_1_3") return [1, 3].includes(getWeekOfMonthFromDateKey(dateKey));
     if (regularHolidayCycle === "monthly_2_4") return [2, 4].includes(getWeekOfMonthFromDateKey(dateKey));
     return false;
+  }
+
+  async function completeInitialSetupStep() {
+    if (isCompletingInitialSetup) return;
+    setIsCompletingInitialSetup(true);
+    setSaveError("");
+    try {
+      await persistShopOperatingHours(
+        businessDays,
+        bookingSettings,
+        regularHolidayCycle,
+        regularHolidayAnchorDate,
+        true,
+      );
+    } finally {
+      setIsCompletingInitialSetup(false);
+    }
   }
 
   function renderRegularHolidayCalendarPreview() {
@@ -816,7 +859,13 @@ export default function OperatingHoursSettings({
                     removeTemporaryHoliday(savedTemporaryHoliday.id);
                     return;
                   }
-                  if (dateKey >= todayKey()) setPendingTemporaryHolidayDate(dateKey);
+                  if (dateKey >= todayKey()) {
+                    if (initialSetupMode) {
+                      addTemporaryHoliday(dateKey);
+                    } else {
+                      setPendingTemporaryHolidayDate(dateKey);
+                    }
+                  }
                 }}
                 className={cn(
                   "flex h-7 items-center justify-center rounded-[7px] border text-[13px] font-normal transition",
@@ -1007,36 +1056,43 @@ export default function OperatingHoursSettings({
           {saveError}
         </p>
       ) : null}
-      <div className={cn("flex items-center border-b border-[#dbe2ea]", compact ? "mb-2 gap-2 pb-2" : "mb-3 gap-5 pb-3")}>
-        {[
-          { key: "business" as const, label: "매장 영업 시간" },
-          { key: "booking" as const, label: "예약 시간 설정" },
-        ].map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => setActiveTab(item.key)}
-            className={cn(
-              "rounded-[8px] font-normal transition",
-              compact ? "h-8 px-3 text-[15px]" : "h-10 px-4 text-[16px]",
-              activeTab === item.key
-                ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
-                : "text-[#64748b] hover:text-[#111827]",
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      {!initialSetupMode ? (
+        <div className={cn("flex items-center border-b border-[#dbe2ea]", compact ? "mb-2 gap-2 pb-2" : "mb-3 gap-5 pb-3")}>
+          {[
+            { key: "business" as const, label: "매장 영업 시간" },
+            { key: "booking" as const, label: "예약 시간 설정" },
+          ].map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setActiveTab(item.key)}
+              className={cn(
+                "rounded-[8px] font-normal transition",
+                compact ? "h-8 px-3 text-[15px]" : "h-10 px-4 text-[16px]",
+                activeTab === item.key
+                  ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
+                  : "text-[#64748b] hover:text-[#111827]",
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {activeTab === "business" ? (
-        <div className={cn("grid", compact ? "gap-3 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]" : "gap-4 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]")}>
-          <WebSurface className={cn("xl:order-2", compact ? "p-3" : "p-4")}>
+        <div className={cn("grid", initialSetupMode ? "gap-5" : compact ? "gap-3 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]" : "gap-4 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]")}>
+          {!initialSetupMode || initialSetupSubview === "hours" ? (
+          <WebSurface className={cn("xl:order-2", initialSetupMode ? "rounded-none border-0 p-0" : compact ? "p-3" : "p-4")}>
             <div className="divide-y divide-[#edf2f7]">
               <div
                 className={cn(
                   "grid items-center bg-[#fbfcfd]",
-                  compact ? "grid-cols-[118px_minmax(0,1fr)] gap-3 px-3 py-2" : "grid-cols-[150px_minmax(0,1fr)] gap-5 px-4 py-3.5",
+                  initialSetupMode
+                    ? "grid-cols-1 gap-3 px-3 py-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-5 sm:px-4 sm:py-3.5"
+                    : compact
+                      ? "grid-cols-[118px_minmax(0,1fr)] gap-3 px-3 py-2"
+                      : "grid-cols-[150px_minmax(0,1fr)] gap-5 px-4 py-3.5",
                 )}
               >
                 <div>
@@ -1050,7 +1106,14 @@ export default function OperatingHoursSettings({
                     </div>
                   </div>
                 </div>
-                <div className={cn("grid items-center", compact ? "grid-cols-[96px_24px_96px_auto] justify-start gap-2" : "grid-cols-[116px_24px_116px_auto] justify-start gap-3")}>
+                <div className={cn(
+                  "grid items-center",
+                  initialSetupMode
+                    ? "grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)] justify-stretch gap-2 sm:grid-cols-[116px_24px_116px_auto] sm:justify-start sm:gap-3"
+                    : compact
+                      ? "grid-cols-[96px_24px_96px_auto] justify-start gap-2"
+                      : "grid-cols-[116px_24px_116px_auto] justify-start gap-3",
+                )}>
                   <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact={compact} />
                   <span className={cn("inline-flex items-center justify-center font-normal text-[#94a3b8]", compact ? "h-8 text-[14px]" : "h-10 text-[16px]")}>-</span>
                   <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact={compact} />
@@ -1059,7 +1122,11 @@ export default function OperatingHoursSettings({
                     onClick={applyBulkTimeToAllDays}
                     className={cn(
                       "rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]",
-                      compact ? "h-8 px-3 text-[14px]" : "h-10 px-4 text-[15px]",
+                      initialSetupMode
+                        ? "col-span-3 min-h-11 w-full px-4 text-[16px] font-medium leading-6 sm:col-span-1 sm:h-10 sm:min-h-0 sm:w-auto sm:text-[15px] sm:font-normal"
+                        : compact
+                          ? "h-8 px-3 text-[14px]"
+                          : "h-10 px-4 text-[15px]",
                     )}
                   >
                     적용
@@ -1071,7 +1138,11 @@ export default function OperatingHoursSettings({
                   key={day.key}
                   className={cn(
                     "grid items-center",
-                    compact ? "grid-cols-[76px_108px_minmax(305px,1fr)] gap-3 py-2" : "grid-cols-[110px_160px_minmax(400px,1fr)] gap-5 py-3.5",
+                    initialSetupMode
+                      ? "grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-3 sm:grid-cols-[110px_150px_minmax(0,1fr)] sm:gap-4"
+                      : compact
+                        ? "grid-cols-[76px_108px_minmax(305px,1fr)] gap-3 py-2"
+                        : "grid-cols-[110px_160px_minmax(400px,1fr)] gap-5 py-3.5",
                   )}
                 >
                   <p className={cn("font-normal text-[#111827]", compact ? "text-[15px]" : "text-[16px]")}>{day.label}</p>
@@ -1081,7 +1152,14 @@ export default function OperatingHoursSettings({
                       {day.enabled ? "영업함" : "휴무일"}
                     </span>
                   </div>
-                  <div className={cn("ml-auto grid items-center justify-end", compact ? "grid-cols-[96px_24px_96px] gap-2" : "grid-cols-[116px_24px_116px] gap-3")}>
+                  <div className={cn(
+                    "grid items-center justify-end",
+                    initialSetupMode
+                      ? "col-span-2 ml-0 w-full grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)] gap-2 sm:col-span-1 sm:ml-auto sm:w-auto sm:grid-cols-[116px_24px_116px] sm:gap-3"
+                      : compact
+                        ? "ml-auto grid-cols-[96px_24px_96px] gap-2"
+                        : "ml-auto grid-cols-[116px_24px_116px] gap-3",
+                  )}>
                     {day.enabled ? (
                       <>
                         <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact={compact} />
@@ -1097,11 +1175,34 @@ export default function OperatingHoursSettings({
                 </div>
               ))}
             </div>
+            {initialSetupMode ? (
+              <div className="mt-4 border-t border-[#dbe2ea] pt-4">
+                <button
+                  type="button"
+                  onClick={() => setInitialSetupSubview("closures")}
+                  className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-[#dbe2ea] bg-white px-4 text-[16px] font-medium leading-6 text-[#15213b] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+                >
+                  휴무일 추가
+                </button>
+              </div>
+            ) : null}
           </WebSurface>
+          ) : null}
 
-          <WebSurface className={cn("xl:order-1", compact ? "p-3" : "p-4")}>
+          {!initialSetupMode || initialSetupSubview === "closures" ? (
+          <WebSurface className={cn("xl:order-1", initialSetupMode ? "rounded-none border-0 p-0" : compact ? "p-3" : "p-4")}>
+            {initialSetupMode ? (
+              <button
+                type="button"
+                onClick={() => setInitialSetupSubview("hours")}
+                className="mb-4 inline-flex min-h-11 items-center justify-center gap-1 rounded-[8px] px-2 text-[16px] font-medium leading-6 text-[#475569] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                영업시간으로 돌아가기
+              </button>
+            ) : null}
             <div className={cn("border-b border-[#edf2f7]", compact ? "pb-3" : "pb-4")}>
-              <p className={cn("font-normal text-[#111827]", compact ? "text-[16px]" : "text-[18px]")}>정기 휴무일</p>
+              <p className={cn("text-[#111827]", initialSetupMode ? "text-[20px] font-semibold leading-7" : compact ? "text-[16px] font-normal" : "text-[18px] font-normal")}>{initialSetupMode ? "휴무일 추가" : "정기 휴무일"}</p>
               <div className={cn("grid grid-cols-3 gap-1 rounded-[10px] border border-[#e4ebf2] bg-[#f8fafc] p-1", compact ? "mt-2" : "mt-4")}>
                 {extendedRegularHolidayCycleOptions.map((option) => (
                   <button
@@ -1145,8 +1246,9 @@ export default function OperatingHoursSettings({
             </div>
 
           </WebSurface>
+          ) : null}
 
-          {pendingTemporaryHolidayDate ? (
+          {!initialSetupMode && pendingTemporaryHolidayDate ? (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/20 px-4" role="dialog" aria-modal="true">
               <div className="w-full max-w-[360px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
                 <p className="text-[18px] font-normal text-[#111827]">임시 휴무일 지정</p>
@@ -1218,6 +1320,14 @@ export default function OperatingHoursSettings({
             </div>
           </div>
         </WebSurface>
+      ) : null}
+
+      {initialSetupMode && initialSetupSubview === "hours" ? (
+        <OwnerInitialSetupSaveNextActions
+          onSave={completeInitialSetupStep}
+          onNext={() => onInitialSetupNext?.()}
+          saving={isCompletingInitialSetup}
+        />
       ) : null}
 
     </div>

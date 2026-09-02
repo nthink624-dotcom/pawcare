@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { registerHooks } from "node:module";
+import { resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const sourceRoot = fileURLToPath(new URL("../../src/", import.meta.url));
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (!specifier.startsWith("@/")) return nextResolve(specifier, context);
+    const sourcePath = resolve(sourceRoot, specifier.slice(2));
+    const candidate = [sourcePath, `${sourcePath}.ts`, `${sourcePath}.tsx`, resolve(sourcePath, "index.ts"), resolve(sourcePath, "index.tsx")]
+      .find((path) => existsSync(path));
+    if (!candidate) return nextResolve(specifier, context);
+    return { url: pathToFileURL(candidate).href, shortCircuit: true };
+  },
+});
 
 process.env.OWNER_TRIAL_IDENTITY_CURRENT_VERSION = "v1";
 process.env.OWNER_TRIAL_IDENTITY_HMAC_SECRET_V1 = "fixture-only-owner-trial-secret";
@@ -20,10 +36,10 @@ test("domestic and +82 phone formats share one canonical trial identity", () => 
   assert.match(identity.hashOwnerTrialPhoneIdentity(variants[0]), /^[0-9a-f]{64}$/);
 });
 
-test("main signup delegates trial eligibility to v4 and preserves email-specific duplicate errors", async () => {
+test("main signup delegates trial eligibility to v5 and preserves email-specific duplicate errors", async () => {
   const route = await readFile(new URL("../../src/app/api/auth/signup/route.ts", import.meta.url), "utf8");
-  assert.match(route, /claim_owner_signup_v4/);
-  assert.match(route, /complete_owner_signup_v4/);
+  assert.match(route, /claim_owner_signup_v5/);
+  assert.match(route, /complete_owner_signup_v5/);
   assert.match(route, /buildOwnerTrialPhoneIdentityKeys\(verifiedIdentity\.phone_number\)/);
   assert.match(route, /이미 사용 중인 이메일입니다/);
   assert.doesNotMatch(route, /findExistingOwnerByIdentity|duplicateAccountMessage/);
@@ -33,7 +49,7 @@ test("main signup delegates trial eligibility to v4 and preserves email-specific
 test("client only consumes the server result and never submits eligibility", async () => {
   const form = await readFile(new URL("../../src/components/auth/signup-form.tsx", import.meta.url), "utf8");
   assert.match(form, /ATOMIC_OWNER_SIGNUP_CONTRACT_HEADER/);
-  assert.match(form, /result\.billingRequired \? "\/owner\/billing\?notice=trial-used" : nextPath/);
+  assert.match(form, /result\.billingRequired \? "\/owner\/billing\?notice=trial-used" : initialSetupPath/);
   const submittedBody = form.slice(form.indexOf("body: JSON.stringify({"), form.indexOf("}),\n      });", form.indexOf("body: JSON.stringify({")));
   assert.doesNotMatch(submittedBody, /trialEligible|trialDays|billingRequired/);
 });

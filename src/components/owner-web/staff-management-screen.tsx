@@ -15,9 +15,18 @@ import {
 import { StaffAddModal, StaffAnnualLeaveGrantModal, StaffLeaveModal } from "@/components/owner-web/staff-management-modals";
 import { StaffMonthlySchedule } from "@/components/owner-web/staff-monthly-schedule";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
+import InitialSetupStaffManagementPanel, {
+  type InitialSetupStaffSaveState,
+  type InitialSetupStaffSessionDraft,
+} from "@/components/owner-web/initial-setup-staff-management-panel";
+import {
+  type InitialSetupStaffPhotoDraft,
+  type StaffProfilePhotoUploader,
+} from "@/components/owner-web/staff-profile-photo-field";
 import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { createOwnerStaffProfileImageFromFile } from "@/lib/media/owner-media-client";
 import { staffChipPalette } from "@/lib/staff-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { OwnerProfile, Service, Shop, StaffScheduleOverride as BootstrapStaffScheduleOverride } from "@/types/domain";
@@ -35,7 +44,9 @@ import {
   getWeekStart,
   initialRequests,
   parseDefaultDaysFromFixedOffText,
+  persistInitialSetupStaffDraft,
   scheduleOverrideFromBootstrap,
+  weekdayColumns,
   type LeaveRequest,
   type LeaveType,
   type ScheduleEditDraft,
@@ -56,6 +67,12 @@ type Props = {
   staffScheduleOverrides?: BootstrapStaffScheduleOverride[];
   onStaffMembersChange?: (staff: StaffMember[]) => void | Promise<void>;
   onStaffScheduleOverridesChange?: (overrides: BootstrapStaffScheduleOverride[]) => void;
+  onSaveSuccess?: () => void;
+  initialSetupMode?: boolean;
+  initialSetupSessionDraft?: InitialSetupStaffSessionDraft | null;
+  onInitialSetupSessionDraftChange?: (sessionDraft: InitialSetupStaffSessionDraft) => void;
+  onInitialSetupNext?: () => void;
+  uploadInitialSetupStaffPhoto?: StaffProfilePhotoUploader;
 };
 
 type OverrideResponse = {
@@ -71,23 +88,45 @@ export default function StaffManagementScreen({
   staffScheduleOverrides = [],
   onStaffMembersChange,
   onStaffScheduleOverridesChange,
+  onSaveSuccess,
+  initialSetupMode = false,
+  initialSetupSessionDraft = null,
+  onInitialSetupSessionDraftChange,
+  onInitialSetupNext,
+  uploadInitialSetupStaffPhoto,
 }: Props) {
   const isDemoShop = shopId === "demo-shop" || shopId === "owner-demo";
   const initialStaff = staffMembers?.[0] ?? null;
+  const ownerStaffName = ownerProfile?.name.trim()
+    || (isDemoShop ? "대표자" : initialStaff?.name.trim() && initialStaff.name !== "원장" ? initialStaff.name.trim() : "대표자");
+  const ownerStaffId = initialStaff?.id ?? `${shopId ?? "local"}-staff-owner`;
   const [localStaff, setLocalStaff] = useState<StaffMember[]>(staffMembers ?? []);
   const staff = staffMembers ?? localStaff;
   const [requests, setRequests] = useState<LeaveRequest[]>(() => (isDemoShop ? initialRequests : []));
   const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverride[]>(() => staffScheduleOverrides.map(scheduleOverrideFromBootstrap));
   const [weekStart, setWeekStart] = useState(getWeekStart());
   const [monthStart, setMonthStart] = useState(getMonthStart());
-  const [selectedStaffId, setSelectedStaffId] = useState(initialStaff?.id ?? "");
+  const [selectedStaffId, setSelectedStaffId] = useState(initialSetupSessionDraft?.staffId ?? initialStaff?.id ?? "");
   const [boardTab, setBoardTab] = useState<StaffBoardTab>("monthly");
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [staffDetailDialogOpen, setStaffDetailDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [annualGrantDialogOpen, setAnnualGrantDialogOpen] = useState(false);
-  const [draft, setDraft] = useState<StaffDraft>(() => (initialStaff ? buildDraft(initialStaff) : emptyStaffDraft));
-  const [newStaffDraft, setNewStaffDraft] = useState<StaffDraft>({ ...emptyStaffDraft, defaultDaysText: formatWeekdayKeys(["sat", "sun"]), regularOff: formatWeekdayKeys(["sat", "sun"]) });
+  const [draft, setDraft] = useState<StaffDraft>(() => initialSetupSessionDraft?.draft ?? (initialStaff
+    ? {
+        ...buildDraft(initialStaff),
+        ...(initialSetupMode ? { name: ownerStaffName, displayName: ownerStaffName, role: "대표", position: "대표" } : {}),
+      }
+    : emptyStaffDraft));
+  const [newStaffDraft, setNewStaffDraft] = useState<StaffDraft>(initialSetupSessionDraft?.draft ?? {
+    ...emptyStaffDraft,
+    name: ownerStaffName,
+    displayName: ownerStaffName,
+    role: "대표",
+    position: "대표",
+    defaultDaysText: formatWeekdayKeys(["sat", "sun"]),
+    regularOff: formatWeekdayKeys(["sat", "sun"]),
+  });
   const [leaveDraft, setLeaveDraft] = useState({ staffId: initialStaff?.id ?? "", date: currentDateInTimeZone(), type: "휴무" as LeaveType, period: "오전" as "오전" | "오후", reason: "" });
   const [annualGrantDraft, setAnnualGrantDraft] = useState({ days: "15" });
   const [scheduleEditDraft, setScheduleEditDraft] = useState<ScheduleEditDraft | null>(null);
@@ -95,6 +134,9 @@ export default function StaffManagementScreen({
   const [notice, setNotice] = useState("");
   const [staffSaveFeedback, setStaffSaveFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isSavingStaff, setIsSavingStaff] = useState(false);
+  const [isCompletingInitialSetup, setIsCompletingInitialSetup] = useState(false);
+  const [initialSetupPhoto, setInitialSetupPhoto] = useState<InitialSetupStaffPhotoDraft>(() => initialSetupSessionDraft?.photo ?? { file: null, mode: "keep", pendingUpload: null });
+  const [initialSetupSaveState, setInitialSetupSaveState] = useState<InitialSetupStaffSaveState>(() => initialSetupSessionDraft?.saveState ?? "idle");
 
   useEffect(() => {
     setScheduleOverrides(staffScheduleOverrides.map(scheduleOverrideFromBootstrap));
@@ -102,6 +144,7 @@ export default function StaffManagementScreen({
 
   const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart]);
   const selectedStaff = staff.find((item) => item.id === selectedStaffId) ?? staff[0];
+  const selectedStaffIsOwner = Boolean(selectedStaff && (selectedStaff.id === ownerStaffId || selectedStaff.id.endsWith("-staff-owner")));
   const selectedStaffIndex = selectedStaff ? Math.max(0, staff.findIndex((item) => item.id === selectedStaff.id)) : 0;
   const pendingCount = requests.filter((request) => request.status === "승인대기").length;
 
@@ -113,11 +156,23 @@ export default function StaffManagementScreen({
     }
   }, [selectedStaff, selectedStaffId]);
 
+  useEffect(() => {
+    if (!initialSetupMode) return;
+    if (staff.length === 0) {
+      setNewStaffDraft((current) => ({ ...current, name: ownerStaffName, displayName: ownerStaffName, role: "대표", position: "대표" }));
+      return;
+    }
+    if (selectedStaffIsOwner) {
+      setDraft((current) => ({ ...current, name: ownerStaffName, displayName: ownerStaffName, role: "대표", position: "대표" }));
+    }
+  }, [initialSetupMode, ownerStaffName, selectedStaffIsOwner, staff.length]);
+
   async function updateStaffMembers(updater: (current: StaffMember[]) => StaffMember[]) {
     const nextStaff = updater(staff);
     if (onStaffMembersChange) {
       try {
         await onStaffMembersChange(nextStaff);
+        onSaveSuccess?.();
         return true;
       } catch (error) {
         setNotice(error instanceof Error ? error.message : "직원 정보를 저장하지 못했습니다.");
@@ -126,6 +181,7 @@ export default function StaffManagementScreen({
     }
 
     setLocalStaff(nextStaff);
+    onSaveSuccess?.();
     return true;
   }
 
@@ -155,15 +211,15 @@ export default function StaffManagementScreen({
           item.id === selectedStaff.id
             ? {
                 ...item,
-                name: draft.name.trim() || item.name,
-                displayName: draft.displayName.trim(),
+                name: selectedStaffIsOwner ? ownerStaffName : draft.name.trim() || item.name,
+                displayName: selectedStaffIsOwner ? ownerStaffName : draft.displayName.trim(),
                 profileImageUrl: draft.profileImageUrl.trim(),
                 profileMessage: draft.profileMessage.trim(),
                 chipColorIndex: draft.chipColorIndex,
                 phone: draft.phone.trim(),
-                role: draft.role.trim() || item.role || "직원",
+                role: selectedStaffIsOwner ? "대표" : draft.role.trim() || item.role || "직원",
                 titlePrefix: draft.titlePrefix.trim(),
-                position: draft.position.trim() || item.position || "직원",
+                position: selectedStaffIsOwner ? "대표" : draft.position.trim() || item.position || "직원",
                 defaultDays: nextDays.length > 0 ? nextDays : item.defaultDays,
                 startTime: draft.startTime,
                 endTime: draft.endTime,
@@ -224,7 +280,14 @@ export default function StaffManagementScreen({
 
   function selectStaff(staffMember: StaffMember, openDialog = true) {
     setSelectedStaffId(staffMember.id);
-    setDraft(buildDraft(staffMember));
+    const nextDraft = buildDraft(staffMember);
+    setDraft(nextDraft);
+    if (initialSetupMode) {
+      const nextPhoto = { file: null, mode: "keep", pendingUpload: null } as const;
+      setInitialSetupPhoto(nextPhoto);
+      setInitialSetupSaveState("idle");
+      onInitialSetupSessionDraftChange?.({ staffId: staffMember.id, draft: nextDraft, photo: nextPhoto, saveState: "idle" });
+    }
     if (openDialog) {
       setStaffDetailDialogOpen(true);
     }
@@ -445,6 +508,161 @@ export default function StaffManagementScreen({
     }
   }
 
+  function syncInitialSetupSession(nextDraft: StaffDraft, nextPhoto: InitialSetupStaffPhotoDraft, saveState: InitialSetupStaffSaveState) {
+    onInitialSetupSessionDraftChange?.({
+      staffId: selectedStaff?.id ?? initialSetupSessionDraft?.staffId ?? null,
+      draft: nextDraft,
+      photo: nextPhoto,
+      saveState,
+    });
+  }
+
+  async function saveInitialSetupStaff() {
+    if (isCompletingInitialSetup) return;
+    const currentDraft = staff.length === 0 ? newStaffDraft : draft;
+    if (!currentDraft.name.trim()) {
+      setInitialSetupSaveState("error");
+      setNotice("직원 이름을 입력해 주세요.");
+      return;
+    }
+    if (!isValidTimeRange(currentDraft.startTime, currentDraft.endTime)) {
+      setInitialSetupSaveState("error");
+      setNotice("출근 시간은 퇴근 시간보다 빨라야 합니다.");
+      return;
+    }
+    const nextDays = parseDefaultDays(currentDraft.defaultDaysText);
+    if (nextDays.length === 0) {
+      setInitialSetupSaveState("error");
+      setNotice("근무 요일을 하나 이상 선택해 주세요.");
+      return;
+    }
+
+    setIsCompletingInitialSetup(true);
+    setInitialSetupSaveState("saving");
+    setNotice("");
+    let photoForRetry: InitialSetupStaffPhotoDraft = initialSetupPhoto;
+    try {
+      const uploadPhoto: StaffProfilePhotoUploader = uploadInitialSetupStaffPhoto ?? (async (context, file) => {
+        const uploaded = await createOwnerStaffProfileImageFromFile(context, file);
+        return { mediaAssetId: uploaded.mediaAsset.id, signedUrl: uploaded.signedUrl };
+      });
+      const { targetId, savedDraft } = await persistInitialSetupStaffDraft({
+        shopId,
+        staff,
+        selectedStaff,
+        selectedStaffIsOwner,
+        ownerStaffName,
+        sessionStaffId: initialSetupSessionDraft?.staffId,
+        draft: currentDraft,
+        photo: initialSetupPhoto,
+        nextDays,
+        uploadPhoto,
+        onPhotoUploadPending: (pendingUpload) => {
+          photoForRetry = { file: null, mode: "replace", pendingUpload };
+          setInitialSetupPhoto(photoForRetry);
+          syncInitialSetupSession(currentDraft, photoForRetry, "saving");
+        },
+        createStaffId,
+        persistStaff: (nextStaff) => updateStaffMembers(() => nextStaff),
+      });
+      setSelectedStaffId(targetId);
+      setDraft(savedDraft);
+      setNewStaffDraft(savedDraft);
+      const savedPhoto = { file: null, mode: "keep", pendingUpload: null } as const;
+      setInitialSetupPhoto(savedPhoto);
+      setInitialSetupSaveState("saved");
+      setNotice("직원 정보를 저장했습니다.");
+      onInitialSetupSessionDraftChange?.({ staffId: targetId, draft: savedDraft, photo: savedPhoto, saveState: "saved" });
+    } catch (error) {
+      setInitialSetupSaveState("error");
+      const errorMessage = error instanceof Error ? error.message : "직원 정보를 저장하지 못했습니다.";
+      const recoveryMessage = photoForRetry.pendingUpload
+        ? "업로드한 사진은 유지했습니다. 다시 저장하거나 사진 변경을 초기화한 뒤 사진 없이 저장해 주세요."
+        : "입력 내용은 유지했습니다. 다시 저장하거나 사진 없이 저장해 주세요.";
+      setNotice(`${errorMessage} ${recoveryMessage}`);
+      syncInitialSetupSession(currentDraft, photoForRetry, "error");
+    } finally {
+      setIsCompletingInitialSetup(false);
+    }
+  }
+
+  const initialSetupDraft = staff.length === 0 ? newStaffDraft : draft;
+  const initialSetupWorkDays = new Set(parseDefaultDays(initialSetupDraft.defaultDaysText));
+
+  function updateInitialSetupDraft(patch: Partial<StaffDraft>) {
+    if (staff.length === 0) {
+      setNewStaffDraft((current) => {
+        const nextDraft = { ...current, ...patch };
+        setInitialSetupSaveState("dirty");
+        syncInitialSetupSession(nextDraft, initialSetupPhoto, "dirty");
+        return nextDraft;
+      });
+      return;
+    }
+    setDraft((current) => {
+      const nextDraft = { ...current, ...patch };
+      setInitialSetupSaveState("dirty");
+      syncInitialSetupSession(nextDraft, initialSetupPhoto, "dirty");
+      return nextDraft;
+    });
+  }
+
+  function toggleInitialSetupWorkday(dayKey: WeekdayKey) {
+    const nextWorkDays = new Set(initialSetupWorkDays);
+    if (nextWorkDays.has(dayKey)) nextWorkDays.delete(dayKey);
+    else nextWorkDays.add(dayKey);
+    const offDays = weekdayColumns.filter((day) => !nextWorkDays.has(day.key)).map((day) => day.key);
+    const offDaysText = formatWeekdayKeys(offDays);
+    updateInitialSetupDraft({ defaultDaysText: offDaysText, regularOff: offDaysText });
+  }
+
+  if (initialSetupMode) {
+    return (
+      <InitialSetupStaffManagementPanel
+        staff={staff}
+        ownerStaffId={ownerStaffId}
+        ownerStaffName={ownerStaffName}
+        selectedStaffId={selectedStaff?.id ?? null}
+        draft={initialSetupDraft}
+        photo={initialSetupPhoto}
+        workDayKeys={[...initialSetupWorkDays]}
+        ownerLocked={!selectedStaff || selectedStaffIsOwner}
+        saveState={initialSetupSaveState}
+        feedback={notice}
+        onSelectStaff={(staffMember) => selectStaff(staffMember, false)}
+        onDraftChange={updateInitialSetupDraft}
+        onToggleWorkday={toggleInitialSetupWorkday}
+        onPhotoFileChange={(file) => {
+          const nextPhoto = { file, mode: "replace", pendingUpload: null } as const;
+          setInitialSetupPhoto(nextPhoto);
+          setInitialSetupSaveState("dirty");
+          setNotice("");
+          syncInitialSetupSession(initialSetupDraft, nextPhoto, "dirty");
+        }}
+        onPhotoRemove={() => {
+          const nextPhoto = { file: null, mode: "remove", pendingUpload: null } as const;
+          setInitialSetupPhoto(nextPhoto);
+          setInitialSetupSaveState("dirty");
+          setNotice("");
+          syncInitialSetupSession(initialSetupDraft, nextPhoto, "dirty");
+        }}
+        onPhotoReset={() => {
+          const nextPhoto = { file: null, mode: "keep", pendingUpload: null } as const;
+          setInitialSetupPhoto(nextPhoto);
+          setInitialSetupSaveState("dirty");
+          setNotice("");
+          syncInitialSetupSession(initialSetupDraft, nextPhoto, "dirty");
+        }}
+        onPhotoError={(message) => {
+          setNotice(message);
+          setInitialSetupSaveState(message ? "error" : "dirty");
+        }}
+        onSave={() => void saveInitialSetupStaff()}
+        onNext={() => onInitialSetupNext?.()}
+      />
+    );
+  }
+
   return (
     <CustomerPagePreviewLayout
       shop={shop ?? null}
@@ -452,7 +670,7 @@ export default function StaffManagementScreen({
       ownerProfile={ownerProfile}
       staffMembers={staff}
       previewMode="staffSelection"
-      hidePreview={boardTab !== "list"}
+      hidePreview={initialSetupMode || boardTab !== "list"}
     >
       <div className="flex h-full min-h-0 flex-col space-y-3">
         <StaffBoardTabs

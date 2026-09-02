@@ -110,15 +110,15 @@ function AlertHelp({
         type="button"
         aria-label={`${label} 도움말`}
         onClick={(event) => event.stopPropagation()}
-        className="inline-flex h-5 w-5 items-center justify-center text-[#94a3b8] transition hover:text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cbd5e1]"
+        className="inline-flex h-11 w-11 items-center justify-center text-[#94a3b8] transition hover:text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cbd5e1]"
       >
         <CircleHelp className="h-4 w-4" aria-hidden="true" />
       </button>
       <span
         role="tooltip"
         className={cn(
-          "pointer-events-none invisible absolute top-[calc(100%+8px)] z-30 w-max whitespace-nowrap rounded-[6px] border border-[#dbe2ea] bg-white px-3 py-2 text-left text-[13px] font-normal leading-5 text-[#475569] opacity-0 shadow-[0_8px_22px_rgba(15,23,42,0.12)] transition group-hover/help:visible group-hover/help:opacity-100 group-focus-within/help:visible group-focus-within/help:opacity-100",
-          align === "right" ? "right-0" : "left-0",
+          "pointer-events-none invisible absolute top-[calc(100%+8px)] z-30 w-[240px] max-w-[calc(100vw-48px)] whitespace-normal break-words rounded-[6px] border border-[#dbe2ea] bg-white px-3 py-2 text-left text-[13px] font-normal leading-5 text-[#475569] opacity-0 shadow-[0_8px_22px_rgba(15,23,42,0.12)] transition group-hover/help:visible group-hover/help:opacity-100 group-focus-within/help:visible group-focus-within/help:opacity-100 sm:w-max sm:whitespace-nowrap",
+          align === "right" ? "right-0" : "right-0 sm:left-0",
         )}
       >
         {children}
@@ -251,7 +251,7 @@ function TimingOptionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "h-10 rounded-[8px] border px-4 text-[16px] transition",
+        "min-h-11 rounded-[8px] border px-4 text-[16px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
         selected
           ? "border-[#202020] bg-[#f5f5f5] text-[#111827] shadow-[inset_0_0_0_1px_rgba(17,17,17,0.03)]"
           : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#cbd5e1] hover:bg-[#fafafa]",
@@ -287,7 +287,7 @@ function MinuteTimingControl({
     <div className="rounded-[10px] border border-[#e5e7eb] bg-[#fbfbfb] p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[16px] font-medium text-[#111827]">{title}</p>
-        <label className="flex h-10 items-center overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+        <label className="flex h-11 items-center overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
           <input
             type="number"
             min={min}
@@ -338,9 +338,9 @@ function KakaoAlimtalkPreview({
   const message = preview?.body ?? "";
 
   return (
-    <div className="rounded-[12px] border border-[#dbe2ea] bg-white p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
+    <div className="min-w-0 rounded-[12px] border border-[#dbe2ea] bg-white p-3 sm:p-4">
+      <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-[16px] font-semibold text-[#111827]">실제 발송 미리보기</p>
           <p className="mt-1 text-[16px] text-[#64748b]">{item.title}</p>
         </div>
@@ -356,7 +356,7 @@ function KakaoAlimtalkPreview({
       </p>
 
       <div className="mt-4 flex justify-center">
-        <div className="w-full max-w-[300px] overflow-hidden rounded-[2px] border border-[#a9bdcc] bg-[#bdd2e2] px-3.5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
+        <div className="min-w-0 w-full max-w-[300px] overflow-hidden rounded-[2px] border border-[#a9bdcc] bg-[#bdd2e2] px-3.5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
           <div className="flex items-center gap-2">
             <Image
               src={PETMANAGER_BRAND_MARK_SRC}
@@ -368,11 +368,11 @@ function KakaoAlimtalkPreview({
             <p className="min-w-0 truncate text-[14px] text-[#0f172a]">{PETMANAGER_SERVICE_NAME}</p>
           </div>
 
-          <div className="relative ml-[35px] mt-1 w-[214px] rounded-[2px] bg-white text-[#111827] shadow-sm">
+          <div className="relative ml-0 mt-1 w-full rounded-[2px] bg-white text-[#111827] shadow-sm sm:ml-[35px] sm:w-[214px]">
             <div className="rounded-t-[2px] bg-[#ffe500] px-2.5 py-2 text-[13px] leading-none text-[#111827]">
               알림톡 도착
             </div>
-            <span className="absolute -right-3 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-[#3b3328] text-[8px] text-white">
+            <span className="absolute right-2 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-[#3b3328] text-[8px] text-white sm:-right-3">
               kakao
             </span>
             <div className="px-2.5 py-3 text-[13px] leading-[1.55]">
@@ -504,17 +504,17 @@ export default function SettingsAlertsPanel({
   const showSenderChannelSettings = false;
 
   return (
-    <section className="rounded-[16px] border border-[#e5e7eb] bg-white p-5 shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="space-y-4">
+    <section className="min-w-0">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-4">
           {showSenderChannelSettings ? (
           <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-[16px] text-[#111827]">알림톡 발신 채널</p>
                 <p className="mt-1 text-[15px] leading-6 text-[#64748b]">
-                  결제와 잔여 건수는 {PETMANAGER_SERVICE_NAME}에서 관리하고, 발신자만 매장 채널로 바꿀 수
-                  있습니다.
+                  알림톡 발송 설정과 이력은 {PETMANAGER_SERVICE_NAME}에서 관리하고, 발신자만 매장 채널로
+                  바꿀 수 있습니다.
                 </p>
               </div>
               <span
@@ -638,21 +638,24 @@ export default function SettingsAlertsPanel({
               </div>
             ) : null}
             <p className="mt-3 text-[14px] leading-5 text-[#64748b]">
-              매장 채널을 사용해도 알림톡 결제, 잔여 건수, 발송 이력은 {PETMANAGER_SERVICE_NAME}에서 그대로
+              매장 채널을 사용해도 알림톡 발송 설정과 발송 이력은 {PETMANAGER_SERVICE_NAME}에서 그대로
               관리됩니다.
             </p>
           </div>
           ) : null}
 
           <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <p className="text-[16px] font-semibold text-[#111827]">알림톡 전체 사용</p>
+            <div className="flex flex-wrap items-start justify-between gap-4 sm:flex-nowrap sm:items-center">
+              <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
+                <p className="min-w-0 break-words text-[16px] font-semibold text-[#111827]">알림톡 전체 사용</p>
                 <AlertHelp label="알림톡 전체 사용">
                   끄면 예약 안내와 미용 진행 알림톡 발송이 전체 중지됩니다.
                 </AlertHelp>
               </div>
               <Switch
+                size="lg"
+                className="h-11 w-[60px] focus-visible:outline-[#2563eb] focus-visible:outline-offset-2"
+                thumbClassName="h-8 w-8"
                 checked={value.enabled}
                 aria-label="알림톡 전체 사용"
                 onCheckedChange={(checked) => onChange({ ...value, enabled: checked })}
@@ -670,9 +673,9 @@ export default function SettingsAlertsPanel({
 
           {alertGroups.map((group) => (
             <div key={group.key} className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <p className="text-[16px] font-semibold text-[#111827]">{group.title}</p>
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap sm:items-center">
+                <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
+                  <p className="min-w-0 break-words text-[16px] font-semibold text-[#111827]">{group.title}</p>
                   {group.help ? (
                     <AlertHelp label={group.title}>{group.help}</AlertHelp>
                   ) : null}
@@ -683,14 +686,17 @@ export default function SettingsAlertsPanel({
               </div>
               {group.key === "reservationGuide" ? (
                 <div className="mb-3 rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <p className="text-[16px] font-medium text-[#111827]">예약 안내 자동 발송</p>
+                  <div className="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
+                    <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
+                      <p className="min-w-0 break-words text-[16px] font-medium text-[#111827]">예약 안내 자동 발송</p>
                       <AlertHelp label="예약 안내 자동 발송">
                         켜두면 예약 시점에 맞춰 직전 안내, 오늘 안내, 내일 안내 중 필요한 안내만 한 번 발송됩니다.
                       </AlertHelp>
                     </div>
                     <Switch
+                      size="lg"
+                      className="h-11 w-[60px] focus-visible:outline-[#2563eb] focus-visible:outline-offset-2"
+                      thumbClassName="h-8 w-8"
                       checked={visitReminderEnabled}
                       disabled={!value.enabled || !automaticVisitReminderAvailable}
                       aria-label="예약 안내 자동 발송"
@@ -721,7 +727,7 @@ export default function SettingsAlertsPanel({
                         aria-expanded={selected}
                         onClick={() => setSelectedAlertType(item.type)}
                         className={cn(
-                          "flex cursor-pointer items-center justify-between gap-4 rounded-[10px] border bg-white p-3 text-left transition",
+                          "flex min-w-0 flex-col cursor-pointer items-stretch justify-between gap-4 rounded-[10px] border bg-white p-3 text-left transition sm:flex-row sm:items-center",
                           selected
                             ? "border-[#cbd5e1] shadow-[0_6px_16px_rgba(15,23,42,0.06)]"
                             : checked
@@ -730,11 +736,11 @@ export default function SettingsAlertsPanel({
                           !disabled || reservationNotice ? "hover:border-[#cbd5e1] hover:bg-[#fafafa]" : "opacity-55",
                         )}
                       >
-                        <div className="flex min-w-0 items-center gap-1.5">
+                        <div className="flex min-w-0 w-full flex-wrap items-center gap-1.5 sm:w-auto sm:flex-nowrap">
                           <button
                             type="button"
                             onClick={() => setSelectedAlertType(item.type)}
-                            className="min-w-0 text-left text-[16px] text-[#111827] focus-visible:outline-none focus-visible:underline"
+                            className="inline-flex min-h-11 min-w-0 w-full items-center whitespace-normal break-words text-left text-[16px] text-[#111827] focus-visible:outline-none focus-visible:underline sm:w-auto sm:whitespace-nowrap"
                           >
                             {item.title}
                           </button>
@@ -745,15 +751,18 @@ export default function SettingsAlertsPanel({
                         {reservationNotice ? (
                           <span
                             className={cn(
-                              "shrink-0 rounded-full px-2.5 py-1 text-[13px]",
+                              "self-start shrink-0 rounded-full px-2.5 py-1 text-[13px] sm:self-auto",
                               visitReminderEnabled ? "bg-[#e9f5f0] text-[#287667]" : "bg-[#f1f5f9] text-[#64748b]",
                             )}
                           >
                             {visitReminderEnabled ? "자동 ON" : "자동 OFF"}
                           </span>
                         ) : (
-                          <span onClick={(event) => event.stopPropagation()}>
+                          <span className="self-start sm:self-auto" onClick={(event) => event.stopPropagation()}>
                             <Switch
+                              size="lg"
+                              className="h-11 w-[60px] focus-visible:outline-[#2563eb] focus-visible:outline-offset-2"
+                              thumbClassName="h-8 w-8"
                               checked={checked}
                               disabled={disabled}
                               aria-label={`${item.title} 알림`}
@@ -772,7 +781,7 @@ export default function SettingsAlertsPanel({
           ))}
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+        <div className="min-w-0 space-y-4 xl:sticky xl:top-4 xl:self-start">
           <KakaoAlimtalkPreview
             item={previewItem}
             preview={templatePreviews[previewItem.type] ?? null}

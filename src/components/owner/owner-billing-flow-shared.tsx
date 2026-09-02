@@ -18,7 +18,7 @@ function getPlanSummaryLine(plan: OwnerPlan, totalShopCount: number) {
     return "무료체험";
   }
 
-  return `${getOwnerPlanStaffLimitLabel(plan, totalShopCount)} · ${plan.alimtalkIncludedLabel}`;
+  return getOwnerPlanStaffLimitLabel(plan, totalShopCount);
 }
 
 export function OwnerBillingSuccessCard({

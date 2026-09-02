@@ -23,7 +23,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import type { ChangeEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ScheduleCreateDialog } from "@/components/owner-web/calendar-create-dialog";
@@ -38,8 +38,6 @@ import { CARE_REPORT_TYPOGRAPHY, OWNER_TYPOGRAPHY } from "@/components/owner-web
 import { useExistingCompletionPhotos } from "@/components/owner-web/use-existing-completion-photos";
 import { useGroomingRecordDraft } from "@/components/owner-web/use-grooming-record-draft";
 import { DailyScheduleGrid } from "@/components/owner-web/calendar-daily-schedule-grid";
-import { getRollingScheduleDates } from "@/components/owner-web/calendar-week-range";
-import { WeeklySchedule, type WeeklyScheduleBooking } from "@/components/owner-web/calendar-weekly-schedule";
 import {
   buildLocalGuardian,
   buildLocalOwnerAppointment,
@@ -61,7 +59,7 @@ import {
   replaceAppointmentInBootstrap,
   replaceScheduleRangeInBootstrap,
 } from "@/components/owner-web/calendar-owner-api";
-import { CalendarToolbar, type CalendarViewMode } from "@/components/owner-web/calendar-toolbar";
+import { CalendarToolbar } from "@/components/owner-web/calendar-toolbar";
 import { NotificationTimingPopover } from "@/components/owner-web/notification-timing-popover";
 import { calendarBookings } from "@/components/owner-web/owner-web-data";
 import {
@@ -1620,6 +1618,36 @@ function upsertServiceInBootstrap(data: BootstrapPayload, service: Service): Boo
   };
 }
 
+const BOOKING_DETAIL_FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "summary",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+function getVisibleDialogFocusableElements(dialog: HTMLElement | null) {
+  if (!dialog) return [];
+
+  return Array.from(dialog.querySelectorAll<HTMLElement>(BOOKING_DETAIL_FOCUSABLE_SELECTOR)).filter((element) => {
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    const isHiddenFileInput = element instanceof HTMLInputElement && element.type === "file" && element.classList.contains("hidden");
+
+    return (
+      !isHiddenFileInput &&
+      element.tabIndex >= 0 &&
+      !element.closest("[inert], [aria-hidden=\"true\"], [hidden]") &&
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      rect.width > 0 &&
+      rect.height > 0
+    );
+  });
+}
+
 function BookingSidePanel({
   activeMetric,
   shopId,
@@ -1633,6 +1661,7 @@ function BookingSidePanel({
   statusChanging,
   careReportWritingBookingId,
   careReportChoiceOpen,
+  focusTrapSuspended,
   onChangeStatus,
   onOpenCareReport,
   onSelectBooking,
@@ -1657,6 +1686,7 @@ function BookingSidePanel({
   statusChanging: boolean;
   careReportWritingBookingId?: string;
   careReportChoiceOpen: boolean;
+  focusTrapSuspended: boolean;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
   onOpenCareReport: (booking: DailyBooking) => void;
   onSelectBooking: (id: string) => void;
@@ -1737,6 +1767,11 @@ function BookingSidePanel({
   const detailNoticeTimerRef = useRef<number | null>(null);
   const notificationFeedbackTimerRef = useRef<number | null>(null);
   const timeEditorRef = useRef<HTMLDivElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const focusTrapSuspendedRef = useRef(focusTrapSuspended);
+  focusTrapSuspendedRef.current = focusTrapSuspended;
+  const bookingDetailTriggerRef = useRef<HTMLElement | null>(null);
   const selectedPet = selectedBooking?.petId
     ? bootstrapData.pets.find((pet) => pet.id === selectedBooking.petId) ?? null
     : null;
@@ -1860,6 +1895,55 @@ function BookingSidePanel({
       }
     };
   }, [selectedBooking?.id]);
+
+  useEffect(() => {
+    if (!selectedBooking?.id || focusTrapSuspended) return;
+
+    const dialog = dialogRef.current;
+    const activeElement = document.activeElement;
+    bookingDetailTriggerRef.current =
+      activeElement instanceof HTMLElement && !dialog?.contains(activeElement) ? activeElement : null;
+    closeButtonRef.current?.focus();
+
+    const containDialogFocus = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const currentDialog = dialogRef.current;
+      if (!currentDialog) return;
+      const focusableElements = getVisibleDialogFocusableElements(currentDialog);
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        currentDialog.focus();
+        return;
+      }
+
+      const firstFocusable = focusableElements[0];
+      const lastFocusable = focusableElements[focusableElements.length - 1];
+      const currentActiveElement = document.activeElement;
+      if (event.shiftKey && (currentActiveElement === firstFocusable || !currentDialog.contains(currentActiveElement))) {
+        event.preventDefault();
+        lastFocusable.focus();
+      } else if (!event.shiftKey && (currentActiveElement === lastFocusable || !currentDialog.contains(currentActiveElement))) {
+        event.preventDefault();
+        firstFocusable.focus();
+      }
+    };
+
+    window.addEventListener("keydown", containDialogFocus);
+    return () => {
+      window.removeEventListener("keydown", containDialogFocus);
+      const trigger = bookingDetailTriggerRef.current;
+      bookingDetailTriggerRef.current = null;
+      if (trigger?.isConnected && !focusTrapSuspendedRef.current) trigger.focus();
+    };
+  }, [focusTrapSuspended, onClose, selectedBooking?.id]);
 
   useEffect(() => {
     if (!selectedBooking) return;
@@ -2127,12 +2211,20 @@ function BookingSidePanel({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/20" onMouseDown={onClose}>
-      <aside
+    <div
+      className="fixed inset-0 z-[70] flex justify-end bg-slate-950/20"
+      onMouseDown={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
         className="h-full w-full max-w-[430px] overflow-hidden border-l border-[#dbe2ea] bg-white shadow-[-18px_0_48px_rgba(15,23,42,0.16)]"
         role="dialog"
         aria-modal="true"
         aria-label="예약 상세"
+        tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
       >
       <style>{`.pm-booking-side-panel-scroll { scrollbar-width: none; -ms-overflow-style: none; } .pm-booking-side-panel-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }`}</style>
@@ -2155,10 +2247,11 @@ function BookingSidePanel({
                 </p>
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
                 aria-label="예약 상세 닫기"
                 onClick={onClose}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2175,7 +2268,7 @@ function BookingSidePanel({
                       onBlur={() => void savePetProfile()}
                       inputMode="decimal"
                       placeholder="kg"
-                      className="h-9 w-full rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-9 text-[15px] font-normal leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#aab2bc]"
+                      className="min-h-11 w-full rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-9 text-[15px] font-normal leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#aab2bc]"
                     />
                     {petProfileDraft.weight.trim() ? (
                       <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[14px] text-[#64748b]">kg</span>
@@ -2189,7 +2282,7 @@ function BookingSidePanel({
                     value={petProfileDraft.birthday}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, birthday: event.target.value }))}
                     onBlur={() => void savePetProfile()}
-                    className="h-9 w-full min-w-0 rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-2 text-[15px] font-normal leading-5 text-[#0f172a] outline-none focus:border-[#aab2bc] [color-scheme:light]"
+                    className="min-h-11 w-full min-w-0 rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-2 text-[15px] font-normal leading-5 text-[#0f172a] outline-none focus:border-[#aab2bc] [color-scheme:light]"
                   />
                 </label>
                 <label className="block min-w-0">
@@ -2198,7 +2291,7 @@ function BookingSidePanel({
                     value={petProfileDraft.pricingGroup}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, pricingGroup: event.target.value }))}
                     onBlur={() => void savePetProfile()}
-                    className="h-9 w-full min-w-0 appearance-none rounded-[7px] border border-[#e7e9ec] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#aab2bc]"
+                    className="min-h-11 w-full min-w-0 appearance-none rounded-[7px] border border-[#e7e9ec] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#aab2bc]"
                   >
                     {petGroupOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -2213,7 +2306,7 @@ function BookingSidePanel({
                     value={petProfileDraft.biteLevel}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, biteLevel: normalizePetBiteLevel(event.target.value) }))}
                     onBlur={() => void savePetProfile()}
-                    className="h-9 w-full min-w-0 appearance-none rounded-[7px] border border-[#e7e9ec] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#aab2bc]"
+                    className="min-h-11 w-full min-w-0 appearance-none rounded-[7px] border border-[#e7e9ec] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#aab2bc]"
                   >
                     {(["none", "mild", "watch", "bite", "strong"] as PetBiteLevel[]).map((level) => (
                       <option key={level} value={level}>
@@ -2295,7 +2388,7 @@ function BookingSidePanel({
                             setDetailEditMode(null);
                           }
                         }}
-                        className="h-10 min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal leading-5 text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[#607080]"
+                        className="min-h-11 min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal leading-5 text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[#607080]"
                         placeholder="서비스명을 입력해 주세요"
                       />
                       <button
@@ -2305,7 +2398,7 @@ function BookingSidePanel({
                           void saveEditableDetail();
                           setDetailEditMode(null);
                         }}
-                        className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:border-[#607080] hover:text-[#0f172a] disabled:cursor-not-allowed disabled:text-[#b9c3cf]"
+                        className="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:border-[#607080] hover:text-[#0f172a] disabled:cursor-not-allowed disabled:text-[#b9c3cf]"
                       >
                         저장
                       </button>
@@ -2322,7 +2415,7 @@ function BookingSidePanel({
                 {hasRequestText ? (
                   requestText.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
                 ) : (
-                  <p className="flex items-center gap-2 text-[#94a3b8]">
+                  <p className="flex items-center gap-2 text-[#64748b]">
                     <MessageCircle className="h-4 w-4 shrink-0" />
                     고객 요청사항이 없습니다.
                   </p>
@@ -2336,7 +2429,7 @@ function BookingSidePanel({
                 {hasStaffComment ? (
                   staffComment.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
                 ) : (
-                  <p className="flex items-center gap-2 text-[#94a3b8]">
+                  <p className="flex items-center gap-2 text-[#64748b]">
                     <NotebookPen className="h-4 w-4 shrink-0" />
                     공유 코멘트가 없습니다.
                   </p>
@@ -2385,7 +2478,7 @@ function BookingSidePanel({
                     type="button"
                     onClick={() => onChangeStatus(selectedBooking.id, "진행 중")}
                     disabled={statusChanging}
-                    className="inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px] bg-[var(--acc-dk)] px-3 text-[16px] font-medium text-white transition hover:brightness-[0.92] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Play className="h-4 w-4 shrink-0" />
                     {statusChanging ? "상태 저장 중" : "미용 시작하기"}
@@ -2394,14 +2487,14 @@ function BookingSidePanel({
                     <button
                       type="button"
                       onClick={() => onChangeStatus(selectedBooking.id, "노쇼")}
-                      className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+                      className="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
                     >
                       노쇼 처리
                     </button>
                     <button
                       type="button"
                       onClick={() => requestStatusChange(selectedBooking.id, "취소")}
-                      className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+                      className="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
                     >
                       예약 취소
                     </button>
@@ -2420,7 +2513,7 @@ function BookingSidePanel({
                     type="button"
                     onClick={() => onChangeStatus(selectedBooking.id, "픽업 준비")}
                     disabled={statusChanging}
-                    className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[var(--acc-dk)] px-3 text-[16px] font-medium text-white transition hover:brightness-[0.92] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     {statusChanging ? "상태 저장 중" : "픽업 준비"}
@@ -2431,7 +2524,7 @@ function BookingSidePanel({
                     type="button"
                     onClick={() => onChangeStatus(selectedBooking.id, "완료")}
                     disabled={statusChanging}
-                    className="inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[var(--acc-dk)] px-3 text-[16px] font-medium text-white transition hover:brightness-[0.92] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     미용 완료
@@ -2453,7 +2546,7 @@ function BookingSidePanel({
                     <button
                       type="button"
                       onClick={() => requestStatusChange(selectedBooking.id, "취소")}
-                      className="inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]"
+                      className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]"
                     >
                       <X className="h-4 w-4 text-[#64748b]" />
                       예약 취소
@@ -2486,7 +2579,7 @@ function BookingSidePanel({
           }}
         />
       ) : null}
-      </aside>
+      </div>
     </div>
   );
 
@@ -2655,7 +2748,7 @@ function formatPanelPhoneNumber(value: string) {
 }
 
 function getBookingRequestText(booking: DailyBooking) {
-  return getCustomerRequest(booking.id) || "고객 요청사항이 없습니다.";
+  return booking.memo?.trim() || getCustomerRequest(booking.id) || "고객 요청사항이 없습니다.";
 }
 
 function getAlimtalkResendType(status: string): NotificationType {
@@ -3516,6 +3609,9 @@ function PhotoStatusDialog({
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const completionScrollRef = useRef<HTMLDivElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const saveAndCloseInFlightRef = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState("");
@@ -3531,6 +3627,10 @@ function PhotoStatusDialog({
     typeof action.currentWeightKg === "number" ? action.currentWeightKg.toFixed(1) : "",
   );
   const isCompletionMode = action.mode === "completion";
+
+  useEffect(() => {
+    if (isCompletionMode) closeButtonRef.current?.focus();
+  }, [action.bookingId, isCompletionMode]);
 
   useEffect(() => {
     setSelectedServiceId(action.serviceId ?? "");
@@ -3591,8 +3691,9 @@ function PhotoStatusDialog({
   }
 
   async function handleSaveAndClose(allowCareReportBusy = false) {
-    if (busy || (!allowCareReportBusy && careReportBusy)) return;
+    if (saveAndCloseInFlightRef.current || busy || (!allowCareReportBusy && careReportBusy)) return;
 
+    saveAndCloseInFlightRef.current = true;
     setCompleting(true);
     setError("");
     try {
@@ -3602,6 +3703,7 @@ function PhotoStatusDialog({
       setError(saveError instanceof Error ? saveError.message : "임시저장 중 문제가 발생했습니다.");
     } finally {
       setCompleting(false);
+      saveAndCloseInFlightRef.current = false;
     }
   }
 
@@ -3615,6 +3717,26 @@ function PhotoStatusDialog({
       setError(cleanupError instanceof Error ? cleanupError.message : "케어리포트 저장 후 화면을 닫지 못했습니다.");
     } finally {
       setCompleting(false);
+    }
+  }
+
+  function handleDialogKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      if (!busy && !careReportBusy) void handleSaveAndClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const focusable = getVisibleDialogFocusableElements(dialogRef.current);
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
   }
 
@@ -3659,6 +3781,12 @@ function PhotoStatusDialog({
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="completion-care-report-title"
+        tabIndex={-1}
+        onKeyDown={handleDialogKeyDown}
         className={cn(
           "flex max-h-[calc(100vh-32px)] w-full flex-col overflow-hidden border border-[#d8dee6] bg-white shadow-[0_24px_80px_rgba(20,39,63,0.18)]",
           isCompletionMode ? "max-w-[520px] rounded-[22px]" : "max-w-[540px] rounded-[18px] p-5",
@@ -3690,7 +3818,7 @@ function PhotoStatusDialog({
               </span>
             ) : null}
             <div>
-              <h3 className={`${modalTypography.modalTitle} tracking-[-0.025em] text-[#142033]`}>{action.title}</h3>
+              <h3 id="completion-care-report-title" className={`${modalTypography.modalTitle} tracking-[-0.025em] text-[#142033]`}>{action.title}</h3>
               {isCompletionMode ? (
                 <p className={`${modalTypography.body} mt-0.5 text-[#6b7785]`}>
                   {action.petName} · {selectedServiceName || "예약 서비스"} · {action.staffName}
@@ -3702,7 +3830,7 @@ function PhotoStatusDialog({
             </div>
           </div>
           {isCompletionMode ? (
-            <button type="button" onClick={() => void handleSaveAndClose()} disabled={busy || careReportBusy} aria-label="닫기" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#66717f] transition hover:bg-[#f2f4f6] disabled:opacity-40">
+            <button ref={closeButtonRef} type="button" onClick={() => void handleSaveAndClose()} disabled={busy || careReportBusy} aria-label="닫기" className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[#66717f] transition hover:bg-[#f2f4f6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-40">
               <X className="h-5 w-5" />
             </button>
           ) : null}
@@ -3715,9 +3843,9 @@ function PhotoStatusDialog({
         {isCompletionMode ? (
           <div className="space-y-1.5 p-2">
             <section className="space-y-1.5">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <p className={`${modalTypography.sectionTitle} shrink-0 text-[#1b2d43]`}>사진</p>
-                  <div className="flex rounded-[9px] bg-[#f0f2f4] p-0.5" role="tablist" aria-label="미용 사진 선택">
+                  <div className="flex max-w-full rounded-[9px] bg-[#f0f2f4] p-0.5" role="tablist" aria-label="미용 사진 선택">
                     {[
                       { kind: "grooming_before" as const, label: "미용 전" },
                       { kind: "grooming_after" as const, label: "미용 후" },
@@ -3730,7 +3858,7 @@ function PhotoStatusDialog({
                           role="tab"
                           aria-selected={selected}
                           onClick={() => setActiveMediaKind(photoTab.kind)}
-                          className={`${modalTypography.label} inline-flex h-7 items-center gap-1.5 rounded-[7px] px-3 transition ${
+                          className={`${modalTypography.label} inline-flex h-11 min-w-11 items-center gap-1.5 rounded-[7px] px-3 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] ${
                             selected ? "bg-[#edf4ff] font-semibold text-[#2f6fd6] shadow-sm" : "text-[#7a8490] hover:text-[#37485a]"
                           }`}
                         >
@@ -3739,13 +3867,13 @@ function PhotoStatusDialog({
                       );
                     })}
                   </div>
-                  <label className={`${modalTypography.label} ml-auto inline-flex items-center gap-2 text-[#526171]`}>
+                  <label className={`${modalTypography.label} ml-auto inline-flex min-h-11 max-w-full cursor-pointer items-center gap-2 text-[#526171] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]`}>
                     <input
                       type="checkbox"
                       checked={photoRegistrationEnabled || hasRegisteredPhotos}
                       onChange={(event) => setPhotoRegistrationEnabled(event.target.checked)}
                       disabled={busy || hasRegisteredPhotos}
-                    className="h-4 w-4 accent-[#2f6fd6]"
+                    className="h-4 w-4 accent-[#2f6fd6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
                     />
                     사진 등록
                   </label>
@@ -3906,27 +4034,13 @@ export default function CalendarManagementScreen({
       ? "buildDailyBookingsFromBootstrap"
       : "blocked-non-supabase-owner-data";
   const [staff, setStaff] = useState<StaffFilter>("전체 직원");
-  const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>("day");
   const [activeMetric, setActiveMetric] = useState<SummaryMetricKey>("today");
   const [reservationStatusFilter, setReservationStatusFilter] = useState<ReservationStatusFilter>("all");
   const [bookings, setBookings] = useState<DailyBooking[]>(() => selectedDateBookings);
   const [selectedBookingId, setSelectedBookingId] = useState("");
+  const closeBookingDetail = useCallback(() => setSelectedBookingId(""), []);
   const [selectedBoardStaffKey, setSelectedBoardStaffKey] = useState<StaffKey | null>(null);
   const [scheduleStatusHour, setScheduleStatusHour] = useState(() => getCurrentDayHour());
-  const weekDates = useMemo(() => getRollingScheduleDates(selectedDate), [selectedDate]);
-  const weeklyBookings = useMemo<Array<DailyBooking & WeeklyScheduleBooking>>(
-    () =>
-      weekDates.flatMap((date) => {
-        const dayBookings = shouldUseOwnerWebPreviewBookings(bootstrapData)
-          ? buildLocalPreviewDailyBookings(bootstrapData, date, visibleStaff)
-          : bootstrapData.mode === "supabase"
-            ? buildDailyBookingsFromBootstrap(bootstrapData, date, staffAssignments, visibleStaff)
-            : [];
-
-        return dayBookings.map((booking) => ({ ...booking, appointmentDate: date }));
-      }),
-    [bootstrapData, staffAssignments, visibleStaff, weekDates],
-  );
   const [staffComments, setStaffComments] = useState<Record<string, string>>(() => buildStaffCommentsFromBootstrap(initialData));
   const staffCommentSaveTimersRef = useRef<Record<string, number>>({});
   const [acknowledgedChangeBookingIds, setAcknowledgedChangeBookingIds] = useState<Set<string>>(() => new Set());
@@ -3935,6 +4049,8 @@ export default function CalendarManagementScreen({
   const [careReportChoiceBooking, setCareReportChoiceBooking] = useState<DailyBooking | null>(null);
   const [basicCareReportPublishing, setBasicCareReportPublishing] = useState(false);
   const [basicCareReportError, setBasicCareReportError] = useState("");
+  const careReportChoiceTransitionRef = useRef(false);
+  const careReportFlowOverlayOpen = Boolean(careReportChoiceBooking || photoStatusAction);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleForm, setScheduleForm] = useState<ScheduleCreateFormState>(() =>
     buildDefaultScheduleForm(initialData, visibleStaff, currentDateInTimeZone(), "전체 직원"),
@@ -4005,22 +4121,6 @@ export default function CalendarManagementScreen({
           }),
     [acknowledgedChangeBookingIds, scheduleStatusHour, selectedDate, staffScopedBookings],
   );
-  const weeklyDisplayBookings = useMemo(
-    () =>
-      weeklyBookings
-        .filter((booking) => staff === "전체 직원" || booking.staffKey === staff)
-        .filter((booking) => !(isChangeBookingStatus(booking.status) && acknowledgedChangeBookingIds.has(booking.id)))
-        .map((booking) => {
-          const sourceStatus = booking.status;
-          return {
-            ...booking,
-            sourceStatus,
-            status: getTimedBookingStatus(booking, booking.appointmentDate, scheduleStatusHour),
-          };
-        })
-        .filter((booking) => isTimelineBookingStatus(booking.status)),
-    [acknowledgedChangeBookingIds, scheduleStatusHour, staff, weeklyBookings],
-  );
   const summaryMetrics = useMemo(() => buildScheduleMetrics(displayScopedBookings), [displayScopedBookings]);
   const reservationFilterOptions = useMemo(
     () => getReservationFilterOptions(displayScopedBookings),
@@ -4089,9 +4189,7 @@ export default function CalendarManagementScreen({
 
       try {
         const currentData = bootstrapDataRef.current;
-        const rangeFrom = calendarViewMode === "week" ? weekDates[0] ?? selectedDate : selectedDate;
-        const rangeTo = calendarViewMode === "week" ? weekDates[weekDates.length - 1] ?? selectedDate : selectedDate;
-        const range = await fetchOwnerScheduleRange(currentData.shop.id, rangeFrom, rangeTo);
+        const range = await fetchOwnerScheduleRange(currentData.shop.id, selectedDate, selectedDate);
         if (cancelled || statusChangeInFlightRef.current) return;
         const nextBootstrapData = applyRecentStatusOverrides(replaceScheduleRangeInBootstrap(currentData, range));
         bootstrapDataRef.current = nextBootstrapData;
@@ -4116,7 +4214,6 @@ export default function CalendarManagementScreen({
   }, [
     bootstrapData.mode,
     bootstrapData.shop.id,
-    calendarViewMode,
     careReportChoiceBooking,
     earlyStartBooking,
     onDataChange,
@@ -4124,7 +4221,6 @@ export default function CalendarManagementScreen({
     scheduleDialogOpen,
     scheduleSaving,
     selectedDate,
-    weekDates,
   ]);
 
   useEffect(() => {
@@ -4216,17 +4312,6 @@ export default function CalendarManagementScreen({
       setSelectedBookingId("");
     }
   }, [filteredBookings, selectedBookingId]);
-
-  function handleOpenWeeklyDay(date: string) {
-    setSelectedDate(date);
-    setCalendarViewMode("day");
-  }
-
-  function handleWeeklyBookingSelect(booking: WeeklyScheduleBooking) {
-    setSelectedDate(booking.appointmentDate);
-    setSelectedBookingId(booking.id);
-    setSelectedBoardStaffKey(booking.staffKey);
-  }
 
   function handleMetricSelect(metric: SummaryMetricKey) {
     setActiveMetric(metric);
@@ -4742,6 +4827,9 @@ export default function CalendarManagementScreen({
   }
 
   function requestPhotoStatusChange(booking: DailyBooking, nextStatus: "완료") {
+    // A composer may never sit behind the completion choice. Clear the choice
+    // first even when this entry point was triggered from a different control.
+    setCareReportChoiceBooking(null);
     const selectedPet = booking.petId
       ? bootstrapData.pets.find((pet) => pet.id === booking.petId)
       : null;
@@ -4768,16 +4856,21 @@ export default function CalendarManagementScreen({
 
   function openCareReportFromChoice() {
     const booking = careReportChoiceBooking;
-    if (!booking || basicCareReportPublishing) return;
+    if (!booking || basicCareReportPublishing || careReportChoiceTransitionRef.current) return;
+    careReportChoiceTransitionRef.current = true;
     setCareReportChoiceBooking(null);
     setBasicCareReportError("");
     requestPhotoStatusChange(booking, "완료");
+    queueMicrotask(() => {
+      careReportChoiceTransitionRef.current = false;
+    });
   }
 
   async function publishBasicCareRecord() {
     const booking = careReportChoiceBooking;
-    if (!booking || basicCareReportPublishing) return;
+    if (!booking || basicCareReportPublishing || careReportChoiceTransitionRef.current) return;
 
+    careReportChoiceTransitionRef.current = true;
     setBasicCareReportPublishing(true);
     setBasicCareReportError("");
     try {
@@ -4799,7 +4892,14 @@ export default function CalendarManagementScreen({
       setBasicCareReportError(error instanceof Error ? error.message : "기본 미용 기록을 저장하지 못했습니다.");
     } finally {
       setBasicCareReportPublishing(false);
+      careReportChoiceTransitionRef.current = false;
     }
+  }
+
+  function closeCareReportChoice() {
+    if (basicCareReportPublishing) return;
+    setCareReportChoiceBooking(null);
+    setBasicCareReportError("");
   }
 
   async function handlePhotoStatusFile(file: File, mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">) {
@@ -4910,6 +5010,7 @@ export default function CalendarManagementScreen({
       void (async () => {
         const succeeded = await applyBookingStatusChange(targetBooking.id, nextStatus);
         if (succeeded === true) {
+          setPhotoStatusAction(null);
           setBasicCareReportError("");
           setCareReportChoiceBooking(targetBooking);
         }
@@ -5318,77 +5419,75 @@ export default function CalendarManagementScreen({
         </div>
       ) : null}
 
-      <div className="h-[calc(100vh-134px)] min-h-0 min-w-0 overflow-hidden">
-        <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      <div
+        className="min-h-0 min-w-0 overflow-hidden"
+        style={{ height: "calc(100vh - 92px)" }}
+        inert={careReportFlowOverlayOpen ? true : undefined}
+        aria-hidden={careReportFlowOverlayOpen || undefined}
+      >
+        <section
+          data-schedule-board-root="true"
+          className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[10px] border border-[#e8edf3] bg-white shadow-none"
+        >
           <CalendarToolbar
             shop={bootstrapData.shop}
             selectedDate={selectedDate}
-            viewMode={calendarViewMode}
             staff={staff}
             visibleStaff={visibleStaff}
             onDateChange={setSelectedDate}
-            onViewModeChange={setCalendarViewMode}
             onStaffChange={setStaff}
             onAddSchedule={handleAddSchedule}
           />
-          {calendarViewMode === "week" ? (
-            <WeeklySchedule
-              bookings={weeklyDisplayBookings}
-              weekDates={weekDates}
-              selectedDate={selectedDate}
-              staff={staff}
-              onOpenDay={handleOpenWeeklyDay}
-              onSelectBooking={handleWeeklyBookingSelect}
-            />
-          ) : (
-            <DailyScheduleGrid
-              bookings={filteredBookings}
-              staff={staff}
-              visibleStaff={visibleStaff}
-              staffMembers={staffMembers}
-              staffScheduleOverrides={bootstrapData.staffScheduleOverrides}
-              activeMetric={activeMetric}
-              selectedBookingId={selectedBookingId}
-              selectedDate={selectedDate}
-              operatingWindow={getScheduleOperatingWindow(bootstrapData.shop, selectedDate)}
-              currentHour={scheduleStatusHour}
-              conflictBookings={displayScopedBookings}
-              selectedStaffKey={selectedBoardStaffKey}
-              onSelectBooking={setSelectedBookingId}
-              onSelectStaff={setSelectedBoardStaffKey}
-              onMoveBooking={handleMoveBooking}
-              onResizeBooking={handleResizeBooking}
-            />
-          )}
-        </WebSurface>
+          <DailyScheduleGrid
+            bookings={filteredBookings}
+            staff={staff}
+            visibleStaff={visibleStaff}
+            staffMembers={staffMembers}
+            staffScheduleOverrides={bootstrapData.staffScheduleOverrides}
+            activeMetric={activeMetric}
+            selectedBookingId={selectedBookingId}
+            selectedDate={selectedDate}
+            operatingWindow={getScheduleOperatingWindow(bootstrapData.shop, selectedDate)}
+            currentHour={scheduleStatusHour}
+            conflictBookings={displayScopedBookings}
+            selectedStaffKey={selectedBoardStaffKey}
+            onSelectBooking={setSelectedBookingId}
+            onSelectStaff={setSelectedBoardStaffKey}
+            onMoveBooking={handleMoveBooking}
+            onResizeBooking={handleResizeBooking}
+          />
+        </section>
 
       </div>
 
-        <BookingSidePanel
-          activeMetric={activeMetric}
-          shopId={bootstrapData.shop.id}
-          bootstrapData={bootstrapData}
-          automaticVisitReminderAvailable={automaticVisitReminderAvailable}
-          selectedBooking={selectedBooking}
-          selectedBookingId={selectedBookingId}
-          selectedDate={selectedDate}
-          currentHour={scheduleStatusHour}
-          bookings={filteredBookings}
-          statusChanging={statusChanging}
-          careReportWritingBookingId={photoStatusAction?.mode === "completion" ? photoStatusAction.bookingId : undefined}
-          careReportChoiceOpen={Boolean(careReportChoiceBooking)}
-          onChangeStatus={handleChangeBookingStatus}
-          onOpenCareReport={(booking) => requestPhotoStatusChange(booking, "완료")}
-          onAcknowledgeChange={handleAcknowledgeChangeBooking}
-          onSelectBooking={setSelectedBookingId}
-          staffComments={staffComments}
-            onChangeStaffComment={handleStaffCommentChange}
-            onSaveBookingPhone={persistBookingPhoneChange}
-            onSaveBookingDetail={persistBookingDetailChange}
-            onSavePetProfile={persistBookingPetProfileChange}
-            onSaveNotificationTiming={persistBookingNotificationTiming}
-            onClose={() => setSelectedBookingId("")}
-          />
+        <div inert={careReportFlowOverlayOpen ? true : undefined} aria-hidden={careReportFlowOverlayOpen || undefined}>
+          <BookingSidePanel
+            activeMetric={activeMetric}
+            shopId={bootstrapData.shop.id}
+            bootstrapData={bootstrapData}
+            automaticVisitReminderAvailable={automaticVisitReminderAvailable}
+            selectedBooking={selectedBooking}
+            selectedBookingId={selectedBookingId}
+            selectedDate={selectedDate}
+            currentHour={scheduleStatusHour}
+            bookings={filteredBookings}
+            statusChanging={statusChanging}
+            careReportWritingBookingId={photoStatusAction?.mode === "completion" ? photoStatusAction.bookingId : undefined}
+            careReportChoiceOpen={Boolean(careReportChoiceBooking)}
+            focusTrapSuspended={careReportFlowOverlayOpen}
+            onChangeStatus={handleChangeBookingStatus}
+            onOpenCareReport={(booking) => requestPhotoStatusChange(booking, "완료")}
+            onAcknowledgeChange={handleAcknowledgeChangeBooking}
+            onSelectBooking={setSelectedBookingId}
+            staffComments={staffComments}
+              onChangeStaffComment={handleStaffCommentChange}
+              onSaveBookingPhone={persistBookingPhoneChange}
+              onSaveBookingDetail={persistBookingDetailChange}
+              onSavePetProfile={persistBookingPetProfileChange}
+              onSaveNotificationTiming={persistBookingNotificationTiming}
+              onClose={closeBookingDetail}
+            />
+        </div>
       {careReportChoiceBooking ? (
         <CalendarCareReportChoiceDialog
           petName={careReportChoiceBooking.pet}
@@ -5397,9 +5496,10 @@ export default function CalendarManagementScreen({
           error={basicCareReportError}
           onOpenReport={openCareReportFromChoice}
           onPublishBasic={() => void publishBasicCareRecord()}
+          onClose={closeCareReportChoice}
         />
       ) : null}
-      {photoStatusAction ? (
+      {photoStatusAction && !careReportChoiceBooking ? (
         <PhotoStatusDialog
           shopId={bootstrapData.shop.id}
           action={photoStatusAction}

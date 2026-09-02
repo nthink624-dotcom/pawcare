@@ -1,5 +1,10 @@
 import type { Service } from "@/types/domain";
 import { buildCustomerPriceGuideGroupKey } from "@/lib/customer-breed-pricing-group";
+import {
+  priceGuideV2Schema,
+  type PriceGuideV2,
+  type PriceGuideV2Row,
+} from "@/types/price-guide-photo-import";
 
 export type CustomerServiceDisplayOverride = {
   visible?: boolean;
@@ -40,6 +45,74 @@ function getPriceGuideSections(guide: unknown, options: { includeDisabled?: bool
   const source = guide as { enabled?: unknown; sections?: unknown };
   if (!options.includeDisabled && source.enabled === false) return [];
   return Array.isArray(source.sections) ? source.sections : [];
+}
+
+function readCanonicalPriceGuideV2(guide: unknown): PriceGuideV2 | null {
+  const rootDocument = priceGuideV2Schema.safeParse(guide);
+  if (rootDocument.success) return rootDocument.data;
+  if (!guide || typeof guide !== "object" || Array.isArray(guide)) return null;
+  const nestedDocument = priceGuideV2Schema.safeParse((guide as { canonicalV2?: unknown }).canonicalV2);
+  return nestedDocument.success ? nestedDocument.data : null;
+}
+
+const priceGuideV2SizeLabels: Record<PriceGuideV2Row["sizeClass"], string> = {
+  small: "소형견",
+  medium: "중형견",
+  large: "대형견",
+  "extra-large": "초대형견",
+  all: "전체 크기",
+  unknown: "",
+};
+
+function formatPriceGuideV2WeightBand(row: PriceGuideV2Row) {
+  if (row.minKg !== null && row.maxKg !== null) return `${row.minKg}~${row.maxKg}kg`;
+  if (row.maxKg !== null) return `${row.maxKg}kg 이하`;
+  if (row.minKg !== null) return `${row.minKg}kg 이상`;
+  return priceGuideV2SizeLabels[row.sizeClass];
+}
+
+function priceGuideV2RowMatchesWeight(row: PriceGuideV2Row, weightKg: number | null | undefined) {
+  if (typeof weightKg !== "number" || !Number.isFinite(weightKg) || weightKg <= 0) return true;
+  if (row.minKg !== null && weightKg < row.minKg) return false;
+  if (row.maxKg !== null && weightKg > row.maxKg) return false;
+  return true;
+}
+
+function getPriceGuideV2ServiceRow(document: PriceGuideV2, service: Service) {
+  const indexedRow = document.rows[Math.max(0, (service.sort_order ?? 1) - 1)];
+  if (
+    indexedRow &&
+    indexedRow.serviceName === service.name &&
+    indexedRow.priceMinKrw === service.price &&
+    indexedRow.durationMinutes === service.duration_minutes
+  ) {
+    return { row: indexedRow, index: Math.max(0, (service.sort_order ?? 1) - 1) };
+  }
+
+  const matches = document.rows.flatMap((row, index) =>
+    row.serviceName === service.name &&
+    row.priceMinKrw === service.price &&
+    row.durationMinutes === service.duration_minutes
+      ? [{ row, index }]
+      : [],
+  );
+  if (matches.length === 1) return matches[0];
+  const serviceDescription = service.description ?? "";
+  const contextualMatches = matches.filter(({ row }) => {
+    const contextParts = [row.note, row.breedGroup, formatPriceGuideV2WeightBand(row)].filter(
+      (value): value is string => Boolean(value),
+    );
+    return contextParts.length > 0 && contextParts.every((value) => serviceDescription.includes(value));
+  });
+  if (contextualMatches.length === 1) return contextualMatches[0];
+  if (document.rows.length === 1) return { row: document.rows[0], index: 0 };
+  return null;
+}
+
+function getPriceGuideV2SpeciesVariants(species: PriceGuideV2Row["species"]): Array<"dog" | "cat"> {
+  if (species === "dog" || species === "cat") return [species];
+  if (species === "all") return ["dog", "cat"];
+  return [];
 }
 
 function numberFromText(value: unknown) {
@@ -230,6 +303,51 @@ export function buildCustomerServiceSourceOptions(
 
   for (const service of services) {
     if (!options.includeInactive && !service.is_active) continue;
+
+    const canonicalDocument = readCanonicalPriceGuideV2(service.price_guide);
+    if (canonicalDocument) {
+      const matched = getPriceGuideV2ServiceRow(canonicalDocument, service);
+      if (matched && priceGuideV2RowMatchesWeight(matched.row, options.weightKg)) {
+        const row = matched.row;
+        const serviceName = limitText(row.serviceName, 80);
+        const completePrice = row.priceKind !== "unknown" && row.priceMinKrw !== null;
+        const completeDuration = row.durationMinutes !== null && row.durationMinutes > 0;
+
+        if (serviceName && completePrice && completeDuration) {
+          for (const species of getPriceGuideV2SpeciesVariants(row.species)) {
+            const speciesLabel = getPriceGuideSpeciesLabel(species);
+            const sectionTitle = row.breedGroup ?? (priceGuideV2SizeLabels[row.sizeClass] || service.category || "미용");
+            const priceGuideGroupKey = buildCustomerPriceGuideGroupKey(species, sectionTitle);
+            if (options.priceGuideGroupKey && priceGuideGroupKey !== options.priceGuideGroupKey) continue;
+
+            const sectionCategory = `${speciesLabel} / ${sectionTitle}`;
+            const displayName = buildPriceGuideOptionName(sectionCategory, serviceName);
+            const stableOptionId = `${service.id}:price-guide-v2:${matched.index + 1}:${species}`;
+            const weightBand = formatPriceGuideV2WeightBand(row);
+            result.push({
+              id: stableOptionId,
+              serviceId: service.id,
+              name: displayName,
+              displayName: serviceName,
+              sourceName: displayName,
+              category: sectionCategory,
+              description: [row.breedNames.join(", "), row.note].filter(Boolean).join(" · "),
+              durationMinutes: row.durationMinutes!,
+              price: row.priceMinKrw!,
+              priceType: row.priceKind === "fixed" ? "fixed" : "starting",
+              weightBand: weightBand || undefined,
+              order: service.sort_order ?? result.length + 1,
+              aliasIds: [`${service.id}:price-guide:${matched.index + 1}`],
+              priceGuideSpecies: species,
+            });
+          }
+        }
+      }
+
+      // PriceGuideV2 is authoritative. Never fall back to a separate service price
+      // when a canonical row is incomplete or does not match the selected weight.
+      continue;
+    }
 
     const initialResultLength = result.length;
     const priceGuideSections = getPriceGuideSections(service.price_guide, { includeDisabled: options.priceGuideOnly });

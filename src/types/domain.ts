@@ -231,12 +231,17 @@ export type OwnerProfile = {
   updated_at: string;
 };
 
+export type CustomerGradeOverride = "normal" | "loyal" | "attention";
+export type CustomerMemberType = "guardian" | "proxy" | "guest";
+
 export type Guardian = {
   id: string;
   shop_id: string;
   name: string;
   phone: string;
   memo: string;
+  customer_grade_override?: CustomerGradeOverride | null;
+  customer_member_type?: CustomerMemberType;
   notification_settings: GuardianNotificationSettings;
   deleted_at?: string | null;
   deleted_restore_until?: string | null;

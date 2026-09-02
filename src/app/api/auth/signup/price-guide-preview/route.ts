@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { signupPriceGuideReviewCopy, signupServicePricesSchema, type SignupServicePrice } from "@/lib/auth/signup-service-pricing";
+import {
+  buildPriceGuideV2Compatibility,
+  buildPriceGuideV2FromLegacySignupServices,
+  signupPriceGuideReviewCopy,
+  signupServicePricesSchema,
+  type SignupServicePrice,
+} from "@/lib/auth/signup-service-pricing";
 import { serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
+  createPriceGuideResponsesFixture,
   extractPriceGuideFromImages,
+  PriceGuidePhotoImportError,
   PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD,
 } from "@/server/price-guide-photo-import";
 import {
@@ -15,6 +23,7 @@ import {
   encryptSignupPriceGuideCache,
   getSignupRequestIp,
   normalizeSignupDeviceFingerprint,
+  preflightSignupPriceGuideAnalysis,
   purgeSignupPriceGuideAnalysis,
   readSignupPriceGuideSession,
   SIGNUP_PRICE_GUIDE_SESSION_COOKIE,
@@ -26,12 +35,14 @@ import {
   parseBoundedSignupPriceGuideMultipart,
   SignupPriceGuideMultipartError,
 } from "@/server/signup-price-guide-multipart";
+import { priceGuideV2Schema, type PriceGuideV2 } from "@/types/price-guide-photo-import";
 
 export const runtime = "nodejs";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 type PreviewPayload = {
+  document: PriceGuideV2;
   services: SignupServicePrice[];
   reviewCopy: typeof signupPriceGuideReviewCopy;
   summary: string;
@@ -49,50 +60,18 @@ declare global {
 const fixtureResults = globalThis.__petmanagerSignupPriceGuideFixtureResults ?? new Map<string, string>();
 globalThis.__petmanagerSignupPriceGuideFixtureResults = fixtureResults;
 
-function flattenGuide(guide: Awaited<ReturnType<typeof extractPriceGuideFromImages>>["guide"]) {
-  const services: SignupServicePrice[] = [];
-  const seen = new Set<string>();
-  for (const section of guide.sections ?? []) {
-    for (const item of section.items) {
-      for (const weightBand of section.weightBands) {
-        const cell = item.cells[weightBand];
-        const priceText = String(cell?.price ?? "").replace(/[^0-9]/g, "");
-        const durationText = String(cell?.durationMinutes ?? "").replace(/[^0-9]/g, "");
-        if (!item.label.trim() || !priceText) continue;
-        const key = [section.species, section.title, item.label, weightBand, priceText].join("|").toLocaleLowerCase("ko-KR");
-        if (seen.has(key)) continue;
-        seen.add(key);
-        services.push({
-          id: `photo-${services.length + 1}`,
-          name: section.title.trim() || item.label.trim(),
-          detailName: section.title.trim() ? item.label.trim() : "",
-          price: Number(priceText),
-          durationMinutes: Number(durationText) >= 5 ? Number(durationText) : 60,
-          species: section.species ?? "dog",
-          breedGroup: section.note.trim(),
-          weightBand,
-        });
-      }
-    }
-  }
-  return signupServicePricesSchema.parse(services.slice(0, 80));
-}
-
-function fixturePayload(): PreviewPayload {
-  return {
-    services: signupServicePricesSchema.parse([
-      { id: "fixture-1", name: "전체 미용", detailName: "기본 컷", price: 80_000, durationMinutes: 120, species: "dog", breedGroup: "말티즈·푸들", weightBand: "5kg 이하" },
-      { id: "fixture-2", name: "목욕", detailName: "기본 케어", price: 35_000, durationMinutes: 60, species: "dog", breedGroup: "소형견", weightBand: "5kg 이하" },
-      { id: "fixture-3", name: "부분 미용", detailName: "발·얼굴 정리", price: 30_000, durationMinutes: 45, species: "all", breedGroup: "", weightBand: "" },
-    ]),
-    reviewCopy: signupPriceGuideReviewCopy,
-    summary: "Development 비식별 한글 요금표 fixture 3개 행을 불러왔습니다.",
-    issues: [],
-    persisted: false,
-    retention: "request_memory_only",
-    source: "fixture",
-  };
-}
+const fixtureDocument = priceGuideV2Schema.parse({
+  schemaVersion: 2,
+  source: "fixture",
+  overallNote: "Development 비식별 한글 요금표 fixture입니다.",
+  rows: [
+    { serviceName: "전체 미용", species: "dog", breedNames: ["말티즈", "푸들"], breedGroup: "소형견", sizeClass: "small", minKg: null, maxKg: 5, priceKind: "fixed", priceMinKrw: 80_000, priceMaxKrw: null, durationMinutes: 120, note: "기본 컷" },
+    { serviceName: "목욕", species: "dog", breedNames: [], breedGroup: "소형견", sizeClass: "small", minKg: null, maxKg: 5, priceKind: "fixed", priceMinKrw: 35_000, priceMaxKrw: null, durationMinutes: 60, note: "기본 케어" },
+    { serviceName: "부분 미용", species: "all", breedNames: [], breedGroup: null, sizeClass: "all", minKg: null, maxKg: null, priceKind: "fixed", priceMinKrw: 30_000, priceMaxKrw: null, durationMinutes: 45, note: "발·얼굴 정리" },
+  ],
+  surcharges: [],
+  aiReview: [],
+});
 
 function responseWithRetry(code: string, message: string, status: number, retryAfterSeconds?: number) {
   const response = NextResponse.json({ code, message }, { status });
@@ -108,8 +87,37 @@ async function readCachedPayload(supabase: ReturnType<typeof getSupabaseAdmin>, 
     .eq("token_jti", cacheSourceJti)
     .maybeSingle();
   if (result.error || !result.data?.cache_ciphertext || new Date(result.data.cache_expires_at).getTime() <= Date.now()) return null;
-  const decoded = decryptSignupPriceGuideCache(result.data.cache_ciphertext, serverEnv.signupPriceGuideCacheSecret) as PreviewPayload;
-  return { ...decoded, reviewCopy: signupPriceGuideReviewCopy, source: "encrypted_ttl_cache" as const };
+  const decoded = decryptSignupPriceGuideCache(result.data.cache_ciphertext, serverEnv.signupPriceGuideCacheSecret);
+  if (!decoded || typeof decoded !== "object") return null;
+  const source = decoded as { document?: unknown; services?: unknown; summary?: unknown };
+  const currentDocument = priceGuideV2Schema.safeParse(source.document);
+  if (currentDocument.success) {
+    const compatibility = buildPriceGuideV2Compatibility(currentDocument.data);
+    return {
+      document: currentDocument.data,
+      services: compatibility.services,
+      reviewCopy: signupPriceGuideReviewCopy,
+      summary: typeof source.summary === "string" ? source.summary : `요금 ${currentDocument.data.rows.length}개 행을 읽었습니다.`,
+      issues: compatibility.issues,
+      persisted: false as const,
+      retention: "request_memory_only" as const,
+      source: "encrypted_ttl_cache" as const,
+    };
+  }
+  // Five-minute rolling compatibility for encrypted payloads produced by V1.
+  const legacyServices = signupServicePricesSchema.safeParse(source.services);
+  if (!legacyServices.success) return null;
+  const document = buildPriceGuideV2FromLegacySignupServices(legacyServices.data, "legacy");
+  return {
+    document,
+    services: legacyServices.data,
+    reviewCopy: signupPriceGuideReviewCopy,
+    summary: typeof source.summary === "string" ? source.summary : `기존 요금 ${document.rows.length}개 행을 읽었습니다.`,
+    issues: [],
+    persisted: false as const,
+    retention: "request_memory_only" as const,
+    source: "encrypted_ttl_cache" as const,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -133,6 +141,7 @@ export async function POST(request: NextRequest) {
       secret: serverEnv.signupPriceGuideTokenSecret,
     });
     tokenJti = verifiedToken.jti;
+    preflightSignupPriceGuideAnalysis({ token: verifiedToken });
 
     const formData = await parseBoundedSignupPriceGuideMultipart(request);
     const file = formData.get("file");
@@ -162,21 +171,30 @@ export async function POST(request: NextRequest) {
       if (cached) return NextResponse.json({ ...cached, source: "encrypted_ttl_cache" });
     }
 
-    let payload: PreviewPayload;
-    if (fixtureMode) {
-      payload = fixturePayload();
-    } else {
-      if (!serverEnv.openaiApiKey) {
-        throw new SignupPriceGuideGuardError("ANALYSIS_GATE_UNAVAILABLE", "사진 AI 판독이 아직 연결되지 않았습니다. 같은 화면에서 직접 입력해 주세요.", 503);
-      }
-      const result = await extractPriceGuideFromImages([`data:image/jpeg;base64,${sanitizedBytes.toString("base64")}`], { timeoutMs: 20_000 });
-      actualCostMicroUsd = result.providerCostMicroUsd;
-      const services = flattenGuide(result.guide);
-      if (services.length === 0) {
-        throw new SignupPriceGuideGuardError("NO_ROWS", "확인 가능한 요금 행이 없습니다. 직접 입력해 주세요.", 422);
-      }
-      payload = { services, reviewCopy: signupPriceGuideReviewCopy, summary: result.summary, issues: result.issues, persisted: false, retention: "request_memory_only", source: "vision" };
+    if (!fixtureMode && !serverEnv.openaiApiKey) {
+      throw new SignupPriceGuideGuardError("ANALYSIS_GATE_UNAVAILABLE", "사진 AI 판독이 아직 연결되지 않았습니다. 같은 화면에서 직접 입력해 주세요.", 503);
     }
+    const result = await extractPriceGuideFromImages(
+      [`data:image/jpeg;base64,${sanitizedBytes.toString("base64")}`],
+      fixtureMode
+        ? {
+            timeoutMs: 20_000,
+            responsesClient: async () => createPriceGuideResponsesFixture(fixtureDocument),
+          }
+        : { timeoutMs: 20_000 },
+    );
+    actualCostMicroUsd = fixtureMode ? 0 : result.providerCostMicroUsd;
+    const compatibility = buildPriceGuideV2Compatibility(result.document);
+    const payload: PreviewPayload = {
+      document: result.document,
+      services: compatibility.services,
+      reviewCopy: signupPriceGuideReviewCopy,
+      summary: result.summary,
+      issues: result.issues,
+      persisted: false,
+      retention: "request_memory_only",
+      source: fixtureMode ? "fixture" : "vision",
+    };
 
     const encrypted = encryptSignupPriceGuideCache(payload, serverEnv.signupPriceGuideCacheSecret);
     if (fixtureMode) {
@@ -195,6 +213,8 @@ export async function POST(request: NextRequest) {
     const failureCode = cause instanceof SignupPriceGuideImageError
       ? cause.code
       : cause instanceof SignupPriceGuideMultipartError
+        ? cause.code
+      : cause instanceof PriceGuidePhotoImportError
         ? cause.code
       : cause instanceof SignupPriceGuideGuardError
         ? cause.code
@@ -220,6 +240,9 @@ export async function POST(request: NextRequest) {
     }
     if (cause instanceof SignupPriceGuideMultipartError) return NextResponse.json({ code: cause.code, message: cause.message }, { status: cause.status });
     if (cause instanceof SignupPriceGuideImageError) return NextResponse.json({ code: cause.code, message: cause.message }, { status: cause.status });
+    if (cause instanceof PriceGuidePhotoImportError) {
+      return NextResponse.json({ code: cause.code, message: cause.message }, { status: cause.status });
+    }
     if (cause instanceof SignupPriceGuideGuardError) {
       const publicCode = cause.code === "ANALYSIS_GATE_UNAVAILABLE" && !serverEnv.openaiApiKey ? "VISION_UNAVAILABLE" : cause.code;
       return responseWithRetry(publicCode, cause.message, cause.status, cause.retryAfterSeconds);

@@ -1,49 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 
-import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { refundOwnerLatestPayment, refundOwnerPayment } from "@/server/owner-billing";
 import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
-
-const bodySchema = z.object({
-  userId: z.string().min(1),
-  shopId: z.string().min(1),
-  paymentId: z.string().min(1).optional(),
-  reason: z.string().trim().min(1).max(120),
-});
+import { assertAdminHighRiskActionReady } from "@/server/admin-high-risk-actions";
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdminSession(request);
-    const body = bodySchema.parse(await request.json());
-    const admin = getSupabaseAdmin();
-    if (!admin) {
-      throw new AdminApiError("Supabase 관리자 설정을 확인해 주세요.", 503);
-    }
-
-    const userResult = await admin.auth.admin.getUserById(body.userId);
-    const user = userResult.data.user;
-    if (userResult.error || !user) {
-      throw new AdminApiError("환불할 오너 계정을 찾지 못했습니다.", 404);
-    }
-
-    const result = body.paymentId
-      ? await refundOwnerPayment(user, body.shopId, body.paymentId, body.reason)
-      : await refundOwnerLatestPayment(user, body.shopId, body.reason);
-    return NextResponse.json({ success: true, ...result });
+    const account = await requireAdminSession(request);
+    assertAdminHighRiskActionReady("refund", account);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "환불 요청 형식이 올바르지 않습니다." }, { status: 400 });
-    }
-
     if (error instanceof AdminApiError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
-
-    if (error instanceof Error && "status" in error && typeof error.status === "number") {
-      return NextResponse.json({ message: error.message }, { status: error.status });
-    }
-
-    return NextResponse.json({ message: "결제 취소를 처리하지 못했습니다." }, { status: 500 });
+    return NextResponse.json({ message: "환불 보안 절차를 확인하지 못했습니다." }, { status: 503 });
   }
 }

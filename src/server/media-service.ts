@@ -14,6 +14,7 @@ import {
   evaluatePetmanagerMediaUploadLimit,
   getPetmanagerMediaUsageStatus,
 } from "@/lib/media/media-policy";
+import { serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
   createMediaSignedReadUrl,
@@ -24,6 +25,11 @@ import {
 import { buildMediaStorageDirectory } from "@/server/media-storage-paths";
 import { verifyBookingAccessToken } from "@/server/booking-access-token";
 import { OwnerApiError } from "@/server/owner-api-auth";
+import {
+  createPriceGuideSourceCleanupProof,
+  verifyPriceGuideSourceCleanupProof,
+  type PriceGuideSourceCleanupProof,
+} from "@/server/price-guide-photo-cleanup-decision";
 import type {
   ChannelType,
   MediaAsset,
@@ -161,6 +167,11 @@ type CustomerResultMediaSignedUrlsInput = PublicMediaSignedUrlsInput & {
 type OwnerMediaSignedUrlsInput = {
   mediaAssetIds: string[];
   variantKey?: MediaVariantKey | "original" | null;
+};
+
+type RemoveOwnerPriceGuideSourceMediaInput = {
+  mediaAssetIds: string[];
+  cleanupProofs?: PriceGuideSourceCleanupProof[];
 };
 
 type PhotoSendRequestInput = {
@@ -556,6 +567,17 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
   const metadata = normalizeMetadata(input.metadata);
   const staffId = mediaKind === "staff_profile" && typeof metadata.staffId === "string" ? metadata.staffId : null;
   const mediaAssetId = randomUUID();
+  let cleanupProof: string | null = null;
+  if (mediaKind === "price_guide_source") {
+    if (!serverEnv.authFlowSecret) {
+      throw new OwnerApiError("요금표 원본 정리 설정을 확인할 수 없습니다.", 503);
+    }
+    cleanupProof = createPriceGuideSourceCleanupProof({
+      secret: serverEnv.authFlowSecret,
+      shopId: owner.shopId,
+      mediaAssetId,
+    });
+  }
   const storagePath = buildStoragePath({
     shopId: owner.shopId,
     mediaAssetId,
@@ -621,6 +643,7 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
 
   return {
     mediaAsset: result.data as MediaAsset,
+    cleanupProof,
     policy: {
       retentionDays: mediaLimitPolicy.transientRetentionDays,
       targetImageBytes: OWNER_MEDIA_TARGET_IMAGE_BYTES,
@@ -846,6 +869,97 @@ export async function getOwnerMediaSignedUrls(owner: OwnerContext, input: OwnerM
   return {
     items: items.filter((item): item is { mediaAssetId: string; signedUrl: string } => Boolean(item)),
   };
+}
+
+export async function removeOwnerPriceGuideSourceMedia(
+  owner: OwnerContext,
+  input: RemoveOwnerPriceGuideSourceMediaInput,
+) {
+  const admin = getAdmin();
+  const mediaAssetIds = normalizeUuidList(input.mediaAssetIds, "mediaAssetId", 5);
+  if (!mediaAssetIds.length || mediaAssetIds.length !== input.mediaAssetIds.length) {
+    throw new OwnerApiError("정리할 요금표 원본 사진이 없습니다.", 400);
+  }
+
+  const cleanupProofByMediaAssetId = new Map(
+    (input.cleanupProofs ?? []).map((item) => [item.mediaAssetId, item.proof]),
+  );
+
+  const assetsResult = await admin
+    .from("media_assets")
+    .select("*")
+    .eq("shop_id", owner.shopId)
+    .in("id", mediaAssetIds);
+  if (assetsResult.error) {
+    throw new OwnerApiError("요금표 원본 사진을 확인하지 못했습니다.", 503);
+  }
+  const assets = (assetsResult.data ?? []) as MediaAsset[];
+  if (assets.some((asset) => asset.media_kind !== "price_guide_source")) {
+    throw new OwnerApiError("요금표 원본으로 등록한 사진만 정리할 수 있습니다.", 400);
+  }
+  const foundIds = new Set(assets.map((asset) => asset.id));
+  const missingIds = mediaAssetIds.filter((mediaAssetId) => !foundIds.has(mediaAssetId));
+  const missingIdsHaveValidProof = missingIds.every((mediaAssetId) =>
+    verifyPriceGuideSourceCleanupProof({
+      secret: serverEnv.authFlowSecret,
+      shopId: owner.shopId,
+      mediaAssetId,
+      proof: cleanupProofByMediaAssetId.get(mediaAssetId),
+    }),
+  );
+  if (!missingIdsHaveValidProof) {
+    throw new OwnerApiError("요금표 원본으로 등록한 사진만 정리할 수 있습니다.", 400);
+  }
+
+  if (assets.length === 0) {
+    return { deletedMediaAssetIds: mediaAssetIds, hardPurged: true, alreadyPurged: true };
+  }
+
+  const variantsResult = await admin
+    .from("media_variants")
+    .select("*")
+    .in("media_asset_id", mediaAssetIds);
+  if (variantsResult.error) {
+    throw new OwnerApiError("요금표 원본 사진의 임시 파일을 확인하지 못했습니다.", 503);
+  }
+  const variants = (variantsResult.data ?? []) as MediaVariant[];
+  const pathsByBucket = new Map<string, Set<string>>();
+  const addPath = (bucket: string, path: string) => {
+    const paths = pathsByBucket.get(bucket) ?? new Set<string>();
+    paths.add(path);
+    pathsByBucket.set(bucket, paths);
+  };
+  for (const asset of assets) addPath(asset.bucket, asset.storage_path);
+  for (const variant of variants) addPath(variant.bucket, variant.storage_path);
+
+  try {
+    for (const [bucket, paths] of pathsByBucket.entries()) {
+      await removeMediaStorageObjects({ bucket, paths: [...paths] });
+    }
+  } catch {
+    throw new OwnerApiError(
+      "요금표 원본 사진을 안전하게 정리하지 못했습니다. 사진 없이 직접 입력해 주세요.",
+      503,
+    );
+  }
+
+  const deleteResult = await admin
+    .from("media_assets")
+    .delete()
+    .eq("shop_id", owner.shopId)
+    .eq("media_kind", "price_guide_source")
+    .in("id", assets.map((asset) => asset.id))
+    .select("id");
+  if (deleteResult.error) {
+    throw new OwnerApiError("요금표 원본 사진의 메타데이터를 삭제하지 못했습니다.", 503);
+  }
+
+  const hardDeletedIds = new Set((deleteResult.data ?? []).map((item) => item.id as string));
+  if (hardDeletedIds.size !== assets.length || assets.some((asset) => !hardDeletedIds.has(asset.id))) {
+    throw new OwnerApiError("요금표 원본 사진의 메타데이터 삭제를 확인하지 못했습니다.", 503);
+  }
+
+  return { deletedMediaAssetIds: mediaAssetIds, hardPurged: true, alreadyPurged: false };
 }
 
 export async function getPublicShopMediaSignedUrls(input: PublicMediaSignedUrlsInput) {

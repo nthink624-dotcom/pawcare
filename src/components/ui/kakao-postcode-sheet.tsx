@@ -123,10 +123,10 @@ export default function KakaoPostcodeSheet({
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
-              <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{description}</p>
+              <h3 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[var(--text)]">{title}</h3>
+              <p className="mt-1 text-[13px] font-normal leading-5 text-[var(--muted)]">{description}</p>
             </div>
-            <button type="button" className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>
+            <button type="button" className="text-[14px] font-medium leading-5 tracking-[-0.005em] text-[var(--muted)]" onClick={onClose}>
               닫기
             </button>
           </div>
@@ -134,19 +134,19 @@ export default function KakaoPostcodeSheet({
           <div className="overflow-hidden rounded-[18px] border border-[var(--border)] bg-[#faf8f4]">
             <div ref={containerRef} className="w-full" style={{ height: `${frameHeight}px` }} />
             {loading ? (
-              <div className="flex h-[460px] items-center justify-center px-6 text-sm font-medium text-[var(--muted)]">
+              <div className="flex h-[460px] items-center justify-center px-6 text-[14px] font-medium leading-5 text-[var(--muted)]">
                 주소 검색 화면을 불러오는 중이에요.
               </div>
             ) : null}
             {error ? (
               <div className="flex min-h-[220px] flex-col items-center justify-center px-6 py-10 text-center">
-                <p className="text-sm font-semibold text-[var(--text)]">주소 검색을 열지 못했어요.</p>
-                <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{error}</p>
+                <p className="text-[16px] font-semibold leading-6 tracking-[-0.01em] text-[var(--text)]">주소 검색을 열지 못했어요.</p>
+                <p className="mt-2 text-[13px] font-normal leading-5 text-[var(--muted)]">{error}</p>
               </div>
             ) : null}
           </div>
 
-          <p className="mt-3 text-[12px] leading-5 text-[var(--muted)]">
+          <p className="mt-3 text-[13px] font-normal leading-5 text-[var(--muted)]">
             주소를 선택하면 이 창이 닫히고, 매장 기본 정보에서 상세주소를 이어서 입력할 수 있어요.
           </p>
         </div>

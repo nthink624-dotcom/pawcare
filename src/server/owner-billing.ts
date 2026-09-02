@@ -1793,7 +1793,18 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     },
   });
 
-  return await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+  // A confirmed first monthly payment can synchronously extend this record via
+  // the payment-ledger trigger. Re-read it so this response does not show the
+  // pre-benefit period to the owner.
+  const { record: benefitAdjustedRecord, profile: benefitAdjustedProfile } =
+    payment.status === "PAID" ? await readOrCreateSubscription(identity, shopId) : { record: saved, profile };
+
+  return await buildOwnerSubscriptionSummary(
+    identity,
+    shopId,
+    benefitAdjustedRecord ?? saved,
+    benefitAdjustedProfile ?? profile,
+  );
 }
 
 export async function syncOwnerSubscriptionFromPayment(
@@ -1883,6 +1894,13 @@ export async function syncOwnerSubscriptionFromPayment(
     },
   });
 
+  // The common payment ledger can add the initial-partner period in the same
+  // database transaction. Refresh before constructing the confirmation body.
+  const { record: benefitAdjustedRecord, profile: benefitAdjustedProfile } =
+    payment.status === "PAID"
+      ? await readOrCreateSubscription(userResult.data.user as BillingIdentity, shopId)
+      : { record: saved, profile };
+
   return await buildOwnerSubscriptionSummary(
     {
       id: userId,
@@ -1891,8 +1909,8 @@ export async function syncOwnerSubscriptionFromPayment(
       user_metadata: userResult.data.user.user_metadata ?? null,
     },
     shopId,
-    saved,
-    profile,
+    benefitAdjustedRecord ?? saved,
+    benefitAdjustedProfile ?? profile,
   );
 }
 

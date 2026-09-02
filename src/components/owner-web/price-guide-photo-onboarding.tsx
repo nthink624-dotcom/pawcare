@@ -1,24 +1,39 @@
 "use client";
 
 import Image from "next/image";
-import { AlertTriangle, Camera, Check, FileSpreadsheet, ImagePlus, LoaderCircle, PencilLine, ShieldCheck, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, ArrowLeft, Camera, Check, ImagePlus, LoaderCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import DataImportDialog from "@/components/owner-web/data-import-dialog";
+import PriceGuideManualOnboarding, { createEmptyManualPriceGuideDocument } from "@/components/owner-web/price-guide-manual-onboarding";
+import PriceGuideOnboardingChoice from "@/components/owner-web/price-guide-onboarding-choice";
+import PriceGuideV2ServiceDetail, { isFixedManualPriceGuideDocument } from "@/components/owner-web/price-guide-v2-service-detail";
 import type { ServicePriceGuide } from "@/components/owner-web/service-price-guide";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
-import { consumePreferredPriceGuideOnboardingMode } from "@/lib/price-guide-onboarding";
+import { cleanupLatePhotoAnalysisResult } from "@/lib/price-guide-photo-analysis-client";
+import { createPriceGuidePhotoImportFixture } from "@/lib/price-guide-photo-import-fixture";
 import { cn } from "@/lib/utils";
-import type { PriceGuidePhotoImportResponse } from "@/types/price-guide-photo-import";
+import type { PriceGuidePhotoImportResponse, PriceGuideV2 } from "@/types/price-guide-photo-import";
 
-type OnboardingMode = "choice" | "photo" | "manual" | "hidden";
+type OnboardingMode = "choice" | "photo" | "manual";
+type EditorMode = "direct" | "photo-review";
 
 const MAX_PHOTO_COUNT = 5;
 const MAX_SOURCE_FILE_BYTES = 20 * 1024 * 1024;
 
 function formatCellValue(price: string, durationMinutes: string) {
-  const priceLabel = price ? `${Number(price.replace(/[^0-9]/g, "")).toLocaleString("ko-KR")}원${price.includes("~") ? "~" : ""}` : "가격 확인 필요";
+  const [minimum = "", maximum = ""] = price.trim().split("~", 2);
+  const formatPrice = (value: string) => {
+    const digits = value.replace(/[^0-9]/g, "");
+    return digits ? Number(digits).toLocaleString("ko-KR") : value.trim();
+  };
+  const priceLabel = !price.trim()
+    ? "가격 확인 필요"
+    : price.includes("~")
+      ? maximum.trim()
+        ? `${formatPrice(minimum)}~${formatPrice(maximum)}원`
+        : `${formatPrice(minimum)}원~`
+      : `${formatPrice(minimum)}원`;
   return durationMinutes ? `${priceLabel} · ${durationMinutes}분` : priceLabel;
 }
 
@@ -118,26 +133,35 @@ function ExtractionPreview({ result }: { result: PriceGuidePhotoImportResponse }
 
 export default function PriceGuidePhotoOnboarding({
   shopId,
+  fixtureMode = false,
+  initialDocument = null,
   onApply,
+  onSaveActionReady,
 }: {
   shopId: string;
-  onApply: (guide: ServicePriceGuide) => Promise<boolean>;
+  fixtureMode?: boolean;
+  initialDocument?: PriceGuideV2 | null;
+  onApply: (guide: ServicePriceGuide | PriceGuideV2) => Promise<boolean>;
+  onSaveActionReady?: (action: (() => Promise<void>) | null) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const captureRef = useRef<HTMLInputElement | null>(null);
+  const photoHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const analysisAbortControllerRef = useRef<AbortController | null>(null);
+  const analysisRunIdRef = useRef(0);
   const [mode, setMode] = useState<OnboardingMode>("choice");
   const [files, setFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [result, setResult] = useState<PriceGuidePhotoImportResponse | null>(null);
-  const [uploadedMediaAssetIds, setUploadedMediaAssetIds] = useState<string[]>([]);
+  const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [applying, setApplying] = useState(false);
   const [error, setError] = useState("");
-  const [excelOpen, setExcelOpen] = useState(false);
-
-  useEffect(() => {
-    const preferredMode = consumePreferredPriceGuideOnboardingMode(shopId);
-    if (preferredMode) setMode(preferredMode);
-  }, [shopId]);
+  const [manualDocument, setManualDocument] = useState<PriceGuideV2 | null>(() => initialDocument);
+  const [editorMode, setEditorMode] = useState<EditorMode>("direct");
+  const displayedDocument = useMemo(
+    () => initialDocument ?? createEmptyManualPriceGuideDocument(),
+    [initialDocument],
+  );
 
   useEffect(() => {
     const urls = files.map((file) => URL.createObjectURL(file));
@@ -145,125 +169,190 @@ export default function PriceGuidePhotoOnboarding({
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [files]);
 
-  if (mode === "hidden") return null;
+  useEffect(() => {
+    if (mode === "photo") photoHeadingRef.current?.focus();
+  }, [mode]);
+
+  useEffect(() => () => {
+    analysisRunIdRef.current += 1;
+    analysisAbortControllerRef.current?.abort();
+  }, []);
+
+  function clearPhotoTemporaryState() {
+    setFiles([]);
+    setPrivacyConfirmed(false);
+    setResult(null);
+    inputRef.current && (inputRef.current.value = "");
+    captureRef.current && (captureRef.current.value = "");
+  }
 
   function selectFiles(nextFiles: File[]) {
-    const imageFiles = nextFiles.filter((file) => file.type.startsWith("image/"));
+    const imageFiles = nextFiles.filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type));
     const oversized = imageFiles.find((file) => file.size > MAX_SOURCE_FILE_BYTES);
     if (oversized) {
       setError(`${oversized.name} 파일이 너무 큽니다. 사진 한 장은 최대 20MB까지 올릴 수 있습니다.`);
       return;
     }
     setFiles(imageFiles.slice(0, MAX_PHOTO_COUNT));
-    setUploadedMediaAssetIds([]);
+    setPrivacyConfirmed(false);
     setResult(null);
-    setError(imageFiles.length > MAX_PHOTO_COUNT ? "요금표 사진은 최대 5장까지 분석합니다." : "");
+    setError(
+      imageFiles.length === 0 && nextFiles.length > 0
+        ? "JPG, PNG, WebP 사진만 선택할 수 있습니다."
+        : imageFiles.length > MAX_PHOTO_COUNT
+          ? "요금표 사진은 최대 5장까지 분석합니다."
+          : "",
+    );
+  }
+
+  async function cleanupUploadedAssets(mediaAssetIds: string[]) {
+    if (fixtureMode || mediaAssetIds.length === 0) return;
+    try {
+      await fetchApiJsonWithAuth("/api/owner/price-guide-photo-import", {
+        method: "DELETE",
+        body: JSON.stringify({ shopId, mediaAssetIds }),
+      });
+    } catch {
+      // Source uploads use transient retention as a second cleanup boundary.
+    }
   }
 
   async function analyzePhotos() {
-    if (files.length === 0 || analyzing) return;
+    if (files.length === 0 || !privacyConfirmed || analyzing || analysisAbortControllerRef.current) return;
+    const analysisRunId = analysisRunIdRef.current + 1;
+    const requestController = new AbortController();
+    const isCurrentAnalysis = () => analysisRunIdRef.current === analysisRunId && !requestController.signal.aborted;
+    analysisRunIdRef.current = analysisRunId;
+    analysisAbortControllerRef.current = requestController;
     setAnalyzing(true);
     setError("");
+    const mediaAssetIds: string[] = [];
     try {
-      const mediaAssetIds = [...uploadedMediaAssetIds];
-      for (const file of files.slice(mediaAssetIds.length)) {
-        const uploaded = await createOwnerMediaAssetFromFile(
+      if (fixtureMode) {
+        await Promise.resolve();
+        if (isCurrentAnalysis()) setResult(createPriceGuidePhotoImportFixture());
+        return;
+      }
+      const uploads = await Promise.allSettled(files.map((file) =>
+        createOwnerMediaAssetFromFile(
           { shopId },
           "price_guide_source",
           file,
           { createProviderReadyVariant: false },
-        );
-        mediaAssetIds.push(uploaded.mediaAsset.id);
-        setUploadedMediaAssetIds([...mediaAssetIds]);
+        ),
+      ));
+      mediaAssetIds.push(...uploads.flatMap((upload) =>
+        upload.status === "fulfilled" ? [upload.value.mediaAsset.id] : [],
+      ));
+      const failedUpload = uploads.find((upload) => upload.status === "rejected");
+      if (failedUpload?.status === "rejected") throw failedUpload.reason;
+      if (!isCurrentAnalysis()) {
+        await cleanupUploadedAssets(mediaAssetIds);
+        return;
       }
       const nextResult = await fetchApiJsonWithAuth<PriceGuidePhotoImportResponse>("/api/owner/price-guide-photo-import", {
         method: "POST",
-        body: JSON.stringify({ shopId, mediaAssetIds }),
+        body: JSON.stringify({ shopId, mediaAssetIds, privacyConfirmed: true }),
+        signal: requestController.signal,
       });
-      setResult(nextResult);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "요금표 사진을 분석하지 못했습니다.");
-    } finally {
-      setAnalyzing(false);
-    }
-  }
-
-  async function applyResult() {
-    if (!result || applying) return;
-    setApplying(true);
-    setError("");
-    try {
-      const saved = await onApply(result.guide);
-      if (!saved) {
-        setError("요금표 저장에 실패했습니다. 아래 입력값을 확인한 뒤 다시 시도해 주세요.");
+      if (!isCurrentAnalysis()) {
+        await cleanupLatePhotoAnalysisResult(mediaAssetIds, cleanupUploadedAssets);
         return;
       }
-      setMode("manual");
+      setResult(nextResult);
+    } catch (reason) {
+      if (!isCurrentAnalysis()) {
+        await cleanupUploadedAssets(mediaAssetIds);
+        return;
+      }
+      await cleanupUploadedAssets(mediaAssetIds);
+      setError(reason instanceof Error ? reason.message : "요금표 사진을 분석하지 못했습니다.");
     } finally {
-      setApplying(false);
+      if (analysisRunIdRef.current === analysisRunId) {
+        analysisAbortControllerRef.current = null;
+        setAnalyzing(false);
+      }
     }
   }
 
-  if (mode === "manual") {
-    return (
-      <div className="rounded-[12px] border border-[#cfe0ff] bg-[#f5f9ff] px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[14px] font-semibold text-[#245bd0]">직접 입력 모드</p>
-            <p className="mt-1 text-[12px] leading-5 text-[#4b6280]">아래 상세 요금표에 현재 매장 기준을 입력해 주세요. 언제든 사진 자동 등록으로 돌아올 수 있습니다.</p>
-          </div>
-          <button type="button" onClick={() => setMode("photo")} className="shrink-0 rounded-[8px] border border-[#bdd2f5] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#245bd0]">사진으로 등록</button>
-        </div>
-      </div>
-    );
+  function cancelAnalysis() {
+    const requestController = analysisAbortControllerRef.current;
+    if (!requestController) return;
+    analysisRunIdRef.current += 1;
+    requestController.abort();
+    analysisAbortControllerRef.current = null;
+    setAnalyzing(false);
+    clearPhotoTemporaryState();
+    setError("분석을 취소했습니다. 사진을 다시 선택해 주세요.");
+  }
+
+  function reviewResult() {
+    if (!result) return;
+    setError("");
+    setManualDocument(result.document);
+    setEditorMode("photo-review");
+    setResult(null);
+    setMode("manual");
+  }
+
+  function selectMode(nextMode: OnboardingMode) {
+    if (nextMode === "manual") {
+      setManualDocument(initialDocument);
+      setEditorMode("direct");
+    }
+    setMode(nextMode);
+  }
+
+  async function applyReviewedDocument(document: PriceGuideV2) {
+    const saved = await onApply(document);
+    if (saved) setManualDocument(document);
+    return saved;
   }
 
   return (
-    <>
-      <section className="overflow-hidden rounded-[14px] border border-[#c9d9f5] bg-white shadow-[0_10px_30px_rgba(37,99,235,0.07)]">
-        <div className="border-b border-[#dbe6f8] bg-[linear-gradient(135deg,#f4f8ff_0%,#ffffff_65%)] px-5 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <span className="inline-flex h-6 items-center rounded-full bg-[#2563eb] px-2.5 text-[11px] font-semibold text-white">가장 빠른 시작</span>
-              <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#111827]">요금표 사진만 올리면 상세 요금표 초안이 완성됩니다</h3>
-              <p className="mt-1.5 text-[13px] leading-5 text-[#526174]">AI가 서비스명·가격·예상 시간·품종·체중 구간을 옮기고, 읽기 어려운 부분만 확인 필요로 표시합니다.</p>
-            </div>
-            <button type="button" onClick={() => setMode("hidden")} className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#718096] hover:bg-white" aria-label="나중에 설정"><X className="h-4 w-4" /></button>
-          </div>
-        </div>
+    <div className="min-w-0 space-y-4" data-testid="price-guide-onboarding">
+      <PriceGuideOnboardingChoice onSelect={selectMode} />
 
-        {mode === "choice" ? (
-          <div className="grid gap-3 p-5 lg:grid-cols-[1.35fr_1fr_1fr]">
-            <button type="button" onClick={() => setMode("photo")} className="group rounded-[12px] border border-[#9fbcf0] bg-[#f6f9ff] p-4 text-left transition hover:border-[#2563eb] hover:bg-[#f1f6ff]">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#2563eb] text-white"><Camera className="h-5 w-5" /></span>
-              <p className="mt-3 text-[16px] font-semibold text-[#163f89]">요금표 사진으로 자동 등록</p>
-              <p className="mt-1 text-[12px] leading-5 text-[#58709b]">종이, 메뉴판, 휴대폰 화면 모두 가능 · 최대 5장</p>
-            </button>
-            <button type="button" onClick={() => setExcelOpen(true)} className="rounded-[12px] border border-[#dce3eb] bg-white p-4 text-left transition hover:border-[#aebdce] hover:bg-[#fbfcfd]">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#eef2f7] text-[#526174]"><FileSpreadsheet className="h-5 w-5" /></span>
-              <p className="mt-3 text-[15px] font-semibold text-[#334155]">엑셀·파일에서 가져오기</p>
-              <p className="mt-1 text-[12px] leading-5 text-[#718096]">티피 또는 일반 엑셀 파일 이전</p>
-            </button>
-            <button type="button" onClick={() => setMode("manual")} className="rounded-[12px] border border-[#dce3eb] bg-white p-4 text-left transition hover:border-[#aebdce] hover:bg-[#fbfcfd]">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#eef2f7] text-[#526174]"><PencilLine className="h-5 w-5" /></span>
-              <p className="mt-3 text-[15px] font-semibold text-[#334155]">직접 입력하기</p>
-              <p className="mt-1 text-[12px] leading-5 text-[#718096]">아래 상세 요금표를 직접 수정</p>
-            </button>
-          </div>
-        ) : (
-          <div className="p-5">
+      {mode === "manual" ? (
+        <PriceGuideManualOnboarding
+          initialDocument={manualDocument}
+          onBack={() => {
+            setEditorMode("direct");
+            setMode("choice");
+          }}
+          onSave={applyReviewedDocument}
+          manualMatrixMode={editorMode === "direct"}
+          onSaveActionReady={onSaveActionReady}
+        />
+      ) : null}
+
+      {mode === "photo" ? <section className="overflow-hidden rounded-[14px] border border-[#d9e2ee] bg-white">
+      <header className="border-b border-[#e8edf3] px-4 py-4 sm:px-5">
+        <button type="button" onClick={() => setMode("choice")} disabled={analyzing} className="inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-[13px] font-medium text-[#526174] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:opacity-50">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          다른 방법 선택
+        </button>
+        <h3 ref={photoHeadingRef} tabIndex={-1} className="mt-1 text-[20px] font-semibold tracking-[-0.025em] text-[#172033] outline-none">사진으로 요금표 만들기</h3>
+      </header>
+      <div className="p-4 sm:p-5">
             {!result ? (
-              <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-                <div>
+              <div className={previewUrls.length > 0 ? "grid gap-4 lg:grid-cols-[360px_1fr]" : "w-full"}>
+                <div className={previewUrls.length > 0 ? undefined : "mx-auto w-full max-w-[640px]"}>
                   <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => selectFiles(Array.from(event.target.files ?? []))} />
-                  <button type="button" onClick={() => inputRef.current?.click()} className="flex min-h-[210px] w-full flex-col items-center justify-center rounded-[12px] border border-dashed border-[#9fbcf0] bg-[#f7faff] px-5 text-center transition hover:bg-[#f2f7ff]">
+                  <input ref={captureRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={(event) => selectFiles(Array.from(event.target.files ?? []))} />
+                  <button type="button" onClick={() => inputRef.current?.click()} disabled={analyzing} className="flex min-h-[210px] w-full flex-col items-center justify-center rounded-[12px] border border-dashed border-[#9fbcf0] bg-[#f7faff] px-5 text-center transition hover:bg-[#f2f7ff] disabled:cursor-not-allowed disabled:opacity-60">
                     <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#e5efff] text-[#2563eb]"><ImagePlus className="h-6 w-6" /></span>
                     <span className="mt-3 text-[15px] font-semibold text-[#1d4f9e]">요금표 사진 선택</span>
                     <span className="mt-1 text-[12px] leading-5 text-[#6b7f9f]">JPG, PNG, WebP · 최대 5장<br />한 장당 최대 20MB</span>
                   </button>
+                  <button type="button" onClick={() => captureRef.current?.click()} disabled={analyzing} className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#dce3eb] bg-white px-4 text-[13px] font-medium text-[#526174] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-not-allowed disabled:opacity-60">
+                    <Camera className="h-4 w-4" aria-hidden="true" />
+                    카메라로 촬영
+                  </button>
+                  {previewUrls.length === 0 ? <p className="mt-3 text-[11px] leading-5 text-[#607080]">OpenAI 분석 전 사진에서 이름·전화번호·주소를 가려 주세요.</p> : null}
                 </div>
-                <div className="min-w-0">
-                  {previewUrls.length > 0 ? (
+                {previewUrls.length > 0 && (
+                  <div className="min-w-0">
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {previewUrls.map((url, index) => (
                         <div key={url} className="relative aspect-[4/3] overflow-hidden rounded-[9px] border border-[#dce3eb] bg-[#f3f5f8]">
@@ -271,23 +360,27 @@ export default function PriceGuidePhotoOnboarding({
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="flex min-h-[150px] items-center justify-center rounded-[10px] border border-[#e5e9ef] bg-[#fbfcfd] px-4 text-center">
-                      <p className="text-[13px] leading-6 text-[#718096]">표 전체가 정면으로 보이게 찍으면 더 정확합니다.<br />여러 장이면 겹치는 부분이 있어도 자동으로 정리합니다.</p>
-                    </div>
-                  )}
-                  <div className="mt-3 flex items-start gap-2 rounded-[9px] bg-[#f7f9fc] px-3 py-2.5">
-                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#2563eb]" />
-                    <p className="text-[11px] leading-5 text-[#607080]">사진은 매장 전용 비공개 원본으로 보관됩니다. AI 분석 후에도 자동 저장하지 않으며, 오너가 결과를 확인해야 요금표에 반영됩니다.</p>
-                  </div>
+                  <p className="mt-3 text-[11px] leading-5 text-[#607080]">OpenAI 분석 전 사진에서 이름·전화번호·주소를 가려 주세요.</p>
+                  <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-2 rounded-[9px] border border-[#dce3eb] bg-white px-3 py-2.5 text-[13px] font-medium leading-5 text-[#42536a]">
+                      <input
+                        type="checkbox"
+                        checked={privacyConfirmed}
+                        onChange={(event) => setPrivacyConfirmed(event.target.checked)}
+                        disabled={analyzing}
+                        className="mt-0.5 h-5 w-5 rounded border-[#aab7c7] accent-[#172033]"
+                      />
+                      <span>표 가운데에 사람 이름·전화번호·주소가 없는 것을 확인했습니다.</span>
+                    </label>
                   {error ? <p className="mt-3 text-[12px] font-medium text-[#a04455]">{error}</p> : null}
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <button type="button" onClick={() => setMode("choice")} disabled={analyzing} className="h-10 rounded-[8px] border border-[#dce3eb] px-4 text-[13px] font-medium text-[#526174]">다른 방법 선택</button>
-                    <button type="button" onClick={() => void analyzePhotos()} disabled={files.length === 0 || analyzing} className="inline-flex h-10 min-w-[180px] items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] px-5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45">
-                      {analyzing ? <><LoaderCircle className="h-4 w-4 animate-spin" />사진 읽는 중...</> : "사진 내용 자동으로 옮기기"}
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button type="button" onClick={() => selectMode("manual")} disabled={analyzing} className="min-h-11 rounded-[8px] border border-[#dce3eb] px-4 text-[13px] font-medium text-[#526174] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-not-allowed disabled:opacity-60">사진 없이 직접 입력</button>
+                    <button type="button" onClick={() => void analyzePhotos()} disabled={files.length === 0 || !privacyConfirmed || analyzing} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] bg-[#172033] px-5 text-[13px] font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">
+                      {analyzing ? <><LoaderCircle className="h-4 w-4 animate-spin" />사진 읽는 중...</> : error ? "다시 분석하기" : "사진 내용 자동으로 옮기기"}
                     </button>
                   </div>
-                </div>
+                  {analyzing ? <button type="button" onClick={cancelAnalysis} className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-[8px] border border-[#cbd5e1] bg-white px-4 text-[14px] font-medium leading-5 text-[#475569] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">분석 취소</button> : null}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
@@ -301,27 +394,31 @@ export default function PriceGuidePhotoOnboarding({
                       </div>
                     ))}
                   </div>
-                  <button type="button" onClick={() => { setResult(null); setError(""); }} className="mt-3 h-9 w-full rounded-[8px] border border-[#dce3eb] text-[12px] font-medium text-[#526174]">사진 다시 선택</button>
+                  <button type="button" onClick={() => { clearPhotoTemporaryState(); setError(""); }} className="mt-3 min-h-11 w-full rounded-[8px] border border-[#dce3eb] text-[12px] font-medium text-[#526174] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">사진 다시 선택</button>
                 </div>
                 <div>
                   <ExtractionPreview result={result} />
                   {error ? <p className="mt-3 text-[12px] font-medium text-[#a04455]">{error}</p> : null}
                   <div className="mt-4 flex items-center justify-end gap-2">
-                    <button type="button" onClick={() => { setResult(null); setMode("manual"); }} disabled={applying} className="h-10 rounded-[8px] border border-[#dce3eb] px-4 text-[13px] font-medium text-[#526174] disabled:opacity-50">직접 입력으로 전환</button>
-                    <button type="button" onClick={() => void applyResult()} disabled={applying} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#2563eb] px-5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{applying ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{applying ? "저장 중..." : "확인하고 요금표에 저장"}</button>
+                    <button type="button" onClick={() => selectMode("manual")} className="min-h-11 rounded-[8px] border border-[#dce3eb] px-4 text-[13px] font-medium text-[#526174] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">사진 없이 직접 입력</button>
+                    <button type="button" onClick={reviewResult} className="inline-flex min-h-11 items-center gap-2 rounded-[8px] bg-[#172033] px-5 text-[13px] font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"><Check className="h-4 w-4" />검토하고 수정하기</button>
                   </div>
                 </div>
               </div>
             )}
-          </div>
-        )}
-      </section>
-      <DataImportDialog
-        open={excelOpen}
-        shopId={shopId}
-        onClose={() => setExcelOpen(false)}
-        onCompleted={() => window.location.reload()}
-      />
-    </>
+      </div>
+    </section> : null}
+
+      {mode !== "manual" ? (
+        <div data-price-guide-source={initialDocument ? "saved" : "default-draft"}>
+          <PriceGuideV2ServiceDetail
+            document={displayedDocument}
+            onSave={applyReviewedDocument}
+            manualMatrixMode={isFixedManualPriceGuideDocument(displayedDocument)}
+            onSaveActionReady={onSaveActionReady}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }

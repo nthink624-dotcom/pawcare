@@ -11,7 +11,6 @@ import {
 import { CalendarStaffLaneHeader } from "@/components/owner-web/calendar-staff-lane-header";
 import { CalendarTimeRail, CalendarTimeRailHeader } from "@/components/owner-web/calendar-time-rail";
 import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
-import { getStaffChipTone } from "@/lib/staff-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { StaffScheduleOverride } from "@/types/domain";
 
@@ -53,6 +52,7 @@ type DailyBooking = {
   sourceStatus?: string;
   start: number;
   duration: number;
+  memo?: string;
   staffKey: StaffKey;
   actualTimeLabel?: string;
   scheduledTimeLabel?: string;
@@ -69,6 +69,7 @@ const scheduleSnapSegmentsPerHour = 4;
 const expandableBookingDurationMax = 0.25;
 const bookingCardWidth = "96%";
 const bookingCardHorizontalInset = "2%";
+const requestNoteMinimumDuration = 0.75;
 
 function formatHourLabel(hour: number) {
   const fullHour = Math.floor(hour);
@@ -126,7 +127,7 @@ function getBookingCardTone(booking: Pick<DailyBooking, "service">): BookingCard
 function getBookingCardToneClass(tone: BookingCardTone) {
   void tone;
   return cn(
-    "border border-l-[3px] border-[#dbe3ec] border-l-[#b9c3cf] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition-[background-color,box-shadow,border-color] hover:border-[#c8d4e1] hover:bg-[#fbfdff] hover:shadow-[0_5px_14px_rgba(15,23,42,0.07)]",
+    "border border-l-[3px] border-[#e2e8f0] border-l-[#b9c3cf] bg-[#fffdf8] shadow-[0_1px_2px_rgba(15,23,42,0.025)] transition-[background-color,box-shadow,border-color] hover:border-[#cbd8e7] hover:bg-[#fffaf0] hover:shadow-[0_4px_12px_rgba(15,23,42,0.055)]",
   );
 }
 
@@ -368,10 +369,6 @@ export function DailyScheduleGrid({
       ? "0 0 25%"
       : `0 0 calc(100% / ${columnCount})`;
   const scheduleTrackStyle = scheduleTrackWidth ? { width: scheduleTrackWidth, minWidth: scheduleTrackWidth } : undefined;
-  const selectedTimeRailStaff = selectedStaffKey
-    ? scheduleLaneColumns.flatMap((laneColumn) => laneColumn.segments).find((item) => item.key === selectedStaffKey)
-    : null;
-  const timeRailTone = getStaffChipTone(selectedTimeRailStaff?.key, selectedTimeRailStaff?.chipColorIndex);
   const displayedVisibleBookings = resizingBooking
     ? visibleBookings.map((booking) =>
         booking.id === resizingBooking.bookingId ? { ...booking, duration: resizingBooking.nextDuration } : booking,
@@ -399,7 +396,7 @@ export function DailyScheduleGrid({
           key={`${prefix}-line-${segment.key}-${index}`}
           className={cn(
             "absolute left-0 right-0 border-t",
-            index % 4 === 0 ? "border-[#f1f4f7]" : "border-[#f8fafc]",
+            index % 4 === 0 ? "border-[#dfe8f2]" : "border-[#eef4f9]",
           )}
           style={{ top: segment.top + index * quarterSlotHeight }}
         />
@@ -627,7 +624,7 @@ export function DailyScheduleGrid({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#f8fafc] p-2">
+    <div data-schedule-board-grid="true" className="flex min-h-0 flex-1 flex-col bg-[#f8fbff]">
       <style>{`
         .pm-schedule-y-scroll {
           scrollbar-width: none;
@@ -637,8 +634,8 @@ export function DailyScheduleGrid({
           width: 0;
         }
       `}</style>
-      <div className="flex shrink-0 overflow-hidden rounded-t-[14px] border border-[#e3eaf2] bg-white">
-        <CalendarTimeRailHeader tone={timeRailTone} />
+      <div className="flex shrink-0 overflow-hidden border-b border-[#e3eaf2] bg-white">
+            <CalendarTimeRailHeader />
         <div
           ref={headerScrollerRef}
           onScroll={() => syncHorizontalScroll("header")}
@@ -679,7 +676,7 @@ export function DailyScheduleGrid({
         onPointerUp={stopBoardPan}
         onPointerCancel={stopBoardPan}
         className={cn(
-          "pm-schedule-y-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-b-[14px] border border-t-0 border-[#e3eaf2] bg-[#fbfcfe] select-none",
+          "pm-schedule-y-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#f8fbff] select-none",
           boardPanning && "cursor-grabbing snap-none",
           !boardPanning && scrollable && "cursor-grab",
         )}
@@ -693,7 +690,6 @@ export function DailyScheduleGrid({
             showCurrentTime={showCurrentTime}
             currentTimeTop={currentTimeTop}
             currentHour={currentHour}
-            tone={timeRailTone}
           />
 
           <div
@@ -718,6 +714,7 @@ export function DailyScheduleGrid({
                   .sort((a, b) => a.start - b.start);
                 const bookingLayouts = getStaffBookingLayouts(laneBookings);
                 const firstStaffKey = laneColumn.segments[0]?.key ?? laneColumn.staffKeys[0] ?? laneColumn.key;
+                const selectedLane = Boolean(selectedStaffKey && laneColumn.staffKeys.includes(selectedStaffKey));
                 return (
                   <section
                     key={laneColumn.key}
@@ -730,8 +727,9 @@ export function DailyScheduleGrid({
                     onDragOver={handleColumnDragOver}
                     onDrop={(event) => handleColumnDrop(event, laneColumn)}
                     className={cn(
-                      "min-w-0 cursor-pointer border border-l-0 border-t-0 border-[#edf1f5] bg-[#fbfcfe] p-0 transition",
-                       draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
+                      "min-w-[240px] cursor-pointer border border-l-0 border-t-0 border-[#dfe8f2] bg-[#f8fbff] p-0 transition",
+                      selectedLane && "bg-[#eff6ff]",
+                      draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
                     )}
                     style={{ flex: columnFlexBasis }}
                   >
@@ -739,8 +737,8 @@ export function DailyScheduleGrid({
                       {renderScheduleLines(laneColumn.key)}
                       {showCurrentTime ? (
                         <div
-                          className="pointer-events-none absolute left-0 right-0 z-30 h-px bg-[#2563eb]/80"
-                          style={{ top: currentTimeTop }}
+                          className="pointer-events-none absolute left-0 right-0 z-30 h-px"
+                          style={{ top: currentTimeTop, backgroundColor: "#2563eb" }}
                           aria-hidden="true"
                         />
                       ) : null}
@@ -777,6 +775,9 @@ export function DailyScheduleGrid({
                           const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
                           const statusPillClass = getReservationStatusPillClass(booking, selectedDate, currentHour);
                           const pendingOverlapLabel = getPendingOverlapLabel(booking, conflictBookings);
+                          const showRequestNote = booking.duration >= requestNoteMinimumDuration;
+                          const requestNote = booking.memo?.trim() ?? "";
+                          const requestNoteText = requestNote ? `요청사항 ${requestNote}` : "요청사항 없음";
 
                           if (booking.displayMode === "reservation-chip") {
                             return (
@@ -792,10 +793,12 @@ export function DailyScheduleGrid({
                                 className={cn(
                                   "absolute z-20 box-border flex min-h-10 items-center justify-start overflow-hidden rounded-[9px] px-2.5 py-1.5 text-left text-[12px] font-medium leading-[14px] text-[#334155]",
                                   getBookingCardToneClass(cardTone),
+                                  selected && "border-[#bcd5fa] bg-[#f4f8ff]",
                                 )}
                                 style={{
                                   ...bookingLayoutStyle,
                                   top: getBookingTop(booking.start, scheduleDisplayLayout),
+                                  backgroundColor: selected ? "#f4f8ff" : "#fffdf8",
                                 }}
                               >
                                 <span className="flex min-w-0 flex-col whitespace-nowrap tabular-nums">
@@ -827,6 +830,7 @@ export function DailyScheduleGrid({
                                 resizingBooking?.bookingId === booking.id && "cursor-ns-resize",
                                 draggingBookingId === booking.id && "opacity-70 ring-1 ring-[#93c5fd]",
                                 expandedMicro && "z-50 shadow-none",
+                                selected && "border-[#bcd5fa] bg-[#f4f8ff]",
                                 getBookingCardToneClass(cardTone),
                                 getBookingStatusEdgeClass(timedStatus),
                               )}
@@ -834,19 +838,20 @@ export function DailyScheduleGrid({
                                 ...bookingLayoutStyle,
                                 top: getBookingTop(booking.start, scheduleDisplayLayout),
                                 height: bookingHeight,
+                                backgroundColor: selected ? "#f4f8ff" : "#fffdf8",
                               }}
                             >
                               <div
                                 className={cn(
                                   "absolute inset-0 flex min-h-0 min-w-0 items-start overflow-hidden text-left",
-                                  microCard ? "px-3 py-2" : "px-3.5 py-2.5",
+                                  microCard ? "px-3 py-2" : showRequestNote ? "px-3.5 py-[3px]" : "px-3.5 py-2.5",
                                 )}
                               >
                                 <div
                                   className={cn(
                                     "grid w-full min-w-0 content-start items-center gap-x-1.5",
                                     microCard ? "grid-cols-[minmax(0,1fr)_max-content]" : "grid-cols-[minmax(0,1fr)_auto]",
-                                    microCard ? "grid-rows-[16px]" : "grid-rows-[18px_17px] gap-y-0.5",
+                                    microCard ? "grid-rows-[16px]" : showRequestNote ? "grid-rows-[18px_17px_18px] gap-y-0.5" : "grid-rows-[18px_17px] gap-y-0.5",
                                   )}
                                 >
                                   <p
@@ -886,6 +891,17 @@ export function DailyScheduleGrid({
                                         {booking.service}
                                       </p>
                                     </div>
+                                  ) : null}
+                                  {showRequestNote ? (
+                                    <p
+                                      className="col-span-2 min-w-0 truncate text-[12px] leading-[18px] text-[#56687b]"
+                                      title={requestNoteText}
+                                      aria-label={requestNoteText}
+                                      data-booking-request-note={requestNote ? "present" : "empty"}
+                                    >
+                                      <span className="font-medium text-[#475569]">요청사항</span>{" "}
+                                      <span className="font-normal">{requestNote || "없음"}</span>
+                                    </p>
                                   ) : null}
                                 </div>
                               </div>

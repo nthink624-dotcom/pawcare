@@ -22,6 +22,7 @@ export function ScheduleDropdown({
   showOptionMeta = showMeta,
   searchable = false,
   searchPlaceholder = "검색",
+  focusClassName,
   onChange,
 }: {
   label: string;
@@ -33,6 +34,8 @@ export function ScheduleDropdown({
   showOptionMeta?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
+  /** Limits an alternate focus treatment to a parent surface such as the booking dialog. */
+  focusClassName?: string;
   onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -60,6 +63,7 @@ export function ScheduleDropdown({
         className={cn(
           "flex h-11 w-full items-center justify-between gap-3 rounded-[8px] border bg-white px-3 text-left text-[14px] outline-none transition",
           open ? "border-[#b8c8d8] bg-[#fbfdff]" : "border-[#dbe2ea] hover:border-[#b8c8d8]",
+          focusClassName,
         )}
       >
         <span className="min-w-0">
@@ -78,7 +82,10 @@ export function ScheduleDropdown({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 autoFocus
-                className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] outline-none transition placeholder:text-[#94a3b8] focus:border-[#b8c8d8]"
+                className={cn(
+                  "h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] outline-none transition placeholder:text-[#94a3b8] focus:border-[#b8c8d8]",
+                  focusClassName,
+                )}
                 placeholder={searchPlaceholder}
               />
             </div>

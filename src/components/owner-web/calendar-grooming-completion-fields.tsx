@@ -44,18 +44,21 @@ export function CalendarGroomingCompletionFields({
   const activeServices = services.filter((service) => service.is_active || service.id === serviceId);
 
   return (
-      <div className="space-y-2">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="min-h-[72px] rounded-[14px] border border-[#dce1e7] bg-white px-3 py-2 shadow-[0_5px_16px_rgba(20,39,63,0.035)]">
+      <div className="min-w-0 max-w-full space-y-2">
+        <div
+          className="grid min-w-0 max-w-full gap-2"
+          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 10rem), 1fr))" }}
+        >
+          <div className="min-w-0 max-w-full min-h-[72px] rounded-[14px] border border-[#dce1e7] bg-white px-3 py-2 shadow-[0_5px_16px_rgba(20,39,63,0.035)]">
             <p className={`${OWNER_TYPOGRAPHY.meta} mb-1.5 text-[#75808c]`}>예약 서비스</p>
             {activeServices.length > 0 ? (
-              <div className="relative w-full">
+              <div className="relative min-w-0 max-w-full w-full">
                 <select
                   aria-label="예약 서비스 수정"
                   value={serviceId ?? ""}
                   onChange={(event) => void onServiceChange?.(event.target.value)}
                   disabled={disabled || !onServiceChange}
-                  className={`${OWNER_TYPOGRAPHY.bodyStrong} h-9 w-full appearance-none rounded-[9px] border-0 bg-[#f5f6f8] pl-2.5 pr-8 text-[#1b2d43] outline-none transition hover:bg-[#eef1f4] focus:ring-2 focus:ring-[#dce2e8] disabled:cursor-default disabled:opacity-70`}
+                  className={`${OWNER_TYPOGRAPHY.bodyStrong} h-11 w-full appearance-none rounded-[9px] border-0 bg-[#f5f6f8] pl-2.5 pr-8 text-[#1b2d43] outline-none transition hover:bg-[#eef1f4] focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-default disabled:opacity-70`}
                 >
                   {!serviceId ? <option value="">{bookedService}</option> : null}
                   {activeServices.map((service) => (
@@ -65,13 +68,13 @@ export function CalendarGroomingCompletionFields({
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#697684]" />
               </div>
             ) : (
-              <p className={`${OWNER_TYPOGRAPHY.bodyStrong} min-w-0 text-right text-[#1b2d43]`}>{bookedService}</p>
+              <p className={`${OWNER_TYPOGRAPHY.bodyStrong} min-w-0 break-words text-right text-[#1b2d43]`}>{bookedService}</p>
             )}
           </div>
-          <label className="min-h-[72px] rounded-[14px] border border-[#cddcf0] bg-[#f8fbff] px-3 py-2 shadow-[0_5px_16px_rgba(20,39,63,0.035)]">
+          <label className="min-w-0 max-w-full min-h-[72px] rounded-[14px] border border-[#cddcf0] bg-[#f8fbff] px-3 py-2 shadow-[0_5px_16px_rgba(20,39,63,0.035)]">
             <span className={`${OWNER_TYPOGRAPHY.meta} flex items-center gap-1.5 text-[#60758d]`}><Scale className="h-3.5 w-3.5 text-[#2f6fd6]" /> 오늘 몸무게</span>
-            <span className="mt-1 flex items-baseline gap-px">
-              <span className="inline-flex w-[68px] flex-none">
+            <span className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-px">
+              <span className="min-w-0">
                 <input
                   data-modal-wheel-scope="self"
                   type="number"
@@ -84,8 +87,8 @@ export function CalendarGroomingCompletionFields({
                   onChange={(event) => onWeightChange(event.target.value)}
                   disabled={disabled}
                   placeholder="0.0"
-                  style={{ fontSize: "28px", fontWeight: 600, lineHeight: "32px", padding: 0, width: "100%" }}
-                  className="min-w-0 appearance-none bg-transparent text-right text-[28px] font-semibold leading-8 tracking-[-0.03em] text-[#172c46] outline-none disabled:opacity-60"
+                  style={{ fontSize: "28px", fontWeight: 600, lineHeight: "32px", padding: 0, width: "100%", height: "44px" }}
+                  className="min-h-11 w-full min-w-0 max-w-full appearance-none bg-transparent text-right text-[28px] font-semibold leading-8 tracking-[-0.03em] text-[#172c46] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:opacity-60"
                 />
               </span>
               <span className="shrink-0 text-[28px] font-semibold leading-8 tracking-[-0.03em] text-[#172c46]">kg</span>
@@ -94,15 +97,15 @@ export function CalendarGroomingCompletionFields({
         </div>
 
         <div className="rounded-[14px] border border-[#dce1e7] bg-white px-3 py-2 shadow-[0_5px_16px_rgba(20,39,63,0.035)]">
-          <div className="flex items-center gap-2">
-            <span className={`${OWNER_TYPOGRAPHY.bodyStrong} flex shrink-0 items-center gap-2 text-[#263547]`}><CalendarDays className="h-4 w-4 text-[#526171]" /> 재예약 알림</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`${OWNER_TYPOGRAPHY.bodyStrong} flex min-w-0 shrink-0 items-center gap-2 text-[#263547]`}><CalendarDays className="h-4 w-4 text-[#526171]" /> 재예약 알림</span>
             <input
               type="date"
               min={today}
               value={value.nextRecommendedVisitDate ?? ""}
               onChange={(event) => onChange({ ...value, nextRecommendedVisitDate: event.target.value || null })}
               disabled={disabled || !reminderEnabled}
-              className={`${OWNER_TYPOGRAPHY.bodyStrong} ml-auto h-9 min-w-0 w-[150px] rounded-[9px] border-0 px-2.5 outline-none transition focus:ring-2 focus:ring-[#dce2e8] disabled:cursor-not-allowed ${
+              className={`${OWNER_TYPOGRAPHY.bodyStrong} ml-auto h-11 min-w-0 w-[150px] max-w-full rounded-[9px] border-0 px-2.5 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-not-allowed ${
                 reminderEnabled ? "bg-[#f4f6f8] text-[#263547]" : "bg-[#f1f3f5] text-[#9aa3ad]"
               }`}
             />
@@ -114,7 +117,7 @@ export function CalendarGroomingCompletionFields({
               })}
               disabled={disabled}
               aria-pressed={reminderEnabled}
-              className={`${OWNER_TYPOGRAPHY.badge} inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 transition disabled:opacity-50 ${
+              className={`${OWNER_TYPOGRAPHY.badge} inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50 ${
                 reminderEnabled
                   ? "border-[#2f6fd6] bg-[#2f6fd6] text-white shadow-[0_3px_10px_rgba(47,111,214,0.18)]"
                   : "border-[#d3d9e0] bg-[#f3f4f6] text-[#6a7581]"
@@ -129,7 +132,7 @@ export function CalendarGroomingCompletionFields({
         {saveError ? (
       <div className={`${OWNER_TYPOGRAPHY.label} flex items-center justify-between gap-3 rounded-[12px] bg-[#f1f3f5] px-4 py-2.5 text-[#3f5266]`}>
             <span>{saveError}</span>
-            {onRetrySave ? <button type="button" onClick={onRetrySave} className="shrink-0 font-semibold underline underline-offset-2">다시 저장</button> : null}
+            {onRetrySave ? <button type="button" onClick={onRetrySave} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] px-2 font-semibold underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">다시 저장</button> : null}
           </div>
         ) : null}
       </div>

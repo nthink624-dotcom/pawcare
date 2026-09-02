@@ -34,18 +34,18 @@ const requestCategories: Array<{
   icon: typeof Bug;
 }> = [
   {
+    key: "bug",
+    label: "문제 신고",
+    description: "저장 실패, 예약·결제·로그인 오류, 화면 이상",
+    exampleTitle: "오류가 발생했어요",
+    icon: Bug,
+  },
+  {
     key: "how_to_use",
-    label: "사용법 문의",
+    label: "사용 문의",
     description: "기능 위치, 설정 방법, 운영 흐름이 헷갈릴 때",
     exampleTitle: "사용법을 확인하고 싶어요",
     icon: MessageSquareText,
-  },
-  {
-    key: "bug",
-    label: "오류 신고",
-    description: "저장 실패, 화면 깨짐, 예상과 다른 동작",
-    exampleTitle: "오류가 발생했어요",
-    icon: Bug,
   },
   {
     key: "feature_request",
@@ -64,7 +64,7 @@ const requestCategories: Array<{
   {
     key: "notification",
     label: "알림톡",
-    description: "알림톡 발송, 잔여건수, 고객 안내 메시지",
+    description: "알림톡 발송 설정과 고객 안내 메시지",
     exampleTitle: "알림톡 문의가 있어요",
     icon: Bell,
   },
@@ -282,7 +282,7 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
         }),
       });
       const requestNumber = response.request.id.slice(0, 8).toUpperCase();
-      setSubmitMessage(`문의가 접수되었습니다. 문의번호 ${requestNumber}로 확인할 수 있습니다.`);
+      setSubmitMessage(`문의가 접수되었습니다. 문의번호 ${requestNumber}는 이 화면의 문의 내역에서 확인할 수 있습니다.`);
       setTitle("");
       setMessage("");
       setSelectedAttachments((current) => {
@@ -304,7 +304,7 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
           <WebSurface className="p-5">
           <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-[#111827]">문의하기</h1>
+              <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-[#111827]">도움·문의</h1>
               {unreadAnswerCount > 0 ? (
                 <p className="mt-2 inline-flex rounded-[10px] border border-[#cfe4dc] bg-[#f8fdfb] px-3 py-2 text-[14px] font-semibold text-[#1f6b5b]">
                   새 답변 {unreadAnswerCount}건이 도착했습니다.
@@ -360,6 +360,11 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
                 placeholder="어느 화면에서 어떤 문제가 있었는지 적어주세요."
               />
             </label>
+            {category === "bug" ? (
+              <p className="rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[13px] font-medium leading-5 text-[#475569]">
+                고객 이름, 연락처, 예약 내용은 적지 말아 주세요. 오류가 난 화면과 시점을 알려주세요.
+              </p>
+            ) : null}
             <OwnerSupportAttachmentPicker
               attachments={selectedAttachments}
               error={attachmentError}
@@ -368,7 +373,7 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
               onRemove={removeAttachment}
             />
             {submitMessage ? (
-              <p className="rounded-[10px] border border-[#cfe4dc] bg-[#f8fdfb] px-3 py-2 text-[14px] font-semibold text-[#1f6b5b]">
+              <p aria-live="polite" className="rounded-[10px] border border-[#cfe4dc] bg-[#f8fdfb] px-3 py-2 text-[14px] font-semibold text-[#1f6b5b]">
                 {submitMessage}
               </p>
             ) : null}

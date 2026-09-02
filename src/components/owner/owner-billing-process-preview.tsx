@@ -49,7 +49,7 @@ function getConsentLines(plan: OwnerPlan) {
 
   return [
     "선택한 요금제는 등록된 카드로 매월 자동 결제됩니다.",
-    `${plan.alimtalkIncludedLabel}이며, 초과 알림톡은 11원/건으로 부가세가 포함됩니다.`,
+    "알림톡 발송 기능은 선택한 요금제의 이용 정책에 따라 제공됩니다.",
     `등록한 카드는 ${PETMANAGER_SERVICE_NAME} 이용요금 결제수단으로 사용됩니다.`,
     `카드 등록은 PG사의 보안창을 통해 진행되며, ${PETMANAGER_SERVICE_NAME}는 카드번호 전체를 직접 저장하지 않습니다.`,
   ];
@@ -187,7 +187,7 @@ export function OwnerBillingProcessPreview() {
           <PreviewSection
             step={1}
             title="플랜 선택"
-            description="실제 오너 플랜 선택 화면입니다. 직원 수, 포함 알림톡, 월 요금을 확인한 뒤 원하는 요금제를 고릅니다."
+            description="실제 오너 플랜 선택 화면입니다. 직원 수와 월 요금을 확인한 뒤 원하는 요금제를 고릅니다."
           >
             <div className="overflow-hidden rounded-[10px] border border-[var(--pm-ui-border)] bg-white">
               <OwnerBillingPlanPicker
@@ -330,7 +330,7 @@ export function OwnerBillingProcessPreview() {
               <div className="mt-4 rounded-[8px] border border-[var(--pm-ui-border)] bg-white px-4 py-3.5">
                 <Row label="현재 플랜" value={selectedPlan.title} />
                 <div className="border-t border-[var(--pm-ui-border)]" />
-                <Row label="요금제 기준" value={`${getOwnerPlanStaffLimitLabel(selectedPlan, 1)} · ${selectedPlan.alimtalkIncludedLabel}`} />
+                <Row label="요금제 기준" value={getOwnerPlanStaffLimitLabel(selectedPlan, 1)} />
                 <div className="border-t border-[var(--pm-ui-border)]" />
                 <Row label="다음 결제 예정일" value={nextBillingDate} />
               </div>

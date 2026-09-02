@@ -15,7 +15,7 @@ import {
 } from "@/components/landing/landing-primary-sections";
 import { FaqAndFinalCtaSection } from "@/components/landing/landing-conversion-sections";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { billableOwnerPlans } from "@/lib/billing/owner-plans";
+import { OWNER_SINGLE_MONTHLY_PRICE_KRW } from "@/lib/billing/owner-plans";
 import { won } from "@/lib/utils";
 
 import styles from "./landing-page.module.css";
@@ -176,34 +176,39 @@ function PricingModal({ open, onClose }: { open: boolean; onClose: () => void })
       <div className="max-h-[calc(100vh-32px)] w-full max-w-[920px] overflow-y-auto rounded-[22px] bg-white p-5 shadow-[0_28px_80px_rgba(15,23,42,0.3)] sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[14px] font-semibold text-[var(--landing-accent)]">요금제</p>
-            <h2 className="mt-1 text-[26px] font-semibold text-[#111827] sm:text-[30px]">운영 인원에 맞게 고르세요</h2>
-            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">모든 유료 플랜에 핵심 기능이 포함되며 설치비는 없습니다.</p>
+            <p className="text-[14px] font-semibold text-[var(--landing-accent)]">월 정기 이용</p>
+            <h2 className="mt-1 text-[26px] font-semibold text-[#111827] sm:text-[30px]">한 가지 요금으로 시작하세요</h2>
+            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">14일 무료체험 후 계속 이용할 때만 결제를 진행합니다.</p>
           </div>
           <button type="button" onClick={onClose} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#111827]" aria-label="요금제 닫기" autoFocus>
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="mt-6 grid gap-3 lg:grid-cols-3">
-          {billableOwnerPlans.map((plan) => (
-            <article key={plan.code} className={`flex flex-col rounded-[14px] border p-5 ${plan.featured ? "border-[#2563eb] bg-[#f6f9ff]" : "border-[#dbe2ea] bg-white"}`}>
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[18px] font-semibold text-[#172033]">{plan.title}</h3>
-                {plan.featured ? <span className="rounded-full bg-[#2563eb] px-2.5 py-1 text-[11px] font-semibold text-white">추천</span> : null}
-              </div>
-              <p className="mt-3 text-[28px] font-semibold text-[#111827]">{won(plan.monthlyPrice)}<span className="ml-1 text-[13px] font-medium text-[#64748b]">/월</span></p>
-              <div className="mt-4 space-y-2 border-t border-[#e2e8f0] pt-4 text-[14px] text-[#526071]">
-                {[plan.staffLimitLabel, plan.alimtalkIncludedLabel, "핵심 기능 전체 제공"].map((item) => (
-                  <p key={item} className="flex items-center gap-2"><Check className="h-4 w-4 shrink-0 text-[#2563eb]" aria-hidden="true" />{item}</p>
-                ))}
-              </div>
-              <Link href="/signup" className={`mt-5 flex h-11 items-center justify-center rounded-[9px] text-[14px] font-semibold ${plan.featured ? "bg-[#2563eb] text-white" : "border border-[#cbd5e1] text-[#334155]"}`}>14일 무료 시작</Link>
-            </article>
-          ))}
+        <article className="mt-6 rounded-[14px] border border-[#2563eb] bg-[#f6f9ff] p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[16px] font-semibold text-[#172033]">펫매니저 월 정기 이용</p>
+              <p className="mt-2 text-[30px] font-semibold text-[#111827]">{won(OWNER_SINGLE_MONTHLY_PRICE_KRW)}<span className="ml-1 text-[14px] font-medium text-[#64748b]">/월 · VAT 포함</span></p>
+            </div>
+            <Link href="/signup" className="flex h-11 w-full items-center justify-center rounded-[9px] bg-[#2563eb] px-5 text-[14px] font-semibold text-white sm:w-auto">14일 무료 시작</Link>
+          </div>
+          <div className="mt-5 border-t border-[#dbe8f8] pt-4 text-[14px] leading-6 text-[#526071]">
+            <p className="flex items-start gap-2"><Check className="mt-1 h-4 w-4 shrink-0 text-[#2563eb]" aria-hidden="true" />매장 1곳당 구독 1개로 이용하며, 직원 수 제한은 없습니다.</p>
+            <p className="mt-2 flex items-start gap-2"><Check className="mt-1 h-4 w-4 shrink-0 text-[#2563eb]" aria-hidden="true" />여러 매장을 운영하면 매장별로 별도 구독이 필요합니다.</p>
+          </div>
+          <div className="mt-5 border-t border-[#dbe8f8] pt-4 text-[14px] leading-6 text-[#526071]">
+            <p className="flex items-start gap-2"><Check className="mt-1 h-4 w-4 shrink-0 text-[#2563eb]" aria-hidden="true" />무료체험은 카드 등록 없이 시작하며, 기간이 끝나도 자동 청구되지 않습니다.</p>
+            <p className="mt-2 flex items-start gap-2"><Check className="mt-1 h-4 w-4 shrink-0 text-[#2563eb]" aria-hidden="true" />계속 이용할 때만 카드를 등록해 월 정기결제를 시작합니다.</p>
+          </div>
+          <div className="mt-5 border-t border-[#dbe8f8] pt-4 text-[14px] leading-6 text-[#526071]">
+            <p className="font-medium text-[#172033]">초기 협력 매장 안내</p>
+            <p className="mt-1">처음 참여하는 20개 미용실은 첫 유료 결제 완료 후 30일 이용 연장 대상입니다. 대상 여부와 결제 완료가 확인되면 이용 종료일에 자동 반영합니다.</p>
+            <p className="mt-2">첫 결제 30일 연장과 별도로, 확인된 운영 문제는 수준에 따라 7일 또는 14일을 추가합니다. 문제 보상은 첫 유료 결제일부터 3개월 동안 최대 60일까지 적용합니다.</p>
+          </div>
+        </article>
         </div>
       </div>
-    </div>
   );
 }
 

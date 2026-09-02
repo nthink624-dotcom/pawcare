@@ -31,7 +31,7 @@ import {
 import { getPetBiteLevelLabel, normalizePetBiteLevel, petBiteLevelOptions } from "@/lib/pet-bite-level";
 import { buildPetGroupOptions, type PetGroupOption } from "@/lib/pet-group-options";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
-import type { GuardianNotificationSettings, MediaAsset, MediaKind, PetBiteLevel } from "@/types/domain";
+import type { CustomerGradeOverride, CustomerMemberType, GuardianNotificationSettings, MediaAsset, MediaKind, PetBiteLevel } from "@/types/domain";
 
 type CustomerDetailPanelProps = {
   detail: CustomerDetailModel;
@@ -39,6 +39,7 @@ type CustomerDetailPanelProps = {
   onSelectPet: (petId: string) => void;
   onUpdatePetBiteLevel: (guardianId: string, petId: string, biteLevel: PetBiteLevel) => void;
   onUpdateGuardian: (guardianId: string, patch: { name: string; phone: string; memo: string }) => void | Promise<void>;
+  onSaveGuardianProfile: (guardianId: string, patch: { name: string; phone: string; memo: string; customerGradeOverride: CustomerGradeOverride | null; customerMemberType: CustomerMemberType }) => void | Promise<void>;
   onUpdatePet: (
     guardianId: string,
     petId: string,
@@ -87,6 +88,7 @@ export default function CustomerDetailPanel({
   onSelectPet,
   onUpdatePetBiteLevel,
   onUpdateGuardian,
+  onSaveGuardianProfile,
   onUpdatePet,
   onAddPet,
   onDeletePet,
@@ -206,7 +208,7 @@ export default function CustomerDetailPanel({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]"
               aria-label="닫기"
             >
               <X className="h-5 w-5" />
@@ -269,6 +271,7 @@ export default function CustomerDetailPanel({
             action={activeAction}
             detail={detail}
             onUpdateGuardian={onUpdateGuardian}
+            onSaveGuardianProfile={onSaveGuardianProfile}
             onUpdatePet={onUpdatePet}
             onAddPet={onAddPet}
             onToggleGuardianNotifications={onToggleGuardianNotifications}
@@ -665,11 +668,11 @@ function PetGroupSelector({ value, options, onChange }: { value: string; options
 
   return (
     <label className="block w-full border-t border-[#edf2f7] pt-3">
-      <span className="mb-2 block text-[16px] font-normal text-[#111827]">그룹</span>
+      <span className="mb-2 block text-[14px] font-medium leading-5 text-[#64748b]">가격 그룹</span>
       <select
         value={value || selectOptions[0]?.value || ""}
         onChange={(event) => void onChange(event.target.value)}
-        className="h-9 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] text-[#111827] outline-none transition focus:border-[#2f7866]"
+        className="h-11 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] font-medium leading-6 text-[#111827] outline-none transition focus-visible:border-[#2563eb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]"
       >
         {selectOptions.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1376,6 +1379,7 @@ function ActionPanel({
   action,
   detail,
   onUpdateGuardian,
+  onSaveGuardianProfile,
   onUpdatePet,
   onAddPet,
   onToggleGuardianNotifications,
@@ -1384,6 +1388,7 @@ function ActionPanel({
   action: Exclude<DetailAction, null>;
   detail: CustomerDetailModel;
   onUpdateGuardian: CustomerDetailPanelProps["onUpdateGuardian"];
+  onSaveGuardianProfile: CustomerDetailPanelProps["onSaveGuardianProfile"];
   onUpdatePet: CustomerDetailPanelProps["onUpdatePet"];
   onAddPet: CustomerDetailPanelProps["onAddPet"];
   onToggleGuardianNotifications: CustomerDetailPanelProps["onToggleGuardianNotifications"];
@@ -1396,6 +1401,8 @@ function ActionPanel({
     name: detail.guardian.name,
     phone: formatPhoneNumber(detail.guardian.phone),
     memo: detail.guardian.memo ?? "",
+    customerGradeOverride: detail.guardian.customer_grade_override ?? null,
+    customerMemberType: (detail.guardian.customer_member_type ?? "guardian") as CustomerMemberType,
   });
   const [petDraft, setPetDraft] = useState({
     name: selectedPet?.name ?? "",
@@ -1425,17 +1432,31 @@ function ActionPanel({
     notifications: "알림/소통 이력 전체보기",
   };
 
-  async function runSave(task: () => void | Promise<void>) {
+  async function runSave(task: () => void | Promise<void>, keepOpen = false) {
     setSaving(true);
     setError("");
     try {
       await task();
-      onClose();
+      if (keepOpen) {
+        setError("저장됨");
+      } else {
+        onClose();
+      }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveGuardianEdit() {
+    await onSaveGuardianProfile(detail.guardian.id, {
+      name: guardianDraft.name,
+      phone: guardianDraft.phone,
+      memo: guardianDraft.memo,
+      customerGradeOverride: guardianDraft.customerGradeOverride,
+      customerMemberType: guardianDraft.customerMemberType,
+    });
   }
 
   useEffect(() => {
@@ -1466,13 +1487,31 @@ function ActionPanel({
               className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
-                void runSave(() => onUpdateGuardian(detail.guardian.id, guardianDraft));
+                void runSave(saveGuardianEdit, true);
               }}
             >
               <FormField label="보호자명" value={guardianDraft.name} onChange={(value) => setGuardianDraft((current) => ({ ...current, name: value }))} />
               <FormField label="연락처" value={guardianDraft.phone} onChange={(value) => setGuardianDraft((current) => ({ ...current, phone: value }))} />
-              <FormField label="메모" value={guardianDraft.memo} onChange={(value) => setGuardianDraft((current) => ({ ...current, memo: value }))} multiline />
-              <ActionPanelFooter saving={saving} error={error} />
+                <FormField label="메모" value={guardianDraft.memo} onChange={(value) => setGuardianDraft((current) => ({ ...current, memo: value }))} multiline />
+                <div className="grid grid-cols-2 gap-3">
+                  <CustomerClassificationSelect
+                    label="고객 등급"
+                    value={guardianDraft.customerGradeOverride ?? "auto"}
+                    onChange={(value) => setGuardianDraft((current) => ({ ...current, customerGradeOverride: value === "auto" ? null : value as CustomerGradeOverride }))}
+                    options={[{ value: "auto", label: "자동" }, { value: "normal", label: "일반" }, { value: "loyal", label: "단골" }, { value: "attention", label: "주의" }]}
+                  />
+                  <CustomerClassificationSelect
+                    label="회원 유형"
+                    value={guardianDraft.customerMemberType}
+                    onChange={(value) => setGuardianDraft((current) => ({ ...current, customerMemberType: value as CustomerMemberType }))}
+                    options={[{ value: "guardian", label: "보호자" }, { value: "proxy", label: "대리인" }, { value: "guest", label: "비회원" }]}
+                  />
+                </div>
+                <ActionPanelFooter
+                  saving={saving}
+                  error={error}
+                  onSave={() => void runSave(saveGuardianEdit, true)}
+                />
             </form>
           ) : null}
           {action === "petEdit" ? (
@@ -1777,18 +1816,30 @@ function InlineEditableText({
   );
 }
 
-function ActionPanelFooter({ saving, error }: { saving: boolean; error: string }) {
+function ActionPanelFooter({ saving, error, onSave }: { saving: boolean; error: string; onSave?: () => void }) {
   return (
     <div className="space-y-2 pt-1">
-      {error ? <p className="text-[16px] text-[#a04455]">{error}</p> : null}
+      {error ? <p className={cn("text-[16px]", error === "저장됨" ? "text-[#1f6b5b]" : "text-[#a04455]")}>{error}</p> : null}
       <button
-        type="submit"
-        className="h-10 w-full rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-medium text-white hover:bg-[#286a5a] disabled:bg-[#94a3b8]"
+        type={onSave ? "button" : "submit"}
+        onClick={onSave}
+        className="h-11 w-full rounded-[8px] bg-[#15213b] px-4 text-[16px] font-medium text-white hover:bg-[#101a31] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#94a3b8]"
         disabled={saving}
       >
         {saving ? "저장 중" : "저장"}
       </button>
     </div>
+  );
+}
+
+function CustomerClassificationSelect({ label, value, options, onChange }: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] leading-6 text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]">
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </label>
   );
 }
 

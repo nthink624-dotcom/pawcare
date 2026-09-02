@@ -49,20 +49,22 @@ const OWNER_LOAD_TIMEOUT_MS = 30000;
 const OWNER_SESSION_SLOW_NOTICE_MS = 8000;
 const OWNER_SESSION_TIMEOUT_MS = 10000;
 const OWNER_BACKGROUND_REFRESH_MS = 60_000;
+type OwnerBootstrapPhase = "essential" | "full";
 const ownerBootstrapInFlight = new Map<string, Promise<BootstrapPayload>>();
 
-function loadOwnerBootstrapOnce(shopId: string) {
-  const existing = ownerBootstrapInFlight.get(shopId);
+function loadOwnerBootstrapOnce(shopId: string, phase: OwnerBootstrapPhase) {
+  const requestKey = `${shopId}:${phase}`;
+  const existing = ownerBootstrapInFlight.get(requestKey);
   if (existing) return existing;
 
   const request = fetchApiJsonWithAuth<BootstrapPayload>(
-    `/api/bootstrap?shopId=${encodeURIComponent(shopId)}`,
+    `/api/bootstrap?shopId=${encodeURIComponent(shopId)}&phase=${phase}`,
   ).finally(() => {
-    if (ownerBootstrapInFlight.get(shopId) === request) {
-      ownerBootstrapInFlight.delete(shopId);
+    if (ownerBootstrapInFlight.get(requestKey) === request) {
+      ownerBootstrapInFlight.delete(requestKey);
     }
   });
-  ownerBootstrapInFlight.set(shopId, request);
+  ownerBootstrapInFlight.set(requestKey, request);
   return request;
 }
 
@@ -264,9 +266,9 @@ export default function OwnerPage() {
             fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops"),
             "매장 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
           );
-        const loadBootstrap = (shopId: string) =>
+        const loadBootstrap = (shopId: string, phase: OwnerBootstrapPhase = "essential") =>
           withOwnerLoadTimeout(
-            loadOwnerBootstrapOnce(shopId),
+            loadOwnerBootstrapOnce(shopId, phase),
             "오너 초기 데이터를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
           );
 
@@ -311,6 +313,11 @@ export default function OwnerPage() {
         setData(bootstrap);
         window.performance.mark("petmanager:owner-login:owner-usable");
         backgroundRefreshReadyAtRef.current = Date.now() + 5000;
+        void loadBootstrap(resolvedShopId, "full").then((fullBootstrap) => {
+          if (active) setData(fullBootstrap);
+        }).catch(() => {
+          // Essential data is already authorized and usable; retry deferred data on the normal refresh cycle.
+        });
         void loadSubscription().catch(() => {
           // The bootstrap endpoint already validated access. Keep the home visible if this secondary summary misses.
         });
@@ -349,6 +356,11 @@ export default function OwnerPage() {
       active = false;
     };
   }, [router, supabase]);
+
+  useEffect(() => {
+    if (!accessToken || data) return;
+    window.performance.mark("petmanager:owner-login:owner-usable");
+  }, [accessToken, data]);
 
   useEffect(() => {
     if (!selectedShopId || !accessToken || typeof window === "undefined") return;
@@ -427,8 +439,19 @@ export default function OwnerPage() {
   if (!data) {
     return (
       <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#faf7f2] px-4 py-6">
-        <div className="rounded-[10px] border border-[#e3ddd3] bg-white px-4 py-4 text-[14px] leading-6 text-[#6f665f]">
-          {message}
+        <div className="rounded-[10px] border border-[#e3ddd3] bg-white px-4 py-4 text-[14px] leading-6 text-[#6f665f]" aria-live="polite">
+          <p>{message}</p>
+          {accessToken ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="mt-3 min-h-11 rounded-lg border border-[#d7d0c7] bg-white px-4 text-[14px] font-medium text-[#453e38] disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="owner-authenticated-shell-control"
+            >
+              {loggingOut ? "로그아웃 중..." : "로그아웃"}
+            </button>
+          ) : null}
         </div>
       </div>
     );

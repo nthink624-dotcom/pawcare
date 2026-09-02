@@ -154,7 +154,7 @@ export function OwnerCareReportCompletionPreviewClient({
                         role="tab"
                         aria-selected={activePhoto === key}
                         onClick={() => setActivePhoto(key)}
-                        className={`${CARE_REPORT_TYPOGRAPHY.label} inline-flex h-7 items-center gap-1.5 rounded-[7px] px-3 transition ${
+                        className={`${CARE_REPORT_TYPOGRAPHY.label} inline-flex h-11 min-w-11 items-center gap-1.5 rounded-[7px] px-3 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] ${
                           activePhoto === key ? "bg-[#edf4ff] font-semibold text-[#2f6fd6] shadow-sm" : "text-[#7a8490] hover:text-[#37485a]"
                         }`}
                       >
@@ -162,12 +162,12 @@ export function OwnerCareReportCompletionPreviewClient({
                       </button>
                     ))}
                   </div>
-                  <label className={`${CARE_REPORT_TYPOGRAPHY.label} ml-auto inline-flex items-center gap-2 text-[#526171]`}>
+                  <label className={`${CARE_REPORT_TYPOGRAPHY.label} ml-auto inline-flex min-h-11 items-center gap-2 rounded-[7px] text-[#526171] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]`}>
                     <input
                       type="checkbox"
                       checked={photoRegistrationEnabled}
                       onChange={(event) => setPhotoRegistrationEnabled(event.target.checked)}
-                    className="h-4 w-4 accent-[#2f6fd6]"
+                    className="h-4 w-4 accent-[#2f6fd6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
                     />
                     사진 등록
                   </label>

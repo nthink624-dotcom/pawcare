@@ -6,18 +6,27 @@ import dynamic from "next/dynamic";
 import CalendarManagementScreen, { type OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
-import OwnerInitialSetupGuide, { getOwnerInitialSetupGuideStorageKey } from "@/components/owner-web/owner-initial-setup-guide";
+import OwnerInitialSetupGuide, {
+  confirmOwnerInitialSetupStep,
+  getOwnerInitialSetupGuideStorageKey,
+  getOwnerInitialSetupNextScreen,
+  OwnerInitialSetupResumeCard,
+  type OwnerInitialSetupStepKey,
+} from "@/components/owner-web/owner-initial-setup-guide";
+import type { InitialSetupStaffSessionDraft } from "@/components/owner-web/initial-setup-staff-management-panel";
+import type { StaffProfilePhotoUploader } from "@/components/owner-web/staff-profile-photo-field";
 import {
   demoOwnerWebStaffStorageKey,
   parseStoredOwnerWebStaff,
   type OwnerWebStaffMember,
 } from "@/components/owner-web/owner-web-staff-data";
-import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
+import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache, waitForOwnerAuthHydration } from "@/lib/auth/owner-auth-handoff";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { LANDING_DEMO_SHOP_ID } from "@/lib/development-demo";
 import { buildCustomerServiceSourceOptions } from "@/lib/customer-service-options";
+import { shouldInitializeOwnerWebNavigation } from "@/lib/owner-web-navigation-state";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload, OwnerProfile } from "@/types/domain";
@@ -102,7 +111,8 @@ function shouldStartWithPriceGuideSetup(data: BootstrapPayload) {
 
 function getInitialOwnerWebScreen(data: BootstrapPayload): OwnerWebScreenKey {
   if (typeof window === "undefined") return "schedule";
-  const screen = new URLSearchParams(window.location.search).get("screen") as OwnerWebScreenKey | null;
+  const searchParams = new URLSearchParams(window.location.search);
+  const screen = searchParams.get("screen") as OwnerWebScreenKey | null;
   if (screen && ["schedule", "bookingPageManagement", "bookingLink", "customers", "calendarRecords", "profitability", "services", "staff", "ownerProfile", "shopInfo", "operatingHours", "benefits", "alerts", "help"].includes(screen)) {
     return screen;
   }
@@ -155,6 +165,14 @@ function renderScreen(
   onCreateReservationForDate: (date: string) => void,
   automaticVisitReminderAvailable: boolean,
   priceGuideOnboarding: boolean,
+  initialSetupMode: boolean,
+  onInitialSetupStepSaved: (step: OwnerInitialSetupStepKey) => void,
+  onInitialSetupHoursNext: () => void,
+  initialSetupStaffSessionDraft: InitialSetupStaffSessionDraft | null,
+  onInitialSetupStaffSessionDraftChange: (sessionDraft: InitialSetupStaffSessionDraft) => void,
+  onInitialSetupStaffNext: () => void,
+  onInitialSetupPricingNext: () => void,
+  uploadInitialSetupStaffPhoto?: StaffProfilePhotoUploader,
 ) {
   const handleStaffScheduleOverridesChange = (staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"]) => {
     onDataChange({ ...initialData, staffScheduleOverrides });
@@ -191,9 +209,11 @@ function renderScreen(
           initialServices={initialData.services}
           staffMembers={staffMembers}
           demoMode={isDemoOwnerWebData(initialData)}
-          priceGuideOnboarding={priceGuideOnboarding}
+          priceGuideOnboarding={initialSetupMode || priceGuideOnboarding}
           onServicesChange={(services) => onDataChange({ ...initialData, services })}
           onShopChange={onShopChange}
+          onPriceGuideSaveSuccess={() => onInitialSetupStepSaved("pricing")}
+          onInitialSetupNext={onInitialSetupPricingNext}
         />
       );
     case "staff":
@@ -207,6 +227,12 @@ function renderScreen(
           staffScheduleOverrides={initialData.staffScheduleOverrides ?? []}
           onStaffMembersChange={onStaffMembersChange}
           onStaffScheduleOverridesChange={handleStaffScheduleOverridesChange}
+          onSaveSuccess={() => onInitialSetupStepSaved("staff")}
+          initialSetupMode={initialSetupMode}
+          initialSetupSessionDraft={initialSetupStaffSessionDraft}
+          onInitialSetupSessionDraftChange={onInitialSetupStaffSessionDraftChange}
+          onInitialSetupNext={onInitialSetupStaffNext}
+          uploadInitialSetupStaffPhoto={uploadInitialSetupStaffPhoto}
         />
       );
     case "help":
@@ -229,7 +255,10 @@ function renderScreen(
           onServicesChange={(services: BootstrapPayload["services"]) => onDataChange({ ...initialData, services })}
           onStaffMembersChange={onStaffMembersChange}
           persistShopProfile={!isDemoOwnerWebData(initialData)}
+          initialSetupMode={initialSetupMode}
           automaticVisitReminderAvailable={automaticVisitReminderAvailable}
+          onOperatingHoursSaveSuccess={() => onInitialSetupStepSaved("hours")}
+          onOperatingHoursNext={onInitialSetupHoursNext}
         />
       );
     default:
@@ -248,25 +277,26 @@ export default function OwnerWebPreview({
   onDataChange?: (data: BootstrapPayload) => void;
   currentPlanCode?: string | null;
 }) {
-  const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>(() => getInitialOwnerWebScreen(initialData));
+  const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
+  const [initialSetupScreen, setInitialSetupScreen] = useState<OwnerWebScreenKey>("operatingHours");
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [initialSetupOpen, setInitialSetupOpen] = useState(false);
+  const [initialSetupEligible, setInitialSetupEligible] = useState(false);
+  const [initialSetupStaffSessionDraft, setInitialSetupStaffSessionDraft] = useState<InitialSetupStaffSessionDraft | null>(null);
   const [ownerData, setOwnerData] = useState(initialData);
   const [scheduleCreateRequest, setScheduleCreateRequest] = useState<OwnerScheduleCreateRequest | null>(null);
   const storeMenuRef = useRef<HTMLDivElement | null>(null);
   const alimtalkCreditMenuRef = useRef<HTMLDivElement | null>(null);
+  const navigationInitializedShopIdRef = useRef<string | null>(null);
   const demoMode = isDemoOwnerWebData(initialData);
   const [liveStaffMembers, setLiveStaffMembers] = useState<OwnerWebStaffMember[]>(() => initialData.staffMembers ?? []);
   const [demoStaffMembers, setDemoStaffMembers] = useState<OwnerWebStaffMember[]>(() => {
     if (!demoMode) return [];
-    const bootstrapStaff = demoStaffFallback.length > 0 ? demoStaffFallback : initialData.staffMembers ?? [];
-    if (typeof window === "undefined") return bootstrapStaff;
-    return parseStoredOwnerWebStaff(window.localStorage.getItem(demoOwnerWebStaffStorageKey)) ?? bootstrapStaff;
+    return demoStaffFallback.length > 0 ? demoStaffFallback : initialData.staffMembers ?? [];
   });
   const staffMembers = demoMode ? demoStaffMembers : liveStaffMembers;
-  const staffSource = demoMode ? "demo-local-storage-or-default" : "live-bootstrap";
   const shopDisplayName = ownerData.shop.name.trim() || PETMANAGER_SERVICE_NAME;
   const shopInitials = buildShopInitials(shopDisplayName);
   const currentPlanLabel = currentPlanCode
@@ -274,6 +304,12 @@ export default function OwnerWebPreview({
     : "플랜 확인";
   const automaticVisitReminderAvailable = true;
   const priceGuideOnboarding = shouldStartWithPriceGuideSetup(ownerData);
+  const uploadDemoInitialSetupStaffPhoto: StaffProfilePhotoUploader | undefined = demoMode
+    ? async ({ staffId }, file) => ({
+        mediaAssetId: `demo-staff-profile-${staffId}-${file.lastModified}`,
+        signedUrl: URL.createObjectURL(file),
+      })
+    : undefined;
 
   useEffect(() => {
     setOwnerData(initialData);
@@ -283,23 +319,45 @@ export default function OwnerWebPreview({
   }, [initialData]);
 
   useEffect(() => {
-    if (demoMode || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
+    if (!shouldInitializeOwnerWebNavigation(navigationInitializedShopIdRef.current, ownerData.shop.id)) return;
+    navigationInitializedShopIdRef.current = ownerData.shop.id;
+    const requestedAfterSignup = new URLSearchParams(window.location.search).get("initialSetup") === "1";
+    const key = getOwnerInitialSetupGuideStorageKey(ownerData.shop.id);
+    if (window.localStorage.getItem(key)) setInitialSetupEligible(true);
+    if (requestedAfterSignup) {
+      setInitialSetupEligible(true);
+      setInitialSetupOpen(true);
+      setActiveScreen("schedule");
+      setInitialSetupScreen(getOwnerInitialSetupNextScreen(ownerData.shop.id));
+      return;
+    }
+    setActiveScreen(getInitialOwnerWebScreen(ownerData));
+    if (demoMode) return;
     const hasOperationalData =
       ownerData.appointments.length > 0 ||
       ownerData.guardians.length > 0 ||
       ownerData.pets.length > 0 ||
       ownerData.groomingRecords.length > 0;
-    const key = getOwnerInitialSetupGuideStorageKey(ownerData.shop.id);
     if (!hasOperationalData && !window.localStorage.getItem(key)) {
+      setInitialSetupEligible(true);
       setInitialSetupOpen(true);
+      setActiveScreen("schedule");
+      setInitialSetupScreen("operatingHours");
     }
   }, [demoMode, ownerData.appointments.length, ownerData.groomingRecords.length, ownerData.guardians.length, ownerData.pets.length, ownerData.shop.id]);
 
   useEffect(() => {
+    if (!demoMode) return;
+    const storedStaff = parseStoredOwnerWebStaff(window.localStorage.getItem(demoOwnerWebStaffStorageKey));
+    if (storedStaff) setDemoStaffMembers(storedStaff);
+  }, [demoMode]);
+
+  useEffect(() => {
+    if (demoMode) return;
     const warmProfitability = () => {
       void import("@/components/owner-web/profitability-analytics-screen");
-      const request = demoMode ? fetchApiJson : fetchApiJsonWithAuth;
-      void request(`/api/owner/profitability?shopId=${encodeURIComponent(initialData.shop.id)}&range=90d`).catch(() => undefined);
+      void fetchApiJsonWithAuth(`/api/owner/profitability?shopId=${encodeURIComponent(initialData.shop.id)}&range=90d`).catch(() => undefined);
     };
     const timer = window.setTimeout(warmProfitability, 1_200);
     return () => window.clearTimeout(timer);
@@ -313,25 +371,6 @@ export default function OwnerWebPreview({
         : { ...current, staffMembers: demoStaffMembers },
     );
   }, [demoMode, demoStaffMembers]);
-
-  useEffect(() => {
-    const ownerWebStorageKeys =
-      typeof window !== "undefined"
-        ? Object.keys(window.localStorage).filter((key) => key.startsWith("petmanager") && key.includes("ownerWeb"))
-        : [];
-
-    console.log("[OWNER DEBUG] owner-web-preview", {
-      mode: initialData.mode,
-      shopId: initialData.shop.id,
-      bootstrapAppointmentsCount: initialData.appointments?.length ?? 0,
-      bootstrapStaffCount: initialData.staffMembers?.length ?? 0,
-      demoMode,
-      staffSource,
-      finalStaffMembersCount: staffMembers.length,
-      finalStaffMembers: staffMembers.map((staff) => ({ id: staff.id, name: staff.name })),
-      ownerWebStorageKeys,
-    });
-  }, [demoMode, initialData, staffMembers, staffSource]);
 
   useEffect(() => {
     if (!storeMenuOpen) return;
@@ -386,10 +425,6 @@ export default function OwnerWebPreview({
       return;
     }
 
-    const previousStaff = liveStaffMembers;
-    const previousOwnerData = ownerData;
-    setLiveStaffMembers(nextStaff);
-    setOwnerData((current) => ({ ...current, staffMembers: nextStaff }));
     try {
       const response = await fetchApiJsonWithAuth<{ staffMembers: OwnerWebStaffMember[] }>("/api/staff-members", {
         method: "PATCH",
@@ -403,14 +438,42 @@ export default function OwnerWebPreview({
       setOwnerData((current) => ({ ...current, staffMembers: response.staffMembers }));
       onDataChange?.(nextOwnerData);
     } catch (error) {
-      setLiveStaffMembers(previousStaff);
-      setOwnerData(previousOwnerData);
       throw error;
     }
   }
 
   function handleScreenSelect(screen: OwnerWebScreenKey) {
     setActiveScreen(screen);
+  }
+
+  function openInitialSetup() {
+    setInitialSetupEligible(true);
+    setInitialSetupOpen(true);
+    setInitialSetupScreen(getOwnerInitialSetupNextScreen(ownerData.shop.id));
+    setStoreMenuOpen(false);
+    setAlimtalkCreditMenuOpen(false);
+  }
+
+  function handleInitialSetupStepSaved(step: OwnerInitialSetupStepKey) {
+    confirmOwnerInitialSetupStep(ownerData.shop.id, step);
+    setInitialSetupEligible(true);
+  }
+
+  function handleInitialSetupHoursNext() {
+    setInitialSetupScreen("staff");
+  }
+
+  function handleInitialSetupPricingNext() {
+    closeInitialSetup();
+  }
+
+  function closeInitialSetup() {
+    setInitialSetupOpen(false);
+    setActiveScreen("schedule");
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("initialSetup");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }
 
   function handleCreateReservationForCustomer(params: { guardianId: string; petId: string | null }) {
@@ -452,6 +515,10 @@ export default function OwnerWebPreview({
 
   async function handleLogout() {
     if (loggingOut) return;
+    if (demoMode) {
+      window.location.href = "/login";
+      return;
+    }
     setLoggingOut(true);
 
     try {
@@ -467,7 +534,9 @@ export default function OwnerWebPreview({
   }
 
   return (
-    <OwnerWebAppShell
+    <>
+      <div inert={initialSetupOpen ? true : undefined} aria-hidden={initialSetupOpen ? true : undefined}>
+      <OwnerWebAppShell
       activeScreen={activeScreen}
       onScreenSelect={handleScreenSelect}
       shopDisplayName={shopDisplayName}
@@ -497,36 +566,77 @@ export default function OwnerWebPreview({
         setStoreMenuOpen(false);
         setAlimtalkCreditMenuOpen(false);
       }}
-      onOpenInitialSetup={() => {
-        setInitialSetupOpen(true);
-        setStoreMenuOpen(false);
-        setAlimtalkCreditMenuOpen(false);
-      }}
+      onOpenInitialSetup={openInitialSetup}
       onLogout={handleLogout}
       loggingOut={loggingOut}
     >
-      {renderScreen(
-        activeScreen,
-        ownerData,
-        setOwnerData,
-        handleShopProfileChange,
-        handleOwnerProfileChange,
-        staffMembers,
-        handleStaffMembersChange,
-        scheduleCreateRequest,
-        handleScheduleCreateRequestHandled,
-        handleCreateReservationForCustomer,
-        handleCreateReservationForDate,
-        automaticVisitReminderAvailable,
-        priceGuideOnboarding,
-      )}
-      <OwnerInitialSetupGuide
-        key={ownerData.shop.id}
-        open={initialSetupOpen}
-        data={ownerData}
-        onClose={() => setInitialSetupOpen(false)}
-        onNavigate={handleScreenSelect}
-      />
-    </OwnerWebAppShell>
+      <div className={initialSetupEligible && activeScreen === "schedule" ? "grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3" : "h-full min-h-0 min-w-0"}>
+        {!initialSetupOpen && initialSetupEligible && activeScreen === "schedule" ? (
+          <OwnerInitialSetupResumeCard shopId={ownerData.shop.id} onResume={openInitialSetup} />
+        ) : null}
+        <div className="h-full min-h-0 min-w-0">
+          {renderScreen(
+            activeScreen,
+            ownerData,
+            setOwnerData,
+            handleShopProfileChange,
+            handleOwnerProfileChange,
+            staffMembers,
+            handleStaffMembersChange,
+            scheduleCreateRequest,
+            handleScheduleCreateRequestHandled,
+            handleCreateReservationForCustomer,
+            handleCreateReservationForDate,
+            automaticVisitReminderAvailable,
+            priceGuideOnboarding,
+            false,
+            handleInitialSetupStepSaved,
+            handleInitialSetupHoursNext,
+            initialSetupStaffSessionDraft,
+            setInitialSetupStaffSessionDraft,
+            () => setInitialSetupScreen("services"),
+            handleInitialSetupPricingNext,
+            uploadDemoInitialSetupStaffPhoto,
+          )}
+        </div>
+      </div>
+      </OwnerWebAppShell>
+      </div>
+
+      {initialSetupOpen ? (
+        <OwnerInitialSetupGuide
+          key={ownerData.shop.id}
+          open
+          data={ownerData}
+          activeScreen={initialSetupScreen}
+          onClose={closeInitialSetup}
+          onNavigate={setInitialSetupScreen}
+        >
+          {renderScreen(
+            initialSetupScreen,
+            ownerData,
+            setOwnerData,
+            handleShopProfileChange,
+            handleOwnerProfileChange,
+            staffMembers,
+            handleStaffMembersChange,
+            scheduleCreateRequest,
+            handleScheduleCreateRequestHandled,
+            handleCreateReservationForCustomer,
+            handleCreateReservationForDate,
+            automaticVisitReminderAvailable,
+            priceGuideOnboarding,
+            true,
+            handleInitialSetupStepSaved,
+            handleInitialSetupHoursNext,
+            initialSetupStaffSessionDraft,
+            setInitialSetupStaffSessionDraft,
+            () => setInitialSetupScreen("services"),
+            handleInitialSetupPricingNext,
+            uploadDemoInitialSetupStaffPhoto,
+          )}
+        </OwnerInitialSetupGuide>
+      ) : null}
+    </>
   );
 }

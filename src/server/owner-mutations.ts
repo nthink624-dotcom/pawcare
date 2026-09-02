@@ -1049,6 +1049,8 @@ export async function createGuardian(input: unknown) {
     name: payload.name,
     phone: payload.phone,
     memo: payload.memo ?? "",
+    customer_grade_override: payload.customerGradeOverride ?? null,
+    customer_member_type: payload.customerMemberType ?? "guardian",
     notification_settings: normalizeGuardianNotificationSettings({
       ...defaultGuardianNotificationSettings,
       ...(typeof payload.enabled === "boolean" ? { enabled: payload.enabled } : {}),
@@ -1075,6 +1077,8 @@ export async function createGuardian(input: unknown) {
       name: guardian.name,
       phone: guardian.phone,
       memo: guardian.memo,
+      customer_grade_override: guardian.customer_grade_override,
+      customer_member_type: guardian.customer_member_type,
       notification_settings: guardian.notification_settings,
       created_at: guardian.created_at,
       updated_at: guardian.updated_at,
@@ -1131,6 +1135,8 @@ export async function updateGuardian(input: unknown) {
     if (typeof payload.name === "string") guardian.name = payload.name;
     if (typeof payload.phone === "string") guardian.phone = payload.phone;
     if (typeof payload.memo === "string") guardian.memo = payload.memo;
+    if (payload.customerGradeOverride !== undefined) guardian.customer_grade_override = payload.customerGradeOverride;
+    if (payload.customerMemberType !== undefined) guardian.customer_member_type = payload.customerMemberType;
     if (hasNotificationSettingsPatch) {
       guardian.notification_settings = normalizeGuardianNotificationSettings({
         ...guardian.notification_settings,
@@ -1160,6 +1166,8 @@ export async function updateGuardian(input: unknown) {
     ...(typeof payload.name === "string" ? { name: payload.name } : {}),
     ...(typeof payload.phone === "string" ? { phone: payload.phone } : {}),
     ...(typeof payload.memo === "string" ? { memo: payload.memo } : {}),
+    ...(payload.customerGradeOverride !== undefined ? { customer_grade_override: payload.customerGradeOverride } : {}),
+    ...(payload.customerMemberType !== undefined ? { customer_member_type: payload.customerMemberType } : {}),
     ...(hasNotificationSettingsPatch ? { notification_settings: nextNotificationSettings } : {}),
     updated_at: nowIso(),
   };
@@ -2003,12 +2011,13 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
           force: true,
         });
         if (completedGroomingRecordId && completionNotification?.notification) {
-          const record = store.groomingRecords.find((item) => item.id === completedGroomingRecordId);
+          const latestStore = getMutableStore();
+          const record = latestStore.groomingRecords.find((item) => item.id === completedGroomingRecordId);
           if (record) {
             record.customer_notification_id = completionNotification.notification.id;
             record.shared_with_customer_at = completionNotification.notification.sent_at ?? null;
             record.updated_at = statusChangedAt;
-            setMockStore(store);
+            setMockStore(latestStore);
           }
         }
       }, options);

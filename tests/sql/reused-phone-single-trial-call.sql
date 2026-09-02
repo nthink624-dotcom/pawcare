@@ -1,5 +1,5 @@
 set role service_role;
-select public.complete_owner_signup_v4(
+select public.complete_owner_signup_v5(
   (:'request_id')::uuid,
   repeat(:'hash_char', 64),
   (:'user_id')::uuid,

@@ -395,6 +395,9 @@ export default function CustomerBookingPage({
   entryHref,
   initialBookingProfile,
   disableStoredProfile = false,
+  previewOnly = false,
+  onPreviewExit,
+  onPreviewBookingComplete,
 }: {
   shopId: string;
   initialShop: Shop;
@@ -413,6 +416,10 @@ export default function CustomerBookingPage({
   entryHref?: string;
   initialBookingProfile?: InitialBookingProfile;
   disableStoredProfile?: boolean;
+  /** Owner-only preview: exercises the real flow without creating an appointment. */
+  previewOnly?: boolean;
+  onPreviewExit?: () => void;
+  onPreviewBookingComplete?: () => void;
 }) {
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
   const initialCustomerServiceOptions = useMemo(
@@ -737,6 +744,10 @@ export default function CustomerBookingPage({
   }, [dateOptions, firstVisit.serviceId, firstVisit.staffId, firstVisitStep, selectedFirstServiceOption?.durationMinutes, shopId]);
 
   function resetView() {
+    if (previewOnly) {
+      onPreviewExit?.();
+      return;
+    }
     window.location.href = entryHref || `/entry/${shopId}`;
   }
 
@@ -906,6 +917,12 @@ export default function CustomerBookingPage({
         rebookingPetId: initialAccessToken ? selectedRebookingPetId : "",
       };
 
+      if (previewOnly) {
+        onPreviewBookingComplete?.();
+        setFirstVisitStep(5);
+        return;
+      }
+
       const createdBooking = await fetchJson<BookingCreateResponse>("/api/customer-bookings", {
         method: "POST",
         body: JSON.stringify(bookingPayload),
@@ -980,6 +997,7 @@ export default function CustomerBookingPage({
               loadingSlots={loadingFirstVisitSlots}
               submitting={submitting}
               completedBooking={completedFirstVisitBooking}
+              previewOnly={previewOnly}
               onBackToEntry={resetView}
               onStepBack={() => {
                 if (lockFirstVisitStep) return;

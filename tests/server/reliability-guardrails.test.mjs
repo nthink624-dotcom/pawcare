@@ -30,16 +30,40 @@ test("admin entry keeps only the new home and current workspaces", () => {
   const adminHome = readProjectFile("src/components/admin/admin-home.tsx");
   const adminNav = readProjectFile("src/components/admin/admin-section-nav.tsx");
 
-  assert.match(adminPage, /<AdminHome sessionLoginId=/);
+  assert.match(adminPage, /<AdminHome adminName=\{adminName\} \/>/);
   assert.match(adminHome, /관리자 홈/);
-  assert.match(adminHome, /오늘 먼저 볼 것/);
-  assert.match(adminHome, /관리 업무 선택/);
+  assert.doesNotMatch(adminHome, /오늘 먼저 볼 것/);
+  assert.match(adminHome, /대표 업무 흐름/);
+  assert.match(adminHome, /계정 관리/);
+  assert.match(adminHome, /고객 문의/);
   assert.doesNotMatch(adminHome, /href="\/admin\/operations"/);
   assert.doesNotMatch(adminNav, /href: "\/admin\/operations"/);
   assert.equal(existsSync(new URL("../../src/app/admin/operations/page.tsx", import.meta.url)), false);
   assert.equal(existsSync(new URL("../../src/components/admin/admin-dashboard.tsx", import.meta.url)), false);
   assert.match(adminNav, /href: "\/owner\/admin"/);
   assert.match(adminNav, /href: "\/admin\/marketing"/);
+});
+
+test("admin navigation keeps the compact shared shell and accessible support anchor", () => {
+  const adminHome = readProjectFile("src/components/admin/admin-home.tsx");
+  const adminNav = readProjectFile("src/components/admin/admin-section-nav.tsx");
+
+  assert.match(adminHome, /max-w-\[1440px\].*rounded-\[14px\].*border.*bg-white/);
+  assert.match(adminHome, /md:grid-cols-4/);
+  assert.match(adminHome, /min-h-11/);
+  assert.match(adminHome, /id="customer-support"/);
+  assert.match(adminHome, /supportDetailsRef\.current\.open = true/);
+  assert.match(adminHome, /supportSummaryRef\.current\?\.focus\(\)/);
+  assert.doesNotMatch(adminHome, /ArrowRight/);
+  assert.doesNotMatch(adminHome, /PETMANAGER_SERVICE_NAME/);
+  assert.doesNotMatch(adminHome, /대표 업무 흐름과 운영 메뉴를 한곳에서 확인합니다/);
+
+  assert.match(adminNav, /href: "\/admin", label: "홈", icon: Home/);
+  assert.match(adminNav, /href: "\/owner\/admin", label: "계정 관리"/);
+  assert.match(adminNav, /href: "\/admin\/marketing", label: "워크룸"/);
+  assert.match(adminNav, /href: "\/admin\/support", label: "고객 문의"/);
+  assert.match(adminNav, /min-h-11/);
+  assert.match(adminNav, /aria-current=\{selected \? "page" : undefined\}/);
 });
 
 test("core admin workspaces use the shared typography scale", () => {
@@ -126,9 +150,12 @@ test("photo list surfaces keep using the batch signed URL client", () => {
 
 test("the owner application retains a route error recovery boundary", () => {
   const errorBoundary = readProjectFile("src/app/error.tsx");
+  const errorContext = readProjectFile("src/lib/app-error-context.ts");
 
   assert.match(errorBoundary, /reset/);
-  assert.match(errorBoundary, /관리자 메인/);
+  assert.match(errorBoundary, /getAppErrorEscapeContext/);
+  assert.match(errorContext, /관리자 메인/);
+  assert.match(errorContext, /오너 홈/);
   assert.match(errorBoundary, /\[petmanager-ui\]/);
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type FocusEvent, type KeyboardEvent, useEffect, useState } from "react";
 
 import { CalendarCareNoteInput } from "@/components/owner-web/calendar-care-note-input";
 import type { GroomingCompletionDetails } from "@/components/owner-web/calendar-grooming-completion-fields";
@@ -103,6 +103,24 @@ function AiPolishedMessage({
   disabled?: boolean;
   onChange: (content: string) => void;
 }) {
+  const [textareaInputModality, setTextareaInputModality] = useState<"keyboard" | "pointer">("keyboard");
+  const [textareaFocused, setTextareaFocused] = useState(false);
+
+  function markKeyboardTextareaFocus(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Tab") setTextareaInputModality("keyboard");
+  }
+
+  function resetTextareaFocusAfterLeave(event: FocusEvent<HTMLDivElement>) {
+    const scope = event.currentTarget;
+    queueMicrotask(() => {
+      if (!scope.contains(document.activeElement)) setTextareaInputModality("keyboard");
+    });
+  }
+
+  const textareaFocusStyle = textareaFocused && textareaInputModality === "keyboard"
+    ? { outline: "2px solid #2563eb", outlineOffset: 2 }
+    : undefined;
+
   return (
     <div className="w-full">
       <div className="flex items-center justify-between gap-3">
@@ -111,15 +129,25 @@ function AiPolishedMessage({
         </p>
         <span className={`${OWNER_TYPOGRAPHY.badge} rounded-full bg-[#f0f2f4] px-2.5 py-1 text-[#596775]`}>직접 수정 가능</span>
       </div>
-      <div className="relative mt-2">
+      <div
+        data-textarea-input-modality={textareaInputModality}
+        onPointerDownCapture={() => setTextareaInputModality("pointer")}
+        onMouseDownCapture={() => setTextareaInputModality("pointer")}
+        onKeyDownCapture={markKeyboardTextareaFocus}
+        onBlurCapture={resetTextareaFocusAfterLeave}
+        className="relative mt-2"
+      >
         <textarea
           data-modal-wheel-scope="self"
           value={content}
           onChange={(event) => onChange(event.target.value.slice(0, 400))}
+          onFocus={() => setTextareaFocused(true)}
+          onBlur={() => setTextareaFocused(false)}
           disabled={disabled}
           maxLength={400}
           aria-label="AI가 정리한 문장 편집"
-          className={`${OWNER_TYPOGRAPHY.body} no-scrollbar h-[108px] max-h-[108px] w-full resize-none overflow-y-auto overscroll-contain rounded-[10px] border border-[#dde2e8] bg-[#fafbfc] px-3.5 pb-7 pt-2.5 text-[#1b2d43] outline-none focus:border-[#8c99a7] focus:ring-2 focus:ring-[#e2e6eb] disabled:opacity-60`}
+          className={`${OWNER_TYPOGRAPHY.body} no-scrollbar h-[108px] max-h-[108px] w-full resize-none overflow-y-auto overscroll-contain rounded-[10px] border border-[#dde2e8] bg-[#fafbfc] px-3.5 pb-7 pt-2.5 text-[#1b2d43] outline-none focus:outline-none focus:ring-0 disabled:opacity-60`}
+          style={textareaFocusStyle}
         />
         <span className={`${OWNER_TYPOGRAPHY.helper} pointer-events-none absolute bottom-2 right-3.5 rounded bg-[#fafbfc]/90 px-1 text-[#89939e]`}>
           {content.length}/400
@@ -313,7 +341,7 @@ export function CalendarCareReportCompletionPanel({
           ) : null}
         </div>
 
-        <div className="sticky bottom-0 z-[95] -mx-3 mt-2 rounded-b-[20px] border-t border-[#dde2e8] bg-white/95 px-3 py-2 shadow-[0_-10px_28px_rgba(20,39,63,0.07)] backdrop-blur">
+        <div className="sticky bottom-0 z-[95] -mx-2 mt-2 rounded-b-[20px] border-t border-[#dde2e8] bg-white/95 px-3 py-2 shadow-[0_-10px_28px_rgba(20,39,63,0.07)] backdrop-blur">
           <CalendarCareNoteInput
             value={composerValue}
             onChange={setComposerValue}
@@ -326,7 +354,7 @@ export function CalendarCareReportCompletionPanel({
               type="button"
               onClick={() => void publishReport()}
               disabled={!report || disabled || saving}
-              className={`${OWNER_TYPOGRAPHY.bodyStrong} inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f6fd6] text-white shadow-[0_7px_18px_rgba(47,111,214,0.18)] transition hover:bg-[#245fbd] disabled:cursor-not-allowed disabled:opacity-40`}
+              className={`${OWNER_TYPOGRAPHY.bodyStrong} inline-flex h-11 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f6fd6] text-white shadow-[0_7px_18px_rgba(47,111,214,0.18)] transition hover:bg-[#245fbd] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-40`}
             >
               {savingAction === "publish" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               리포트 보내기
@@ -336,7 +364,7 @@ export function CalendarCareReportCompletionPanel({
               onClick={() => void saveReportDraft()}
               disabled={disabled || saving}
               aria-label="케어리포트 임시저장"
-              className={`${OWNER_TYPOGRAPHY.bodyStrong} inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#d5dbe2] bg-white text-[#526171] transition hover:bg-[#f3f5f7] disabled:opacity-50`}
+              className={`${OWNER_TYPOGRAPHY.bodyStrong} inline-flex h-11 items-center justify-center gap-1.5 rounded-[10px] border border-[#d5dbe2] bg-white text-[#526171] transition hover:bg-[#f3f5f7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50`}
             >
               {savingAction === "draft" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               임시저장

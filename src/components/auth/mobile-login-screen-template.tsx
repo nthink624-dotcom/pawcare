@@ -146,7 +146,7 @@ export default function MobileLoginScreenTemplate({
           </button>
         </div>
 
-        {message ? <p className="mb-2 text-[12px] font-medium leading-5 text-[#d34b4b]">{message}</p> : null}
+        {message ? <p role="alert" className="mb-2 text-[13px] font-medium leading-5 text-[#d34b4b]">{message}</p> : null}
         {emailConfirmationAction ? (
           <button
             type="button"
@@ -175,7 +175,7 @@ export default function MobileLoginScreenTemplate({
           type="button"
           onClick={() => onLogin(syncBrowserFilledCredentials())}
           disabled={loading}
-          className="h-[62px] w-full rounded-[14px] border-0 bg-[#111a30] text-[17px] font-bold tracking-[-0.02em] text-white transition-[background-color,transform] duration-150 hover:bg-[#17233d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-[62px] w-full rounded-[14px] border-0 bg-[#111a30] text-[17px] font-bold tracking-[-0.02em] text-white transition-[background-color,transform] duration-150 hover:bg-[#17233d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? loginButtonLoadingLabel : loginButtonLabel}
         </button>

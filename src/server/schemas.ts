@@ -85,6 +85,8 @@ export const guardianInputSchema = z.object({
   phone: z.string().trim().min(1),
   memo: z.string().default(""),
   enabled: z.boolean().optional(),
+  customerGradeOverride: z.enum(["normal", "loyal", "attention"]).nullable().optional(),
+  customerMemberType: z.enum(["guardian", "proxy", "guest"]).optional(),
 });
 
 export const guardianUpdateSchema = z.object({
@@ -95,6 +97,8 @@ export const guardianUpdateSchema = z.object({
   memo: z.string().default("").optional(),
   enabled: z.boolean().optional(),
   revisitEnabled: z.boolean().optional(),
+  customerGradeOverride: z.enum(["normal", "loyal", "attention"]).nullable().optional(),
+  customerMemberType: z.enum(["guardian", "proxy", "guest"]).optional(),
   notificationSettings: z.object({
     enabled: z.boolean().optional(),
     revisit_enabled: z.boolean().optional(),

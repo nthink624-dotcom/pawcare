@@ -13,6 +13,32 @@ function assertExcludes(filePath, unexpected, message) {
   if (read(filePath).includes(unexpected)) throw new Error(`${message} (${filePath})`);
 }
 
+function assertOwnerWithdrawalSafety() {
+  const filePath = "src/app/api/admin/owners/withdraw/route.ts";
+  const source = read(filePath);
+  const failClosedCall = 'assertAdminHighRiskActionReady("withdraw", account)';
+
+  assertExcludes(filePath, '.from("shops").delete()', "Owner withdrawal must not physically delete shops.");
+
+  if (source.includes(failClosedCall)) {
+    if (source.indexOf("requireAdminSession(request)") > source.indexOf(failClosedCall)) {
+      throw new Error(`Owner withdrawal must authenticate before the fail-closed high-risk gate. (${filePath})`);
+    }
+
+    for (const forbidden of [
+      '.from("shops").update(',
+      "admin.auth.admin.deleteUser(",
+      "getSupabaseAdmin(",
+      "request.json(",
+    ]) {
+      assertExcludes(filePath, forbidden, "Fail-closed owner withdrawal must not contain deletion side effects.");
+    }
+    return;
+  }
+
+  assertIncludes(filePath, "deleted_at: deletedAt", "Enabled owner withdrawal must soft-delete shops.");
+}
+
 try {
   assertIncludes(
     "supabase/migrations/20260806013153_protect_business_data_deletion.sql",
@@ -29,16 +55,7 @@ try {
     "enable row level security",
     "Shop identity change audit must have RLS enabled.",
   );
-  assertExcludes(
-    "src/app/api/admin/owners/withdraw/route.ts",
-    '.from("shops").delete()',
-    "Owner withdrawal must not physically delete shops.",
-  );
-  assertIncludes(
-    "src/app/api/admin/owners/withdraw/route.ts",
-    "deleted_at: deletedAt",
-    "Owner withdrawal must soft-delete shops.",
-  );
+  assertOwnerWithdrawalSafety();
   assertIncludes(
     "src/server/bootstrap.ts",
     '.eq("id", shopId).is("deleted_at", null)',

@@ -53,6 +53,7 @@ type Feedback = {
 };
 
 const statusLabelMap: Partial<Record<Appointment["status"], string>> = {
+  pending: "예약 대기",
   confirmed: "확정",
   in_progress: "미용 중",
   almost_done: "픽업 준비",
@@ -63,6 +64,7 @@ const statusLabelMap: Partial<Record<Appointment["status"], string>> = {
 };
 
 const progressSteps: Array<{ status: Appointment["status"]; label: string }> = [
+  { status: "pending", label: "예약 대기" },
   { status: "confirmed", label: "확정" },
   { status: "in_progress", label: "미용 중" },
   { status: "almost_done", label: "픽업 준비" },

@@ -113,6 +113,7 @@ const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const staffDayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
+  pending: "예약 대기",
   confirmed: "예약 예정",
   in_progress: "진행 중",
   almost_done: "픽업 준비",

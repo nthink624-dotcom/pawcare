@@ -20,6 +20,7 @@ import { addDate, currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTi
 import { getBootstrap } from "@/server/bootstrap";
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { dispatchNotification } from "@/server/notification-dispatch";
+import { OwnerApiError } from "@/server/owner-api-auth";
 import {
   assertShopIdentityChangeLimit,
   buildShopIdentityChanges,
@@ -91,6 +92,7 @@ function getActualGroomingDurationMinutes(startedAt: string | null | undefined, 
 
 function getAppointmentStatusLabel(status: AppointmentStatus) {
   const labels: Record<AppointmentStatus, string> = {
+    pending: "예약 대기",
     confirmed: "예약 확정",
     in_progress: "미용 시작",
     almost_done: "픽업 준비",
@@ -120,6 +122,15 @@ function assertAppointmentStatusTransitionAllowed(params: {
 
   if (terminalStatuses.has(params.previousStatus)) {
     throw new Error("이미 종료된 예약은 다시 상태를 변경할 수 없어요. 새 예약을 만들거나 별도 변경으로 처리해 주세요.");
+  }
+
+  if (params.nextStatus === "pending") {
+    throw new Error("예약 대기 상태는 새 예약 생성에서만 사용할 수 있어요.");
+  }
+
+  if (params.previousStatus === "pending") {
+    if (["confirmed", "cancelled", "rejected"].includes(params.nextStatus)) return;
+    throw new Error("예약 대기는 확정, 취소 또는 거절로만 변경할 수 있어요.");
   }
 
   if (params.nextStatus === "confirmed") {
@@ -805,8 +816,10 @@ export async function updateShopSettings(
 
 export async function upsertService(input: unknown) {
   const payload = serviceInputSchema.parse(input);
+  const serviceId = payload.serviceId ?? randomUUID();
+  const timestamp = nowIso();
   const service: Service = {
-    id: payload.serviceId ?? randomUUID(),
+    id: serviceId,
     shop_id: payload.shopId,
     name: payload.name,
     price: payload.price,
@@ -819,15 +832,48 @@ export async function upsertService(input: unknown) {
     capacity_label: payload.capacityLabel,
     staff_selection_mode: payload.staffSelectionMode,
     price_guide: payload.priceGuide ?? {},
-    created_at: nowIso(),
-    updated_at: nowIso(),
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+  const serviceUpdate = {
+    name: service.name,
+    price: service.price,
+    price_type: service.price_type,
+    duration_minutes: service.duration_minutes,
+    is_active: service.is_active,
+    category: service.category,
+    description: service.description,
+    sort_order: service.sort_order,
+    capacity_label: service.capacity_label,
+    staff_selection_mode: service.staff_selection_mode,
+    price_guide: service.price_guide,
+    updated_at: service.updated_at,
+  };
+  const legacyServiceUpdate = {
+    name: service.name,
+    price: service.price,
+    duration_minutes: service.duration_minutes,
+    is_active: service.is_active,
+    updated_at: service.updated_at,
+  };
+  const compatibleServiceUpdate = {
+    ...legacyServiceUpdate,
+    price_type: service.price_type,
   };
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
-    const index = store.services.findIndex((item) => item.id === service.id);
-    if (index >= 0) {
-      store.services[index] = { ...store.services[index], ...service, created_at: store.services[index].created_at };
+    if (payload.serviceId) {
+      const index = store.services.findIndex(
+        (item) => item.id === payload.serviceId && item.shop_id === payload.shopId,
+      );
+      if (index < 0) {
+        throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+      }
+      store.services[index] = {
+        ...store.services[index],
+        ...serviceUpdate,
+      };
     } else {
       store.services = [...store.services, service];
     }
@@ -838,18 +884,16 @@ export async function upsertService(input: unknown) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
-  const { error } = await supabase.from("services").upsert(service);
-  if (error) {
+  if (!payload.serviceId) {
+    const { error } = await supabase.from("services").insert(service);
+    if (!error) return service;
+
     if (hasMissingColumnError(error, "price_type")) {
-      const { error: fallbackError } = await supabase.from("services").upsert({
+      const { error: fallbackError } = await supabase.from("services").insert({
         id: service.id,
         shop_id: service.shop_id,
-        name: service.name,
-        price: service.price,
-        duration_minutes: service.duration_minutes,
-        is_active: service.is_active,
+        ...legacyServiceUpdate,
         created_at: service.created_at,
-        updated_at: service.updated_at,
       });
 
       if (fallbackError) throw new Error(fallbackError.message);
@@ -864,16 +908,11 @@ export async function upsertService(input: unknown) {
       hasMissingColumnError(error, "staff_selection_mode") ||
       hasMissingColumnError(error, "price_guide")
     ) {
-      const { error: fallbackError } = await supabase.from("services").upsert({
+      const { error: fallbackError } = await supabase.from("services").insert({
         id: service.id,
         shop_id: service.shop_id,
-        name: service.name,
-        price: service.price,
-        price_type: service.price_type,
-        duration_minutes: service.duration_minutes,
-        is_active: service.is_active,
+        ...compatibleServiceUpdate,
         created_at: service.created_at,
-        updated_at: service.updated_at,
       });
 
       if (fallbackError) throw new Error(fallbackError.message);
@@ -882,7 +921,244 @@ export async function upsertService(input: unknown) {
 
     throw new Error(error.message);
   }
+
+  const existingResult = await supabase
+    .from("services")
+    .select("id")
+    .eq("id", payload.serviceId)
+    .eq("shop_id", payload.shopId)
+    .maybeSingle();
+
+  if (existingResult.error) throw new Error(existingResult.error.message);
+  if (!existingResult.data?.id) {
+    throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+  }
+
+  const { data, error } = await supabase
+    .from("services")
+    .update(serviceUpdate)
+    .eq("id", payload.serviceId)
+    .eq("shop_id", payload.shopId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    if (hasMissingColumnError(error, "price_type")) {
+      const fallbackResult = await supabase
+        .from("services")
+        .update(legacyServiceUpdate)
+        .eq("id", payload.serviceId)
+        .eq("shop_id", payload.shopId)
+        .select("id")
+        .maybeSingle();
+
+      if (fallbackResult.error) throw new Error(fallbackResult.error.message);
+      if (!fallbackResult.data?.id) {
+        throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+      }
+      return service;
+    }
+
+    if (
+      hasMissingColumnError(error, "category") ||
+      hasMissingColumnError(error, "description") ||
+      hasMissingColumnError(error, "sort_order") ||
+      hasMissingColumnError(error, "capacity_label") ||
+      hasMissingColumnError(error, "staff_selection_mode") ||
+      hasMissingColumnError(error, "price_guide")
+    ) {
+      const fallbackResult = await supabase
+        .from("services")
+        .update(compatibleServiceUpdate)
+        .eq("id", payload.serviceId)
+        .eq("shop_id", payload.shopId)
+        .select("id")
+        .maybeSingle();
+
+      if (fallbackResult.error) throw new Error(fallbackResult.error.message);
+      if (!fallbackResult.data?.id) {
+        throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+      }
+      return service;
+    }
+
+    throw new Error(error.message);
+  }
+  if (!data?.id) {
+    throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+  }
   return service;
+}
+
+type SupabaseAdminClient = NonNullable<ReturnType<typeof getSupabaseAdmin>>;
+
+type CompletionAtomicPayload = {
+  recordId: string;
+  staffId: string | null;
+  styleNotes: string;
+  memo: string;
+  internalMemo: string;
+  pricePaid: number;
+  actualDurationMinutes: number | null;
+  expectedDurationMinutes: number | null;
+  originalPrice: number;
+  discountAmount: number;
+  petBreedSnapshot: string | null;
+  petWeightSnapshot: number | null;
+  pricingGroupSnapshot: string | null;
+  serviceNameSnapshot: string | null;
+  nextRecommendedVisitDate: string | null;
+  careReportData: Record<string, unknown> | null;
+  careReportObservations: Record<string, unknown>;
+  careReportGenerationId: string | null;
+  careReportOwnerConfirmedAt: string | null;
+  careReportPhotoConsent: boolean;
+  beforeMediaAssetId: string | null;
+  afterMediaAssetId: string | null;
+  groomedAt: string;
+};
+
+async function commitSupabaseAppointmentStatusAtomic(params: {
+  supabase: SupabaseAdminClient;
+  currentAppointment: Appointment;
+  nextStatus: AppointmentStatus;
+  rejectionReason: string | null;
+  statusChangedAt: string;
+  eventType?: AppointmentChangeEvent["event_type"];
+  eventNote?: string | null;
+  groomingDetails?: {
+    treatmentNotes: string;
+    specialNotes: string;
+    internalNotes: string;
+    nextRecommendedVisitDate: string | null;
+  };
+}) {
+  const { supabase, currentAppointment, nextStatus, rejectionReason, statusChangedAt, groomingDetails } = params;
+  const expectedAfter: Appointment = {
+    ...currentAppointment,
+    status: nextStatus,
+    rejection_reason: rejectionReason,
+    ...(nextStatus === "in_progress" ? { actual_started_at: statusChangedAt } : {}),
+    ...(nextStatus === "completed" ? { actual_completed_at: statusChangedAt } : {}),
+    updated_at: statusChangedAt,
+  };
+  const changeEvent = createAppointmentChangeEvent({
+    before: currentAppointment,
+    after: expectedAfter,
+    eventType: params.eventType ?? "status",
+    note: params.eventNote ?? null,
+    createdAt: statusChangedAt,
+  });
+
+  let completion: CompletionAtomicPayload | null = null;
+  let cleanupCompletionDraft = false;
+  if (nextStatus === "completed") {
+    const [existingRecord, completionDraft, completionBootstrap, appointmentMedia] = await Promise.all([
+      supabase.from("grooming_records").select("*").eq("appointment_id", currentAppointment.id).maybeSingle(),
+      supabase
+        .from("grooming_record_drafts")
+        .select("care_report_observations,care_report_voice_transcript,care_report_ai_draft,care_report_generation_id,care_report_owner_confirmed_at,care_report_photo_consent")
+        .eq("shop_id", currentAppointment.shop_id)
+        .eq("appointment_id", currentAppointment.id)
+        .maybeSingle(),
+      getBootstrap(currentAppointment.shop_id),
+      supabase
+        .from("media_assets")
+        .select("id, media_kind, created_at")
+        .eq("shop_id", currentAppointment.shop_id)
+        .eq("appointment_id", currentAppointment.id)
+        .eq("status", "ready")
+        .is("deleted_at", null)
+        .in("media_kind", ["grooming_before", "grooming_after"])
+        .order("created_at", { ascending: false }),
+    ]);
+    if (existingRecord.error) throw new Error(existingRecord.error.message);
+    if (completionDraft.error && !hasMissingColumnError(completionDraft.error, "care_report")) {
+      throw new Error(completionDraft.error.message);
+    }
+    if (appointmentMedia.error) throw new Error(appointmentMedia.error.message);
+
+    const service = completionBootstrap.services.find((item) => item.id === currentAppointment.service_id);
+    const pet = completionBootstrap.pets.find((item) => item.id === currentAppointment.pet_id);
+    const confirmedCareReport =
+      completionDraft.data?.care_report_owner_confirmed_at && completionDraft.data?.care_report_ai_draft
+        ? completionDraft.data.care_report_ai_draft
+        : null;
+    const beforeMediaAssetId = appointmentMedia.data?.find((item) => item.media_kind === "grooming_before")?.id ?? null;
+    const afterMediaAssetId = appointmentMedia.data?.find((item) => item.media_kind === "grooming_after")?.id ?? null;
+    const pricePaid = currentAppointment.final_service_price ?? service?.price ?? 0;
+    const discountAmount = currentAppointment.discount_amount ?? 0;
+    const completedAt = statusChangedAt;
+    completion = {
+      recordId: existingRecord.data?.id ?? randomUUID(),
+      staffId: currentAppointment.staff_id ?? null,
+      styleNotes: groomingDetails?.treatmentNotes ?? existingRecord.data?.style_notes ?? "",
+      memo: groomingDetails?.specialNotes ?? existingRecord.data?.memo ?? "",
+      internalMemo: groomingDetails?.internalNotes ?? existingRecord.data?.internal_memo ?? "",
+      pricePaid,
+      actualDurationMinutes: getActualGroomingDurationMinutes(currentAppointment.actual_started_at, completedAt),
+      expectedDurationMinutes: getAppointmentDurationMinutes(currentAppointment, completionBootstrap.services),
+      originalPrice: Math.max(currentAppointment.original_service_price ?? 0, pricePaid + discountAmount),
+      discountAmount,
+      petBreedSnapshot: pet?.breed ?? null,
+      petWeightSnapshot: pet?.weight ?? null,
+      pricingGroupSnapshot: pet?.pricing_group ?? null,
+      serviceNameSnapshot: getAppointmentServiceNameSnapshot(currentAppointment, service?.name ?? null),
+      nextRecommendedVisitDate:
+        groomingDetails?.nextRecommendedVisitDate ?? existingRecord.data?.next_recommended_visit_date ?? null,
+      careReportData: confirmedCareReport ?? existingRecord.data?.care_report_data ?? null,
+      careReportObservations:
+        completionDraft.data?.care_report_observations ?? existingRecord.data?.care_report_observations ?? {},
+      careReportGenerationId:
+        completionDraft.data?.care_report_generation_id ?? existingRecord.data?.care_report_generation_id ?? null,
+      careReportOwnerConfirmedAt:
+        completionDraft.data?.care_report_owner_confirmed_at ??
+        existingRecord.data?.care_report_owner_confirmed_at ??
+        null,
+      careReportPhotoConsent:
+        completionDraft.data?.care_report_photo_consent ?? existingRecord.data?.care_report_photo_consent ?? false,
+      beforeMediaAssetId: beforeMediaAssetId ?? existingRecord.data?.before_media_asset_id ?? null,
+      afterMediaAssetId: afterMediaAssetId ?? existingRecord.data?.after_media_asset_id ?? null,
+      groomedAt: completedAt,
+    };
+    const careReportStarted = Boolean(
+      completionDraft.data?.care_report_ai_draft ||
+        completionDraft.data?.care_report_voice_transcript ||
+        Object.keys(completionDraft.data?.care_report_observations ?? {}).length > 0,
+    );
+    cleanupCompletionDraft = !careReportStarted || Boolean(completionDraft.data?.care_report_owner_confirmed_at);
+  }
+
+  const { data, error } = await supabase.rpc("update_appointment_status_atomic_v1", {
+    p_appointment_id: currentAppointment.id,
+    p_expected_previous_status: currentAppointment.status,
+    p_next_status: nextStatus,
+    p_rejection_reason: rejectionReason,
+    p_changed_at: statusChangedAt,
+    p_event_id: changeEvent.id,
+    p_event_note: changeEvent.note,
+    p_event_previous_values: changeEvent.previous_values,
+    p_event_next_values: changeEvent.next_values,
+    p_completion: completion,
+  });
+  if (error) {
+    if (error.code === "40001" || error.message.includes("changed concurrently")) {
+      throw new Error("다른 변경이 먼저 반영되었습니다. 예약 정보를 새로고침한 뒤 다시 시도해 주세요.");
+    }
+    if (error.code === "P0001" || error.message.includes("already set")) {
+      throw new Error(`이미 '${getAppointmentStatusLabel(nextStatus)}' 상태로 처리되었습니다. 같은 상태 알림은 반복 발송할 수 없어요.`);
+    }
+    throw new Error(getAppointmentWriteErrorMessage(error));
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.appointment) throw new Error("예약 상태 저장 결과를 확인할 수 없습니다.");
+
+  return {
+    appointment: row.appointment as Appointment,
+    groomingRecordId: (row.grooming_record_id as string | null) ?? null,
+    careReportConfirmedAt: (row.care_report_owner_confirmed_at as string | null) ?? null,
+    cleanupCompletionDraft,
+  };
 }
 
 export async function deleteService(input: unknown) {
@@ -1326,11 +1602,26 @@ export async function restoreGuardians(input: unknown) {
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
     const now = Date.now();
+    const scopedGuardians = guardianIds.map((guardianId) =>
+      store.guardians.find((guardian) => guardian.id === guardianId && guardian.shop_id === payload.shopId),
+    );
+
+    if (scopedGuardians.some((guardian) => !guardian)) {
+      throw new OwnerApiError("복구할 고객을 찾지 못했거나 해당 매장의 고객이 아닙니다.", 404);
+    }
+    if (
+      scopedGuardians.some((guardian) => {
+        const restoreUntil = guardian?.deleted_restore_until
+          ? new Date(guardian.deleted_restore_until).getTime()
+          : 0;
+        return !guardian?.deleted_at || !restoreUntil || restoreUntil < now;
+      })
+    ) {
+      throw new OwnerApiError("복구 가능한 고객이 아닙니다.", 400);
+    }
 
     store.guardians = store.guardians.map((guardian) => {
-      if (!guardianIds.includes(guardian.id)) return guardian;
-      const restoreUntil = guardian.deleted_restore_until ? new Date(guardian.deleted_restore_until).getTime() : 0;
-      if (!guardian.deleted_at || (restoreUntil && restoreUntil < now)) return guardian;
+      if (guardian.shop_id !== payload.shopId || !guardianIds.includes(guardian.id)) return guardian;
 
       return {
         ...guardian,
@@ -1350,29 +1641,40 @@ export async function restoreGuardians(input: unknown) {
   const guardiansQuery = await supabase
     .from("guardians")
     .select("id, deleted_at, deleted_restore_until")
-    .in("id", guardianIds);
+    .in("id", guardianIds)
+    .eq("shop_id", payload.shopId);
 
   if (guardiansQuery.error) throw new Error(guardiansQuery.error.message);
+
+  if ((guardiansQuery.data ?? []).length !== guardianIds.length) {
+    throw new OwnerApiError("복구할 고객을 찾지 못했거나 해당 매장의 고객이 아닙니다.", 404);
+  }
 
   const restorableIds = (guardiansQuery.data ?? [])
     .filter((guardian) => guardian.deleted_at)
     .filter((guardian) => guardian.deleted_restore_until && new Date(guardian.deleted_restore_until).getTime() >= Date.now())
     .map((guardian) => guardian.id);
 
-  if (restorableIds.length === 0) {
-    throw new Error("蹂듦뎄 媛?ν븳 怨좉컼???놁뒿?덈떎.");
+  if (restorableIds.length !== guardianIds.length) {
+    throw new OwnerApiError("복구 가능한 고객이 아닙니다.", 400);
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("guardians")
     .update({
       deleted_at: null,
       deleted_restore_until: null,
       updated_at: nowIso(),
     })
-    .in("id", restorableIds);
+    .in("id", restorableIds)
+    .eq("shop_id", payload.shopId)
+    .select("id");
 
   if (error) throw new Error(error.message);
+
+  if ((data ?? []).length !== restorableIds.length) {
+    throw new OwnerApiError("복구할 고객을 찾지 못했거나 해당 매장의 고객이 아닙니다.", 404);
+  }
 
   return { success: true, guardianIds: restorableIds };
 }
@@ -2067,205 +2369,30 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
     });
   }
 
-  const appointmentUpdate: Record<string, unknown> = {
-    status: payload.status,
-    rejection_reason: rejectionReason,
-    updated_at: statusChangedAt,
-  };
-  if (payload.status === "in_progress") {
-    appointmentUpdate.actual_started_at = statusChangedAt;
-  }
-  if (payload.status === "completed") {
-    appointmentUpdate.actual_completed_at = statusChangedAt;
-  }
-
-  const { data: updatedAppointment, error } = await supabase
-    .from("appointments")
-    .update(appointmentUpdate)
-    .eq("id", payload.appointmentId)
-    .neq("status", payload.status)
-    .select("*")
-    .single();
-
-  let resolvedAppointment = updatedAppointment;
-
-  if (error) {
-    const missingActualGroomingTimes =
-      hasMissingColumnError(error, "actual_started_at") ||
-      hasMissingColumnError(error, "actual_completed_at");
-    if (hasMissingColumnError(error, "rejection_reason") || missingActualGroomingTimes) {
-      const fallback = await supabase
-        .from("appointments")
-        .update({
-          status: payload.status,
-          ...(hasMissingColumnError(error, "rejection_reason") ? {} : { rejection_reason: rejectionReason }),
-          updated_at: statusChangedAt,
-        })
-        .eq("id", payload.appointmentId)
-        .neq("status", payload.status)
-        .select("*")
-        .single();
-
-      if (fallback.error) throw new Error(getAppointmentWriteErrorMessage(fallback.error));
-      resolvedAppointment = {
-        ...fallback.data,
-        rejection_reason: rejectionReason,
-        ...(payload.status === "in_progress" ? { actual_started_at: statusChangedAt } : {}),
-        ...(payload.status === "completed" ? { actual_completed_at: statusChangedAt } : {}),
-      };
-    } else {
-      if (error.code === "PGRST116" || error.message.includes("JSON object requested")) {
-        throw new Error(`이미 '${getAppointmentStatusLabel(payload.status)}' 상태로 처리되었습니다. 같은 상태 알림은 반복 발송할 수 없어요.`);
-      }
-      throw new Error(getAppointmentWriteErrorMessage(error));
-    }
-  }
-
-  if (payload.status === "completed") {
-    const existingRecord = await supabase
-      .from("grooming_records")
-      .select("*")
-      .eq("appointment_id", payload.appointmentId)
-      .maybeSingle();
-    if (existingRecord.error) throw new Error(existingRecord.error.message);
-
-    const completionDraft = await supabase
-      .from("grooming_record_drafts")
-      .select("care_report_observations,care_report_voice_transcript,care_report_ai_draft,care_report_generation_id,care_report_owner_confirmed_at,care_report_photo_consent")
-      .eq("shop_id", resolvedAppointment.shop_id)
-      .eq("appointment_id", resolvedAppointment.id)
-      .maybeSingle();
-    if (completionDraft.error && !hasMissingColumnError(completionDraft.error, "care_report")) {
-      throw new Error(completionDraft.error.message);
-    }
-
-    const confirmedCareReport =
-      completionDraft.data?.care_report_owner_confirmed_at && completionDraft.data?.care_report_ai_draft
-        ? completionDraft.data.care_report_ai_draft
-        : null;
-    completedCareReportConfirmedAt =
-      completionDraft.data?.care_report_owner_confirmed_at ??
-      existingRecord.data?.care_report_owner_confirmed_at ??
-      null;
-
-    const completionBootstrap = await getBootstrap(resolvedAppointment.shop_id);
-    const service = completionBootstrap.services.find((item) => item.id === resolvedAppointment.service_id);
-    const pet = completionBootstrap.pets.find((item) => item.id === resolvedAppointment.pet_id);
-    const appointmentMedia = await supabase
-      .from("media_assets")
-      .select("id, media_kind, created_at")
-      .eq("shop_id", resolvedAppointment.shop_id)
-      .eq("appointment_id", resolvedAppointment.id)
-      .eq("status", "ready")
-      .is("deleted_at", null)
-      .in("media_kind", ["grooming_before", "grooming_after"])
-      .order("created_at", { ascending: false });
-    if (appointmentMedia.error) throw new Error(appointmentMedia.error.message);
-
-    const beforeMediaAssetId = appointmentMedia.data?.find((item) => item.media_kind === "grooming_before")?.id ?? null;
-    const afterMediaAssetId = appointmentMedia.data?.find((item) => item.media_kind === "grooming_after")?.id ?? null;
-    const pricePaid = resolvedAppointment.final_service_price ?? service?.price ?? 0;
-    const discountAmount = resolvedAppointment.discount_amount ?? 0;
-    const recordValues = {
-      staff_id: resolvedAppointment.staff_id ?? null,
-      service_id: resolvedAppointment.service_id,
-      style_notes: groomingDetails?.treatmentNotes ?? existingRecord.data?.style_notes ?? "",
-      memo: groomingDetails?.specialNotes ?? existingRecord.data?.memo ?? "",
-      internal_memo: groomingDetails?.internalNotes ?? existingRecord.data?.internal_memo ?? "",
-      price_paid: pricePaid,
-      actual_duration_minutes: getActualGroomingDurationMinutes(
-        resolvedAppointment.actual_started_at,
-        resolvedAppointment.actual_completed_at,
-      ),
-      expected_duration_minutes: getAppointmentDurationMinutes(resolvedAppointment, completionBootstrap.services),
-      original_price: Math.max(resolvedAppointment.original_service_price ?? 0, pricePaid + discountAmount),
-      discount_amount: discountAmount,
-      pet_breed_snapshot: pet?.breed ?? null,
-      pet_weight_snapshot: pet?.weight ?? null,
-      pricing_group_snapshot: pet?.pricing_group ?? null,
-      service_name_snapshot: getAppointmentServiceNameSnapshot(resolvedAppointment, service?.name ?? null),
-      record_source: "owner",
-      next_recommended_visit_date:
-        groomingDetails?.nextRecommendedVisitDate ?? existingRecord.data?.next_recommended_visit_date ?? null,
-      care_report_data: confirmedCareReport ?? existingRecord.data?.care_report_data ?? null,
-      care_report_observations:
-        completionDraft.data?.care_report_observations ?? existingRecord.data?.care_report_observations ?? {},
-      care_report_generation_id:
-        completionDraft.data?.care_report_generation_id ?? existingRecord.data?.care_report_generation_id ?? null,
-      care_report_owner_confirmed_at:
-        completionDraft.data?.care_report_owner_confirmed_at ??
-        existingRecord.data?.care_report_owner_confirmed_at ??
-        null,
-      care_report_photo_consent:
-        completionDraft.data?.care_report_photo_consent ?? existingRecord.data?.care_report_photo_consent ?? false,
-      before_media_asset_id: beforeMediaAssetId ?? existingRecord.data?.before_media_asset_id ?? null,
-      after_media_asset_id: afterMediaAssetId ?? existingRecord.data?.after_media_asset_id ?? null,
-      groomed_at: resolvedAppointment.actual_completed_at ?? statusChangedAt,
-      updated_at: statusChangedAt,
-    };
-
-    if (existingRecord.data?.id) {
-      completedGroomingRecordId = existingRecord.data.id;
-      const recordUpdate = await supabase
-        .from("grooming_records")
-        .update(recordValues)
-        .eq("id", completedGroomingRecordId);
-      if (recordUpdate.error) throw new Error(recordUpdate.error.message);
-    } else {
-      completedGroomingRecordId = randomUUID();
-      const { error: recordError } = await supabase.from("grooming_records").insert({
-        id: completedGroomingRecordId,
-        shop_id: resolvedAppointment.shop_id,
-        guardian_id: resolvedAppointment.guardian_id,
-        pet_id: resolvedAppointment.pet_id,
-        appointment_id: resolvedAppointment.id,
-        ...recordValues,
-        created_at: statusChangedAt,
-      });
-
-      if (recordError) throw new Error(recordError.message);
-    }
-
-    if (completedGroomingRecordId) {
-      const mediaLinkResult = await supabase
-        .from("media_assets")
-        .update({ grooming_record_id: completedGroomingRecordId, updated_at: statusChangedAt })
-        .eq("shop_id", resolvedAppointment.shop_id)
-        .eq("appointment_id", resolvedAppointment.id)
-        .is("grooming_record_id", null);
-
-      if (mediaLinkResult.error) {
-        console.warn("[owner-mutations] media record link failed", mediaLinkResult.error.message);
-      }
-    }
-
-    const careReportStarted = Boolean(
-      completionDraft.data?.care_report_ai_draft ||
-        completionDraft.data?.care_report_voice_transcript ||
-        Object.keys(completionDraft.data?.care_report_observations ?? {}).length > 0,
-    );
-    const keepUnconfirmedCareReportDraft =
-      careReportStarted && !completionDraft.data?.care_report_owner_confirmed_at;
-
-    if (!keepUnconfirmedCareReportDraft) {
-      const draftCleanup = await supabase
-        .from("grooming_record_drafts")
-        .delete()
-        .eq("shop_id", resolvedAppointment.shop_id)
-        .eq("appointment_id", resolvedAppointment.id);
-      if (draftCleanup.error && !draftCleanup.error.message.includes("grooming_record_drafts")) {
-        console.warn("[owner-mutations] grooming draft cleanup failed", draftCleanup.error.message);
-      }
-    }
-  }
-
-  await persistAppointmentChangeEvent(createAppointmentChangeEvent({
-    before: previousAppointment,
-    after: resolvedAppointment as Appointment,
+  const atomicCommit = await commitSupabaseAppointmentStatusAtomic({
+    supabase,
+    currentAppointment: previousAppointment,
+    nextStatus: payload.status,
+    rejectionReason,
+    statusChangedAt,
     eventType: "status",
-    note: payload.eventType ?? null,
-    createdAt: statusChangedAt,
-  }));
+    eventNote: payload.eventType ?? null,
+    groomingDetails,
+  });
+  const resolvedAppointment = atomicCommit.appointment;
+  completedGroomingRecordId = atomicCommit.groomingRecordId;
+  completedCareReportConfirmedAt = atomicCommit.careReportConfirmedAt;
+
+  if (atomicCommit.cleanupCompletionDraft) {
+    const draftCleanup = await supabase
+      .from("grooming_record_drafts")
+      .delete()
+      .eq("shop_id", resolvedAppointment.shop_id)
+      .eq("appointment_id", resolvedAppointment.id);
+    if (draftCleanup.error && !draftCleanup.error.message.includes("grooming_record_drafts")) {
+      console.warn("[owner-mutations] grooming draft cleanup failed", draftCleanup.error.message);
+    }
+  }
 
   if (shouldNotifyCustomer && payload.status === "confirmed" && payload.eventType === "booking_rescheduled_confirmed") {
     await runAppointmentNotificationTask(async () => {

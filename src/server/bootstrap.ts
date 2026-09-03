@@ -79,13 +79,25 @@ function normalizeGuardianForBootstrap(guardian: Guardian): Guardian {
 }
 
 function normalizeAppointmentForBootstrap(appointment: Appointment): Appointment {
-  const normalizedStatus = String(appointment.status) === "pending" ? "confirmed" : appointment.status;
+  const knownStatuses = new Set<Appointment["status"]>([
+    "pending",
+    "confirmed",
+    "in_progress",
+    "almost_done",
+    "completed",
+    "cancelled",
+    "rejected",
+    "noshow",
+  ]);
+
+  if (!knownStatuses.has(appointment.status)) {
+    throw new Error("알 수 없는 예약 상태는 불러올 수 없습니다.");
+  }
 
   return {
     ...appointment,
     visit_reminder_offset_minutes: appointment.visit_reminder_offset_minutes ?? 10,
     pickup_ready_eta_minutes: appointment.pickup_ready_eta_minutes ?? 5,
-    status: normalizedStatus,
     appointment_time: formatClockTime(appointment.appointment_time),
   };
 }

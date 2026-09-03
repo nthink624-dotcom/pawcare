@@ -2,6 +2,7 @@
 import type { CareReportDraft, CareReportObservations } from "@/types/care-report";
 
 export type AppointmentStatus =
+  | "pending"
   | "confirmed"
   | "in_progress"
   | "almost_done"

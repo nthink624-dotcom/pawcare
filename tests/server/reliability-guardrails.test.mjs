@@ -100,14 +100,16 @@ test("the database overlap guard remains transaction-serialized", () => {
   assert.match(migration, /errcode = '23P01'/);
 });
 
-test("customer reservations stay immediate-confirmed without a pending approval flow", () => {
+test("customer reservations stay immediate-confirmed while legacy pending records remain readable", () => {
   const domain = readProjectFile("src/types/domain.ts");
+  const bootstrap = readProjectFile("src/server/bootstrap.ts");
   const ownerMutations = readProjectFile("src/server/owner-mutations.ts");
   const removalMigration = readProjectFile(
     "supabase/migrations/202606300001_remove_reservation_pending_flow.sql",
   );
 
-  assert.doesNotMatch(domain, /export type AppointmentStatus =[\s\S]{0,240}\| "pending"/);
+  assert.match(domain, /export type AppointmentStatus =[\s\S]{0,240}\| "pending"/);
+  assert.doesNotMatch(bootstrap, /pending"\s*\?\s*"confirmed"/);
   assert.match(ownerMutations, /const status = "confirmed";/);
   assert.match(ownerMutations, /approval_mode: "auto" as const/);
   assert.match(removalMigration, /where status = 'pending'/);

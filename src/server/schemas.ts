@@ -39,7 +39,7 @@ export const appointmentInputSchema = z.object({
 
 export const appointmentStatusSchema = z.object({
   appointmentId: z.string(),
-  status: z.enum(["confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
+  status: z.enum(["pending", "confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
   rejectionReasonTemplate: z.string().optional(),
   rejectionReasonCustom: z.string().optional(),
   eventType: z.enum(["booking_rescheduled_confirmed", "care_report_service_correction"]).optional(),
@@ -120,6 +120,7 @@ export const guardianDeleteSchema = z.object({
 });
 
 export const guardianRestoreSchema = z.object({
+  shopId: z.string().min(1),
   guardianId: z.string().optional(),
   guardianIds: z.array(z.string()).default([]).optional(),
 });

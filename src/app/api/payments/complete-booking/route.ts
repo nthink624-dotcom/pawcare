@@ -7,6 +7,7 @@ import { quoteCustomerDiscount } from "@/server/customer-discount-quote";
 
 const paymentBookingSchema = z.object({
   paymentId: z.string().min(1),
+  orderId: z.string().min(1),
   expectedAmount: z.coerce.number().min(0),
   booking: z.object({
     shopId: z.string().min(1),
@@ -38,11 +39,13 @@ const paymentBookingSchema = z.object({
 type PortonePaymentResponse = {
   payment?: {
     status?: string;
+    orderId?: string;
     amount?: { total?: number };
     totalAmount?: number;
     paidAmount?: number;
   };
   status?: string;
+  orderId?: string;
   amount?: { total?: number };
   totalAmount?: number;
   paidAmount?: number;
@@ -52,6 +55,7 @@ type PortonePaymentResponse = {
 function extractPaymentShape(payload: PortonePaymentResponse) {
   const payment = payload.payment ?? payload;
   const status = payment.status ?? payload.status ?? "";
+  const orderId = payment.orderId ?? payload.orderId ?? "";
   const amount =
     payment.amount?.total ??
     payload.amount?.total ??
@@ -61,7 +65,7 @@ function extractPaymentShape(payload: PortonePaymentResponse) {
     payload.paidAmount ??
     0;
 
-  return { status, amount };
+  return { status, amount, orderId };
 }
 
 export async function POST(request: NextRequest) {
@@ -97,7 +101,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: paymentJson.message ?? "결제 정보를 불러오지 못했습니다." }, { status: 400 });
     }
 
-    const { status, amount } = extractPaymentShape(paymentJson);
+    const { status, amount, orderId } = extractPaymentShape(paymentJson);
 
     if (status !== "PAID") {
       return NextResponse.json({ message: "결제가 아직 완료되지 않았습니다." }, { status: 400 });
@@ -106,10 +110,16 @@ export async function POST(request: NextRequest) {
     if (amount !== payload.expectedAmount) {
       return NextResponse.json({ message: "결제 금액이 예약 금액과 일치하지 않습니다." }, { status: 400 });
     }
+    if (!orderId || orderId !== payload.orderId) {
+      return NextResponse.json({ message: "결제 주문 정보가 예약 요청과 일치하지 않습니다." }, { status: 400 });
+    }
 
     const bookingResult = await createCustomerBooking(
       { ...payload.booking, expectedFinalAmount: discountQuote.finalAmount },
-      { trustedDiscountQuote: discountQuote },
+      {
+        trustedDiscountQuote: discountQuote,
+        payment: { paymentId: payload.paymentId, providerOrderId: orderId },
+      },
     );
     return NextResponse.json({
       ...bookingResult,

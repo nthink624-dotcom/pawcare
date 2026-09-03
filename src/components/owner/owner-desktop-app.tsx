@@ -25,6 +25,7 @@ type OwnerDesktopAppProps = {
 };
 
 const statusLabels: Record<Appointment["status"], string> = {
+  pending: "예약 대기",
   confirmed: "예약 확정",
   in_progress: "미용 중",
   almost_done: "픽업 준비",
@@ -35,6 +36,7 @@ const statusLabels: Record<Appointment["status"], string> = {
 };
 
 const statusClassNames: Record<Appointment["status"], string> = {
+  pending: "border-[#e6dfd7] bg-[#fbf8f3] text-[#6d665f]",
   confirmed: "border-[#d8e6df] bg-[#f4fbf8] text-[#2f7866]",
   in_progress: "border-[#d8e6df] bg-[#f4fbf8] text-[#2f7866]",
   almost_done: "border-[#e6dfd7] bg-[#fbf8f3] text-[#6d665f]",

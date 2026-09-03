@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ message: "첨부 파일을 안전하게 삭제하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
       }
 
-      const signOutResult = await admin.auth.admin.signOut(user.id, "global");
+      const signOutResult = await admin.auth.admin.signOut(accessToken, "global");
       if (signOutResult.error) {
         return NextResponse.json({ message: "로그아웃을 완료하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
       }

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { getSafeOwnerLoginReturnPath } from "../../src/lib/auth/login-return-path.ts";
+
 const read = (relativePath) => readFileSync(new URL(`../../${relativePath}`, import.meta.url), "utf8");
 
 test("owner account deletion migration is server-only, idempotent, and redacts deletion audit data", () => {
@@ -21,12 +23,68 @@ test("self-delete route requires current-password reauthentication and reaches t
   assert.match(route, /signInWithPassword/);
   assert.match(route, /claim_owner_account_deletion_v1/);
   assert.match(route, /finalize_owner_account_deletion_v1/);
-  assert.match(route, /auth\.admin\.signOut\(user\.id, "global"\)/);
+  assert.match(route, /auth\.admin\.signOut\(accessToken, "global"\)/);
+  assert.doesNotMatch(route, /auth\.admin\.signOut\(user\.id/);
+  assert.equal((route.match(/auth\.admin\.signOut\(/g) ?? []).length, 1);
   assert.match(route, /auth\.admin\.deleteUser\(user\.id\)/);
   assert.doesNotMatch(route, /auth\.admin\.deleteUser\(user\.id,\s*true\)/);
   assert.match(route, /complete_owner_account_deletion_v1/);
   assert.ok(route.indexOf("signInWithPassword") < route.indexOf("claim_owner_account_deletion_v1"));
+  assert.ok(route.indexOf('if (!accessToken)') < route.indexOf("auth.admin.signOut"));
+  assert.ok(route.indexOf("userResult.error") < route.indexOf("auth.admin.signOut"));
+  assert.ok(route.indexOf("passwordResult.error") < route.indexOf("auth.admin.signOut"));
   assert.ok(route.indexOf("finalize_owner_account_deletion_v1") < route.indexOf("auth.admin.deleteUser"));
   assert.ok(route.indexOf("auth.admin.deleteUser") < route.indexOf("complete_owner_account_deletion_v1"));
   assert.doesNotMatch(route, /console\.(log|error|warn).*currentPassword/i);
+  assert.doesNotMatch(route, /console\.(log|error|warn).*(accessToken|authorization)/i);
+});
+
+test("public deletion page uses the existing authenticated destructive endpoint without account enumeration", () => {
+  const page = read("src/app/account-deletion/page.tsx");
+  const request = read("src/components/account-deletion/account-deletion-request.tsx");
+  const legal = read("src/lib/legal/legal-info.ts");
+
+  assert.match(page, /계정 삭제 요청/);
+  assert.match(page, /삭제 및 보관 범위/);
+  assert.match(page, /진행 중인 결제·환불/);
+  assert.match(page, /href="\/privacy"/);
+  assert.match(request, /로그인하고 계정 삭제 요청/);
+  assert.match(request, /\/login\?next=/);
+  assert.match(request, /fetchApiJsonWithAuth<\{ success: true \}>\("\/api\/owner\/account-deletion"/);
+  assert.match(request, /confirmation: true/);
+  assert.match(request, /currentPassword/);
+  assert.match(request, /idempotencyKeyRef\.current \?\?= window\.crypto\.randomUUID\(\)/);
+  assert.doesNotMatch(request, /name="email"|type="email"/);
+  assert.doesNotMatch(request, /계정이 존재|가입된 이메일|등록된 이메일/);
+  assert.match(legal, /PUBLIC_ACCOUNT_DELETION_PATH = "\/account-deletion"/);
+  assert.match(legal, /PUBLIC_ACCOUNT_DELETION_URL/);
+  assert.match(legal, /\{ href: PUBLIC_ACCOUNT_DELETION_PATH, label: "계정 삭제 요청" \}/);
+});
+
+test("login return path is restricted to owner routes and the canonical deletion page", () => {
+  const helper = read("src/lib/auth/login-return-path.ts");
+  const loginPage = read("src/app/login/page.tsx");
+
+  assert.match(helper, /candidate === PUBLIC_ACCOUNT_DELETION_PATH/);
+  assert.match(helper, /candidate === OWNER_ROUTE_PREFIX/);
+  assert.match(helper, /candidate\.startsWith\(`\$\{OWNER_ROUTE_PREFIX\}\/`\)/);
+  assert.match(helper, /return OWNER_ROUTE_PREFIX/);
+  assert.match(loginPage, /getSafeOwnerLoginReturnPath/);
+  assert.doesNotMatch(loginPage, /params\.next.*startsWith\("\/"\)/);
+  assert.equal(getSafeOwnerLoginReturnPath("/account-deletion"), "/account-deletion");
+  assert.equal(getSafeOwnerLoginReturnPath("/owner?initialSetup=1"), "/owner?initialSetup=1");
+  assert.equal(getSafeOwnerLoginReturnPath("//example.com/account-deletion"), "/owner");
+  assert.equal(getSafeOwnerLoginReturnPath("/account-deletion?return=https://example.com"), "/owner");
+  assert.equal(getSafeOwnerLoginReturnPath("/privacy"), "/owner");
+});
+
+test("public deletion controls keep explicit confirmation and 44px targets", () => {
+  const request = read("src/components/account-deletion/account-deletion-request.tsx");
+  const page = read("src/app/account-deletion/page.tsx");
+
+  assert.match(request, /type="checkbox"/);
+  assert.match(request, /복구되지 않는다는 내용을 확인했습니다/);
+  assert.match(request, /disabled=\{submitting \|\| !confirmed \|\| !currentPassword\}/);
+  assert.ok((request.match(/min-h-11/g) ?? []).length >= 5);
+  assert.doesNotMatch(`${page}\n${request}`, /font-(?:bold|extrabold|black)|font-weight:\s*(?:700|800|900)/);
 });

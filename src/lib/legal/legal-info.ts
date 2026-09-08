@@ -20,9 +20,13 @@ export const LEGAL_BUSINESS_INFO = {
   paymentStatementName: LEGAL_OPERATOR_NAME,
 } as const;
 
+export const PUBLIC_ACCOUNT_DELETION_PATH = "/account-deletion";
+export const PUBLIC_ACCOUNT_DELETION_URL = `https://www.petmanager.co.kr${PUBLIC_ACCOUNT_DELETION_PATH}`;
+
 export const LEGAL_LINKS = [
   { href: "/terms", label: "이용약관" },
   { href: "/privacy", label: "개인정보처리방침" },
+  { href: PUBLIC_ACCOUNT_DELETION_PATH, label: "계정 삭제 요청" },
   { href: "/refund", label: "환불 안내" },
   { href: "/business", label: "사업자 정보" },
 ] as const;

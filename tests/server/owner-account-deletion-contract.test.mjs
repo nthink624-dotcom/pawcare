@@ -29,6 +29,13 @@ test("self-delete route requires current-password reauthentication and reaches t
   assert.match(route, /auth\.admin\.deleteUser\(user\.id\)/);
   assert.doesNotMatch(route, /auth\.admin\.deleteUser\(user\.id,\s*true\)/);
   assert.match(route, /complete_owner_account_deletion_v1/);
+  assert.match(route, /removeMediaStorageObjects/);
+  assert.match(route, /verifyMediaStorageObjectsAbsent/);
+  assert.match(route, /\.from\("media_assets"\)[\s\S]*?\.in\("shop_id", params\.shopIds\)/);
+  assert.match(route, /\.from\("media_variants"\)[\s\S]*?\.in\("media_asset_id", assetIds\)/);
+  assert.ok(route.indexOf("verifyMediaStorageObjectsAbsent") < route.indexOf("finalize_owner_account_deletion_v1"));
+  assert.doesNotMatch(route, /params\.admin\.storage\.from/);
+  assert.doesNotMatch(route, /shopIds\s*:\s*body|storage_path\s*:\s*body|bucket\s*:\s*body/);
   assert.ok(route.indexOf("signInWithPassword") < route.indexOf("claim_owner_account_deletion_v1"));
   assert.ok(route.indexOf('if (!accessToken)') < route.indexOf("auth.admin.signOut"));
   assert.ok(route.indexOf("userResult.error") < route.indexOf("auth.admin.signOut"));
@@ -37,6 +44,23 @@ test("self-delete route requires current-password reauthentication and reaches t
   assert.ok(route.indexOf("auth.admin.deleteUser") < route.indexOf("complete_owner_account_deletion_v1"));
   assert.doesNotMatch(route, /console\.(log|error|warn).*currentPassword/i);
   assert.doesNotMatch(route, /console\.(log|error|warn).*(accessToken|authorization)/i);
+});
+
+test("terminal media cleanup is provider-aware, exact-path, residue-checked, and retry-safe", () => {
+  const route = read("src/app/api/owner/account-deletion/route.ts");
+  const storage = read("src/server/media-storage.ts");
+
+  assert.match(storage, /process\.env\.MEDIA_STORAGE_PROVIDER === "r2"/);
+  assert.match(storage, /method: "DELETE"/);
+  assert.match(storage, /response\.status !== 404/);
+  assert.match(storage, /method: "HEAD"/);
+  assert.match(storage, /if \(response\.status === 404\) continue/);
+  assert.match(route, /new Map<string, Set<string>>\(\)/);
+  assert.match(route, /Media storage target is incomplete/);
+  assert.match(route, /Media storage residue detected/);
+  assert.ok(route.indexOf("removeShopStorage") < route.indexOf("auth.admin.signOut"));
+  assert.ok(route.indexOf("removeShopStorage") < route.indexOf("finalize_owner_account_deletion_v1"));
+  assert.match(route, /첨부 파일을 안전하게 삭제하지 못했어요/);
 });
 
 test("public deletion page uses the existing authenticated destructive endpoint without account enumeration", () => {
@@ -87,4 +111,21 @@ test("public deletion controls keep explicit confirmation and 44px targets", () 
   assert.match(request, /disabled=\{submitting \|\| !confirmed \|\| !currentPassword\}/);
   assert.ok((request.match(/min-h-11/g) ?? []).length >= 5);
   assert.doesNotMatch(`${page}\n${request}`, /font-(?:bold|extrabold|black)|font-weight:\s*(?:700|800|900)/);
+});
+
+test("public privacy copy matches confirmed and conditional processors without guessing inactive providers", () => {
+  const privacy = read("src/lib/legal/privacy-policy.ts");
+
+  assert.match(privacy, /시행일자: 2026년 9월 8일/);
+  assert.match(privacy, /Supabase/);
+  assert.match(privacy, /코리아포트원|privacyTrusteeName/);
+  assert.match(privacy, /NHN KCP|paymentProvider/);
+  assert.match(privacy, /구독 결제/);
+  assert.match(privacy, /알림톡 발송 사업자\(쏘다·카카오\)/);
+  assert.match(privacy, /Cloudflare R2: 미디어 저장 제공자로 설정된 경우에만/);
+  assert.match(privacy, /기기·운영체제 음성 인식/);
+  assert.match(privacy, /실제 제공자 계약과 보관 기간은 확인이 필요합니다/);
+  assert.match(privacy, /공개 계정 삭제 요청 페이지\(\/account-deletion\)/);
+  assert.match(privacy, /이메일 주소만 입력해 계정 존재 여부를 확인하거나 삭제하지 않습니다/);
+  assert.doesNotMatch(privacy, /OpenAI|DeepSeek|Firebase/);
 });

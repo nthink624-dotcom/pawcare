@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
+import { removeMediaStorageObjects, verifyMediaStorageObjectsAbsent } from "@/server/media-storage";
 
 export const runtime = "nodejs";
 
@@ -80,22 +81,34 @@ async function removeShopStorage(params: {
     .in("shop_id", params.shopIds);
   if (assetsResult.error) return assetsResult.error;
 
-  const assetIds = (assetsResult.data ?? []).map((asset) => asset.id).filter((id): id is string => typeof id === "string");
+  const assets = (assetsResult.data ?? []) as Array<StorageTarget & { id: unknown }>;
+  const assetIds = assets.map((asset) => asset.id).filter((id): id is string => typeof id === "string");
   const variantsResult = assetIds.length
     ? await params.admin.from("media_variants").select("bucket,storage_path").in("media_asset_id", assetIds)
     : { data: [], error: null };
   if (variantsResult.error) return variantsResult.error;
 
-  const targets = [...(assetsResult.data ?? []), ...(variantsResult.data ?? [])] as StorageTarget[];
-  const byBucket = new Map<string, string[]>();
-  for (const target of targets) {
-    if (!target.bucket || !target.storage_path) continue;
-    byBucket.set(target.bucket, [...(byBucket.get(target.bucket) ?? []), target.storage_path]);
+  const targets = [...assets, ...(variantsResult.data ?? [])] as StorageTarget[];
+  if (targets.some((target) => !target.bucket || !target.storage_path)) {
+    return new Error("Media storage target is incomplete.");
   }
 
-  for (const [bucket, paths] of byBucket) {
-    const result = await params.admin.storage.from(bucket).remove(paths);
-    if (result.error) return result.error;
+  const byBucket = new Map<string, Set<string>>();
+  for (const target of targets) {
+    const paths = byBucket.get(target.bucket) ?? new Set<string>();
+    paths.add(target.storage_path);
+    byBucket.set(target.bucket, paths);
+  }
+
+  try {
+    for (const [bucket, paths] of byBucket) {
+      const exactPaths = [...paths];
+      await removeMediaStorageObjects({ bucket, paths: exactPaths });
+      const absent = await verifyMediaStorageObjectsAbsent({ bucket, paths: exactPaths });
+      if (!absent) return new Error("Media storage residue detected.");
+    }
+  } catch (error) {
+    return error instanceof Error ? error : new Error("Media storage cleanup failed.");
   }
   return null;
 }

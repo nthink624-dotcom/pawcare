@@ -569,6 +569,7 @@ export default function OwnerWebPreview({
       onOpenInitialSetup={openInitialSetup}
       onLogout={handleLogout}
       loggingOut={loggingOut}
+      isTester={ownerData.pilotCohort?.isPilotMember === true}
     >
       <div className={initialSetupEligible && activeScreen === "schedule" ? "grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3" : "h-full min-h-0 min-w-0"}>
         {!initialSetupOpen && initialSetupEligible && activeScreen === "schedule" ? (

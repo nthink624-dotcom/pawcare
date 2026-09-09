@@ -226,10 +226,12 @@ async function createUploadIntent(context: OwnerMediaContext, mediaKind: MediaKi
       mediaKind,
       visibility: mediaKind === "shop_profile" || mediaKind === "staff_profile"
         ? "public"
-        : mediaKind === "price_guide_source"
+        : mediaKind === "price_guide_source" || mediaKind === "feedback_screenshot"
           ? "private"
           : "customer_shared",
-      retentionPolicy: mediaKind === "price_guide_source" ? "archive" : "standard",
+      retentionPolicy: mediaKind === "price_guide_source"
+        ? "archive"
+        : mediaKind === "feedback_screenshot" ? "transient" : "standard",
       uploadedFrom: "owner_web",
       guardianId: context.guardianId ?? null,
       petId: context.petId ?? null,

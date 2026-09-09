@@ -1,6 +1,7 @@
 import { normalizeShopBookingSettings } from "@/lib/booking-slot-settings";
 import { normalizeBusinessHours } from "@/lib/business-hours";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+import { emptyOwnerPilotCohortProjection } from "@/lib/billing/owner-pilot-cohort";
 import { defaultOwnerStaffDays } from "@/lib/owner-default-setup";
 import {
   normalizeBootstrapNotifications,
@@ -14,6 +15,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime } from "@/lib/utils";
 import { getMockStore } from "@/server/mock-store";
 import { getOwnerMediaSignedUrls } from "@/server/media-service";
+import { getOwnerPilotCohortProjection } from "@/server/owner-pilot-cohort";
 import type {
   Appointment,
   BootstrapPayload,
@@ -34,6 +36,7 @@ import type {
 
 type BootstrapOptions = {
   allowMock?: boolean;
+  includePilotCohort?: boolean;
   includeLanding?: boolean;
   includeNotifications?: boolean;
   includeGroomingRecords?: boolean;
@@ -49,6 +52,7 @@ type BootstrapOptions = {
 
 function buildMockBootstrap(shopId?: string): BootstrapPayload {
   const store = normalizeBootstrapNotifications(getMockStore());
+  store.pilotCohort = emptyOwnerPilotCohortProjection(false);
   store.shop = {
     ...normalizeShopBookingSettings(store.shop),
     id: shopId || store.shop.id,
@@ -364,6 +368,7 @@ function hydrateAppointmentActualTimesFromEvents(
 }
 
 export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptions = {}): Promise<BootstrapPayload> {
+  const includePilotCohort = options.includePilotCohort ?? true;
   const includeLanding = options.includeLanding ?? true;
   const includeNotifications = options.includeNotifications ?? true;
   const includeGroomingRecords = options.includeGroomingRecords ?? true;
@@ -548,11 +553,15 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   const normalizedOwnerProfile = ownerProfileRes.error
     ? null
     : normalizeOwnerProfile(ownerProfileRes.data as OwnerProfileRow | null);
+  const pilotCohort = includePilotCohort && normalizedShop.owner_user_id
+    ? await getOwnerPilotCohortProjection({ ownerUserId: normalizedShop.owner_user_id, shopId })
+    : emptyOwnerPilotCohortProjection(true);
 
   return normalizeBootstrapNotifications({
     mode: "supabase",
     shop: normalizedShop,
     ownerProfile: normalizedOwnerProfile,
+    pilotCohort,
     guardians: activeGuardians,
     deletedGuardians,
     pets: ((petsRes.data ?? []) as Pet[]).filter((pet) => activeGuardianIds.has(pet.guardian_id)),

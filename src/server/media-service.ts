@@ -62,6 +62,7 @@ const mediaKinds = new Set<MediaKind>([
   "shop_profile",
   "staff_profile",
   "price_guide_source",
+  "feedback_screenshot",
   "customer_shared",
   "memo_attachment",
 ]);
@@ -81,9 +82,10 @@ const attachmentRoles = new Set<NotificationMediaAttachmentRole>([
   "after_photo",
   "result_photo",
   "receipt",
+  "feedback_screenshot",
   "other",
 ]);
-const transientKinds = new Set<MediaKind>(["grooming_before", "grooming_after", "message_image", "customer_shared"]);
+const transientKinds = new Set<MediaKind>(["grooming_before", "grooming_after", "message_image", "customer_shared", "feedback_screenshot"]);
 
 type OwnerContext = {
   shopId: string;

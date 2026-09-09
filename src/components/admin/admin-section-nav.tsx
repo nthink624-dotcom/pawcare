@@ -1,15 +1,16 @@
-import { Home, MessageCircle, PanelsTopLeft, Store } from "lucide-react";
+import { Home, MessageCircle, MessageSquareText, PanelsTopLeft, Store } from "lucide-react";
 import Link from "next/link";
 
 import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 
-type AdminSection = "home" | "owners" | "marketing" | "support";
+type AdminSection = "home" | "owners" | "marketing" | "support" | "testerFeedback";
 
 const ADMIN_SECTIONS = [
   { id: "home", href: "/admin", label: "홈", icon: Home },
   { id: "owners", href: "/owner/admin", label: "계정 관리", icon: Store },
   { id: "marketing", href: "/admin/marketing", label: "워크룸", icon: PanelsTopLeft },
   { id: "support", href: "/admin/support", label: "고객 문의", icon: MessageCircle },
+  { id: "testerFeedback", href: "/admin/tester-feedback", label: "테스터 피드백", icon: MessageSquareText },
 ] as const;
 
 export default function AdminSectionNav({ active }: { active: AdminSection }) {

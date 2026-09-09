@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ClipboardCheck, HelpCircle, Lightbulb, LogOut, Search } from "lucide-react";
+import { ChevronDown, ClipboardCheck, HelpCircle, Lightbulb, LogOut, MessageSquareText, Search } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useState, type CSSProperties, type ReactNode, type RefObject } from "react";
@@ -151,6 +151,8 @@ export default function OwnerWebAppShell({
   onLogout,
   loggingOut,
   setupMode = false,
+  isTester = false,
+  feedbackFixtureMode = false,
   children,
 }: {
   activeScreen: OwnerWebScreenKey;
@@ -176,6 +178,8 @@ export default function OwnerWebAppShell({
   onLogout: () => void;
   loggingOut: boolean;
   setupMode?: boolean;
+  isTester?: boolean;
+  feedbackFixtureMode?: boolean;
   children: ReactNode;
 }) {
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
@@ -274,10 +278,13 @@ export default function OwnerWebAppShell({
             <button
               type="button"
               onClick={() => setFeatureRequestOpen(true)}
-              className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
+              className={cn(
+                OWNER_HEADER_UTILITY_BUTTON_CLASS,
+                isTester && "!border-[#decda9] !bg-[#fffaf0] !text-[#80643f] hover:!bg-[#fbf2df] hover:!text-[#6f5534]",
+              )}
             >
-              <Lightbulb className="h-4 w-4" strokeWidth={1.8} />
-              기능 개선
+              <MessageSquareText className="h-4 w-4" strokeWidth={1.8} />
+              문의·의견 보내기
             </button>
             <button
               type="button"
@@ -351,11 +358,14 @@ export default function OwnerWebAppShell({
             <button
               type="button"
               onClick={() => setFeatureRequestOpen(true)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
-              aria-label="기능 개선 요청"
-              title="기능 개선 요청"
+              className={cn(
+                "inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]",
+                isTester && "!border-[#decda9] !bg-[#fffaf0] !text-[#80643f]",
+              )}
+              aria-label="문의·의견 보내기"
+              title="문의·의견 보내기"
             >
-              <Lightbulb className="h-4.5 w-4.5" strokeWidth={1.8} />
+              <MessageSquareText className="h-4.5 w-4.5" strokeWidth={1.8} />
             </button>
             <button
               type="button"
@@ -399,9 +409,8 @@ export default function OwnerWebAppShell({
       <OwnerFeatureRequestDialog
         open={featureRequestOpen}
         shopId={shopId}
-        shopName={shopDisplayName}
-        ownerName={ownerName}
-        ownerPhone={ownerPhone}
+        activeScreen={activeScreen}
+        fixtureMode={feedbackFixtureMode}
         onClose={() => setFeatureRequestOpen(false)}
       />
     </div>

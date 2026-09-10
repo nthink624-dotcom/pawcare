@@ -1,11 +1,15 @@
 import { NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
+import { requireHttpsTransportUrl } from "@/lib/https-transport-url";
 
 export class ServerEnvError extends Error {
+  public status: number;
+
   constructor(
     message: string,
-    public status = 503,
+    status = 503,
   ) {
     super(message);
+    this.status = status;
   }
 }
 
@@ -20,6 +24,19 @@ export function requireServerSecret(value: string | undefined, name: string) {
     throw new ServerEnvError(`${name} 서버 설정을 확인해 주세요.`, 503);
   }
   return normalized;
+}
+
+function readOptionalHttpsTransportUrl(value: string | undefined, name: string) {
+  const normalized = readOptionalSecret(value);
+  if (!normalized) return undefined;
+
+  try {
+    return requireHttpsTransportUrl(normalized, name, {
+      allowLoopbackInDevelopment: true,
+    });
+  } catch {
+    throw new ServerEnvError(`${name} 서버 주소는 HTTPS 연결만 허용됩니다.`, 503);
+  }
 }
 
 export const serverEnv = {
@@ -39,6 +56,14 @@ export const serverEnv = {
       process.env.ADMIN_SESSION_SECRET ||
       process.env.BILLING_KEY_ENCRYPTION_SECRET,
   ),
+  ownerTrialIdentityCurrentVersion:
+    readOptionalSecret(process.env.OWNER_TRIAL_IDENTITY_CURRENT_VERSION) ?? "v1",
+  ownerTrialIdentityHmacSecretV1: readOptionalSecret(
+    process.env.OWNER_TRIAL_IDENTITY_HMAC_SECRET_V1 || process.env.OWNER_TRIAL_IDENTITY_HMAC_SECRET,
+  ),
+  ownerTrialIdentityHmacSecretV2: readOptionalSecret(
+    process.env.OWNER_TRIAL_IDENTITY_HMAC_SECRET_V2,
+  ),
   bookingAccessSecret: readOptionalSecret(process.env.BOOKING_ACCESS_SECRET),
   portoneStoreId: readOptionalSecret(process.env.PORTONE_STORE_ID || process.env.NEXT_PUBLIC_PORTONE_STORE_ID),
   portoneBillingChannelKey: readOptionalSecret(
@@ -48,13 +73,16 @@ export const serverEnv = {
   portoneWebhookSecret: readOptionalSecret(process.env.PORTONE_WEBHOOK_SECRET),
   billingKeyEncryptionSecret: readOptionalSecret(process.env.BILLING_KEY_ENCRYPTION_SECRET),
   alimtalkProvider: process.env.ALIMTALK_PROVIDER || "generic",
-  alimtalkApiUrl: process.env.ALIMTALK_API_URL,
+  alimtalkApiUrl: readOptionalHttpsTransportUrl(process.env.ALIMTALK_API_URL, "ALIMTALK_API_URL"),
   alimtalkApiKey: process.env.ALIMTALK_API_KEY,
   alimtalkTokenKey: process.env.ALIMTALK_TOKEN_KEY,
   alimtalkProfileKey: process.env.ALIMTALK_PROFILE_KEY,
   alimtalkSenderKey: process.env.ALIMTALK_SENDER_KEY,
-  alimtalkRelayUrl: process.env.ALIMTALK_RELAY_URL,
-  alimtalkRelayAdminUrl: process.env.ALIMTALK_RELAY_ADMIN_URL,
+  alimtalkRelayUrl: readOptionalHttpsTransportUrl(process.env.ALIMTALK_RELAY_URL, "ALIMTALK_RELAY_URL"),
+  alimtalkRelayAdminUrl: readOptionalHttpsTransportUrl(
+    process.env.ALIMTALK_RELAY_ADMIN_URL,
+    "ALIMTALK_RELAY_ADMIN_URL",
+  ),
   alimtalkRelaySecret: process.env.ALIMTALK_RELAY_SECRET,
   alimtalkTemplateBookingReceived: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_RECEIVED),
   alimtalkTemplateBookingConfirmed: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_CONFIRMED),
@@ -73,12 +101,29 @@ export const serverEnv = {
   alimtalkTemplateBirthdayGreeting: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BIRTHDAY_GREETING),
   deepseekApiKey: readOptionalSecret(process.env.DEEPSEEK_API_KEY),
   deepseekModel: readOptionalSecret(process.env.DEEPSEEK_MODEL) ?? "deepseek-v4-flash",
+  openaiPriceGuideEnabled: process.env.OPENAI_PRICE_GUIDE_ENABLED === "true",
   openaiApiKey: readOptionalSecret(process.env.OPENAI_API_KEY),
-  openaiVisionModel: readOptionalSecret(process.env.OPENAI_VISION_MODEL) ?? "gpt-4o-mini",
+  openaiVisionModel: "gpt-5.6-luna",
+  signupPriceGuideTokenSecret: readOptionalSecret(
+    process.env.SIGNUP_PRICE_GUIDE_TOKEN_SECRET || process.env.AUTH_FLOW_SECRET,
+  ),
+  signupPriceGuideCacheSecret: readOptionalSecret(
+    process.env.SIGNUP_PRICE_GUIDE_CACHE_SECRET || process.env.SIGNUP_PRICE_GUIDE_TOKEN_SECRET || process.env.AUTH_FLOW_SECRET,
+  ),
+  signupPriceGuideMeteringSecret: readOptionalSecret(
+    process.env.SIGNUP_PRICE_GUIDE_METERING_SECRET,
+  ),
+  signupPriceGuideFixtureMode:
+    process.env.NODE_ENV !== "production" && process.env.SIGNUP_PRICE_GUIDE_FIXTURE_MODE === "true",
+  signupPriceGuideDailyCostCapMicroUsd: Math.max(
+    1_000,
+    Number.parseInt(process.env.SIGNUP_PRICE_GUIDE_MAX_DAILY_COST_MICRO_USD || "500000", 10) || 500_000,
+  ),
   aiSlotRecommendationProvider: readOptionalSecret(process.env.AI_SLOT_RECOMMENDATION_PROVIDER) ?? "deepseek",
   mediaCleanupCronSecret: process.env.MEDIA_CLEANUP_CRON_SECRET,
   adminSetupKey: readOptionalSecret(process.env.ADMIN_SETUP_KEY),
   adminSessionSecret: readOptionalSecret(process.env.ADMIN_SESSION_SECRET),
+  adminAuthRateLimitHmacSecret: readOptionalSecret(process.env.ADMIN_AUTH_RATE_LIMIT_HMAC_SECRET),
 };
 
 export function hasSupabaseServerEnv() {

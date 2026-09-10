@@ -5,6 +5,7 @@ import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { env } from "@/lib/env";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import { createPortoneId } from "@/lib/billing/portone-ids";
+import { isLoopbackTransportUrl, requireHttpsTransportUrl } from "@/lib/https-transport-url";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { kpnApprovedCardCompanies } from "@/lib/portone/cards";
 
@@ -28,7 +29,7 @@ type BillingKeyIssueResponse = {
 const DEFAULT_PUBLIC_NOTICE_ORIGIN = "https://www.petmanager.co.kr";
 
 function isLocalOrigin(value: string | null | undefined) {
-  return Boolean(value && /localhost|127\.0\.0\.1/i.test(value));
+  return Boolean(value && isLoopbackTransportUrl(value));
 }
 
 function extractCardPrefix(value: string | null | undefined) {
@@ -57,21 +58,28 @@ function buildOwnerBillingReturnUrl(planCode: OwnerPlanCode) {
   url.searchParams.set("billingReturn", "1");
   url.searchParams.set("compare", "1");
   url.searchParams.set("plan", planCode);
-  return url.toString();
+  return requireHttpsTransportUrl(url.toString(), "PortOne return URL", {
+    allowLoopbackInDevelopment: true,
+  });
+}
+
+function buildSecurePortoneNoticeUrl(origin: string) {
+  const secureOrigin = requireHttpsTransportUrl(origin.replace(/\/$/, ""), "PortOne notice URL");
+  return `${secureOrigin}/api/webhooks/portone`;
 }
 
 function buildOwnerBillingNoticeUrl() {
   const currentOrigin = window.location.origin.replace(/\/$/, "");
   if (!isLocalOrigin(currentOrigin)) {
-    return `${currentOrigin}/api/webhooks/portone`;
+    return buildSecurePortoneNoticeUrl(currentOrigin);
   }
 
   const configuredOrigin = env.siteUrl?.replace(/\/$/, "");
   if (configuredOrigin && !isLocalOrigin(configuredOrigin)) {
-    return `${configuredOrigin}/api/webhooks/portone`;
+    return buildSecurePortoneNoticeUrl(configuredOrigin);
   }
 
-  return `${DEFAULT_PUBLIC_NOTICE_ORIGIN}/api/webhooks/portone`;
+  return buildSecurePortoneNoticeUrl(DEFAULT_PUBLIC_NOTICE_ORIGIN);
 }
 
 function buildOwnerBillingOfferPeriod(planCode: OwnerPlanCode) {

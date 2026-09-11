@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarPlus, Check, Copy, ImagePlus, Sparkles, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 import {
   formatDate,
@@ -31,7 +31,7 @@ import {
 import { getPetBiteLevelLabel, normalizePetBiteLevel, petBiteLevelOptions } from "@/lib/pet-bite-level";
 import { buildPetGroupOptions, type PetGroupOption } from "@/lib/pet-group-options";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
-import type { GuardianNotificationSettings, MediaAsset, MediaKind, PetBiteLevel } from "@/types/domain";
+import type { CustomerGradeOverride, GuardianNotificationSettings, MediaAsset, MediaKind, PetBiteLevel } from "@/types/domain";
 
 type CustomerDetailPanelProps = {
   detail: CustomerDetailModel;
@@ -39,6 +39,7 @@ type CustomerDetailPanelProps = {
   onSelectPet: (petId: string) => void;
   onUpdatePetBiteLevel: (guardianId: string, petId: string, biteLevel: PetBiteLevel) => void;
   onUpdateGuardian: (guardianId: string, patch: { name: string; phone: string; memo: string }) => void | Promise<void>;
+  onSaveGuardianProfile: (guardianId: string, patch: { name: string; phone: string; memo: string; customerGradeOverride: CustomerGradeOverride | null }) => void | Promise<void>;
   onUpdatePet: (
     guardianId: string,
     petId: string,
@@ -81,12 +82,31 @@ type GroomingPhotoSummary = {
   after: GroomingPhotoPreview | null;
 };
 
+const customerGradeOptions = [
+  { value: "auto", label: "자동" },
+  { value: "normal", label: "일반" },
+  { value: "loyal", label: "단골" },
+  { value: "attention", label: "주의" },
+] as const;
+
+const customerGradeLabels: Record<"auto" | NonNullable<CustomerGradeOverride>, string> = {
+  auto: "자동",
+  normal: "일반",
+  loyal: "단골",
+  attention: "주의",
+};
+
+function getCustomerGradeLabel(customerGradeOverride: CustomerGradeOverride | null | undefined) {
+  return customerGradeLabels[customerGradeOverride ?? "auto"];
+}
+
 export default function CustomerDetailPanel({
   detail,
   selectedPetId,
   onSelectPet,
   onUpdatePetBiteLevel,
   onUpdateGuardian,
+  onSaveGuardianProfile,
   onUpdatePet,
   onAddPet,
   onDeletePet,
@@ -194,19 +214,19 @@ export default function CustomerDetailPanel({
         className="relative mx-auto flex h-full max-w-[1520px] flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-[#f7f8fb] shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[#e1e7ef] bg-white px-5 py-2.5">
-          <div className="flex min-w-0 items-center gap-3">
-            <h2 className="truncate text-[22px] font-semibold tracking-[-0.01em] text-[#111827]">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#e1e7ef] bg-white px-4 py-2.5 sm:flex-nowrap sm:gap-4 sm:px-5">
+          <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
+            <h2 className="break-keep [overflow-wrap:anywhere] text-[22px] font-semibold tracking-[-0.01em] text-[#111827] sm:truncate">
               {detail.guardian.name}
               {selectedPet ? ` · ${selectedPet.name}` : ""}
             </h2>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <ActionButton icon={CalendarPlus} label="예약 추가" onClick={() => onCreateReservation({ guardianId: detail.guardian.id, petId: selectedPet?.id ?? null })} />
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]"
               aria-label="닫기"
             >
               <X className="h-5 w-5" />
@@ -214,8 +234,11 @@ export default function CustomerDetailPanel({
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-cols-[310px_minmax(0,1fr)] overflow-hidden">
-          <aside className="min-h-0 overflow-y-auto border-r border-[#e1e7ef] bg-white py-4 pl-4 pr-1">
+        <div
+          data-customer-detail-pane-layout="true"
+          className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,0.82fr)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[310px_minmax(0,1fr)] lg:grid-rows-1"
+        >
+          <aside className="min-h-0 overflow-y-auto border-b border-[#e1e7ef] bg-white px-4 py-4 lg:border-b-0 lg:border-r lg:py-4 lg:pl-4 lg:pr-1">
             <SummaryCard
               detail={detail}
               phone={phone}
@@ -236,7 +259,7 @@ export default function CustomerDetailPanel({
             />
           </aside>
 
-          <main className="min-h-0 overflow-y-auto py-4 pl-4 pr-1">
+          <main className="min-h-0 overflow-y-auto px-4 py-4 lg:py-4 lg:pl-4 lg:pr-1">
             {selectedPet ? (
               <div className="space-y-3">
                 <PetOverviewSection
@@ -269,6 +292,7 @@ export default function CustomerDetailPanel({
             action={activeAction}
             detail={detail}
             onUpdateGuardian={onUpdateGuardian}
+            onSaveGuardianProfile={onSaveGuardianProfile}
             onUpdatePet={onUpdatePet}
             onAddPet={onAddPet}
             onToggleGuardianNotifications={onToggleGuardianNotifications}
@@ -335,13 +359,16 @@ function SummaryCard({
     <SectionCard title="보호자 정보" action={<SmallButton label="수정" onClick={onEdit} />}>
       <div className="space-y-4 px-4 py-4">
         <div className="space-y-3">
-          <SummaryField label="이름">
-            <InlineEditableText
-              value={detail.guardian.name}
-              ariaLabel="보호자명 수정"
-              className="truncate text-[16px] leading-6 text-[#111827]"
-              onCommit={(value) => onUpdateGuardian({ name: value })}
-            />
+          <SummaryField label="보호자명">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <InlineEditableText
+                value={detail.guardian.name}
+                ariaLabel="보호자명 수정"
+                className="truncate text-[16px] leading-6 text-[#111827]"
+                onCommit={(value) => onUpdateGuardian({ name: value })}
+              />
+              <CustomerGradeBadge value={detail.guardian.customer_grade_override} />
+            </div>
           </SummaryField>
           <SummaryField label="전화번호">
             <div className="flex min-w-0 items-center justify-between gap-2">
@@ -355,7 +382,7 @@ function SummaryCard({
                 type="button"
                 onClick={onCopyPhone}
                 className={cn(
-                  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[7px] border text-[#475569] hover:bg-[#f8fafc]",
+                  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[7px] border text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
                   copied ? "border-[#2f7866] bg-[#eef7f4] text-[#2f7866]" : "border-[#dbe2ea] bg-white",
                 )}
                 aria-label={copied ? "전화번호 복사됨" : "전화번호 복사"}
@@ -444,9 +471,9 @@ function PetOverviewSection({
 
   return (
     <section className="relative rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-[16px] font-semibold text-[#111827]">반려동물 정보</h3>
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <SmallButton label="반려동물 추가" onClick={onAddPet} />
           <SmallButton label="편집" onClick={onEditPet} />
           <SmallButton label="삭제" onClick={onDeletePet} />
@@ -483,7 +510,7 @@ function PetOverviewSection({
         </div>
       ) : null}
 
-      <div className={cn("grid grid-cols-[108px_220px_minmax(0,1fr)] gap-3 border-t border-[#edf2f7] pt-3", hasMultiplePets ? "mt-3" : "mt-2")}>
+      <div className={cn("grid grid-cols-1 gap-3 border-t border-[#edf2f7] pt-3 lg:grid-cols-[108px_220px_minmax(0,1fr)]", hasMultiplePets ? "mt-3" : "mt-2")}>
         <PetAvatar name={selectedPet.name} size="lg" initial={profileInitial} />
 
         <div className="min-w-0">
@@ -514,7 +541,7 @@ function PetOverviewSection({
           </div>
         </div>
 
-        <div className="min-w-0 border-l border-[#e5e7eb] pl-4">
+        <div className="min-w-0 border-t border-[#e5e7eb] pt-3 lg:border-t-0 lg:border-l lg:pl-4 lg:pt-0">
           <PetInfoMemo
             value={petMemo}
             placeholder="주의사항, 성향, 미용 스타일, 보호자 요청을 메모로 남겨주세요."
@@ -634,7 +661,7 @@ function BiteLevelSelector({ value, onChange }: { value: PetBiteLevel; onChange:
       <div className="flex items-center justify-between gap-3">
         <p className="text-[16px] font-normal text-[#111827]">입질 정도</p>
       </div>
-      <div className="mt-2 grid grid-cols-5 gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {petBiteLevelOptions.map((option) => {
           const selected = option.value === value;
           return (
@@ -643,11 +670,11 @@ function BiteLevelSelector({ value, onChange }: { value: PetBiteLevel; onChange:
               type="button"
               onClick={() => onChange(option.value)}
               className={cn(
-                "h-9 rounded-[8px] border px-2 text-center text-[16px] transition",
+                "flex h-11 items-center justify-center rounded-[8px] border px-2 text-center text-[16px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
                 selected ? "border-[#2f7866] bg-[#f7fbf9] text-[#111827]" : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#b8c8d6]",
               )}
             >
-              <span className="block truncate leading-9">{option.label}</span>
+              <span className="block leading-5">{option.label}</span>
             </button>
           );
         })}
@@ -665,11 +692,11 @@ function PetGroupSelector({ value, options, onChange }: { value: string; options
 
   return (
     <label className="block w-full border-t border-[#edf2f7] pt-3">
-      <span className="mb-2 block text-[16px] font-normal text-[#111827]">그룹</span>
+      <span className="mb-2 block text-[14px] font-medium leading-5 text-[#64748b]">가격 그룹</span>
       <select
         value={value || selectOptions[0]?.value || ""}
         onChange={(event) => void onChange(event.target.value)}
-        className="h-9 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] text-[#111827] outline-none transition focus:border-[#2f7866]"
+        className="h-11 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] font-medium leading-6 text-[#111827] outline-none transition focus-visible:border-[#2563eb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]"
       >
         {selectOptions.map((option) => (
           <option key={option.value} value={option.value}>
@@ -812,7 +839,7 @@ function NotificationSettingChip({ label, enabled, onClick }: { label: string; e
       aria-pressed={enabled}
       onClick={onClick}
       className={cn(
-        "inline-flex h-8 min-w-0 items-center justify-center whitespace-nowrap rounded-[8px] border px-1 text-[16px] transition-colors",
+        "inline-flex h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-[8px] border px-2 text-[16px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
         enabled
           ? "border-[#cfe4dc] bg-[#f4faf7] text-[#2f7866] hover:border-[#9dc8ba]"
           : "border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8] hover:border-[#cbd5e1] hover:text-[#64748b]",
@@ -1064,7 +1091,7 @@ function GroomingRecordsCard({
     <SectionCard title="미용 기록">
       {detail.recentGroomingRecords.length > 0 ? (
         <div className="overflow-hidden">
-          <div className="grid grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px] items-center border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-center text-[16px] font-medium text-[#64748b]">
+          <div className="hidden grid-cols-[60px_64px_72px_minmax(64px,1fr)_minmax(64px,0.9fr)_112px_60px_64px] items-center border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-center text-[16px] font-medium leading-5 text-[#64748b] lg:grid xl:grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px]">
             <span>날짜</span>
             <span>반려동물</span>
             <span>서비스</span>
@@ -1079,24 +1106,52 @@ function GroomingRecordsCard({
             const linkedAppointment = getLinkedAppointmentForGroomingRecord(detail, record);
             const petName = detail.pets.find((pet) => pet.id === record.pet_id)?.name ?? "-";
             return (
+              <Fragment key={record.id}>
               <button
-                key={record.id}
                 type="button"
                 onClick={() => onOpenRecord(record.id)}
-                className="grid min-h-[88px] w-full grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px] items-center border-b border-[#edf2f7] px-4 py-3 text-center text-[16px] transition last:border-b-0 hover:bg-[#fbfcfd] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#d6e7e2]"
+                className="hidden min-h-[88px] w-full grid-cols-[60px_64px_72px_minmax(64px,1fr)_minmax(64px,0.9fr)_112px_60px_64px] items-center border-b border-[#edf2f7] px-4 py-3 text-center text-[16px] transition last:border-b-0 hover:bg-[#fbfcfd] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb] lg:grid xl:grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px]"
               >
-                <span className="truncate tabular-nums text-[#334155]">{formatDate(record.groomed_at)}</span>
-                <span className="truncate text-[#334155]">{petName}</span>
-                <span className="truncate text-[#334155]">{getServiceName(detail.servicesById, record.service_id)}</span>
-                <span className="truncate text-[#334155]">{linkedAppointment?.memo || "-"}</span>
-                <span className="truncate text-[#64748b]">{record.memo || "-"}</span>
+                <span className="min-w-0 break-keep text-[#334155] [overflow-wrap:anywhere] xl:truncate">{formatDate(record.groomed_at)}</span>
+                <span className="min-w-0 break-keep text-[#334155] [overflow-wrap:anywhere] xl:truncate">{petName}</span>
+                <span className="min-w-0 break-keep text-[#334155] [overflow-wrap:anywhere] xl:truncate">{getServiceName(detail.servicesById, record.service_id)}</span>
+                <span className="min-w-0 break-keep text-[#334155] [overflow-wrap:anywhere] xl:truncate">{linkedAppointment?.memo || "-"}</span>
+                <span className="min-w-0 break-keep text-[#64748b] [overflow-wrap:anywhere] xl:truncate">{record.memo || "-"}</span>
                 <GroomingPhotoCell summary={photoSummary} />
-                <span className="tabular-nums text-[#334155]">{formatMoney(record.price_paid)}</span>
+                <span className="min-w-0 break-keep tabular-nums text-[#334155] [overflow-wrap:anywhere]">{formatMoney(record.price_paid)}</span>
                 <ActualGroomingTimeCell
                   appointment={linkedAppointment}
                   fallbackDuration={formatDuration(record.actual_duration_minutes ?? getServiceDuration(detail.servicesById, record.service_id))}
                 />
               </button>
+              <button
+                type="button"
+                onClick={() => onOpenRecord(record.id)}
+                data-grooming-record-mobile-card="true"
+                className="grid min-h-11 w-full gap-3 border-b border-[#edf2f7] px-4 py-3 text-left text-[16px] transition last:border-b-0 hover:bg-[#fbfcfd] focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#2563eb] lg:hidden"
+              >
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <span className="truncate tabular-nums font-medium text-[#334155]">{formatDate(record.groomed_at)} · {petName}</span>
+                  <span className="shrink-0 tabular-nums font-medium text-[#334155]">{formatMoney(record.price_paid)}</span>
+                </div>
+                <div className="grid gap-2 text-[14px] leading-5 text-[#475569]">
+                  <span className="min-w-0"><span className="mr-2 text-[#64748b]">서비스</span>{getServiceName(detail.servicesById, record.service_id)}</span>
+                  <span className="min-w-0"><span className="mr-2 text-[#64748b]">고객 요청</span>{linkedAppointment?.memo || "-"}</span>
+                  <span className="min-w-0"><span className="mr-2 text-[#64748b]">메모</span>{record.memo || "-"}</span>
+                </div>
+                <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-t border-[#edf2f7] pt-3">
+                  <span className="text-[14px] text-[#64748b]">사진</span>
+                  <GroomingPhotoCell summary={photoSummary} />
+                </div>
+                <div className="flex min-w-0 items-center justify-between gap-3 text-[14px] text-[#64748b]">
+                  <span>실제 진행</span>
+                  <ActualGroomingTimeCell
+                    appointment={linkedAppointment}
+                    fallbackDuration={formatDuration(record.actual_duration_minutes ?? getServiceDuration(detail.servicesById, record.service_id))}
+                  />
+                </div>
+              </button>
+              </Fragment>
             );
           })}
         </div>
@@ -1225,7 +1280,7 @@ function GroomingRecordDetailPanel({
             <h3 className="mt-1 text-[22px] font-semibold text-[#111827]">{formatDate(record.groomed_at)} 미용 기록</h3>
             <p className="mt-1 text-[14px] text-[#64748b]">전후 사진은 촬영 후 30일 동안 보관되는 자료입니다.</p>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]" aria-label="닫기">
+          <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]" aria-label="닫기">
             <X className="h-4 w-4" />
           </button>
         </header>
@@ -1329,7 +1384,7 @@ function PhotoLightbox({ photo, onClose }: { photo: { preview: GroomingPhotoPrev
             <h3 className="text-[18px] font-semibold text-[#111827]">{photo.label} 사진</h3>
             <p className="text-[13px] text-[#64748b]">{formatPhotoRetention(photo.preview.asset)}</p>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]" aria-label="닫기">
+          <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]" aria-label="닫기">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -1376,6 +1431,7 @@ function ActionPanel({
   action,
   detail,
   onUpdateGuardian,
+  onSaveGuardianProfile,
   onUpdatePet,
   onAddPet,
   onToggleGuardianNotifications,
@@ -1384,6 +1440,7 @@ function ActionPanel({
   action: Exclude<DetailAction, null>;
   detail: CustomerDetailModel;
   onUpdateGuardian: CustomerDetailPanelProps["onUpdateGuardian"];
+  onSaveGuardianProfile: CustomerDetailPanelProps["onSaveGuardianProfile"];
   onUpdatePet: CustomerDetailPanelProps["onUpdatePet"];
   onAddPet: CustomerDetailPanelProps["onAddPet"];
   onToggleGuardianNotifications: CustomerDetailPanelProps["onToggleGuardianNotifications"];
@@ -1396,6 +1453,7 @@ function ActionPanel({
     name: detail.guardian.name,
     phone: formatPhoneNumber(detail.guardian.phone),
     memo: detail.guardian.memo ?? "",
+    customerGradeOverride: detail.guardian.customer_grade_override ?? null,
   });
   const [petDraft, setPetDraft] = useState({
     name: selectedPet?.name ?? "",
@@ -1425,17 +1483,30 @@ function ActionPanel({
     notifications: "알림/소통 이력 전체보기",
   };
 
-  async function runSave(task: () => void | Promise<void>) {
+  async function runSave(task: () => void | Promise<void>, keepOpen = false) {
     setSaving(true);
     setError("");
     try {
       await task();
-      onClose();
+      if (keepOpen) {
+        setError("저장됨");
+      } else {
+        onClose();
+      }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveGuardianEdit() {
+    await onSaveGuardianProfile(detail.guardian.id, {
+      name: guardianDraft.name,
+      phone: guardianDraft.phone,
+      memo: guardianDraft.memo,
+      customerGradeOverride: guardianDraft.customerGradeOverride,
+    });
   }
 
   useEffect(() => {
@@ -1456,7 +1527,7 @@ function ActionPanel({
             <p className="text-[16px] text-[#64748b]">{detail.guardian.name}{selectedPet ? ` · ${selectedPet.name}` : ""}</p>
             <h3 className="mt-1 text-[22px] font-semibold text-[#111827]">{titleMap[action]}</h3>
           </div>
-          <button type="button" onClick={onClose} className="h-8 rounded-[7px] border border-[#dbe2ea] px-3 text-[16px] text-[#475569] hover:bg-[#f8fafc]">
+          <button type="button" onClick={onClose} className="h-11 rounded-[7px] border border-[#dbe2ea] px-3 text-[16px] text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">
             닫기
           </button>
         </div>
@@ -1466,13 +1537,25 @@ function ActionPanel({
               className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
-                void runSave(() => onUpdateGuardian(detail.guardian.id, guardianDraft));
+                void runSave(saveGuardianEdit, true);
               }}
             >
-              <FormField label="보호자명" value={guardianDraft.name} onChange={(value) => setGuardianDraft((current) => ({ ...current, name: value }))} />
+              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(172px,0.72fr)]">
+                <FormField label="보호자명" value={guardianDraft.name} onChange={(value) => setGuardianDraft((current) => ({ ...current, name: value }))} />
+                <CustomerClassificationSelect
+                  label="고객 등급"
+                  value={guardianDraft.customerGradeOverride ?? "auto"}
+                  onChange={(value) => setGuardianDraft((current) => ({ ...current, customerGradeOverride: value === "auto" ? null : value as CustomerGradeOverride }))}
+                  options={customerGradeOptions}
+                />
+              </div>
               <FormField label="연락처" value={guardianDraft.phone} onChange={(value) => setGuardianDraft((current) => ({ ...current, phone: value }))} />
               <FormField label="메모" value={guardianDraft.memo} onChange={(value) => setGuardianDraft((current) => ({ ...current, memo: value }))} multiline />
-              <ActionPanelFooter saving={saving} error={error} />
+                <ActionPanelFooter
+                  saving={saving}
+                  error={error}
+                  onSave={() => void runSave(saveGuardianEdit, true)}
+                />
             </form>
           ) : null}
           {action === "petEdit" ? (
@@ -1523,7 +1606,7 @@ function ActionPanel({
               <button
                 type="button"
                 onClick={() => void runSave(() => onToggleGuardianNotifications(detail.guardian.id))}
-                className="h-10 w-full rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-medium text-white hover:bg-[#286a5a] disabled:bg-[#94a3b8]"
+                className="h-11 w-full rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-medium text-white hover:bg-[#286a5a] disabled:bg-[#94a3b8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
                 disabled={saving}
               >
                 {detail.guardian.notification_settings.enabled !== false ? "알림 끄기" : "알림 켜기"}
@@ -1587,7 +1670,7 @@ function FormField({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="h-10 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
+          className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
         />
       )}
     </label>
@@ -1617,7 +1700,7 @@ function SelectFormField({
       <select
         value={value || selectOptions[0]?.value || ""}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full appearance-none rounded-[8px] border border-[#cfd8e3] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
+        className="h-11 w-full appearance-none rounded-[8px] border border-[#cfd8e3] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
       >
         {selectOptions.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1638,7 +1721,7 @@ function PetProfilePhotoField({ previewUrl, fileName, onChange }: { previewUrl: 
           {previewUrl ? <img src={previewUrl} alt="반려동물 프로필 미리보기" className="h-full w-full object-cover" /> : <ImagePlus className="h-7 w-7" />}
         </div>
         <div className="min-w-0 flex-1">
-          <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#334155] hover:bg-[#f8fafc]">
+          <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#334155] hover:bg-[#f8fafc] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]">
             사진 선택
             <input
               type="file"
@@ -1651,7 +1734,7 @@ function PetProfilePhotoField({ previewUrl, fileName, onChange }: { previewUrl: 
             />
           </label>
           {fileName ? (
-            <button type="button" onClick={() => onChange(null)} className="ml-2 h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#64748b] hover:bg-[#f8fafc]">
+            <button type="button" onClick={() => onChange(null)} className="ml-2 h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#64748b] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">
               삭제
             </button>
           ) : null}
@@ -1669,7 +1752,7 @@ function BiteLevelFormField({ value, onChange }: { value: PetBiteLevel; onChange
       <select
         value={value}
         onChange={(event) => onChange(normalizePetBiteLevel(event.target.value))}
-        className="h-10 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
+        className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
       >
         {petBiteLevelOptions.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1724,7 +1807,7 @@ function InlineEditableText({
   if (editing) {
     const commonClassName = cn(
       "w-full rounded-[7px] border border-[#2f7866] bg-white px-2 text-[#111827] outline-none",
-      multiline ? "min-h-[84px] py-2 leading-6" : "h-8",
+      multiline ? "min-h-[84px] py-2 leading-6" : "h-11",
       inputClassName,
     );
 
@@ -1771,24 +1854,52 @@ function InlineEditableText({
   }
 
   return (
-    <button type="button" onClick={() => setEditing(true)} className={cn("block max-w-full rounded-[6px] text-left hover:bg-[#f8fafc]", className)} aria-label={ariaLabel}>
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className={cn(
+        "inline-flex min-h-11 max-w-full items-center rounded-[6px] text-left hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+        className,
+      )}
+      aria-label={ariaLabel}
+    >
       {value.trim() || placeholder}
     </button>
   );
 }
 
-function ActionPanelFooter({ saving, error }: { saving: boolean; error: string }) {
+function ActionPanelFooter({ saving, error, onSave }: { saving: boolean; error: string; onSave?: () => void }) {
   return (
     <div className="space-y-2 pt-1">
-      {error ? <p className="text-[16px] text-[#a04455]">{error}</p> : null}
+      {error ? <p className={cn("text-[16px]", error === "저장됨" ? "text-[#1f6b5b]" : "text-[#a04455]")}>{error}</p> : null}
       <button
-        type="submit"
-        className="h-10 w-full rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-medium text-white hover:bg-[#286a5a] disabled:bg-[#94a3b8]"
+        type={onSave ? "button" : "submit"}
+        onClick={onSave}
+        className="h-11 w-full rounded-[8px] bg-[#15213b] px-4 text-[16px] font-medium text-white hover:bg-[#101a31] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#94a3b8]"
         disabled={saving}
       >
         {saving ? "저장 중" : "저장"}
       </button>
     </div>
+  );
+}
+
+function CustomerClassificationSelect({ label, value, options, onChange }: { label: string; value: string; options: ReadonlyArray<{ value: string; label: string }>; onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] leading-6 text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]">
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function CustomerGradeBadge({ value }: { value: CustomerGradeOverride | null | undefined }) {
+  return (
+    <span data-customer-grade-badge="true" className="inline-flex min-h-6 shrink-0 items-center rounded-full border border-[#d8e0ea] bg-[#f7f9fc] px-2 text-[12px] font-medium leading-[18px] text-[#475569]">
+      고객 등급 {getCustomerGradeLabel(value)}
+    </span>
   );
 }
 
@@ -1854,7 +1965,7 @@ function ToggleState({ enabled }: { enabled: boolean }) {
 }
 
 function SmallButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="h-8 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] text-[#475569] hover:bg-[#f8fafc]">{label}</button>;
+  return <button type="button" onClick={onClick} className="h-11 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">{label}</button>;
 }
 
 function EmptyState({ title, description, compact = false }: { title: string; description: string; compact?: boolean }) {

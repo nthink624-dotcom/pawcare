@@ -11,6 +11,7 @@ import {
   OwnerSupportRequestError,
   type OwnerSupportRequestItem,
 } from "@/server/owner-support-requests";
+import { toOwnerSupportPublicRequest } from "@/server/owner-support-owner-payload";
 
 const SUPPORT_REQUEST_CORS = { methods: "GET, POST, PATCH, OPTIONS" };
 const DIAGNOSTIC_CONTEXT_KEYS = new Set([
@@ -68,26 +69,6 @@ function sanitizeDiagnosticContext(context: Record<string, unknown>) {
   return sanitized;
 }
 
-function toSharedSupportRequest(request: OwnerSupportRequestItem) {
-  const answer =
-    [...request.messages]
-      .reverse()
-      .find((message) => message.senderType === "admin" && message.isAnswer)?.message ??
-    request.adminNote ??
-    "";
-
-  return {
-    ...request,
-    answer,
-    reply: answer,
-    admin_reply: answer,
-    answered_at: request.answeredAt,
-    created_at: request.createdAt,
-    read_at: request.ownerLastReadAt,
-    owner_read_at: request.ownerLastReadAt,
-  };
-}
-
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
@@ -101,7 +82,7 @@ export async function GET(request: NextRequest) {
       limit,
     });
 
-    return ownerMobileCorsJson(request, { requests: requests.map(toSharedSupportRequest) }, undefined, SUPPORT_REQUEST_CORS);
+    return ownerMobileCorsJson(request, { requests: requests.map(toOwnerSupportPublicRequest) }, undefined, SUPPORT_REQUEST_CORS);
   } catch (error) {
     if (error instanceof OwnerApiError || error instanceof OwnerSupportRequestError) {
       return ownerMobileCorsJson(request, { message: error.message }, { status: error.status }, SUPPORT_REQUEST_CORS);
@@ -121,8 +102,7 @@ export async function POST(request: NextRequest) {
         throw new OwnerApiError("Supabase 서버 설정이 없어 문의를 접수할 수 없습니다.", 503);
       }
 
-      return ownerMobileCorsJson(request, {
-        request: {
+      const demoRequest: OwnerSupportRequestItem = {
           id: `demo-support-${Date.now()}`,
           shopId: body.shopId,
           shopName: "Demo",
@@ -148,15 +128,8 @@ export async function POST(request: NextRequest) {
           updatedAt: new Date().toISOString(),
           messages: [],
           attachments: [],
-          answer: "",
-          reply: "",
-          admin_reply: "",
-          answered_at: null,
-          created_at: new Date().toISOString(),
-          read_at: new Date().toISOString(),
-          owner_read_at: new Date().toISOString(),
-        },
-      }, undefined, SUPPORT_REQUEST_CORS);
+        };
+      return ownerMobileCorsJson(request, { request: toOwnerSupportPublicRequest(demoRequest) }, undefined, SUPPORT_REQUEST_CORS);
     }
 
     const owner = await requireOwnerShop(request, body.shopId);
@@ -177,7 +150,7 @@ export async function POST(request: NextRequest) {
       attachments: body.attachments,
     });
 
-    return ownerMobileCorsJson(request, { request: toSharedSupportRequest(supportRequest) }, undefined, SUPPORT_REQUEST_CORS);
+    return ownerMobileCorsJson(request, { request: toOwnerSupportPublicRequest(supportRequest) }, undefined, SUPPORT_REQUEST_CORS);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return ownerMobileCorsJson(request, { message: "문의 내용을 다시 확인해 주세요." }, { status: 400 }, SUPPORT_REQUEST_CORS);

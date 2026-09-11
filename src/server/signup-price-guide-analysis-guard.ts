@@ -215,12 +215,21 @@ declare global {
     actualCostMicroUsd: number;
     expiresAt: number;
   }> | undefined;
+  // Process-local, low-cost admission gate. The distributed claim below remains
+  // authoritative for durable rate and provider-cost accounting.
+  // eslint-disable-next-line no-var
+  var __petmanagerSignupPriceGuidePreflightMeters: Map<string, {
+    requestCount: number;
+    expiresAt: number;
+  }> | undefined;
 }
 
 const memoryClaims = globalThis.__petmanagerSignupPriceGuideClaims ?? new Map();
 globalThis.__petmanagerSignupPriceGuideClaims = memoryClaims;
 const memoryMeters = globalThis.__petmanagerSignupPriceGuideMeters ?? new Map();
 globalThis.__petmanagerSignupPriceGuideMeters = memoryMeters;
+const preflightMeters = globalThis.__petmanagerSignupPriceGuidePreflightMeters ?? new Map();
+globalThis.__petmanagerSignupPriceGuidePreflightMeters = preflightMeters;
 
 function utcPeriodStart(nowMs: number, durationMs: number) {
   return Math.floor(nowMs / durationMs) * durationMs;
@@ -228,6 +237,46 @@ function utcPeriodStart(nowMs: number, durationMs: number) {
 
 function fixtureMeterKey(kind: string, subjectHash: string, startMs: number) {
   return `${kind}:${startMs}:${subjectHash}`;
+}
+
+function readPreflightMeter(key: string, expiresAt: number) {
+  const current = preflightMeters.get(key) ?? { requestCount: 0, expiresAt };
+  preflightMeters.set(key, current);
+  return current;
+}
+
+/**
+ * Cheap process-local admission check that runs before multipart buffering,
+ * image decoding, and Sharp. It stores only the token's existing HMAC subjects.
+ * `claimSignupPriceGuideAnalysis` must still run after decode/hash to reserve cost
+ * and enforce the distributed limits.
+ */
+export function preflightSignupPriceGuideAnalysis(input: {
+  token: Pick<TokenPayload, "ih" | "sh" | "dh">;
+  nowMs?: number;
+}) {
+  const nowMs = input.nowMs ?? Date.now();
+  const tenMinutes = 10 * 60 * 1000;
+  const day = 24 * 60 * 60 * 1000;
+  const ipStart = utcPeriodStart(nowMs, tenMinutes);
+  const dayStart = utcPeriodStart(nowMs, day);
+  for (const [key, meter] of preflightMeters) {
+    if (meter.expiresAt <= nowMs) preflightMeters.delete(key);
+  }
+  const meters = [
+    { meter: readPreflightMeter(fixtureMeterKey("preflight_ip_10m", input.token.ih, ipStart), ipStart + tenMinutes), limit: 10 },
+    { meter: readPreflightMeter(fixtureMeterKey("preflight_session_day", input.token.sh, dayStart), dayStart + day), limit: 6 },
+    { meter: readPreflightMeter(fixtureMeterKey("preflight_device_day", input.token.dh, dayStart), dayStart + day), limit: 8 },
+  ];
+  if (meters.some(({ meter, limit }) => meter.requestCount >= limit)) {
+    throw new SignupPriceGuideGuardError(
+      "RATE_LIMITED",
+      "사진 분석 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+      429,
+      600,
+    );
+  }
+  for (const { meter } of meters) meter.requestCount += 1;
 }
 
 function readFixtureMeter(key: string, expiresAt: number) {
@@ -345,6 +394,7 @@ export function purgeFixtureSignupPriceGuideAnalysis(tokenJti: string) {
 export function resetFixtureSignupPriceGuideSecurityState() {
   memoryClaims.clear();
   memoryMeters.clear();
+  preflightMeters.clear();
 }
 
 export async function purgeSignupPriceGuideAnalysis(input: {

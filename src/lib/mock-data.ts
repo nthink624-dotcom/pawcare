@@ -1,5 +1,6 @@
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { normalizeBootstrapNotifications, normalizeGuardianNotificationSettings, normalizeShopNotificationSettings } from "@/lib/notification-settings";
+import { deriveOwnerInitialSetupReadiness } from "@/lib/owner-initial-setup-readiness";
 import { addDate, currentDateInTimeZone } from "@/lib/utils";
 
 import type {
@@ -92,7 +93,37 @@ export const demoShop: Shop = {
 };
 
 export const demoServices: Service[] = [
-  { id: "svc-full", shop_id: "demo-shop", name: "전체 미용", price: 80000, duration_minutes: 120, is_active: true, created_at: now, updated_at: now },
+  {
+    id: "svc-full",
+    shop_id: "demo-shop",
+    name: "전체 미용",
+    price: 80000,
+    duration_minutes: 120,
+    is_active: true,
+    price_guide: {
+      schemaVersion: 2,
+      source: "owner_confirmed",
+      overallNote: "모량과 털 상태에 따라 최종 금액이 달라질 수 있습니다.",
+      rows: [{
+        serviceName: "전체 미용",
+        species: "dog",
+        breedNames: ["말티즈", "토이푸들"],
+        breedGroup: "소형견",
+        sizeClass: "small",
+        minKg: 0,
+        maxKg: 5,
+        priceKind: "fixed",
+        priceMinKrw: 80000,
+        priceMaxKrw: null,
+        durationMinutes: 120,
+        note: "발톱·귀 청소 포함",
+      }],
+      surcharges: [],
+      aiReview: [],
+    },
+    created_at: now,
+    updated_at: now,
+  },
   { id: "svc-bath", shop_id: "demo-shop", name: "목욕 + 부분정리", price: 55000, duration_minutes: 90, is_active: true, created_at: now, updated_at: now },
   { id: "svc-bath-only", shop_id: "demo-shop", name: "목욕", price: 35000, duration_minutes: 60, is_active: true, created_at: now, updated_at: now },
   { id: "svc-care", shop_id: "demo-shop", name: "위생 미용", price: 25000, duration_minutes: 45, is_active: true, created_at: now, updated_at: now },
@@ -104,14 +135,31 @@ export const demoServices: Service[] = [
 export const demoStaffMembers: BootstrapStaffMember[] = [
   {
     id: "demo-shop-staff-owner",
-    name: "원장",
-    displayName: "원장",
+    name: "대표자",
+    displayName: "대표자",
+    chipColorIndex: 0,
     phone: demoShop.phone,
-    role: "원장 / 전체 미용",
-    position: "원장",
+    role: "대표",
+    position: "대표",
     defaultDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     startTime: "10:00",
     endTime: "19:00",
+    regularOff: "일",
+    annualRemain: 0,
+    todayBookings: 0,
+    weekBookings: 0,
+  },
+  {
+    id: "demo-shop-staff-designer",
+    name: "서현",
+    displayName: "서현",
+    chipColorIndex: 1,
+    phone: "010-0000-0001",
+    role: "디자이너",
+    position: "디자이너",
+    defaultDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
+    startTime: "11:00",
+    endTime: "20:00",
     regularOff: "일",
     annualRemain: 0,
     todayBookings: 0,
@@ -202,6 +250,21 @@ export function buildDemoBootstrap(): BootstrapPayload {
   return normalizeBootstrapNotifications({
     mode: "mock",
     shop: demoShop,
+    initialSetupReadiness: deriveOwnerInitialSetupReadiness({
+      shop: demoShop,
+      services: demoServices,
+      persistedStaffMembers: demoStaffMembers,
+    }),
+    ownerProfile: {
+      user_id: "demo-owner",
+      shop_id: demoShop.id,
+      login_id: "owner@example.test",
+      name: "대표자",
+      birth_date: null,
+      phone_number: null,
+      created_at: now,
+      updated_at: now,
+    },
     guardians: demoGuardians,
     deletedGuardians: [],
     pets: demoPets,
@@ -212,5 +275,43 @@ export function buildDemoBootstrap(): BootstrapPayload {
     notifications: demoNotifications,
     landingInterests: demoLandingInterests,
     landingFeedback: demoLandingFeedback,
+  });
+}
+
+export function buildDemoInitialSetupBootstrap(): BootstrapPayload {
+  const base = buildDemoBootstrap();
+  const shop: Shop = {
+    ...base.shop,
+    business_hours: Object.fromEntries(
+      Object.entries(base.shop.business_hours).map(([day, hours]) => [
+        day,
+        hours ? { ...hours, enabled: false } : hours,
+      ]),
+    ) as Shop["business_hours"],
+    regular_closed_days: [],
+    temporary_closed_dates: [],
+  };
+  const staffMembers = base.staffMembers.slice(0, 1).map((staff) => ({
+    ...staff,
+    defaultDays: [],
+  }));
+  const services: Service[] = [];
+
+  return normalizeBootstrapNotifications({
+    ...base,
+    shop,
+    initialSetupReadiness: deriveOwnerInitialSetupReadiness({
+      shop,
+      services,
+      persistedStaffMembers: staffMembers,
+    }),
+    guardians: [],
+    deletedGuardians: [],
+    pets: [],
+    services,
+    staffMembers,
+    appointments: [],
+    groomingRecords: [],
+    notifications: [],
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Sparkles, X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { CalendarCareReportCompletionPanel } from "@/components/owner-web/calendar-care-report-completion-panel";
@@ -128,21 +128,18 @@ export function OwnerCareReportCompletionPreviewClient({
                 <Sparkles className="h-5 w-5" />
               </span>
               <div>
-                <h1 className={`${CARE_REPORT_TYPOGRAPHY.modalTitle} tracking-[-0.03em] text-[#142033]`}>AI 케어리포트 작성</h1>
-                <p className={`${CARE_REPORT_TYPOGRAPHY.body} mt-1 text-[#6b7785]`}>두부 · {previewServiceName} · 도윤 디자이너</p>
+                <h1 className={`${CARE_REPORT_TYPOGRAPHY.modalTitle} break-keep tracking-[-0.03em] text-[#142033] [line-height:1.3]`}>AI 케어리포트 작성</h1>
+                <p className={`${CARE_REPORT_TYPOGRAPHY.body} mt-1 break-keep text-[#6b7785] [line-height:1.45]`}>두부 · {previewServiceName} · 도윤 디자이너</p>
               </div>
             </div>
-            <button type="button" aria-label="닫기" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#66717f] transition hover:bg-[#f2f4f6]">
+            <button type="button" aria-label="닫기" className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[#66717f] transition hover:bg-[#f2f4f6]">
               <X className="h-5 w-5" />
             </button>
           </header>
 
           <div ref={scrollContainerRef} className={`no-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-white p-3 ${readOnly ? "pr-0" : ""}`}>
             <section className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <p className={`${CARE_REPORT_TYPOGRAPHY.sectionTitle} flex shrink-0 items-center gap-2 text-[#1b2d43]`}>
-                    <Camera className="h-[18px] w-[18px] text-[#526171]" /> 사진
-                  </p>
+                <div className="flex flex-wrap items-center gap-3">
                   <div className="flex rounded-[9px] bg-[#f0f2f4] p-0.5" role="tablist" aria-label="미용 사진 선택">
                     {([
                       ["before", "미용 전"],
@@ -154,7 +151,7 @@ export function OwnerCareReportCompletionPreviewClient({
                         role="tab"
                         aria-selected={activePhoto === key}
                         onClick={() => setActivePhoto(key)}
-                        className={`${CARE_REPORT_TYPOGRAPHY.label} inline-flex h-7 items-center gap-1.5 rounded-[7px] px-3 transition ${
+                        className={`${CARE_REPORT_TYPOGRAPHY.label} inline-flex min-h-11 min-w-11 items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3 py-2 [line-height:1.4] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] ${
                           activePhoto === key ? "bg-[#edf4ff] font-semibold text-[#2f6fd6] shadow-sm" : "text-[#7a8490] hover:text-[#37485a]"
                         }`}
                       >
@@ -162,12 +159,12 @@ export function OwnerCareReportCompletionPreviewClient({
                       </button>
                     ))}
                   </div>
-                  <label className={`${CARE_REPORT_TYPOGRAPHY.label} ml-auto inline-flex items-center gap-2 text-[#526171]`}>
+                  <label className={`${CARE_REPORT_TYPOGRAPHY.label} ml-auto inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-[7px] text-[#526171] [line-height:1.4] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]`}>
                     <input
                       type="checkbox"
                       checked={photoRegistrationEnabled}
                       onChange={(event) => setPhotoRegistrationEnabled(event.target.checked)}
-                    className="h-4 w-4 accent-[#2f6fd6]"
+                    className="h-4 w-4 accent-[#2f6fd6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
                     />
                     사진 등록
                   </label>

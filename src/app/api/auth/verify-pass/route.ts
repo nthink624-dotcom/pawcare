@@ -6,12 +6,19 @@ import { hasPortoneServerEnv, hasSupabaseServerEnv, serverEnv } from "@/lib/serv
 import {
   completePortoneIdentityVerification,
   reuseCompletedPortoneIdentityVerification,
+  validatePortoneIdentityVerificationBinding,
 } from "@/server/owner-identity-verification";
+import {
+  PORTONE_REQUEST_STATE_MAX_LENGTH,
+  PORTONE_REQUEST_STATE_MIN_LENGTH,
+} from "@/lib/auth/owner-identity-binding";
+import { recordSignupIdentityVerified } from "@/server/marketing-acquisition";
 
 const schema = z.object({
   purpose: identityVerificationPurposeSchema,
   verificationRequestId: z.string().uuid(),
-  identityVerificationId: z.string().min(1),
+  identityVerificationId: z.string().regex(/^[A-Za-z0-9]{1,40}$/),
+  verificationState: z.string().min(PORTONE_REQUEST_STATE_MIN_LENGTH).max(PORTONE_REQUEST_STATE_MAX_LENGTH),
 });
 
 type PortoneVerificationResponse = {
@@ -55,7 +62,7 @@ function toKoreanPortoneIdentityMessage(message?: string) {
     return "본인인증 결과 조회 권한을 확인하지 못했어요. PortOne 서버 API 설정을 확인해 주세요.";
   }
 
-  return message;
+  return normalized ? "본인인증 결과를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." : undefined;
 }
 
 function isAlreadyVerifiedPortoneMessage(result: PortoneVerificationResponse) {
@@ -94,10 +101,26 @@ async function fetchPortoneIdentityVerification(identityVerificationId: string) 
       await wait(700 * attempt);
     }
 
-    const getResponse = await fetch(getEndpoint, {
-      headers,
-      cache: "no-store",
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4_000);
+    let getResponse: Response;
+    try {
+      getResponse = await fetch(getEndpoint, {
+        headers,
+        cache: "no-store",
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return {
+          response: new Response(null, { status: 504 }),
+          result: { message: "본인인증 결과 확인 시간이 길어 요청을 중단했어요. 다시 시도해 주세요." },
+        };
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
     const getResult = await readPortoneJson(getResponse);
     lastResponse = getResponse;
     lastResult = getResult;
@@ -130,15 +153,52 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = schema.parse(body);
 
+    const binding = await validatePortoneIdentityVerificationBinding({
+      verificationRequestId: payload.verificationRequestId,
+      purpose: payload.purpose,
+      identityVerificationId: payload.identityVerificationId,
+      verificationState: payload.verificationState,
+      allowedStatuses: ["requested", "verified"],
+    });
+    if (!binding.ok) {
+      return NextResponse.json({ message: binding.message }, { status: 400 });
+    }
+
+    if (binding.status === "verified") {
+      const reused = await reuseCompletedPortoneIdentityVerification({
+        verificationRequestId: payload.verificationRequestId,
+        purpose: payload.purpose,
+        identityVerificationId: payload.identityVerificationId,
+        verificationState: payload.verificationState,
+      });
+      if (!reused.ok) {
+        return NextResponse.json({ message: reused.message }, { status: 400 });
+      }
+      if (payload.purpose === "signup") {
+        await recordSignupIdentityVerified({ request, verificationRequestId: payload.verificationRequestId });
+      }
+      return NextResponse.json({
+        success: true,
+        verificationToken: reused.verificationToken,
+        identity: reused.identity,
+        message: "본인 확인이 완료되었습니다.",
+      });
+    }
+
     const { response: verificationResponse, result } = await fetchPortoneIdentityVerification(payload.identityVerificationId);
     if (!verificationResponse.ok || !result.identityVerification) {
       if (isAlreadyVerifiedPortoneMessage(result)) {
         const reused = await reuseCompletedPortoneIdentityVerification({
+          verificationRequestId: payload.verificationRequestId,
           purpose: payload.purpose,
           identityVerificationId: payload.identityVerificationId,
+          verificationState: payload.verificationState,
         });
 
         if (reused.ok) {
+          if (payload.purpose === "signup") {
+            await recordSignupIdentityVerified({ request, verificationRequestId: payload.verificationRequestId });
+          }
           return NextResponse.json({
             success: true,
             verificationToken: reused.verificationToken,
@@ -147,21 +207,6 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        const completed = await completePortoneIdentityVerification({
-          verificationRequestId: payload.verificationRequestId,
-          purpose: payload.purpose,
-          identityVerificationId: payload.identityVerificationId,
-          identityVerification: undefined,
-        });
-
-        if (completed.ok) {
-          return NextResponse.json({
-            success: true,
-            verificationToken: completed.verificationToken,
-            identity: completed.identity,
-            message: "본인 확인이 완료되었습니다.",
-          });
-        }
       }
 
       result.message = toKoreanPortoneIdentityMessage(result.message);
@@ -175,11 +220,16 @@ export async function POST(request: NextRequest) {
       verificationRequestId: payload.verificationRequestId,
       purpose: payload.purpose,
       identityVerificationId: payload.identityVerificationId,
+      verificationState: payload.verificationState,
       identityVerification: result.identityVerification,
     });
 
     if (!completed.ok) {
       return NextResponse.json({ message: completed.message }, { status: 400 });
+    }
+
+    if (payload.purpose === "signup") {
+      await recordSignupIdentityVerified({ request, verificationRequestId: payload.verificationRequestId });
     }
 
     return NextResponse.json({

@@ -23,6 +23,7 @@ import {
   type OwnerSubscriptionSummary,
 } from "@/lib/billing/owner-subscription";
 import { requireServerSecret, serverEnv } from "@/lib/server-env";
+import { recordBoundShopAcquisitionMilestone } from "@/server/marketing-acquisition";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/utils";
 
@@ -1348,6 +1349,13 @@ async function rebuildOwnerSubscriptionFromRecentPayments(
 
       const rebuiltRecord = applySuccessfulCharge(record, context.planCode, payment.paidAt, paymentId);
       const saved = await persistSubscriptionRecord(identity, rebuiltRecord);
+      await recordBoundShopAcquisitionMilestone({
+        ownerUserId: identity.id,
+        shopId,
+        eventName: "paid_conversion",
+        authoritativeEventId: paymentId,
+        planCode: context.planCode,
+      });
       return await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
     } catch {
       continue;
@@ -1792,8 +1800,28 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
       billingAmount: billingContext.billingAmount,
     },
   });
+  if (payment.status === "PAID") {
+    await recordBoundShopAcquisitionMilestone({
+      ownerUserId: identity.id,
+      shopId,
+      eventName: "paid_conversion",
+      authoritativeEventId: paymentId,
+      planCode: plan.code,
+    });
+  }
 
-  return await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+  // A confirmed first monthly payment can synchronously extend this record via
+  // the payment-ledger trigger. Re-read it so this response does not show the
+  // pre-benefit period to the owner.
+  const { record: benefitAdjustedRecord, profile: benefitAdjustedProfile } =
+    payment.status === "PAID" ? await readOrCreateSubscription(identity, shopId) : { record: saved, profile };
+
+  return await buildOwnerSubscriptionSummary(
+    identity,
+    shopId,
+    benefitAdjustedRecord ?? saved,
+    benefitAdjustedProfile ?? profile,
+  );
 }
 
 export async function syncOwnerSubscriptionFromPayment(
@@ -1882,6 +1910,22 @@ export async function syncOwnerSubscriptionFromPayment(
       failedAt: payment.failedAt,
     },
   });
+  if (payment.status === "PAID") {
+    await recordBoundShopAcquisitionMilestone({
+      ownerUserId: userId,
+      shopId,
+      eventName: "paid_conversion",
+      authoritativeEventId: paymentId,
+      planCode,
+    });
+  }
+
+  // The common payment ledger can add the initial-partner period in the same
+  // database transaction. Refresh before constructing the confirmation body.
+  const { record: benefitAdjustedRecord, profile: benefitAdjustedProfile } =
+    payment.status === "PAID"
+      ? await readOrCreateSubscription(userResult.data.user as BillingIdentity, shopId)
+      : { record: saved, profile };
 
   return await buildOwnerSubscriptionSummary(
     {
@@ -1891,8 +1935,8 @@ export async function syncOwnerSubscriptionFromPayment(
       user_metadata: userResult.data.user.user_metadata ?? null,
     },
     shopId,
-    saved,
-    profile,
+    benefitAdjustedRecord ?? saved,
+    benefitAdjustedProfile ?? profile,
   );
 }
 

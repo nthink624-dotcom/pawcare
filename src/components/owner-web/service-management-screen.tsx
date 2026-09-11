@@ -1,18 +1,19 @@
 ﻿"use client";
 
 import { Fragment, type HTMLAttributes, type ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus } from "lucide-react";
-
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { serviceRows } from "@/components/owner-web/owner-web-data";
 import type { OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
 import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
+import { OwnerInitialSetupSaveNextActions } from "@/components/owner-web/owner-initial-setup-guide";
 import PriceGuidePhotoOnboarding from "@/components/owner-web/price-guide-photo-onboarding";
+import ServiceDurationRecommendationPanel from "@/components/owner-web/service-duration-recommendation-panel";
 import {
   ServicePriceGuideEditor,
   buildDefaultServicePriceGuide,
   normalizeServicePriceGuide,
+  serializeServicePriceGuide,
   type ServicePriceGuide,
 } from "@/components/owner-web/service-price-guide";
 import {
@@ -24,17 +25,24 @@ import {
 } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
-  applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceMenuConnectionOptions,
   buildCustomerServiceSourceOptions,
   normalizeCustomerServiceOverrides,
+  sanitizeCustomerServiceOverridesForSourceOptions,
   type CustomerServiceDisplayOverrides,
-  type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
+import { getOwnerPriceGuideServiceProjection } from "@/lib/owner-price-guide-onboarding";
+import { formatServicePriceInput, parseServicePriceInput, parseStoredServicePrice } from "@/lib/service-price-input";
 import { cn } from "@/lib/utils";
-import type { OwnerProfile, Service, Shop } from "@/types/domain";
+import type { BootstrapPayload, OwnerProfile, Service, Shop } from "@/types/domain";
+import type { PriceGuideV2 } from "@/types/price-guide-photo-import";
 
 type BaseServiceRow = (typeof serviceRows)[number];
+
+type ServiceSaveAttempt = {
+  requestId: string;
+  serviceId: string;
+};
 
 type ManagedService = BaseServiceRow & {
   id: string;
@@ -83,20 +91,29 @@ function parseMinutes(value: string) {
   return Number(value.replace(/[^0-9]/g, "")) || 60;
 }
 
-function parsePrice(value: string) {
-  return Number(value.replace(/[^0-9]/g, ""));
+function formatPrice(value: string) {
+  const parsed = parseServicePriceInput(value);
+  return parsed.ok ? `${parsed.value.toLocaleString("ko-KR")}원` : "";
 }
 
-function formatPrice(value: string) {
-  const numericValue = parsePrice(value);
-  if (!numericValue) return "";
-  return `${numericValue.toLocaleString("ko-KR")}원`;
+function getLegacyPriceGuideSummaryProjection(guide: ServicePriceGuide) {
+  if (guide.canonicalV2) return null;
+  for (const section of guide.sections ?? []) {
+    for (const item of section.items) {
+      for (const band of section.weightBands) {
+        const cell = item.cells[band];
+        const firstPrice = cell?.price.match(/[0-9][0-9,]*/)?.[0];
+        const price = Number(firstPrice?.replaceAll(",", "") ?? 0);
+        const durationMinutes = Number(cell?.durationMinutes ?? 0);
+        if (price > 0 && durationMinutes >= 5) return { price, durationMinutes };
+      }
+    }
+  }
+  return null;
 }
 
 function formatPriceInput(value: string) {
-  const numericValue = parsePrice(value);
-  if (!numericValue) return "";
-  return numericValue.toLocaleString("ko-KR");
+  return formatServicePriceInput(value);
 }
 
 function inferCategory(serviceName: string) {
@@ -130,7 +147,7 @@ function normalizeServices(rows: unknown): ManagedService[] {
 }
 
 function normalizeBootstrapServices(rows: Service[]): ManagedService[] {
-  if (rows.length === 0) return normalizeServices(serviceRows);
+  if (rows.length === 0) return [];
 
   return rows
     .filter((service) => !service.id.startsWith(customerBookingSnapshotServicePrefix))
@@ -157,23 +174,26 @@ function normalizeBootstrapServices(rows: Service[]): ManagedService[] {
 
 function managedServicesToDomain(services: ManagedService[], shopId: string): Service[] {
   const now = new Date(0).toISOString();
-  return services.map((service) => ({
-    id: service.id,
-    shop_id: shopId,
-    name: service.name,
-    price: parsePrice(service.price),
-    price_type: "starting",
-    duration_minutes: parseMinutes(service.duration),
-    is_active: service.visible,
-    category: service.category,
-    description: service.description,
-    sort_order: service.order,
-    capacity_label: service.capacity,
-    staff_selection_mode: staffLabelToSelectionMode(service.staff),
-    price_guide: service.priceGuide,
-    created_at: now,
-    updated_at: now,
-  }));
+  return services.map((service) => {
+    const parsedPrice = parseStoredServicePrice(service.price);
+    return {
+      id: service.id,
+      shop_id: shopId,
+      name: service.name,
+      price: parsedPrice.ok ? parsedPrice.value : 0,
+      price_type: "starting",
+      duration_minutes: parseMinutes(service.duration),
+      is_active: service.visible,
+      category: service.category,
+      description: service.description,
+      sort_order: service.order,
+      capacity_label: service.capacity,
+      staff_selection_mode: staffLabelToSelectionMode(service.staff),
+      price_guide: serializeServicePriceGuide(service.priceGuide),
+      created_at: now,
+      updated_at: now,
+    };
+  });
 }
 
 function getBootstrapServicesSignature(rows: Service[]) {
@@ -190,18 +210,19 @@ function getBootstrapServicesSignature(rows: Service[]) {
       sortOrder: service.sort_order ?? 0,
       capacityLabel: service.capacity_label ?? "",
       staffSelectionMode: service.staff_selection_mode ?? "",
-      priceGuide: normalizeServicePriceGuide(service.price_guide),
+      priceGuide: serializeServicePriceGuide(service.price_guide),
     })),
   );
 }
 
 function buildForm(service: ManagedService): ServiceForm {
+  const parsedPrice = parseStoredServicePrice(service.price);
   return {
     id: service.id,
     name: service.name,
     category: service.category,
     duration: String(parseMinutes(service.duration)),
-    price: String(parsePrice(service.price) || ""),
+    price: parsedPrice.ok ? String(parsedPrice.value) : service.price,
     staff: service.staff,
     visible: service.visible,
     description: service.description,
@@ -213,41 +234,6 @@ function staffLabelToSelectionMode(staff: string): "all" | "unassigned" | "speci
   if (staff === "직원 미지정" || staff === "스태프 미지정") return "unassigned";
   if (staff === "전체 직원" || staff === "전체 스태프") return "all";
   return "specific";
-}
-
-function buildCustomerServiceOverrideBaseline(
-  options: CustomerServiceSourceOption[],
-  overrides: CustomerServiceDisplayOverrides,
-) {
-  const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
-
-  return Object.fromEntries(
-    options.map((option) => {
-      const currentOverride = normalizedOverrides[option.id] ?? {};
-      return [
-        option.id,
-        {
-          visible: currentOverride.visible ?? true,
-          order: currentOverride.order ?? option.order,
-          linkedOptionId: option.linkedOptionId ?? currentOverride.linkedOptionId ?? option.id,
-        },
-      ];
-    }),
-  ) satisfies CustomerServiceDisplayOverrides;
-}
-
-function createCustomerServiceMenuRowId() {
-  return `menu-custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function getCustomerServiceOptionDisplayKey(option: CustomerServiceSourceOption) {
-  return [
-    option.category,
-    option.sourceName,
-    option.durationMinutes,
-    option.price,
-    option.priceType,
-  ].join("|").replace(/\s+/g, " ").trim().toLocaleLowerCase("ko-KR");
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -341,6 +327,10 @@ function VisibilityBadge({ visible }: { visible: boolean }) {
   );
 }
 
+export function runInitialSetupServiceNext(onInitialSetupNext?: () => void) {
+  onInitialSetupNext?.();
+}
+
 export default function ServiceManagementScreen({
   shopId,
   shop,
@@ -348,10 +338,13 @@ export default function ServiceManagementScreen({
   initialServices = [],
   staffMembers = [],
   demoMode = false,
+  persistDemoState = true,
   embedded = false,
   priceGuideOnboarding = false,
   onServicesChange,
   onShopChange,
+  onPriceGuideSaveSuccess,
+  onInitialSetupNext,
 }: {
   shopId: string;
   shop?: Shop;
@@ -359,40 +352,52 @@ export default function ServiceManagementScreen({
   initialServices?: Service[];
   staffMembers?: OwnerWebStaffMember[];
   demoMode?: boolean;
+  persistDemoState?: boolean;
   embedded?: boolean;
   priceGuideOnboarding?: boolean;
   onServicesChange?: (services: Service[]) => void;
   onShopChange?: (shop: Shop) => void;
+  onPriceGuideSaveSuccess?: (canonicalBootstrap?: BootstrapPayload) => void;
+  onInitialSetupNext?: () => void;
 }) {
   const initialManagedServices = useMemo(
-    () => (demoMode ? normalizeServices(serviceRows) : normalizeBootstrapServices(initialServices)),
-    [demoMode, initialServices],
+    () => normalizeBootstrapServices(initialServices),
+    [initialServices],
   );
-  const initialServiceForm = useMemo(
-    () => buildForm(initialManagedServices[0] ?? normalizeServices(serviceRows)[0]),
+  const initialPriceGuideService = useMemo(
+    () => initialManagedServices.find((service) => service.priceGuide.canonicalV2) ?? initialManagedServices[0],
     [initialManagedServices],
   );
+  const initialServiceForm = useMemo(
+    () => initialPriceGuideService ? buildForm(initialPriceGuideService) : emptyServiceForm,
+    [initialPriceGuideService],
+  );
   const [services, setServices] = useState<ManagedService[]>(() => initialManagedServices);
-  const [selectedServiceId, setSelectedServiceId] = useState<string>(services[0]?.id ?? "");
+  const [selectedServiceId, setSelectedServiceId] = useState<string>(initialPriceGuideService?.id ?? "");
   const [serviceForm, setServiceForm] = useState<ServiceForm>(() => initialServiceForm);
   const [formError, setFormError] = useState("");
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "pending" | "saved" | "needs-info">("saved");
   const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
     normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides),
   );
-  const [customerServiceActionId] = useState<string | null>(null);
   const [customerServiceSaveStatus, setCustomerServiceSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [storageReady, setStorageReady] = useState(false);
+  const [initialSetupPriceGuideSaveAction, setInitialSetupPriceGuideSaveAction] = useState<(() => Promise<void>) | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
   const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedSignatureRef = useRef(getServiceFormSignature(initialServiceForm));
   const latestServiceFormSignatureRef = useRef(getServiceFormSignature(initialServiceForm));
   const lastExternalServicesSignatureRef = useRef(demoMode ? "" : getBootstrapServicesSignature(initialServices));
-  const lastPreviewServicesEmitSignatureRef = useRef("");
+  const serviceSaveAttemptsRef = useRef(new Map<string, ServiceSaveAttempt>());
+  const lastCanonicalBootstrapRef = useRef<BootstrapPayload | null>(null);
 
   const staffOptions = useMemo(() => staffMembers.map((member) => member.name), [staffMembers]);
   const onlyStaffName = staffOptions.length === 1 ? staffOptions[0] : "";
   const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
+  const canonicalPriceGuideDocument = services.find((service) => service.priceGuide.canonicalV2)?.priceGuide.canonicalV2 ?? null;
+  const registerInitialSetupPriceGuideSaveAction = useCallback((action: (() => Promise<void>) | null) => {
+    setInitialSetupPriceGuideSaveAction(() => action);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -411,14 +416,15 @@ export default function ServiceManagementScreen({
   }, [shop?.id, shop?.customer_page_settings.customer_service_overrides]);
 
   useEffect(() => {
-    if (!demoMode) {
+    if (!demoMode || !persistDemoState) {
       setStorageReady(true);
       return;
     }
 
     try {
       const storedServices = window.localStorage.getItem(servicesStorageKey);
-      if (storedServices) {
+      const canonicalFixtureAvailable = initialManagedServices.some((service) => service.priceGuide.canonicalV2);
+      if (storedServices && !canonicalFixtureAvailable) {
         const nextServices = normalizeServices(JSON.parse(storedServices));
         setServices(nextServices);
         setSelectedServiceId(nextServices[0]?.id ?? "");
@@ -429,7 +435,7 @@ export default function ServiceManagementScreen({
     } finally {
       setStorageReady(true);
     }
-  }, [demoMode]);
+  }, [demoMode, initialManagedServices, persistDemoState]);
 
   useEffect(() => {
     if (demoMode) return;
@@ -462,9 +468,9 @@ export default function ServiceManagementScreen({
   }, [serviceForm]);
 
   useEffect(() => {
-    if (!storageReady || !demoMode) return;
+    if (!storageReady || !demoMode || !persistDemoState) return;
     window.localStorage.setItem(servicesStorageKey, JSON.stringify(services));
-  }, [demoMode, services, storageReady]);
+  }, [demoMode, persistDemoState, services, storageReady]);
 
   useEffect(() => {
     if (!onlyStaffName) return;
@@ -488,6 +494,11 @@ export default function ServiceManagementScreen({
     if (autosaveTimerRef.current) {
       window.clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
+    }
+
+    if (serviceForm.priceGuide.canonicalV2) {
+      setAutosaveStatus("idle");
+      return;
     }
 
     const draftError = getServiceDraftError(serviceForm);
@@ -534,8 +545,10 @@ export default function ServiceManagementScreen({
 
   function getServiceDraftError(form: ServiceForm) {
     if (!form.name.trim()) return "서비스명을 입력해 주세요.";
-    if (!formatPrice(form.price)) return "가격을 숫자로 입력해 주세요.";
-    return "";
+    const parsedPrice = parseServicePriceInput(form.price);
+    if (parsedPrice.ok) return "";
+    if (parsedPrice.reason === "empty") return "가격을 입력해 주세요.";
+    return "가격은 0원부터 100,000,000원 사이의 정수로 입력해 주세요.";
   }
 
   function getServiceFormSignature(form: ServiceForm) {
@@ -544,59 +557,88 @@ export default function ServiceManagementScreen({
       name: form.name.trim(),
       category: form.category,
       duration: String(Number(form.duration) || 60),
-      price: String(parsePrice(form.price)),
+      price: form.price.trim(),
       staff: form.staff,
       visible: form.visible,
       description: form.description.trim(),
-      priceGuide: normalizeServicePriceGuide(form.priceGuide),
+      priceGuide: serializeServicePriceGuide(form.priceGuide),
     });
   }
 
   async function saveService({
     showError = true,
     formToSave = serviceForm,
+    refetchCanonicalAfterSave = false,
   }: {
     showError?: boolean;
     formToSave?: ServiceForm;
+    refetchCanonicalAfterSave?: boolean;
   } = {}) {
-    const draftError = getServiceDraftError(formToSave);
+    const canonicalProjection = formToSave.priceGuide.canonicalV2
+      ? getOwnerPriceGuideServiceProjection(formToSave.priceGuide.canonicalV2)
+      : null;
+    const effectiveForm = canonicalProjection
+      ? {
+          ...formToSave,
+          name: canonicalProjection.name,
+          price: String(canonicalProjection.price),
+          duration: String(canonicalProjection.durationMinutes),
+        }
+      : formToSave;
+    const draftError = getServiceDraftError(effectiveForm);
     if (draftError) {
       if (showError) setFormError(draftError);
       setAutosaveStatus("needs-info");
       return false;
     }
 
-    const saveSignature = getServiceFormSignature(formToSave);
-    const price = formatPrice(formToSave.price);
+    const saveSignature = getServiceFormSignature(effectiveForm);
+    const isCreate = !effectiveForm.id;
+    const attemptKey = `${isCreate ? "create" : "update"}:${effectiveForm.id ?? "new"}:${saveSignature}`;
+    const existingAttempt = serviceSaveAttemptsRef.current.get(attemptKey);
+    const saveAttempt = existingAttempt ?? {
+      requestId: crypto.randomUUID(),
+      serviceId: effectiveForm.id ?? createServiceId(),
+    };
+    if (!existingAttempt) serviceSaveAttemptsRef.current.set(attemptKey, saveAttempt);
+    const parsedPrice = parseServicePriceInput(effectiveForm.price);
+    if (!parsedPrice.ok) {
+      if (showError) setFormError(getServiceDraftError(effectiveForm));
+      setAutosaveStatus("needs-info");
+      return false;
+    }
+    const price = formatPrice(effectiveForm.price);
     const nextService: ManagedService = {
-      id: formToSave.id ?? createServiceId(),
-      name: formToSave.name.trim(),
-      category: formToSave.category,
-      duration: `${Number(formToSave.duration) || 60}분`,
+      id: saveAttempt.serviceId,
+      name: effectiveForm.name.trim(),
+      category: effectiveForm.category,
+      duration: `${Number(effectiveForm.duration) || 60}분`,
       price,
       capacity: "동일 시간 1건",
-      staff: formToSave.staff,
-      visible: formToSave.visible,
-      description: formToSave.description.trim(),
-      priceGuide: normalizeServicePriceGuide(formToSave.priceGuide),
-      order: formToSave.id ? (selectedService?.order ?? services.length + 1) : services.length + 1,
+      staff: effectiveForm.staff,
+      visible: effectiveForm.visible,
+      description: effectiveForm.description.trim(),
+      priceGuide: normalizeServicePriceGuide(effectiveForm.priceGuide),
+      order: effectiveForm.id ? (selectedService?.order ?? services.length + 1) : services.length + 1,
     };
 
     const previousServices = services;
     const nextServicesSnapshot = previousServices.some((service) => service.id === nextService.id)
       ? previousServices.map((service) => (service.id === nextService.id ? nextService : service))
       : [...previousServices, nextService];
-    setServices(nextServicesSnapshot);
-    setSelectedServiceId(nextService.id);
-    setServiceForm(buildForm(nextService));
     setFormError("");
 
     if (demoMode) {
+      lastCanonicalBootstrapRef.current = null;
+      setServices(nextServicesSnapshot);
+      setSelectedServiceId(nextService.id);
+      setServiceForm(buildForm(nextService));
       if (latestServiceFormSignatureRef.current === saveSignature) {
         setAutosaveStatus("saved");
         lastSavedSignatureRef.current = saveSignature;
       }
       onServicesChange?.(managedServicesToDomain(nextServicesSnapshot, shopId));
+      serviceSaveAttemptsRef.current.delete(attemptKey);
       return true;
     }
 
@@ -606,8 +648,10 @@ export default function ServiceManagementScreen({
         body: JSON.stringify({
           shopId,
           serviceId: nextService.id,
+          operation: isCreate ? "create" : "update",
+          requestId: saveAttempt.requestId,
           name: nextService.name,
-          price: parsePrice(nextService.price),
+          price: parsedPrice.value,
           priceType: "starting",
           durationMinutes: parseMinutes(nextService.duration),
           isActive: nextService.visible,
@@ -616,15 +660,55 @@ export default function ServiceManagementScreen({
           sortOrder: nextService.order,
           capacityLabel: nextService.capacity,
           staffSelectionMode: staffLabelToSelectionMode(nextService.staff),
-          priceGuide: nextService.priceGuide,
+          priceGuide: serializeServicePriceGuide(nextService.priceGuide),
         }),
       });
+      if (refetchCanonicalAfterSave) {
+        try {
+          const canonicalBootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
+            `/api/bootstrap?shopId=${encodeURIComponent(shopId)}&phase=essential`,
+            { cache: "no-store" },
+          );
+          const canonicalServices = canonicalBootstrap.services;
+          lastCanonicalBootstrapRef.current = canonicalBootstrap;
+          const refreshedServices = normalizeBootstrapServices(canonicalServices);
+          const refreshedSelected = refreshedServices.find((service) => service.id === savedService.id);
+          if (!refreshedSelected) {
+            throw new Error("저장된 서비스를 최신 목록에서 확인하지 못했습니다.");
+          }
+
+          setServices(refreshedServices);
+          setSelectedServiceId(refreshedSelected.id);
+          onServicesChange?.(canonicalServices);
+
+          if (latestServiceFormSignatureRef.current === saveSignature && refreshedSelected) {
+            const refreshedForm = buildForm(refreshedSelected);
+            const refreshedSignature = getServiceFormSignature(refreshedForm);
+            setServiceForm(refreshedForm);
+            setAutosaveStatus("saved");
+            latestServiceFormSignatureRef.current = refreshedSignature;
+            lastSavedSignatureRef.current = refreshedSignature;
+          }
+          serviceSaveAttemptsRef.current.delete(attemptKey);
+          return true;
+        } catch {
+          if (latestServiceFormSignatureRef.current === saveSignature) {
+            setFormError("서비스는 저장됐지만 최신 목록을 다시 불러오지 못했습니다. 다시 저장해 주세요.");
+            setAutosaveStatus("needs-info");
+          }
+          return false;
+        }
+      }
+
       const savedManaged = normalizeBootstrapServices([savedService])[0] ?? nextService;
       if (latestServiceFormSignatureRef.current !== saveSignature) {
         return true;
       }
 
-      setServices((current) => current.map((service) => (service.id === savedManaged.id ? savedManaged : service)));
+      setServices((current) => current.some((service) => service.id === savedManaged.id)
+        ? current.map((service) => (service.id === savedManaged.id ? savedManaged : service))
+        : [...current, savedManaged]);
+      setSelectedServiceId(savedManaged.id);
       const savedForm = buildForm(savedManaged);
       setServiceForm(savedForm);
       setAutosaveStatus("saved");
@@ -636,6 +720,7 @@ export default function ServiceManagementScreen({
           ? initialServices.map((service) => (service.id === savedService.id ? savedService : service))
           : [...initialServices, savedService],
       );
+      serviceSaveAttemptsRef.current.delete(attemptKey);
       return true;
     } catch (error) {
       if (latestServiceFormSignatureRef.current !== saveSignature) {
@@ -650,10 +735,9 @@ export default function ServiceManagementScreen({
   }
 
   function updatePriceInput(value: string) {
-    const numericValue = parsePrice(value);
     setServiceForm((form) => ({
       ...form,
-      price: numericValue ? String(numericValue) : "",
+      price: value,
     }));
   }
 
@@ -692,24 +776,62 @@ export default function ServiceManagementScreen({
           ? "서비스명과 가격 입력 시 자동 저장"
           : "입력하면 자동 저장됩니다";
 
-  async function updatePriceGuide(priceGuide: ServicePriceGuide, forceEnabled = false, saveImmediately = false) {
-    const nextPriceGuide = normalizeServicePriceGuide(forceEnabled ? { ...priceGuide, enabled: true } : priceGuide);
-    const nextForm = { ...serviceForm, priceGuide: nextPriceGuide };
+  async function updatePriceGuide(priceGuide: ServicePriceGuide | PriceGuideV2, forceEnabled = false, saveImmediately = false) {
+    const sourcePriceGuide = "schemaVersion" in priceGuide
+      ? priceGuide
+      : forceEnabled
+        ? { ...priceGuide, enabled: true }
+        : priceGuide;
+    const nextPriceGuide = normalizeServicePriceGuide(sourcePriceGuide);
+    const canonicalProjection = "schemaVersion" in priceGuide
+      ? getOwnerPriceGuideServiceProjection(priceGuide)
+      : null;
+    const legacyProjection = "schemaVersion" in priceGuide
+      ? null
+      : getLegacyPriceGuideSummaryProjection(nextPriceGuide);
+    const nextForm = {
+      ...serviceForm,
+      ...(canonicalProjection
+        ? {
+            name: canonicalProjection.name,
+            price: String(canonicalProjection.price),
+            duration: String(canonicalProjection.durationMinutes),
+          }
+        : legacyProjection
+          ? {
+              price: String(legacyProjection.price),
+              duration: String(legacyProjection.durationMinutes),
+            }
+          : {}),
+      priceGuide: nextPriceGuide,
+    };
     latestServiceFormSignatureRef.current = getServiceFormSignature(nextForm);
-    setServiceForm(nextForm);
-    if (selectedServiceId) {
-      setServices((current) =>
-        current.map((service) => (service.id === selectedServiceId ? { ...service, priceGuide: nextPriceGuide } : service)),
-      );
-    }
     if (saveImmediately) {
-      return saveService({ showError: false, formToSave: nextForm });
+      lastCanonicalBootstrapRef.current = null;
+      const saved = await saveService({
+        showError: false,
+        formToSave: nextForm,
+        refetchCanonicalAfterSave: true,
+      });
+      const detailedItems = (nextPriceGuide.sections ?? []).flatMap((section) => section.items);
+      const hasValidDetailedRow = Boolean(canonicalProjection) || detailedItems.some((item) =>
+        Object.values(item.cells).some((cell) =>
+          Boolean(cell.price.trim()) && Number(cell.durationMinutes) >= 5
+        )
+      );
+      if (!saved) latestServiceFormSignatureRef.current = getServiceFormSignature(serviceForm);
+      if (saved && hasValidDetailedRow) onPriceGuideSaveSuccess?.(lastCanonicalBootstrapRef.current ?? undefined);
+      return saved;
     }
+    setServiceForm(nextForm);
     return true;
   }
 
   function updateCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
-    const normalizedOverrides = normalizeCustomerServiceOverrides(nextOverrides);
+    const normalizedOverrides = sanitizeCustomerServiceOverridesForSourceOptions(
+      nextOverrides,
+      rawCustomerServiceConnectionOptions,
+    );
     setCustomerServiceOverrides(normalizedOverrides);
 
     if (customerServiceSaveTimerRef.current) {
@@ -763,110 +885,18 @@ export default function ServiceManagementScreen({
     }, 500);
   }
 
-  function addCustomerServiceOption() {
-    if (!shop || customerServiceActionId) return;
-
-    const usedConnectionOptionKeys = new Set(customerServiceOptions.map(getCustomerServiceOptionDisplayKey));
-    const defaultConnectionOption = customerServiceConnectionOptions.find((option) => !usedConnectionOptionKeys.has(getCustomerServiceOptionDisplayKey(option)));
-    if (!defaultConnectionOption) return;
-
-    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
-    const rowId = createCustomerServiceMenuRowId();
-    const nextOrder =
-      Math.max(
-        0,
-        ...customerServiceOptions.map((option) => baselineOverrides[option.id]?.order ?? option.order),
-      ) + 1;
-    updateCustomerServiceOverrides({
-      ...baselineOverrides,
-      [rowId]: {
-        visible: true,
-        order: nextOrder,
-        linkedOptionId: defaultConnectionOption.linkedOptionId ?? defaultConnectionOption.id,
-      },
-    });
-  }
-
-  function deleteCustomerServiceOption(option: CustomerServiceSourceOption) {
-    if (!shop || customerServiceActionId) return;
-
-    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
-    updateCustomerServiceOverrides({
-      ...baselineOverrides,
-      [option.id]: {
-        ...(baselineOverrides[option.id] ?? {}),
-        visible: false,
-        order: baselineOverrides[option.id]?.order ?? option.order,
-      },
-    });
-  }
-
-  function relinkCustomerServiceOption(option: CustomerServiceSourceOption, nextOptionId: string) {
-    if (!nextOptionId) return;
-
-    const nextOption = rawCustomerServiceConnectionOptions.find((item) => item.id === nextOptionId);
-    if (!nextOption) return;
-
-    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
-    const currentOverride = baselineOverrides[option.id] ?? {};
-
-    updateCustomerServiceOverrides({
-      ...baselineOverrides,
-      [option.id]: {
-        ...currentOverride,
-        visible: true,
-        order: currentOverride.order ?? option.order,
-        linkedOptionId: nextOption.id,
-      },
-    });
-  }
-
-  const previewServices = useMemo(() => {
-    const draftName = serviceForm.name.trim();
-    const draftService: ManagedService | null = draftName
-      ? {
-          id: serviceForm.id ?? "service-preview-draft",
-          name: draftName,
-          category: serviceForm.category,
-          duration: `${Number(serviceForm.duration) || 60}분`,
-          price: formatPrice(serviceForm.price) || "가격 상담",
-          capacity: "동일 시간 1건",
-          staff: serviceForm.staff,
-          visible: serviceForm.visible,
-          description: serviceForm.description.trim(),
-          order: selectedService?.order ?? services.length + 1,
-          priceGuide: normalizeServicePriceGuide(serviceForm.priceGuide),
-        }
-      : null;
-
-    const nextServices = draftService
-      ? services.some((service) => service.id === draftService.id)
-        ? services.map((service) => (service.id === draftService.id ? draftService : service))
-        : [draftService, ...services]
-      : services;
-
-    return managedServicesToDomain(nextServices, shopId);
-  }, [selectedService?.order, serviceForm, services, shopId]);
-
-  useEffect(() => {
-    if (!storageReady || (!demoMode && !embedded)) return;
-    const signature = getBootstrapServicesSignature(previewServices);
-    if (lastPreviewServicesEmitSignatureRef.current === signature) return;
-    lastPreviewServicesEmitSignatureRef.current = signature;
-    onServicesChange?.(previewServices);
-  }, [demoMode, embedded, onServicesChange, previewServices, storageReady]);
+  const canonicalServices = useMemo(
+    () => managedServicesToDomain(services, shopId),
+    [services, shopId],
+  );
 
   const rawCustomerServiceConnectionOptions = useMemo(
-    () => buildCustomerServiceSourceOptions(previewServices),
-    [previewServices],
+    () => buildCustomerServiceSourceOptions(canonicalServices),
+    [canonicalServices],
   );
   const customerServiceConnectionOptions = useMemo(
     () => buildCustomerServiceMenuConnectionOptions(rawCustomerServiceConnectionOptions),
     [rawCustomerServiceConnectionOptions],
-  );
-  const customerServiceOptions = useMemo(
-    () => applyConfiguredCustomerServiceOverrides(rawCustomerServiceConnectionOptions, customerServiceOverrides),
-    [rawCustomerServiceConnectionOptions, customerServiceOverrides],
   );
   const customerPagePreviewShop = useMemo<Shop | null>(() => {
     if (!shop) return null;
@@ -879,36 +909,67 @@ export default function ServiceManagementScreen({
     };
   }, [customerServiceOverrides, shop]);
 
+  const priceGuideWorkspace = (
+    <PriceGuidePhotoOnboarding
+      shopId={shopId}
+      fixtureMode={demoMode}
+      initialDocument={canonicalPriceGuideDocument}
+      onApply={(guide) => updatePriceGuide(guide, true, true)}
+      onSaveActionReady={priceGuideOnboarding ? registerInitialSetupPriceGuideSaveAction : undefined}
+    />
+  );
+
+  if (priceGuideOnboarding) {
+    const onboardingContent = (
+      <div className="min-w-0" data-testid="owner-initial-setup-services">
+        {initialSetupPriceGuideSaveAction ? (
+          <OwnerInitialSetupSaveNextActions
+            onSave={() => initialSetupPriceGuideSaveAction()}
+            onNext={() => runInitialSetupServiceNext(onInitialSetupNext)}
+          />
+        ) : null}
+        {priceGuideWorkspace}
+        {canonicalPriceGuideDocument ? (
+          <ServiceDurationRecommendationPanel
+            shopId={shopId}
+            serviceIds={services.map((service) => service.id)}
+            demoMode={demoMode}
+          />
+        ) : null}
+        {formError ? <p className="mt-3 text-[13px] font-medium leading-5 text-[#a04455]" role="alert">{formError}</p> : null}
+      </div>
+    );
+
+    if (embedded) return onboardingContent;
+    return (
+      <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={canonicalServices} staffMembers={staffMembers} ownerProfile={ownerProfile} hidePreview>
+        {onboardingContent}
+      </CustomerPagePreviewLayout>
+    );
+  }
+
   const content = (
     <div className="space-y-5">
       <section className="space-y-5">
         <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-[#111827]">서비스/가격</h2>
+          <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-[#111827]">요금표 관리</h2>
         </div>
-
-        {priceGuideOnboarding ? (
-          <PriceGuidePhotoOnboarding
+        {priceGuideWorkspace}
+        {canonicalPriceGuideDocument ? (
+          <ServiceDurationRecommendationPanel
             shopId={shopId}
-            onApply={(guide) => updatePriceGuide(guide, true, true)}
+            serviceIds={services.map((service) => service.id)}
+            demoMode={demoMode}
           />
         ) : null}
-
-        <div className="space-y-5">
-          <ServicePriceGuideEditor
-            value={{ ...serviceForm.priceGuide, enabled: true }}
-            onChange={(priceGuide, options) => updatePriceGuide(priceGuide, true, options?.saveImmediately)}
-            framed={false}
-            showHeader={false}
-            showEnabledToggle={false}
-          />
-
+        {canonicalPriceGuideDocument && rawCustomerServiceConnectionOptions.length > 0 ? (
           <div className="rounded-[12px] border border-[#dbe2ea] bg-[#fbfcfd] p-3.5">
             <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#e6ebf2] pb-3">
               <div>
                 <p className="text-[15px] font-medium text-[#334155]">고객에게 보여줄 요금표</p>
                 <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">
-                  <span className="block">동물종과 실제 서비스명이 같은 항목은 한 줄로 묶어 깔끔하게 보여줍니다.</span>
-                  <span className="block">예약할 반려동물의 품종과 몸무게가 확인되면 원본 요금표의 정확한 가격과 시간으로 안내됩니다.</span>
+                  <span className="block">저장된 상세 요금표 항목만 순서를 바꾸거나 숨길 수 있습니다.</span>
+                  <span className="block">가격과 시간은 위 원본 요금표를 수정하면 고객 화면에도 같은 값으로 반영됩니다.</span>
                 </p>
               </div>
               <span className="inline-flex h-7 items-center rounded-full border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-medium text-[#64748b]">
@@ -916,20 +977,15 @@ export default function ServiceManagementScreen({
               </span>
             </div>
             <CustomerServiceExposurePanel
-              options={customerServiceOptions}
+              options={customerServiceConnectionOptions}
               overrides={customerServiceOverrides}
               embedded
-              busyOptionId={customerServiceActionId}
               onChange={updateCustomerServiceOverrides}
-              connectionOptions={customerServiceConnectionOptions}
-              onAddOption={addCustomerServiceOption}
               hideHeader
               hideGuidance
-              onDeleteOption={deleteCustomerServiceOption}
-              onRelinkOption={relinkCustomerServiceOption}
             />
           </div>
-        </div>
+        ) : null}
       </section>
 
       {formError ? <p className="text-[13px] font-medium text-[#b91c1c]">{formError}</p> : null}
@@ -1124,7 +1180,7 @@ export default function ServiceManagementScreen({
   if (embedded) return content;
 
   return (
-    <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={previewServices} staffMembers={staffMembers} ownerProfile={ownerProfile}>
+    <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={canonicalServices} staffMembers={staffMembers} ownerProfile={ownerProfile}>
       {content}
     </CustomerPagePreviewLayout>
   );

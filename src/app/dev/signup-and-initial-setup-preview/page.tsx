@@ -5,9 +5,5 @@ import SignupAndInitialSetupPreviewClient from "./signup-and-initial-setup-previ
 export default function SignupAndInitialSetupPreviewPage() {
   if (process.env.NODE_ENV !== "development") notFound();
 
-  return (
-    <SignupAndInitialSetupPreviewClient
-      visionReady={Boolean(process.env.OPENAI_API_KEY)}
-    />
-  );
+  return <SignupAndInitialSetupPreviewClient />;
 }

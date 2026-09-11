@@ -2,7 +2,14 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES, normalizeDiscountCoupons } from "@/lib/customer-page-settings";
-import { normalizeCustomerServiceOverrides } from "@/lib/customer-service-options";
+import {
+  buildCustomerServiceSourceOptions,
+  sanitizeCustomerServiceOverridesForSourceOptions,
+} from "@/lib/customer-service-options";
+import {
+  coerceEnabledShopNotificationSettings,
+  normalizeShopNotificationSettings,
+} from "@/lib/notification-settings";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
@@ -13,6 +20,25 @@ import {
   insertShopIdentityChangeEvents,
   type ShopIdentityChange,
 } from "@/server/shop-identity-guard";
+import type { Service, ShopNotificationSettings } from "@/types/domain";
+
+const SHOP_WRITE_CORS = { methods: "GET, PATCH, OPTIONS" };
+
+const notificationSettingsPatchSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    revisitEnabled: z.boolean().optional(),
+    bookingConfirmedEnabled: z.boolean().optional(),
+    bookingRejectedEnabled: z.boolean().optional(),
+    bookingCancelledEnabled: z.boolean().optional(),
+    bookingRescheduledEnabled: z.boolean().optional(),
+    groomingAlmostDoneEnabled: z.boolean().optional(),
+    groomingCompletedEnabled: z.boolean().optional(),
+    groomingStartWithoutPhotoEnabled: z.boolean().optional(),
+    groomingCompleteWithoutPhotoEnabled: z.boolean().optional(),
+  })
+  .strict()
+  .refine((settings) => Object.keys(settings).length > 0, "알림톡 설정을 다시 확인해 주세요.");
 
 const updateShopSchema = z.object({
   shopId: z.string().trim().min(1),
@@ -41,9 +67,46 @@ const updateShopSchema = z.object({
   addressDetail: z.string().trim().max(120).optional(),
   // 구버전 앱 요청은 수신하되 제품 공통 예약 정책을 바꾸지는 않습니다.
   cancelWindow: z.enum(["none", "1h", "2h", "6h", "24h"]).optional(),
+  notificationSettings: notificationSettingsPatchSchema.optional(),
+  expectedUpdatedAt: z.string().trim().min(1).max(64).optional(),
   customerServiceOverrides: z.unknown().optional(),
   discountCoupons: z.unknown().optional(),
 });
+
+function toStoredNotificationSettings(patch: z.infer<typeof notificationSettingsPatchSchema>) {
+  return {
+    ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+    ...(patch.revisitEnabled !== undefined ? { revisit_enabled: patch.revisitEnabled } : {}),
+    ...(patch.bookingConfirmedEnabled !== undefined ? { booking_confirmed_enabled: patch.bookingConfirmedEnabled } : {}),
+    ...(patch.bookingRejectedEnabled !== undefined ? { booking_rejected_enabled: patch.bookingRejectedEnabled } : {}),
+    ...(patch.bookingCancelledEnabled !== undefined ? { booking_cancelled_enabled: patch.bookingCancelledEnabled } : {}),
+    ...(patch.bookingRescheduledEnabled !== undefined ? { booking_rescheduled_enabled: patch.bookingRescheduledEnabled } : {}),
+    ...(patch.groomingAlmostDoneEnabled !== undefined ? { grooming_almost_done_enabled: patch.groomingAlmostDoneEnabled } : {}),
+    ...(patch.groomingCompletedEnabled !== undefined ? { grooming_completed_enabled: patch.groomingCompletedEnabled } : {}),
+    ...(patch.groomingStartWithoutPhotoEnabled !== undefined
+      ? { grooming_start_without_photo_enabled: patch.groomingStartWithoutPhotoEnabled }
+      : {}),
+    ...(patch.groomingCompleteWithoutPhotoEnabled !== undefined
+      ? { grooming_complete_without_photo_enabled: patch.groomingCompleteWithoutPhotoEnabled }
+      : {}),
+  } satisfies Partial<ShopNotificationSettings>;
+}
+
+function toMobileNotificationSettingsReadback(settings: Partial<ShopNotificationSettings> | null | undefined) {
+  const normalized = normalizeShopNotificationSettings(settings);
+  return {
+    enabled: normalized.enabled,
+    revisitEnabled: normalized.revisit_enabled,
+    bookingConfirmedEnabled: normalized.booking_confirmed_enabled,
+    bookingRejectedEnabled: normalized.booking_rejected_enabled,
+    bookingCancelledEnabled: normalized.booking_cancelled_enabled,
+    bookingRescheduledEnabled: normalized.booking_rescheduled_enabled,
+    groomingAlmostDoneEnabled: normalized.grooming_almost_done_enabled,
+    groomingCompletedEnabled: normalized.grooming_completed_enabled,
+    groomingStartWithoutPhotoEnabled: normalized.grooming_start_without_photo_enabled,
+    groomingCompleteWithoutPhotoEnabled: normalized.grooming_complete_without_photo_enabled,
+  };
+}
 
 function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
   return metadata?.account_suspended === true;
@@ -63,7 +126,7 @@ export async function GET(request: NextRequest) {
           address: "서울시 강남구 테헤란로 1",
           heroImageUrl: "",
         },
-      ]);
+      ], undefined, SHOP_WRITE_CORS);
     }
 
     const authorization = request.headers.get("authorization") || "";
@@ -119,6 +182,8 @@ export async function GET(request: NextRequest) {
             address: shop.address,
             heroImageUrl: "",
           })),
+          undefined,
+          SHOP_WRITE_CORS,
         );
       }
 
@@ -139,14 +204,15 @@ export async function GET(request: NextRequest) {
             ? shop.customer_page_settings.hero_image_url
             : "",
       })),
+      undefined,
+      SHOP_WRITE_CORS,
     );
   } catch (error) {
     if (error instanceof OwnerApiError) {
-      return ownerMobileCorsJson(request, { message: error.message }, { status: error.status });
+      return ownerMobileCorsJson(request, { message: error.message }, { status: error.status }, SHOP_WRITE_CORS);
     }
 
-    const message = error instanceof Error ? error.message : "매장 목록을 불러오지 못했습니다.";
-    return ownerMobileCorsJson(request, { message }, { status: 500 });
+    return ownerMobileCorsJson(request, { message: "매장 목록을 불러오지 못했습니다." }, { status: 500 }, SHOP_WRITE_CORS);
   }
 }
 
@@ -161,6 +227,9 @@ export async function PATCH(request: NextRequest) {
       const heroMediaAssetIds = body.heroMediaAssetIds ?? [];
       const heroImageUrls = body.heroImageUrls ?? (body.heroImageUrl ? [body.heroImageUrl] : []);
       const primaryHeroImageUrl = body.heroImageUrl ?? heroImageUrls[0] ?? "";
+      const notificationSettings = body.notificationSettings
+        ? toMobileNotificationSettingsReadback(toStoredNotificationSettings(body.notificationSettings))
+        : undefined;
       return ownerMobileCorsJson(request, {
         shop: {
           id: body.shopId,
@@ -188,12 +257,13 @@ export async function PATCH(request: NextRequest) {
             showcase_body: body.showcaseBody ?? "",
             social_links: body.socialLinks ?? {},
             ...(body.customerServiceOverrides !== undefined
-              ? { customer_service_overrides: normalizeCustomerServiceOverrides(body.customerServiceOverrides) }
+              ? { customer_service_overrides: sanitizeCustomerServiceOverridesForSourceOptions(body.customerServiceOverrides, []) }
               : {}),
             ...(body.discountCoupons !== undefined ? { discount_coupons: normalizeDiscountCoupons(body.discountCoupons) } : {}),
           },
+          ...(notificationSettings ? { notificationSettings } : {}),
         },
-      });
+      }, undefined, SHOP_WRITE_CORS);
     }
 
     const body = updateShopSchema.parse(await request.json());
@@ -201,11 +271,30 @@ export async function PATCH(request: NextRequest) {
     const heroImageUrls =
       body.heroImageUrls !== undefined ? body.heroImageUrls : body.heroImageUrl !== undefined ? (body.heroImageUrl ? [body.heroImageUrl] : []) : undefined;
     const primaryHeroImageUrl = body.heroImageUrl !== undefined ? body.heroImageUrl : heroImageUrls?.[0];
+    const hasNotificationSettingsUpdate = body.notificationSettings !== undefined;
     const owner = await requireOwnerShop(request, body.shopId);
     assertOwnerOrManager(owner);
     const admin = getSupabaseAdmin();
     if (!admin) {
       throw new OwnerApiError("Supabase 관리자 연결을 확인해 주세요.", 503);
+    }
+
+    let sourceBoundCustomerServiceOverrides;
+    if (body.customerServiceOverrides !== undefined) {
+      const servicesResult = await admin
+        .from("services")
+        .select("*")
+        .eq("shop_id", owner.shopId)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      if (servicesResult.error) {
+        throw new OwnerApiError("저장된 요금표 원본을 확인하지 못했습니다.", 500);
+      }
+      const sourceOptions = buildCustomerServiceSourceOptions((servicesResult.data ?? []) as Service[]);
+      sourceBoundCustomerServiceOverrides = sanitizeCustomerServiceOverridesForSourceOptions(
+        body.customerServiceOverrides,
+        sourceOptions,
+      );
     }
 
     const updates: Record<string, unknown> = {};
@@ -232,6 +321,7 @@ export async function PATCH(request: NextRequest) {
     if (
       Object.keys(updates).length === 0 &&
       body.cancelWindow === undefined &&
+      !hasNotificationSettingsUpdate &&
       !hasCustomerPageUpdates
     ) {
       throw new OwnerApiError("저장할 매장 정보가 없습니다.", 400);
@@ -240,6 +330,7 @@ export async function PATCH(request: NextRequest) {
     const needsCurrentShop =
       hasCustomerPageUpdates ||
       body.cancelWindow !== undefined ||
+      hasNotificationSettingsUpdate ||
       body.name !== undefined ||
       body.phone !== undefined ||
       body.address !== undefined ||
@@ -250,12 +341,14 @@ export async function PATCH(request: NextRequest) {
       address: string | null;
       customer_page_settings: Record<string, unknown> | null;
       reservation_policy_settings: Record<string, unknown> | null;
+      notification_settings: Partial<ShopNotificationSettings> | null;
+      updated_at: string | null;
     } | null = null;
 
     if (needsCurrentShop) {
       const currentShopResult = await admin
         .from("shops")
-        .select("name,phone,address,customer_page_settings,reservation_policy_settings")
+        .select("name,phone,address,customer_page_settings,reservation_policy_settings,notification_settings,updated_at")
         .eq("id", owner.shopId)
         .eq("owner_user_id", owner.userId)
         .maybeSingle<{
@@ -264,13 +357,35 @@ export async function PATCH(request: NextRequest) {
           address: string | null;
           customer_page_settings: Record<string, unknown> | null;
           reservation_policy_settings: Record<string, unknown> | null;
+          notification_settings: Partial<ShopNotificationSettings> | null;
+          updated_at: string | null;
         }>();
 
       if (currentShopResult.error) {
-        throw new OwnerApiError(currentShopResult.error.message, 500);
+        throw new OwnerApiError(
+          hasNotificationSettingsUpdate ? "현재 알림톡 설정을 불러오지 못했습니다." : currentShopResult.error.message,
+          500,
+        );
       }
 
       currentShop = currentShopResult.data ?? null;
+
+      if (hasNotificationSettingsUpdate) {
+        if (!currentShop) {
+          throw new OwnerApiError("현재 매장 설정을 다시 확인해 주세요.", 409);
+        }
+        if (body.expectedUpdatedAt && currentShop.updated_at !== body.expectedUpdatedAt) {
+          throw new OwnerApiError("다른 설정 변경이 반영되었습니다. 화면을 다시 확인해 주세요.", 409);
+        }
+
+        updates.notification_settings = coerceEnabledShopNotificationSettings(
+          normalizeShopNotificationSettings({
+            ...currentShop.notification_settings,
+            ...toStoredNotificationSettings(body.notificationSettings!),
+          }),
+        );
+        updates.updated_at = new Date().toISOString();
+      }
 
       if (hasCustomerPageUpdates) {
         const currentCustomerPageSettings = currentShop?.customer_page_settings ?? {};
@@ -298,7 +413,7 @@ export async function PATCH(request: NextRequest) {
               }
             : {}),
           ...(body.customerServiceOverrides !== undefined
-            ? { customer_service_overrides: normalizeCustomerServiceOverrides(body.customerServiceOverrides) }
+            ? { customer_service_overrides: sourceBoundCustomerServiceOverrides ?? {} }
             : {}),
           ...(body.discountCoupons !== undefined ? { discount_coupons: normalizeDiscountCoupons(body.discountCoupons) } : {}),
         };
@@ -353,13 +468,19 @@ export async function PATCH(request: NextRequest) {
       changes: identityChanges,
     });
 
-    const result = await admin
+    let updateQuery = admin
       .from("shops")
       .update(updates)
       .eq("id", owner.shopId)
-      .eq("owner_user_id", owner.userId)
-      .select("id,name,phone,address,description,approval_mode,concurrent_capacity,reservation_policy_settings,customer_page_settings")
-      .single<{
+      .eq("owner_user_id", owner.userId);
+
+    if (hasNotificationSettingsUpdate && currentShop?.updated_at) {
+      updateQuery = updateQuery.eq("updated_at", currentShop.updated_at);
+    }
+
+    const result = await updateQuery
+      .select("id,name,phone,address,description,approval_mode,concurrent_capacity,reservation_policy_settings,customer_page_settings,notification_settings")
+      .maybeSingle<{
         id: string;
         name: string;
         phone: string;
@@ -373,10 +494,14 @@ export async function PATCH(request: NextRequest) {
           pending_hold_limit?: 1 | 2 | 3;
         };
         customer_page_settings: Record<string, unknown>;
+        notification_settings?: Partial<ShopNotificationSettings> | null;
       }>();
 
     if (result.error) {
-      throw new OwnerApiError(result.error.message, 500);
+      throw new OwnerApiError(hasNotificationSettingsUpdate ? "알림톡 설정을 저장하지 못했습니다." : result.error.message, 500);
+    }
+    if (!result.data) {
+      throw new OwnerApiError("다른 설정 변경이 반영되었습니다. 화면을 다시 확인해 주세요.", 409);
     }
 
     await insertShopIdentityChangeEvents({
@@ -389,21 +514,26 @@ export async function PATCH(request: NextRequest) {
       source: "owner_shop_patch",
     });
 
-    return ownerMobileCorsJson(request, { shop: result.data });
+    const shop = hasNotificationSettingsUpdate
+      ? {
+          ...result.data,
+          notificationSettings: toMobileNotificationSettingsReadback(result.data.notification_settings),
+        }
+      : result.data;
+    return ownerMobileCorsJson(request, { shop }, undefined, SHOP_WRITE_CORS);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return ownerMobileCorsJson(request, { message: "매장 정보를 다시 확인해 주세요." }, { status: 400 });
+      return ownerMobileCorsJson(request, { message: "매장 정보를 다시 확인해 주세요." }, { status: 400 }, SHOP_WRITE_CORS);
     }
 
     if (error instanceof OwnerApiError) {
-      return ownerMobileCorsJson(request, { message: error.message }, { status: error.status });
+      return ownerMobileCorsJson(request, { message: error.message }, { status: error.status }, SHOP_WRITE_CORS);
     }
 
-    const message = error instanceof Error ? error.message : "매장 정보를 저장하지 못했습니다.";
-    return ownerMobileCorsJson(request, { message }, { status: 500 });
+    return ownerMobileCorsJson(request, { message: "매장 정보를 저장하지 못했습니다." }, { status: 500 }, SHOP_WRITE_CORS);
   }
 }
 
 export async function OPTIONS(request: NextRequest) {
-  return ownerMobileCorsPreflight(request);
+  return ownerMobileCorsPreflight(request, SHOP_WRITE_CORS);
 }

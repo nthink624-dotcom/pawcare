@@ -1,9 +1,8 @@
 ﻿"use client";
 
 import { Camera, Info, LoaderCircle, Save, Scissors, Settings2, Store, Trash2, UserRound } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type TouchEvent } from "react";
 
-import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
 import {
   createOwnerStaffProfileImageFromFile,
   getOwnerMediaSignedUrls,
@@ -104,7 +103,7 @@ function TextInput({
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
       onBlur={(event) => onCommit?.(event.target.value)}
-      className="h-10 w-full rounded-[10px] border border-[#d8dce3] bg-[#f6f8fb] px-3 text-[16px] font-normal text-[#181b21] outline-none transition placeholder:text-[#969ba4] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#181b21] focus:border-[#2f6bd4] focus:bg-white focus:ring-4 focus:ring-[#2f6bd4]/10"
+      className="min-h-11 w-full rounded-[10px] border border-[#d8dce3] bg-[#f6f8fb] px-3 text-[16px] font-normal text-[#181b21] outline-none transition placeholder:text-[#969ba4] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#181b21] focus:border-[#2f6bd4] focus:bg-white focus:ring-4 focus:ring-[#2f6bd4]/10"
     />
   );
 }
@@ -144,7 +143,7 @@ function PanelCard({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-5 overflow-hidden rounded-[16px] border border-[#e1e4ea] bg-white shadow-[0_1px_2px_rgba(30,35,45,0.03)]">
+    <section id={id} className="scroll-mt-5 min-w-0 rounded-[16px] border border-[#e1e4ea] bg-white shadow-[0_1px_2px_rgba(30,35,45,0.03)]">
       {!hideHeader ? (
         <div className="flex items-start gap-3 px-5 pt-5">
           <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[10px] bg-[#2f6bd4]/10 text-[#2f6bd4]">
@@ -157,7 +156,7 @@ function PanelCard({
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       ) : null}
-      <div className="px-5 pb-5 pt-4">{children}</div>
+      <div className="px-3 pb-5 pt-4 sm:px-5">{children}</div>
     </section>
   );
 }
@@ -323,9 +322,7 @@ export default function ShopInfoSettingsPanel({
   children,
   serviceMenuContent,
   shop,
-  previewServices = [],
   staffMembers = [],
-  ownerProfile,
   businessHoursSummary = "",
   closedDaysSummary = "",
   editable = true,
@@ -379,54 +376,12 @@ export default function ShopInfoSettingsPanel({
       { id: "basic", label: "기본 정보" },
       { id: "staff-profile", label: "프로필 관리" },
       { id: "hours", label: "영업 시간", hidden: !children },
-      { id: "menu", label: "서비스/가격", hidden: !serviceMenuContent },
+      { id: "menu", label: "요금표 관리", hidden: !serviceMenuContent },
     ].filter((tab) => !tab.hidden),
     [children, serviceMenuContent],
   );
   const [activeSectionId, setActiveSectionId] = useState(sectionTabs[0]?.id ?? "basic");
   const settingsScrollRef = useRef<HTMLDivElement | null>(null);
-  const effectiveDescription =
-    description || shop?.description?.trim() || shop?.customer_page_settings.tagline?.trim() || "";
-  const customerPreviewShop = useMemo(() => {
-    if (!shop) return null;
-
-    return {
-      ...shop,
-      name: shopName || shop.name,
-      phone: phone || shop.phone,
-      address: address || shop.address,
-      description: effectiveDescription,
-      approval_mode: "auto" as const,
-      customer_page_settings: {
-        ...shop.customer_page_settings,
-        tagline: effectiveDescription || shop.customer_page_settings.tagline,
-        social_links: {
-          instagram_url: instagramUrl,
-          kakao_channel_url: kakaoChannelUrl,
-          naver_blog_url: naverBlogUrl,
-          tiktok_url: "",
-          threads_url: threadsUrl,
-        },
-        address_detail: addressDetail || shop.customer_page_settings.address_detail,
-        hero_image_url: activeProfileImage,
-        hero_image_urls: carouselProfileImages,
-      },
-    };
-  }, [
-    activeProfileImage,
-    address,
-    addressDetail,
-    carouselProfileImages,
-    effectiveDescription,
-    instagramUrl,
-    kakaoChannelUrl,
-    naverBlogUrl,
-    phone,
-    shop,
-    shopName,
-    threadsUrl,
-  ]);
-
   function handleProfileTouchStart(event: TouchEvent<HTMLButtonElement>) {
     profileTouchStartXRef.current = event.touches[0]?.clientX ?? null;
   }
@@ -608,65 +563,61 @@ export default function ShopInfoSettingsPanel({
   }, [shop?.id, staffMembers]);
 
   useEffect(() => {
-    const scrollContainer = settingsScrollRef.current;
-    if (!scrollContainer) return;
-    const container = scrollContainer;
+    if (sectionTabs.some((tab) => tab.id === activeSectionId)) return;
+    setActiveSectionId(sectionTabs[0]?.id ?? "basic");
+  }, [activeSectionId, sectionTabs]);
 
-    function updateActiveSection() {
-      const bottomGap = container.scrollHeight - container.scrollTop - container.clientHeight;
-      if (bottomGap <= 8) {
-        setActiveSectionId(sectionTabs[sectionTabs.length - 1]?.id ?? "basic");
-        return;
-      }
-
-      const containerTop = container.getBoundingClientRect().top;
-      const activeLine = Math.min(220, Math.max(120, container.clientHeight * 0.28));
-      let nextSectionId = sectionTabs[0]?.id ?? "basic";
-
-      for (const tab of sectionTabs) {
-        const section = container.querySelector<HTMLElement>(`#shop-info-${tab.id}`);
-        if (!section) continue;
-        const sectionTop = section.getBoundingClientRect().top - containerTop;
-        if (sectionTop <= activeLine) {
-          nextSectionId = tab.id;
-        }
-      }
-
-      setActiveSectionId(nextSectionId);
-    }
-
-    updateActiveSection();
-    container.addEventListener("scroll", updateActiveSection, { passive: true });
-    return () => container.removeEventListener("scroll", updateActiveSection);
-  }, [sectionTabs]);
-
-  function scrollToSection(sectionId: string) {
-    const scrollContainer = settingsScrollRef.current;
-    const section = scrollContainer?.querySelector<HTMLElement>(`#shop-info-${sectionId}`);
-    if (!scrollContainer || !section) return;
-
-    const containerTop = scrollContainer.getBoundingClientRect().top;
-    const sectionTop = section.getBoundingClientRect().top;
-    scrollContainer.scrollTo({
-      top: scrollContainer.scrollTop + sectionTop - containerTop - 20,
-      behavior: "smooth",
-    });
+  function changeActiveSection(sectionId: string) {
     setActiveSectionId(sectionId);
+    settingsScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  function handleSectionTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, currentSectionId: string) {
+    const currentIndex = sectionTabs.findIndex((tab) => tab.id === currentSectionId);
+    if (currentIndex < 0) return;
+
+    const lastIndex = sectionTabs.length - 1;
+    const nextIndex = event.key === "ArrowRight"
+      ? Math.min(currentIndex + 1, lastIndex)
+      : event.key === "ArrowLeft"
+        ? Math.max(currentIndex - 1, 0)
+        : event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? lastIndex
+            : null;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextSectionId = sectionTabs[nextIndex]?.id;
+    if (!nextSectionId) return;
+    changeActiveSection(nextSectionId);
+    document.getElementById(`shop-info-tab-${nextSectionId}`)?.focus();
   }
 
   return (
-    <div className="grid h-full min-h-0 gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-transparent bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)] after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[18px] after:border after:border-[#dbe2ea] after:content-['']">
-          <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-5 py-3 backdrop-blur">
+    <div className="h-full min-h-0 min-w-0">
+        <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:px-5">
             <div className="flex items-center justify-between gap-4">
-              <div className="flex h-[42px] min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div
+                role="tablist"
+                aria-label="설정 메뉴"
+                className="flex min-h-[54px] min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-full border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
                 {sectionTabs.map((tab) => (
                   <button
+                    id={`shop-info-tab-${tab.id}`}
                     key={tab.id}
                     type="button"
-                    onClick={() => scrollToSection(tab.id)}
+                    role="tab"
+                    aria-controls={`shop-info-panel-${tab.id}`}
+                    aria-selected={activeSectionId === tab.id}
+                    tabIndex={activeSectionId === tab.id ? 0 : -1}
+                    onClick={() => changeActiveSection(tab.id)}
+                    onKeyDown={(event) => handleSectionTabKeyDown(event, tab.id)}
                     className={cn(
-                      "inline-flex h-8 shrink-0 items-center rounded-full px-4 text-[15px] font-medium transition",
+                      "inline-flex h-11 shrink-0 items-center rounded-full px-4 text-[15px] font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
                       activeSectionId === tab.id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]",
                     )}
                   >
@@ -677,14 +628,15 @@ export default function ShopInfoSettingsPanel({
             </div>
           </div>
 
-          <div ref={settingsScrollRef} className="min-h-0 overflow-y-auto bg-white py-5 pl-5 pr-1 [scrollbar-width:thin]">
-            <div className="w-full space-y-[18px] pb-24">
-              <PanelCard
-                id="shop-info-basic"
-                icon={<Store className="h-[17px] w-[17px]" />}
-                title="기본 정보"
-                hideHeader
-              >
+          <div ref={settingsScrollRef} className="min-h-0 overflow-y-auto bg-white px-3 py-5 sm:pl-5 sm:pr-1 [scrollbar-width:thin]">
+            <div className="min-w-0 w-full space-y-[18px] pb-24">
+              <div id="shop-info-panel-basic" role="tabpanel" aria-labelledby="shop-info-tab-basic" hidden={activeSectionId !== "basic"}>
+                <PanelCard
+                  id="shop-info-basic"
+                  icon={<Store className="h-[17px] w-[17px]" />}
+                  title="기본 정보"
+                  hideHeader
+                >
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-[#181b21]">기본 정보</h3>
                 </div>
@@ -853,7 +805,7 @@ export default function ShopInfoSettingsPanel({
                               type="button"
                               onClick={() => document.getElementById("shop-profile-images-input")?.click()}
                               disabled={!editable || profileImagesBusy}
-                              className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-[#d8dce3] bg-[#f6f8fb] text-[#969ba4] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex aspect-square min-h-11 min-w-11 w-full flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-[#d8dce3] bg-[#f6f8fb] text-[#969ba4] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
                               aria-label="매장 사진 추가"
                             >
                               <Camera className="h-4 w-4" />
@@ -918,14 +870,14 @@ export default function ShopInfoSettingsPanel({
 
                   <label className="grid gap-1.5">
                     <FieldLabel required>매장 주소</FieldLabel>
-                    <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(260px,1fr)_minmax(180px,0.45fr)_80px]">
+                    <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.45fr)_minmax(80px,max-content)]">
                       <TextInput value={address} disabled={!editable} onChange={(value) => onRowChange("address", value)} onCommit={(value) => onRowCommit("address", value)} />
                       <TextInput value={addressDetail} disabled={!editable} onChange={(value) => onRowChange("addressDetail", value)} onCommit={(value) => onRowCommit("addressDetail", value)} />
                       <button
                         type="button"
                         onClick={onOpenAddressSearch}
                         disabled={!editable}
-                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#d8dce3] bg-white px-3 text-[16px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:text-[#969ba4]"
+                        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] border border-[#d8dce3] bg-white px-3 text-[16px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:text-[#969ba4]"
                       >
                         검색
                       </button>
@@ -955,14 +907,16 @@ export default function ShopInfoSettingsPanel({
                     </label>
                   </div>
                 </div>
-              </PanelCard>
+                </PanelCard>
+              </div>
 
-              <PanelCard
-                id="shop-info-staff-profile"
-                icon={<UserRound className="h-[17px] w-[17px]" />}
-                title="프로필 관리"
-                hideHeader
-              >
+              <div id="shop-info-panel-staff-profile" role="tabpanel" aria-labelledby="shop-info-tab-staff-profile" hidden={activeSectionId !== "staff-profile"}>
+                <PanelCard
+                  id="shop-info-staff-profile"
+                  icon={<UserRound className="h-[17px] w-[17px]" />}
+                  title="프로필 관리"
+                  hideHeader
+                >
                 <CardSectionTitle>프로필 관리</CardSectionTitle>
                 {staffProfileFeedback ? (
                   <div
@@ -977,7 +931,7 @@ export default function ShopInfoSettingsPanel({
                   </div>
                 ) : null}
                 {staffMembers.length > 0 ? (
-                  <div className="grid gap-3">
+                    <div className="grid min-w-0 gap-3">
                     {staffMembers.map((staffMember) => {
                       const draft = staffProfileDrafts[staffMember.id] ?? {
                         profileImageUrls: normalizeStaffProfileImages(staffMember.profileImageUrls, staffMember.profileImageUrl),
@@ -991,8 +945,8 @@ export default function ShopInfoSettingsPanel({
                       const isSaving = savingStaffProfileId === staffMember.id;
 
                       return (
-                        <div key={staffMember.id} className="rounded-[14px] border border-[#e1e5ec] bg-[#fbfcfd] p-4">
-                          <div className="grid gap-4 lg:grid-cols-[148px_minmax(0,1fr)]">
+                        <div key={staffMember.id} className="min-w-0 rounded-[14px] border border-[#e1e5ec] bg-[#fbfcfd] p-3 sm:p-4">
+                          <div className="grid min-w-0 w-full gap-4 lg:grid-cols-[148px_minmax(0,1fr)]">
                             <div>
                               <div className="flex justify-center lg:justify-start">
                                 <label className="group relative flex h-[196px] w-[144px] cursor-pointer flex-col items-center justify-center rounded-[14px] border border-[#dbe2ea] bg-white px-3 py-4 text-center transition hover:border-[#9bb8f4] hover:bg-[#f8fafc]">
@@ -1027,13 +981,13 @@ export default function ShopInfoSettingsPanel({
                             </div>
                             <div className="grid min-w-0 gap-3">
                               <label className="grid gap-1.5">
-                                <span className="flex items-center justify-between gap-3">
+                                <span className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                                   <FieldLabel>프로필 메시지</FieldLabel>
                                   <button
                                     type="button"
                                     disabled={!editable || isSaving || !onStaffMembersChange}
                                     onClick={() => void saveStaffProfile(staffMember.id)}
-                                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#2f6bd4] px-3.5 text-[13px] font-semibold text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:bg-[#bdc2cb]"
+                                    className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#2f6bd4] px-3.5 text-[13px] font-semibold text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:bg-[#bdc2cb]"
                                   >
                                     <Save className="h-3.5 w-3.5" />
                                     {isSaving ? "저장 중" : "저장"}
@@ -1059,46 +1013,40 @@ export default function ShopInfoSettingsPanel({
                     등록된 직원이 없습니다.
                   </div>
                 )}
-              </PanelCard>
+                </PanelCard>
+              </div>
 
               {children ? (
-                <PanelCard
-                  id="shop-info-hours"
-                  icon={<Settings2 className="h-[17px] w-[17px]" />}
-                  title="영업 시간"
-                  hideHeader
-                >
-                  <CardSectionTitle>영업 시간</CardSectionTitle>
-                  <div>{children}</div>
-                </PanelCard>
+                <div id="shop-info-panel-hours" role="tabpanel" aria-labelledby="shop-info-tab-hours" hidden={activeSectionId !== "hours"}>
+                  <PanelCard
+                    id="shop-info-hours"
+                    icon={<Settings2 className="h-[17px] w-[17px]" />}
+                    title="영업 시간"
+                    hideHeader
+                  >
+                    <CardSectionTitle>영업 시간</CardSectionTitle>
+                    <div className="min-w-0 w-full max-w-full [overflow-wrap:anywhere]">{children}</div>
+                  </PanelCard>
+                </div>
               ) : null}
 
               {serviceMenuContent ? (
-                <PanelCard
-                  id="shop-info-menu"
-                  icon={<Scissors className="h-[17px] w-[17px]" />}
-                  title="서비스/가격"
-                  hideHeader
-                >
-                  <div>{serviceMenuContent}</div>
-                </PanelCard>
+                <div id="shop-info-panel-menu" role="tabpanel" aria-labelledby="shop-info-tab-menu" hidden={activeSectionId !== "menu"}>
+                  <PanelCard
+                    id="shop-info-menu"
+                    icon={<Scissors className="h-[17px] w-[17px]" />}
+                    title="요금표 관리"
+                    hideHeader
+                  >
+                    <div className="min-w-0 w-full max-w-full overflow-x-auto">{serviceMenuContent}</div>
+                  </PanelCard>
+                </div>
               ) : null}
 
               <p className="text-[13px] font-normal text-[#969ba4]">* 표시는 필수 입력 항목입니다.</p>
             </div>
           </div>
         </div>
-
-        <aside className="hidden h-full min-h-0 min-w-0 rounded-[18px] border border-transparent bg-white shadow-[inset_0_0_0_1px_#dbe2ea,0_14px_34px_rgba(15,23,42,0.06)] xl:flex xl:flex-col">
-          <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-5">
-            <CustomerPagePhonePreview
-              shop={customerPreviewShop}
-              services={previewServices}
-              staffMembers={staffMembers}
-              ownerProfile={ownerProfile}
-            />
-          </div>
-        </aside>
     </div>
   );
 }

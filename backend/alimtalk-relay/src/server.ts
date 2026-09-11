@@ -7,6 +7,8 @@ import dotenv from "dotenv";
 import express from "express";
 import { z } from "zod";
 
+import { requireHttpsTransportUrl } from "./https-transport-url.js";
+
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDirPath = path.dirname(currentFilePath);
 const relayEnvFilePath = path.resolve(process.cwd(), ".env");
@@ -66,6 +68,23 @@ const relayEnvKeys = [
 
 type RelayEnvKey = (typeof relayEnvKeys)[number];
 
+function requireRelayTransportUrl(value: string, name: string) {
+  return requireHttpsTransportUrl(value, name, {
+    allowLoopbackInDevelopment: true,
+    runtimeEnvironment:
+      process.env.NODE_ENV ??
+      (process.env.npm_lifecycle_event === "dev" ? "development" : "production"),
+  });
+}
+
+function validateRelayTransportConfig(config: RelayConfig): RelayConfig {
+  return {
+    ...config,
+    ssodaaApiUrl: requireRelayTransportUrl(config.ssodaaApiUrl, "SSODAA_API_URL"),
+    ssodaaSentListUrl: requireRelayTransportUrl(config.ssodaaSentListUrl, "SSODAA_SENT_LIST_URL"),
+  };
+}
+
 function loadRelayConfig(): RelayConfig {
   return {
     port: Number(process.env.PORT || 4010),
@@ -93,7 +112,7 @@ function loadRelayConfig(): RelayConfig {
   };
 }
 
-let env = loadRelayConfig();
+let env = validateRelayTransportConfig(loadRelayConfig());
 
 function getRelayConfigPayload() {
   return {
@@ -183,7 +202,7 @@ function applyRelayConfig(config: ReturnType<typeof getRelayConfigPayload>) {
   for (const [key, value] of Object.entries(nextEntries)) {
     process.env[key] = value;
   }
-  env = loadRelayConfig();
+  env = validateRelayTransportConfig(loadRelayConfig());
 }
 
 const requestSchema = z.object({
@@ -264,10 +283,26 @@ const templateRegisterSchema = z.object({
   templateButtons: z.array(templateButtonSchema).max(5).optional().nullable(),
 });
 
+const relayTransportUrlSchema = (name: string) =>
+  z
+    .string()
+    .url()
+    .refine(
+      (value) => {
+        try {
+          requireRelayTransportUrl(value, name);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: `${name}: HTTPS transport is required.` },
+    );
+
 const adminConfigSchema = z.object({
   relaySecret: z.string(),
-  ssodaaApiUrl: z.string().url(),
-  ssodaaSentListUrl: z.string().url(),
+  ssodaaApiUrl: relayTransportUrlSchema("SSODAA_API_URL"),
+  ssodaaSentListUrl: relayTransportUrlSchema("SSODAA_SENT_LIST_URL"),
   ssodaaApiKey: z.string(),
   ssodaaTokenKey: z.string(),
   ssodaaSenderKey: z.string(),

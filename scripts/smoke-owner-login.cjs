@@ -1,10 +1,6 @@
 const DEFAULT_BASE_URL = "http://127.0.0.1:3000";
-const DEFAULT_EMAIL = "devowner@petmanager.test";
-const DEFAULT_PASSWORD = "test1234";
 
 const baseUrl = (process.env.OWNER_LOGIN_SMOKE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, "");
-const email = process.env.OWNER_LOGIN_SMOKE_EMAIL || DEFAULT_EMAIL;
-const password = process.env.OWNER_LOGIN_SMOKE_PASSWORD || DEFAULT_PASSWORD;
 
 async function readJson(response) {
   const text = await response.text();
@@ -22,22 +18,21 @@ async function main() {
     throw new Error(devOwnerResult.message || `개발 오너 준비 실패 (${devOwnerResponse.status})`);
   }
 
-  const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  const loginResult = await readJson(loginResponse);
-
-  if (!loginResponse.ok || !loginResult.success) {
-    throw new Error(loginResult.message || `로그인 실패 (${loginResponse.status})`);
+  if (Object.hasOwn(devOwnerResult, "email") || Object.hasOwn(devOwnerResult, "password")) {
+    throw new Error("검수용 테스트 오너 응답에 계정 정보가 노출되었습니다.");
   }
 
-  if (!loginResult.session?.accessToken || !loginResult.session?.refreshToken) {
-    throw new Error("로그인은 성공했지만 세션 토큰이 응답에 없습니다.");
+  if (!devOwnerResult.ready || !devOwnerResult.session?.accessToken || !devOwnerResult.session?.refreshToken) {
+    throw new Error("검수용 테스트 오너 준비는 성공했지만 로그인 세션이 없습니다.");
   }
 
-  console.log(`OK owner login smoke passed for ${email} at ${baseUrl}`);
+  const statusResponse = await fetch(`${baseUrl}/api/dev/create-owner`, { method: "GET" });
+  const statusResult = await readJson(statusResponse);
+  if (!statusResponse.ok || !statusResult.ready || statusResult.missing?.length) {
+    throw new Error(statusResult.message || `검수용 테스트 오너 상태 확인 실패 (${statusResponse.status})`);
+  }
+
+  console.log(`OK development test owner session smoke passed at ${baseUrl}`);
 }
 
 main().catch((error) => {

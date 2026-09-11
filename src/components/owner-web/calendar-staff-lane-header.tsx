@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 
+import { StableAvatar } from "@/components/owner-web/stable-avatar";
 import { getStaffChipTone } from "@/lib/staff-chip-colors";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +11,7 @@ export function CalendarStaffLaneHeader({
   staffKey,
   chipColorIndex,
   profileImageUrl,
+  profileImageAssetId,
   startLabel,
   endLabel,
   bookingCount,
@@ -21,6 +23,7 @@ export function CalendarStaffLaneHeader({
   staffKey: string;
   chipColorIndex?: number | null;
   profileImageUrl?: string | null;
+  profileImageAssetId?: string | null;
   startLabel?: string;
   endLabel?: string;
   bookingCount: number;
@@ -28,55 +31,51 @@ export function CalendarStaffLaneHeader({
   flexBasis: string;
   onSelect: () => void;
 }) {
-  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const staffTone = getStaffChipTone(staffKey, chipColorIndex);
-  const selectedStyle = selected
-    ? {
-        backgroundColor: staffTone.background,
-        "--staff-selected-color": staffTone.selectedBackground,
-      }
-    : {};
+  const headerTone = getStaffChipTone(staffKey, chipColorIndex);
+  const headerStyle = {
+    backgroundColor: headerTone.background,
+  };
 
   return (
-    <section
+    <button
+      type="button"
       onClick={onSelect}
+      aria-pressed={selected}
+      data-schedule-staff-header={staffKey}
+      data-schedule-staff-selected={selected ? "true" : "false"}
       className={cn(
-        "relative h-[68px] min-w-[160px] cursor-pointer border border-l-0 border-t-0 border-[#edf1f5] bg-white px-4 py-2 transition hover:bg-[#f8fbff]",
-        selected && "after:absolute after:inset-x-4 after:bottom-0 after:h-[3px] after:rounded-full after:bg-[var(--staff-selected-color)]",
+        "relative h-[68px] min-w-[160px] cursor-pointer border border-l-0 border-t-0 border-[#e8edf3] px-4 py-2 text-left transition focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]",
+        selected && "z-10",
       )}
-      style={{ flex: flexBasis, ...selectedStyle } as CSSProperties}
+      style={{ flex: flexBasis, ...headerStyle } as CSSProperties}
     >
+      <span
+        aria-hidden="true"
+        data-schedule-staff-header-accent="true"
+        className="pointer-events-none absolute bottom-px left-[7%] h-[2px] w-[86%] rounded-full"
+        style={{ backgroundColor: headerTone.selectedBackground }}
+      />
       <div className="flex h-full min-w-0 items-center gap-3">
-        <div
-          className={cn(
-            "relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-[#eef3f8] text-[14px] font-semibold text-[#52657a] shadow-[0_4px_12px_rgba(15,23,42,0.1)] ring-1 ring-[#dce5ef]",
-            selected && "ring-2",
-          )}
-          style={selected ? { boxShadow: `0 0 0 2px ${staffTone.border}, 0 4px 12px rgba(15,23,42,0.1)` } : undefined}
-        >
-          <span aria-hidden="true">{name.slice(0, 1)}</span>
-          {profileImageUrl && profileImageUrl !== failedImageUrl ? (
-            <img
-              src={profileImageUrl}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
-              onError={() => setFailedImageUrl(profileImageUrl)}
-            />
-          ) : null}
-        </div>
+        <StableAvatar
+          identity={staffKey}
+          name={name}
+          imageUrl={profileImageUrl}
+          imageAssetId={profileImageAssetId}
+          size="md"
+          className="border-[#e8edf3] bg-[#f8fafc] text-[#52657a]"
+        />
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 truncate text-[15px] font-semibold leading-5 text-[#334155]" style={selected ? { color: staffTone.text } : undefined}>{name}</p>
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: selected ? staffTone.selectedBackground : "#1f9d55" }} aria-label="근무 중" />
+            <p className="min-w-0 truncate text-[15px] font-semibold leading-5 text-[#334155]">{name}</p>
           </div>
-          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[11px] font-medium leading-4 text-[#64748b]" style={selected ? { color: staffTone.mutedText } : undefined}>
+          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[13px] font-medium leading-5 text-[#64748b] tabular-nums">
             {startLabel && endLabel ? <span className="truncate">{startLabel}–{endLabel}</span> : null}
-            <span className="h-3 w-px shrink-0 bg-[#dbe3ec]" aria-hidden="true" />
-            <span className="shrink-0 text-[#475569]" style={selected ? { color: staffTone.text } : undefined}>예약 {bookingCount}건</span>
+            <span className="h-3 w-px shrink-0 bg-[#e8edf3]" aria-hidden="true" />
+            <span className="shrink-0 text-[#475569]">예약 {bookingCount}건</span>
           </div>
         </div>
       </div>
-    </section>
+    </button>
   );
 }

@@ -8,6 +8,7 @@ export const defaultReservationPolicySettings: ReservationPolicySettings = {
   cancel_window: "2h",
   customer_change_enabled: true,
   booking_blocked_windows: [],
+  booking_close_grace_minutes: 0,
   ai_booking_time_optimization_enabled: true,
   ai_booking_recommendation_mode: "continuity",
   ai_booking_custom_instruction: "",
@@ -54,6 +55,9 @@ export function normalizeReservationPolicySettings(value: unknown): ReservationP
     booking_blocked_windows: hasBlockedWindows
       ? normalizeBookingBlockedWindows(source.booking_blocked_windows)
       : defaultReservationPolicySettings.booking_blocked_windows,
+    booking_close_grace_minutes: [0, 15, 30, 60].includes(source.booking_close_grace_minutes ?? -1)
+      ? source.booking_close_grace_minutes
+      : 0,
     regular_closed_cycle: regularClosedCycle,
     regular_closed_anchor_date: regularClosedCycle === "biweekly" ? regularClosedAnchorDate : null,
     // These legacy keys remain in stored shop settings for backward compatibility.

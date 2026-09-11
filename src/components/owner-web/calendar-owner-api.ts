@@ -1,12 +1,28 @@
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { addDate } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, Pet, PetStaffNote, Service } from "@/types/domain";
+import type { AppointmentVisitWeightResponse, SaveAppointmentVisitWeightInput, VisitWeightMeasurement } from "@/types/visit-weight";
 
 export type OwnerScheduleRangeResponse = Pick<BootstrapPayload, "appointments" | "groomingRecords" | "notifications"> & {
   shopId: string;
   from: string;
   to: string;
 };
+
+export function fetchOwnerAppointmentVisitWeight(shopId: string, appointmentId: string) {
+  const query = new URLSearchParams({ shopId, appointmentId });
+  return fetchApiJsonWithAuth<AppointmentVisitWeightResponse>(`/api/owner/appointment-visit-weight?${query.toString()}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+}
+
+export function putOwnerAppointmentVisitWeight(input: SaveAppointmentVisitWeightInput) {
+  return fetchApiJsonWithAuth<{ measurement: VisitWeightMeasurement }>("/api/owner/appointment-visit-weight", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
 
 export type OwnerScheduleCreateResponse = {
   guardian: Guardian | null;
@@ -15,6 +31,7 @@ export type OwnerScheduleCreateResponse = {
 };
 
 const bookingStatusToAppointmentStatus: Partial<Record<string, AppointmentStatus>> = {
+  "예약 대기": "pending",
   "확정": "confirmed",
   "진행 중": "in_progress",
   "픽업 준비": "almost_done",

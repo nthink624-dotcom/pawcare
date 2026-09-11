@@ -272,13 +272,13 @@ export default function OwnerBillingScreen({
     : selectedPlan.code === OWNER_SINGLE_MONTHLY_PLAN_CODE
       ? [
           "선택한 요금제는 등록된 카드로 매월 29,000원이 자동 결제됩니다.",
-          "알림톡 발송 기능이 포함되며 건별 추가 충전이나 월별 크레딧 리셋이 없습니다.",
+          "알림톡 발송 기능은 선택한 요금제의 이용 정책에 따라 제공됩니다.",
           `카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, ${PETMANAGER_SERVICE_NAME}에는 저장되지 않습니다.`,
         ]
       : [
         "선택한 요금제는 등록된 카드로 매월 자동 결제됩니다.",
         "카드 등록이 완료되면 선택한 플랜 결제가 바로 진행됩니다.",
-        `${selectedPlan.alimtalkIncludedLabel}이며, 초과 알림톡은 11원/건으로 부가세가 포함됩니다.`,
+        "알림톡 발송 기능은 선택한 요금제의 이용 정책에 따라 제공됩니다.",
         `카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, ${PETMANAGER_SERVICE_NAME}에는 저장되지 않습니다.`,
       ];
   const agreementContinueLabel =
@@ -651,7 +651,7 @@ export default function OwnerBillingScreen({
             <p className="mt-1.5 text-[12px] leading-5 text-[#8f5d66]">
               {summary.currentPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE
                 ? "이용 기간이 끝나면 예약 운영과 알림톡 기능 이용이 함께 중지됩니다."
-                : "포함 알림톡은 다음 유료 결제 주기에 다시 제공되지 않으며, 구매한 추가 발송 이용권은 정책에 따라 유지됩니다."}
+                : "이용 기간이 끝나면 예약 운영과 알림톡 기능 이용이 함께 중지됩니다."}
             </p>
           </div>
 
@@ -859,7 +859,7 @@ export default function OwnerBillingScreen({
               ? "체험 플랜은 관리자 배정용 플랜입니다. 유료 결제로 전환하려면 플랜을 변경해 주세요."
               : usesOneTimePayment
               ? "선택한 플랜은 결제 후 바로 시작할 수 있습니다."
-              : `${selectedStaffLimitLabel} 기준, ${selectedPlan.alimtalkIncludedLabel} 요금제입니다.`}
+              : `${selectedStaffLimitLabel} 기준 요금제입니다.`}
           </p>
         </div>
 

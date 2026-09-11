@@ -26,6 +26,8 @@ type OwnerSignInSession = {
   refresh_token: string;
 };
 
+const INVALID_CREDENTIALS_MESSAGE = "이메일 또는 비밀번호를 다시 확인해 주세요.";
+
 function getLoginErrorMessage(message?: string) {
   const normalized = (message ?? "").toLowerCase();
 
@@ -33,7 +35,7 @@ function getLoginErrorMessage(message?: string) {
     normalized.includes("invalid login credentials") ||
     normalized.includes("user not found")
   ) {
-    return "이메일 또는 비밀번호를 다시 확인해 주세요.";
+    return INVALID_CREDENTIALS_MESSAGE;
   }
   if (normalized.includes("rate limit")) {
     return "로그인 요청이 잠시 제한되었어요. 10분 뒤 다시 시도하거나 비밀번호 찾기로 재설정해 주세요.";
@@ -77,6 +79,19 @@ async function signInWithoutEmailConfirmationBlock({
   }
 
   return authClient.auth.signInWithPassword({ email, password });
+}
+
+async function lookupOwnerProfileByLoginId(
+  admin: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
+  email: string,
+) {
+  const startedAt = performance.now();
+  const result = await admin
+    .from("owner_profiles")
+    .select("user_id, shop_id, login_id")
+    .eq("login_id", email)
+    .maybeSingle<OwnerLoginProfile>();
+  return { result, durationMs: performance.now() - startedAt };
 }
 
 function createLoginResponse({
@@ -147,23 +162,20 @@ export async function POST(request: NextRequest) {
     }
 
     const signInStartedAt = performance.now();
-    const signInResult = await signInWithoutEmailConfirmationBlock({
-      authClient,
-      admin,
-      email,
-      password: body.password,
-    });
+    const [signInResult, ownerProfileLookup] = await Promise.all([
+      signInWithoutEmailConfirmationBlock({
+        authClient,
+        admin,
+        email,
+        password: body.password,
+      }),
+      lookupOwnerProfileByLoginId(admin, email),
+    ]);
     const signInMs = performance.now() - signInStartedAt;
     if (signInResult.error || !signInResult.data.user || !signInResult.data.session) {
-      const profileLookupStartedAt = performance.now();
-      const ownerProfileLookup = await admin
-        .from("owner_profiles")
-        .select("user_id")
-        .eq("login_id", email)
-        .maybeSingle<{ user_id: string }>();
-      const profileLookupMs = performance.now() - profileLookupStartedAt;
+      const profileLookupMs = ownerProfileLookup.durationMs;
 
-      if (ownerProfileLookup.error) {
+      if (ownerProfileLookup.result.error) {
         const response = NextResponse.json(
           { message: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." },
           { status: 503 },
@@ -175,9 +187,9 @@ export async function POST(request: NextRequest) {
         return response;
       }
 
-      if (!ownerProfileLookup.data?.user_id) {
+      if (!ownerProfileLookup.result.data?.user_id) {
         const response = NextResponse.json(
-          { reason: "email_not_registered", message: "등록되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요." },
+          { reason: "invalid_credentials", message: INVALID_CREDENTIALS_MESSAGE },
           { status: 401 },
         );
         response.headers.set(
@@ -188,7 +200,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        { reason: "invalid_password", message: getLoginErrorMessage(signInResult.error?.message) },
+        { reason: "invalid_credentials", message: getLoginErrorMessage(signInResult.error?.message) },
         {
           status: 401,
           headers: {
@@ -198,21 +210,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const profileVerifyStartedAt = performance.now();
-    const profileResult = await admin
-      .from("owner_profiles")
-      .select("user_id, shop_id, login_id")
-      .eq("user_id", signInResult.data.user.id)
-      .maybeSingle<OwnerLoginProfile>();
-    const profileVerifyMs = performance.now() - profileVerifyStartedAt;
+    const profileResult = ownerProfileLookup.result;
+    const profileLookupMs = ownerProfileLookup.durationMs;
 
     if (profileResult.error) {
       return NextResponse.json({ message: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 400 });
     }
 
-    if (!profileResult.data?.user_id || normalizeOwnerEmail(profileResult.data.login_id ?? "") !== email) {
+    if (
+      !profileResult.data?.user_id ||
+      profileResult.data.user_id !== signInResult.data.user.id ||
+      normalizeOwnerEmail(profileResult.data.login_id ?? "") !== email
+    ) {
       return NextResponse.json(
-        { reason: "email_not_registered", message: "등록되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요." },
+        { reason: "invalid_credentials", message: INVALID_CREDENTIALS_MESSAGE },
         { status: 401 },
       );
     }
@@ -223,9 +234,9 @@ export async function POST(request: NextRequest) {
       email,
       session: signInResult.data.session,
       timings: {
-        profileLookupMs: 0,
+        profileLookupMs,
         signInMs,
-        profileVerifyMs,
+        profileVerifyMs: 0,
       },
     });
   } catch (error) {

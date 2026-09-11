@@ -115,7 +115,7 @@ declare v_result jsonb; v_request_id uuid; v_payload_hash text;
 begin
   select signup_request_id, payload_hash into v_request_id, v_payload_hash
     from public.signup_idempotency_requests where trial_days = 14;
-  select public.claim_owner_signup_v4(v_request_id, v_payload_hash) into v_result;
+  select public.claim_owner_signup_v5(v_request_id, v_payload_hash) into v_result;
   if v_result ->> 'action' <> 'completed' or (v_result ->> 'trialDays')::integer <> 14 then
     raise exception 'idempotent trial result changed: %', v_result;
   end if;

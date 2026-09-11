@@ -1,11 +1,12 @@
 "use client";
 
-import { ChevronDown, ClipboardCheck, Lightbulb, LogOut, Search } from "lucide-react";
+import { CalendarPlus, ChevronDown, ChevronUp, CircleHelp, ClipboardCheck, HelpCircle, LogOut, MessageSquareText, MessageSquareWarning, Search } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
-import { useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 
 import PetManagerBrand from "@/components/brand/petmanager-brand";
+import type { OwnerFeedbackKind } from "@/components/owner-web/owner-feedback-adapter";
 import { type OwnerWebScreenKey } from "@/components/owner-web/owner-web-data";
 import OwnerFeatureRequestDialog from "@/components/owner-web/owner-feature-request-dialog";
 import { SoftSelect } from "@/components/owner-web/owner-web-ui";
@@ -89,6 +90,20 @@ const ownerWebNavigationItems = ownerWebSidebarGroups
   .flatMap((group) => group.items)
   .filter((item): item is Extract<OwnerWebNavigationItem, { key: OwnerWebScreenKey }> => !("href" in item));
 
+/**
+ * Only these cores own their full shell footprint. Other owner surfaces keep
+ * the existing neutral wrapper until their dedicated slice is accepted.
+ */
+const ownerWebSinglePlaneCoreScreens = new Set<OwnerWebScreenKey>([
+  "schedule",
+  "calendarRecords",
+  "customers",
+  "profitability",
+  "bookingLink",
+  "shopInfo",
+  "alerts",
+]);
+
 function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey; active: boolean }) {
   return (
     <span
@@ -110,119 +125,8 @@ function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey
   );
 }
 
-function formatAlimtalkCount(value: number | null | undefined) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
-  return value.toLocaleString("ko-KR");
-}
-
-function getAlimtalkIncludedProgress(summary: BootstrapPayload["alimtalkCreditSummary"]) {
-  const total = typeof summary?.included_total === "number" && Number.isFinite(summary.included_total)
-    ? Math.max(0, summary.included_total)
-    : 0;
-  const remaining = typeof summary?.included_remaining === "number" && Number.isFinite(summary.included_remaining)
-    ? Math.max(0, summary.included_remaining)
-    : 0;
-
-  if (total <= 0) {
-    return {
-      total,
-      remaining,
-      percent: 0,
-    };
-  }
-
-  return {
-    total,
-    remaining: Math.min(remaining, total),
-    percent: Math.max(0, Math.min(100, (remaining / total) * 100)),
-  };
-}
-
 const OWNER_HEADER_UTILITY_BUTTON_CLASS =
-  "inline-flex h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-transparent bg-transparent px-3 text-[13px] font-semibold text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]";
-
-function AlimtalkCreditMenu({
-  summary,
-  open,
-  onToggle,
-  containerRef,
-}: {
-  summary: BootstrapPayload["alimtalkCreditSummary"];
-  open: boolean;
-  onToggle: () => void;
-  containerRef?: RefObject<HTMLDivElement | null>;
-}) {
-  const includedRemaining = formatAlimtalkCount(summary?.included_remaining);
-  const includedTotal = formatAlimtalkCount(summary?.included_total);
-  const purchasedRemaining = formatAlimtalkCount(summary?.purchased_remaining);
-  const totalRemaining = formatAlimtalkCount(summary?.remaining_total);
-  const includedProgress = getAlimtalkIncludedProgress(summary);
-  const [helpOpen, setHelpOpen] = useState(false);
-
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={onToggle}
-        className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
-        aria-label="알림톡"
-        title="알림톡"
-      >
-        <span>알림톡</span>
-        <ChevronDown className={cn("h-3.5 w-3.5 text-[#94a3b8] transition-transform", open && "rotate-180")} strokeWidth={1.8} />
-      </button>
-      {open ? (
-        <div className="absolute right-0 top-11 z-[80] w-[260px] rounded-[10px] border border-[var(--bd)] bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
-          <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-2.5">
-            <p className="text-[12px] font-semibold text-[var(--ink)]">알림톡 잔여 건수</p>
-            <button
-              type="button"
-              onClick={() => setHelpOpen((prev) => !prev)}
-              className="inline-flex h-7 items-center rounded-[8px] border border-[#dbe6f2] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#475569] transition hover:border-[#bfd2ea] hover:bg-white"
-              aria-expanded={helpOpen}
-            >
-              도움말
-            </button>
-          </div>
-          <div className="mt-3 space-y-2">
-            <div className="rounded-[9px] border border-[#dbeafe] bg-[#f8fbff] px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] font-semibold text-[#334155]">무료 잔여</span>
-                <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">
-                  {includedRemaining}/{includedTotal}
-                </span>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#dbeafe]">
-                <div
-                  className="h-full rounded-full bg-[#2563eb] transition-[width]"
-                  style={{ width: `${includedProgress.percent}%` }}
-                />
-              </div>
-            </div>
-            <div className="rounded-[9px] border border-[#dbe6f2] bg-[#f8fbff] px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] font-semibold text-[#334155]">추가 이용권</span>
-                <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">
-                  {purchasedRemaining}건
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-2.5">
-              <span className="text-[12px] font-semibold text-[var(--ink2)]">남은 발송 건수</span>
-              <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">{totalRemaining}건</span>
-            </div>
-          </div>
-          {helpOpen ? (
-            <div className="mt-3 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[12px] font-medium leading-5 text-[#64748b]">
-              <p>월 제공분을 먼저 사용하고, 부족하면 구매한 추가 발송 이용권을 사용합니다.</p>
-              <p className="mt-1">월 제공분은 다음 결제 주기에 새로 제공되며, 구매한 이용권은 모두 사용할 때까지 유지됩니다.</p>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
+  "inline-flex h-11 items-center justify-center gap-1.5 rounded-[10px] border border-transparent bg-transparent px-3 text-[13px] font-semibold text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]";
 
 export default function OwnerWebAppShell({
   activeScreen,
@@ -245,8 +149,13 @@ export default function OwnerWebAppShell({
   onOpenAlerts,
   onOpenHelp,
   onOpenInitialSetup,
+  onAddReservation,
+  showInitialSetupAction = true,
   onLogout,
   loggingOut,
+  isTester = false,
+  feedbackFixtureMode = false,
+  setupMode = false,
   children,
 }: {
   activeScreen: OwnerWebScreenKey;
@@ -269,18 +178,71 @@ export default function OwnerWebAppShell({
   onOpenAlerts: () => void;
   onOpenHelp: () => void;
   onOpenInitialSetup: () => void;
+  onAddReservation: () => void;
+  showInitialSetupAction?: boolean;
   onLogout: () => void;
   loggingOut: boolean;
+  isTester?: boolean;
+  feedbackFixtureMode?: boolean;
+  setupMode?: boolean;
   children: ReactNode;
 }) {
-  const alimtalkRemainingTotal =
-    typeof alimtalkCreditSummary?.remaining_total === "number" ? alimtalkCreditSummary.remaining_total : null;
-  const alimtalkCreditsExhausted = alimtalkRemainingTotal !== null && alimtalkRemainingTotal <= 0;
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
+  const [feedbackKind, setFeedbackKind] = useState<OwnerFeedbackKind>("inquiry");
+  const [hanmadiOpen, setHanmadiOpen] = useState(false);
+  const hanmadiMenuId = useId();
+  const hanmadiContainerRef = useRef<HTMLDivElement>(null);
+  const hanmadiTriggerRef = useRef<HTMLButtonElement>(null);
+  const hanmadiMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const usesSinglePlaneCore = ownerWebSinglePlaneCoreScreens.has(activeScreen);
+
+  useEffect(() => {
+    if (!hanmadiOpen) return;
+
+    hanmadiMenuItemRefs.current[0]?.focus();
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !hanmadiContainerRef.current?.contains(event.target)) {
+        setHanmadiOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setHanmadiOpen(false);
+      hanmadiTriggerRef.current?.focus();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [hanmadiOpen]);
+
+  const handleHanmadiMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = hanmadiMenuItemRefs.current.filter((item): item is HTMLButtonElement => item !== null);
+    if (items.length === 0) return;
+
+    const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % items.length;
+    if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = items.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    items[nextIndex]?.focus();
+  };
 
   return (
     <div className="owner-font pm-owner-web flex h-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
-      <aside className="pm-owner-sidebar hidden h-screen w-[236px] shrink-0 flex-col border-r border-[var(--nav-bd)] bg-[var(--nav-bg)] lg:flex">
+      <aside className={cn(
+        "pm-owner-sidebar hidden h-screen w-[236px] shrink-0 flex-col border-r border-[var(--nav-bd)] bg-[var(--nav-bg)]",
+        setupMode ? "hidden" : "lg:flex",
+      )}>
         <div className="flex items-center pb-4 pl-[34px] pr-5 pt-[22px]">
           <PetManagerBrand
             imageClassName="h-5 w-auto"
@@ -299,7 +261,7 @@ export default function OwnerWebAppShell({
                   {group.items.map((screen) => {
                     const active = activeScreen === screen.key;
                     const itemClassName = cn(
-                      "relative flex h-[40px] w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[15px] font-medium text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
+                      "relative flex h-11 w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[15px] font-medium text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
                       active &&
                         "bg-[#eff6ff] font-semibold text-[var(--acc)] shadow-none hover:bg-[#eff6ff] hover:text-[var(--acc)]",
                     );
@@ -347,42 +309,45 @@ export default function OwnerWebAppShell({
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="hidden h-[60px] shrink-0 items-center gap-4 border-b border-[var(--line2)] bg-[var(--card)] px-[22px] lg:flex">
+        <header className={cn(
+          "hidden h-[60px] shrink-0 items-center gap-4 border-b border-[var(--line2)] bg-[var(--card)] px-[22px]",
+          setupMode ? "hidden" : "lg:flex",
+        )}>
           <label className="flex h-[38px] w-[300px] items-center gap-2 rounded-[10px] border border-transparent bg-[#eef1f5] px-3 text-[14px] text-[var(--mid)] transition focus-within:border-[var(--acc)] focus-within:bg-white focus-within:shadow-[0_0_0_3px_var(--acc-tint)]">
             <Search className="h-4 w-4 shrink-0" strokeWidth={1.7} />
             <input className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--mut)]" placeholder="검색" />
           </label>
 
           <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onOpenInitialSetup}
-              className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
-            >
-              <ClipboardCheck className="h-4 w-4" strokeWidth={1.8} />
-              초기 설정
-            </button>
+            {showInitialSetupAction ? (
+              <button
+                type="button"
+                onClick={onOpenInitialSetup}
+                className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
+              >
+                <ClipboardCheck className="h-4 w-4" strokeWidth={1.8} />
+                초기 설정
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setFeatureRequestOpen(true)}
-              className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
+              className={cn(
+                OWNER_HEADER_UTILITY_BUTTON_CLASS,
+                isTester && "!border-[#decda9] !bg-[#fffaf0] !text-[#80643f] hover:!bg-[#fbf2df] hover:!text-[#6f5534]",
+              )}
             >
-              <Lightbulb className="h-4 w-4" strokeWidth={1.8} />
-              기능 개선
+              <MessageSquareText className="h-4 w-4" strokeWidth={1.8} />
+              문의·의견 보내기
             </button>
             <button
               type="button"
               onClick={onOpenHelp}
               className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
             >
-              1:1 문의
+              <HelpCircle className="h-4 w-4" strokeWidth={1.8} />
+              도움·문의
             </button>
-            <AlimtalkCreditMenu
-              summary={alimtalkCreditSummary}
-              open={alimtalkCreditMenuOpen}
-              containerRef={alimtalkCreditMenuRef}
-              onToggle={onAlimtalkCreditToggle}
-            />
             <div className="mx-2 h-6 w-px bg-[var(--line2)]" />
             <div ref={storeMenuRef} className="relative">
               <button
@@ -424,77 +389,99 @@ export default function OwnerWebAppShell({
           </div>
         </header>
 
-        <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-[var(--line2)] bg-[var(--card)] px-5 lg:hidden">
-          <PetManagerBrand
-            imageClassName="h-5 w-auto"
-            nameClassName="text-[15px] text-[#1f2937]"
-          />
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onOpenInitialSetup}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
-              aria-label="초기 설정 가이드"
-              title="초기 설정 가이드"
-            >
-              <ClipboardCheck className="h-4.5 w-4.5" strokeWidth={1.8} />
-            </button>
+        <header className={cn(
+          "flex min-h-[60px] shrink-0 flex-wrap items-center gap-2 border-b border-[var(--line2)] bg-[var(--card)] px-4 py-2 sm:h-[60px] sm:flex-nowrap sm:px-5 sm:py-0",
+          setupMode ? "hidden" : "lg:hidden",
+        )}>
+          <div className="shrink-0">
+            <PetManagerBrand
+              imageClassName="h-5 w-auto"
+              nameClassName="text-[15px] text-[#1f2937]"
+            />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
+            {showInitialSetupAction ? (
+              <button
+                type="button"
+                onClick={onOpenInitialSetup}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
+                aria-label="초기 설정 가이드"
+                title="초기 설정 가이드"
+              >
+                <ClipboardCheck className="h-4.5 w-4.5" strokeWidth={1.8} />
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setFeatureRequestOpen(true)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
-              aria-label="기능 개선 요청"
-              title="기능 개선 요청"
+              className={cn(
+                "inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]",
+                isTester && "!border-[#decda9] !bg-[#fffaf0] !text-[#80643f]",
+              )}
+              aria-label="문의·의견 보내기"
+              title="문의·의견 보내기"
             >
-              <Lightbulb className="h-4.5 w-4.5" strokeWidth={1.8} />
+              <MessageSquareText className="h-4.5 w-4.5" strokeWidth={1.8} />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenHelp}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
+              aria-label="도움·문의"
+              title="도움·문의"
+            >
+              <HelpCircle className="h-4.5 w-4.5" strokeWidth={1.8} />
             </button>
             <SoftSelect<OwnerWebScreenKey>
               value={activeScreen}
               onChange={onScreenSelect}
               options={ownerWebNavigationItems.map((screen) => ({ value: screen.key, label: screen.label }))}
               align="right"
-              className="max-w-[180px]"
-              buttonClassName="h-10"
+              className="order-3 basis-full min-w-0 sm:order-none sm:basis-auto sm:max-w-[180px]"
+              buttonClassName="h-11"
+              valueClassName="whitespace-nowrap"
+              menuClassName="[&_[role=option]]:h-auto [&_[role=option]]:min-h-11"
             />
           </div>
         </header>
 
-        {alimtalkCreditsExhausted ? (
-          <div className="shrink-0 border-b border-[#f3d7aa] bg-[#fff8ec] px-5 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[14px] font-semibold text-[#8a4f08]">알림톡 잔여 건수가 모두 소진되었습니다</p>
-                <p className="mt-0.5 text-[13px] font-medium text-[#9a5d12]">
-                  고객 예약 안내와 미용 상태 알림톡을 더 보낼 수 없습니다. 현재 구독 상태를 확인해 주세요.
-                </p>
+        <section className="min-h-0 flex-1 overflow-hidden bg-[var(--bg)] p-3 sm:p-4">
+          {usesSinglePlaneCore ? (
+            <div className="h-full min-h-0 min-w-0">{children}</div>
+          ) : (
+            <div
+              className="h-full min-w-0 overflow-hidden rounded-[14px] border border-[var(--bd)] bg-white shadow-none"
+            >
+              <div className={cn(
+                "h-full min-h-0 overscroll-contain p-3 sm:p-4",
+                setupMode ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden",
+              )}>
+                {children}
               </div>
-              <Link
-                href={{ pathname: "/owner/billing" }}
-                prefetch
-                className="inline-flex h-9 shrink-0 items-center rounded-[9px] bg-[#b98121] px-3 text-[13px] font-semibold text-white transition hover:bg-[#9a681a]"
-              >
-                요금제 확인
-              </Link>
             </div>
-          </div>
-        ) : null}
-
-        <section className="min-h-0 flex-1 overflow-hidden bg-[var(--bg)] p-4">
-          <div
-            className="h-full min-w-0 overflow-hidden rounded-[14px] border border-[var(--bd)] bg-white shadow-none"
-          >
-            <div className="h-full min-h-0 overflow-hidden overscroll-contain p-4">
-              {children}
-            </div>
-          </div>
+          )}
         </section>
       </main>
+      {!setupMode ? (
+        <div ref={hanmadiContainerRef} className="fixed bottom-6 right-6 z-[110]">
+          {hanmadiOpen ? (
+            <div id={hanmadiMenuId} role="menu" aria-label="한마디" onKeyDown={handleHanmadiMenuKeyDown} className="absolute bottom-[calc(100%+8px)] right-0 w-[156px] overflow-hidden rounded-[14px] border border-[#d9e0e8] bg-white p-1 shadow-[0_10px_28px_rgba(17,26,48,0.14)]">
+              <button ref={(element) => { hanmadiMenuItemRefs.current[0] = element; }} type="button" role="menuitem" className="flex min-h-11 w-full items-center gap-2 rounded-[10px] px-2.5 text-left text-[14px] font-medium text-[#111a30] hover:bg-[#f6f8fb]" onClick={() => { setHanmadiOpen(false); onAddReservation(); }}><CalendarPlus className="h-4.5 w-4.5 text-[#526176]" aria-hidden="true" />새 예약 추가</button>
+              <button ref={(element) => { hanmadiMenuItemRefs.current[1] = element; }} type="button" role="menuitem" className="flex min-h-11 w-full items-center gap-2 rounded-[10px] px-2.5 text-left text-[14px] font-medium text-[#111a30] hover:bg-[#f6f8fb]" onClick={() => { setHanmadiOpen(false); setFeedbackKind("inquiry"); setFeatureRequestOpen(true); }}><CircleHelp className="h-4.5 w-4.5 text-[#526176]" aria-hidden="true" />문의 남기기</button>
+              <button ref={(element) => { hanmadiMenuItemRefs.current[2] = element; }} type="button" role="menuitem" className="flex min-h-11 w-full items-center gap-2 rounded-[10px] px-2.5 text-left text-[14px] font-medium text-[#111a30] hover:bg-[#f6f8fb]" onClick={() => { setHanmadiOpen(false); setFeedbackKind("bug"); setFeatureRequestOpen(true); }}><MessageSquareWarning className="h-4.5 w-4.5 text-[#526176]" aria-hidden="true" />함께 고쳐요</button>
+            </div>
+          ) : null}
+          <button ref={hanmadiTriggerRef} type="button" aria-label="한마디 메뉴 열기" aria-haspopup="menu" aria-controls={hanmadiMenuId} aria-expanded={hanmadiOpen} onClick={() => setHanmadiOpen((current) => !current)} className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#cfd8e3] bg-white text-[#111a30] shadow-[0_5px_16px_rgba(17,26,48,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">
+            <ChevronUp className={`h-5 w-5 transition-transform motion-reduce:transition-none ${hanmadiOpen ? "rotate-180" : ""}`} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
       <OwnerFeatureRequestDialog
         open={featureRequestOpen}
         shopId={shopId}
-        shopName={shopDisplayName}
-        ownerName={ownerName}
-        ownerPhone={ownerPhone}
+        activeScreen={activeScreen}
+        initialKind={feedbackKind}
+        fixtureMode={feedbackFixtureMode}
         onClose={() => setFeatureRequestOpen(false)}
       />
     </div>

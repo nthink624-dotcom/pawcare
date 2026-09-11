@@ -1,101 +1,33 @@
-﻿"use client";
+"use client";
 
-import { Check, Copy, KeyRound, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { KeyRound } from "lucide-react";
 
 import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 
-type TemporaryPasswordResult = {
-  email: string;
-  temporaryPassword: string;
-  issuedAt: string;
-};
-
 export default function OwnerAdminPasswordPanel({
-  ownerName,
   email,
-  issuing,
-  result,
-  onIssue,
 }: {
-  ownerName: string;
   email: string | null;
-  issuing: boolean;
-  result: TemporaryPasswordResult | null;
-  onIssue: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
-  const canIssue = Boolean(email);
-
-  async function copyPassword() {
-    if (!result?.temporaryPassword) return;
-    await navigator.clipboard.writeText(result.temporaryPassword);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
-  }
-
   return (
-    <section className="rounded-[9px] border border-[#edf2f7] bg-[#fbfcfd] p-3">
-      <div className="flex items-start gap-2">
-        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">
+    <section className="rounded-[14px] border border-[#E8EDF3] bg-[#F8FAFC] p-4">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#EFF6FF] text-[#2563EB]">
           <KeyRound className="h-4 w-4" />
         </div>
         <div className="min-w-0">
           <p className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#0f172a]`}>계정 접근 관리</p>
           <p className={`mt-1 text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>
-            오너가 로그인하지 못할 때 임시비밀번호를 발급합니다. 발급 즉시 기존 비밀번호는 사용할 수 없습니다.
+            임시비밀번호 원문을 만들거나 표시하지 않습니다. 최근 재인증과 2인 승인 정책 결정 후 안전한 계정 복구 방식으로 제공합니다.
           </p>
         </div>
       </div>
 
-      <div className="mt-2 rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className={`${ADMIN_TYPOGRAPHY.label} text-[#64748b]`}>로그인 이메일</p>
-            <p className={`mt-1 truncate text-[#0f172a] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{email ?? "-"}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onIssue}
-            disabled={!canIssue || issuing}
-            className={`inline-flex h-10 shrink-0 items-center justify-center rounded-[8px] bg-[#1f6b5b] px-3 text-white disabled:bg-[#c8d3cf] ${ADMIN_TYPOGRAPHY.control}`}
-          >
-            {issuing ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                발급 중
-              </span>
-            ) : (
-              "임시비밀번호 발급"
-            )}
-          </button>
-        </div>
-        {!canIssue ? (
-          <p className={`mt-2 rounded-[8px] bg-[#fff7ed] px-3 py-2.5 text-[#9a5b24] ${ADMIN_TYPOGRAPHY.helper}`}>
-            {ownerName} 오너 계정에 로그인 이메일이 없어 임시비밀번호를 발급할 수 없습니다.
-          </p>
-        ) : null}
+      <div className="mt-3 rounded-[10px] border border-[#E8EDF3] bg-white px-3 py-3">
+        <p className={`${ADMIN_TYPOGRAPHY.label} text-[#64748b]`}>로그인 이메일</p>
+        <p className={`mt-1 truncate text-[#0f172a] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{email ?? "-"}</p>
+        <p className={`mt-2 text-[#8C6E53] ${ADMIN_TYPOGRAPHY.helper}`}>현재 발급은 보안 승인 정책이 정해진 뒤 제공됩니다.</p>
       </div>
-
-      {result ? (
-        <div className="mt-2 rounded-[8px] border border-[#d7e7e1] bg-[#f4faf7] px-3 py-2">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className={`${ADMIN_TYPOGRAPHY.label} text-[#1f6b5b]`}>발급된 임시비밀번호</p>
-              <p className={`mt-1 break-all font-mono text-[#0f172a] ${ADMIN_TYPOGRAPHY.body}`}>{result.temporaryPassword}</p>
-              <p className={`mt-2 text-[#64748b] ${ADMIN_TYPOGRAPHY.meta}`}>발급 시각: {result.issuedAt.slice(0, 16).replace("T", " ")}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void copyPassword()}
-              className={`inline-flex h-10 shrink-0 items-center gap-1 rounded-[8px] border border-[#cfe1da] bg-white px-3 text-[#1f6b5b] ${ADMIN_TYPOGRAPHY.control}`}
-            >
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "복사됨" : "복사"}
-            </button>
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }

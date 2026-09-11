@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { SERVICE_PRICE_MAX_KRW } from "@/lib/service-price-input";
 import { isValidBusinessHoursRange } from "@/lib/business-hours";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 
@@ -39,7 +40,7 @@ export const appointmentInputSchema = z.object({
 
 export const appointmentStatusSchema = z.object({
   appointmentId: z.string(),
-  status: z.enum(["confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
+  status: z.enum(["pending", "confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
   rejectionReasonTemplate: z.string().optional(),
   rejectionReasonCustom: z.string().optional(),
   eventType: z.enum(["booking_rescheduled_confirmed", "care_report_service_correction"]).optional(),
@@ -85,6 +86,8 @@ export const guardianInputSchema = z.object({
   phone: z.string().trim().min(1),
   memo: z.string().default(""),
   enabled: z.boolean().optional(),
+  customerGradeOverride: z.enum(["normal", "loyal", "attention"]).nullable().optional(),
+  customerMemberType: z.enum(["guardian", "proxy", "guest"]).optional(),
 });
 
 export const guardianUpdateSchema = z.object({
@@ -95,6 +98,8 @@ export const guardianUpdateSchema = z.object({
   memo: z.string().default("").optional(),
   enabled: z.boolean().optional(),
   revisitEnabled: z.boolean().optional(),
+  customerGradeOverride: z.enum(["normal", "loyal", "attention"]).nullable().optional(),
+  customerMemberType: z.enum(["guardian", "proxy", "guest"]).optional(),
   notificationSettings: z.object({
     enabled: z.boolean().optional(),
     revisit_enabled: z.boolean().optional(),
@@ -116,6 +121,7 @@ export const guardianDeleteSchema = z.object({
 });
 
 export const guardianRestoreSchema = z.object({
+  shopId: z.string().min(1),
   guardianId: z.string().optional(),
   guardianIds: z.array(z.string()).default([]).optional(),
 });
@@ -164,10 +170,12 @@ export const petStaffNoteUpsertSchema = z.object({
 export const serviceInputSchema = z.object({
   shopId: z.string(),
   serviceId: z.string().optional(),
+  operation: z.enum(["create", "update"]).optional(),
+  requestId: z.string().uuid().optional(),
   name: z.string().min(1),
-  price: z.coerce.number().min(0),
+  price: z.coerce.number().int().min(0).max(SERVICE_PRICE_MAX_KRW),
   priceType: z.enum(["fixed", "starting"]).default("starting"),
-  durationMinutes: z.coerce.number().min(15).max(480),
+  durationMinutes: z.coerce.number().int().min(15).max(480),
   isActive: z.boolean().default(true),
   category: z.string().min(1).default("미용"),
   description: z.string().default(""),
@@ -175,6 +183,22 @@ export const serviceInputSchema = z.object({
   capacityLabel: z.string().default("동일 시간 1건"),
   staffSelectionMode: z.enum(["all", "unassigned", "specific"]).default("all"),
   priceGuide: z.unknown().optional(),
+}).superRefine((value, ctx) => {
+  const operation = value.operation ?? (value.serviceId ? "update" : "create");
+  if (operation === "create" && !value.requestId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["requestId"],
+      message: "새 서비스 저장 요청 키가 필요합니다.",
+    });
+  }
+  if (operation === "update" && !value.serviceId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["serviceId"],
+      message: "수정할 서비스 항목을 선택해 주세요.",
+    });
+  }
 });
 
 export const serviceDeleteSchema = z.object({
@@ -214,6 +238,7 @@ export const shopSettingsSchema = z.object({
       cancel_window: z.enum(["none", "1h", "2h", "6h", "24h"]).default("2h"),
       customer_change_enabled: z.boolean().default(true),
       booking_blocked_windows: z.array(bookingBlockedWindowSchema).default([]),
+      booking_close_grace_minutes: z.union([z.literal(0), z.literal(15), z.literal(30), z.literal(60)]).default(0),
       regular_closed_cycle: z.enum(["weekly", "biweekly", "monthly_1_3", "monthly_2_4"]).optional(),
       regular_closed_anchor_date: z.string().nullable().optional(),
       ai_booking_time_optimization_enabled: z.boolean().optional(),

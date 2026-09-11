@@ -1,5 +1,13 @@
 import type { Service } from "@/types/domain";
 import { buildCustomerPriceGuideGroupKey } from "@/lib/customer-breed-pricing-group";
+import { resolvePriceGuideOrderedWeightBands } from "@/lib/price-guide-structured-table";
+import {
+  ensurePriceGuideV2SourceItemIds,
+  priceGuideV2Schema,
+  type PriceGuideV2,
+  type PriceGuideV2Row,
+} from "@/types/price-guide-photo-import";
+import { isConfirmedPriceGuideDuration } from "@/lib/price-guide-duration-confirmation";
 
 export type CustomerServiceDisplayOverride = {
   visible?: boolean;
@@ -31,96 +39,100 @@ export type CustomerServiceSourceOption = {
 type PriceGuideWeightRange = {
   minimum: number | null;
   maximum: number | null;
-  minimumInclusive: boolean;
-  maximumInclusive: boolean;
+  minimumInclusive: boolean | null;
+  maximumInclusive: boolean | null;
 };
 
-function getPriceGuideSections(guide: unknown, options: { includeDisabled?: boolean } = {}) {
-  if (!guide || typeof guide !== "object") return [];
-  const source = guide as { enabled?: unknown; sections?: unknown };
-  if (!options.includeDisabled && source.enabled === false) return [];
-  return Array.isArray(source.sections) ? source.sections : [];
+function readCanonicalPriceGuideV2(guide: unknown): PriceGuideV2 | null {
+  const rootDocument = priceGuideV2Schema.safeParse(guide);
+  if (rootDocument.success) return ensurePriceGuideV2SourceItemIds(rootDocument.data);
+  if (!guide || typeof guide !== "object" || Array.isArray(guide)) return null;
+  const nestedDocument = priceGuideV2Schema.safeParse((guide as { canonicalV2?: unknown }).canonicalV2);
+  return nestedDocument.success ? ensurePriceGuideV2SourceItemIds(nestedDocument.data) : null;
 }
 
-function numberFromText(value: unknown) {
-  const numberText = String(value ?? "").replace(/[^0-9]/g, "");
-  const numberValue = Number(numberText);
-  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
+const priceGuideV2SizeLabels: Record<PriceGuideV2Row["sizeClass"], string> = {
+  small: "소형견",
+  medium: "중형견",
+  large: "대형견",
+  "extra-large": "초대형견",
+  all: "전체 크기",
+  unknown: "",
+};
+
+function formatPriceGuideV2WeightBand(row: PriceGuideV2Row) {
+  const sourceLabel = row.weightBandLabel?.trim();
+  if (sourceLabel) return sourceLabel;
+  if (row.minKg !== null && row.maxKg !== null) return `${row.minKg}~${row.maxKg}kg`;
+  if (row.maxKg !== null) return `${row.maxKg}kg 이하`;
+  if (row.minKg !== null) return `${row.minKg}kg 이상`;
+  return priceGuideV2SizeLabels[row.sizeClass];
 }
 
-function parseWeightBandRange(label: string): PriceGuideWeightRange | null {
-  const normalized = label.replace(/\s+/g, "").toLocaleLowerCase("ko-KR");
-  const values = Array.from(normalized.matchAll(/\d+(?:\.\d+)?/g), (match) => Number(match[0])).filter(Number.isFinite);
-  if (values.length === 0) return null;
-
-  if (values.length >= 2 && /(?:~|〜|～|–|—|-)/.test(normalized)) {
-    const [first, second] = values;
-    return {
-      minimum: Math.min(first, second),
-      maximum: Math.max(first, second),
-      minimumInclusive: true,
-      maximumInclusive: true,
-    };
+function getPriceGuideV2ServiceRow(document: PriceGuideV2, service: Service) {
+  const indexedRow = document.rows[Math.max(0, (service.sort_order ?? 1) - 1)];
+  if (
+    indexedRow &&
+    indexedRow.serviceName === service.name &&
+    indexedRow.priceMinKrw === service.price &&
+    indexedRow.durationMinutes === service.duration_minutes
+  ) {
+    return { row: indexedRow, index: Math.max(0, (service.sort_order ?? 1) - 1) };
   }
 
-  const threshold = values[0];
-  if (normalized.includes("미만")) {
-    return { minimum: null, maximum: threshold, minimumInclusive: true, maximumInclusive: false };
-  }
-  if (normalized.includes("이하")) {
-    return { minimum: null, maximum: threshold, minimumInclusive: true, maximumInclusive: true };
-  }
-  if (normalized.includes("초과")) {
-    return { minimum: threshold, maximum: null, minimumInclusive: false, maximumInclusive: true };
-  }
-  if (normalized.includes("이상")) {
-    return { minimum: threshold, maximum: null, minimumInclusive: true, maximumInclusive: true };
-  }
+  const matches = document.rows.flatMap((row, index) =>
+    row.serviceName === service.name &&
+    row.priceMinKrw === service.price &&
+    row.durationMinutes === service.duration_minutes
+      ? [{ row, index }]
+      : [],
+  );
+  if (matches.length === 1) return matches[0];
+  const serviceDescription = service.description ?? "";
+  const contextualMatches = matches.filter(({ row }) => {
+    const contextParts = [row.note, row.breedGroup, formatPriceGuideV2WeightBand(row)].filter(
+      (value): value is string => Boolean(value),
+    );
+    return contextParts.length > 0 && contextParts.every((value) => serviceDescription.includes(value));
+  });
+  if (contextualMatches.length === 1) return contextualMatches[0];
+  if (document.rows.length === 1) return { row: document.rows[0], index: 0 };
+  return null;
+}
 
-  return { minimum: threshold, maximum: threshold, minimumInclusive: true, maximumInclusive: true };
+function getPriceGuideV2SpeciesVariants(species: PriceGuideV2Row["species"]): Array<"dog" | "cat"> {
+  if (species === "dog" || species === "cat") return [species];
+  if (species === "all") return ["dog", "cat"];
+  return [];
 }
 
 function weightMatchesRange(weightKg: number, range: PriceGuideWeightRange) {
   const aboveMinimum =
     range.minimum === null ||
-    (range.minimumInclusive ? weightKg >= range.minimum : weightKg > range.minimum);
+    weightKg > range.minimum ||
+    (weightKg === range.minimum && range.minimumInclusive === true);
   const belowMaximum =
     range.maximum === null ||
-    (range.maximumInclusive ? weightKg <= range.maximum : weightKg < range.maximum);
+    weightKg < range.maximum ||
+    (weightKg === range.maximum && range.maximumInclusive === true);
   return aboveMinimum && belowMaximum;
 }
 
 export function resolveCustomerPriceGuideWeightBand(weightBands: string[], weightKg: number | null | undefined) {
   if (typeof weightKg !== "number" || !Number.isFinite(weightKg) || weightKg <= 0) return null;
 
-  const parsedBands = weightBands
-    .map((band, index) => ({ band, index, range: parseWeightBandRange(band) }))
-    .filter((entry): entry is { band: string; index: number; range: PriceGuideWeightRange } => Boolean(entry.range));
-
-  const explicitRange = parsedBands.find(
-    ({ range }) => range.minimum !== null && range.maximum !== null && range.minimum !== range.maximum && weightMatchesRange(weightKg, range),
+  const resolved = resolvePriceGuideOrderedWeightBands(
+    weightBands.map((label) => ({ label, minKg: null, maxKg: null })),
   );
-  if (explicitRange) return explicitRange.band;
-
-  const upperBound = parsedBands
-    .filter(({ range }) => range.minimum === null && range.maximum !== null && weightMatchesRange(weightKg, range))
-    .sort((left, right) => (left.range.maximum ?? Number.POSITIVE_INFINITY) - (right.range.maximum ?? Number.POSITIVE_INFINITY))[0];
-  if (upperBound) return upperBound.band;
-
-  const lowerBound = parsedBands
-    .filter(({ range }) => range.minimum !== null && range.maximum === null && weightMatchesRange(weightKg, range))
-    .sort((left, right) => (right.range.minimum ?? Number.NEGATIVE_INFINITY) - (left.range.minimum ?? Number.NEGATIVE_INFINITY))[0];
-  if (lowerBound) return lowerBound.band;
-
-  return parsedBands.find(({ range }) => weightMatchesRange(weightKg, range))?.band ?? null;
+  if (resolved.some((range) => range.contradictsAxis)) return null;
+  const matches = resolved.flatMap((range, index) => (
+    weightMatchesRange(weightKg, range) ? [weightBands[index]] : []
+  ));
+  return matches.length === 1 ? matches[0] : null;
 }
 
 function limitText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
-}
-
-function isPlaceholderPriceGuideItem(label: string) {
-  return /^(?:\uC0C8\s*\uD56D\uBAA9|\uC2E0\uADDC\s*\uD56D\uBAA9|new\s*item)$/i.test(label.trim());
 }
 
 function normalizeOptionLabelKey(label: string) {
@@ -153,25 +165,10 @@ function getPriceGuideSpeciesLabel(value: unknown) {
   return value === "cat" ? "고양이" : "강아지";
 }
 
-function getPriceGuideSpecies(value: unknown): "dog" | "cat" {
-  return value === "cat" ? "cat" : "dog";
-}
-
-function getCustomerServiceOptionDisplayKey(option: CustomerServiceSourceOption) {
-  return [
-    option.category,
-    option.sourceName,
-    option.durationMinutes,
-    option.durationMinutesMax ?? option.durationMinutes,
-    option.price,
-    option.priceType,
-  ].join("|").replace(/\s+/g, " ").trim().toLocaleLowerCase("ko-KR");
-}
-
 function uniqueCustomerServiceOptions(options: CustomerServiceSourceOption[]) {
   const seenKeys = new Set<string>();
   return options.filter((option) => {
-    const key = getCustomerServiceOptionDisplayKey(option);
+    const key = option.linkedOptionId ?? option.id;
     if (seenKeys.has(key)) return false;
     seenKeys.add(key);
     return true;
@@ -222,116 +219,138 @@ export function normalizeCustomerServiceOverrides(value: unknown): CustomerServi
   );
 }
 
+function selectPriceGuideV2RowIndexesForWeight(rows: PriceGuideV2Row[], weightKg: number | null | undefined) {
+  if (typeof weightKg !== "number" || !Number.isFinite(weightKg) || weightKg <= 0) {
+    return new Set(rows.map((_, index) => index));
+  }
+
+  const groups = new Map<string, Array<{ index: number; row: PriceGuideV2Row }>>();
+  rows.forEach((row, index) => {
+    const key = [row.species, row.breedGroup ?? "", row.serviceName ?? ""].join("\u0000");
+    groups.set(key, [...(groups.get(key) ?? []), { index, row }]);
+  });
+
+  const selected = new Set<number>();
+  groups.forEach((entries) => {
+    const ranges = resolvePriceGuideOrderedWeightBands(entries.map(({ row }) => ({
+      label: formatPriceGuideV2WeightBand(row),
+      minKg: row.minKg,
+      maxKg: row.maxKg,
+    })));
+    if (ranges.some((range) => range.contradictsAxis)) return;
+    const matches = ranges.flatMap((range, rangeIndex) => (
+      weightMatchesRange(weightKg, range) ? [entries[rangeIndex].index] : []
+    ));
+    if (matches.length === 1) selected.add(matches[0]);
+  });
+  return selected;
+}
+
+/**
+ * Keeps only presentation settings that resolve to a currently saved canonical
+ * price-guide source item. Display values are never accepted or copied here.
+ */
+export function sanitizeCustomerServiceOverridesForSourceOptions(
+  value: unknown,
+  sourceOptions: CustomerServiceSourceOption[],
+): CustomerServiceDisplayOverrides {
+  const normalizedOverrides = normalizeCustomerServiceOverrides(value);
+  const optionById = buildOptionLookup(sourceOptions);
+  const defaultRowById = new Map(
+    buildDefaultCustomerServiceMenuOptions(sourceOptions).map((option) => [option.id, option]),
+  );
+  const seenSourceIds = new Set<string>();
+
+  return Object.fromEntries(
+    Object.entries(normalizedOverrides).flatMap(([rowId, override]) => {
+      const defaultRow = defaultRowById.get(rowId);
+      const sourceOption =
+        optionById.get(override.linkedOptionId ?? "") ??
+        optionById.get(defaultRow?.linkedOptionId ?? "") ??
+        optionById.get(rowId);
+      if (!sourceOption || seenSourceIds.has(sourceOption.id)) return [];
+      seenSourceIds.add(sourceOption.id);
+
+      return [[
+        sourceOption.id,
+        {
+          ...(override.visible !== undefined ? { visible: override.visible } : {}),
+          ...(override.order !== undefined ? { order: override.order } : {}),
+          linkedOptionId: sourceOption.id,
+        },
+      ]];
+    }),
+  );
+}
+
 export function buildCustomerServiceSourceOptions(
   services: Service[],
   options: { includeInactive?: boolean; priceGuideOnly?: boolean; priceGuideGroupKey?: string; weightKg?: number | null } = {},
 ): CustomerServiceSourceOption[] {
   const result: CustomerServiceSourceOption[] = [];
 
+  const canonicalGroups = new Map<string, { document: PriceGuideV2; services: Service[] }>();
   for (const service of services) {
     if (!options.includeInactive && !service.is_active) continue;
+    const document = readCanonicalPriceGuideV2(service.price_guide);
+    if (!document) continue;
+    const documentKey = JSON.stringify(document);
+    const group = canonicalGroups.get(documentKey);
+    if (group) group.services.push(service);
+    else canonicalGroups.set(documentKey, { document, services: [service] });
+  }
 
-    const initialResultLength = result.length;
-    const priceGuideSections = getPriceGuideSections(service.price_guide, { includeDisabled: options.priceGuideOnly });
-    for (const section of priceGuideSections) {
-      if (!section || typeof section !== "object") continue;
-      const source = section as { id?: unknown; species?: unknown; title?: unknown; weightBands?: unknown; items?: unknown };
-      const species = getPriceGuideSpecies(source.species);
-      const speciesLabel = getPriceGuideSpeciesLabel(species);
-      const sectionTitle = limitText(source.title, 60) || service.category || "미용";
-      const priceGuideGroupKey = buildCustomerPriceGuideGroupKey(source.species, sectionTitle);
-      if (options.priceGuideGroupKey && priceGuideGroupKey !== options.priceGuideGroupKey) continue;
-      const sectionCategory = `${speciesLabel} / ${sectionTitle}`;
-      const sectionId = String(source.id ?? "").trim();
-      const stableSectionKey = sectionId || normalizeOptionLabelKey(sectionTitle);
-      const weightBands = Array.isArray(source.weightBands)
-        ? source.weightBands.filter((band): band is string => typeof band === "string")
-        : [];
-      const hasSelectedWeight = typeof options.weightKg === "number" && Number.isFinite(options.weightKg) && options.weightKg > 0;
-      const selectedWeightBand = resolveCustomerPriceGuideWeightBand(weightBands, options.weightKg);
-      if (hasSelectedWeight && !selectedWeightBand) continue;
-      const items = Array.isArray(source.items) ? source.items : [];
+  for (const { document, services: sourceServices } of canonicalGroups.values()) {
+    const serviceByRowIndex = new Map<number, Service>();
+    for (const service of sourceServices) {
+      const matched = getPriceGuideV2ServiceRow(document, service);
+      if (matched && !serviceByRowIndex.has(matched.index)) {
+        serviceByRowIndex.set(matched.index, service);
+      }
+    }
 
-      for (const item of items) {
-        if (!item || typeof item !== "object") continue;
-        const sourceItem = item as { id?: unknown; label?: unknown; cells?: unknown };
-        const label = limitText(sourceItem.label, 80);
-        if (!label || isPlaceholderPriceGuideItem(label)) continue;
+    const fallbackCarrier = sourceServices[0];
+    const selectedRowIndexes = selectPriceGuideV2RowIndexesForWeight(document.rows, options.weightKg);
+    document.rows.forEach((row, rowIndex) => {
+      if (!fallbackCarrier || !selectedRowIndexes.has(rowIndex)) return;
+      const serviceName = limitText(row.serviceName, 80);
+      const completePrice = row.priceKind !== "unknown" && row.priceMinKrw !== null;
+      const completeDuration = isConfirmedPriceGuideDuration(row.durationMinutes);
+      if (!serviceName || !completePrice || !completeDuration) return;
 
-        const cells =
-          sourceItem.cells && typeof sourceItem.cells === "object"
-            ? (sourceItem.cells as Record<string, { price?: unknown; durationMinutes?: unknown }>)
-            : {};
-        const orderedCells = selectedWeightBand
-          ? [cells[selectedWeightBand]]
-          : [
-              ...weightBands.map((band) => cells[band]),
-              ...Object.entries(cells)
-                .filter(([band]) => !weightBands.includes(band))
-                .map(([, cell]) => cell),
-            ];
-        const pricedCells = orderedCells
-          .map((cell) => ({
-            cell,
-            price: numberFromText(cell?.price),
-            durationMinutes: numberFromText(cell?.durationMinutes) ?? service.duration_minutes,
-          }))
-          .filter((entry): entry is { cell: { price?: unknown; durationMinutes?: unknown }; price: number; durationMinutes: number } => Boolean(entry.cell && entry.price));
-        const lowestPricedCell = pricedCells.slice().sort((left, right) => left.price - right.price)[0];
-        const price = lowestPricedCell?.price ?? null;
-        if (!price) continue;
+      const carrier = serviceByRowIndex.get(rowIndex) ?? fallbackCarrier;
+      for (const species of getPriceGuideV2SpeciesVariants(row.species)) {
+        const speciesLabel = getPriceGuideSpeciesLabel(species);
+        const sectionTitle = row.breedGroup ?? priceGuideV2SizeLabels[row.sizeClass];
+        const priceGuideGroupKey = buildCustomerPriceGuideGroupKey(species, sectionTitle);
+        const sourceSpeciesGroupKey = buildCustomerPriceGuideGroupKey(row.species, sectionTitle);
+        if (
+          options.priceGuideGroupKey
+          && priceGuideGroupKey !== options.priceGuideGroupKey
+          && sourceSpeciesGroupKey !== options.priceGuideGroupKey
+        ) continue;
 
-        const itemId = String(sourceItem.id ?? "").trim();
-        const itemKey = itemId || normalizeOptionLabelKey(label);
-        const durations = pricedCells.map((entry) => entry.durationMinutes).filter((duration) => Number.isFinite(duration) && duration > 0);
-        const durationMinutes = durations.length > 0 ? Math.min(...durations) : service.duration_minutes;
-        const durationMinutesMax = durations.length > 0 ? Math.max(...durations) : durationMinutes;
-        const displayName = buildPriceGuideOptionName(sectionCategory, label);
-        const stableOptionId = `${service.id}:price-guide:${stableSectionKey}:${itemKey}`;
-        const aliasIds = Array.from(
-          new Set([
-            `${service.id}:price-guide:${sectionTitle}:${itemKey}`,
-            `${service.id}:price-guide:${sectionCategory}:${itemKey}`,
-          ]),
-        ).filter((aliasId) => aliasId !== stableOptionId);
+        const sectionCategory = sectionTitle ? `${speciesLabel} / ${sectionTitle}` : speciesLabel;
+        const displayName = buildPriceGuideOptionName(sectionCategory, serviceName);
+        const stableOptionId = `${carrier.id}:price-guide-v2:${row.sourceItemId}:${species}`;
+        const weightBand = formatPriceGuideV2WeightBand(row);
         result.push({
           id: stableOptionId,
-          serviceId: service.id,
+          serviceId: carrier.id,
           name: displayName,
-          displayName: label,
+          displayName: serviceName,
           sourceName: displayName,
           category: sectionCategory,
-          description: "",
-          durationMinutes,
-          durationMinutesMax: durationMinutesMax > durationMinutes ? durationMinutesMax : undefined,
-          price,
-          priceType: pricedCells.some((entry) => entry.price !== price) ? "starting" : (service.price_type ?? "starting"),
-          weightBand: selectedWeightBand ?? undefined,
+          description: [row.breedNames.join(", "), row.note].filter(Boolean).join(" · "),
+          durationMinutes: row.durationMinutes!,
+          price: row.priceMinKrw!,
+          priceType: row.priceKind === "fixed" ? "fixed" : "starting",
+          weightBand: weightBand || undefined,
           order: result.length + 1,
-          aliasIds,
+          aliasIds: [],
           priceGuideSpecies: species,
         });
       }
-
-    }
-
-    // 상세 요금표가 있는 서비스는 그 행만 고객에게 노출합니다. 선택한 체중대에
-    // 맞는 행이 없을 때 기본 가격으로 되돌아가면 서로 다른 가격 원본이 생기기 때문입니다.
-    if (priceGuideSections.length > 0) continue;
-    if (options.priceGuideOnly) continue;
-
-    result.push({
-      id: service.id,
-      serviceId: service.id,
-      name: service.name,
-      displayName: service.name,
-      sourceName: service.name,
-      category: service.category || "미용",
-      description: service.description || "",
-      durationMinutes: service.duration_minutes,
-      price: service.price,
-      priceType: service.price_type ?? "starting",
-      order: result.length + 1,
     });
   }
 
@@ -475,14 +494,19 @@ export function applyConfiguredCustomerServiceOverrides(
   options: CustomerServiceSourceOption[],
   overrides: unknown,
 ): CustomerServiceSourceOption[] {
-  const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
+  const requestedOverrides = normalizeCustomerServiceOverrides(overrides);
+  const normalizedOverrides = sanitizeCustomerServiceOverridesForSourceOptions(requestedOverrides, options);
   const optionById = buildOptionLookup(options);
   const defaultRows = buildDefaultCustomerServiceMenuOptions(options);
   const defaultRowById = new Map(defaultRows.map((option) => [option.id, option]));
 
-  if (Object.keys(normalizedOverrides).length === 0) {
+  if (Object.keys(requestedOverrides).length === 0) {
     return defaultRows;
   }
+
+  // Existing settings that no longer resolve to a saved source item must not
+  // cause default or compatibility prices to reappear.
+  if (Object.keys(normalizedOverrides).length === 0) return [];
 
   return uniqueCustomerServiceOptions(Object.entries(normalizedOverrides)
     .flatMap(([rowId, override]) => {

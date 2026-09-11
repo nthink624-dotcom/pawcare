@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Loader2, MessageSquareText, RefreshCcw, RotateCcw, ShieldAlert, Store, Trash2 } from "lucide-react";
+import { ChevronDown, Loader2, RotateCcw, ShieldAlert, Store } from "lucide-react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 
 import OwnerAdminPasswordPanel from "@/components/admin/owner-admin-password-panel";
@@ -19,82 +19,36 @@ import {
   summarizeEvent,
   todayKstDateText,
   usageWarningToneMap,
-  type AdminAlimtalkCreditBalance,
   type AdminOwnerItem,
   type OwnerDraft,
   type OwnerLastPaymentStatus,
   type OwnerPlanCode,
-  type TemporaryPasswordResult,
 } from "@/components/admin/owner-admin-model";
 
 type OwnerAdminDetailPanelProps = {
   selectedOwner: AdminOwnerItem | null;
   selectedDraft: OwnerDraft | null;
-  selectedAlimtalkBalance: AdminAlimtalkCreditBalance | null;
-  issuingTemporaryPasswordUserId: string | null;
-  temporaryPasswords: Record<string, TemporaryPasswordResult>;
-  issueOwnerTemporaryPassword: (item: AdminOwnerItem) => Promise<void>;
-  loadingAlimtalkCredits: boolean;
-  savingAlimtalkCredits: boolean;
-  loadAlimtalkBalances: () => Promise<void>;
-  alimtalkAction: "grant" | "reset-included";
-  setAlimtalkAction: Dispatch<SetStateAction<"grant" | "reset-included">>;
-  alimtalkAmount: string;
-  setAlimtalkAmount: Dispatch<SetStateAction<string>>;
-  alimtalkBucket: "purchased" | "included";
-  setAlimtalkBucket: Dispatch<SetStateAction<"purchased" | "included">>;
-  saveOwnerAlimtalkCredits: (item: AdminOwnerItem) => Promise<void>;
   setDrafts: Dispatch<SetStateAction<Record<string, OwnerDraft>>>;
   savingUserId: string | null;
   saveOwner: (item: AdminOwnerItem) => Promise<void>;
-  withdrawingUserId: string | null;
-  withdrawOwner: (item: AdminOwnerItem) => Promise<void>;
-  resettingPaymentMethodUserId: string | null;
-  resetOwnerPaymentMethod: (item: AdminOwnerItem) => Promise<void>;
-  refundReasons: Record<string, string>;
-  setRefundReasons: Dispatch<SetStateAction<Record<string, string>>>;
-  refundingPaymentId: string | null;
-  refundOwner: (item: AdminOwnerItem, paymentId?: string) => Promise<void>;
 };
 
 export default function OwnerAdminDetailPanel({
   selectedOwner,
   selectedDraft,
-  selectedAlimtalkBalance,
-  issuingTemporaryPasswordUserId,
-  temporaryPasswords,
-  issueOwnerTemporaryPassword,
-  loadingAlimtalkCredits,
-  savingAlimtalkCredits,
-  loadAlimtalkBalances,
-  alimtalkAction,
-  setAlimtalkAction,
-  alimtalkAmount,
-  setAlimtalkAmount,
-  alimtalkBucket,
-  setAlimtalkBucket,
-  saveOwnerAlimtalkCredits,
   setDrafts,
   savingUserId,
   saveOwner,
-  withdrawingUserId,
-  withdrawOwner,
-  resettingPaymentMethodUserId,
-  resetOwnerPaymentMethod,
-  refundReasons,
-  setRefundReasons,
-  refundingPaymentId,
-  refundOwner,
 }: OwnerAdminDetailPanelProps) {
   return (
-          <section className="sticky top-1.5 flex self-start flex-col overflow-hidden rounded-[10px] border border-[#dfe7e2] bg-white xl:h-[calc(100vh-12px)]">
+          <section className="sticky top-3 flex self-start flex-col overflow-hidden rounded-[14px] border border-[#D9E0E8] bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)] xl:h-[calc(100vh-24px)]">
             {selectedOwner && selectedDraft ? (
               <>
-                <div className="shrink-0 border-b border-[#edf2f7] px-2.5 py-2">
+                <div className="shrink-0 border-b border-[#E8EDF3] px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">
-                        <Store className="h-3.5 w-3.5" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#EFF6FF] text-[#2563EB]">
+                        <Store className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
             <p className={`truncate text-[#0f172a] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{selectedOwner.ownerName}</p>
@@ -106,8 +60,8 @@ export default function OwnerAdminDetailPanel({
                     </span>
                   </div>
 
-                  <details className="group mt-1.5 rounded-[7px] border border-[#edf2f7] bg-[#fbfcfd]">
-            <summary className={`grid min-h-10 cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 text-[#64748b] [&::-webkit-details-marker]:hidden ${ADMIN_TYPOGRAPHY.meta}`}>
+                  <details className="group mt-3 rounded-[10px] border border-[#E8EDF3] bg-[#F8FAFC]">
+            <summary className={`grid min-h-11 cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 text-[#64748b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-inset [&::-webkit-details-marker]:hidden ${ADMIN_TYPOGRAPHY.meta}`}>
                       <div className="flex gap-1">
                         {selectedOwner.loginMethods.map((method) => (
                   <span key={`${selectedOwner.userId}-detail-${method}`} className={`rounded-full border px-2.5 py-1 ${ADMIN_TYPOGRAPHY.badge} ${loginMethodToneMap[method]}`}>
@@ -123,7 +77,7 @@ export default function OwnerAdminDetailPanel({
                         <ChevronDown className="h-3 w-3 transition group-open:rotate-180" />
                       </span>
                     </summary>
-                    <div className="space-y-1 border-t border-[#edf2f7] px-2 py-1.5">
+                    <div className="space-y-2 border-t border-[#E8EDF3] px-3 py-3">
                       <DetailRow label="로그인 이메일" value={selectedOwner.ownerEmail ?? selectedOwner.loginId ?? "-"} />
                       <DetailRow label="전화번호" value={selectedOwner.ownerPhoneNumber ?? "-"} />
                       <DetailRow label="매장 ID" value={selectedOwner.shopId} mono />
@@ -131,9 +85,9 @@ export default function OwnerAdminDetailPanel({
                   </details>
                 </div>
 
-                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[#F8FAFC] px-4 py-4">
                   {selectedOwner.usageWarnings.length > 0 ? (
-                    <section className="rounded-[9px] border border-[#f1dfb7] bg-[#fffaf0] p-3">
+                    <section className="rounded-[14px] border border-[#F1DFB7] bg-[#FFF9EF] p-4">
                       <div className="flex items-center justify-between gap-3">
               <h3 className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#7c5208]`}>운영 검토 필요</h3>
               <span className={`rounded-full bg-white/70 px-2.5 py-1 text-[#8a6211] ${ADMIN_TYPOGRAPHY.badge}`}>
@@ -142,7 +96,7 @@ export default function OwnerAdminDetailPanel({
                       </div>
                       <div className="mt-2 space-y-1.5">
                         {selectedOwner.usageWarnings.map((warning) => (
-                          <div key={warning.code} className={`rounded-[8px] border bg-white px-2.5 py-2 ${usageWarningToneMap[warning.level]}`}>
+                          <div key={warning.code} className={`rounded-[10px] border bg-white px-3 py-3 ${usageWarningToneMap[warning.level]}`}>
                     <p className={ADMIN_TYPOGRAPHY.bodyStrong}>{warning.message}</p>
                             {warning.evidence.length > 0 ? (
                       <ul className={`mt-2 space-y-1 ${ADMIN_TYPOGRAPHY.body}`}>
@@ -160,83 +114,8 @@ export default function OwnerAdminDetailPanel({
                   ) : null}
 
                   <OwnerAdminPasswordPanel
-                    ownerName={selectedOwner.ownerName}
                     email={selectedOwner.ownerEmail ?? selectedOwner.loginId}
-                    issuing={issuingTemporaryPasswordUserId === selectedOwner.userId}
-                    result={temporaryPasswords[selectedOwner.userId] ?? null}
-                    onIssue={() => void issueOwnerTemporaryPassword(selectedOwner)}
                   />
-
-                  <div className="rounded-[9px] border border-[#edf2f7] bg-white p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] bg-[#eef7f2] text-[#1f6b5b]">
-                          <MessageSquareText className="h-4 w-4" />
-                        </div>
-              <h3 className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#0f172a]`}>알림톡</h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void loadAlimtalkBalances()}
-                        disabled={loadingAlimtalkCredits || savingAlimtalkCredits}
-                className={`inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#475569] disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
-                      >
-                        <RefreshCcw className="h-3.5 w-3.5" />
-                        새로고침
-                      </button>
-                    </div>
-
-                    <div className="mt-2 grid grid-cols-3 gap-1.5">
-                      <MiniStat label="총 잔여" value={`${(selectedAlimtalkBalance?.remainingTotal ?? 0).toLocaleString("ko-KR")}건`} />
-                      <MiniStat label="포함" value={`${(selectedAlimtalkBalance?.includedRemaining ?? 0).toLocaleString("ko-KR")}건`} />
-                      <MiniStat label="추가" value={`${(selectedAlimtalkBalance?.purchasedRemaining ?? 0).toLocaleString("ko-KR")}건`} />
-                    </div>
-
-                    <div className="mt-2 grid grid-cols-[1fr_82px] gap-1.5">
-                      <select
-                        value={alimtalkAction}
-                        onChange={(event) => setAlimtalkAction(event.target.value === "reset-included" ? "reset-included" : "grant")}
-                  className={`h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] outline-none focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}
-                      >
-                        <option value="grant">건수 추가</option>
-                        <option value="reset-included">포함 건수 리셋</option>
-                      </select>
-                      <input
-                        value={alimtalkAmount}
-                        onChange={(event) => setAlimtalkAmount(event.target.value.replace(/[^\d]/g, ""))}
-                        inputMode="numeric"
-                  className={`h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] outline-none focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}
-                      />
-                    </div>
-
-                    {alimtalkAction === "grant" ? (
-                      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setAlimtalkBucket("purchased")}
-                  className={`h-10 rounded-[8px] border ${ADMIN_TYPOGRAPHY.control} ${alimtalkBucket === "purchased" ? "border-[#1f6b5b] bg-[#f4faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#475569]"}`}
-                        >
-                          추가
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAlimtalkBucket("included")}
-                  className={`h-10 rounded-[8px] border ${ADMIN_TYPOGRAPHY.control} ${alimtalkBucket === "included" ? "border-[#1f6b5b] bg-[#f4faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#475569]"}`}
-                        >
-                          포함
-                        </button>
-                      </div>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={() => void saveOwnerAlimtalkCredits(selectedOwner)}
-                      disabled={savingAlimtalkCredits || loadingAlimtalkCredits}
-                className={`mt-3 inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-4 text-white disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
-                    >
-                      {savingAlimtalkCredits ? "저장 중..." : "알림톡 저장"}
-                    </button>
-                  </div>
 
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <SelectField
@@ -317,27 +196,9 @@ export default function OwnerAdminDetailPanel({
                     </ActionButton>
                   </div>
 
-                  <div className="sticky top-0 z-10 -mx-3 border-y border-[#edf2f7] bg-white/96 px-3 py-2 backdrop-blur">
-                    <button
-                      type="button"
-                      onClick={() => void saveOwner(selectedOwner)}
-                      disabled={savingUserId === selectedOwner.userId}
-            className={`inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-4 text-white disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
-                    >
-                      {savingUserId === selectedOwner.userId ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          저장 중...
-                        </span>
-                      ) : (
-                        "변경사항 저장"
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="rounded-[9px] border border-[#edf2f7] bg-[#fbfcfd] p-3">
+                  <div className="rounded-[14px] border border-[#E8EDF3] bg-white p-4">
                     <div className="flex items-center gap-3">
-                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#fff4f1] text-[#b54b4b]">
+                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#FFF4F1] text-[#9A5E4E]">
                         <ShieldAlert className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
@@ -358,7 +219,7 @@ export default function OwnerAdminDetailPanel({
                             },
                           }))
                         }
-                    className={`inline-flex h-10 items-center justify-center rounded-[8px] border border-[#f0d1d1] bg-[#fff7f7] px-3 text-[#b54b4b] ${ADMIN_TYPOGRAPHY.control}`}
+                    className={`inline-flex h-11 items-center justify-center rounded-[10px] border border-[#E8C9C3] bg-[#FFF8F7] px-3 text-[#9A5E4E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 ${ADMIN_TYPOGRAPHY.control}`}
                       >
                         계정 정지
                       </button>
@@ -370,7 +231,7 @@ export default function OwnerAdminDetailPanel({
                             [selectedOwner.userId]: { ...prev[selectedOwner.userId], suspended: false, suspensionReason: "" },
                           }))
                         }
-                    className={`inline-flex h-10 items-center justify-center rounded-[8px] border border-[#d7e7e1] bg-[#f4faf7] px-3 text-[#1f6b5b] ${ADMIN_TYPOGRAPHY.control}`}
+                    className={`inline-flex h-11 items-center justify-center rounded-[10px] border border-[#D7E0EA] bg-white px-3 text-[#334155] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 ${ADMIN_TYPOGRAPHY.control}`}
                       >
                         정지 해제
                       </button>
@@ -387,38 +248,28 @@ export default function OwnerAdminDetailPanel({
                               [selectedOwner.userId]: { ...prev[selectedOwner.userId], suspensionReason: event.target.value },
                             }))
                           }
-                  className={`min-h-[84px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}
+                  className={`min-h-[96px] w-full rounded-[10px] border border-[#D7E0EA] bg-white px-3 py-2.5 text-[#172033] outline-none placeholder:text-[#94a3b8] focus-visible:ring-2 focus-visible:ring-[#2563EB] ${ADMIN_TYPOGRAPHY.body}`}
                           placeholder="왜 계정을 정지했는지 운영 메모를 남겨 주세요."
                         />
                       </label>
                     ) : null}
 
-                    <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#eadede] pt-3">
+                    <div className="mt-3 border-t border-[#eadede] pt-3">
                       <div className="min-w-0">
                 <p className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#8f3f4d]`}>회원탈퇴</p>
                 <p className={`mt-1 text-[#7d6a6d] ${ADMIN_TYPOGRAPHY.helper}`}>
                           계정과 매장 데이터를 삭제하며 동일 로그인 수단 재가입이 가능합니다.
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void withdrawOwner(selectedOwner)}
-                        disabled={withdrawingUserId === selectedOwner.userId}
-                className={`inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[#e8c6cc] bg-white px-3 text-[#a04455] disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
-                      >
-                        {withdrawingUserId === selectedOwner.userId ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                        {withdrawingUserId === selectedOwner.userId ? "탈퇴 중" : "회원탈퇴"}
-                      </button>
+                      <p className={`mt-2 rounded-[8px] border border-[#f1dfb7] bg-[#fffaf0] px-3 py-2 text-[#8a6211] ${ADMIN_TYPOGRAPHY.helper}`}>
+                        보안 승인 정책 결정 필요 · 현재 회원탈퇴는 실행할 수 없습니다. 운영자가 최근 재인증을 마치고 삭제할 계정·매장 데이터를 직접 확인한 뒤 2인이 승인하며, 실패 시 계정과 매장 데이터를 그대로 보존하거나 복구하는 절차가 준비된 후 제공합니다.
+                      </p>
                     </div>
                   </div>
 
-                  <div className="rounded-[9px] border border-[#edf2f7] bg-[#fbfcfd] p-3">
+                  <div className="rounded-[14px] border border-[#E8EDF3] bg-white p-4">
                     <div className="flex items-center gap-3">
-                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#fff5f1] text-[#b86945]">
+                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#EFF6FF] text-[#2563EB]">
                         <RotateCcw className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
@@ -427,45 +278,22 @@ export default function OwnerAdminDetailPanel({
                     </div>
 
                     <div className="mt-2 rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
-                      <div className="flex items-start justify-between gap-3">
+                      <div>
                         <div className="min-w-0">
                     <p className={`${ADMIN_TYPOGRAPHY.bodyStrong} text-[#0f172a]`}>등록 결제수단 복구</p>
                     <p className={`mt-1 text-[#6f665f] ${ADMIN_TYPOGRAPHY.body}`}>
                             {selectedOwner.paymentMethodExists ? selectedOwner.paymentMethodLabel ?? "등록된 카드" : "등록 카드 없음"}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => void resetOwnerPaymentMethod(selectedOwner)}
-                          disabled={!selectedOwner.paymentMethodExists || resettingPaymentMethodUserId === selectedOwner.userId}
-                    className={`inline-flex h-10 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#475569] disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
-                        >
-                          {resettingPaymentMethodUserId === selectedOwner.userId ? (
-                            <span className="inline-flex items-center gap-2">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              초기화 중...
-                            </span>
-                          ) : (
-                            "결제수단 초기화"
-                          )}
-                        </button>
+                        <p className={`mt-2 rounded-[8px] border border-[#f1dfb7] bg-[#fffaf0] px-3 py-2 text-[#8a6211] ${ADMIN_TYPOGRAPHY.helper}`}>
+                          보안 승인 정책 결정 필요 · 현재 결제수단 초기화는 실행할 수 없습니다. 운영자가 최근 재인증을 마치고 초기화할 계정과 결제수단을 직접 확인한 뒤 2인이 승인하며, 실패 시 원래 결제수단을 보존하거나 복구하는 절차가 준비된 후 제공합니다.
+                        </p>
                       </div>
                     </div>
 
-                    <label className="mt-2 block">
-                  <span className={`mb-2 block text-[#64748b] ${ADMIN_TYPOGRAPHY.label}`}>취소 사유</span>
-                      <textarea
-                        value={refundReasons[selectedOwner.userId] ?? ""}
-                        onChange={(event) =>
-                          setRefundReasons((prev) => ({
-                            ...prev,
-                            [selectedOwner.userId]: event.target.value,
-                          }))
-                        }
-                    className={`min-h-[76px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}
-                        placeholder="예: 중복 결제 확인, 고객 요청 환불"
-                      />
-                    </label>
+                    <p className={`mt-2 rounded-[8px] border border-[#f1dfb7] bg-[#fffaf0] px-3 py-2 text-[#8a6211] ${ADMIN_TYPOGRAPHY.helper}`}>
+                      환불 실행은 최근 재인증과 2인 승인, 중복 방지 원장이 준비된 뒤 제공합니다.
+                    </p>
 
                     <div className="mt-2 space-y-1.5">
                       {selectedOwner.recentPayments.length === 0 ? (
@@ -494,30 +322,14 @@ export default function OwnerAdminDetailPanel({
                                 {getRecentPaymentStatusMeta(payment.status).label}
                               </span>
                             </div>
-                            {payment.refundable ? (
-                              <button
-                                type="button"
-                                onClick={() => void refundOwner(selectedOwner, payment.paymentId)}
-                                disabled={refundingPaymentId === payment.paymentId}
-                          className={`mt-3 inline-flex h-10 w-full items-center justify-center rounded-[10px] border border-[#efcfc2] bg-[#fff8f4] px-3 text-[#b45d3c] disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
-                              >
-                                {refundingPaymentId === payment.paymentId ? (
-                                  <span className="inline-flex items-center gap-2">
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    취소 처리 중...
-                                  </span>
-                                ) : (
-                                  "이 결제 취소"
-                                )}
-                              </button>
-                            ) : null}
+                            {payment.refundable ? <p className={`mt-2 text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>환불 비활성화</p> : null}
                           </div>
                         ))
                       )}
                     </div>
                   </div>
 
-                  <div className="rounded-[9px] border border-[#edf2f7] bg-[#fbfcfd] p-3">
+                  <div className="rounded-[14px] border border-[#E8EDF3] bg-white p-4">
                     <div className="flex items-center justify-between gap-3">
               <h3 className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#0f172a]`}>최근 변경 이력</h3>
               <span className={`${ADMIN_TYPOGRAPHY.meta} text-[#8a8277]`}>{selectedOwner.recentEvents.length}건</span>
@@ -541,12 +353,12 @@ export default function OwnerAdminDetailPanel({
                   </div>
                 </div>
 
-                <div className="hidden shrink-0 border-t border-[#edf2f7] bg-white px-3 py-2 xl:block">
+                <div className="sticky bottom-0 z-10 shrink-0 border-t border-[#D9E0E8] bg-white/96 px-4 py-3 backdrop-blur">
                   <button
                     type="button"
                     onClick={() => void saveOwner(selectedOwner)}
                     disabled={savingUserId === selectedOwner.userId}
-            className={`inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-4 text-white disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
+            className={`inline-flex h-11 w-full items-center justify-center rounded-[10px] bg-[#1D4ED8] px-4 text-white transition hover:bg-[#1E40AF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}
                   >
                     {savingUserId === selectedOwner.userId ? (
                       <span className="inline-flex items-center gap-2">
@@ -568,18 +380,9 @@ export default function OwnerAdminDetailPanel({
 
 function DetailRow({ label, value, children, mono = false }: { label: string; value?: string; children?: ReactNode; mono?: boolean }) {
   return (
-    <div className="grid grid-cols-[78px_minmax(0,1fr)] items-center gap-2">
+    <div className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-3">
       <span className={`${ADMIN_TYPOGRAPHY.meta} text-[#64748b]`}>{label}</span>
-      <div className={`min-w-0 truncate text-right text-[#0f172a] ${ADMIN_TYPOGRAPHY.body} ${mono ? "font-mono" : ""}`}>{children ?? value ?? "-"}</div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] px-3 py-2.5">
-      <p className={`${ADMIN_TYPOGRAPHY.helper} text-[#64748b]`}>{label}</p>
-      <p className={`mt-1 truncate text-[#0f172a] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{value}</p>
+      <div className={`min-w-0 truncate text-right text-[#0f172a] ${ADMIN_TYPOGRAPHY.bodyStrong} ${mono ? "font-mono" : ""}`}>{children ?? value ?? "-"}</div>
     </div>
   );
 }
@@ -588,7 +391,7 @@ function SelectField({ label, value, onChange, options }: { label: string; value
   return (
     <label className="block">
       <span className={`mb-1.5 block text-[#64748b] ${ADMIN_TYPOGRAPHY.label}`}>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className={`h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] outline-none focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`}>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className={`h-11 w-full rounded-[10px] border border-[#D7E0EA] bg-white px-3 text-[#172033] outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${ADMIN_TYPOGRAPHY.body}`}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -603,14 +406,14 @@ function DateField({ label, value, onChange }: { label: string; value: string; o
   return (
     <label className="block">
       <span className={`mb-1.5 block text-[#64748b] ${ADMIN_TYPOGRAPHY.label}`}>{label}</span>
-      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} className={`h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] outline-none focus:border-[#2f7866] ${ADMIN_TYPOGRAPHY.body}`} />
+      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} className={`h-11 w-full rounded-[10px] border border-[#D7E0EA] bg-white px-3 text-[#172033] outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${ADMIN_TYPOGRAPHY.body}`} />
     </label>
   );
 }
 
 function ActionButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={`inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#172033] transition hover:bg-[#f8fafc] ${ADMIN_TYPOGRAPHY.control}`}>
+    <button type="button" onClick={onClick} className={`inline-flex h-11 items-center justify-center rounded-[10px] border border-[#D7E0EA] bg-white px-3 text-[#172033] transition hover:bg-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 ${ADMIN_TYPOGRAPHY.control}`}>
       {children}
     </button>
   );

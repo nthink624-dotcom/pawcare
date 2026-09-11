@@ -119,7 +119,7 @@ export function CalendarCareReportPhotoCard({
 
   return (
     <div
-      className="relative mx-auto h-[172px] w-full max-w-[460px] cursor-grab select-none overflow-hidden [perspective:1000px] touch-pan-y active:cursor-grabbing"
+      className="relative mx-auto flex min-h-[172px] w-full max-w-[460px] cursor-grab select-none items-center justify-center overflow-hidden [perspective:1000px] touch-pan-y active:cursor-grabbing"
       aria-busy={loading}
       onDragStart={(event) => event.preventDefault()}
       onPointerDown={(event) => {
@@ -166,9 +166,9 @@ export function CalendarCareReportPhotoCard({
         }}
         disabled={disabled}
         aria-label={`${label} 사진 ${imageUrl || registered ? "교체" : "추가"}`}
-        className={`group absolute left-1/2 top-1/2 z-10 flex aspect-[4/3] w-full max-w-[228px] items-center justify-center overflow-hidden rounded-[14px] border border-[#cfd6de] bg-[#fafbfc] px-4 py-3 text-center hover:border-[#aeb9c5] hover:bg-white disabled:opacity-60 ${motionDirection === "next" ? "care-photo-carousel-next" : motionDirection === "previous" ? "care-photo-carousel-previous" : ""}`}
+        className={`group relative z-10 flex min-h-[172px] w-full max-w-[228px] items-center justify-center overflow-hidden rounded-[14px] border border-[#cfd6de] bg-[#fafbfc] px-4 py-3 text-center transition hover:border-[#aeb9c5] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-60 ${motionDirection === "next" ? "care-photo-carousel-next" : motionDirection === "previous" ? "care-photo-carousel-previous" : ""}`}
         style={!motionDirection ? {
-          transform: `translate(calc(-50% + ${dragOffset}px), -50%) rotateY(${dragOffset * -0.08}deg) scale(${1 - Math.min(Math.abs(dragOffset) / 900, 0.06)})`,
+          transform: `translateX(${dragOffset}px) rotateY(${dragOffset * -0.08}deg) scale(${1 - Math.min(Math.abs(dragOffset) / 900, 0.06)})`,
           transition: dragging ? "none" : "transform 180ms ease-out",
         } : undefined}
       >
@@ -181,30 +181,27 @@ export function CalendarCareReportPhotoCard({
             <span className="mb-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef1f4] text-[#274563]">
               <ImagePlus className="h-4 w-4" />
             </span>
-            <strong className={CARE_REPORT_TYPOGRAPHY.bodyStrong}>{label} 사진 추가</strong>
-            <span className={`${CARE_REPORT_TYPOGRAPHY.helper} mt-0.5 text-[#7b8794]`}>등록된 {label} 사진이 없습니다</span>
-          </span>
-        ) : null}
-
-        {!imageUrl ? (
-          <span className={`${CARE_REPORT_TYPOGRAPHY.badge} absolute bottom-2 right-2 rounded-full border border-[#d9dfe6] bg-white/95 px-2.5 py-0.5 text-[#526171] transition group-hover:border-[#b7c0ca]`}>
-            {actionLabel}
+            <strong className={`${CARE_REPORT_TYPOGRAPHY.bodyStrong} break-keep [line-height:1.45]`}>{label} 사진 추가</strong>
+            <span className={`${CARE_REPORT_TYPOGRAPHY.helper} mt-0.5 break-keep text-[#7b8794] [line-height:1.45]`}>등록된 {label} 사진이 없습니다</span>
+            <span className={`${CARE_REPORT_TYPOGRAPHY.badge} mt-2 whitespace-nowrap rounded-full border border-[#d9dfe6] bg-white/95 px-2.5 py-0.5 text-[#526171] [line-height:1.4] transition group-hover:border-[#b7c0ca]`}>
+              {actionLabel}
+            </span>
           </span>
         ) : null}
 
       </button>
       <style jsx>{`
         @keyframes care-photo-next {
-          0% { transform: translate(-50%, -50%) rotateY(0deg) scale(1); opacity: 1; }
-          48% { transform: translate(-88%, -50%) rotateY(18deg) scale(.84); opacity: .58; }
-          52% { transform: translate(-12%, -50%) rotateY(-18deg) scale(.84); opacity: .58; }
-          100% { transform: translate(-50%, -50%) rotateY(0deg) scale(1); opacity: 1; }
+          0% { transform: translateX(0) rotateY(0deg) scale(1); opacity: 1; }
+          48% { transform: translateX(-38%) rotateY(18deg) scale(.84); opacity: .58; }
+          52% { transform: translateX(38%) rotateY(-18deg) scale(.84); opacity: .58; }
+          100% { transform: translateX(0) rotateY(0deg) scale(1); opacity: 1; }
         }
         @keyframes care-photo-previous {
-          0% { transform: translate(-50%, -50%) rotateY(0deg) scale(1); opacity: 1; }
-          48% { transform: translate(-12%, -50%) rotateY(-18deg) scale(.84); opacity: .58; }
-          52% { transform: translate(-88%, -50%) rotateY(18deg) scale(.84); opacity: .58; }
-          100% { transform: translate(-50%, -50%) rotateY(0deg) scale(1); opacity: 1; }
+          0% { transform: translateX(0) rotateY(0deg) scale(1); opacity: 1; }
+          48% { transform: translateX(38%) rotateY(-18deg) scale(.84); opacity: .58; }
+          52% { transform: translateX(-38%) rotateY(18deg) scale(.84); opacity: .58; }
+          100% { transform: translateX(0) rotateY(0deg) scale(1); opacity: 1; }
         }
         .care-photo-carousel-next { animation: care-photo-next 240ms ease-in-out; }
         .care-photo-carousel-previous { animation: care-photo-previous 240ms ease-in-out; }

@@ -226,8 +226,8 @@ function toLegacyRequestType(category: OwnerSupportCategory): "bug" | "improveme
 function buildDefaultTitle(category: OwnerSupportCategory, context: Record<string, unknown>) {
   const route = typeof context.currentPath === "string" && context.currentPath.trim() ? context.currentPath.trim() : null;
   const label: Record<OwnerSupportCategory, string> = {
-    how_to_use: "사용법 문의",
-    bug: "오류 제보",
+    how_to_use: "사용 문의",
+    bug: "문제 신고",
     payment: "결제 문의",
     feature_request: "기능 요청",
     account: "계정/매장 문의",

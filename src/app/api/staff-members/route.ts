@@ -3,9 +3,18 @@ import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getStaffProfileMessage } from "@/lib/staff-display";
+import { staffChipColorIndexMax } from "@/lib/staff-chip-colors";
+import { isStaffProfileFallbackKey } from "@/lib/staff-profile-fallback";
 import { currentDateInTimeZone, nowIso } from "@/lib/utils";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+import {
+  buildCompatibleStaffProfileSelect,
+  getNextStaffProfileOptionalColumn,
+  isMissingRequiredStaffPreferenceColumn,
+  omitStaffProfileColumns,
+  staffProfileOptionalColumns,
+} from "@/server/staff-profile-column-compat";
 import type { BootstrapStaffMember } from "@/types/domain";
 
 const weekdaySchema = z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
@@ -17,8 +26,9 @@ const staffMemberSchema = z.object({
   profileImageUrl: z.string().trim().default(""),
   profileImageUrls: z.array(z.string().trim()).max(3).default([]),
   profileImageAssetIds: z.array(z.string().trim()).max(3).default([]),
+  profileImageFallbackKey: z.string().trim().nullable().optional().default(null),
   profileMessage: z.string().trim().max(160).default(""),
-  chipColorIndex: z.number().int().min(0).max(7).nullable().optional().default(null),
+  chipColorIndex: z.number().int().min(0).max(staffChipColorIndexMax).nullable().optional().default(null),
   phone: z.string().trim().default(""),
   role: z.string().trim().optional().transform((value) => value || "직원"),
   titlePrefix: z.string().trim().default(""),
@@ -52,6 +62,7 @@ type StaffMemberDbRow = {
   profile_image_url?: string | null;
   profile_image_urls?: unknown;
   profile_image_asset_ids?: unknown;
+  profile_image_fallback_key?: string | null;
   profile_message?: string | null;
   chip_color_index?: number | null;
   phone: string | null;
@@ -65,25 +76,17 @@ type StaffMemberDbRow = {
   annual_remain: number | null;
 };
 
-const staffMembersProfileSelect =
-  "id,name,display_name,profile_image_url,profile_image_urls,profile_image_asset_ids,profile_message,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain";
-const staffMembersLegacySelect = "id,name,phone,role,default_days,start_time,end_time,regular_off,annual_remain";
+const staffMembersProfileSelectFields = [
+  "id", "name", "display_name", "profile_image_url", "profile_image_urls", "profile_image_asset_ids", "profile_image_fallback_key",
+  "profile_message", "chip_color_index", "phone", "role", "title_prefix",
+  "position", "default_days", "start_time", "end_time", "regular_off", "annual_remain",
+] as const;
 
-function isMissingStaffProfileColumnsError(error: { code?: string | null; message?: string | null } | null | undefined) {
-  const message = error?.message?.toLowerCase() ?? "";
-  return (
-    (error?.code === "PGRST204" || error?.code === "42703") &&
-    message.includes("staff_members") &&
-    (message.includes("display_name") ||
-      message.includes("profile_image_url") ||
-      message.includes("profile_image_urls") ||
-      message.includes("profile_image_asset_ids") ||
-      message.includes("profile_message") ||
-      message.includes("chip_color_index") ||
-      message.includes("title_prefix") ||
-      message.includes("position") ||
-      message.includes("schema cache"))
-  );
+const staffProfileCompatibilityError = "직원 프로필 멘트 또는 개인 칩 색을 저장할 수 없습니다. 매장 데이터 업데이트를 확인한 뒤 다시 시도해 주세요.";
+const staffChipColorSaveError = "선택한 개인 칩 색을 저장하지 못했습니다. 다시 선택해 저장해 주세요.";
+
+function isStaffChipColorIndexConstraintError(error: { code?: string | null; message?: string | null } | null | undefined) {
+  return error?.code === "23514" && (error.message ?? "").includes("staff_members_chip_color_index_check");
 }
 
 function normalizeProfileImageUrls(value: unknown, fallback = "") {
@@ -105,6 +108,13 @@ function normalizeProfileImageAssetIds(value: unknown) {
     .slice(0, 3);
 }
 
+function hasUploadedProfilePhoto(staffMember: z.infer<typeof staffMemberSchema>) {
+  return normalizeProfileImageUrls(staffMember.profileImageUrls, staffMember.profileImageUrl).length > 0
+    || normalizeProfileImageAssetIds(staffMember.profileImageAssetIds).length > 0;
+}
+
+const staffProfileImageChoiceRequiredError = "프로필 사진을 올리거나 기본 프로필 이미지를 선택해 주세요.";
+
 function toBootstrapStaffMember(row: z.infer<typeof staffMemberSchema>): BootstrapStaffMember {
   return {
     ...(() => {
@@ -113,6 +123,7 @@ function toBootstrapStaffMember(row: z.infer<typeof staffMemberSchema>): Bootstr
         profileImageUrl: profileImageUrls[0] ?? "",
         profileImageUrls,
         profileImageAssetIds: normalizeProfileImageAssetIds(row.profileImageAssetIds),
+        profileImageFallbackKey: isStaffProfileFallbackKey(row.profileImageFallbackKey) ? row.profileImageFallbackKey : null,
       };
     })(),
     id: row.id,
@@ -143,6 +154,7 @@ function toBootstrapStaffMemberFromDb(row: StaffMemberDbRow): BootstrapStaffMemb
     profileImageUrl: profileImageUrls[0] ?? "",
     profileImageUrls,
     profileImageAssetIds: normalizeProfileImageAssetIds(row.profile_image_asset_ids),
+    profileImageFallbackKey: isStaffProfileFallbackKey(row.profile_image_fallback_key) ? row.profile_image_fallback_key : null,
     profileMessage: getStaffProfileMessage(row),
     chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
@@ -163,39 +175,65 @@ async function loadActiveStaffMembers(
   supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
   shopId: string,
 ) {
-  const result = await supabase
-    .from("staff_members")
-    .select(staffMembersProfileSelect)
-    .eq("shop_id", shopId)
-    .eq("is_active", true)
-    .order("sort_order")
-    .order("created_at");
-
-  if (result.error) {
-    if (!isMissingStaffProfileColumnsError(result.error)) {
-      throw new OwnerApiError(result.error.message, 500);
-    }
-
-    const legacyResult = await supabase
+  const omittedColumns = new Set<string>();
+  for (let attempt = 0; attempt <= staffProfileOptionalColumns.length; attempt += 1) {
+    const result = await supabase
       .from("staff_members")
-      .select(staffMembersLegacySelect)
+      .select(buildCompatibleStaffProfileSelect(staffMembersProfileSelectFields, omittedColumns))
       .eq("shop_id", shopId)
       .eq("is_active", true)
       .order("sort_order")
       .order("created_at");
 
-    if (legacyResult.error) {
-      throw new OwnerApiError(legacyResult.error.message, 500);
+    if (!result.error) {
+      return ((result.data ?? []) as unknown as StaffMemberDbRow[]).map(toBootstrapStaffMemberFromDb);
     }
 
-    return ((legacyResult.data ?? []) as StaffMemberDbRow[]).map(toBootstrapStaffMemberFromDb);
+    if (isMissingRequiredStaffPreferenceColumn(result.error)) {
+      throw new OwnerApiError(staffProfileCompatibilityError, 409);
+    }
+    const missingOptionalColumn = getNextStaffProfileOptionalColumn(result.error, omittedColumns);
+    if (!missingOptionalColumn) {
+      throw new OwnerApiError(result.error.message, 500);
+    }
+    omittedColumns.add(missingOptionalColumn);
   }
-
-  return ((result.data ?? []) as StaffMemberDbRow[]).map(toBootstrapStaffMemberFromDb);
+  throw new OwnerApiError(staffProfileCompatibilityError, 409);
 }
 
 function hasDuplicateStaffIds(staffMembers: Array<z.infer<typeof staffMemberSchema>>) {
   return new Set(staffMembers.map((staffMember) => staffMember.id)).size !== staffMembers.length;
+}
+
+const staffChipColorConflictError = "이미 다른 직원이 사용 중인 개인 칩 색입니다. 다른 색을 선택해 저장해 주세요.";
+
+type ActiveStaffChipColorRow = {
+  id: string;
+  chip_color_index: number | null;
+};
+
+function introducesDuplicateStaffChipColor(
+  staffMembers: Array<z.infer<typeof staffMemberSchema>>,
+  activeStaffMembers: ActiveStaffChipColorRow[],
+) {
+  const currentChipColorByStaffId = new Map(activeStaffMembers.map((staffMember) => [staffMember.id, staffMember.chip_color_index]));
+  const desiredChipColorByStaffId = new Map(currentChipColorByStaffId);
+  for (const staffMember of staffMembers) desiredChipColorByStaffId.set(staffMember.id, staffMember.chipColorIndex);
+
+  const staffIdsByChipColor = new Map<number, string[]>();
+  for (const [staffId, chipColorIndex] of desiredChipColorByStaffId) {
+    if (chipColorIndex === null) continue;
+    const staffIds = staffIdsByChipColor.get(chipColorIndex) ?? [];
+    staffIds.push(staffId);
+    staffIdsByChipColor.set(chipColorIndex, staffIds);
+  }
+
+  for (const [chipColorIndex, staffIds] of staffIdsByChipColor) {
+    if (staffIds.length < 2) continue;
+    const preservesLegacyCollision = staffIds.every((staffId) => currentChipColorByStaffId.get(staffId) === chipColorIndex);
+    if (!preservesLegacyCollision) return true;
+  }
+  return false;
 }
 
 function isEarlierTime(startTime: string, endTime: string) {
@@ -390,6 +428,10 @@ export async function PATCH(request: NextRequest) {
       throw new OwnerApiError("중복된 직원 정보가 있습니다.", 400);
     }
 
+    if (body.staffMembers.some((staffMember) => !hasUploadedProfilePhoto(staffMember) && !isStaffProfileFallbackKey(staffMember.profileImageFallbackKey))) {
+      throw new OwnerApiError(staffProfileImageChoiceRequiredError, 400);
+    }
+
     if (body.staffMembers.some((staffMember) => !isEarlierTime(staffMember.startTime, staffMember.endTime))) {
       throw new OwnerApiError("직원 근무 시작 시간은 종료 시간보다 빨라야 합니다.", 400);
     }
@@ -420,6 +462,21 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    const activeStaffChipColorResult = await supabase
+      .from("staff_members")
+      .select("id, chip_color_index")
+      .eq("shop_id", owner.shopId)
+      .eq("is_active", true);
+    if (activeStaffChipColorResult.error) {
+      throw new OwnerApiError(activeStaffChipColorResult.error.message, 500);
+    }
+    if (introducesDuplicateStaffChipColor(
+      body.staffMembers,
+      (activeStaffChipColorResult.data ?? []) as ActiveStaffChipColorRow[],
+    )) {
+      throw new OwnerApiError(staffChipColorConflictError, 409);
+    }
+
     await assertFutureAppointmentsFitSchedules(supabase, owner.shopId, body.staffMembers);
 
     const rows = body.staffMembers.map((staffMember, index) => ({
@@ -430,6 +487,7 @@ export async function PATCH(request: NextRequest) {
       profile_image_url: normalizeProfileImageUrls(staffMember.profileImageUrls, staffMember.profileImageUrl)[0] ?? "",
       profile_image_urls: normalizeProfileImageUrls(staffMember.profileImageUrls, staffMember.profileImageUrl),
       profile_image_asset_ids: normalizeProfileImageAssetIds(staffMember.profileImageAssetIds),
+      profile_image_fallback_key: staffMember.profileImageFallbackKey,
       profile_message: staffMember.profileMessage,
       chip_color_index: staffMember.chipColorIndex,
       phone: staffMember.phone,
@@ -447,17 +505,29 @@ export async function PATCH(request: NextRequest) {
     }));
 
     if (rows.length > 0) {
-      const upsertResult = await supabase.from("staff_members").upsert(rows, { onConflict: "id" });
-      if (upsertResult.error) {
-        if (!isMissingStaffProfileColumnsError(upsertResult.error)) {
+      const omittedColumns = new Set<string>();
+      let saved = false;
+      for (let attempt = 0; attempt <= staffProfileOptionalColumns.length; attempt += 1) {
+        const compatibleRows = rows.map((row) => omitStaffProfileColumns(row, omittedColumns));
+        const upsertResult = await supabase.from("staff_members").upsert(compatibleRows, { onConflict: "id" });
+        if (!upsertResult.error) {
+          saved = true;
+          break;
+        }
+        if (isMissingRequiredStaffPreferenceColumn(upsertResult.error)) {
+          throw new OwnerApiError(staffProfileCompatibilityError, 409);
+        }
+        if (isStaffChipColorIndexConstraintError(upsertResult.error)) {
+          throw new OwnerApiError(staffChipColorSaveError, 409);
+        }
+        const missingOptionalColumn = getNextStaffProfileOptionalColumn(upsertResult.error, omittedColumns);
+        if (!missingOptionalColumn) {
           throw new OwnerApiError(upsertResult.error.message, 500);
         }
-
-        const legacyRows = rows.map(({ display_name: _displayName, profile_image_url: _profileImageUrl, profile_image_urls: _profileImageUrls, profile_image_asset_ids: _profileImageAssetIds, profile_message: _profileMessage, chip_color_index: _chipColorIndex, title_prefix: _titlePrefix, position: _position, ...row }) => row);
-        const legacyUpsertResult = await supabase.from("staff_members").upsert(legacyRows, { onConflict: "id" });
-        if (legacyUpsertResult.error) {
-          throw new OwnerApiError(legacyUpsertResult.error.message, 500);
-        }
+        omittedColumns.add(missingOptionalColumn);
+      }
+      if (!saved) {
+        throw new OwnerApiError(staffProfileCompatibilityError, 409);
       }
     }
 

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { completeOwnerMediaUpload } from "@/server/media-service";
+import { reportPriceGuidePhotoLifecycle } from "@/lib/media/price-guide-photo-lifecycle";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
@@ -18,6 +19,16 @@ export async function POST(request: NextRequest) {
       height: typeof body.height === "number" ? body.height : null,
       checksumSha256: typeof body.checksumSha256 === "string" ? body.checksumSha256 : null,
     });
+    const requestCorrelationFingerprint = mediaAsset.metadata?.priceGuideRequestCorrelationFingerprint;
+    if (typeof requestCorrelationFingerprint === "string") {
+      reportPriceGuidePhotoLifecycle({
+        requestCorrelationFingerprint,
+        stage: "upload",
+        status: "succeeded",
+        elapsedMs: 0,
+        counts: { uploadIntentCount: 1, uploadCount: 1, providerRequestCount: 0, cleanupCount: 0 },
+      });
+    }
 
     return ownerMobileCorsJson(request, { mediaAsset }, undefined, WRITE_CORS);
   } catch (error) {

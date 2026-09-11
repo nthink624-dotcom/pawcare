@@ -30,20 +30,20 @@ function StaffModalActionButton({ label, onClick, primary = false }: { label: st
 
 export function StaffAddModal({
   draft,
-  fallbackColorIndex = 0,
+  unavailableChipColorIndices,
   onDraftChange,
   onClose,
   onAdd,
 }: {
   draft: StaffDraft;
-  fallbackColorIndex?: number;
+  unavailableChipColorIndices: ReadonlySet<number>;
   onDraftChange: (draft: StaffDraft) => void;
   onClose: () => void;
   onAdd: () => void;
 }) {
   return (
     <StaffModal title="직원 추가" onClose={onClose}>
-      <StaffDraftForm draft={draft} fallbackColorIndex={fallbackColorIndex} onChange={onDraftChange} />
+      <StaffDraftForm draft={draft} unavailableChipColorIndices={unavailableChipColorIndices} onChange={onDraftChange} />
       <div className="mt-4 grid grid-cols-2 gap-2">
         <GhostButton label="취소" onClick={onClose} />
         <PrimaryButton label="추가" onClick={onAdd} disabled={!draft.name.trim()} />

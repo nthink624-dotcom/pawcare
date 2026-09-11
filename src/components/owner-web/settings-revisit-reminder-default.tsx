@@ -3,7 +3,7 @@
 import { CalendarClock } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { Switch } from "@/components/ui/switch";
+import { AlertSettingsSwitch } from "@/components/owner-web/settings-alert-switch";
 
 function clampDays(value: number) {
   return Math.min(Math.max(Math.round(value), 1), 365);
@@ -36,8 +36,8 @@ export function SettingsRevisitReminderDefault({
   }
 
   return (
-    <div className="rounded-[12px] border border-[#dbe5ef] bg-[#f8fbff] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 gap-3">
           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#eaf3ff] text-[#2f6fd6]">
             <CalendarClock className="h-5 w-5" />
@@ -49,14 +49,14 @@ export function SettingsRevisitReminderDefault({
             </p>
           </div>
         </div>
-        <Switch
+        <AlertSettingsSwitch
           checked={enabled}
           disabled={disabled}
           aria-label="재예약 알림 기본 사용"
           onCheckedChange={onEnabledChange}
         />
       </div>
-      <label className="mt-4 flex items-center justify-between gap-4 rounded-[10px] border border-[#dbe5ef] bg-white px-3.5 py-3">
+      <label className="mt-3 flex min-h-14 items-center justify-between gap-3 rounded-[10px] border border-[#e5e7eb] bg-white px-3 py-1.5">
         <span className="text-[15px] text-[#52677e]">미용 완료일 기준</span>
         <span className="inline-flex items-center gap-2">
           <input
@@ -70,7 +70,7 @@ export function SettingsRevisitReminderDefault({
             onKeyDown={(event) => {
               if (event.key === "Enter") event.currentTarget.blur();
             }}
-            className="h-10 w-20 rounded-[8px] border border-[#cfdbe7] bg-white px-3 text-right text-[16px] font-semibold text-[#172c46] outline-none focus:border-[#7eaae0] disabled:bg-[#f3f6f9] disabled:text-[#94a3b8]"
+            className="h-11 w-20 rounded-[8px] border border-[#cfdbe7] bg-white px-3 text-right text-[16px] font-semibold text-[#172c46] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#f3f6f9] disabled:text-[#94a3b8]"
           />
           <span className="text-[15px] text-[#52677e]">일 후</span>
         </span>

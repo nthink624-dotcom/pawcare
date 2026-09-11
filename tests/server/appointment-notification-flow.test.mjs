@@ -117,9 +117,10 @@ beforeEach(() => {
 });
 
 describe("appointment and alimtalk flow guards", () => {
-  it("uses exactly the ten active customer alimtalk templates", () => {
+  it("uses exactly the twelve active customer alimtalk templates", () => {
     assert.deepEqual(ACTIVE_ALIMTALK_TEMPLATE_ALIASES, [
       "booking_confirmed",
+      "booking_manage_link_requested",
       "booking_cancelled",
       "booking_time_proposed",
       "booking_rescheduled_confirmed",
@@ -129,6 +130,7 @@ describe("appointment and alimtalk flow guards", () => {
       "grooming_started",
       "grooming_almost_done",
       "grooming_completed",
+      "revisit_notice",
     ]);
   });
 
@@ -296,6 +298,7 @@ describe("appointment and alimtalk flow guards", () => {
     assert.equal(notificationsFor(appointment.id, "grooming_started").length, 1);
     assert.equal(notificationsFor(appointment.id, "grooming_almost_done").length, 1);
     assert.equal(notificationsFor(appointment.id, "grooming_completed").length, 1);
+    assert.equal(records[0].customer_notification_id, notificationsFor(appointment.id, "grooming_completed")[0].id);
 
     await assert.rejects(
       () =>

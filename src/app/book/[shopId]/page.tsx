@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 
 import CustomerBookingPage from "@/components/customer/customer-booking-page";
-import { isDevelopmentDemoShopId, isLandingDemoShopId } from "@/lib/development-demo";
+import {
+  getLandingDemoShopId,
+  isDevelopmentDemoShopId,
+  isLandingDemoShopId,
+  resolveLandingDemoServiceId,
+} from "@/lib/development-demo";
 import { verifyBookingAccessToken } from "@/server/booking-access-token";
 import { getBootstrap } from "@/server/bootstrap";
 
@@ -15,7 +20,8 @@ export default async function BookPage({
   params: Promise<{ shopId: string }>;
   searchParams?: Promise<{ mode?: string; token?: string; t?: string; date?: string; time?: string; serviceId?: string; serviceOptionId?: string; step?: string; experience?: string }>;
 }) {
-  const { shopId } = await params;
+  const { shopId: requestedShopId } = await params;
+  const shopId = isLandingDemoShopId(requestedShopId) ? getLandingDemoShopId() : requestedShopId;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedMode = resolvedSearchParams?.mode;
   const requestedAccessToken = resolvedSearchParams?.t || resolvedSearchParams?.token;
@@ -33,6 +39,9 @@ export default async function BookPage({
   }
 
   const data = await getBootstrap(shopId);
+  const initialServiceId = isStableLandingDemoShop
+    ? resolveLandingDemoServiceId(resolvedSearchParams?.serviceId, data.services)
+    : (resolvedSearchParams?.serviceId ?? "");
   const requestedStep = Number(resolvedSearchParams?.step);
   const initialFirstVisitStep = requestedStep >= 1 && requestedStep <= 4 ? (requestedStep as 1 | 2 | 3 | 4) : 1;
   let validatedRebookingToken: string | undefined;
@@ -93,7 +102,7 @@ export default async function BookPage({
       initialAccessToken={validatedRebookingToken}
       initialDate={resolvedSearchParams?.date ?? ""}
       initialTime={resolvedSearchParams?.time ?? ""}
-      initialServiceId={resolvedSearchParams?.serviceId ?? ""}
+      initialServiceId={initialServiceId}
       initialServiceOptionId={resolvedSearchParams?.serviceOptionId ?? ""}
       initialFirstVisitStep={initialFirstVisitStep}
       entryHref={landingExperience === "first" ? `/entry/${encodedShopId}?experience=first` : `/entry/${encodedShopId}`}

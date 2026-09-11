@@ -13,6 +13,7 @@ import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navig
 import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
+import { bookingCloseGraceMinuteOptions, normalizeBookingCloseGraceMinutes } from "@/lib/booking-last-start-cutoff";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { defaultStaffProfileMessage } from "@/lib/staff-display";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
@@ -213,6 +214,9 @@ export default function OwnerSettingsPanel({
   const [businessHours, setBusinessHours] = useState<BusinessHours>(
     createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days),
   );
+  const [bookingCloseGraceMinutes, setBookingCloseGraceMinutes] = useState(
+    normalizeBookingCloseGraceMinutes(data.shop.reservation_policy_settings?.booking_close_grace_minutes),
+  );
   const [timeEditorTarget, setTimeEditorTarget] = useState<number | "all" | null>(null);
   const [timeDraft, setTimeDraft] = useState({ open: defaultBusinessHoursEntry.open, close: defaultBusinessHoursEntry.close, closed: false });
   const [operatingHoursNote, setOperatingHoursNote] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.operating_hours_note ?? ""));
@@ -278,6 +282,12 @@ export default function OwnerSettingsPanel({
     data.shop.business_hours,
     data.shop.regular_closed_days,
   ]);
+
+  useEffect(() => {
+    setBookingCloseGraceMinutes(
+      normalizeBookingCloseGraceMinutes(data.shop.reservation_policy_settings?.booking_close_grace_minutes),
+    );
+  }, [data.shop.id, data.shop.reservation_policy_settings?.booking_close_grace_minutes]);
 
   useEffect(() => {
     const nextAddressParts = parseShopAddressParts(data.shop.address);
@@ -577,6 +587,10 @@ export default function OwnerSettingsPanel({
           bookingSlotOffsetMinutes: 0,
           bookingAvailableStartTime: data.shop.booking_available_start_time,
           bookingAvailableEndTime: data.shop.booking_available_end_time,
+          reservationPolicySettings: {
+            ...data.shop.reservation_policy_settings,
+            booking_close_grace_minutes: bookingCloseGraceMinutes,
+          },
           approvalMode: data.shop.approval_mode,
           regularClosedDays,
           temporaryClosedDates,
@@ -683,13 +697,13 @@ export default function OwnerSettingsPanel({
         const currentPlanTitle = isFreePlan || showTrialCard ? "체험 플랜" : getOwnerPlanDisplayName(currentPlan.code);
         const currentPlanLine = isFreePlan || showTrialCard
           ? "카드 등록 없이 이용 중"
-          : `${getOwnerPlanStaffLimitLabel(currentPlan, currentTotalShopCount)} · ${currentPlan.alimtalkIncludedLabel}`;
+          : getOwnerPlanStaffLimitLabel(currentPlan, currentTotalShopCount);
         const currentPlanPriceLabel = isFreePlan || showTrialCard ? "무료" : `월 ${won(currentPlan.monthlyPrice)}`;
         const currentPlanSubLabel = isFreePlan
           ? "관리자 설정"
           : showTrialCard
             ? "체험 플랜"
-          : currentPlan.excessAlimtalkLabel;
+          : "현재 요금제로 이용 중";
         const endDateLabel = "서비스 종료일";
         const isInService =
           subscriptionSummary.status === "active" ||
@@ -961,6 +975,25 @@ export default function OwnerSettingsPanel({
               </button>
             );
           })}
+        </div>
+      </SettingsFieldCard>
+
+      <SettingsFieldCard label="마감 여유">
+        <div className="space-y-2">
+          <select
+            value={bookingCloseGraceMinutes}
+            onChange={(event) => setBookingCloseGraceMinutes(normalizeBookingCloseGraceMinutes(Number(event.target.value)))}
+            className="min-h-[46px] w-full rounded-[14px] border border-[var(--border)] bg-white px-3.5 text-[16px] font-medium leading-6 text-[var(--text)] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20"
+          >
+            {bookingCloseGraceMinuteOptions.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {minutes === 0 ? "여유 없음" : `${minutes}분${minutes === 15 ? " · 권장" : ""}`}
+              </option>
+            ))}
+          </select>
+          <p className="text-[13px] font-normal leading-5 text-[var(--muted)]">
+            영업 마감 뒤 예약 종료를 허용할 여유입니다. 기존 매장은 여유 없음으로 유지됩니다.
+          </p>
         </div>
       </SettingsFieldCard>
 

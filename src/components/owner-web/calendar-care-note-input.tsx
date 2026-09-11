@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowUp, Loader2, Mic, MicOff, Sparkles, Square } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowUp, Loader2, Mic, MicOff, Square } from "lucide-react";
+import { type FocusEvent, type KeyboardEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { CARE_REPORT_TYPOGRAPHY as OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
 
@@ -35,10 +35,22 @@ function getSpeechRecognitionConstructor() {
   return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
 }
 
+function subscribeSpeechRecognitionSupport() {
+  return () => undefined;
+}
+
+function getSpeechRecognitionSupportSnapshot() {
+  return Boolean(getSpeechRecognitionConstructor());
+}
+
+function getServerSpeechRecognitionSupportSnapshot() {
+  return false;
+}
+
 function appendTranscript(current: string, transcript: string) {
   const normalized = transcript.trim();
   if (!normalized) return current;
-  return [current.trim(), normalized].filter(Boolean).join("\n").slice(0, 2000);
+  return [current.trim(), normalized].filter(Boolean).join("\n").slice(0, 1000);
 }
 
 export function CalendarCareNoteInput({
@@ -57,10 +69,16 @@ export function CalendarCareNoteInput({
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const valueRef = useRef(value);
   const speechBaseValueRef = useRef(value);
-  const [speechSupported] = useState(() => Boolean(getSpeechRecognitionConstructor()));
+  const speechSupported = useSyncExternalStore(
+    subscribeSpeechRecognitionSupport,
+    getSpeechRecognitionSupportSnapshot,
+    getServerSpeechRecognitionSupportSnapshot,
+  );
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState("");
   const [speechError, setSpeechError] = useState("");
+  const [textareaInputModality, setTextareaInputModality] = useState<"keyboard" | "pointer">("keyboard");
+  const [textareaFocused, setTextareaFocused] = useState(false);
 
   useEffect(() => {
     return () => recognitionRef.current?.stop();
@@ -123,71 +141,81 @@ export function CalendarCareNoteInput({
     setListening(true);
   }
 
+  function markKeyboardTextareaFocus(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Tab") setTextareaInputModality("keyboard");
+  }
+
+  function resetTextareaFocusAfterLeave(event: FocusEvent<HTMLDivElement>) {
+    const scope = event.currentTarget;
+    queueMicrotask(() => {
+      if (!scope.contains(document.activeElement)) setTextareaInputModality("keyboard");
+    });
+  }
+
+  const textareaFocusStyle = textareaFocused && textareaInputModality === "keyboard"
+    ? { outline: "2px solid #2563eb", outlineOffset: 2 }
+    : undefined;
+
   return (
-    <div className="overflow-hidden rounded-[14px] border border-[#d7dde4] bg-white shadow-[0_7px_20px_rgba(20,39,63,0.06)] transition focus-within:border-[#8c99a7] focus-within:shadow-[0_9px_24px_rgba(20,39,63,0.10)]">
+    <div
+      data-textarea-input-modality={textareaInputModality}
+      onPointerDownCapture={() => setTextareaInputModality("pointer")}
+      onMouseDownCapture={() => setTextareaInputModality("pointer")}
+      onKeyDownCapture={markKeyboardTextareaFocus}
+      onBlurCapture={resetTextareaFocusAfterLeave}
+      data-care-note-composer
+      className="relative overflow-visible rounded-[14px] border border-[#d7dde4] bg-white shadow-[0_7px_20px_rgba(20,39,63,0.06)] transition focus-within:border-[#8c99a7] focus-within:shadow-[0_9px_24px_rgba(20,39,63,0.10)]"
+    >
       <textarea
+        data-care-note-input
         data-modal-wheel-scope="self"
         value={value}
-        onChange={(event) => onChange(event.target.value.slice(0, 2000))}
+        onChange={(event) => onChange(event.target.value.slice(0, 1000))}
+        onFocus={() => setTextareaFocused(true)}
+        onBlur={() => setTextareaFocused(false)}
         onKeyDown={(event) => {
           if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
           event.preventDefault();
           if (!submitting) onSubmit();
         }}
         disabled={disabled}
-        maxLength={2000}
-        placeholder={"오늘 진행한 미용 · 아이 상태 · 집에서 관리할 점\n예) 발톱과 발바닥 털을 정리했어요. 피부가 조금 건조해 보여 보습 관리를 부탁드려요."}
-        className={`${OWNER_TYPOGRAPHY.body} h-[58px] max-h-[58px] w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent px-4 pb-1 pt-2 text-[#263547] outline-none placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
+        maxLength={1000}
+        placeholder={"오늘 관찰 메모\n예) 목욕은 잘 진행했고, 귀가 조금 예민했어요."}
+        className={`${OWNER_TYPOGRAPHY.body} min-h-[58px] max-h-[116px] w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent pb-1 pl-4 pr-[96px] pt-2 text-[#263547] [field-sizing:content] [line-height:1.5] outline-none focus:outline-none focus:ring-0 placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
+        style={textareaFocusStyle}
       />
 
       {speechError ? (
-        <p className={`${OWNER_TYPOGRAPHY.label} mx-5 mb-2 flex items-center gap-1.5 text-[#a04455]`}><MicOff className="h-4 w-4" /> {speechError}</p>
+        <p className={`${OWNER_TYPOGRAPHY.label} mb-2 ml-4 mr-[96px] flex items-center gap-1.5 text-[#a04455] [line-height:1.5]`}><MicOff className="h-4 w-4" /> {speechError}</p>
       ) : null}
 
-      <div className="flex min-h-8 items-center justify-between gap-4 px-3 pb-1 pt-0.5">
-        <div className={`${OWNER_TYPOGRAPHY.meta} flex min-w-0 items-center gap-2 text-[#687583]`}>
-          {listening ? (
-            <>
-              <span className="relative flex h-2.5 w-2.5 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#274563] opacity-40" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#274563]" />
-              </span>
-              <span className="truncate">{interimText || "듣고 있어요"}</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4 shrink-0 text-[#526171]" />
-              <span>AI 케어리포트</span>
-            </>
-          )}
-        </div>
+      {listening ? <p className="sr-only" aria-live="polite">{interimText || "듣고 있어요"}</p> : null}
 
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            aria-label={listening ? "음성 입력 마치기" : "음성으로 입력하기"}
-            title={listening ? "음성 입력 마치기" : "음성으로 입력하기"}
-            onClick={listening ? stopListening : startListening}
-            disabled={disabled || (!speechSupported && !listening)}
-            className={`grid h-8 w-8 place-items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
-              listening
-                ? "bg-[#edf0f3] text-[#14273f]"
-                : "text-[#44566a] hover:bg-[#f0f4f8]"
-            }`}
-          >
-            {listening ? <Square className="h-4 w-4 fill-current" /> : <Mic className="h-5 w-5" />}
-          </button>
-          <button
-            type="button"
-            aria-label="AI에게 정리 맡기기"
-            title="AI에게 정리 맡기기"
-            onClick={onSubmit}
-            disabled={disabled || submitting}
-            className="grid h-9 w-9 place-items-center rounded-full bg-[#14273f] text-white shadow-[0_8px_20px_rgba(20,39,63,0.22)] transition hover:bg-[#274563] disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowUp className="h-5 w-5" />}
-          </button>
-        </div>
+      <div data-care-note-actions-visual className="absolute right-1 top-[7px] flex w-[92px] items-center justify-end gap-1">
+        <button
+          type="button"
+          aria-label={listening ? "음성 입력 마치기" : "음성으로 입력하기"}
+          title={listening ? "음성 입력 마치기" : "음성으로 입력하기"}
+          onClick={listening ? stopListening : startListening}
+          disabled={disabled || (!speechSupported && !listening)}
+          className="group grid h-11 w-11 place-items-center rounded-full text-[#44566a] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-35"
+        >
+          <span className={`grid h-8 w-8 place-items-center rounded-full transition ${listening ? "bg-[#e8edf2] text-[#14273f]" : "bg-[#f3f5f7] group-hover:bg-[#e9eef3]"}`}>
+            {listening ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-label="AI에게 정리 맡기기"
+          title="AI에게 정리 맡기기"
+          onClick={onSubmit}
+          disabled={disabled || submitting || !value.trim()}
+          className="group grid h-11 w-11 place-items-center rounded-full text-white transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-[#263b52] transition group-hover:bg-[#1d3045]">
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+          </span>
+        </button>
       </div>
     </div>
   );

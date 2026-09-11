@@ -7,6 +7,7 @@ export type OwnerWebStaffMember = {
   profileImageUrl?: string;
   profileImageUrls?: string[];
   profileImageAssetIds?: string[];
+  profileImageFallbackKey?: "korean-groomer-profile-01" | "korean-groomer-profile-02" | null;
   profileMessage?: string;
   chipColorIndex?: number | null;
   phone: string;
@@ -32,6 +33,7 @@ export type OwnerWebStaffColumn = {
   profileImageUrl?: string;
   profileImageUrls?: string[];
   profileImageAssetIds?: string[];
+  profileImageFallbackKey?: "korean-groomer-profile-01" | "korean-groomer-profile-02" | null;
   profileMessage?: string;
   chipColorIndex?: number | null;
 };
@@ -162,6 +164,7 @@ export function toOwnerWebStaffColumn(staff: OwnerWebStaffMember): OwnerWebStaff
     profileImageUrl: staff.profileImageUrl,
     profileImageUrls: staff.profileImageUrls,
     profileImageAssetIds: staff.profileImageAssetIds,
+    profileImageFallbackKey: staff.profileImageFallbackKey,
     profileMessage: staff.profileMessage,
     chipColorIndex: staff.chipColorIndex ?? null,
   };

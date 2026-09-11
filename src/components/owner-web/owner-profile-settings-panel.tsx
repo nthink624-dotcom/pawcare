@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
+import { StableAvatar } from "@/components/owner-web/stable-avatar";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import type { OwnerProfile, Shop } from "@/types/domain";
 
@@ -10,7 +11,7 @@ type OwnerProfileSettingsPanelProps = {
   shop?: Shop;
   ownerProfile?: OwnerProfile | null;
   persistToSupabase?: boolean;
-  onOwnerProfileChange?: (profile: OwnerProfile) => void;
+  onOwnerProfileChange?: (profile: OwnerProfile) => void | Promise<void>;
 };
 
 function normalizePhone(value: string) {
@@ -114,7 +115,7 @@ export default function OwnerProfileSettingsPanel({
     try {
       if (!persistToSupabase) {
         const profile = buildLocalProfile(shop, ownerProfile, loginEmail, nextName, nextPhoneNumber, profileImageUrl);
-        onOwnerProfileChange?.(profile);
+        await onOwnerProfileChange?.(profile);
         setNotice("저장되었습니다.");
         return;
       }
@@ -128,7 +129,7 @@ export default function OwnerProfileSettingsPanel({
           profileImageUrl,
         }),
       });
-      onOwnerProfileChange?.(result.profile);
+      await onOwnerProfileChange?.(result.profile);
       setNotice("저장되었습니다.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "저장하지 못했습니다.");
@@ -160,7 +161,7 @@ export default function OwnerProfileSettingsPanel({
     try {
       if (!persistToSupabase) {
         const profile = buildLocalProfile(shop, ownerProfile, nextEmail, name.trim(), normalizePhone(phoneNumber), profileImageUrl);
-        onOwnerProfileChange?.(profile);
+        await onOwnerProfileChange?.(profile);
         setCurrentPassword("");
         setNotice("로그인 이메일이 변경되었습니다.");
         return;
@@ -174,7 +175,7 @@ export default function OwnerProfileSettingsPanel({
           currentPassword,
         }),
       });
-      onOwnerProfileChange?.(result.profile);
+      await onOwnerProfileChange?.(result.profile);
       setCurrentPassword("");
       setNotice("로그인 이메일이 변경되었습니다.");
     } catch (error) {
@@ -206,16 +207,15 @@ export default function OwnerProfileSettingsPanel({
 
       <div className="mt-7 flex flex-wrap items-start gap-6">
         <div className="grid gap-3">
-          <div className="flex h-[116px] w-[116px] items-center justify-center overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-[#f8fafc]">
-            {profileImageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={profileImageUrl} alt="프로필 사진" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-[32px] font-semibold text-[#2f7866]">{name.trim().slice(0, 1) || "P"}</span>
-            )}
-          </div>
+          <StableAvatar
+            identity={ownerProfile?.user_id ?? shop?.owner_user_id ?? "owner-profile"}
+            name={name}
+            imageUrl={profileImageUrl}
+            size="lg"
+            className="h-[116px] w-[116px] rounded-[12px] bg-[#f8fafc] text-[#52657a]"
+          />
           <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[15px] font-normal text-[#334155] transition hover:bg-[#f8fafc]">
-            사진 변경
+            프로필 사진 올리기
             <input
               type="file"
               accept="image/*"

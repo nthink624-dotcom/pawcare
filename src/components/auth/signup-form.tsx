@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import SignupRedesignView, {
   type SignupProfileStage,
 } from "@/components/auth/signup-redesign-view";
-import SignupReviewStep from "@/components/auth/signup-review-step";
-import SignupServicePricingStep from "@/components/auth/signup-service-pricing-step";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import {
   ATOMIC_OWNER_SIGNUP_CONTRACT_HEADER,
@@ -23,11 +21,15 @@ import {
   normalizeOwnerEmail,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
+import { shouldBypassSignupPhoneVerification } from "@/lib/auth/signup-local-phone-bypass";
 import { env } from "@/lib/env";
-import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
+import {
+  fetchIdentityApi,
+  PORTONE_IDENTITY_UI_TIMEOUT_MS,
+  requestPortoneIdentityVerification,
+} from "@/lib/portone/identity-verification-client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { clearOwnerAuthTokenCache, writeOwnerAuthHandoff, writeOwnerAuthSessionCache } from "@/lib/auth/owner-auth-handoff";
-import type { SignupServicePrice } from "@/lib/auth/signup-service-pricing";
 
 type AgreementState = Record<OwnerSignupTermId, boolean>;
 
@@ -52,6 +54,8 @@ type EmailCheckState = {
 type VerificationApiResponse = {
   message?: string;
   verificationRequestId?: string | null;
+  providerIdentityVerificationId?: string | null;
+  verificationState?: string | null;
   verificationToken?: string | null;
   identity?: {
     name?: string | null;
@@ -60,7 +64,9 @@ type VerificationApiResponse = {
   } | null;
 };
 
-type SignupStage = SignupProfileStage | "pricing" | "review";
+type SignupStage = SignupProfileStage | "complete";
+
+const LOCAL_SIGNUP_SETUP_PREVIEW_PATH = "/demo/owner-web?initialSetup=1";
 
 const initialAgreements: AgreementState = {
   service: false,
@@ -100,8 +106,7 @@ export default function SignupForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [stage, setStage] = useState<SignupStage>("pricing");
-  const [servicePrices, setServicePrices] = useState<SignupServicePrice[]>([]);
+  const [stage, setStage] = useState<SignupStage>("terms");
   const [signupRequestId] = useState(() => crypto.randomUUID());
   const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
   const [fields, setFields] = useState<SignupFields>(initialFields);
@@ -109,6 +114,8 @@ export default function SignupForm({
   const [shopPhoneSameAsOwner, setShopPhoneSameAsOwner] = useState(false);
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [localPhoneVerificationBypassed, setLocalPhoneVerificationBypassed] = useState(false);
+  const [completionDestinationPath, setCompletionDestinationPath] = useState<string | null>(null);
   const [emailCheck, setEmailCheck] = useState<EmailCheckState>({
     status: "idle",
     email: "",
@@ -116,9 +123,11 @@ export default function SignupForm({
   });
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const identityAbortControllerRef = useRef<AbortController | null>(null);
 
   const requiredTermsAgreed = agreements.service && agreements.privacy;
   const normalizedEmail = normalizeOwnerEmail(fields.email);
+  const initialSetupPath = `${nextPath}${nextPath.includes("?") ? "&" : "?"}initialSetup=1`;
   const emailFieldError =
     fields.email.length > 0 && !isValidOwnerEmail(normalizedEmail)
       ? "올바른 이메일 주소를 입력해 주세요."
@@ -156,7 +165,9 @@ export default function SignupForm({
     const timer = window.setTimeout(async () => {
       setEmailCheck({ status: "checking", email, message: null });
       try {
-        const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`, { cache: "no-store" });
+        const response = await fetchIdentityApi(`/api/auth/check-email?email=${encodeURIComponent(email)}`, {
+          cache: "no-store",
+        });
         const result = (await response.json()) as { available?: boolean; message?: string };
         if (!active) return;
         setEmailCheck({
@@ -176,6 +187,8 @@ export default function SignupForm({
       window.clearTimeout(timer);
     };
   }, [fields.email]);
+
+  useEffect(() => () => identityAbortControllerRef.current?.abort(), []);
 
   useEffect(() => {
     if (!supabaseReady || !supabase) return;
@@ -212,23 +225,6 @@ export default function SignupForm({
     setStage("account");
   };
 
-  const continueShop = () => {
-    if (!fields.shopName.trim()) {
-      setMessage("매장명을 입력해 주세요.");
-      return;
-    }
-    if (!isValidShopPhone(fields.shopPhone)) {
-      setMessage("매장 연락처를 올바르게 입력해 주세요.");
-      return;
-    }
-    if (!fields.shopAddress.trim()) {
-      setMessage("매장 주소를 입력해 주세요.");
-      return;
-    }
-    setMessage(null);
-    setStage("review");
-  };
-
   const continueAccount = () => {
     const email = normalizeOwnerEmail(fields.email);
     if (!isValidOwnerEmail(email)) {
@@ -252,51 +248,80 @@ export default function SignupForm({
       return;
     }
     setMessage(null);
+    if (
+      shouldBypassSignupPhoneVerification({
+        nodeEnv: process.env.NODE_ENV,
+        hostname: window.location.hostname,
+      })
+    ) {
+      setLocalPhoneVerificationBypassed(true);
+      setStage("shop");
+      return;
+    }
+    setLocalPhoneVerificationBypassed(false);
     void startKcpVerification();
   };
 
   const startKcpVerification = async () => {
+    if (identityAbortControllerRef.current) return;
     if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityKcpChannelKey) {
       setMessage("KCP 본인인증 채널이 아직 연결되지 않았습니다.");
       return;
     }
 
+    const requestController = new AbortController();
+    identityAbortControllerRef.current = requestController;
     setLoading(true);
     setMessage(null);
     try {
-      const requestResponse = await fetch("/api/auth/request-verification-code", {
+      const requestResponse = await fetchIdentityApi("/api/auth/request-verification-code", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           [ATOMIC_OWNER_SIGNUP_CONTRACT_HEADER]: ATOMIC_OWNER_SIGNUP_CONTRACT_VERSION,
         },
+        signal: requestController.signal,
         body: JSON.stringify({ purpose: "signup", method: "portone" }),
       });
       const requestResult = (await requestResponse.json()) as VerificationApiResponse;
-      if (!requestResponse.ok || !requestResult.verificationRequestId) {
+      if (
+        !requestResponse.ok ||
+        !requestResult.verificationRequestId ||
+        !requestResult.providerIdentityVerificationId ||
+        !requestResult.verificationState
+      ) {
         setMessage(requestResult.message ?? "본인인증 요청을 준비하지 못했습니다.");
         return;
       }
 
-      const identityVerificationId = `signup${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
-      const identityResult = await requestPortoneIdentityVerification({
-        storeId: env.portoneStoreId,
-        channelKey: env.portoneIdentityKcpChannelKey,
-        identityVerificationId,
-        windowType: { pc: "POPUP", mobile: "POPUP" },
-      });
-      if (!identityResult?.identityVerificationId) {
+      const identityResult = await requestPortoneIdentityVerification(
+        {
+          storeId: env.portoneStoreId,
+          channelKey: env.portoneIdentityKcpChannelKey,
+          identityVerificationId: requestResult.providerIdentityVerificationId,
+          customData: JSON.stringify({ petmanagerIdentityState: requestResult.verificationState }),
+          windowType: { pc: "POPUP", mobile: "POPUP" },
+        },
+        { signal: requestController.signal, timeoutMs: PORTONE_IDENTITY_UI_TIMEOUT_MS },
+      );
+      if (
+        !identityResult?.identityVerificationId ||
+        identityResult.identityVerificationId !== requestResult.providerIdentityVerificationId ||
+        identityResult.code
+      ) {
         setMessage("본인인증이 완료되지 않았습니다.");
         return;
       }
 
-      const verifyResponse = await fetch("/api/auth/verify-pass", {
+      const verifyResponse = await fetchIdentityApi("/api/auth/verify-pass", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: requestController.signal,
         body: JSON.stringify({
           purpose: "signup",
           verificationRequestId: requestResult.verificationRequestId,
           identityVerificationId: identityResult.identityVerificationId,
+          verificationState: requestResult.verificationState,
         }),
       });
       const verifyResult = (await verifyResponse.json()) as VerificationApiResponse;
@@ -318,18 +343,23 @@ export default function SignupForm({
       }));
       setStage("shop");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "본인인증 연결 중 문제가 발생했습니다.");
+      const timedOutOrAborted =
+        error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
+      setMessage(
+        timedOutOrAborted
+          ? "본인인증 확인 시간이 길어 요청을 중단했어요. 창을 닫고 다시 시도해 주세요."
+          : "본인인증을 진행하지 못했어요. 잠시 후 다시 시도해 주세요.",
+      );
     } finally {
+      if (identityAbortControllerRef.current === requestController) {
+        identityAbortControllerRef.current = null;
+      }
       setLoading(false);
     }
   };
 
   const submitSignup = async () => {
     const email = normalizeOwnerEmail(fields.email);
-    if (!verificationToken || !fields.name || !fields.birthDate || !fields.phoneNumber) {
-      setMessage("본인인증을 먼저 완료해 주세요.");
-      return;
-    }
     if (!requiredTermsAgreed || !isValidOwnerEmail(email) || !isValidOwnerPassword(fields.password)) {
       setMessage("가입 정보를 다시 확인해 주세요.");
       return;
@@ -350,11 +380,16 @@ export default function SignupForm({
       setMessage("매장 주소를 입력해 주세요.");
       return;
     }
-    if (servicePrices.length === 0) {
-      setMessage("서비스·상세 요금을 한 개 이상 확인해 주세요.");
+    if (localPhoneVerificationBypassed) {
+      setMessage(null);
+      setCompletionDestinationPath(LOCAL_SIGNUP_SETUP_PREVIEW_PATH);
+      setStage("complete");
       return;
     }
-
+    if (!verificationToken || !fields.name || !fields.birthDate || !fields.phoneNumber) {
+      setMessage("본인인증을 먼저 완료해 주세요.");
+      return;
+    }
     setLoading(true);
     setMessage(null);
     try {
@@ -378,7 +413,6 @@ export default function SignupForm({
           agreements,
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
           signupRequestId,
-          servicePrices,
         }),
       });
       const result = (await response.json().catch(() => ({}))) as {
@@ -398,61 +432,26 @@ export default function SignupForm({
 
       const accessToken = result.session?.accessToken;
       const refreshToken = result.session?.refreshToken;
-      const destinationPath = result.billingRequired ? "/owner/billing?notice=trial-used" : nextPath;
+      const destinationPath = result.billingRequired ? "/owner/billing?notice=trial-used" : initialSetupPath;
+      let completionPath = destinationPath;
       if (accessToken && refreshToken) {
         const session = { accessToken, refreshToken };
         clearOwnerAuthTokenCache();
         writeOwnerAuthHandoff(session);
         writeOwnerAuthSessionCache(session);
         await supabase?.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-        router.replace(destinationPath as never);
       } else {
         const loginMessage = result.billingRequired ? "trial-used" : "signup-success";
-        router.replace(
-          `/login?next=${encodeURIComponent(destinationPath)}&message=${loginMessage}` as never,
-        );
+        completionPath = `/login?next=${encodeURIComponent(destinationPath)}&message=${loginMessage}`;
       }
-      router.refresh();
+      setCompletionDestinationPath(completionPath);
+      setStage("complete");
     } catch {
       setMessage("회원가입 요청 중 문제가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }
   };
-
-  if (stage === "pricing") {
-    return (
-      <SignupServicePricingStep
-        services={servicePrices}
-        onChange={setServicePrices}
-        onBack={() => router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never)}
-        onNext={() => {
-          setMessage(null);
-          setStage("terms");
-        }}
-      />
-    );
-  }
-
-  if (stage === "review") {
-    return (
-      <SignupReviewStep
-        services={servicePrices}
-        ownerName={fields.name}
-        email={normalizedEmail}
-        shopName={fields.shopName}
-        shopPhone={fields.shopPhone}
-        shopAddress={[fields.shopAddress.trim(), shopDetailAddress.trim()].filter(Boolean).join(" ")}
-        loading={loading}
-        message={message}
-        onBack={() => {
-          setMessage(null);
-          setStage("shop");
-        }}
-        onSubmit={() => void submitSignup()}
-      />
-    );
-  }
 
   return (
     <>
@@ -462,6 +461,7 @@ export default function SignupForm({
         agreements={agreements}
         shopDetailAddress={shopDetailAddress}
         shopPhoneSameAsOwner={shopPhoneSameAsOwner}
+        localPreview={localPhoneVerificationBypassed}
         loading={loading}
         message={message}
         emailStatus={{
@@ -479,7 +479,7 @@ export default function SignupForm({
         onBack={() => {
           setMessage(null);
           if (stage === "terms") {
-            setStage("pricing");
+            router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never);
           } else if (stage === "account") {
             setStage("terms");
           } else {
@@ -496,7 +496,12 @@ export default function SignupForm({
         onContinueTerms={continueTerms}
         onNextAccount={continueAccount}
         onOpenAddress={() => setAddressSheetOpen(true)}
-        onSubmit={continueShop}
+        onSubmit={() => void submitSignup()}
+        onStart={() => {
+          if (!completionDestinationPath) return;
+          router.replace(completionDestinationPath as never);
+          router.refresh();
+        }}
       />
       {addressSheetOpen ? (
         <KakaoPostcodeSheet

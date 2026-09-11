@@ -1,5 +1,6 @@
 ﻿import { env } from "@/lib/env";
 import {
+  clearOwnerAccessTokenCache,
   clearOwnerAuthTokenCache,
   readOwnerAuthRefreshTokenCache,
   readOwnerAuthTokenCache,
@@ -15,6 +16,13 @@ export type PublicBootstrapPayload = Pick<
 > & {
   mode: BootstrapPayload["mode"];
 };
+
+export class ApiResponseError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiResponseError";
+  }
+}
 
 export function buildApiUrl(path: string) {
   if (/^https?:\/\//.test(path)) {
@@ -57,7 +65,7 @@ export async function fetchApiJson<T>(input: string, init?: RequestInit) {
       json && typeof json === "object" && "message" in json && typeof json.message === "string"
         ? json.message
         : "요청 처리 중 문제가 발생했습니다.";
-    throw new Error(message);
+    throw new ApiResponseError(message, response.status);
   }
 
   return json as T;
@@ -144,6 +152,31 @@ async function readAccessTokenWithRecovery() {
   throw new Error("로그인이 필요합니다.");
 }
 
+async function refreshAccessTokenForRetry() {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
+
+  const cachedRefreshToken = readOwnerAuthRefreshTokenCache();
+  try {
+    const refreshedSession = await withAuthRequestTimeout(
+      (cachedRefreshToken
+        ? supabase.auth.refreshSession({ refresh_token: cachedRefreshToken })
+        : supabase.auth.refreshSession()) as Promise<SupabaseSessionResult>,
+    );
+    if (!refreshedSession.data.session?.access_token) {
+      throw new Error("로그인이 필요합니다.");
+    }
+    writeOwnerAuthTokenCache(
+      refreshedSession.data.session.access_token,
+      refreshedSession.data.session.refresh_token,
+    );
+    return refreshedSession.data.session.access_token;
+  } catch (error) {
+    clearOwnerAuthTokenCache();
+    throw error;
+  }
+}
+
 async function getAccessTokenWithRecovery() {
   accessTokenRequest ??= readAccessTokenWithRecovery().finally(() => {
     accessTokenRequest = null;
@@ -171,13 +204,12 @@ export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit)
   try {
     return await fetchApiJsonWithBearer<T>(input, accessToken, init);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    if (!message.includes("로그인이 필요합니다")) {
+    if (!(error instanceof ApiResponseError) || error.status !== 401) {
       throw error;
     }
 
-    clearOwnerAuthTokenCache();
-    const retryAccessToken = await getAccessTokenWithRecovery();
+    clearOwnerAccessTokenCache();
+    const retryAccessToken = await refreshAccessTokenForRetry();
     return fetchApiJsonWithBearer<T>(input, retryAccessToken, init);
   }
 }

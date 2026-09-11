@@ -14,16 +14,28 @@ import {
   evaluatePetmanagerMediaUploadLimit,
   getPetmanagerMediaUsageStatus,
 } from "@/lib/media/media-policy";
+import { serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
   createMediaSignedReadUrl,
   createMediaSignedUploadUrl,
   getMediaStorageInfo,
   removeMediaStorageObjects,
+  verifyMediaStorageObjectsAbsent,
 } from "@/server/media-storage";
+import { runMediaUploadIntentStage } from "@/server/media-upload-intent-errors";
 import { buildMediaStorageDirectory } from "@/server/media-storage-paths";
 import { verifyBookingAccessToken } from "@/server/booking-access-token";
 import { OwnerApiError } from "@/server/owner-api-auth";
+import {
+  createPriceGuideSourceCorrelationBinding,
+  createPriceGuideSourceCleanupProof,
+  createPriceGuideSourceHardPurgeReceipt,
+  derivePriceGuideSourceMediaAssetId,
+  verifyPriceGuideSourceCleanupProof,
+  type PriceGuideSourceCleanupBinding,
+  type PriceGuideSourceCleanupProof,
+} from "@/server/price-guide-photo-cleanup-decision";
 import type {
   ChannelType,
   MediaAsset,
@@ -56,6 +68,7 @@ const mediaKinds = new Set<MediaKind>([
   "shop_profile",
   "staff_profile",
   "price_guide_source",
+  "feedback_screenshot",
   "customer_shared",
   "memo_attachment",
 ]);
@@ -77,7 +90,13 @@ const attachmentRoles = new Set<NotificationMediaAttachmentRole>([
   "receipt",
   "other",
 ]);
-const transientKinds = new Set<MediaKind>(["grooming_before", "grooming_after", "message_image", "customer_shared"]);
+const transientKinds = new Set<MediaKind>([
+  "grooming_before",
+  "grooming_after",
+  "message_image",
+  "feedback_screenshot",
+  "customer_shared",
+]);
 
 type OwnerContext = {
   shopId: string;
@@ -102,6 +121,8 @@ type CreateUploadIntentInput = {
   petId?: string | null;
   appointmentId?: string | null;
   groomingRecordId?: string | null;
+  clientCorrelationId?: string | null;
+  requestCorrelationFingerprint?: string | null;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -161,6 +182,11 @@ type CustomerResultMediaSignedUrlsInput = PublicMediaSignedUrlsInput & {
 type OwnerMediaSignedUrlsInput = {
   mediaAssetIds: string[];
   variantKey?: MediaVariantKey | "original" | null;
+};
+
+type RemoveOwnerPriceGuideSourceMediaInput = {
+  mediaAssetIds: string[];
+  cleanupProofs?: PriceGuideSourceCleanupProof[];
 };
 
 type PhotoSendRequestInput = {
@@ -526,8 +552,15 @@ function getCleanupNow(value: string | null | undefined) {
 }
 
 export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: CreateUploadIntentInput) {
-  const admin = getAdmin();
-  const mediaLimitPolicy = await getShopMediaLimitPolicy(owner.shopId);
+  const intentDiagnostic = {
+    requestCorrelationFingerprint: typeof input.requestCorrelationFingerprint === "string"
+      ? input.requestCorrelationFingerprint
+      : undefined,
+  };
+  const mediaLimitPolicy = await runMediaUploadIntentStage("MEDIA_POLICY_LOOKUP_FAILED", () =>
+    getShopMediaLimitPolicy(owner.shopId),
+    intentDiagnostic,
+  );
   const contentType = normalizeContentType(input.contentType);
 
   if (!allowedContentTypes.has(contentType)) {
@@ -555,7 +588,26 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
   const groomingRecordId = optionalUuid(input.groomingRecordId, "groomingRecordId");
   const metadata = normalizeMetadata(input.metadata);
   const staffId = mediaKind === "staff_profile" && typeof metadata.staffId === "string" ? metadata.staffId : null;
-  const mediaAssetId = randomUUID();
+  const clientCorrelationId = mediaKind === "price_guide_source" && input.clientCorrelationId
+    ? requiredUuid(input.clientCorrelationId, "clientCorrelationId")
+    : null;
+  const requestCorrelationFingerprint = mediaKind === "price_guide_source"
+    && typeof input.requestCorrelationFingerprint === "string"
+    ? input.requestCorrelationFingerprint
+    : null;
+  const cleanupSecret = mediaKind === "price_guide_source" ? serverEnv.authFlowSecret : null;
+  if (mediaKind === "price_guide_source" && !cleanupSecret) {
+    throw new OwnerApiError("요금표 원본 정리 설정을 확인할 수 없습니다.", 503);
+  }
+  const mediaAssetId = clientCorrelationId
+    ? derivePriceGuideSourceMediaAssetId({
+        secret: cleanupSecret as string,
+        shopId: owner.shopId,
+        clientCorrelationId,
+      })
+    : randomUUID();
+  let cleanupProof: string | null = null;
+  let cleanupBinding: PriceGuideSourceCleanupBinding | null = null;
   const storagePath = buildStoragePath({
     shopId: owner.shopId,
     mediaAssetId,
@@ -566,12 +618,40 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     appointmentId,
     staffId,
   });
+  if (mediaKind === "price_guide_source") {
+    cleanupBinding = clientCorrelationId
+      ? createPriceGuideSourceCorrelationBinding({
+          secret: cleanupSecret as string,
+          shopId: owner.shopId,
+          mediaAssetId,
+          clientCorrelationId,
+          requestCorrelationFingerprint: requestCorrelationFingerprint ?? undefined,
+          bucket: MEDIA_BUCKET,
+          storagePath,
+        })
+      : null;
+    cleanupProof = cleanupBinding?.proof ?? createPriceGuideSourceCleanupProof({
+      secret: cleanupSecret as string,
+      shopId: owner.shopId,
+      mediaAssetId,
+    });
+  }
 
-  const signedUpload = await createMediaSignedUploadUrl({
-    bucket: MEDIA_BUCKET,
-    path: storagePath,
-    contentType,
-  });
+  if (cleanupBinding) {
+    const duplicate = await getAdmin().from("media_assets").select("id").eq("id", mediaAssetId).maybeSingle();
+    if (duplicate.error) {
+      throw new OwnerApiError("요금표 사진 요청 상태를 확인하지 못했습니다.", 503);
+    }
+    if (duplicate.data) throw new OwnerApiError("이미 처리 중인 요금표 사진 요청입니다.", 409);
+  }
+
+  const signedUpload = await runMediaUploadIntentStage("MEDIA_SIGNING_FAILED", () =>
+    createMediaSignedUploadUrl({
+      bucket: MEDIA_BUCKET,
+      path: storagePath,
+      contentType,
+    }), intentDiagnostic,
+  );
 
   const insertPayload = {
     id: mediaAssetId,
@@ -595,11 +675,22 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     retention_policy: retentionPolicy,
     uploaded_by_user_id: owner.userId,
     uploaded_from: uploadedFrom,
-    metadata,
+    metadata: cleanupBinding
+      ? {
+          ...metadata,
+          priceGuideCorrelationFingerprint: cleanupBinding.correlationFingerprint,
+          ...(cleanupBinding.requestCorrelationFingerprint
+            ? { priceGuideRequestCorrelationFingerprint: cleanupBinding.requestCorrelationFingerprint }
+            : {}),
+        }
+      : metadata,
     expires_at: getExpiresAt(retentionPolicy, mediaLimitPolicy.transientRetentionDays),
   };
 
-  const usage = await getMonthlyUsageRow(owner.shopId, getUsageMonth());
+  const usage = await runMediaUploadIntentStage("MEDIA_USAGE_LOOKUP_FAILED", () =>
+    getMonthlyUsageRow(owner.shopId, getUsageMonth()),
+    intentDiagnostic,
+  );
   const projectedUploadedBytes = Number(usage.uploaded_bytes ?? 0) + byteSize;
   const uploadLimit = evaluatePetmanagerMediaUploadLimit({
     projectedUploadedBytes,
@@ -609,10 +700,12 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     throw new OwnerApiError(PETMANAGER_MEDIA_NOTICE_COPY.usageExceeded, 402);
   }
 
-  const result = await admin.from("media_assets").insert(insertPayload).select("*").single();
-  if (result.error) {
-    throw new OwnerApiError(result.error.message, 500);
-  }
+  const mediaAsset = await runMediaUploadIntentStage("MEDIA_METADATA_INSERT_FAILED", async () => {
+    const admin = getAdmin();
+    const result = await admin.from("media_assets").insert(insertPayload).select("*").single();
+    if (result.error) throw result.error;
+    return result.data as MediaAsset;
+  }, intentDiagnostic);
 
   const usageSummary = buildUsageSummary({
     ...usage,
@@ -620,7 +713,16 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
   }, mediaLimitPolicy);
 
   return {
-    mediaAsset: result.data as MediaAsset,
+    mediaAsset,
+    cleanupProof,
+    cleanupBinding: cleanupBinding
+      ? {
+          requestCorrelationFingerprint: cleanupBinding.requestCorrelationFingerprint,
+          correlationFingerprint: cleanupBinding.correlationFingerprint,
+          assetFingerprint: cleanupBinding.assetFingerprint,
+          objectLifecycleFingerprint: cleanupBinding.objectLifecycleFingerprint,
+        }
+      : null,
     policy: {
       retentionDays: mediaLimitPolicy.transientRetentionDays,
       targetImageBytes: OWNER_MEDIA_TARGET_IMAGE_BYTES,
@@ -845,6 +947,188 @@ export async function getOwnerMediaSignedUrls(owner: OwnerContext, input: OwnerM
 
   return {
     items: items.filter((item): item is { mediaAssetId: string; signedUrl: string } => Boolean(item)),
+  };
+}
+
+export async function removeOwnerPriceGuideSourceMedia(
+  owner: OwnerContext,
+  input: RemoveOwnerPriceGuideSourceMediaInput,
+) {
+  const admin = getAdmin();
+  const mediaAssetIds = normalizeUuidList(input.mediaAssetIds, "mediaAssetId", 5);
+  if (!mediaAssetIds.length || mediaAssetIds.length !== input.mediaAssetIds.length) {
+    throw new OwnerApiError("정리할 요금표 원본 사진이 없습니다.", 400);
+  }
+
+  const cleanupProofByMediaAssetId = new Map(
+    (input.cleanupProofs ?? []).map((item) => [item.mediaAssetId, item]),
+  );
+
+  const assetsResult = await admin
+    .from("media_assets")
+    .select("*")
+    .eq("shop_id", owner.shopId)
+    .in("id", mediaAssetIds);
+  if (assetsResult.error) {
+    throw new OwnerApiError("요금표 원본 사진을 확인하지 못했습니다.", 503);
+  }
+  const assets = (assetsResult.data ?? []) as MediaAsset[];
+  if (assets.some((asset) => asset.media_kind !== "price_guide_source")) {
+    throw new OwnerApiError("요금표 원본으로 등록한 사진만 정리할 수 있습니다.", 400);
+  }
+  const foundIds = new Set(assets.map((asset) => asset.id));
+  const missingIds = mediaAssetIds.filter((mediaAssetId) => !foundIds.has(mediaAssetId));
+  const validBindingByMediaAssetId = new Map<string, PriceGuideSourceCleanupBinding>();
+  const resolveBinding = (mediaAssetId: string, asset?: MediaAsset) => {
+    const cleanupProof = cleanupProofByMediaAssetId.get(mediaAssetId);
+    if (
+      !cleanupProof?.clientCorrelationId
+      || !cleanupProof.correlationFingerprint
+      || !cleanupProof.assetFingerprint
+      || !cleanupProof.objectLifecycleFingerprint
+      || !serverEnv.authFlowSecret
+    ) {
+      return null;
+    }
+    const valid = verifyPriceGuideSourceCleanupProof({
+      secret: serverEnv.authFlowSecret,
+      shopId: owner.shopId,
+      ...cleanupProof,
+    });
+    if (!valid) return null;
+    const binding = cleanupProof as PriceGuideSourceCleanupBinding;
+    if (asset) {
+      const expected = createPriceGuideSourceCorrelationBinding({
+        secret: serverEnv.authFlowSecret,
+        shopId: owner.shopId,
+        mediaAssetId,
+        clientCorrelationId: binding.clientCorrelationId,
+        requestCorrelationFingerprint: binding.requestCorrelationFingerprint,
+        bucket: asset.bucket,
+        storagePath: asset.storage_path,
+      });
+      const correlationInMetadata = asset.metadata?.priceGuideCorrelationFingerprint;
+      const requestCorrelationInMetadata = asset.metadata?.priceGuideRequestCorrelationFingerprint;
+      if (
+        expected.proof !== binding.proof
+        || expected.requestCorrelationFingerprint !== binding.requestCorrelationFingerprint
+        || expected.correlationFingerprint !== binding.correlationFingerprint
+        || expected.assetFingerprint !== binding.assetFingerprint
+        || expected.objectLifecycleFingerprint !== binding.objectLifecycleFingerprint
+        || correlationInMetadata !== binding.correlationFingerprint
+        || (binding.requestCorrelationFingerprint
+          && requestCorrelationInMetadata !== binding.requestCorrelationFingerprint)
+      ) {
+        return null;
+      }
+    }
+    validBindingByMediaAssetId.set(mediaAssetId, binding);
+    return binding;
+  };
+  for (const asset of assets) {
+    if (cleanupProofByMediaAssetId.get(asset.id)?.clientCorrelationId && !resolveBinding(asset.id, asset)) {
+      throw new OwnerApiError("요금표 원본 사진 정리 요청이 일치하지 않습니다.", 400);
+    }
+  }
+  const missingIdsHaveValidProof = missingIds.every((mediaAssetId) => {
+    const cleanupProof = cleanupProofByMediaAssetId.get(mediaAssetId);
+    if (cleanupProof?.clientCorrelationId) return Boolean(resolveBinding(mediaAssetId));
+    return verifyPriceGuideSourceCleanupProof({
+      secret: serverEnv.authFlowSecret,
+      shopId: owner.shopId,
+      mediaAssetId,
+      proof: cleanupProof?.proof,
+    });
+  });
+  if (!missingIdsHaveValidProof) {
+    throw new OwnerApiError("요금표 원본으로 등록한 사진만 정리할 수 있습니다.", 400);
+  }
+
+  const variantsResult = await admin
+    .from("media_variants")
+    .select("*")
+    .in("media_asset_id", mediaAssetIds);
+  if (variantsResult.error) {
+    throw new OwnerApiError("요금표 원본 사진의 임시 파일을 확인하지 못했습니다.", 503);
+  }
+  const variants = (variantsResult.data ?? []) as MediaVariant[];
+  if (assets.length === 0) {
+    if (variants.length > 0) {
+      throw new OwnerApiError("요금표 원본 사진의 메타데이터 잔존을 확인했습니다.", 503);
+    }
+    return {
+      deletedMediaAssetIds: mediaAssetIds,
+      hardPurged: true,
+      alreadyPurged: true,
+      cleanupReceipts: [...validBindingByMediaAssetId.values()].map((binding) =>
+        createPriceGuideSourceHardPurgeReceipt({
+          secret: serverEnv.authFlowSecret as string,
+          binding,
+          alreadyPurged: true,
+        }),
+      ),
+    };
+  }
+  const pathsByBucket = new Map<string, Set<string>>();
+  const addPath = (bucket: string, path: string) => {
+    const paths = pathsByBucket.get(bucket) ?? new Set<string>();
+    paths.add(path);
+    pathsByBucket.set(bucket, paths);
+  };
+  for (const asset of assets) addPath(asset.bucket, asset.storage_path);
+  for (const variant of variants) addPath(variant.bucket, variant.storage_path);
+
+  try {
+    for (const [bucket, paths] of pathsByBucket.entries()) {
+      await removeMediaStorageObjects({ bucket, paths: [...paths] });
+      const absent = await verifyMediaStorageObjectsAbsent({ bucket, paths: [...paths] });
+      if (!absent) throw new Error("Media object residue detected.");
+    }
+  } catch {
+    throw new OwnerApiError(
+      "요금표 원본 사진을 안전하게 정리하지 못했습니다. 사진 없이 직접 입력해 주세요.",
+      503,
+    );
+  }
+
+  const deleteResult = await admin
+    .from("media_assets")
+    .delete()
+    .eq("shop_id", owner.shopId)
+    .eq("media_kind", "price_guide_source")
+    .in("id", assets.map((asset) => asset.id))
+    .select("id");
+  if (deleteResult.error) {
+    throw new OwnerApiError("요금표 원본 사진의 메타데이터를 삭제하지 못했습니다.", 503);
+  }
+
+  const hardDeletedIds = new Set((deleteResult.data ?? []).map((item) => item.id as string));
+  if (hardDeletedIds.size !== assets.length || assets.some((asset) => !hardDeletedIds.has(asset.id))) {
+    throw new OwnerApiError("요금표 원본 사진의 메타데이터 삭제를 확인하지 못했습니다.", 503);
+  }
+
+  const [remainingAssetsResult, remainingVariantsResult] = await Promise.all([
+    admin.from("media_assets").select("id").in("id", mediaAssetIds),
+    admin.from("media_variants").select("id").in("media_asset_id", mediaAssetIds),
+  ]);
+  if (remainingAssetsResult.error || remainingVariantsResult.error) {
+    throw new OwnerApiError("요금표 원본 사진의 메타데이터 정리를 확인하지 못했습니다.", 503);
+  }
+  if ((remainingAssetsResult.data ?? []).length > 0 || (remainingVariantsResult.data ?? []).length > 0) {
+    throw new OwnerApiError("요금표 원본 사진의 메타데이터 잔존을 확인했습니다.", 503);
+  }
+
+  return {
+    deletedMediaAssetIds: mediaAssetIds,
+    hardPurged: true,
+    alreadyPurged: false,
+    cleanupReceipts: [...validBindingByMediaAssetId.values()].map((binding) =>
+      createPriceGuideSourceHardPurgeReceipt({
+        secret: serverEnv.authFlowSecret as string,
+        binding,
+        alreadyPurged: false,
+      }),
+    ),
   };
 }
 

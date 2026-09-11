@@ -169,6 +169,13 @@ export async function orchestrateDevelopmentSignup(input: {
         409,
       );
     }
+    if (reason.includes("PM_SIGNUP_EXISTING_PARTIAL_DATA")) {
+      throw new SignupFlowError(
+        "ATOMIC_WRITE_FAILED",
+        "기존 가입 데이터가 일부 남아 있어 자동으로 덮어쓰지 않았습니다. 운영팀에 확인해 주세요.",
+        409,
+      );
+    }
     throw new SignupFlowError("ATOMIC_WRITE_FAILED", "가입 정보를 저장하지 못했습니다. 다시 시도해 주세요.", 503);
   }
 }

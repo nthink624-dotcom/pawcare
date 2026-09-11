@@ -48,7 +48,7 @@ export default function CustomerDeleteSelectionPanel({
   emptyDescription,
 }: CustomerDeleteSelectionPanelProps) {
   return (
-    <div className="rounded-[14px] border border-[var(--border)] bg-white px-4 py-3.5">
+    <div className="rounded-[14px] border border-[var(--border)] bg-white px-4 pb-2.5 pt-3.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1">

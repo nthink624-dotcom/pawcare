@@ -41,8 +41,8 @@ export type OwnerSupportRequestItem = {
 };
 
 export const categoryLabels: Record<HelpCategory, string> = {
-  how_to_use: "사용법 문의",
-  bug: "오류 제보",
+  how_to_use: "사용 문의",
+  bug: "문제 신고",
   payment: "결제 문의",
   feature_request: "기능 요청",
   account: "계정/매장",

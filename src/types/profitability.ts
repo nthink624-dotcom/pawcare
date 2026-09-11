@@ -63,6 +63,17 @@ export type PriceRecommendation = {
   benchmarkGapPercent: number;
 };
 
+export type ServiceDurationRecommendation = {
+  key: string;
+  shopId: string;
+  serviceId: string;
+  serviceName: string;
+  roundedWeightKg: number;
+  weightLabel: string;
+  sampleCount: number;
+  observedAverageMinutes: number;
+};
+
 export type ProfitabilityPayload = {
   range: ProfitabilityRange;
   from: string;
@@ -84,6 +95,7 @@ export type ProfitabilityPayload = {
   segments: SegmentProfitabilityMetric[];
   staff: StaffProfitabilityMetric[];
   priceRecommendations: PriceRecommendation[];
+  durationRecommendations: ServiceDurationRecommendation[];
   dataQuality: {
     recordsWithoutActualTime: number;
     recordsWithoutExpectedTime: number;

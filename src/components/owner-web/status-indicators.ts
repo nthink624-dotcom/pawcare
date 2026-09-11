@@ -21,6 +21,47 @@ export const miniWrapIndicatorBaseClass = "inline-block h-4 w-1 rounded-full";
 
 export const dotIndicatorBaseClass = "inline-block h-2 w-2 rounded-full";
 
+export const statusIndicatorColor: Record<StatusIndicatorTone, string> = {
+  pending: "#b98121",
+  confirmed: "#1f9d55",
+  active: "#2563eb",
+  pickupReady: "#7c3aed",
+  completed: "#64748b",
+  changed: "#b98121",
+  cancelled: "#a04455",
+  rejected: "#a04455",
+  noshow: "#a04455",
+  missed: "#b98121",
+  neutral: "#b9c3cf",
+  teal: "#1f9d55",
+  amber: "#b98121",
+  burgundy: "#a04455",
+  slate: "#64748b",
+};
+
+/**
+ * Low-saturation surfaces let schedule cards communicate their appointment
+ * status without competing with the staff identity marker or the selected
+ * staff lane. The left edge remains the canonical status indicator.
+ */
+export const statusIndicatorSurface: Record<StatusIndicatorTone, { background: string; border: string }> = {
+  pending: { background: "#f9f5ed", border: "#e5c57e" },
+  confirmed: { background: "#edf7f1", border: "#9dcfb1" },
+  active: { background: "#edf4fd", border: "#a9c7f7" },
+  pickupReady: { background: "#f4effd", border: "#c8b6f1" },
+  completed: { background: "#f2f4f6", border: "#c5d0d9" },
+  changed: { background: "#fcf5e9", border: "#e6c882" },
+  cancelled: { background: "#faeef0", border: "#dfb6c0" },
+  rejected: { background: "#faeef0", border: "#dfb6c0" },
+  noshow: { background: "#faeef0", border: "#dfb6c0" },
+  missed: { background: "#fcf5e9", border: "#e6c882" },
+  neutral: { background: "#f7f9fb", border: "#cbd5e1" },
+  teal: { background: "#edf7f1", border: "#9dcfb1" },
+  amber: { background: "#f9f5ed", border: "#e5c57e" },
+  burgundy: { background: "#faeef0", border: "#dfb6c0" },
+  slate: { background: "#f2f4f6", border: "#c5d0d9" },
+};
+
 export const statusIndicatorBgClass: Record<StatusIndicatorTone, string> = {
   pending: "bg-[#b98121]",
   confirmed: "bg-[#1f9d55]",

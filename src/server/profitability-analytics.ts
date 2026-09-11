@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { buildServiceDurationRecommendations } from "@/lib/service-duration-recommendations";
 import type {
   PriceRecommendation,
   ProfitabilityPayload,
@@ -7,6 +8,7 @@ import type {
   ServiceProfitabilityMetric,
   StaffProfitabilityMetric,
 } from "@/types/profitability";
+import { isOvernightActualGroomingSession } from "@/lib/appointment-time";
 
 const MIN_RECOMMENDATION_SAMPLE_SIZE = 3;
 const RANGE_DAYS: Record<ProfitabilityRange, number> = { "30d": 30, "90d": 90, "365d": 365 };
@@ -45,8 +47,12 @@ type GroomingRecordRow = {
 
 type AppointmentRow = {
   id: string;
+  service_id: string;
+  status: string;
   start_at: string;
   end_at: string;
+  actual_started_at: string | null;
+  actual_completed_at: string | null;
   original_service_price: number | null;
   discount_amount: number | null;
   final_service_price: number | null;
@@ -241,6 +247,7 @@ function buildPriceRecommendations(
 
 export function buildProfitabilityPayload(params: {
   observations: ProfitabilityObservation[];
+  durationRecommendations?: ProfitabilityPayload["durationRecommendations"];
   range: ProfitabilityRange;
   from: string;
   to: string;
@@ -321,6 +328,7 @@ export function buildProfitabilityPayload(params: {
     segments: segments.slice(0, 20),
     staff,
     priceRecommendations: priceRecommendations.slice(0, 10),
+    durationRecommendations: params.durationRecommendations ?? [],
     dataQuality: {
       recordsWithoutActualTime: params.observations.filter((row) => !row.actualMinutes).length,
       recordsWithoutExpectedTime: params.observations.filter((row) => !row.expectedMinutes).length,
@@ -387,7 +395,7 @@ export async function loadProfitabilityPayload(shopId: string, range: Profitabil
   const [appointmentsResult, petsResult, servicesResult, staffResult, revenueResult] = await Promise.all([
     supabase
       .from("appointments")
-      .select("id,start_at,end_at,original_service_price,discount_amount,final_service_price")
+      .select("id,service_id,status,start_at,end_at,actual_started_at,actual_completed_at,original_service_price,discount_amount,final_service_price")
       .eq("shop_id", shopId)
       .gte("appointment_date", from)
       .lte("appointment_date", to)
@@ -408,7 +416,9 @@ export async function loadProfitabilityPayload(shopId: string, range: Profitabil
     if (result.error) throw new Error(result.error.message);
   }
 
-  const appointments = new Map((appointmentsResult.data ?? []).map((row) => [row.id, row as AppointmentRow]));
+  const appointmentRows = (appointmentsResult.data ?? []) as AppointmentRow[];
+  const serviceRowsForDuration = (servicesResult.data ?? []) as Array<{ id: string; name: string }>;
+  const appointments = new Map(appointmentRows.map((row) => [row.id, row]));
   const pets = new Map((petsResult.data ?? []).map((row) => [row.id, row]));
   const services = new Map((servicesResult.data ?? []).map((row) => [row.id, row]));
   const staff = new Map((staffResult.data ?? []).map((row) => [row.id, row]));
@@ -439,14 +449,26 @@ export async function loadProfitabilityPayload(shopId: string, range: Profitabil
       breed: record.pet_breed_snapshot?.trim() || pet?.breed || "품종 미입력",
       weightKg: nullablePositive(record.pet_weight_snapshot) ?? nullablePositive(pet?.weight),
       expectedMinutes,
-      actualMinutes: nullablePositive(record.actual_duration_minutes),
+      actualMinutes: isOvernightActualGroomingSession(
+        appointment?.actual_started_at,
+        appointment?.actual_completed_at,
+      )
+        ? null
+        : nullablePositive(record.actual_duration_minutes),
       grossRevenue: gross,
       discountAmount: Math.min(discount, gross),
       netRevenue: net,
     };
   });
 
-  return buildProfitabilityPayload({ observations, range, from, to });
+  const durationRecommendations = buildServiceDurationRecommendations({
+    shopId,
+    records: recordRows as GroomingRecordRow[],
+    appointments: appointmentRows,
+    services: serviceRowsForDuration,
+  });
+
+  return buildProfitabilityPayload({ observations, durationRecommendations, range, from, to });
 }
 
 export function buildDemoProfitabilityPayload(range: ProfitabilityRange) {

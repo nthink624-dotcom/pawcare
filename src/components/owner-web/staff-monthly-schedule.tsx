@@ -146,8 +146,8 @@ function MonthlyDayCell({
         {day.isToday ? <span className="text-[12px] text-[#6f747a]">오늘</span> : null}
       </div>
       <div className="min-h-0 min-w-0 flex-1 space-y-[3px] overflow-y-auto overscroll-contain py-1 pr-1 [scrollbar-width:thin]">
-        {workingCells.map(({ staffMember, staffIndex, cell }) => {
-          const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex ?? staffIndex);
+        {workingCells.map(({ staffMember, cell }) => {
+          const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex);
           return (
             <button
               key={`${day.date}-${staffMember.id}`}
@@ -206,11 +206,10 @@ function MonthlyDayDetailModal({
         </div>
       </div>
       <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
-        {dailyCells.map(({ staffMember, staffIndex, cell }) => (
+        {dailyCells.map(({ staffMember, cell }) => (
           <MonthlyDayDetailRow
             key={staffMember.id}
             staffMember={staffMember}
-            staffIndex={staffIndex}
             cell={cell}
             onClick={() => onOpenScheduleEditor(staffMember, day)}
           />
@@ -222,16 +221,14 @@ function MonthlyDayDetailModal({
 
 function MonthlyDayDetailRow({
   staffMember,
-  staffIndex,
   cell,
   onClick,
 }: {
   staffMember: StaffMember;
-  staffIndex: number;
   cell: StaffScheduleCell;
   onClick: () => void;
 }) {
-  const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex ?? staffIndex);
+  const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex);
   const tone = getCellIndicatorTone(cell.status);
 
   return (

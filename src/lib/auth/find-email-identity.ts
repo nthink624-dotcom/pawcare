@@ -1,12 +1,17 @@
 "use client";
 
 import { env, hasPortoneBrowserEnv } from "@/lib/env";
-import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
+import {
+  fetchIdentityApi,
+  requestPortoneIdentityVerification,
+} from "@/lib/portone/identity-verification-client";
 
 type ApiMessage = {
   email?: string | null;
   message?: string;
   verificationRequestId?: string | null;
+  providerIdentityVerificationId?: string | null;
+  verificationState?: string | null;
   verificationToken?: string | null;
 };
 
@@ -19,7 +24,7 @@ export async function findEmailWithKcpIdentityVerification() {
     throw new Error("KCP 본인인증 채널이 아직 연결되지 않았어요.");
   }
 
-  const requestResponse = await fetch("/api/auth/request-verification-code", {
+  const requestResponse = await fetchIdentityApi("/api/auth/request-verification-code", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -29,15 +34,20 @@ export async function findEmailWithKcpIdentityVerification() {
   });
   const requestResult = await readApiMessage(requestResponse);
 
-  if (!requestResponse.ok || !requestResult.verificationRequestId) {
+  if (
+    !requestResponse.ok ||
+    !requestResult.verificationRequestId ||
+    !requestResult.providerIdentityVerificationId ||
+    !requestResult.verificationState
+  ) {
     throw new Error(requestResult.message ?? "본인인증 요청을 준비하지 못했어요. 다시 시도해 주세요.");
   }
 
-  const identityVerificationId = `findemail${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
   const identityResult = await requestPortoneIdentityVerification({
     storeId: env.portoneStoreId,
     channelKey: env.portoneIdentityKcpChannelKey,
-    identityVerificationId,
+    identityVerificationId: requestResult.providerIdentityVerificationId,
+    customData: JSON.stringify({ petmanagerIdentityState: requestResult.verificationState }),
     windowType: { pc: "POPUP", mobile: "POPUP" },
   });
 
@@ -45,13 +55,14 @@ export async function findEmailWithKcpIdentityVerification() {
     throw new Error("KCP 본인인증이 완료되지 않았어요.");
   }
 
-  const verifyResponse = await fetch("/api/auth/verify-pass", {
+  const verifyResponse = await fetchIdentityApi("/api/auth/verify-pass", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       purpose: "find-email",
       verificationRequestId: requestResult.verificationRequestId,
       identityVerificationId: identityResult.identityVerificationId,
+      verificationState: requestResult.verificationState,
     }),
   });
   const verifyResult = await readApiMessage(verifyResponse);
@@ -60,7 +71,7 @@ export async function findEmailWithKcpIdentityVerification() {
     throw new Error(verifyResult.message ?? "KCP 본인인증 결과를 확인하지 못했어요.");
   }
 
-  const lookupResponse = await fetch("/api/auth/find-email", {
+  const lookupResponse = await fetchIdentityApi("/api/auth/find-email", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identityVerificationToken: verifyResult.verificationToken }),

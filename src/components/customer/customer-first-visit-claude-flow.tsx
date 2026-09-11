@@ -85,37 +85,30 @@ function buildReservationNumber(appointment?: Appointment | null) {
   return `PM${datePart}-${rawSuffix.padStart(3, "0")}`;
 }
 
-function shuffleStaffMembers(staffMembers: BootstrapStaffMember[]) {
-  const shuffled = staffMembers.slice();
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
-  }
-  return shuffled;
-}
-
 function ClaudeStyles() {
   return (
     <style>{`
-      .pm-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--primary:#ec7f72;--primaryDk:#d35f50;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;min-height:100dvh;background:var(--surface);color:var(--text);font-family:inherit;overflow:hidden}
+      .pm-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--primary:#ec7f72;--primaryDk:#a9473f;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;min-height:100dvh;background:var(--surface);color:var(--text);font-family:inherit;overflow:hidden}
       .pm-proto *{box-sizing:border-box}
+      .pm-proto :is(button,a,input,textarea,select,[role="button"]):focus-visible{outline:2px solid #2563eb;outline-offset:2px;box-shadow:0 0 0 3px rgba(37,99,235,.18)}
+      .pm-proto :is(input,textarea)::placeholder{color:#94a3b8;opacity:1;font-size:16px;line-height:24px}
       .pm-proto .nav{position:sticky;top:0;z-index:8;display:flex;align-items:center;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--borderSoft)}
-      .pm-proto .nav .back{width:30px;height:30px;border:none;background:none;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:10px;color:var(--text);margin-right:6px}
-      .pm-proto .nav .ttl{font-size:17px;font-weight:700;letter-spacing:-.02em}
+      .pm-proto .nav .back{width:44px;height:44px;min-width:44px;min-height:44px;border:none;background:none;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:10px;color:var(--text);margin:-7px 6px -7px -7px}
+      .pm-proto .nav .ttl{font-size:17px;font-weight:600;letter-spacing:-.02em}
       .pm-proto .pgscroll{height:calc(100dvh - 51px);overflow:auto;scrollbar-width:none;padding:12px 16px 118px;display:flex;flex-direction:column;gap:18px}
       .pm-proto .pgscroll::-webkit-scrollbar{display:none}
-      .pm-proto .sec h3{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.02em;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+      .pm-proto .sec h3{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.02em;margin-bottom:10px;display:flex;align-items:center;gap:7px}
       .pm-proto .svc{display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px solid var(--border);border-radius:var(--r);padding:14px 15px;cursor:pointer;transition:border-color .15s,background .15s;width:100%;text-align:left}
       .pm-proto .svc + .svc{margin-top:9px}
-      .pm-proto .svc.sel{border-color:var(--primary);background:#fffaf8}
+      .pm-proto .svc.sel{border-color:var(--primary);background:var(--primarySoft)}
       .pm-proto .svc .radio{width:21px;height:21px;border-radius:50%;border:2px solid var(--track);flex-shrink:0;position:relative;transition:border-color .15s}
       .pm-proto .svc.sel .radio{border-color:var(--primary)}
       .pm-proto .svc.sel .radio::after{content:"";position:absolute;inset:3.5px;border-radius:50%;background:var(--primary)}
       .pm-proto .svc .info{min-width:0;flex:1;display:flex;align-items:baseline;gap:12px}
-      .pm-proto .svc .info .n{font-size:15px;font-weight:700;letter-spacing:-.02em;color:var(--text);flex-shrink:0}
+      .pm-proto .svc .info .n{font-size:15px;font-weight:500;letter-spacing:-.02em;color:var(--text);flex-shrink:0}
       .pm-proto .svc .info .d{font-size:15px;color:var(--textMuted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pm-proto .service-page .svc .info .d{font-size:14px}
-      .pm-proto .svc .price{margin-left:auto;font-size:15px;font-weight:700;color:var(--primaryDk);font-variant-numeric:tabular-nums;white-space:nowrap}
+      .pm-proto .svc .price{margin-left:auto;font-size:15px;font-weight:500;color:var(--primaryDk);font-variant-numeric:tabular-nums;white-space:nowrap}
       .pm-proto .date-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
       .pm-proto .date-head h3{margin-bottom:0}
       .pm-proto .date-head .swipe-hint{font-size:12px;font-weight:600;color:var(--textMuted)}
@@ -123,89 +116,95 @@ function ClaudeStyles() {
       .pm-proto .dstrip::-webkit-scrollbar{display:none}
       .pm-proto .dcell{flex:0 0 calc((100% - 24px) / 4);min-width:0;height:92px;border-radius:13px;border:1.5px solid var(--border);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;scroll-snap-align:start}
       .pm-proto .dcell .dw{font-size:15px;color:var(--textMid)}
-      .pm-proto .dcell .dn{font-size:18px;font-weight:700;letter-spacing:-.02em}
-      .pm-proto .dcell .avail{display:inline-flex;align-items:center;gap:4px;margin-top:2px;color:#26704b;font-size:10px;font-weight:800;letter-spacing:-.03em;white-space:nowrap}
+      .pm-proto .dcell .dn{font-size:18px;font-weight:600;letter-spacing:-.02em}
+      .pm-proto .dcell .avail{display:inline-flex;align-items:center;gap:4px;margin-top:2px;color:#26704b;font-size:10px;font-weight:500;letter-spacing:-.03em;white-space:nowrap}
       .pm-proto .dcell .avail::before{content:"";width:5px;height:5px;border-radius:999px;background:#1f9d55}
+      .pm-proto .dcell:disabled{cursor:not-allowed;border-color:#e1d9d4;background:#f7f4f2;color:#887a73;opacity:1}
+      .pm-proto .dcell:disabled .dw,.pm-proto .dcell:disabled .dn{color:#887a73}
+      .pm-proto .dcell.unavailable .avail{color:#9a5a50}
+      .pm-proto .dcell.unavailable .avail::before{background:#a04455}
       .pm-proto .dcell.sel{border-color:var(--primary);background:var(--primary)}
-      .pm-proto .dcell.sel .dw,.pm-proto .dcell.sel .dn,.pm-proto .dcell.sel .avail{color:#fff}
-      .pm-proto .dcell.sel .avail::before{background:#fff}
+      .pm-proto .dcell.sel .dw,.pm-proto .dcell.sel .dn,.pm-proto .dcell.sel .avail{color:var(--text)}
+      .pm-proto .dcell.sel .avail::before{background:var(--text)}
       .pm-proto .tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
       .pm-proto .tcell{height:44px;text-align:center;font-size:15px;font-weight:600;border-radius:10px;border:1.5px solid var(--border);background:var(--card);font-variant-numeric:tabular-nums;cursor:pointer}
-      .pm-proto .tcell.sel{border-color:var(--primary);background:var(--primary);color:#fff}
-      .pm-proto .tcell .rec{margin-left:4px;color:var(--primaryDk);font-size:15px;font-weight:700}
-      .pm-proto .tcell.sel .rec{color:#fff}
+      .pm-proto .tcell.sel{border-color:var(--primary);background:var(--primary);color:var(--text)}
+      .pm-proto .tcell .rec{margin-left:4px;color:var(--primaryDk);font-size:15px;font-weight:500}
+      .pm-proto .tcell.sel .rec{color:var(--text)}
       .pm-proto .hint{font-size:15px;color:var(--textMuted);text-align:center;line-height:1.45}
       .pm-proto .empty-slots{display:flex;min-height:106px;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border);border-radius:14px;background:rgba(255,255,255,.72);padding:20px 16px;text-align:center}
-      .pm-proto .empty-slots strong{font-size:16px;font-weight:800;color:var(--text);letter-spacing:-.02em}
+      .pm-proto .empty-slots strong{font-size:16px;font-weight:600;color:var(--text);letter-spacing:-.02em}
       .pm-proto .empty-slots span{font-size:14px;color:var(--textMid)}
       .pm-proto .field{display:flex;flex-direction:column;gap:8px}
-      .pm-proto .field label{font-size:15px;font-weight:600;letter-spacing:-.02em}
-      .pm-proto .field input,.pm-proto .field textarea{font-family:inherit;font-size:15px;color:var(--text);background:var(--card);border:1.5px solid var(--border);border-radius:11px;padding:13px 14px;width:100%;outline:none}
-      .pm-proto .field textarea{resize:none;height:88px;line-height:1.5}
+      .pm-proto .field label{font-size:14px;line-height:20px;font-weight:500;letter-spacing:-.02em}
+      .pm-proto .field input,.pm-proto .field textarea{font-family:inherit;font-size:16px;line-height:24px;color:var(--text);background:var(--card);border:1.5px solid var(--border);border-radius:11px;padding:11px 14px;width:100%;outline:none}
+      .pm-proto .field textarea{resize:none;height:88px}
       .pm-proto .frow{display:flex;gap:10px;align-items:flex-start}
       .pm-proto .frow .field{flex:1;min-width:0}
       .pm-proto .info-page{gap:12px;padding-top:14px}
       .pm-proto .info-page .sec h3{display:none}
       .pm-proto .info-page .sec{display:flex;flex-direction:column;gap:11px}
-      .pm-proto .info-page .field label .optional{margin-left:4px;color:var(--textMuted);font-weight:600}
+      .pm-proto .info-page .field label .optional{margin-left:4px;color:var(--textMuted);font-weight:500}
       .pm-proto .info-page .field{gap:5px;padding:0;border:0;background:transparent}
-      .pm-proto .info-page .field label{font-size:17px;font-weight:700;line-height:1.2;color:var(--text);padding-left:2px}
-      .pm-proto .info-page .field input{height:46px;padding:10px 13px;border-radius:10px;background:#fff;box-shadow:none;font-size:17px}
-      .pm-proto .info-page .field textarea{height:90px;padding:12px 13px;border-radius:10px;background:#fff;box-shadow:none;font-size:17px}
+      .pm-proto .info-page .field label{font-size:14px;font-weight:500;line-height:20px;color:var(--text);padding-left:2px}
+      .pm-proto .info-page .field input{height:48px;padding:11px 13px;border-radius:10px;background:#fff;box-shadow:none;font-size:16px;line-height:24px}
+      .pm-proto .info-page .field textarea{height:90px;padding:12px 13px;border-radius:10px;background:#fff;box-shadow:none;font-size:16px;line-height:24px}
       .pm-proto .start-note{border:1px solid #f4cfc8;border-radius:14px;background:#fff2ef;padding:12px 13px;line-height:1.45}
-      .pm-proto .start-note .badge{display:inline-flex;align-items:center;height:23px;border-radius:999px;background:var(--primary);padding:0 9px;font-size:13px;font-weight:800;color:#fff;letter-spacing:-.02em}
-      .pm-proto .start-note .title{display:block;margin-top:8px;font-size:15px;font-weight:800;color:var(--text);letter-spacing:-.02em}
+      .pm-proto .start-note .badge{display:inline-flex;align-items:center;height:23px;border-radius:999px;background:var(--primary);padding:0 9px;font-size:13px;font-weight:500;color:var(--text);letter-spacing:-.02em}
+      .pm-proto .start-note .title{display:block;margin-top:8px;font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.02em}
       .pm-proto .start-note .desc{display:block;margin-top:3px;font-size:14px;color:var(--textMid)}
-      .pm-proto .pet-picker-title{font-size:20px;font-weight:800;letter-spacing:-.03em;color:var(--text)}
+      .pm-proto .pet-picker-title{font-size:20px;font-weight:600;letter-spacing:-.03em;color:var(--text)}
       .pm-proto .pet-list{display:flex;flex-direction:column;gap:9px}
       .pm-proto .pet-card{width:100%;display:flex;align-items:center;gap:12px;border:1.5px solid var(--border);border-radius:14px;background:#fff;padding:13px 14px;text-align:left;color:var(--text)}
-      .pm-proto .pet-card.sel{border-color:var(--primary);background:#fffaf8}
-      .pm-proto .pet-card .avatar{width:38px;height:38px;flex-shrink:0;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);font-size:15px;font-weight:800}
+      .pm-proto .pet-card.sel{border-color:var(--primary);background:var(--primarySoft)}
+      .pm-proto .pet-card .avatar{width:38px;height:38px;flex-shrink:0;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);font-size:15px;font-weight:500}
       .pm-proto .pet-card .meta{min-width:0;flex:1}
-      .pm-proto .pet-card .name{display:block;font-size:16px;font-weight:800;letter-spacing:-.02em}
+      .pm-proto .pet-card .name{display:block;font-size:16px;font-weight:600;letter-spacing:-.02em}
       .pm-proto .pet-card .breed{display:block;margin-top:3px;font-size:14px;color:var(--textMid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .pm-proto .pet-add{width:100%;height:48px;border:1.5px dashed #edc9c1;border-radius:14px;background:#fffaf8;color:var(--primaryDk);font-size:15px;font-weight:800}
+      .pm-proto .pet-add{width:100%;min-height:48px;border:1.5px dashed #edc9c1;border-radius:14px;background:#fffaf8;color:var(--primaryDk);font-size:15px;font-weight:500}
       .pm-proto .chips{display:flex;flex-wrap:wrap;gap:7px}
       .pm-proto .breedchip{border:1px solid var(--border);background:var(--card);border-radius:999px;color:var(--textMid);font-size:15px;font-weight:500;padding:7px 10px}
-      .pm-proto .breedchip.sel{border-color:var(--primary);background:#fffaf8;color:var(--primaryDk)}
-      .pm-proto .breed-more-toggle{align-self:flex-start;border:0;background:transparent;padding:2px 2px 0;color:var(--primaryDk);font-size:14px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+      .pm-proto .breedchip.sel{border-color:var(--primary);background:var(--primarySoft);color:var(--primaryDk)}
+      .pm-proto .breed-more-toggle{align-self:flex-start;min-width:44px;min-height:44px;border:0;background:transparent;padding:0 8px;color:var(--primaryDk);font-size:14px;font-weight:500;line-height:20px;text-decoration:underline;text-underline-offset:3px}
       .pm-proto .breed-search .breed-suggestions{margin-top:2px}
       .pm-proto .breed-search .breed-direct-note{font-size:13px;line-height:1.45;color:var(--textMid);padding:2px 2px 0}
-      .pm-proto .staffstrip{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 16px 4px 0;scroll-snap-type:x proximity;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
-      .pm-proto .staffstrip::-webkit-scrollbar{display:none}
-      .pm-proto .staff{flex:0 0 112px;min-height:96px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:15px 10px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;scroll-snap-align:start}
-      .pm-proto .staff.sel{border-color:var(--primary);background:#fffaf8}
+      .pm-proto .staffstrip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+      .pm-proto .staff{width:100%;min-width:0;min-height:112px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:14px 10px 11px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+      .pm-proto .staff.sel{border-color:var(--primary);background:var(--primarySoft)}
+      .pm-proto .staff:disabled{cursor:not-allowed;border-color:#eadfd9;background:#f7f4f2;color:#9a8b83;opacity:1}
       .pm-proto .staff .avatar{width:44px;height:44px;margin:0 auto 10px;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
       .pm-proto .staff .avatar img{width:100%;height:100%;object-fit:cover}
-      .pm-proto .staff .name{display:block;width:100%;font-size:15px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pm-proto .staff .name{display:block;width:100%;font-size:15px;font-weight:500;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pm-proto .staff .state{display:block;margin-top:4px;font-size:12px;line-height:18px;color:#64748b;white-space:nowrap}
+      .pm-proto .staff:disabled .state{color:#8a7a72}
       .pm-proto .auto-assignment-guide{margin-top:10px;border:1px solid #f0dfd9;border-radius:10px;background:#fffaf8;padding:9px 11px;font-size:13px;line-height:1.5;color:#7d625a}
-      .pm-proto .auto-assignment-guide strong{color:var(--primaryDk);font-weight:700}
+      .pm-proto .auto-assignment-guide strong{color:var(--primaryDk);font-weight:500}
       .pm-proto .consent-note{margin-top:2px;border:1px solid #f4d9d2;border-radius:12px;background:#fff8f6;padding:10px 12px;font-size:14px;line-height:1.48;color:#9a7168}
-      .pm-proto .consent-note .label{display:block;margin-bottom:3px;font-size:13px;font-weight:700;color:var(--primaryDk)}
+      .pm-proto .consent-note .label{display:block;margin-bottom:3px;font-size:13px;font-weight:500;color:var(--primaryDk)}
       .pm-proto .consent-note .agree{color:#8a665d}
       .pm-proto .contact-flat{display:flex;flex-direction:column;gap:13px}
       .pm-proto .contact-item{display:flex;flex-direction:column;gap:6px;background:transparent;border:0;padding:0}
-      .pm-proto .contact-label{font-size:15px;font-weight:700;letter-spacing:-.02em;color:var(--text);padding-left:1px}
-      .pm-proto .contact-input{height:50px;width:100%;border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:11px 13px;font-family:inherit;font-size:15px;color:var(--text);outline:none}
+      .pm-proto .contact-label{font-size:14px;line-height:20px;font-weight:500;letter-spacing:-.02em;color:var(--text);padding-left:1px}
+      .pm-proto .contact-input{height:50px;width:100%;border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:11px 13px;font-family:inherit;font-size:16px;line-height:24px;color:var(--text);outline:none}
       .pm-proto .confirm-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:4px 15px}
       .pm-proto .confirm-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;font-size:15px;line-height:1.45}
       .pm-proto .confirm-row + .confirm-row{border-top:1px solid var(--borderSoft)}
       .pm-proto .confirm-row .k{width:70px;flex-shrink:0;color:var(--textMuted)}
-      .pm-proto .confirm-row .v{min-width:0;flex:1;font-weight:650;color:var(--text);letter-spacing:-.02em}
-      .pm-proto .dock{position:fixed;bottom:0;left:50%;right:auto;transform:translateX(-50%);z-index:30;width:100%;max-width:430px;padding:8px 16px 14px;background:rgba(253,247,245,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border)}
-      .pm-proto .cta{width:100%;padding:15px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:#fff;font-family:inherit;font-size:15px;font-weight:800;letter-spacing:-.02em;cursor:pointer;box-shadow:0 6px 16px rgba(236,127,114,.38)}
+      .pm-proto .confirm-row .v{min-width:0;flex:1;font-weight:500;color:var(--text);letter-spacing:-.02em}
+      .pm-proto .dock{position:fixed;bottom:0;left:50%;right:auto;transform:translateX(-50%);z-index:30;width:100%;max-width:430px;padding:8px 16px 14px;background:rgba(253,247,245,.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border)}
+      .pm-proto .cta{width:100%;min-height:48px;padding:12px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:var(--text);font-family:inherit;font-size:16px;line-height:24px;font-weight:500;letter-spacing:-.02em;cursor:pointer;box-shadow:none}
       .pm-proto .cta:disabled{background:#e8d9d2;color:#b9a89f;box-shadow:none;cursor:not-allowed}
       .pm-proto .dock .sumline{display:flex;align-items:center;gap:8px;padding:4px 4px 11px;font-size:15px}
       .pm-proto .dock .sumline .k{color:var(--textMuted);white-space:nowrap}
       .pm-proto .dock .sumline .v{font-weight:600;letter-spacing:-.02em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .pm-proto .dock .sumline .amt{margin-left:auto;font-size:15px;font-weight:700;color:var(--primaryDk);white-space:nowrap}
+      .pm-proto .dock .sumline .amt{margin-left:auto;font-size:15px;font-weight:500;color:var(--primaryDk);white-space:nowrap}
       .pm-proto .btnrow{display:flex;gap:10px;width:100%}
-      .pm-proto .btn{flex:1;padding:16px 0;border-radius:var(--rbtn);font-family:inherit;font-size:15px;font-weight:700;letter-spacing:-.02em;cursor:pointer;border:none}
+      .pm-proto .btn{flex:1;min-height:48px;padding:12px 0;border-radius:var(--rbtn);font-family:inherit;font-size:16px;line-height:24px;font-weight:500;letter-spacing:-.02em;cursor:pointer;border:none}
       .pm-proto .btn.ghost{background:var(--card);border:1px solid var(--border);color:var(--text)}
-      .pm-proto .btn.primary{background:var(--primary);color:#fff;box-shadow:0 6px 16px rgba(236,127,114,.38)}
+      .pm-proto .btn.primary{background:var(--primary);color:var(--text);box-shadow:none}
       .pm-proto .done{min-height:100dvh;display:flex;flex-direction:column;align-items:center;padding:42px 24px 24px;text-align:center}
-      .pm-proto .done .ic{width:84px;height:84px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 12px 28px rgba(236,127,114,.4)}
-      .pm-proto .done h2{font-size:22px;font-weight:800;letter-spacing:-.03em;margin-top:22px}
+      .pm-proto .done .ic{width:84px;height:84px;border-radius:50%;background:#1f9d55;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:none}
+      .pm-proto .done h2{font-size:22px;font-weight:600;letter-spacing:-.03em;margin-top:22px}
       .pm-proto .done .lead{font-size:15px;color:var(--textMid);margin-top:9px;line-height:1.6}
       .pm-proto .rcard{width:100%;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:6px 18px;margin-top:28px;text-align:left}
       .pm-proto .rcard .ry{display:flex;align-items:center;font-size:15px;padding:13px 0}
@@ -244,10 +243,14 @@ export default function CustomerFirstVisitClaudeFlow({
   availableSlots,
   recommendedSlots,
   recommendationSource,
-  earliestAvailableDate,
+  dateAvailability,
+  staffAvailability,
+  loadingDateAvailability,
+  staffSelectionRequiresAction,
   loadingSlots,
   submitting,
   completedBooking,
+  previewOnly = false,
   onBackToEntry,
   onStepBack,
   onNext,
@@ -277,10 +280,14 @@ export default function CustomerFirstVisitClaudeFlow({
   availableSlots: string[];
   recommendedSlots: string[];
   recommendationSource?: "ai" | "rule";
-  earliestAvailableDate: string;
+  dateAvailability: Record<string, boolean | undefined>;
+  staffAvailability: Record<string, boolean | undefined>;
+  loadingDateAvailability: boolean;
+  staffSelectionRequiresAction: boolean;
   loadingSlots: boolean;
   submitting: boolean;
   completedBooking: BookingCompletion | null;
+  previewOnly?: boolean;
   onBackToEntry: () => void;
   onStepBack: () => void;
   onNext: () => void;
@@ -302,22 +309,17 @@ export default function CustomerFirstVisitClaudeFlow({
   const breedInputRef = useRef<HTMLInputElement | null>(null);
   const savedPetPickerKey = `${step}:${savedPets.length}`;
   const [newPetPickerKey, setNewPetPickerKey] = useState<string | null>(null);
-  const [displayedStaffMembers, setDisplayedStaffMembers] = useState<BootstrapStaffMember[]>(staffMembers);
-  const defaultDateValue = useMemo(() => dateOptions.find((date) => date.label === "오늘")?.value ?? dateOptions[0]?.value ?? "", [dateOptions]);
   const serviceSummaryName = firstVisit.serviceId === CUSTOM_SERVICE_ID ? "상담 후 결정" : selectedServiceOption?.displayName || selectedService?.name || "서비스 선택";
+  const selectedServiceProjection = selectedServiceOption
+    ? {
+        name: selectedServiceOption.displayName,
+        durationLabel: formatCustomerServiceDuration(selectedServiceOption),
+        priceLabel: formatServicePrice(selectedServiceOption.price, selectedServiceOption.priceType),
+      }
+    : null;
   const petNameForConsent = firstVisit.petName.trim() || "아기";
   const selectedSavedPet = savedPets.find((pet) => pet.name.trim() && pet.name.trim() === firstVisit.petName.trim()) ?? null;
   const showSavedPetPicker = savedPets.length > 0 && newPetPickerKey !== savedPetPickerKey;
-
-  useEffect(() => {
-    if (step !== 3 || firstVisit.date || !defaultDateValue) return;
-    onDateSelect(defaultDateValue);
-  }, [defaultDateValue, firstVisit.date, onDateSelect, step]);
-
-  useEffect(() => {
-    // Keep 빠른 예약 as the first card; only designers rotate to avoid a fixed first-person bias.
-    setDisplayedStaffMembers(shuffleStaffMembers(staffMembers));
-  }, [staffMembers]);
 
   if (step === 5) {
     const appointment = completedBooking?.appointment;
@@ -331,8 +333,8 @@ export default function CustomerFirstVisitClaudeFlow({
           <div className="ic">
             <Check size={42} strokeWidth={2.2} />
           </div>
-          <h2>예약이 등록되었습니다!</h2>
-          <div className="lead">예약 일정에 맞춰 방문해 주세요.</div>
+          <h2>{previewOnly ? "예약 흐름을 확인했습니다" : "예약이 등록되었습니다!"}</h2>
+          <div className="lead">{previewOnly ? "미리보기에서는 예약이나 고객 정보가 저장되지 않습니다." : "예약 일정에 맞춰 방문해 주세요."}</div>
           <div className="rcard">
             <div className="ry"><span className="k">예약 번호</span><span className="v">{buildReservationNumber(appointment)}</span></div>
             <div className="ry"><span className="k">예약 날짜</span><span className="v">{formatDateForSummary(summaryDate)}</span></div>
@@ -341,8 +343,8 @@ export default function CustomerFirstVisitClaudeFlow({
           </div>
           <div style={{ flex: 1 }} />
           <div className="btnrow">
-            <button className="btn primary" type="button" onClick={onGoManage}>예약 내역 보기</button>
-            <button className="btn ghost" type="button" onClick={onAddBooking}>추가 예약하기</button>
+            <button className="btn primary" type="button" onClick={onGoManage}>{previewOnly ? "미리보기 처음으로" : "예약 내역 보기"}</button>
+            <button className="btn ghost" type="button" onClick={onAddBooking}>{previewOnly ? "다시 확인하기" : "추가 예약하기"}</button>
           </div>
         </div>
       </div>
@@ -498,19 +500,37 @@ export default function CustomerFirstVisitClaudeFlow({
               <h3>디자이너 선택</h3>
               <div className="staffstrip">
                 {staffMembers.length > 1 ? (
-                  <button type="button" className={`staff${!firstVisit.staffId ? " sel" : ""}`} onClick={() => onStaffSelect("")}>
+                  <button
+                    type="button"
+                    className={`staff${!firstVisit.staffId && !staffSelectionRequiresAction ? " sel" : ""}`}
+                    disabled={!firstVisit.date || dateAvailability[firstVisit.date] !== true || loadingDateAvailability}
+                    onClick={() => onStaffSelect("")}
+                  >
                     <span className="avatar"><UserRound size={22} /></span>
                     <span className="name">빠른 예약</span>
+                    <span className="state">{firstVisit.date && dateAvailability[firstVisit.date] === true ? "예약 가능" : "날짜를 먼저 선택"}</span>
                   </button>
                 ) : null}
-                {displayedStaffMembers.map((staff) => {
+                {staffMembers.map((staff) => {
                   const active = firstVisit.staffId === staff.id;
+                  const isUnavailable = Boolean(firstVisit.date) && staffAvailability[staff.id] === false;
+                  const isChecking = Boolean(firstVisit.date) && staffAvailability[staff.id] === undefined;
                   return (
-                    <button key={staff.id} type="button" className={`staff${active ? " sel" : ""}`} onClick={() => onStaffSelect(staff.id)}>
+                    <button
+                      key={staff.id}
+                      type="button"
+                      className={`staff${active ? " sel" : ""}`}
+                      disabled={!firstVisit.date || isUnavailable || isChecking || loadingDateAvailability}
+                      aria-describedby={isUnavailable ? `staff-${staff.id}-availability` : undefined}
+                      onClick={() => onStaffSelect(staff.id)}
+                    >
                       <span className="avatar">
                         {staff.profileImageUrl ? <img src={staff.profileImageUrl} alt="" /> : <UserRound size={22} />}
                       </span>
                       <span className="name">{getStaffCustomerName(staff)}</span>
+                      <span id={isUnavailable ? `staff-${staff.id}-availability` : undefined} className="state">
+                        {!firstVisit.date ? "날짜를 먼저 선택" : isUnavailable ? "이 날짜 예약 불가" : isChecking ? "가능 시간 확인 중" : "예약 가능"}
+                      </span>
                     </button>
                   );
                 })}
@@ -521,23 +541,26 @@ export default function CustomerFirstVisitClaudeFlow({
             <div className="sec">
               <div className="date-head">
                 <h3>날짜 선택</h3>
-                <span className="swipe-hint">옆으로 밀어 더 보기</span>
+                <span className="swipe-hint">예약 가능 여부를 확인해요</span>
               </div>
               <div className="dstrip">
                 {dateOptions.map((date, index) => {
                   const active = firstVisit.date === date.value;
-                  const isEarliestAvailable = date.value === earliestAvailableDate;
+                  const availability = dateAvailability[date.value];
+                  const unavailable = availability === false;
+                  const availabilityLabel = availability === true ? "예약 가능" : unavailable ? "예약 불가" : "확인 중";
                   return (
                     <button
                       key={date.value}
                       type="button"
-                      className={`dcell${active ? " sel" : ""}`}
-                      aria-label={`${date.label}, ${formatDateChipSubtitle(date)}${isEarliestAvailable ? ", 가장 가까운 예약 가능일" : ""}`}
+                      className={`dcell${active ? " sel" : ""}${unavailable ? " unavailable" : ""}`}
+                      aria-label={`${date.label}, ${formatDateChipSubtitle(date)}, ${availabilityLabel}`}
+                      disabled={availability !== true}
                       onClick={() => onDateSelect(date.value)}
                     >
                       <span className="dw">{formatDateChipTitle(date, dateOptions[index - 1])}</span>
                       <span className="dn">{formatDateChipSubtitle(date)}</span>
-                      {isEarliestAvailable ? <span className="avail">예약 가능</span> : null}
+                      <span className="avail">{availabilityLabel}</span>
                     </button>
                   );
                 })}
@@ -557,10 +580,10 @@ export default function CustomerFirstVisitClaudeFlow({
                 <div className="space-y-4">
                   {recommendedSlots.length > 0 ? (
                     <div>
-                      <p className="mb-2 text-[13px] font-bold text-[#d35f50]">{recommendationSource === "ai" ? "AI 추천 시간" : "추천 시간"}<span className="ml-1.5 font-medium text-[#8a7a72]">예약 흐름을 고려했어요</span></p>
+                      <p className="mb-2 text-[13px] font-medium text-[#15213b]">{recommendationSource === "ai" ? "AI 추천 시간" : "추천 시간"}<span className="ml-1.5 font-normal text-[#64748b]">예약 흐름을 고려했어요</span></p>
                       <div className="tgrid">
                         {recommendedSlots.map((slot) => (
-                          <button key={`recommended-${slot}`} type="button" className={`tcell border-[#efb7ae] bg-[#fff6f3]${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
+                          <button key={`recommended-${slot}`} type="button" className={`tcell border-[#cbd5e1] bg-[#f8fafc]${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
                             {slot}<span className="rec">추천</span>
                           </button>
                         ))}
@@ -569,7 +592,7 @@ export default function CustomerFirstVisitClaudeFlow({
                   ) : null}
                   {availableSlots.some((slot) => !recommendedSlots.includes(slot)) ? (
                     <div>
-                      <p className="mb-2 text-[13px] font-bold text-[#3a2e2a]">{recommendedSlots.length > 0 ? "다른 예약 가능한 시간" : "예약 가능한 시간"}</p>
+                      <p className="mb-2 text-[13px] font-medium text-[#15213b]">{recommendedSlots.length > 0 ? "다른 예약 가능한 시간" : "예약 가능한 시간"}</p>
                       <div className="tgrid">
                         {availableSlots.filter((slot) => !recommendedSlots.includes(slot)).map((slot) => (
                           <button key={slot} type="button" className={`tcell${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
@@ -585,11 +608,19 @@ export default function CustomerFirstVisitClaudeFlow({
           </div>
           <div className="dock">
             <div className="sumline">
-              <span className="k">선택</span>
-              <span className="v">{firstVisit.date && firstVisit.timeSlot ? `${formatDateForSummary(firstVisit.date)} · ${firstVisit.timeSlot}` : "날짜와 시간을 골라주세요"}</span>
-              <span className="amt">{selectedServiceOption ? formatServicePrice(selectedServiceOption.price, selectedServiceOption.priceType) : ""}</span>
+              <span className="k">서비스</span>
+              <span className="v">
+                {selectedServiceProjection
+                  ? `${selectedServiceProjection.name} · ${selectedServiceProjection.durationLabel}`
+                  : "서비스 선택"}
+              </span>
+              <span className="amt">{selectedServiceProjection?.priceLabel ?? ""}</span>
             </div>
-            <button className="cta" type="button" disabled={!firstVisit.date || !firstVisit.timeSlot} onClick={onNext}>다음</button>
+            <div className="sumline">
+              <span className="k">일정</span>
+              <span className="v">{firstVisit.date && firstVisit.timeSlot ? `${formatDateForSummary(firstVisit.date)} · ${firstVisit.timeSlot}` : "날짜와 시간을 골라주세요"}</span>
+            </div>
+            <button className="cta" type="button" disabled={!firstVisit.date || !firstVisit.timeSlot || staffSelectionRequiresAction} onClick={onNext}>다음</button>
           </div>
         </>
       ) : null}

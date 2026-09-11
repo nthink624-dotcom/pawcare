@@ -30,16 +30,42 @@ test("admin entry keeps only the new home and current workspaces", () => {
   const adminHome = readProjectFile("src/components/admin/admin-home.tsx");
   const adminNav = readProjectFile("src/components/admin/admin-section-nav.tsx");
 
-  assert.match(adminPage, /<AdminHome sessionLoginId=/);
+  assert.match(adminPage, /<AdminHome adminName=\{adminName\} \/>/);
   assert.match(adminHome, /관리자 홈/);
-  assert.match(adminHome, /오늘 먼저 볼 것/);
-  assert.match(adminHome, /관리 업무 선택/);
+  assert.doesNotMatch(adminHome, /오늘 먼저 볼 것/);
+  assert.match(adminHome, /대표 업무 흐름/);
+  assert.match(adminHome, /계정 관리/);
+  assert.match(adminHome, /고객 문의/);
   assert.doesNotMatch(adminHome, /href="\/admin\/operations"/);
   assert.doesNotMatch(adminNav, /href: "\/admin\/operations"/);
   assert.equal(existsSync(new URL("../../src/app/admin/operations/page.tsx", import.meta.url)), false);
   assert.equal(existsSync(new URL("../../src/components/admin/admin-dashboard.tsx", import.meta.url)), false);
   assert.match(adminNav, /href: "\/owner\/admin"/);
   assert.match(adminNav, /href: "\/admin\/marketing"/);
+});
+
+test("admin navigation keeps the compact shared shell and accessible support anchor", () => {
+  const adminHome = readProjectFile("src/components/admin/admin-home.tsx");
+  const adminNav = readProjectFile("src/components/admin/admin-section-nav.tsx");
+
+  assert.match(adminHome, /max-w-\[1440px\]/);
+  assert.match(adminHome, /sm:rounded-\[14px\]/);
+  assert.match(adminHome, /sm:border/);
+  assert.match(adminHome, /md:grid-cols-2 xl:grid-cols-4/);
+  assert.match(adminHome, /min-h-\[112px\]/);
+  assert.match(adminHome, /id="customer-support"/);
+  assert.match(adminHome, /supportDetailsRef\.current\.open = true/);
+  assert.match(adminHome, /supportSummaryRef\.current\?\.focus\(\)/);
+  assert.doesNotMatch(adminHome, /ArrowRight/);
+  assert.doesNotMatch(adminHome, /PETMANAGER_SERVICE_NAME/);
+  assert.doesNotMatch(adminHome, /대표 업무 흐름과 운영 메뉴를 한곳에서 확인합니다/);
+
+  assert.match(adminNav, /href: "\/admin", label: "홈", icon: Home/);
+  assert.match(adminNav, /href: "\/owner\/admin", label: "계정 관리"/);
+  assert.match(adminNav, /href: "\/admin\/marketing", label: "워크룸"/);
+  assert.match(adminNav, /href: "\/admin\/support", label: "고객 문의"/);
+  assert.match(adminNav, /min-h-11/);
+  assert.match(adminNav, /aria-current=\{selected \? "page" : undefined\}/);
 });
 
 test("core admin workspaces use the shared typography scale", () => {
@@ -53,6 +79,11 @@ test("core admin workspaces use the shared typography scale", () => {
     assert.match(source, /ADMIN_TYPOGRAPHY/);
     assert.doesNotMatch(source, /text-\[(?:10|11|12|13)px\]/);
   }
+
+  assert.match(
+    adminFiles[0],
+    /limited \? <span className=\{`rounded-full px-2 py-0\.5 \$\{ADMIN_TYPOGRAPHY\.meta\}/,
+  );
 });
 
 test("local preview refuses stale builds instead of serving an older landing", () => {
@@ -76,14 +107,16 @@ test("the database overlap guard remains transaction-serialized", () => {
   assert.match(migration, /errcode = '23P01'/);
 });
 
-test("customer reservations stay immediate-confirmed without a pending approval flow", () => {
+test("customer reservations stay immediate-confirmed while legacy pending records remain readable", () => {
   const domain = readProjectFile("src/types/domain.ts");
+  const bootstrap = readProjectFile("src/server/bootstrap.ts");
   const ownerMutations = readProjectFile("src/server/owner-mutations.ts");
   const removalMigration = readProjectFile(
     "supabase/migrations/202606300001_remove_reservation_pending_flow.sql",
   );
 
-  assert.doesNotMatch(domain, /export type AppointmentStatus =[\s\S]{0,240}\| "pending"/);
+  assert.match(domain, /export type AppointmentStatus =[\s\S]{0,240}\| "pending"/);
+  assert.doesNotMatch(bootstrap, /pending"\s*\?\s*"confirmed"/);
   assert.match(ownerMutations, /const status = "confirmed";/);
   assert.match(ownerMutations, /approval_mode: "auto" as const/);
   assert.match(removalMigration, /where status = 'pending'/);
@@ -126,9 +159,12 @@ test("photo list surfaces keep using the batch signed URL client", () => {
 
 test("the owner application retains a route error recovery boundary", () => {
   const errorBoundary = readProjectFile("src/app/error.tsx");
+  const errorContext = readProjectFile("src/lib/app-error-context.ts");
 
   assert.match(errorBoundary, /reset/);
-  assert.match(errorBoundary, /관리자 메인/);
+  assert.match(errorBoundary, /getAppErrorEscapeContext/);
+  assert.match(errorContext, /관리자 메인/);
+  assert.match(errorContext, /오너 홈/);
   assert.match(errorBoundary, /\[petmanager-ui\]/);
 });
 
@@ -190,13 +226,15 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.match(ownerCalendar, /AI 케어리포트 작성·이어보기/);
   assert.match(
     ownerCalendar,
-    /const succeeded = await applyBookingStatusChange\(targetBooking\.id, nextStatus\);\s+if \(succeeded === true\) \{/,
+    /if \(targetBooking && nextStatus === "완료"\) \{\s+setPhotoStatusAction\(null\);\s+setBasicCareReportError\(""\);\s+setCareReportChoiceBooking\(targetBooking\);/,
   );
   assert.match(ownerCalendar, /setCareReportChoiceBooking\(targetBooking\);/);
   assert.match(ownerCalendar, /CalendarCareReportChoiceDialog/);
   assert.match(careReportChoice, /AI 케어리포트 작성하기/);
   assert.match(careReportChoice, /기본 기록만/);
-  assert.match(ownerCalendar, /statusAlreadyCompleted: true/);
+  assert.match(ownerCalendar, /statusAlreadyCompleted:\s+canonicalAppointment\?\.status === "completed" \|\| isCompletedBookingStatus/);
+  assert.match(ownerCalendar, /onBeforePublish=\{handleCompletionBeforePublish\}/);
+  assert.match(careReportPanel, /await onBeforePublish\?\.\(\);\s+if \(previewMode\)/);
   assert.match(ownerCalendar, /if \(isCompletionMode\) await draft\.flushDraft\(\);\s+onClose\(\);/);
   assert.match(ownerCalendar, /onPointerDown=\{\(event\) => \{\s+if \(event\.target !== event\.currentTarget \|\| busy \|\| careReportBusy\) return;/);
   assert.match(careReportPanel, /리포트 보내기/);
@@ -206,14 +244,17 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.match(careReportPanel, /action: "save_draft"/);
   assert.match(careReportPanel, /action: "publish"/);
   assert.match(careReportPanel, /AI가 정리한 문장 편집/);
+  assert.match(careReportPanel, /관찰 내용 편집/);
+  assert.match(careReportPanel, /집에서 참고할 점 편집/);
   assert.match(careReportPanel, /아래에 케어 내용을 남기면 이곳에 정리됩니다/);
-  assert.match(careReportPanel, /editReport\(\{ \.\.\.report, oneLineSummary: content \}\)/);
+  assert.match(careReportPanel, /onReportChange=\{editReport\}/);
   assert.match(careReportPanel, /max-h-\[148px\].*overflow-y-auto/);
   assert.match(careReportPanel, /h-\[108px\].*resize-none.*overflow-y-auto/);
   assert.match(careReportPanel, /sticky bottom-0/);
   assert.doesNotMatch(careReportPanel, /fixed bottom-2 left-1\/2/);
   assert.doesNotMatch(careReportPanel, /전체 케어리포트 보기/);
-  assert.match(careNoteInput, /오늘 진행한 미용 · 아이 상태 · 집에서 관리할 점/);
+  assert.match(careNoteInput, /오늘 관찰 메모/);
+  assert.match(careNoteInput, /관찰 범위 선택/);
   assert.match(careNoteInput, /h-\[58px\].*resize-none.*overflow-y-auto/);
   assert.match(careNoteInput, /speechBaseValueRef\.current = valueRef\.current/);
   assert.match(careNoteInput, /const spokenText = \[finalized\.trim\(\), interim\.trim\(\)\]/);
@@ -225,10 +266,13 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.match(careReportRoute, /input\.action === "save_draft"/);
   assert.match(careReportRoute, /\.rpc\("publish_ai_care_report"/);
   assert.match(careReportRoute, /미용 완료 기록이 만들어진 뒤 케어리포트를 보낼 수 있습니다/);
-  assert.match(careReportRoute, /care_report_observations: \{\}/);
-  assert.match(careReportRoute, /care_report_voice_transcript: ""/);
-  assert.doesNotMatch(careReportRoute, /care_report_observations: input\.observations/);
-  assert.doesNotMatch(careReportRoute, /care_report_voice_transcript: input\.voiceTranscript/);
+  assert.match(careReportRoute, /status: "preview"/);
+  assert.doesNotMatch(careReportRoute, /persistCurrentWeightMeasurement\(/);
+  assert.doesNotMatch(careReportRoute, /ai_care_report_generations[\s\S]{0,500}\.insert/);
+  assert.match(careReportRoute, /sanitizeCareReportObservations\(input\.observations\)/);
+  assert.match(careReportRoute, /prepareCareReportSourceText\(input\.careReportSourceText\)/);
+  assert.match(careReportRoute, /care_report_observations: persistedObservations/);
+  assert.match(careReportRoute, /decideCareReportSaveReplay/);
   assert.match(ownerMutations, /final_service_price \?\? service\?\.price/);
   assert.match(ownerMutations, /actual_duration_minutes: getActualGroomingDurationMinutes/);
   assert.match(ownerMutations, /next_recommended_visit_date/);
@@ -262,13 +306,13 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.match(atomicCareReportPublishMigration, /revoke all on function public\.publish_ai_care_report/);
 });
 
-test("an early-started future booking remains on its scheduled date after refresh", () => {
+test("actual grooming timestamps never change the scheduled board date or geometry", () => {
   const ownerCalendar = readProjectFile("src/components/owner-web/calendar-management-screen.tsx");
 
-  assert.match(
-    ownerCalendar,
-    /appointment\.appointment_date !== selectedDate &&\s+actualStart &&\s+\["in_progress", "almost_done", "completed"\]\.includes\(appointment\.status\) &&\s+!actualWindow/,
-  );
+  assert.match(ownerCalendar, /\.filter\(\(appointment\) => appointment\.appointment_date === selectedDate\)/);
+  assert.match(ownerCalendar, /const startMinute = timeToHour\(appointment\.appointment_time\) \* 60;/);
+  assert.match(ownerCalendar, /const durationMinutes = scheduledDurationMinutes;/);
+  assert.doesNotMatch(ownerCalendar, /getActualAppointmentWindowForDate|hasActualAppointmentWindowOnDate/);
 });
 
 test("grooming notes keep a private autosaved draft without delaying photo completion", () => {
@@ -386,20 +430,24 @@ test("the owner operations visual keeps the laptop dominant with a foreground ph
   assert.match(primarySections, /sm:absolute sm:bottom-0 sm:right-0 sm:w-\[190px\]/);
 });
 
-test("customer booking dates show four days and derive the nearest available date across the 60-day window", () => {
+test("customer booking dates and staff cards share the authoritative availability result", () => {
   const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
   const bookingFlow = readProjectFile("src/components/customer/customer-first-visit-claude-flow.tsx");
   const availabilityRoute = readProjectFile("src/app/api/availability/route.ts");
 
   assert.match(bookingPage, /offset < CUSTOMER_BOOKING_HORIZON_DAYS/);
-  assert.match(bookingPage, /index < dateOptions\.length; index \+= batchSize/);
-  assert.match(bookingPage, /dateOptions\.slice\(index, index \+ batchSize\)/);
+  assert.match(bookingPage, /dates:\s*dateOptions\.map/);
   assert.match(bookingPage, /summaryOnly: true/);
+  assert.match(bookingPage, /fullSlots: true/);
   assert.match(bookingFlow, /calc\(\(100% - 24px\) \/ 4\)/);
   assert.match(bookingFlow, /scroll-snap-type:x mandatory/);
   assert.match(bookingFlow, /예약 가능한 시간이 없어요/);
-  assert.match(bookingFlow, /isEarliestAvailable \? <span className="avail">예약 가능<\/span>/);
+  assert.match(bookingFlow, /availabilityLabel = availability === true \? "예약 가능" : unavailable \? "예약 불가" : "확인 중"/);
+  assert.match(bookingFlow, /disabled=\{availability !== true\}/);
+  assert.match(bookingFlow, /disabled=\{!firstVisit\.date \|\| isUnavailable \|\| isChecking/);
   assert.match(availabilityRoute, /searchParams\.get\("summary"\) === "1"/);
+  assert.match(availabilityRoute, /availabilityByDate/);
+  assert.match(availabilityRoute, /staffAvailability/);
   assert.match(availabilityRoute, /customerVisibleSlots\.slice\(0, 1\)/);
 });
 

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { buildServiceDurationRecommendations } from "../../src/lib/service-duration-recommendations.ts";
 import { parseDataImportFile } from "../../src/server/data-import-parser.ts";
 import { buildProfitabilityPayload } from "../../src/server/profitability-analytics.ts";
 
@@ -68,4 +70,101 @@ test("CSV migration parser classifies customer, visit, and price guide rows", as
   assert.equal(parsed.customers[0].phone, "010-1234-5678");
   assert.equal(parsed.visits[0].actualMinutes, 110);
   assert.equal(parsed.priceGuide[0].price, 70000);
+});
+
+test("service duration recommendation uses only corroborated completed work grouped by service and rounded weight", () => {
+  const startedAt = "2026-09-01T01:00:00.000Z";
+  const completedAt = (minutes) => new Date(Date.parse(startedAt) + minutes * 60_000).toISOString();
+  const validMinutes = [60, 90, 120];
+  const validAppointments = validMinutes.map((minutes, index) => ({
+    id: `valid-${index}`,
+    service_id: "service-a",
+    status: "completed",
+    start_at: startedAt,
+    end_at: completedAt(30),
+    actual_started_at: startedAt,
+    actual_completed_at: completedAt(minutes),
+  }));
+  const validRecords = validMinutes.map((minutes, index) => ({
+    id: `record-valid-${index}`,
+    appointment_id: `valid-${index}`,
+    service_id: "service-a",
+    actual_duration_minutes: minutes,
+    pet_weight_snapshot: 5.2,
+  }));
+  const excludedAppointments = [
+    { id: "cancelled", service_id: "service-a", status: "cancelled", actual_started_at: startedAt, actual_completed_at: completedAt(70) },
+    { id: "missing-time", service_id: "service-a", status: "completed", actual_started_at: null, actual_completed_at: completedAt(70) },
+    { id: "mismatch", service_id: "service-a", status: "completed", actual_started_at: startedAt, actual_completed_at: completedAt(70) },
+    { id: "missing-weight", service_id: "service-a", status: "completed", actual_started_at: startedAt, actual_completed_at: completedAt(70) },
+    { id: "unknown-service", service_id: "missing", status: "completed", actual_started_at: startedAt, actual_completed_at: completedAt(70) },
+    { id: "duplicate", service_id: "service-a", status: "completed", actual_started_at: startedAt, actual_completed_at: completedAt(70) },
+  ];
+  const excludedRecords = [
+    { id: "record-cancelled", appointment_id: "cancelled", service_id: "service-a", actual_duration_minutes: 70, pet_weight_snapshot: 5.2 },
+    { id: "record-missing-time", appointment_id: "missing-time", service_id: "service-a", actual_duration_minutes: 70, pet_weight_snapshot: 5.2 },
+    { id: "record-mismatch", appointment_id: "mismatch", service_id: "service-a", actual_duration_minutes: 71, pet_weight_snapshot: 5.2 },
+    { id: "record-missing-weight", appointment_id: "missing-weight", service_id: "service-a", actual_duration_minutes: 70, pet_weight_snapshot: null },
+    { id: "record-unknown-service", appointment_id: "unknown-service", service_id: "missing", actual_duration_minutes: 70, pet_weight_snapshot: 5.2 },
+    { id: "record-duplicate-a", appointment_id: "duplicate", service_id: "service-a", actual_duration_minutes: 70, pet_weight_snapshot: 5.2 },
+    { id: "record-duplicate-b", appointment_id: "duplicate", service_id: "service-a", actual_duration_minutes: 70, pet_weight_snapshot: 5.2 },
+  ];
+
+  const recommendations = buildServiceDurationRecommendations({
+    shopId: "shop-a",
+    records: [...validRecords, ...excludedRecords],
+    appointments: [...validAppointments, ...excludedAppointments],
+    services: [{ id: "service-a", name: "전체 미용" }],
+  });
+
+  assert.deepEqual(recommendations, [{
+    key: "shop-a|service-a|5kg",
+    shopId: "shop-a",
+    serviceId: "service-a",
+    serviceName: "전체 미용",
+    roundedWeightKg: 5,
+    weightLabel: "5kg",
+    sampleCount: 3,
+    observedAverageMinutes: 90,
+  }]);
+});
+
+test("service duration recommendation requires three records in the same service and weight group", () => {
+  const appointments = [0, 1].map((index) => ({
+    id: `appointment-${index}`,
+    service_id: "service-a",
+    status: "completed",
+    actual_started_at: "2026-09-01T01:00:00.000Z",
+    actual_completed_at: "2026-09-01T02:00:00.000Z",
+  }));
+  const records = appointments.map((appointment, index) => ({
+    id: `record-${index}`,
+    appointment_id: appointment.id,
+    service_id: "service-a",
+    actual_duration_minutes: 60,
+    pet_weight_snapshot: index === 0 ? 4.2 : 5.2,
+  }));
+
+  assert.deepEqual(buildServiceDurationRecommendations({
+    shopId: "shop-a",
+    records,
+    appointments,
+    services: [{ id: "service-a", name: "목욕" }],
+  }), []);
+});
+
+test("service duration UI keeps the configured baseline separate from read-only recommendations", () => {
+  const panelSource = readFileSync(
+    new URL("../../src/components/owner-web/service-duration-recommendation-panel.tsx", import.meta.url),
+    "utf8",
+  );
+  const screenSource = readFileSync(
+    new URL("../../src/components/owner-web/service-management-screen.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(panelSource, /초기 평균 시간을 정해 주세요\. 실제 완료 기록이 쌓이면 평균을 자동 계산해 추천해 드려요\./);
+  assert.match(panelSource, /range=365d/);
+  assert.doesNotMatch(panelSource, /updatePriceGuide|onApply|durationMinutes\s*:/);
+  assert.match(screenSource, /<ServiceDurationRecommendationPanel/);
 });

@@ -108,6 +108,20 @@ function makePayload() {
         updated_at: baseTimestamp,
       },
     ],
+    petDisplayPhotos: [
+      {
+        petId: "pet-1",
+        url: "https://signed.example/pet-1",
+        source: "latest_grooming_after",
+        latestCompletedAt: baseTimestamp,
+      },
+      {
+        petId: "pet-2",
+        url: "https://signed.example/pet-2",
+        source: "latest_grooming_after",
+        latestCompletedAt: baseTimestamp,
+      },
+    ],
     services: [],
     staffMembers: [
       {
@@ -277,6 +291,7 @@ describe("staff privacy scope", () => {
     assert.equal(scoped.ownerProfile, null);
     assert.deepEqual(scoped.deletedGuardians, []);
     assert.deepEqual(scoped.appointmentChangeEvents?.map((event) => event.appointment_id), ["appt-1"]);
+    assert.deepEqual(scoped.petDisplayPhotos?.map((photo) => photo.petId), ["pet-1"]);
     assert.deepEqual(scoped.petStaffNotes?.map((note) => note.id), ["note-1"]);
     assert.equal(scoped.notifications[0].recipient_phone, null);
   });

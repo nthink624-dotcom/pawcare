@@ -3,7 +3,7 @@
 import { Clock, Copy, ExternalLink, Link2, MapPin, Navigation, Phone, Star, Store } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import {
   OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
   OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
@@ -58,11 +58,11 @@ export default function BookingLinkManagementScreen({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto text-[#0f172a]">
-      <main className="grid w-full gap-3">
-        <WebSurface className="p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
+    <div className="h-full min-h-0 min-w-0 overflow-y-auto text-[#0f172a]">
+      <main className="grid min-w-0 w-full gap-3">
+        <section className="min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
+            <div className="flex min-w-0 w-full items-center gap-3 sm:w-auto">
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#1f6b5b]">
                 <Link2 className="h-5 w-5" />
               </span>
@@ -71,11 +71,11 @@ export default function BookingLinkManagementScreen({
                 <p className="mt-1 text-[15px] font-normal text-[#64748b]">고객 예약 링크</p>
               </div>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
+            <div className="flex w-full shrink-0 flex-col flex-wrap gap-2 sm:w-auto sm:flex-row">
               <button
                 type="button"
                 onClick={() => void handleCopy(bookingUrl, "url")}
-                className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
+                className={`${OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
               >
                 <Copy className="h-4 w-4" />
                 {copiedTarget === "url" ? "복사됨" : "링크 복사"}
@@ -84,7 +84,7 @@ export default function BookingLinkManagementScreen({
                 href={bookingUrl}
                 target="_blank"
                 rel="noreferrer"
-                className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
+                className={`${OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
               >
                 <ExternalLink className="h-4 w-4" />
                 고객 화면 열기
@@ -103,8 +103,8 @@ export default function BookingLinkManagementScreen({
             </div>
 
             <div className="mt-3 grid gap-4">
-              <section className="rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <section className="min-w-0 max-w-full rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] p-3">
+                <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
                   <p className="text-[17px] font-semibold text-[#111827]">네이버</p>
                   <button
                     type="button"
@@ -130,7 +130,7 @@ export default function BookingLinkManagementScreen({
                     </div>
 
                     <div className="rounded-[8px] border border-[#dbe2ea] bg-white p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
                         <div className="flex items-center gap-2">
                           <MapPin className="h-4 w-4 text-[#1f6b5b]" />
                           <p className="text-[16px] font-semibold text-[#111827]">찾아오는길에 문구 넣는법</p>
@@ -152,7 +152,7 @@ export default function BookingLinkManagementScreen({
 
             </div>
           </div>
-        </WebSurface>
+        </section>
 
       </main>
     </div>

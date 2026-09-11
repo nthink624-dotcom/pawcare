@@ -1,5 +1,6 @@
 export const OWNER_AUTH_HANDOFF_STORAGE_KEY = "petmanager.ownerAuthHandoff";
 const OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY = "petmanager.ownerAuthTokenCache";
+const OWNER_AUTH_REFRESH_TOKEN_CACHE_STORAGE_KEY = "petmanager.ownerAuthRefreshTokenCache";
 let currentOwnerAccessToken: { accessToken: string; expiresAt: number | null } | null = null;
 let ownerAuthHydrationPromise: Promise<void> | null = null;
 
@@ -119,6 +120,10 @@ export function writeOwnerAuthTokenCache(accessToken: string, refreshToken?: str
   const serialized = JSON.stringify(payload);
   safeSetItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY, serialized);
   safeSetItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY, serialized);
+  if (refreshToken) {
+    safeSetItem(window.localStorage, OWNER_AUTH_REFRESH_TOKEN_CACHE_STORAGE_KEY, refreshToken);
+    safeSetItem(window.sessionStorage, OWNER_AUTH_REFRESH_TOKEN_CACHE_STORAGE_KEY, refreshToken);
+  }
 }
 
 export function writeOwnerAuthSessionCache(session: OwnerAuthHandoffSession) {
@@ -169,6 +174,11 @@ export function readOwnerAuthTokenCache() {
 export function readOwnerAuthRefreshTokenCache() {
   if (typeof window === "undefined") return null;
 
+  const dedicatedRefreshToken =
+    safeGetItem(window.localStorage, OWNER_AUTH_REFRESH_TOKEN_CACHE_STORAGE_KEY) ??
+    safeGetItem(window.sessionStorage, OWNER_AUTH_REFRESH_TOKEN_CACHE_STORAGE_KEY);
+  if (dedicatedRefreshToken) return dedicatedRefreshToken;
+
   const raw =
     safeGetItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY) ??
     safeGetItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
@@ -182,9 +192,16 @@ export function readOwnerAuthRefreshTokenCache() {
   }
 }
 
-export function clearOwnerAuthTokenCache() {
+export function clearOwnerAccessTokenCache() {
   currentOwnerAccessToken = null;
   if (typeof window === "undefined") return;
   safeRemoveItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
   safeRemoveItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+}
+
+export function clearOwnerAuthTokenCache() {
+  clearOwnerAccessTokenCache();
+  if (typeof window === "undefined") return;
+  safeRemoveItem(window.localStorage, OWNER_AUTH_REFRESH_TOKEN_CACHE_STORAGE_KEY);
+  safeRemoveItem(window.sessionStorage, OWNER_AUTH_REFRESH_TOKEN_CACHE_STORAGE_KEY);
 }

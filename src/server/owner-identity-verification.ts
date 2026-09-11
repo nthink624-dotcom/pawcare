@@ -3,6 +3,13 @@ import { randomUUID } from "node:crypto";
 import { getSupabaseServerRuntimeStage } from "@/lib/server-env";
 import { normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
 import {
+  checkPortoneRequestBinding,
+  createPortoneRequestBinding,
+  readPortoneCustomDataState,
+  type PortoneRequestBindingFailure,
+  type PortoneRequestBindingStatus,
+} from "@/lib/auth/owner-identity-binding";
+import {
   createIdentityVerificationCode,
   hashIdentityVerificationCode,
   identityVerificationPurposeSchema,
@@ -32,6 +39,8 @@ type IdentityVerificationRow = {
   verified_expires_at: string | null;
   consumed_at: string | null;
   provider_identity_verification_id: string | null;
+  provider_request_state_hash: string | null;
+  provider_request_expires_at: string | null;
   provider_status: string | null;
   provider_customer_id: string | null;
   provider_customer_name: string | null;
@@ -119,6 +128,10 @@ function mapRow(data: Record<string, unknown>): IdentityVerificationRow {
     consumed_at: typeof data.consumed_at === "string" ? data.consumed_at : null,
     provider_identity_verification_id:
       typeof data.provider_identity_verification_id === "string" ? data.provider_identity_verification_id : null,
+    provider_request_state_hash:
+      typeof data.provider_request_state_hash === "string" ? data.provider_request_state_hash : null,
+    provider_request_expires_at:
+      typeof data.provider_request_expires_at === "string" ? data.provider_request_expires_at : null,
     provider_status: typeof data.provider_status === "string" ? data.provider_status : null,
     provider_customer_id: typeof data.provider_customer_id === "string" ? data.provider_customer_id : null,
     provider_customer_name: typeof data.provider_customer_name === "string" ? data.provider_customer_name : null,
@@ -140,6 +153,9 @@ function createMemoryRow(input: {
   phoneNumber: string;
   challengeCodeHash?: string | null;
   challengeExpiresAt?: string | null;
+  providerIdentityVerificationId?: string | null;
+  providerRequestStateHash?: string | null;
+  providerRequestExpiresAt?: string | null;
 }) {
   const row: IdentityVerificationRow = {
     id: input.id,
@@ -156,7 +172,9 @@ function createMemoryRow(input: {
     verified_at: null,
     verified_expires_at: null,
     consumed_at: null,
-    provider_identity_verification_id: null,
+    provider_identity_verification_id: input.providerIdentityVerificationId ?? null,
+    provider_request_state_hash: input.providerRequestStateHash ?? null,
+    provider_request_expires_at: input.providerRequestExpiresAt ?? null,
     provider_status: null,
     provider_customer_id: null,
     provider_customer_name: null,
@@ -281,6 +299,7 @@ export async function createProviderIdentityVerificationRequest(input: {
   const supabase = getSupabaseOrThrow();
   const id = randomUUID();
   const createdAt = nowIso();
+  const binding = createPortoneRequestBinding({ verificationRequestId: id });
 
   const { error } = await supabase.from(OWNER_IDENTITY_TABLE).insert({
     id,
@@ -290,6 +309,9 @@ export async function createProviderIdentityVerificationRequest(input: {
     name: input.name.trim(),
     birth_date: normalizeBirthDate(input.birthDate),
     phone_number: normalizePhoneNumber(input.phoneNumber),
+    provider_identity_verification_id: binding.providerIdentityVerificationId,
+    provider_request_state_hash: binding.requestStateHash,
+    provider_request_expires_at: binding.requestExpiresAt,
     created_at: createdAt,
     updated_at: createdAt,
   });
@@ -303,15 +325,26 @@ export async function createProviderIdentityVerificationRequest(input: {
         name: input.name,
         birthDate: input.birthDate,
         phoneNumber: input.phoneNumber,
+        providerIdentityVerificationId: binding.providerIdentityVerificationId,
+        providerRequestStateHash: binding.requestStateHash,
+        providerRequestExpiresAt: binding.requestExpiresAt,
       });
 
-      return { verificationRequestId: id };
+      return {
+        verificationRequestId: id,
+        providerIdentityVerificationId: binding.providerIdentityVerificationId,
+        verificationState: binding.requestState,
+      };
     }
 
     throw new Error(error.message || "본인인증 요청을 저장하지 못했습니다.");
   }
 
-  return { verificationRequestId: id };
+  return {
+    verificationRequestId: id,
+    providerIdentityVerificationId: binding.providerIdentityVerificationId,
+    verificationState: binding.requestState,
+  };
 }
 
 async function getVerificationRow(id: string) {
@@ -331,6 +364,31 @@ async function getVerificationRow(id: string) {
   }
 
   return mapRow(data);
+}
+
+function portoneBindingFailureMessage(reason: PortoneRequestBindingFailure) {
+  if (reason === "expired") {
+    return "본인인증 요청 시간이 만료되었어요. 창을 닫고 다시 인증해 주세요.";
+  }
+  if (reason === "already_used") {
+    return "이미 사용했거나 종료된 본인인증 요청입니다. 다시 인증해 주세요.";
+  }
+  return "본인인증 요청 연결 정보가 일치하지 않아요. 창을 닫고 다시 인증해 주세요.";
+}
+
+export async function validatePortoneIdentityVerificationBinding(input: {
+  verificationRequestId: string;
+  purpose: IdentityVerificationPurpose;
+  identityVerificationId: string;
+  verificationState: string;
+  allowedStatuses: readonly PortoneRequestBindingStatus[];
+}) {
+  const row = await getVerificationRow(input.verificationRequestId);
+  const checked = checkPortoneRequestBinding({ row, ...input });
+  if (!checked.ok) {
+    return { ok: false as const, message: portoneBindingFailureMessage(checked.reason) };
+  }
+  return { ok: true as const, status: row!.status };
 }
 
 export async function completeLocalIdentityVerification(input: {
@@ -446,6 +504,7 @@ export async function completePortoneIdentityVerification(input: {
   verificationRequestId: string;
   purpose: IdentityVerificationPurpose;
   identityVerificationId: string;
+  verificationState: string;
   identityVerification: Record<string, unknown> | undefined;
 }) {
   const supabase = getSupabaseOrThrow();
@@ -456,63 +515,24 @@ export async function completePortoneIdentityVerification(input: {
     return { ok: false as const, message: "본인인증 요청을 찾지 못했습니다." };
   }
 
-  if (row.purpose !== input.purpose || row.verification_method !== "portone") {
-    return { ok: false as const, message: "본인인증 요청 정보가 올바르지 않습니다." };
+  const binding = checkPortoneRequestBinding({
+    row,
+    verificationRequestId: input.verificationRequestId,
+    purpose: input.purpose,
+    identityVerificationId: input.identityVerificationId,
+    verificationState: input.verificationState,
+    allowedStatuses: ["requested"],
+  });
+  if (!binding.ok) {
+    return { ok: false as const, message: portoneBindingFailureMessage(binding.reason) };
   }
 
-  if (row.status !== "requested") {
-    if (
-      row.status === "verified" &&
-      row.provider_identity_verification_id === input.identityVerificationId &&
-      !row.consumed_at &&
-      row.verified_expires_at &&
-      new Date(row.verified_expires_at).getTime() > Date.now()
-    ) {
-      const verificationTokenId = randomUUID();
-      const verifiedExpiresAt = addMs(VERIFIED_EXPIRES_IN_MS);
-
-      if (isMemoryBacked) {
-        devIdentityVerificationStore.set(row.id, {
-          ...row,
-          verified_expires_at: verifiedExpiresAt,
-          verification_token_id: verificationTokenId,
-        });
-      } else {
-        const { error } = await supabase
-          .from(OWNER_IDENTITY_TABLE)
-          .update({
-            verified_expires_at: verifiedExpiresAt,
-            verification_token_id: verificationTokenId,
-            updated_at: nowIso(),
-          })
-          .eq("id", row.id)
-          .eq("status", "verified")
-          .eq("provider_identity_verification_id", input.identityVerificationId)
-          .is("consumed_at", null);
-
-        if (error) {
-          throw new Error(error.message || "본인인증 상태를 저장하지 못했습니다.");
-        }
-      }
-
-      return {
-        ok: true as const,
-        verificationToken: issueVerifiedIdentityToken({
-          verificationId: row.id,
-          tokenId: verificationTokenId,
-          purpose: row.purpose,
-          source: "portone",
-          expiresInMs: VERIFIED_EXPIRES_IN_MS,
-        }),
-        identity: {
-          name: row.name,
-          birthDate: row.birth_date,
-          phoneNumber: row.phone_number,
-        },
-      };
-    }
-
-    return { ok: false as const, message: "이미 사용된 인증 요청입니다. 다시 인증해 주세요." };
+  const providerState = readPortoneCustomDataState(input.identityVerification);
+  if (providerState !== null && providerState !== input.verificationState) {
+    return {
+      ok: false as const,
+      message: "본인인증 제공자 응답의 연결 정보가 일치하지 않아요. 다시 인증해 주세요.",
+    };
   }
 
   const providerStatus =
@@ -578,7 +598,7 @@ export async function completePortoneIdentityVerification(input: {
   if (isMemoryBacked) {
     devIdentityVerificationStore.set(row.id, verifiedRow);
   } else {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from(OWNER_IDENTITY_TABLE)
       .update({
         status: verifiedRow.status,
@@ -600,10 +620,19 @@ export async function completePortoneIdentityVerification(input: {
         failure_reason: null,
       })
       .eq("id", row.id)
-      .eq("status", "requested");
+      .eq("status", "requested")
+      .eq("provider_identity_verification_id", input.identityVerificationId)
+      .eq("provider_request_state_hash", row.provider_request_state_hash!)
+      .gt("provider_request_expires_at", verifiedAt)
+      .is("consumed_at", null)
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       throw new Error(error.message || "본인인증 상태를 저장하지 못했습니다.");
+    }
+    if (!data?.id) {
+      return { ok: false as const, message: "본인인증 요청 상태가 변경되었어요. 다시 인증해 주세요." };
     }
   }
 
@@ -625,38 +654,42 @@ export async function completePortoneIdentityVerification(input: {
 }
 
 export async function reuseCompletedPortoneIdentityVerification(input: {
+  verificationRequestId: string;
   purpose: IdentityVerificationPurpose;
   identityVerificationId: string;
+  verificationState: string;
 }) {
   const supabase = getSupabaseOrThrow();
-  const { data, error } = await supabase
-    .from(OWNER_IDENTITY_TABLE)
-    .select("*")
-    .eq("purpose", input.purpose)
-    .eq("verification_method", "portone")
-    .eq("status", "verified")
-    .eq("provider_identity_verification_id", input.identityVerificationId)
-    .is("consumed_at", null)
-    .order("verified_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message || "본인인증 상태를 확인하지 못했습니다.");
+  const row = await getVerificationRow(input.verificationRequestId);
+  const binding = checkPortoneRequestBinding({
+    row,
+    verificationRequestId: input.verificationRequestId,
+    purpose: input.purpose,
+    identityVerificationId: input.identityVerificationId,
+    verificationState: input.verificationState,
+    allowedStatuses: ["verified"],
+  });
+  if (!binding.ok) {
+    return { ok: false as const, message: portoneBindingFailureMessage(binding.reason) };
   }
-
-  if (!data) {
+  if (!row!.verified_expires_at || new Date(row!.verified_expires_at).getTime() <= Date.now()) {
     return { ok: false as const, message: "이미 완료된 인증입니다. 창을 닫고 다시 인증해 주세요." };
   }
-
-  const row = mapRow(data);
-  if (!row.verified_expires_at || new Date(row.verified_expires_at).getTime() < Date.now()) {
-    return { ok: false as const, message: "이미 완료된 인증입니다. 창을 닫고 다시 인증해 주세요." };
+  if (!row!.verification_token_id) {
+    return { ok: false as const, message: "본인인증 완료 상태를 확인하지 못했어요. 다시 인증해 주세요." };
   }
 
   const verificationTokenId = randomUUID();
   const verifiedExpiresAt = addMs(VERIFIED_EXPIRES_IN_MS);
   const updatedAt = nowIso();
+  const isMemoryBacked = devIdentityVerificationStore.has(input.verificationRequestId);
+  if (isMemoryBacked) {
+    devIdentityVerificationStore.set(row!.id, {
+      ...row!,
+      verified_expires_at: verifiedExpiresAt,
+      verification_token_id: verificationTokenId,
+    });
+  } else {
   const updateResult = await supabase
     .from(OWNER_IDENTITY_TABLE)
     .update({
@@ -664,28 +697,37 @@ export async function reuseCompletedPortoneIdentityVerification(input: {
       verification_token_id: verificationTokenId,
       updated_at: updatedAt,
     })
-    .eq("id", row.id)
+    .eq("id", row!.id)
     .eq("status", "verified")
     .eq("provider_identity_verification_id", input.identityVerificationId)
-    .is("consumed_at", null);
+    .eq("provider_request_state_hash", row!.provider_request_state_hash!)
+    .eq("verification_token_id", row!.verification_token_id)
+    .gt("provider_request_expires_at", updatedAt)
+    .is("consumed_at", null)
+    .select("id")
+    .maybeSingle();
 
   if (updateResult.error) {
     throw new Error(updateResult.error.message || "본인인증 상태를 저장하지 못했습니다.");
+  }
+  if (!updateResult.data?.id) {
+    return { ok: false as const, message: "본인인증 요청 상태가 변경되었어요. 다시 인증해 주세요." };
+  }
   }
 
   return {
     ok: true as const,
     verificationToken: issueVerifiedIdentityToken({
-      verificationId: row.id,
+      verificationId: row!.id,
       tokenId: verificationTokenId,
-      purpose: row.purpose,
+      purpose: row!.purpose,
       source: "portone",
       expiresInMs: VERIFIED_EXPIRES_IN_MS,
     }),
     identity: {
-      name: row.name,
-      birthDate: row.birth_date,
-      phoneNumber: row.phone_number,
+      name: row!.name,
+      birthDate: row!.birth_date,
+      phoneNumber: row!.phone_number,
     },
   };
 }

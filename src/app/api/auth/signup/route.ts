@@ -1,7 +1,6 @@
-﻿import { randomUUID } from "node:crypto";
+﻿import { createHmac, randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac } from "node:crypto";
 import { z } from "zod";
 
 import {
@@ -21,7 +20,6 @@ import {
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
-import { buildSignupServicePriceGuide, normalizeSignupServicePrices, signupServicePricesSchema } from "@/lib/auth/signup-service-pricing";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
@@ -35,28 +33,13 @@ import {
   type SignupRequestRecord,
 } from "@/server/signup-development-orchestration";
 import { parseBoundedAtomicSignupJson, SignupJsonBodyError } from "@/server/signup-json-body";
-
-const schema = z.object({
-  email: z.string().min(1),
-  password: z.string().min(6),
-  passwordConfirm: z.string().min(6),
-  name: z.string().min(1),
-  birthDate: z.string().min(8).max(8),
-  phoneNumber: z.string().min(10).max(11),
-  identityVerificationToken: z.string().min(1),
-  shopName: z.string().min(1),
-  shopPhone: z.string().min(9).max(11),
-  shopAddress: z.string().min(1),
-  agreements: z.object({
-    service: z.boolean(),
-    privacy: z.boolean(),
-    location: z.boolean(),
-    marketing: z.boolean(),
-  }),
-  termsVersion: z.string().optional(),
-  signupRequestId: z.string().uuid(),
-  servicePrices: signupServicePricesSchema,
-});
+import { bindMarketingAcquisitionToSignup } from "@/server/marketing-acquisition";
+import {
+  buildSignupServiceRpcPayload,
+  parseSignupRequestPayload,
+  SignupPriceGuideValidationError,
+  type SignupRequestPayload,
+} from "@/server/signup-price-guide-validation";
 
 function isValidPhoneNumber(value: string) {
   return /^01\d{8,9}$/.test(normalizeOwnerPhoneNumber(value));
@@ -71,7 +54,7 @@ function logSignupIssue(stage: string, error: unknown) {
   console.error("[owner-signup]", stage, message);
 }
 
-function buildSignupPayloadHash(payload: z.infer<typeof schema>) {
+function buildSignupPayloadHash(payload: SignupRequestPayload) {
   const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.OWNER_SESSION_SECRET;
   if (!secret) throw new Error("회원가입 요청 서명 환경 변수가 설정되지 않았습니다.");
   return createHmac("sha256", secret)
@@ -100,18 +83,10 @@ export async function POST(request: NextRequest) {
       throw new SignupJsonBodyError("SIGNUP_BODY_INVALID", "회원가입 요청을 확인해 주세요.", 400);
     }
     const body = decodedBody as Record<string, unknown>;
+    const payload = parseSignupRequestPayload(body);
     if (!hasSupabaseServerEnv()) {
       return NextResponse.json({ message: "Supabase 환경 변수가 설정되지 않았습니다." }, { status: 503 });
     }
-    const payload = schema.parse({
-      ...body,
-      phoneNumber: normalizeOwnerPhoneNumber(
-        typeof body.phoneNumber === "string" ? body.phoneNumber : "",
-      ),
-      shopPhone: normalizeOwnerPhoneNumber(
-        typeof body.shopPhone === "string" ? body.shopPhone : "",
-      ),
-    });
 
     const email = normalizeOwnerEmail(payload.email);
 
@@ -176,25 +151,17 @@ export async function POST(request: NextRequest) {
     const now = nowIso();
     const agreementPayload = {
       agreed_at: now,
-      terms_version: payload.termsVersion || OWNER_SIGNUP_TERMS_VERSION,
+      terms_version: OWNER_SIGNUP_TERMS_VERSION,
       agreements: payload.agreements,
     };
-    const normalizedServices = normalizeSignupServicePrices(payload.servicePrices).map((service, index) => ({
-      id: `${shopId}-svc-signup-${index + 1}`,
-      name: service.name,
-      price: service.price,
-      duration_minutes: service.durationMinutes,
-      description: [service.detailName, service.breedGroup, service.weightBand].filter(Boolean).join(" · "),
-      sort_order: index + 1,
-      price_guide: buildSignupServicePriceGuide(service),
-    }));
+    const normalizedServices = buildSignupServiceRpcPayload(payload, shopId);
 
     const orchestration = await orchestrateDevelopmentSignup({
       requestId: payload.signupRequestId,
       payloadHash,
       dependencies: {
         claimRequest: async ({ requestId, payloadHash: requestHash }) => {
-          const result = await supabase.rpc("claim_owner_signup_v4", {
+          const result = await supabase.rpc("claim_owner_signup_v5", {
             p_signup_request_id: requestId,
             p_payload_hash: requestHash,
           });
@@ -232,6 +199,7 @@ export async function POST(request: NextRequest) {
             user_metadata: {
               login_id: email,
               name: payload.name.trim(),
+              signup_request_id: payload.signupRequestId,
             },
           });
           if (createdUser.error || !createdUser.data.user) {
@@ -241,7 +209,7 @@ export async function POST(request: NextRequest) {
           return { userId: createdUser.data.user.id };
         },
         markAuthCreated: async ({ requestId, payloadHash: requestHash, authUserId }) => {
-          const result = await supabase.rpc("mark_owner_signup_auth_created_v2", {
+          const result = await supabase.rpc("mark_owner_signup_auth_created_v5", {
             p_signup_request_id: requestId,
             p_payload_hash: requestHash,
             p_auth_user_id: authUserId,
@@ -249,7 +217,7 @@ export async function POST(request: NextRequest) {
           if (result.error) throw new Error(result.error.message);
         },
         writeAtomicSignup: async (authUserId) => {
-          const result = await supabase.rpc("complete_owner_signup_v4", {
+          const result = await supabase.rpc("complete_owner_signup_v5", {
             p_signup_request_id: payload.signupRequestId,
             p_payload_hash: payloadHash,
             p_auth_user_id: authUserId,
@@ -274,7 +242,12 @@ export async function POST(request: NextRequest) {
               agreements: agreementPayload,
             },
             p_services: normalizedServices,
-            p_staff: { name: "원장", phone: payload.phoneNumber },
+            p_staff: {
+              name: payload.name.trim(),
+              phone: payload.phoneNumber,
+              role: "대표",
+              position: "대표",
+            },
             p_identity_verification_id: verifiedIdentity.id,
             p_identity_token_id: verifiedIdentity.tokenId,
             p_trial_identity_keys: trialIdentity.keys,
@@ -330,6 +303,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await bindMarketingAcquisitionToSignup({
+      request,
+      signupRequestId: payload.signupRequestId,
+      ownerUserId: orchestration.authUserId,
+      shopId: orchestration.shopId,
+    });
+
     const signInResult = await authClient.auth.signInWithPassword({ email, password: payload.password });
     if (signInResult.error || !signInResult.data.session) {
       logSignupIssue("initial-login-failed", signInResult.error?.message ?? "session_missing");
@@ -360,6 +340,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof SignupJsonBodyError) {
+      return NextResponse.json({ code: error.code, message: error.message }, { status: error.status });
+    }
+    if (error instanceof SignupPriceGuideValidationError) {
       return NextResponse.json({ code: error.code, message: error.message }, { status: error.status });
     }
     if (error instanceof SignupFlowError) {

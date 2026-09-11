@@ -3,12 +3,23 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
 import { findEmailWithKcpIdentityVerification } from "@/lib/auth/find-email-identity";
 
 type FindEmailStep = "verify" | "result";
+const FIND_EMAIL_REQUEST_TIMEOUT_MS = 10_000;
+
+function waitForClientAbort(signal: AbortSignal) {
+  return new Promise<never>((_, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Request timed out", "AbortError"));
+      return;
+    }
+    signal.addEventListener("abort", () => reject(new DOMException("Request timed out", "AbortError")), { once: true });
+  });
+}
 
 export default function FindEmailForm() {
   const router = useRouter();
@@ -16,6 +27,12 @@ export default function FindEmailForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [foundEmail, setFoundEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const findEmailAbortControllerRef = useRef<AbortController | null>(null);
+  const findEmailAttemptIdRef = useRef(0);
+
+  useEffect(() => () => {
+    findEmailAbortControllerRef.current?.abort();
+  }, []);
 
   const goBack = () => {
     setMessage(null);
@@ -29,17 +46,37 @@ export default function FindEmailForm() {
   };
 
   const startIdentityVerification = async () => {
+    if (findEmailAbortControllerRef.current) return;
+
+    const findEmailAttemptId = ++findEmailAttemptIdRef.current;
+    const requestController = new AbortController();
+    findEmailAbortControllerRef.current = requestController;
+    const requestTimeoutId = window.setTimeout(() => requestController.abort(), FIND_EMAIL_REQUEST_TIMEOUT_MS);
+    const isCurrentFindEmailAttempt = () => findEmailAttemptIdRef.current === findEmailAttemptId && !requestController.signal.aborted;
     setLoading(true);
     setMessage(null);
 
     try {
-      const email = await findEmailWithKcpIdentityVerification();
+      const email = await Promise.race([
+        findEmailWithKcpIdentityVerification(),
+        waitForClientAbort(requestController.signal),
+      ]);
+      if (!isCurrentFindEmailAttempt()) return;
       setFoundEmail(email);
       setStep("result");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "본인인증을 진행하는 중 문제가 발생했어요. 다시 시도해 주세요.");
+    } catch {
+      if (findEmailAttemptIdRef.current !== findEmailAttemptId) return;
+      setMessage(
+        requestController.signal.aborted
+          ? "본인인증 확인 시간이 길어 요청을 중단했어요. 다시 시도해 주세요."
+          : "본인인증을 진행하지 못했어요. 다시 시도해 주세요.",
+      );
     } finally {
-      setLoading(false);
+      window.clearTimeout(requestTimeoutId);
+      if (findEmailAttemptIdRef.current === findEmailAttemptId) {
+        findEmailAbortControllerRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
@@ -80,15 +117,15 @@ export default function FindEmailForm() {
               </div>
             </div>
 
-            {message ? <p className="mt-4 text-[13px] leading-5 text-[#9f5b52]">{message}</p> : null}
+            {message ? <p aria-live="polite" className="mt-4 text-[13px] leading-5 text-[#9f5b52]">{message}</p> : null}
 
             <button
               type="button"
               onClick={startIdentityVerification}
               disabled={loading}
-              className="mt-7 flex h-[62px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
+              className="mt-7 flex h-[62px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] active:translate-y-px disabled:opacity-60"
             >
-              {loading ? "인증 확인 중..." : "KCP 본인인증 시작하기"}
+              {loading ? "확인 중..." : "KCP 본인인증 시작하기"}
               <ChevronRight className="h-5 w-5" aria-hidden="true" />
             </button>
           </section>

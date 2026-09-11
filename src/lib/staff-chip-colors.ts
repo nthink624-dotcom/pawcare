@@ -8,152 +8,107 @@ export type StaffChipTone = {
   badgeText: string;
 };
 
-export const staffChipPalette: StaffChipTone[] = [
+type ScheduleStaffIdentityTone = {
+  color: string;
+  background: string;
+  border: string;
+  text: string;
+};
+
+export const staffChipPalette = [
   {
-    border: "#f2b84b",
-    background: "#fff8e8",
-    selectedBackground: "#f59e0b",
-    text: "#7a4a00",
-    mutedText: "#a16207",
-    badgeBackground: "#fef3c7",
-    badgeText: "#92400e",
+    border: "#C5DEE0",
+    background: "#E0F1F1",
+    selectedBackground: "#1F5F69",
+    text: "#193E45",
+    mutedText: "#4B7076",
+    badgeBackground: "#F1FAFA",
+    badgeText: "#1D5560",
   },
   {
-    border: "#7cc6a4",
-    background: "#eefaf5",
-    selectedBackground: "#2f7866",
-    text: "#155e4a",
-    mutedText: "#2f7866",
-    badgeBackground: "#dff5ec",
-    badgeText: "#17614f",
+    border: "#C6E2DC",
+    background: "#E3F5F0",
+    selectedBackground: "#278D7F",
+    text: "#1E554C",
+    mutedText: "#518176",
+    badgeBackground: "#F1FBF8",
+    badgeText: "#227B6F",
   },
   {
-    border: "#8eb6f2",
-    background: "#f0f6ff",
-    selectedBackground: "#3b82f6",
-    text: "#1d4f91",
-    mutedText: "#2563eb",
-    badgeBackground: "#dbeafe",
-    badgeText: "#1d4ed8",
+    border: "#BFE5E0",
+    background: "#DDF7F3",
+    selectedBackground: "#199A98",
+    text: "#1C5B5A",
+    mutedText: "#50807E",
+    badgeBackground: "#F0FCFA",
+    badgeText: "#18817F",
   },
   {
-    border: "#d7a6f5",
-    background: "#fbf4ff",
-    selectedBackground: "#9b5dd8",
-    text: "#6b2d96",
-    mutedText: "#7e3fb5",
-    badgeBackground: "#f3e8ff",
-    badgeText: "#7e22ce",
+    border: "#CDE3D2",
+    background: "#EAF7ED",
+    selectedBackground: "#4E9A68",
+    text: "#315A3D",
+    mutedText: "#668274",
+    badgeBackground: "#F3FCF5",
+    badgeText: "#43865A",
   },
   {
-    border: "#f3a6b8",
-    background: "#fff3f6",
-    selectedBackground: "#d94b73",
-    text: "#9f294d",
-    mutedText: "#be3b62",
-    badgeBackground: "#ffe4ec",
-    badgeText: "#be123c",
+    border: "#E8DDC5",
+    background: "#FBF6E8",
+    selectedBackground: "#9A7D43",
+    text: "#625233",
+    mutedText: "#827355",
+    badgeBackground: "#FEFCF4",
+    badgeText: "#856A32",
   },
   {
-    border: "#a9c06f",
-    background: "#f7faed",
-    selectedBackground: "#6f8f2b",
-    text: "#4f641d",
-    mutedText: "#68821f",
-    badgeBackground: "#edf6d3",
-    badgeText: "#4d7c0f",
+    border: "#E8D6A8",
+    background: "#FFF8D9",
+    selectedBackground: "#AD7D08",
+    text: "#644B12",
+    mutedText: "#856A24",
+    badgeBackground: "#FFFBE7",
+    badgeText: "#906806",
   },
   {
-    border: "#e7a16b",
-    background: "#fff5ed",
-    selectedBackground: "#c76a2a",
-    text: "#8a451b",
-    mutedText: "#a65720",
-    badgeBackground: "#ffedd5",
-    badgeText: "#c2410c",
+    border: "#EBCFBA",
+    background: "#FFF0E4",
+    selectedBackground: "#C46219",
+    text: "#6B3F1F",
+    mutedText: "#8D6141",
+    badgeBackground: "#FFF6EC",
+    badgeText: "#A85014",
   },
   {
-    border: "#83c5d8",
-    background: "#effbff",
-    selectedBackground: "#14809a",
-    text: "#0f6478",
-    mutedText: "#0e7490",
-    badgeBackground: "#cffafe",
-    badgeText: "#0e7490",
+    border: "#E7CEBC",
+    background: "#FDF0E7",
+    selectedBackground: "#B85B24",
+    text: "#6A3C21",
+    mutedText: "#895E42",
+    badgeBackground: "#FFF3E9",
+    badgeText: "#9E4A1D",
   },
   {
-    border: "#c4b5fd",
-    background: "#f5f3ff",
-    selectedBackground: "#7c3aed",
-    text: "#5b21b6",
-    mutedText: "#6d28d9",
-    badgeBackground: "#ede9fe",
-    badgeText: "#5b21b6",
+    border: "#EBCFCC",
+    background: "#FFF0EF",
+    selectedBackground: "#B94A45",
+    text: "#6B3936",
+    mutedText: "#8A5A56",
+    badgeBackground: "#FFF4F2",
+    badgeText: "#9F3F3B",
   },
   {
-    border: "#f9a8d4",
-    background: "#fdf2f8",
-    selectedBackground: "#db2777",
-    text: "#9d174d",
-    mutedText: "#be185d",
-    badgeBackground: "#fce7f3",
-    badgeText: "#9d174d",
+    border: "#E7CBC8",
+    background: "#FBEDEC",
+    selectedBackground: "#953E3B",
+    text: "#602E2C",
+    mutedText: "#7F504C",
+    badgeBackground: "#FDF1EF",
+    badgeText: "#823431",
   },
-  {
-    border: "#fca5a5",
-    background: "#fff1f2",
-    selectedBackground: "#dc2626",
-    text: "#991b1b",
-    mutedText: "#b91c1c",
-    badgeBackground: "#fee2e2",
-    badgeText: "#991b1b",
-  },
-  {
-    border: "#fdba74",
-    background: "#fff7ed",
-    selectedBackground: "#ea580c",
-    text: "#9a3412",
-    mutedText: "#c2410c",
-    badgeBackground: "#ffedd5",
-    badgeText: "#9a3412",
-  },
-  {
-    border: "#bef264",
-    background: "#f7fee7",
-    selectedBackground: "#65a30d",
-    text: "#3f6212",
-    mutedText: "#4d7c0f",
-    badgeBackground: "#ecfccb",
-    badgeText: "#3f6212",
-  },
-  {
-    border: "#67e8f9",
-    background: "#ecfeff",
-    selectedBackground: "#0891b2",
-    text: "#155e75",
-    mutedText: "#0e7490",
-    badgeBackground: "#cffafe",
-    badgeText: "#155e75",
-  },
-  {
-    border: "#93c5fd",
-    background: "#eff6ff",
-    selectedBackground: "#2563eb",
-    text: "#1e40af",
-    mutedText: "#1d4ed8",
-    badgeBackground: "#dbeafe",
-    badgeText: "#1e40af",
-  },
-  {
-    border: "#cbd5e1",
-    background: "#f8fafc",
-    selectedBackground: "#475569",
-    text: "#334155",
-    mutedText: "#475569",
-    badgeBackground: "#f1f5f9",
-    badgeText: "#334155",
-  },
-];
+] satisfies readonly StaffChipTone[];
+
+export const staffChipColorIndexMax = staffChipPalette.length - 1;
 
 function hashStaffKey(value: string) {
   let hash = 0;
@@ -164,8 +119,36 @@ function hashStaffKey(value: string) {
 }
 
 export function normalizeStaffChipColorIndex(value: number | null | undefined) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  return Math.abs(Math.trunc(value)) % staffChipPalette.length;
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value < 0 ||
+    value > staffChipColorIndexMax
+  ) return null;
+  return value;
+}
+
+export function getStaffChipColorIndex(staffKey: string | null | undefined, paletteIndex?: number | null) {
+  const normalizedPaletteIndex = normalizeStaffChipColorIndex(paletteIndex);
+  if (normalizedPaletteIndex !== null) return normalizedPaletteIndex;
+  return staffKey ? hashStaffKey(staffKey) % staffChipPalette.length : 0;
+}
+
+export function findAvailableStaffChipColorIndex(
+  staffKey: string | null | undefined,
+  occupiedColorIndices: Iterable<number | null | undefined>,
+) {
+  const occupied = new Set(
+    Array.from(occupiedColorIndices)
+      .map(normalizeStaffChipColorIndex)
+      .filter((index): index is number => index !== null),
+  );
+  const preferredIndex = getStaffChipColorIndex(staffKey, null);
+  for (let offset = 0; offset < staffChipPalette.length; offset += 1) {
+    const candidateIndex = (preferredIndex + offset) % staffChipPalette.length;
+    if (!occupied.has(candidateIndex)) return candidateIndex;
+  }
+  return null;
 }
 
 export function getStaffChipTone(staffKey: string | null | undefined, paletteIndex?: number | null) {
@@ -181,10 +164,16 @@ export function getStaffChipTone(staffKey: string | null | undefined, paletteInd
     } satisfies StaffChipTone;
   }
 
-  const normalizedPaletteIndex = normalizeStaffChipColorIndex(paletteIndex);
-  if (normalizedPaletteIndex !== null) {
-    return staffChipPalette[normalizedPaletteIndex]!;
-  }
+  return staffChipPalette[getStaffChipColorIndex(staffKey, paletteIndex)]!;
+}
 
-  return staffChipPalette[hashStaffKey(staffKey) % staffChipPalette.length]!;
+export function getScheduleStaffIdentityTone(staffKey: string | null | undefined, paletteIndex?: number | null) {
+  const persistedChipTone = getStaffChipTone(staffKey, paletteIndex);
+
+  return {
+    color: persistedChipTone.selectedBackground,
+    background: persistedChipTone.background,
+    border: persistedChipTone.border,
+    text: persistedChipTone.text,
+  } satisfies ScheduleStaffIdentityTone;
 }

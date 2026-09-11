@@ -1,4 +1,10 @@
-﻿@import "tailwindcss";
+﻿/* Keep Tailwind's plain-text scan inside deterministic product source roots. */
+@import "tailwindcss" source(none);
+@source "./";
+@source "../components";
+@source "../features";
+@source "../lib";
+@source "../server";
 
 :root {
   --background: #f1f3f7;
@@ -129,6 +135,13 @@ button[class*="hover:bg-[#293548]"]:hover {
   font: inherit;
 }
 
+/* Compact tabs remain Label text after the owner-font inheritance reset. */
+.pm-owner-web.owner-font .benefit-management-panel .benefit-management-tab {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
 .pm-owner-web {
   --pm-ui-border: #e8edf3;
   --acc: #1677ff;
@@ -166,6 +179,42 @@ button[class*="hover:bg-[#293548]"]:hover {
   word-break: keep-all;
 }
 
+/* 가입 직후 설정은 실제 폼과 가이드를 같은 작업면에 유지한다. */
+.pm-initial-setup-layout {
+  display: grid;
+  min-width: 0;
+  align-items: start;
+  gap: 1rem;
+}
+
+.pm-initial-setup-guide {
+  order: -1;
+  width: 100%;
+  min-width: 0;
+  align-self: start;
+  word-break: keep-all;
+}
+
+@media (min-width: 1024px) {
+  .pm-initial-setup-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .pm-initial-setup-guide {
+    position: sticky;
+    top: 1rem;
+    order: 0;
+  }
+
+  .pm-initial-setup-mobile-toggle {
+    display: none !important;
+  }
+
+  .pm-initial-setup-checklist {
+    display: block !important;
+  }
+}
+
 /* PC 오너 화면의 일반 카드·입력·구분선은 하나의 중성 테두리로 유지한다. */
 .pm-owner-web :is(
   [class*="border-[#cbd5e1]"],
@@ -183,6 +232,12 @@ button[class*="hover:bg-[#293548]"]:hover {
   [class*="border-[#e6eaf0]"]
 ) {
   border-color: var(--pm-ui-border) !important;
+}
+
+/* 직원 개인 칩 색은 일반 카드 테두리 정규화보다 우선하는 왼쪽 식별선으로만 쓴다. */
+.pm-owner-web button[data-staff-identity-card] {
+  border-left-width: 3px !important;
+  border-left-color: var(--pm-wrap-indicator-color) !important;
 }
 
 .pm-owner-web :is(

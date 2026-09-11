@@ -1,11 +1,12 @@
 ﻿import type { ReactNode } from "react";
 import { useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ImagePlus, UserRound, X } from "lucide-react";
+import { ChevronDown, ImagePlus, X } from "lucide-react";
 
 import { GhostButton, PrimaryButton, SoftSelect } from "@/components/owner-web/owner-web-ui";
+import { StableAvatar } from "@/components/owner-web/stable-avatar";
 import { getWrapIndicatorClass } from "@/components/owner-web/status-indicators";
-import { getStaffChipTone, staffChipPalette } from "@/lib/staff-chip-colors";
+import { getScheduleStaffIdentityTone, getStaffChipColorIndex, getStaffChipTone, normalizeStaffChipColorIndex, staffChipPalette } from "@/lib/staff-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import {
   applyScheduleToCell,
@@ -50,45 +51,47 @@ function formatStaffPhone(value: string) {
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
 }
 
-function StaffAvatar({ name, imageUrl, size = "md" }: { name: string; imageUrl?: string; size?: "sm" | "md" | "lg" }) {
-  const sizeClass = size === "lg" ? "h-16 w-16" : size === "sm" ? "h-10 w-10" : "h-12 w-12";
-  const iconSizeClass = size === "lg" ? "h-8 w-8" : size === "sm" ? "h-5 w-5" : "h-6 w-6";
-
-  return (
-    <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#dbe2ea] bg-[#f8fafc] text-[#475569]", sizeClass)}>
-      {imageUrl ? <img src={imageUrl} alt={`${name || "스태프"} 프로필`} className="h-full w-full object-cover" /> : <UserRound className={iconSizeClass} strokeWidth={1.8} />}
-    </span>
-  );
+function StaffAvatar({ name, staffId, imageUrl, imageAssetId, size = "md" }: { name: string; staffId: string; imageUrl?: string; imageAssetId?: string; size?: "sm" | "md" | "lg" }) {
+  return <StableAvatar identity={staffId} name={name} imageUrl={imageUrl} imageAssetId={imageAssetId} size={size} />;
 }
 
 function StaffPhotoField({
+  identity,
   name,
   value,
+  imageAssetId,
   title = "프로필",
   subtitle = "",
   compact = false,
   onChange,
 }: {
+  identity: string;
   name: string;
   value: string;
+  imageAssetId?: string | null;
   title?: string;
   subtitle?: string;
   compact?: boolean;
   onChange: (value: string) => void;
 }) {
+  const showUploadedPhoto = Boolean(value.trim());
+
   return (
     <div className="flex items-center justify-center gap-3">
       <label className={cn(
         "group relative flex shrink-0 cursor-pointer flex-col items-center justify-center border border-[#dbe2ea] bg-white text-center font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]/20",
         compact ? "h-[104px] w-[96px] rounded-[12px] px-2 py-3 text-[14px]" : "h-[136px] w-[118px] rounded-[14px] px-3 py-4 text-[16px]",
-      )}>
-        <span className={cn("relative flex items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#475569]", compact ? "h-11 w-11" : "h-[54px] w-[54px]")}>
-          {value ? (
-            <img src={value} alt={`${name || "스태프"} 프로필`} className="h-full w-full rounded-full object-cover" />
-          ) : (
-            <ImagePlus className="h-6 w-6" strokeWidth={1.8} />
-          )}
-          {value ? (
+        )}>
+          <span className={cn("relative flex items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#475569]", compact ? "h-11 w-11" : "h-[54px] w-[54px]")}>
+          <StableAvatar
+            identity={identity}
+            name={name}
+            imageUrl={value}
+            imageAssetId={imageAssetId}
+            size="sm"
+            className="h-full w-full border-0"
+          />
+          {showUploadedPhoto ? (
             <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#475569] shadow-[0_1px_4px_rgba(15,23,42,0.12)]">
               <ImagePlus className="h-3 w-3" strokeWidth={1.9} />
             </span>
@@ -101,7 +104,7 @@ function StaffPhotoField({
           type="file"
           accept="image/*"
           className="sr-only"
-          aria-label="프로필 사진 변경"
+          aria-label="프로필 사진 올리기"
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (!file) return;
@@ -112,11 +115,6 @@ function StaffPhotoField({
           }}
         />
       </label>
-      {value ? (
-        <button type="button" onClick={() => onChange("")} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]" aria-label="프로필 사진 삭제">
-          <X className="h-4 w-4" />
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -145,14 +143,14 @@ export function ScheduleTable({
             </div>
           ))}
         </div>
-        {staff.map((staffMember, staffIndex) => (
+        {staff.map((staffMember) => (
           <div key={staffMember.id} className="grid grid-cols-[180px_repeat(7,minmax(150px,1fr))] items-center border-b border-[#edf2f7] last:border-b-0">
             <button type="button" className="px-5 py-4 text-left">
               <p className="text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
             </button>
             {weekDates.map((day) => {
               const cell = applyScheduleToCell(staffMember, day.key, day.date, requests, overrides);
-              const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex ?? staffIndex);
+              const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex);
               return (
                 <button
                   key={`${staffMember.id}-${day.date}`}
@@ -179,39 +177,53 @@ export function ScheduleTable({
   );
 }
 
-function StaffChipColorPicker({ value, fallbackIndex = 0, onChange }: { value: number | null; fallbackIndex?: number; onChange: (value: number) => void }) {
-  const selectedIndex = value ?? fallbackIndex % staffChipPalette.length;
-  const [expanded, setExpanded] = useState(selectedIndex >= 8);
-  const visiblePalette = expanded ? staffChipPalette : staffChipPalette.slice(0, 8);
+function StaffChipColorPicker({
+  value,
+  persistedSelfColorIndex = null,
+  unavailableColorIndices = new Set<number>(),
+  onChange,
+}: {
+  value: number | null;
+  persistedSelfColorIndex?: number | null;
+  unavailableColorIndices?: ReadonlySet<number>;
+  onChange: (value: number) => void;
+}) {
+  const selectedIndex = normalizeStaffChipColorIndex(value);
+  const persistedSelfIndex = normalizeStaffChipColorIndex(persistedSelfColorIndex);
+  const hasLegacyValue = value !== null && selectedIndex === null;
+  const isUnavailable = (index: number) => unavailableColorIndices.has(index) && index !== persistedSelfIndex;
+  const hasAvailableColor = staffChipPalette.some((_, index) => !isUnavailable(index));
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-8 gap-1.5">
-        {visiblePalette.map((tone, index) => {
+      <div className="grid grid-cols-5 gap-1.5">
+        {staffChipPalette.map((tone, index) => {
           const selected = selectedIndex === index;
+          const unavailable = isUnavailable(index);
           return (
             <button
               key={tone.selectedBackground}
               type="button"
               onClick={() => onChange(index)}
+              disabled={unavailable}
+              aria-pressed={selected}
               className={cn(
-                "h-9 rounded-[8px] border bg-white p-1 transition hover:bg-[#f8fafc]",
+                "h-11 w-11 min-h-11 min-w-11 rounded-[8px] border bg-white p-1 transition hover:bg-[#f8fafc]",
                 selected ? "border-[#64748b] ring-1 ring-[#64748b]/30" : "border-[#dbe2ea]",
+                unavailable && "cursor-not-allowed opacity-35 hover:bg-white",
               )}
-              aria-label={`직원 칩 색 ${index + 1}`}
+              aria-label={`직원 칩 색 ${index + 1}${unavailable ? ", 이미 사용 중" : ""}`}
             >
-              <span className="block h-full rounded-[6px]" style={{ backgroundColor: tone.selectedBackground }} />
+              <span
+                className="block h-full rounded-[6px] border"
+                style={{ backgroundColor: tone.background, borderColor: tone.border }}
+              />
             </button>
           );
         })}
       </div>
-      <button
-        type="button"
-        onClick={() => setExpanded((current) => !current)}
-        className="h-8 rounded-[8px] px-2 text-[15px] text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
-      >
-        {expanded ? "간단히 보기" : "더보기"}
-      </button>
+      {hasLegacyValue ? <p className="text-[13px] leading-5 text-[#64748b]">기존 개인 칩 색을 1~10번 중에서 다시 선택해 저장해 주세요.</p> : null}
+      {!hasAvailableColor ? <p className="text-[13px] leading-5 text-[#64748b]">사용할 수 있는 개인 칩 색이 없습니다. 다른 직원의 색을 변경한 뒤 다시 시도해 주세요.</p> : null}
     </div>
   );
 }
@@ -237,9 +249,10 @@ export function StaffList({
   return (
     <div className="max-h-[560px] overflow-y-auto py-4 pl-4 pr-1">
       <div className="grid gap-3 2xl:grid-cols-2">
-          {staff.map((staffMember, staffIndex) => {
+          {staff.map((staffMember) => {
             const active = selectedStaffId === staffMember.id;
-            const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex ?? staffIndex);
+            const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex);
+            const staffIdentityTone = getScheduleStaffIdentityTone(staffMember.id, staffMember.chipColorIndex);
             const weeklyDays = getWeeklyWorkDays(staffMember, weekStart, requests, overrides);
             const todayCell = applyScheduleToCell(staffMember, todayKey, todayDate, requests, overrides);
             const annualUsage = getAnnualLeaveUsage(staffMember, requests);
@@ -252,16 +265,23 @@ export function StaffList({
                 key={staffMember.id}
                 type="button"
                 onClick={() => onSelect(staffMember)}
+                data-staff-identity-card={staffMember.id}
                 className={cn(
-                  "grid w-full gap-3 rounded-[10px] border bg-white p-4 text-left transition hover:border-[#cbd5e1] hover:bg-[#fbfcfd]",
+                  "relative grid w-full gap-3 overflow-hidden rounded-[10px] border bg-white p-4 text-left transition hover:border-[#cbd5e1] hover:bg-[#fbfcfd]",
                   getWrapIndicatorClass(getCellIndicatorTone(todayCell.status)),
                   active ? "border-[#cbd5e1] shadow-[0_10px_26px_rgba(15,23,42,0.06)]" : "border-[#dbe2ea]",
                 )}
-                style={{ "--pm-wrap-indicator-color": staffTone.selectedBackground } as CSSProperties}
+                style={{
+                  "--pm-wrap-indicator-color": staffTone.selectedBackground,
+                  borderLeftWidth: 3,
+                  borderLeftColor: staffTone.selectedBackground,
+                } as CSSProperties}
               >
-                <div className="flex min-w-0 items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center justify-between gap-3 rounded-[8px] px-2 py-1.5 -mx-2"
+                  style={{ backgroundColor: staffIdentityTone.background }}
+                >
                   <span className="flex min-w-0 items-center gap-3">
-                    <StaffAvatar name={staffMember.name} imageUrl={staffMember.profileImageUrl} size="md" />
+                    <StaffAvatar name={staffMember.name} staffId={staffMember.id} imageUrl={staffMember.profileImageUrl} imageAssetId={staffMember.profileImageAssetIds?.[0]} size="md" />
                     <span className="min-w-0">
                       <span className="block truncate text-[17px] font-medium text-[#111827]">{staffMember.name}</span>
                       <span className="mt-0.5 block truncate text-[13px] text-[#64748b]">
@@ -331,40 +351,53 @@ function getUpcomingStaffLeave(staffMember: StaffMember, requests: LeaveRequest[
 }
 
 export function StaffDetailPanel({
+  staff,
   selectedStaff,
   draft,
   requests,
   overrides,
-  fallbackColorIndex,
   onDraftChange,
   onSave,
   onOpenLeaveDialog,
   onOpenAnnualGrantDialog,
   showActions = true,
+  isSaving = false,
 }: {
+  staff: StaffMember[];
   selectedStaff: StaffMember;
   draft: StaffDraft;
   requests: LeaveRequest[];
   overrides: ScheduleOverride[];
-  fallbackColorIndex: number;
   onDraftChange: (updater: (current: StaffDraft) => StaffDraft) => void;
   onSave: () => void;
   onOpenLeaveDialog: () => void;
   onOpenAnnualGrantDialog: () => void;
   showActions?: boolean;
+  isSaving?: boolean;
 }) {
   const annualUsage = getAnnualLeaveUsage(selectedStaff, requests);
   const internalName = draft.name.trim() || selectedStaff.name;
   const customerVisibleName = draft.displayName.trim() || internalName;
   const positionName = draft.position.trim() || getStaffRank(selectedStaff.role);
   const profileSubtitle = [draft.titlePrefix.trim(), positionName].filter(Boolean).join(" ");
+  const profileImageAssetId = draft.profileImageUrl.trim() === selectedStaff.profileImageUrl?.trim()
+    ? selectedStaff.profileImageAssetIds?.[0]
+    : undefined;
+  const persistedSelfColorIndex = getStaffChipColorIndex(selectedStaff.id, selectedStaff.chipColorIndex);
+  const unavailableChipColorIndices = new Set(
+    staff
+      .filter((staffMember) => staffMember.id !== selectedStaff.id)
+      .map((staffMember) => getStaffChipColorIndex(staffMember.id, staffMember.chipColorIndex)),
+  );
 
   return (
     <div className="space-y-3">
       <div className="space-y-2">
         <StaffPhotoField
+          identity={selectedStaff.id}
           name={customerVisibleName}
           value={draft.profileImageUrl}
+          imageAssetId={profileImageAssetId}
           title={customerVisibleName}
           subtitle={profileSubtitle}
           onChange={(profileImageUrl) => onDraftChange((current) => ({ ...current, profileImageUrl }))}
@@ -388,7 +421,7 @@ export function StaffDetailPanel({
           </Field>
         </div>
         <Field label="개인 칩 색">
-          <StaffChipColorPicker value={draft.chipColorIndex} fallbackIndex={fallbackColorIndex} onChange={(chipColorIndex) => onDraftChange((current) => ({ ...current, chipColorIndex }))} />
+          <StaffChipColorPicker value={draft.chipColorIndex} persistedSelfColorIndex={persistedSelfColorIndex} unavailableColorIndices={unavailableChipColorIndices} onChange={(chipColorIndex) => onDraftChange((current) => ({ ...current, chipColorIndex }))} />
         </Field>
         <Field label="이름">
           <TextInput value={draft.name} onChange={(name) => onDraftChange((current) => ({ ...current, name }))} />
@@ -433,6 +466,7 @@ export function StaffDetailPanel({
           onSave={onSave}
           onOpenLeaveDialog={onOpenLeaveDialog}
           onOpenAnnualGrantDialog={onOpenAnnualGrantDialog}
+          isSaving={isSaving}
         />
       ) : null}
     </div>
@@ -444,11 +478,13 @@ export function StaffDetailActions({
   onSave,
   onOpenLeaveDialog,
   onOpenAnnualGrantDialog,
+  isSaving = false,
 }: {
   onReset: () => void;
   onSave: () => void;
   onOpenLeaveDialog: () => void;
   onOpenAnnualGrantDialog: () => void;
+  isSaving?: boolean;
 }) {
   return (
     <div className="grid gap-2">
@@ -457,9 +493,11 @@ export function StaffDetailActions({
         <button
           type="button"
           onClick={onSave}
-          className="inline-flex h-[40px] items-center justify-center rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937]"
+          disabled={isSaving}
+          aria-busy={isSaving}
+          className="inline-flex h-11 min-h-11 items-center justify-center rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937] disabled:cursor-wait disabled:opacity-70"
         >
-          저장
+          {isSaving ? "저장 중..." : "저장"}
         </button>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -647,18 +685,26 @@ export function StaffBoardTabs({
           </button>
         ))}
       </div>
-      {trailing ? <div className="absolute left-1/2 top-0 shrink-0 -translate-x-1/2">{trailing}</div> : null}
+      {trailing ? <div className="order-3 basis-full sm:absolute sm:left-1/2 sm:top-0 sm:basis-auto sm:-translate-x-1/2">{trailing}</div> : null}
     </div>
   );
 }
 
-export function StaffDraftForm({ draft, onChange, fallbackColorIndex = 0 }: { draft: StaffDraft; onChange: (draft: StaffDraft) => void; fallbackColorIndex?: number }) {
+export function StaffDraftForm({
+  draft,
+  unavailableChipColorIndices,
+  onChange,
+}: {
+  draft: StaffDraft;
+  unavailableChipColorIndices?: ReadonlySet<number>;
+  onChange: (draft: StaffDraft) => void;
+}) {
   const displayName = draft.displayName.trim() || draft.name.trim() || "프로필";
   const title = [draft.titlePrefix.trim(), draft.position.trim()].filter(Boolean).join(" ");
 
   return (
     <div className="space-y-2.5">
-      <StaffPhotoField compact name={displayName} value={draft.profileImageUrl} title={displayName} subtitle={title} onChange={(profileImageUrl) => onChange({ ...draft, profileImageUrl })} />
+      <StaffPhotoField identity="new-staff-draft" compact name={displayName} value={draft.profileImageUrl} title={displayName} subtitle={title} onChange={(profileImageUrl) => onChange({ ...draft, profileImageUrl })} />
       <div className="grid grid-cols-2 gap-3">
         <Field label={<StaffDraftFieldLabel label="이름" required />}>
           <TextInput value={draft.name} onChange={(name) => onChange({ ...draft, name })} placeholder="예: 박수현" />
@@ -684,7 +730,7 @@ export function StaffDraftForm({ draft, onChange, fallbackColorIndex = 0 }: { dr
         </Field>
       </div>
       <Field label={<StaffDraftFieldLabel label="개인 칩 색" />}>
-        <StaffChipColorPicker value={draft.chipColorIndex} fallbackIndex={fallbackColorIndex} onChange={(chipColorIndex) => onChange({ ...draft, chipColorIndex })} />
+        <StaffChipColorPicker value={draft.chipColorIndex} unavailableColorIndices={unavailableChipColorIndices} onChange={(chipColorIndex) => onChange({ ...draft, chipColorIndex })} />
       </Field>
       <Field label={<StaffDraftFieldLabel label="연락처" />}>
         <TextInput value={draft.phone} onChange={(phone) => onChange({ ...draft, phone: formatStaffPhone(phone) })} placeholder="010-0000-0000" />

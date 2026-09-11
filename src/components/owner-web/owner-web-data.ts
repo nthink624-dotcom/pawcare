@@ -20,7 +20,7 @@ export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string
   { key: "calendarRecords", label: "캘린더" },
   { key: "customers", label: "고객 관리" },
   { key: "profitability", label: "수익 분석" },
-  { key: "services", label: "미용 요금" },
+  { key: "services", label: "요금표 관리" },
   { key: "staff", label: "직원 관리" },
   { key: "shopInfo", label: "매장 정보" },
   { key: "benefits", label: "혜택 관리" },

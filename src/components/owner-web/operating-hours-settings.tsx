@@ -4,8 +4,10 @@ import { ChevronDown, ChevronLeft, ChevronRight, Info, Plus, Trash2 } from "luci
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { OwnerInitialSetupSaveNextActions } from "@/components/owner-web/owner-initial-setup-guide";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { bookingCloseGraceMinuteOptions } from "@/lib/booking-last-start-cutoff";
 import { normalizeBookingBlockedWindows, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { cn } from "@/lib/utils";
 import type { BusinessHours, RegularClosedCycle, Shop } from "@/types/domain";
@@ -39,6 +41,7 @@ type TemporaryHoliday = {
 type BookingSettingsState = {
   firstBookingTime: string;
   lastBookingTime: string;
+  closeGraceMinutes: 0 | 15 | 30 | 60;
   blockedWindows: BookingWindow[];
   temporaryHolidays: TemporaryHoliday[];
 };
@@ -245,9 +248,11 @@ function createTemporaryHolidaysFromShop(shop: Shop): TemporaryHoliday[] {
 
 function defaultBookingSettings(shop?: Shop): BookingSettingsState {
   const blockedWindows = normalizeBookingBlockedWindows(shop?.reservation_policy_settings?.booking_blocked_windows);
+  const normalizedPolicy = normalizeReservationPolicySettings(shop?.reservation_policy_settings);
   const base: BookingSettingsState = {
     firstBookingTime: shop?.booking_available_start_time ?? "10:00",
     lastBookingTime: shop?.booking_available_end_time ?? "17:00",
+    closeGraceMinutes: normalizedPolicy.booking_close_grace_minutes ?? 0,
     blockedWindows: blockedWindows.map((windowItem, index) => ({
       id: windowItem.id ?? `block-${index + 1}`,
       start: windowItem.start,
@@ -516,7 +521,7 @@ function TimeInput({
         }}
         className={cn(
           "inline-flex items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none transition hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:ring-[3px] focus:ring-[#64748b]/10 disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
-          compact ? "h-8 w-[88px] px-2 text-[14px]" : "h-10 w-[116px] px-3 text-[16px]",
+          compact ? "min-h-11 w-[88px] px-2 text-[14px]" : "min-h-11 w-[116px] px-3 text-[16px]",
         )}
       >
         <span>{displayValue}</span>
@@ -562,7 +567,10 @@ export default function OperatingHoursSettings({
   onClosedDaysChange,
   shop,
   onShopChange,
+  onSaveSuccess,
+  onInitialSetupNext,
   persistToSupabase = false,
+  initialSetupMode = false,
   compact = false,
 }: {
   businessHoursValue: string | boolean | number;
@@ -571,7 +579,10 @@ export default function OperatingHoursSettings({
   onClosedDaysChange: (value: string) => void;
   shop?: Shop;
   onShopChange?: (shop: Shop) => void;
+  onSaveSuccess?: () => void;
+  onInitialSetupNext?: () => void;
   persistToSupabase?: boolean;
+  initialSetupMode?: boolean;
   compact?: boolean;
 }) {
   const [businessDays, setBusinessDays] = useState(() => (shop ? createBusinessDaysFromShop(shop) : createInitialBusinessDays(businessHoursValue, closedDaysValue)));
@@ -585,11 +596,20 @@ export default function OperatingHoursSettings({
     return (initialDays.find((day) => day.enabled) ?? initialDays[0])?.close ?? "19:00";
   });
   const [activeTab, setActiveTab] = useState<OperatingHoursTab>("business");
+  const [initialSetupSubview, setInitialSetupSubview] = useState<"hours" | "closures">("hours");
   const [regularHolidayCycle, setRegularHolidayCycle] = useState<RegularHolidayCycle>(getRegularHolidayCycle(shop));
   const [regularHolidayAnchorDate, setRegularHolidayAnchorDate] = useState(getRegularHolidayAnchorDate(shop) ?? getWeekAnchorDateKey());
+
+  useEffect(() => {
+    if (initialSetupMode) {
+      setActiveTab("business");
+      setInitialSetupSubview("hours");
+    }
+  }, [initialSetupMode]);
   const [regularHolidayMonth, setRegularHolidayMonth] = useState(() => createMonthCursor());
   const [pendingTemporaryHolidayDate, setPendingTemporaryHolidayDate] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [isCompletingInitialSetup, setIsCompletingInitialSetup] = useState(false);
   useEffect(() => {
     if (persistToSupabase) return;
     try {
@@ -625,17 +645,27 @@ export default function OperatingHoursSettings({
         ...normalizeReservationPolicySettings(shop.reservation_policy_settings),
         regular_closed_cycle: cycle,
         regular_closed_anchor_date: cycle === "biweekly" ? anchorDate : null,
+        booking_close_grace_minutes: nextSettings.closeGraceMinutes,
         booking_blocked_windows: normalizeBookingBlockedWindows(nextSettings.blockedWindows),
       },
     };
   }
 
-  async function persistShopOperatingHours(nextDays: BusinessDay[], nextSettings: BookingSettingsState, cycle = regularHolidayCycle, anchorDate = regularHolidayAnchorDate) {
+  async function persistShopOperatingHours(
+    nextDays: BusinessDay[],
+    nextSettings: BookingSettingsState,
+    cycle = regularHolidayCycle,
+    anchorDate = regularHolidayAnchorDate,
+    notifySuccess = !initialSetupMode,
+  ) {
     const nextShop = buildNextShop(nextDays, nextSettings, cycle, anchorDate);
     if (!nextShop) return;
 
     onShopChange?.(nextShop);
-    if (!persistToSupabase || nextShop.id === "demo-shop" || nextShop.id === "owner-demo") return;
+    if (!persistToSupabase || nextShop.id === "demo-shop" || nextShop.id === "owner-demo") {
+      if (notifySuccess) onSaveSuccess?.();
+      return;
+    }
 
     try {
       setSaveError("");
@@ -676,6 +706,7 @@ export default function OperatingHoursSettings({
         }),
       });
       onShopChange?.(savedShop);
+      if (notifySuccess) onSaveSuccess?.();
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to save operating hours", error);
       setSaveError(error instanceof Error ? error.message : "운영시간 저장에 실패했습니다. 새로고침 후 다시 시도해 주세요.");
@@ -687,7 +718,7 @@ export default function OperatingHoursSettings({
     const firstOpenDay = nextDays.find((day) => day.open && day.close) ?? nextDays[0];
     if (firstOpenDay) onBusinessHoursChange(`${firstOpenDay.open} - ${firstOpenDay.close}`);
     onClosedDaysChange(formatClosedDays(nextDays.filter((day) => !day.enabled).map((day) => day.shortLabel)));
-    void persistShopOperatingHours(nextDays, nextSettings);
+    if (!initialSetupMode) void persistShopOperatingHours(nextDays, nextSettings);
   }
 
   function updateBusinessDay(dayKey: BusinessDayKey, patch: Partial<BusinessDay>) {
@@ -701,12 +732,12 @@ export default function OperatingHoursSettings({
   function updateBookingSetting<K extends keyof BookingSettingsState>(key: K, value: BookingSettingsState[K], shouldPersistShop = false) {
     const nextSettings = { ...bookingSettings, [key]: value };
     setBookingSettings(nextSettings);
-    if (shouldPersistShop) void persistShopOperatingHours(businessDays, nextSettings);
+    if (shouldPersistShop && !initialSetupMode) void persistShopOperatingHours(businessDays, nextSettings);
   }
 
   function updateRegularHolidayCycle(cycle: RegularHolidayCycle) {
     setRegularHolidayCycle(cycle);
-    void persistShopOperatingHours(businessDays, bookingSettings, cycle, regularHolidayAnchorDate);
+    if (!initialSetupMode) void persistShopOperatingHours(businessDays, bookingSettings, cycle, regularHolidayAnchorDate);
   }
 
   function addTemporaryHoliday(dateKey: string) {
@@ -722,7 +753,7 @@ export default function OperatingHoursSettings({
       ].sort((left, right) => left.date.localeCompare(right.date)),
     };
     setBookingSettings(nextSettings);
-    void persistShopOperatingHours(businessDays, nextSettings);
+    if (!initialSetupMode) void persistShopOperatingHours(businessDays, nextSettings);
     setPendingTemporaryHolidayDate("");
   }
 
@@ -732,7 +763,7 @@ export default function OperatingHoursSettings({
       temporaryHolidays: bookingSettings.temporaryHolidays.filter((holiday) => holiday.id !== id),
     };
     setBookingSettings(nextSettings);
-    void persistShopOperatingHours(businessDays, nextSettings);
+    if (!initialSetupMode) void persistShopOperatingHours(businessDays, nextSettings);
   }
 
   function addBlockedWindow() {
@@ -744,7 +775,7 @@ export default function OperatingHoursSettings({
       ],
     };
     setBookingSettings(nextSettings);
-    void persistShopOperatingHours(businessDays, nextSettings);
+    if (!initialSetupMode) void persistShopOperatingHours(businessDays, nextSettings);
   }
 
   function updateBlockedWindow(id: string, patch: Partial<BookingWindow>) {
@@ -767,6 +798,23 @@ export default function OperatingHoursSettings({
     if (regularHolidayCycle === "monthly_1_3") return [1, 3].includes(getWeekOfMonthFromDateKey(dateKey));
     if (regularHolidayCycle === "monthly_2_4") return [2, 4].includes(getWeekOfMonthFromDateKey(dateKey));
     return false;
+  }
+
+  async function completeInitialSetupStep() {
+    if (isCompletingInitialSetup) return;
+    setIsCompletingInitialSetup(true);
+    setSaveError("");
+    try {
+      await persistShopOperatingHours(
+        businessDays,
+        bookingSettings,
+        regularHolidayCycle,
+        regularHolidayAnchorDate,
+        true,
+      );
+    } finally {
+      setIsCompletingInitialSetup(false);
+    }
   }
 
   function renderRegularHolidayCalendarPreview() {
@@ -816,7 +864,13 @@ export default function OperatingHoursSettings({
                     removeTemporaryHoliday(savedTemporaryHoliday.id);
                     return;
                   }
-                  if (dateKey >= todayKey()) setPendingTemporaryHolidayDate(dateKey);
+                  if (dateKey >= todayKey()) {
+                    if (initialSetupMode) {
+                      addTemporaryHoliday(dateKey);
+                    } else {
+                      setPendingTemporaryHolidayDate(dateKey);
+                    }
+                  }
                 }}
                 className={cn(
                   "flex h-7 items-center justify-center rounded-[7px] border text-[13px] font-normal transition",
@@ -868,7 +922,7 @@ export default function OperatingHoursSettings({
               <button
                 type="button"
                 onClick={applyBulkTimeToAllDays}
-                className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]"
+                className="min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
               >
                 적용
               </button>
@@ -938,36 +992,67 @@ export default function OperatingHoursSettings({
           </div>
 
           <div className="border-t border-[#edf2f7] px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[16px] font-normal text-[#111827]">예약 금지 시간 설정</p>
-              <button type="button" onClick={addBlockedWindow} className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]">
-                <Plus className="h-3.5 w-3.5" />
-                금지 시간
-              </button>
-            </div>
-            <div className="mt-2 flex items-start gap-2 rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-[13px] leading-5 text-[#64748b]">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#607080]" />
-              <p>금지 시간을 넣으면 서비스 소요 시간이나 예약 간격과 겹쳐 예약 가능한 시간이 애매하게 끊길 수 있어요. 꼭 필요한 시간만 설정해 주세요.</p>
-            </div>
-            {bookingSettings.blockedWindows.length > 0 ? (
-              <div className="mt-3 grid gap-2">
-                {bookingSettings.blockedWindows.map((windowItem) => (
-                  <div key={windowItem.id} className="grid grid-cols-[88px_18px_88px_minmax(0,1fr)_32px] items-center gap-2 rounded-[10px] border border-[#edf2f7] bg-[#fbfcfd] p-2">
-                    <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact />
-                    <span className="text-center text-[14px] font-normal text-[#94a3b8]">~</span>
-                    <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact />
-                    <input
-                      value={windowItem.label}
-                      onChange={(event) => updateBlockedWindow(windowItem.id, { label: event.target.value })}
-                      className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#111827] outline-none focus:border-[#94a3b8]"
-                    />
-                    <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8]" aria-label="예약 제외 시간 삭제">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+            <div className="grid gap-3 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center">
+              <p className="text-[16px] font-medium leading-6 text-[#111827]">예약 가능 시간</p>
+              <div className="flex items-center gap-2">
+                <TimeInput value={bookingSettings.firstBookingTime} onChange={(value) => updateBookingSetting("firstBookingTime", value, true)} compact />
+                <span className="text-[#94a3b8]">-</span>
+                <TimeInput value={bookingSettings.lastBookingTime} onChange={(value) => updateBookingSetting("lastBookingTime", value, true)} compact />
               </div>
-            ) : null}
+            </div>
+            <div className="mt-3 grid gap-2 border-t border-[#edf2f7] pt-3 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center">
+              <label htmlFor="compact-booking-close-grace" className="text-[16px] font-medium leading-6 text-[#111827]">마감 여유</label>
+              <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                <select
+                  id="compact-booking-close-grace"
+                  value={bookingSettings.closeGraceMinutes}
+                  onChange={(event) => {
+                    const nextValue = Number(event.target.value) as (typeof bookingCloseGraceMinuteOptions)[number];
+                    updateBookingSetting("closeGraceMinutes", nextValue, true);
+                  }}
+                  className="min-h-11 min-w-0 flex-1 rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#15213b] outline-none transition hover:bg-[#f8fafc] focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20"
+                >
+                  {bookingCloseGraceMinuteOptions.map((minutes) => (
+                    <option key={minutes} value={minutes}>
+                      {minutes === 0 ? "여유 없음" : `${minutes}분${minutes === 15 ? " · 권장" : ""}`}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[13px] font-normal leading-5 text-[#64748b] sm:shrink-0">
+                  영업 마감 뒤 허용할 종료 여유
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 border-t border-[#edf2f7] pt-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[16px] font-medium leading-6 text-[#111827]">예약 금지 시간</p>
+                <button type="button" onClick={addBlockedWindow} className="inline-flex min-h-11 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">
+                  <Plus className="h-3.5 w-3.5" />
+                  금지 시간 추가
+                </button>
+              </div>
+              {bookingSettings.blockedWindows.length > 0 ? (
+                <div className="mt-2 grid gap-2">
+                  <p className="text-[13px] font-normal leading-5 text-[#64748b]">등록한 시간에는 예약을 받지 않습니다.</p>
+                  {bookingSettings.blockedWindows.map((windowItem) => (
+                    <div key={windowItem.id} className="grid min-w-0 grid-cols-[minmax(0,88px)_18px_minmax(0,88px)_minmax(0,1fr)_44px] items-center gap-2 rounded-[10px] border border-[#edf2f7] bg-[#fbfcfd] p-2">
+                      <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact />
+                      <span className="text-center text-[14px] font-normal text-[#94a3b8]">~</span>
+                      <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact />
+                      <input
+                        value={windowItem.label}
+                        onChange={(event) => updateBlockedWindow(windowItem.id, { label: event.target.value })}
+                        className="min-h-11 min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20"
+                      />
+                      <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" aria-label="예약 제외 시간 삭제">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
         {pendingTemporaryHolidayDate ? (
@@ -1007,36 +1092,43 @@ export default function OperatingHoursSettings({
           {saveError}
         </p>
       ) : null}
-      <div className={cn("flex items-center border-b border-[#dbe2ea]", compact ? "mb-2 gap-2 pb-2" : "mb-3 gap-5 pb-3")}>
-        {[
-          { key: "business" as const, label: "매장 영업 시간" },
-          { key: "booking" as const, label: "예약 시간 설정" },
-        ].map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => setActiveTab(item.key)}
-            className={cn(
-              "rounded-[8px] font-normal transition",
-              compact ? "h-8 px-3 text-[15px]" : "h-10 px-4 text-[16px]",
-              activeTab === item.key
-                ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
-                : "text-[#64748b] hover:text-[#111827]",
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      {!initialSetupMode ? (
+        <div className={cn("flex items-center border-b border-[#dbe2ea]", compact ? "mb-2 gap-2 pb-2" : "mb-3 gap-5 pb-3")}>
+          {[
+            { key: "business" as const, label: "매장 영업 시간" },
+            { key: "booking" as const, label: "예약 시간 설정" },
+          ].map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setActiveTab(item.key)}
+              className={cn(
+                "rounded-[8px] font-normal transition",
+                compact ? "min-h-11 px-3 text-[15px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" : "min-h-11 px-4 text-[16px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]",
+                activeTab === item.key
+                  ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
+                  : "text-[#64748b] hover:text-[#111827]",
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {activeTab === "business" ? (
-        <div className={cn("grid", compact ? "gap-3 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]" : "gap-4 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]")}>
-          <WebSurface className={cn("xl:order-2", compact ? "p-3" : "p-4")}>
+        <div className={cn("grid", initialSetupMode ? "gap-5" : compact ? "gap-3 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]" : "gap-4 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]")}>
+          {!initialSetupMode || initialSetupSubview === "hours" ? (
+          <WebSurface className={cn("min-w-0 xl:order-2", initialSetupMode ? "rounded-none border-0 p-0" : compact ? "p-3" : "p-4")}>
             <div className="divide-y divide-[#edf2f7]">
               <div
                 className={cn(
                   "grid items-center bg-[#fbfcfd]",
-                  compact ? "grid-cols-[118px_minmax(0,1fr)] gap-3 px-3 py-2" : "grid-cols-[150px_minmax(0,1fr)] gap-5 px-4 py-3.5",
+                  initialSetupMode
+                    ? "grid-cols-1 gap-3 px-3 py-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-5 sm:px-4 sm:py-3.5"
+                    : compact
+                      ? "grid-cols-[118px_minmax(0,1fr)] gap-3 px-3 py-2"
+                      : "grid-cols-1 gap-3 px-4 py-3.5 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-5",
                 )}
               >
                 <div>
@@ -1050,7 +1142,14 @@ export default function OperatingHoursSettings({
                     </div>
                   </div>
                 </div>
-                <div className={cn("grid items-center", compact ? "grid-cols-[96px_24px_96px_auto] justify-start gap-2" : "grid-cols-[116px_24px_116px_auto] justify-start gap-3")}>
+                <div className={cn(
+                  "grid items-center",
+                  initialSetupMode
+                    ? "grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)] justify-stretch gap-2 sm:grid-cols-[116px_24px_116px_auto] sm:justify-start sm:gap-3"
+                    : compact
+                      ? "grid-cols-[96px_24px_96px_auto] justify-start gap-2"
+                      : "grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)] justify-stretch gap-2 sm:grid-cols-[116px_24px_116px_auto] sm:justify-start sm:gap-3",
+                )}>
                   <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact={compact} />
                   <span className={cn("inline-flex items-center justify-center font-normal text-[#94a3b8]", compact ? "h-8 text-[14px]" : "h-10 text-[16px]")}>-</span>
                   <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact={compact} />
@@ -1059,7 +1158,11 @@ export default function OperatingHoursSettings({
                     onClick={applyBulkTimeToAllDays}
                     className={cn(
                       "rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]",
-                      compact ? "h-8 px-3 text-[14px]" : "h-10 px-4 text-[15px]",
+                      initialSetupMode
+                        ? "col-span-3 min-h-11 w-full px-4 text-[16px] font-medium leading-6 sm:col-span-1 sm:h-10 sm:min-h-0 sm:w-auto sm:text-[15px] sm:font-normal"
+                        : compact
+                          ? "h-8 px-3 text-[14px]"
+                          : "col-span-3 min-h-11 w-full px-4 text-[15px] sm:col-span-1 sm:w-auto",
                     )}
                   >
                     적용
@@ -1071,7 +1174,11 @@ export default function OperatingHoursSettings({
                   key={day.key}
                   className={cn(
                     "grid items-center",
-                    compact ? "grid-cols-[76px_108px_minmax(305px,1fr)] gap-3 py-2" : "grid-cols-[110px_160px_minmax(400px,1fr)] gap-5 py-3.5",
+                    initialSetupMode
+                      ? "grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-3 sm:grid-cols-[110px_150px_minmax(0,1fr)] sm:gap-4"
+                      : compact
+                        ? "grid-cols-[76px_108px_minmax(305px,1fr)] gap-3 py-2"
+                        : "grid-cols-[110px_160px_minmax(400px,1fr)] gap-5 py-3.5",
                   )}
                 >
                   <p className={cn("font-normal text-[#111827]", compact ? "text-[15px]" : "text-[16px]")}>{day.label}</p>
@@ -1081,7 +1188,14 @@ export default function OperatingHoursSettings({
                       {day.enabled ? "영업함" : "휴무일"}
                     </span>
                   </div>
-                  <div className={cn("ml-auto grid items-center justify-end", compact ? "grid-cols-[96px_24px_96px] gap-2" : "grid-cols-[116px_24px_116px] gap-3")}>
+                  <div className={cn(
+                    "grid items-center justify-end",
+                    initialSetupMode
+                      ? "col-span-2 ml-0 w-full grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)] gap-2 sm:col-span-1 sm:ml-auto sm:w-auto sm:grid-cols-[116px_24px_116px] sm:gap-3"
+                      : compact
+                        ? "ml-auto grid-cols-[96px_24px_96px] gap-2"
+                        : "ml-auto grid-cols-[116px_24px_116px] gap-3",
+                  )}>
                     {day.enabled ? (
                       <>
                         <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact={compact} />
@@ -1097,11 +1211,34 @@ export default function OperatingHoursSettings({
                 </div>
               ))}
             </div>
+            {initialSetupMode ? (
+              <div className="mt-4 border-t border-[#dbe2ea] pt-4">
+                <button
+                  type="button"
+                  onClick={() => setInitialSetupSubview("closures")}
+                  className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-[#dbe2ea] bg-white px-4 text-[16px] font-medium leading-6 text-[#15213b] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+                >
+                  휴무일 추가
+                </button>
+              </div>
+            ) : null}
           </WebSurface>
+          ) : null}
 
-          <WebSurface className={cn("xl:order-1", compact ? "p-3" : "p-4")}>
+          {!initialSetupMode || initialSetupSubview === "closures" ? (
+          <WebSurface className={cn("xl:order-1", initialSetupMode ? "rounded-none border-0 p-0" : compact ? "p-3" : "p-4")}>
+            {initialSetupMode ? (
+              <button
+                type="button"
+                onClick={() => setInitialSetupSubview("hours")}
+                className="mb-4 inline-flex min-h-11 items-center justify-center gap-1 rounded-[8px] px-2 text-[16px] font-medium leading-6 text-[#475569] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                영업시간으로 돌아가기
+              </button>
+            ) : null}
             <div className={cn("border-b border-[#edf2f7]", compact ? "pb-3" : "pb-4")}>
-              <p className={cn("font-normal text-[#111827]", compact ? "text-[16px]" : "text-[18px]")}>정기 휴무일</p>
+              <p className={cn("text-[#111827]", initialSetupMode ? "text-[20px] font-semibold leading-7" : compact ? "text-[16px] font-normal" : "text-[18px] font-normal")}>{initialSetupMode ? "휴무일 추가" : "정기 휴무일"}</p>
               <div className={cn("grid grid-cols-3 gap-1 rounded-[10px] border border-[#e4ebf2] bg-[#f8fafc] p-1", compact ? "mt-2" : "mt-4")}>
                 {extendedRegularHolidayCycleOptions.map((option) => (
                   <button
@@ -1145,8 +1282,9 @@ export default function OperatingHoursSettings({
             </div>
 
           </WebSurface>
+          ) : null}
 
-          {pendingTemporaryHolidayDate ? (
+          {!initialSetupMode && pendingTemporaryHolidayDate ? (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/20 px-4" role="dialog" aria-modal="true">
               <div className="w-full max-w-[360px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
                 <p className="text-[18px] font-normal text-[#111827]">임시 휴무일 지정</p>
@@ -1177,7 +1315,7 @@ export default function OperatingHoursSettings({
 
       {activeTab === "booking" ? (
         <WebSurface className={cn(compact ? "p-3" : "p-4")}>
-          <div className={cn("grid items-center", compact ? "grid-cols-[112px_minmax(0,1fr)] gap-2" : "grid-cols-[130px_minmax(0,1fr)] gap-3")}>
+          <div className={cn("grid items-center", compact ? "grid-cols-[112px_minmax(0,1fr)] gap-2" : "gap-3 sm:grid-cols-[130px_minmax(0,1fr)]")}>
             <p className={cn("font-normal text-[#334155]", "text-[16px]")}>예약 가능 시간</p>
             <div className={cn("flex items-center", compact ? "gap-2" : "gap-4")}>
               <TimeInput value={bookingSettings.firstBookingTime} onChange={(value) => updateBookingSetting("firstBookingTime", value, true)} compact={compact} />
@@ -1186,10 +1324,34 @@ export default function OperatingHoursSettings({
             </div>
           </div>
 
+          <div className={cn("grid border-t border-[#edf2f7]", compact ? "mt-3 grid-cols-[112px_minmax(0,1fr)] gap-2 pt-3" : "mt-4 gap-3 pt-4 sm:grid-cols-[130px_minmax(0,1fr)]")}>
+            <div>
+              <label htmlFor="booking-close-grace" className="text-[16px] font-medium leading-6 text-[#334155]">마감 여유</label>
+              <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">
+                영업 마감 뒤 예약 종료를 허용할 시간입니다. 15분을 권장합니다.
+              </p>
+            </div>
+            <select
+              id="booking-close-grace"
+              value={bookingSettings.closeGraceMinutes}
+              onChange={(event) => {
+                const nextValue = Number(event.target.value) as (typeof bookingCloseGraceMinuteOptions)[number];
+                updateBookingSetting("closeGraceMinutes", nextValue, true);
+              }}
+              className="min-h-11 w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#15213b] outline-none transition hover:bg-[#f8fafc] focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20"
+            >
+              {bookingCloseGraceMinuteOptions.map((minutes) => (
+                <option key={minutes} value={minutes}>
+                  {minutes === 0 ? "여유 없음" : `${minutes}분${minutes === 15 ? " · 권장" : ""}`}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className={cn("border-t border-[#edf2f7]", compact ? "mt-3 pt-3" : "mt-4 pt-4")}>
             <div className="flex items-center justify-between gap-3">
               <p className={cn("font-normal text-[#334155]", "text-[16px]")}>예약 금지 시간 설정</p>
-              <button type="button" onClick={addBlockedWindow} className={cn("inline-flex items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#334155] hover:bg-[#f8fafc]", compact ? "h-8 px-2.5 text-[14px]" : "h-9 px-3 text-[16px]")}>
+              <button type="button" onClick={addBlockedWindow} className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]", compact ? "px-2.5 text-[14px]" : "px-3 text-[16px]")}>
                 <Plus className="h-4 w-4" />
                 금지 시간 추가
               </button>
@@ -1208,9 +1370,9 @@ export default function OperatingHoursSettings({
                   <input
                     value={windowItem.label}
                     onChange={(event) => updateBlockedWindow(windowItem.id, { label: event.target.value })}
-                    className={cn("rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none focus:border-[#94a3b8]", compact ? "h-8 px-2.5 text-[14px]" : "h-10 px-3 text-[16px]")}
+                    className={cn("min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20", compact ? "px-2.5 text-[14px]" : "px-3 text-[16px]")}
                   />
-                  <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className={cn("inline-flex items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8]", compact ? "h-8 w-8" : "h-9 w-9")} aria-label="예약 제외 시간 삭제">
+                  <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" aria-label="예약 제외 시간 삭제">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -1218,6 +1380,14 @@ export default function OperatingHoursSettings({
             </div>
           </div>
         </WebSurface>
+      ) : null}
+
+      {initialSetupMode && initialSetupSubview === "hours" ? (
+        <OwnerInitialSetupSaveNextActions
+          onSave={completeInitialSetupStep}
+          onNext={() => onInitialSetupNext?.()}
+          saving={isCompletingInitialSetup}
+        />
       ) : null}
 
     </div>

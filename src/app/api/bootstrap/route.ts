@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const scope = searchParams.get("scope") || "owner";
     const requestedShopId = searchParams.get("shopId") || undefined;
+    const phase = searchParams.get("phase") === "essential" ? "essential" : "full";
 
     if (scope === "public") {
       const shopId = requestedShopId || "demo-shop";
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
         includeLanding: false,
         includeNotifications: false,
         includeGroomingRecords: false,
+        includePilotCohort: false,
       });
       return ownerMobileCorsJson(request, {
         mode: data.mode,
@@ -57,6 +59,11 @@ export async function GET(request: NextRequest) {
       groomingRecordsTo: initialWindow.to,
       groomingRecordLimit: 1000,
       notificationLimit: 200,
+      includeNotifications: phase === "full",
+      includeGroomingRecords: phase === "full",
+      includeOwnerExtras: phase === "full",
+      includeStaffProfileImages: phase === "full",
+      includePetDisplayPhotos: phase === "full",
     });
     return ownerMobileCorsJson(request, scopeBootstrapForStaff(data, owner));
   } catch (error) {

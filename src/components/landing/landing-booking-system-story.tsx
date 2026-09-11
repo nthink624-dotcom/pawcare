@@ -353,9 +353,17 @@ const solutionTableOfContents = [
   { number: "06", label: "자동 예약 안내", targetId: "solution-automatic-notifications" },
 ] as const;
 
+type ExpandedBookingPreview = "first" | "ai" | "revisit";
+
+const expandedBookingPreviewCopy: Record<ExpandedBookingPreview, { dialogLabel: string; title: string }> = {
+  first: { dialogLabel: "첫 방문 예약 화면 크게 보기", title: "첫 방문 간편 예약" },
+  ai: { dialogLabel: "AI 추천 시간 예약 화면 크게 보기", title: "AI 추천 시간 예약" },
+  revisit: { dialogLabel: "재방문 예약 화면 크게 보기", title: "단골 재방문 예약" },
+};
+
 export function BookingSystemStory() {
   const [scheduleSlide, setScheduleSlide] = useState<"before" | "after">("before");
-  const [expandedBookingPreview, setExpandedBookingPreview] = useState<"first" | "revisit" | null>(null);
+  const [expandedBookingPreview, setExpandedBookingPreview] = useState<ExpandedBookingPreview | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setScheduleSlide(scheduleSlide === "before" ? "after" : "before"), 8000);
@@ -439,7 +447,7 @@ export function BookingSystemStory() {
               <button
                 type="button"
                 onClick={() => setExpandedBookingPreview("first")}
-                className="mt-4 flex h-10 items-center gap-1.5 rounded-full border border-[#1f714a] bg-white px-4 text-[13px] font-semibold text-[#1f714a] transition hover:bg-[#eef8f1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f9d55] focus-visible:ring-offset-2"
+                className="mt-4 flex min-h-11 items-center gap-1.5 rounded-full border border-[#1f714a] bg-white px-4 text-[13px] font-semibold text-[#1f714a] transition hover:bg-[#eef8f1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f9d55] focus-visible:ring-offset-2"
                 aria-label="첫 방문 예약 화면 크게 보기"
               >
                 <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -475,7 +483,7 @@ export function BookingSystemStory() {
                 </div>
               </div>
             </div>
-            <button type="button" aria-label={scheduleSlide === "before" ? "AI 예약 최적화 화면 보기" : "기존 예약 화면 보기"} onClick={() => setScheduleSlide(scheduleSlide === "before" ? "after" : "before")} className={`absolute right-0 top-1/2 z-20 flex h-10 w-10 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-white transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${scheduleSlide === "before" ? "border-[#ffb1a1] bg-[#cf634d] shadow-[0_4px_12px_rgba(207,99,77,0.28)] hover:bg-[#df7059]" : "border-[#92d5ad] bg-[#26704b] shadow-[0_4px_12px_rgba(31,157,85,0.28)] hover:bg-[#31815a]"}`}>
+            <button type="button" aria-label={scheduleSlide === "before" ? "AI 예약 최적화 화면 보기" : "기존 예약 화면 보기"} onClick={() => setScheduleSlide(scheduleSlide === "before" ? "after" : "before")} className={`absolute right-0 top-1/2 z-20 flex h-11 w-11 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-white transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${scheduleSlide === "before" ? "border-[#ffb1a1] bg-[#cf634d] shadow-[0_4px_12px_rgba(207,99,77,0.28)] hover:bg-[#df7059]" : "border-[#92d5ad] bg-[#26704b] shadow-[0_4px_12px_rgba(31,157,85,0.28)] hover:bg-[#31815a]"}`}>
               <span className={`pointer-events-none absolute -inset-0.5 rounded-full border motion-safe:animate-pulse ${scheduleSlide === "before" ? "border-[#ffb1a1]/55" : "border-[#92d5ad]/55"}`} aria-hidden="true" />
               <span className="relative z-10">{scheduleSlide === "before" ? <ChevronRight className="h-5 w-5" aria-hidden="true" /> : <ChevronLeft className="h-5 w-5" aria-hidden="true" />}</span>
             </button>
@@ -483,6 +491,26 @@ export function BookingSystemStory() {
               <button type="button" aria-label="기존 예약 보기" aria-current={scheduleSlide === "before" ? "true" : undefined} onClick={() => setScheduleSlide("before")} className={`rounded-full transition-all ${scheduleSlide === "before" ? "h-2 w-8 bg-[#ff9b88]" : "h-2 w-2 bg-white/35 hover:bg-white/60"}`} />
               <button type="button" aria-label="AI 예약 최적화 보기" aria-current={scheduleSlide === "after" ? "true" : undefined} onClick={() => setScheduleSlide("after")} className={`rounded-full transition-all ${scheduleSlide === "after" ? "h-2 w-8 bg-[#76e6a8]" : "h-2 w-2 bg-white/35 hover:bg-white/60"}`} />
             </div>
+          </div>
+          <div className={`${styles.firstLive} relative mt-5 flex min-h-80 min-w-0 items-center gap-3 overflow-hidden rounded-[22px] border border-[#d8e5df] bg-[#f7fbf8] px-6 py-5 sm:px-8`}>
+            <div className={`${styles.firstLiveCopy} relative z-10 min-w-0`}>
+              <p className="text-[12px] font-bold tracking-[0.12em] text-[#26825a]">LIVE AI BOOKING</p>
+              <p className={`mt-3 text-[21px] font-semibold leading-[1.32] text-[#172033] sm:text-[24px] ${COPY_CLASS}`}>AI가 추천한 시간을<br />실제 예약 화면에서</p>
+              <p className="mt-3 text-[14px] leading-5 text-[#607080]">추천 시간과 전체 예약 가능 시간을<br />직접 눌러 확인할 수 있습니다.</p>
+              <button
+                type="button"
+                onClick={() => setExpandedBookingPreview("ai")}
+                className="mt-4 flex min-h-11 items-center gap-1.5 rounded-full border border-[#1f714a] bg-white px-4 text-[13px] font-semibold text-[#1f714a] transition hover:bg-[#eef8f1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f9d55] focus-visible:ring-offset-2"
+                aria-label="AI 추천 시간 예약 화면 크게 보기"
+              >
+                <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+                화면 크게 보기
+              </button>
+            </div>
+            <figure className={`${styles.centeredPhonePreview} relative z-10 flex w-44 shrink-0 items-center justify-center sm:w-48`}>
+              <CustomerBookingPhonePreview experience="ai" className="w-full drop-shadow-[0_16px_28px_rgba(15,47,40,0.18)]" />
+            </figure>
+            <div className="pointer-events-none absolute -bottom-24 -right-16 h-64 w-64 rounded-full bg-[#dff2e8] opacity-80 blur-2xl" aria-hidden="true" />
           </div>
         </article>
       </div>
@@ -500,7 +528,7 @@ export function BookingSystemStory() {
               <button
                 type="button"
                 onClick={() => setExpandedBookingPreview("revisit")}
-                className="mt-3 flex h-10 items-center gap-1.5 rounded-full border border-[#c45f4e] bg-white px-4 text-[13px] font-semibold text-[#a34d40] transition hover:bg-[#fff4f1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c45f4e] focus-visible:ring-offset-2"
+                className="mt-3 flex min-h-11 items-center gap-1.5 rounded-full border border-[#c45f4e] bg-white px-4 text-[13px] font-semibold text-[#a34d40] transition hover:bg-[#fff4f1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c45f4e] focus-visible:ring-offset-2"
                 aria-label="재방문 예약 화면 크게 보기"
               >
                 <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -550,7 +578,7 @@ export function BookingSystemStory() {
           className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/70 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
-          aria-label={expandedBookingPreview === "first" ? "첫 방문 예약 화면 크게 보기" : "재방문 예약 화면 크게 보기"}
+          aria-label={expandedBookingPreviewCopy[expandedBookingPreview].dialogLabel}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setExpandedBookingPreview(null);
           }}
@@ -559,14 +587,14 @@ export function BookingSystemStory() {
             <div className="flex shrink-0 items-center justify-between border-b border-[#e2e8f0] px-5 py-4">
               <div>
                 <p className="text-[18px] font-semibold text-[#172033]">
-                  {expandedBookingPreview === "first" ? "첫 방문 간편 예약" : "단골 재방문 예약"}
+                  {expandedBookingPreviewCopy[expandedBookingPreview].title}
                 </p>
                 <p className="mt-1 text-[13px] text-[#64748b]">실제 화면에서 직접 눌러보세요.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setExpandedBookingPreview(null)}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#172033] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#172033] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
                 aria-label="확대 화면 닫기"
                 autoFocus
               >

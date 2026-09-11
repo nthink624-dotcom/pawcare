@@ -1,5 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 
+import { requireHttpsTransportUrl } from "@/lib/https-transport-url";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { OwnerApiError } from "@/server/owner-api-auth";
 
@@ -103,18 +104,21 @@ function getSigningKey(secretAccessKey: string, dateStamp: string) {
 }
 
 function buildR2SignedUrl(params: {
-  method: "GET" | "PUT" | "DELETE";
+  method: "GET" | "PUT" | "DELETE" | "HEAD";
   bucket: string;
   path: string;
   expiresInSeconds: number;
 }) {
   const config = getR2Config(params.bucket);
+  const endpoint = requireHttpsTransportUrl(config.endpoint, "R2 media storage endpoint", {
+    allowLoopbackInDevelopment: true,
+  });
   const now = new Date();
   const amzDate = toAmzDate(now);
   const dateStamp = toDateStamp(now);
   const credentialScope = `${dateStamp}/${AWS_REGION}/${AWS_SERVICE}/aws4_request`;
   const credential = `${config.accessKeyId}/${credentialScope}`;
-  const host = new URL(config.endpoint).host;
+  const host = new URL(endpoint).host;
   const canonicalUri = `/${encodeURIComponent(config.bucket)}/${encodePath(params.path)}`;
   const query = new URLSearchParams({
     "X-Amz-Algorithm": AWS_ALGORITHM,
@@ -145,7 +149,7 @@ function buildR2SignedUrl(params: {
 
   query.set("X-Amz-Signature", signature);
 
-  return `${config.endpoint}${canonicalUri}?${query.toString()}`;
+  return `${endpoint}${canonicalUri}?${query.toString()}`;
 }
 
 export function getMediaStorageInfo() {
@@ -236,4 +240,37 @@ export async function removeMediaStorageObjects(input: RemoveObjectsInput) {
   if (removeResult.error) {
     throw new Error(removeResult.error.message);
   }
+}
+
+export async function verifyMediaStorageObjectsAbsent(input: RemoveObjectsInput) {
+  if (getMediaStorageProvider() === "r2") {
+    for (const path of input.paths) {
+      const signedUrl = buildR2SignedUrl({
+        method: "HEAD",
+        bucket: input.bucket,
+        path,
+        expiresInSeconds: 60,
+      });
+      const response = await fetch(signedUrl, { method: "HEAD", cache: "no-store" });
+      if (response.status === 404) continue;
+      if (response.ok) return false;
+      throw new Error("R2 media cleanup verification failed.");
+    }
+    return true;
+  }
+
+  const admin = getSupabaseStorageAdmin();
+  for (const path of input.paths) {
+    const parts = path.split("/");
+    const fileName = parts.pop();
+    if (!fileName) throw new Error("Media cleanup verification path is invalid.");
+    const directory = parts.join("/");
+    const listed = await admin.storage.from(input.bucket).list(directory, {
+      limit: 100,
+      search: fileName,
+    });
+    if (listed.error) throw new Error("Media cleanup verification failed.");
+    if ((listed.data ?? []).some((item) => item.name === fileName)) return false;
+  }
+  return true;
 }

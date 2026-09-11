@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchOwnerScheduleRange, replaceScheduleRangeInBootstrap } from "@/components/owner-web/calendar-owner-api";
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
-import { OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
-import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
+import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
@@ -113,6 +113,7 @@ const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const staffDayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
+  pending: "예약 대기",
   confirmed: "예약 예정",
   in_progress: "진행 중",
   almost_done: "픽업 준비",
@@ -815,23 +816,23 @@ export default function CalendarRecordsScreen({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <WebSurface className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-[#e5e7eb] bg-white px-5 py-2.5">
-          <div className="flex shrink-0 items-center gap-2">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px]">
+      <section className="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto overflow-x-hidden rounded-[18px] bg-white sm:overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 border-b border-[#e5e7eb] bg-white px-3 py-2.5 sm:px-5">
+          <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-2 sm:w-auto sm:flex-nowrap sm:justify-start">
             <button
               type="button"
               onClick={() => setMonthAnchor((current) => moveMonth(current, -1))}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
               aria-label="이전 달"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <p className="flex h-9 min-w-[78px] items-center justify-center px-3 text-center text-[16px] font-medium text-[#111827]">{formatMonthLabel(monthAnchor)}</p>
+            <p className="order-first flex min-h-11 w-full min-w-0 items-center justify-center px-3 text-center text-[16px] font-medium text-[#111827] sm:order-none sm:w-auto sm:min-w-[110px]">{formatMonthLabel(monthAnchor)}</p>
             <button
               type="button"
               onClick={() => setMonthAnchor((current) => moveMonth(current, 1))}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
               aria-label="다음 달"
             >
               <ChevronRight className="h-4 w-4" />
@@ -843,12 +844,12 @@ export default function CalendarRecordsScreen({
                 setMonthAnchor(today);
                 openDate(today);
               }}
-              className="h-9 rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937]"
+              className="min-h-11 rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
             >
               오늘
             </button>
           </div>
-          <label className="flex h-9 min-w-[280px] flex-1 items-center gap-3 rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-[#64748b]">
+          <label className="flex min-h-11 min-w-0 w-full flex-none items-center gap-3 rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-[#64748b] sm:min-w-[280px] sm:flex-1">
             <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-4 w-4 text-[#94a3b8]" />
             <input
               value={query}
@@ -857,12 +858,12 @@ export default function CalendarRecordsScreen({
               placeholder="반려동물명, 보호자명, 메모 검색"
             />
           </label>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <label className="relative block">
+          <div className="ml-0 flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+            <label className="relative block min-w-0 flex-1 sm:flex-none">
               <select
                 value={staffFilter}
                 onChange={(event) => setStaffFilter(event.target.value)}
-                className="h-9 min-w-[132px] appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[15px] font-normal text-[#111827] outline-none focus:border-[#111827]"
+                className="min-h-11 min-w-0 w-full appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[15px] font-normal text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20 sm:min-w-[132px] sm:w-auto"
               >
                 {staffOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -870,11 +871,11 @@ export default function CalendarRecordsScreen({
               </select>
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
             </label>
-            <label className="relative block">
+            <label className="relative block min-w-0 flex-1 sm:flex-none">
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as CalendarStatusFilter)}
-                className="h-9 min-w-[132px] appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[15px] font-normal text-[#111827] outline-none focus:border-[#111827]"
+                className="min-h-11 min-w-0 w-full appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[15px] font-normal text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20 sm:min-w-[132px] sm:w-auto"
               >
                 {statusOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -885,9 +886,10 @@ export default function CalendarRecordsScreen({
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 items-stretch overflow-hidden xl:grid-cols-[minmax(0,1fr)_392px]">
-          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#f1f5f9] xl:border-r xl:border-[#edf2f7]">
-            <div className="grid grid-cols-7 border-b border-[#e5e7eb] bg-white">
+        <div data-calendar-month-layout="true" className="grid min-h-0 flex-1 items-stretch overflow-visible rounded-b-[14px] sm:overflow-hidden lg:grid-cols-[minmax(0,1fr)_clamp(300px,24vw,380px)]">
+          <section data-calendar-month-board="true" className="flex min-h-0 min-w-0 flex-col overflow-visible rounded-b-[14px] bg-[#f1f5f9] sm:overflow-hidden xl:border-r xl:border-[#edf2f7]">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-auto">
+            <div className="grid min-w-[720px] shrink-0 grid-cols-7 border-b border-[#e5e7eb] bg-white lg:min-w-0">
               {weekdayLabels.map((label) => (
                 <div key={label} className="flex h-9 items-center justify-center text-center text-[13px] font-medium">
                   <span className="inline-flex h-6 min-w-8 items-center justify-center px-2 text-[#111827]">
@@ -898,7 +900,8 @@ export default function CalendarRecordsScreen({
             </div>
 
             <div
-              className="grid min-h-0 flex-1 grid-cols-7 gap-px bg-[#eef2f7] p-px"
+              data-calendar-month-grid="true"
+              className="grid min-h-0 min-w-[720px] flex-1 grid-cols-7 gap-px bg-[#eef2f7] p-px lg:min-w-0"
               style={{ gridTemplateRows: `repeat(${calendarWeekRows}, minmax(0, 1fr))` }}
             >
               {monthDates.map((date, index) => {
@@ -911,7 +914,7 @@ export default function CalendarRecordsScreen({
                 const hasItems = items.length > 0 || birthdayCount > 0;
                 const isToday = date === currentDateInTimeZone();
                 if (!date) {
-                  return <div key={`empty-${index}`} className="min-h-0 rounded-[8px] bg-[#fdfefe]" />;
+                  return <div key={`empty-${index}`} className="min-h-0 rounded-[10px] bg-[#fdfefe]" />;
                 }
 
                 const workNotice = getStaffWorkNotice(initialData, date, staffFilter);
@@ -926,7 +929,7 @@ export default function CalendarRecordsScreen({
                     type="button"
                     onClick={() => openDate(date)}
                     className={cn(
-                      "relative flex min-h-0 flex-col justify-between overflow-hidden rounded-[8px] border px-3 py-2 text-left transition duration-150",
+                      "relative flex min-h-0 flex-col justify-between overflow-hidden rounded-[10px] border px-3 py-2 text-left transition duration-150",
                       getCalendarCellTone(active, isToday, hasItems, workNotice.closed),
                     )}
                     aria-label={`${date} 예약 ${reservationCount}건`}
@@ -992,6 +995,7 @@ export default function CalendarRecordsScreen({
                 );
               })}
             </div>
+            </div>
           </section>
 
           <GroomingDatePanel
@@ -1003,7 +1007,7 @@ export default function CalendarRecordsScreen({
             onAddReservation={onCreateReservationForDate ? () => onCreateReservationForDate(selectedDate) : undefined}
           />
         </div>
-      </WebSurface>
+      </section>
 
       {selectedItem ? (
         <GroomingRecordSheet
@@ -1040,16 +1044,19 @@ function GroomingDatePanel({
   const hasVisibleContent = visibleItems.length > 0 || birthdays.length > 0;
 
   return (
-    <aside className="min-h-0 overflow-y-auto bg-white">
-      <div className="px-5 py-4">
-        <div className="flex items-center justify-between gap-3">
+    <aside data-calendar-month-detail-panel="true" className="min-h-0 min-w-0 overflow-y-auto rounded-b-[14px] bg-white">
+      <div className="px-4 py-4">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <h3 className="text-[15px] font-normal text-[#334155]">{formatFullDate(date)}</h3>
           <div className="flex shrink-0 items-center gap-2">
             {onAddReservation ? (
               <button
                 type="button"
                 onClick={onAddReservation}
-                className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
+                className={cn(
+                  OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
+                  "!bg-[#2563eb] !text-white hover:!bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+                )}
               >
                 <CalendarPlus className="h-4 w-4" />
                 예약 추가

@@ -1,14 +1,17 @@
-import { Home, Megaphone, Store } from "lucide-react";
+import { Gift, Home, MessageCircle, MessageSquareText, PanelsTopLeft, Store } from "lucide-react";
 import Link from "next/link";
 
 import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 
-type AdminSection = "home" | "owners" | "marketing";
+type AdminSection = "home" | "owners" | "pilotBenefits" | "marketing" | "support" | "testerFeedback";
 
 const ADMIN_SECTIONS = [
   { id: "home", href: "/admin", label: "홈", icon: Home },
-  { id: "owners", href: "/owner/admin", label: "오너 계정", icon: Store },
-  { id: "marketing", href: "/admin/marketing", label: "마케팅 워룸", icon: Megaphone },
+  { id: "owners", href: "/owner/admin", label: "계정 관리", icon: Store },
+  { id: "pilotBenefits", href: "/admin/pilot-benefits", label: "파일럿 혜택", icon: Gift },
+  { id: "marketing", href: "/admin/marketing", label: "워크룸", icon: PanelsTopLeft },
+  { id: "support", href: "/admin/support", label: "고객 문의", icon: MessageCircle },
+  { id: "testerFeedback", href: "/admin/tester-feedback", label: "테스터 피드백", icon: MessageSquareText },
 ] as const;
 
 export default function AdminSectionNav({ active }: { active: AdminSection }) {
@@ -23,9 +26,9 @@ export default function AdminSectionNav({ active }: { active: AdminSection }) {
             key={section.id}
             href={section.href as never}
             aria-current={selected ? "page" : undefined}
-            className={`inline-flex h-11 items-center gap-2 rounded-[10px] border px-4 transition ${ADMIN_TYPOGRAPHY.control} ${
+            className={`inline-flex min-h-11 items-center gap-2 rounded-[10px] border px-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 ${ADMIN_TYPOGRAPHY.control} ${
               selected
-                ? "border-[#2563eb] bg-[#2563eb] text-white shadow-[0_6px_18px_rgba(37,99,235,0.16)]"
+                ? "border-[#2563eb] bg-[#2563eb] text-white"
                 : "border-[#dbe4ef] bg-white text-[#334155] hover:border-[#b9c8db] hover:bg-[#f8fafc]"
             }`}
           >

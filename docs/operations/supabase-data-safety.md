@@ -30,9 +30,10 @@ Review the dry-run output first. Run `npm run supabase:link:prod`, then `npm run
 ## Deletion protection
 
 - Owner withdrawal soft-deletes shops through `shops.deleted_at`; deleted shops are unavailable to public booking/bootstrap routes and hidden from the active admin owner list.
-- Hard deletes of shops, owner profiles, appointments, guardians, pets, services, staff members, and grooming records write an immutable row to `data_deletion_audit` before deletion.
+- Hard deletes of shops, owner profiles, appointments, guardians, pets, services, staff members, and grooming records write an immutable, redacted event row to `data_deletion_audit`; row JSON, identifiers, and actor values are not retained there.
 - `TRUNCATE` is blocked for those tables.
-- `data_deletion_audit` has RLS enabled, no browser role privileges, and is backend-only. It contains a protected pre-delete row snapshot for incident analysis and recovery.
+- `data_deletion_audit` has RLS enabled, no browser role privileges, and is backend-only. It is an event ledger, not a pre-delete data recovery store.
+- Owner self-deletion is server-only: current-password reauthentication, global session revocation, media cleanup, database purge, and Supabase Auth soft deletion must complete in that order. Idempotency keys are stored only as SHA-256 hashes. Accounts with active billing, or billing records lacking an approved retention basis and period, must fail closed.
 - Destructive auth/capture smoke scripts require `SUPABASE_ENV_NAME=test`; they must not run with the development or production environment file.
 
 ## Recovery and backup policy

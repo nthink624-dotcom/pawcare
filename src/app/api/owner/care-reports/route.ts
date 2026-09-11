@@ -1,26 +1,43 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { readCurrentVisitWeightForCompletion } from "@/server/appointment-visit-weight";
 import {
+  assertCareReportDraftPiiFree,
+  CareReportGenerationError,
+  CareReportSafetyValidationError,
   generateCareReportDraft,
-  hashCareReportInput,
+  toSafeCareReportGenerationHttpResponse,
+  toSafeCareReportSafetyHttpResponse,
 } from "@/server/care-report-ai";
-import { buildPreviewCareReportDraft } from "@/lib/care-report-draft";
+import { decideCareReportSaveReplay, hashCareReportSavePayload } from "@/server/care-report-save-identity";
+import {
+  buildPreviewCareReportDraft,
+  prepareCareReportSourceText,
+  sanitizeCareReportObservations,
+  serializeCareReportSavePayload,
+} from "@/lib/care-report-draft";
 import { OwnerApiError, requireOwnerShop, type OwnerShopContext } from "@/server/owner-api-auth";
+import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import {
   careReportDraftSchema,
   careReportGenerationInputSchema,
+  careReportObservationsSchema,
   type CareReportDraft,
 } from "@/types/care-report";
 
 export const dynamic = "force-dynamic";
 
+const CARE_REPORTS_CORS = { methods: "GET, POST, PATCH, OPTIONS" } as const;
+
 const confirmInputSchema = z.object({
   shopId: z.string().trim().min(1).max(120),
   appointmentId: z.string().trim().min(1).max(120),
   careReport: careReportDraftSchema.optional(),
+  careReportObservations: careReportObservationsSchema.optional(),
+  careReportSourceText: z.string().trim().max(1000).optional(),
+  saveRequestId: z.string().trim().regex(/^save-[a-z0-9-]{1,64}$/).optional(),
   photoConsent: z.boolean().default(false),
   action: z.enum(["save_draft", "publish", "publish_basic"]).default("publish"),
 }).superRefine((value, context) => {
@@ -40,6 +57,8 @@ const emptyCareReportObservations = {
   pawsAndNails: [],
   groomingResponse: [],
   customNote: "",
+  sourceFacts: [],
+  sourceFactCitations: [],
 };
 
 async function buildBasicCareReport(appointment: AppointmentScope): Promise<CareReportDraft> {
@@ -63,15 +82,28 @@ type AppointmentScope = {
   staff_id: string | null;
 };
 
-function errorResponse(error: unknown, fallback: string) {
+function errorResponse(request: NextRequest, error: unknown, fallback: string) {
+  if (error instanceof CareReportSafetyValidationError) {
+    const diagnostic = toSafeCareReportSafetyHttpResponse(error);
+    return ownerMobileCorsJson(request, diagnostic.body, { status: diagnostic.status }, CARE_REPORTS_CORS);
+  }
+  if (error instanceof CareReportGenerationError) {
+    const diagnostic = toSafeCareReportGenerationHttpResponse(error);
+    return ownerMobileCorsJson(request, diagnostic.body, { status: diagnostic.status }, CARE_REPORTS_CORS);
+  }
   if (error instanceof OwnerApiError) {
-    return NextResponse.json({ message: error.message }, { status: error.status });
+    const message = error.status >= 500 ? fallback : error.message;
+    return ownerMobileCorsJson(request, { message }, { status: error.status }, CARE_REPORTS_CORS);
   }
   if (error instanceof z.ZodError) {
-    return NextResponse.json({ message: "케어리포트 입력 내용을 확인해 주세요." }, { status: 400 });
+    return ownerMobileCorsJson(
+      request,
+      { message: "케어리포트 입력 내용을 확인해 주세요." },
+      { status: 400 },
+      CARE_REPORTS_CORS,
+    );
   }
-  const message = error instanceof Error ? error.message : fallback;
-  return NextResponse.json({ message }, { status: 500 });
+  return ownerMobileCorsJson(request, { message: fallback }, { status: 500 }, CARE_REPORTS_CORS);
 }
 
 async function requireAppointmentScope(owner: OwnerShopContext, appointmentId: string) {
@@ -94,35 +126,11 @@ async function requireAppointmentScope(owner: OwnerShopContext, appointmentId: s
   return appointment;
 }
 
-async function persistCurrentWeightMeasurement(appointment: AppointmentScope, currentWeightKg?: number) {
-  if (currentWeightKg === undefined) return;
+async function readCareReportContext(appointment: AppointmentScope) {
   const admin = getSupabaseAdmin();
   if (!admin) throw new OwnerApiError("데이터베이스 서버 설정을 확인해 주세요.", 503);
 
-  const normalizedWeight = Math.round(currentWeightKg * 10) / 10;
-  const recordUpdate = await admin
-    .from("grooming_records")
-    .update({ pet_weight_snapshot: normalizedWeight, updated_at: new Date().toISOString() })
-    .eq("shop_id", appointment.shop_id)
-    .eq("appointment_id", appointment.id)
-    .select("id")
-    .maybeSingle();
-  if (recordUpdate.error) throw new OwnerApiError(recordUpdate.error.message, 500);
-  if (!recordUpdate.data) throw new OwnerApiError("미용 완료 후 오늘 몸무게를 저장해 주세요.", 409);
-
-  const petUpdate = await admin
-    .from("pets")
-    .update({ weight: normalizedWeight, updated_at: new Date().toISOString() })
-    .eq("shop_id", appointment.shop_id)
-    .eq("id", appointment.pet_id);
-  if (petUpdate.error) throw new OwnerApiError(petUpdate.error.message, 500);
-}
-
-async function readCareReportContext(appointment: AppointmentScope, currentWeightKgOverride?: number) {
-  const admin = getSupabaseAdmin();
-  if (!admin) throw new OwnerApiError("데이터베이스 서버 설정을 확인해 주세요.", 503);
-
-  const [petResult, serviceResult, currentRecordResult, weightHistoryResult] = await Promise.all([
+  const [petResult, serviceResult, currentRecordResult, weightHistoryResult, currentVisitWeight] = await Promise.all([
     admin.from("pets").select("name,breed,weight").eq("id", appointment.pet_id).eq("shop_id", appointment.shop_id).single(),
     admin.from("services").select("name,duration_minutes").eq("id", appointment.service_id).eq("shop_id", appointment.shop_id).single(),
     admin
@@ -139,6 +147,7 @@ async function readCareReportContext(appointment: AppointmentScope, currentWeigh
       .gt("pet_weight_snapshot", 0)
       .order("groomed_at", { ascending: false })
       .limit(12),
+    readCurrentVisitWeightForCompletion(appointment.shop_id, appointment.id),
   ]);
   if (petResult.error) throw new OwnerApiError(petResult.error.message, 500);
   if (serviceResult.error) throw new OwnerApiError(serviceResult.error.message, 500);
@@ -150,7 +159,7 @@ async function readCareReportContext(appointment: AppointmentScope, currentWeigh
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric * 10) / 10 : null;
   };
-  const currentWeightKg = normalizeWeight(currentWeightKgOverride ?? currentRecord?.pet_weight_snapshot ?? petResult.data.weight);
+  const currentWeightKg = normalizeWeight(currentVisitWeight?.weightKg ?? currentRecord?.pet_weight_snapshot);
   const priorWeights = (weightHistoryResult.data ?? [])
     .filter((item) => item.id !== currentRecord?.id)
     .map((item) => normalizeWeight(item.pet_weight_snapshot))
@@ -186,13 +195,6 @@ async function readCareReportContext(appointment: AppointmentScope, currentWeigh
   };
 }
 
-function generationErrorCode(error: unknown) {
-  if (error instanceof z.ZodError || error instanceof SyntaxError) return "invalid_ai_json";
-  if (error instanceof Error && error.name === "AbortError") return "provider_timeout";
-  if (error instanceof Error && error.message.includes("의료 진단")) return "medical_copy_blocked";
-  return "provider_error";
-}
-
 export async function GET(request: NextRequest) {
   try {
     const shopId = request.nextUrl.searchParams.get("shopId") ?? undefined;
@@ -215,120 +217,49 @@ export async function GET(request: NextRequest) {
         }))).filter(Boolean)
       : result.data ?? [];
 
-    return NextResponse.json(
+    return ownerMobileCorsJson(
+      request,
       { drafts },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      CARE_REPORTS_CORS,
     );
   } catch (error) {
-    return errorResponse(error, "케어리포트 목록을 불러오지 못했습니다.");
+    return errorResponse(request, error, "케어리포트 목록을 불러오지 못했습니다. 다시 시도해 주세요.");
   }
 }
 
 export async function POST(request: NextRequest) {
-  let generationId: string | null = null;
   try {
     const input = careReportGenerationInputSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, input.shopId);
     const appointment = await requireAppointmentScope(owner, input.appointmentId);
-    await persistCurrentWeightMeasurement(appointment, input.currentWeightKg);
-    const contextBase = await readCareReportContext(appointment, input.currentWeightKg);
+    const contextBase = await readCareReportContext(appointment);
+    const observations = sanitizeCareReportObservations(input.observations);
     const context = {
       ...contextBase,
-      observations: input.observations,
-      voiceTranscript: input.voiceTranscript,
+      observations,
+      voiceTranscript: prepareCareReportSourceText(input.voiceTranscript),
       currentDraft: input.currentDraft,
     };
-    const admin = getSupabaseAdmin();
-    if (!admin) throw new OwnerApiError("데이터베이스 서버 설정을 확인해 주세요.", 503);
-
-    const now = new Date().toISOString();
-    const draftResult = await admin
-      .from("grooming_record_drafts")
-      .upsert(
-        {
-          shop_id: owner.shopId,
-          appointment_id: appointment.id,
-          guardian_id: appointment.guardian_id,
-          pet_id: appointment.pet_id,
-          // Raw owner prompts and voice transcripts are generation-only input.
-          // Persist only the AI result so incidental searches never become customer history.
-          care_report_observations: {},
-          care_report_voice_transcript: "",
-          care_report_photo_consent: input.photoConsent,
-          care_report_owner_confirmed_at: null,
-          created_by_user_id: owner.userId,
-          updated_at: now,
-        },
-        { onConflict: "appointment_id" },
-      )
-      .select("id")
-      .single();
-    if (draftResult.error) throw new OwnerApiError(draftResult.error.message, 500);
-
-    const inputHash = hashCareReportInput(serverEnv.deepseekModel, context);
-    const pendingGeneration = await admin
-      .from("ai_care_report_generations")
-      .insert({
-        shop_id: owner.shopId,
-        appointment_id: appointment.id,
-        draft_id: draftResult.data.id,
-        created_by_user_id: owner.userId,
-        model: serverEnv.deepseekModel,
-        input_hash: inputHash,
-        status: "pending",
-      })
-      .select("id")
-      .single();
-    if (pendingGeneration.error) throw new OwnerApiError(pendingGeneration.error.message, 500);
-    generationId = pendingGeneration.data.id;
-
     const generated = await generateCareReportDraft(context);
-    const completedAt = new Date().toISOString();
-    const generationUpdate = await admin
-      .from("ai_care_report_generations")
-      .update({
-        result: generated.draft,
-        token_usage: generated.usage,
-        estimated_cost_usd: generated.estimatedCostUsd,
-        status: "complete",
-        completed_at: completedAt,
-      })
-      .eq("id", generationId)
-      .eq("shop_id", owner.shopId);
-    if (generationUpdate.error) throw new OwnerApiError(generationUpdate.error.message, 500);
 
-    const saveDraft = await admin
-      .from("grooming_record_drafts")
-      .update({
-        care_report_ai_draft: generated.draft,
-        care_report_generation_id: generationId,
-        care_report_owner_confirmed_at: null,
-        updated_at: completedAt,
-      })
-      .eq("id", draftResult.data.id)
-      .eq("shop_id", owner.shopId);
-    if (saveDraft.error) throw new OwnerApiError(saveDraft.error.message, 500);
-
-    return NextResponse.json({
-      generationId,
-      status: "draft",
+    return ownerMobileCorsJson(request, {
+      generationId: input.clientGenerationId ?? `generation-preview-${generated.inputHash.slice(0, 24)}`,
+      status: "preview",
       careReport: generated.draft,
+      sourceFactCitations: generated.sourceFactCitations,
+      generation: {
+        schemaVersion: "care-report-v2",
+        promptVersion: "care-report-facts-v2",
+        model: generated.model,
+        generationId: input.clientGenerationId ?? `generation-preview-${generated.inputHash.slice(0, 24)}`,
+        inputHash: generated.inputHash,
+      },
       usage: generated.usage,
       estimatedCostUsd: generated.estimatedCostUsd,
-    });
+    }, { headers: { "Cache-Control": "no-store" } }, CARE_REPORTS_CORS);
   } catch (error) {
-    if (generationId) {
-      const admin = getSupabaseAdmin();
-      await admin
-        ?.from("ai_care_report_generations")
-        .update({
-          status: "error",
-          error_code: generationErrorCode(error),
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", generationId);
-    }
-    return errorResponse(error, "AI 케어리포트 초안을 만들지 못했습니다.");
+    return errorResponse(request, error, "AI 케어리포트 초안을 만들지 못했습니다. 입력한 내용은 유지되었어요. 다시 시도해 주세요.");
   }
 }
 
@@ -343,7 +274,7 @@ export async function PATCH(request: NextRequest) {
     const confirmedAt = new Date().toISOString();
     const draftLookup = await admin
       .from("grooming_record_drafts")
-      .select("care_report_ai_draft,care_report_generation_id,care_report_observations")
+      .select("care_report_ai_draft,care_report_generation_id,care_report_observations,care_report_voice_transcript")
       .eq("shop_id", owner.shopId)
       .eq("appointment_id", appointment.id)
       .maybeSingle();
@@ -357,7 +288,7 @@ export async function PATCH(request: NextRequest) {
       .maybeSingle();
     if (finalLookup.error) throw new OwnerApiError(finalLookup.error.message, 500);
 
-    if (input.action !== "publish_basic" && !draftLookup.data?.care_report_ai_draft && !finalLookup.data?.care_report_data) {
+    if (input.action === "publish" && !draftLookup.data?.care_report_ai_draft && !finalLookup.data?.care_report_data) {
       throw new OwnerApiError("먼저 AI 초안을 만들어 주세요.", 409);
     }
 
@@ -365,26 +296,76 @@ export async function PATCH(request: NextRequest) {
       ? await buildBasicCareReport(appointment)
       : input.careReport;
     if (!careReport) throw new OwnerApiError("케어리포트 내용을 확인해 주세요.", 400);
+    assertCareReportDraftPiiFree(careReport);
 
     if (input.action === "save_draft") {
-      if (!draftLookup.data) {
-        throw new OwnerApiError("임시저장할 케어리포트 초안을 찾지 못했습니다.", 409);
+      const sourceText = input.careReportSourceText === undefined
+        ? draftLookup.data?.care_report_voice_transcript ?? ""
+        : prepareCareReportSourceText(input.careReportSourceText);
+      const normalizedObservations = input.careReportObservations
+        ? sanitizeCareReportObservations(input.careReportObservations)
+        : careReportObservationsSchema.parse(draftLookup.data?.care_report_observations ?? emptyCareReportObservations);
+      const savePayloadFingerprint = hashCareReportSavePayload(serializeCareReportSavePayload({
+        careReport,
+        observations: normalizedObservations,
+        sourceText,
+        photoConsent: input.photoConsent,
+      }));
+      const saveRequestId = input.saveRequestId ?? `save-mobile-${savePayloadFingerprint.slice(0, 24)}`;
+      const existingObservations = careReportObservationsSchema.safeParse(draftLookup.data?.care_report_observations);
+      const existingRequestId = existingObservations.success ? existingObservations.data.saveRequestId : undefined;
+      const existingFingerprint = existingObservations.success ? existingObservations.data.savePayloadFingerprint : undefined;
+      const replayDecision = decideCareReportSaveReplay({
+        requestId: saveRequestId,
+        fingerprint: savePayloadFingerprint,
+        existingRequestId,
+        existingFingerprint,
+      });
+      if (replayDecision === "conflict") {
+          throw new OwnerApiError("같은 저장 요청의 내용이 달라 저장하지 않았습니다. 내용을 확인한 뒤 다시 저장해 주세요.", 409);
       }
+      if (replayDecision === "replay") {
+        return ownerMobileCorsJson(request, {
+          status: "draft",
+          savedAt: new Date().toISOString(),
+          careReport,
+          savePayloadFingerprint,
+          idempotent: true,
+        }, {
+          headers: { "Cache-Control": "private, no-store, max-age=0" },
+        }, CARE_REPORTS_CORS);
+      }
+
+      const persistedObservations = careReportObservationsSchema.parse({
+        ...normalizedObservations,
+        saveRequestId,
+        savePayloadFingerprint,
+      });
 
       const savedAt = new Date().toISOString();
       const draftUpdate = await admin
         .from("grooming_record_drafts")
-        .update({
+        .upsert({
+          shop_id: owner.shopId,
+          appointment_id: appointment.id,
+          guardian_id: appointment.guardian_id,
+          pet_id: appointment.pet_id,
           care_report_ai_draft: careReport,
+          care_report_observations: persistedObservations,
+          care_report_voice_transcript: sourceText,
           care_report_photo_consent: input.photoConsent,
           care_report_owner_confirmed_at: null,
+          created_by_user_id: owner.userId,
           updated_at: savedAt,
-        })
-        .eq("shop_id", owner.shopId)
-        .eq("appointment_id", appointment.id);
+        }, { onConflict: "appointment_id" });
       if (draftUpdate.error) throw new OwnerApiError(draftUpdate.error.message, 500);
 
-      return NextResponse.json({ status: "draft", savedAt, careReport });
+      return ownerMobileCorsJson(
+        request,
+        { status: "draft", savedAt, careReport, savePayloadFingerprint },
+        undefined,
+        CARE_REPORTS_CORS,
+      );
     }
 
     if (!finalLookup.data) {
@@ -405,12 +386,16 @@ export async function PATCH(request: NextRequest) {
       throw new OwnerApiError(publishResult.error.message, 500);
     }
 
-    return NextResponse.json({
+    return ownerMobileCorsJson(request, {
       status: input.action === "publish_basic" ? "published_basic" : "published",
       confirmedAt,
       careReport,
-    });
+    }, undefined, CARE_REPORTS_CORS);
   } catch (error) {
-    return errorResponse(error, "케어리포트 확인 상태를 저장하지 못했습니다.");
+    return errorResponse(request, error, "케어리포트를 저장하지 못했습니다. 입력한 내용은 유지되었어요. 다시 시도해 주세요.");
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return ownerMobileCorsPreflight(request, CARE_REPORTS_CORS);
 }

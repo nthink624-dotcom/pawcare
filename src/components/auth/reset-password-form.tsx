@@ -4,13 +4,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
+import { createBoundedAbortController, type BoundedAbortController } from "@/lib/auth/bounded-abort-controller";
 import { env, hasPortoneBrowserEnv } from "@/lib/env";
 import { ownerPasswordResetSchema, type OwnerPasswordResetInput } from "@/lib/auth/owner-password-reset";
-import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
+import {
+  IDENTITY_API_TIMEOUT_MS,
+  PORTONE_IDENTITY_UI_TIMEOUT_MS,
+  requestPortoneIdentityVerification,
+} from "@/lib/portone/identity-verification-client";
 
 function FieldShell({
   label,
@@ -43,6 +48,8 @@ type ApiMessage = {
   available?: boolean;
   message?: string;
   verificationRequestId?: string | null;
+  providerIdentityVerificationId?: string | null;
+  verificationState?: string | null;
   verificationToken?: string | null;
 };
 
@@ -67,6 +74,11 @@ export default function ResetPasswordForm({
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<ResetStep>("account");
+  const identityApiAbortControllerRef = useRef<AbortController | null>(null);
+  const identityUiAbortControllerRef = useRef<AbortController | null>(null);
+  const identityAttemptIdRef = useRef(0);
+  const passwordResetAbortControllerRef = useRef<AbortController | null>(null);
+  const passwordResetAttemptIdRef = useRef(0);
 
   const {
     register,
@@ -96,6 +108,12 @@ export default function ResetPasswordForm({
     }
   };
 
+  useEffect(() => () => {
+    identityApiAbortControllerRef.current?.abort();
+    identityUiAbortControllerRef.current?.abort();
+    passwordResetAbortControllerRef.current?.abort();
+  }, []);
+
   const goBack = () => {
     setMessage(null);
     if (step === "account") {
@@ -113,16 +131,25 @@ export default function ResetPasswordForm({
   };
 
   const startIdentityVerification = async () => {
+    if (identityApiAbortControllerRef.current || identityUiAbortControllerRef.current) return;
     const isValid = await trigger("email");
     if (!isValid) return;
     const values = getValues();
+    const identityAttemptId = ++identityAttemptIdRef.current;
+    let apiTimeout: BoundedAbortController | null = createBoundedAbortController(IDENTITY_API_TIMEOUT_MS);
+    let uiTimeout: BoundedAbortController | null = null;
+    identityApiAbortControllerRef.current = apiTimeout.controller;
+    const isCurrentIdentityAttempt = () => identityAttemptIdRef.current === identityAttemptId;
 
     setLoading(true);
     setMessage(null);
 
     try {
-      const emailCheckResponse = await fetch(`/api/auth/check-email?email=${encodeURIComponent(values.email)}`);
+      const emailCheckResponse = await fetch(`/api/auth/check-email?email=${encodeURIComponent(values.email)}`, {
+        signal: apiTimeout.controller.signal,
+      });
       const emailCheck = (await emailCheckResponse.json().catch(() => ({}))) as ApiMessage;
+      if (!isCurrentIdentityAttempt() || apiTimeout.controller.signal.aborted) return;
 
       if (!emailCheckResponse.ok) {
         setMessage("이메일을 확인하는 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.");
@@ -130,7 +157,7 @@ export default function ResetPasswordForm({
       }
 
       if (emailCheck.available) {
-        setMessage("입력한 이메일을 확인해 주세요.");
+        setMessage("본인인증을 준비하지 못했어요. 이메일을 확인하고 다시 시도해 주세요.");
         return;
       }
 
@@ -143,6 +170,7 @@ export default function ResetPasswordForm({
       const requestResponse = await fetch("/api/auth/request-verification-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: apiTimeout.controller.signal,
         body: JSON.stringify({
           email: values.email,
           purpose: "reset-password",
@@ -150,21 +178,36 @@ export default function ResetPasswordForm({
         }),
       });
       const requestResult = (await requestResponse.json()) as ApiMessage;
+      if (!isCurrentIdentityAttempt() || apiTimeout.controller.signal.aborted) return;
 
-      if (!requestResponse.ok || !requestResult.verificationRequestId) {
-        setMessage(requestResult.message ?? "본인확인 요청을 준비하지 못했어요.");
+      if (
+        !requestResponse.ok ||
+        !requestResult.verificationRequestId ||
+        !requestResult.providerIdentityVerificationId ||
+        !requestResult.verificationState
+      ) {
+        setMessage("본인인증 요청을 준비하지 못했어요. 다시 시도해 주세요.");
         setStep("account");
         return;
       }
 
-      const identityVerificationId = `resetpw${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
+      apiTimeout.dispose();
+      apiTimeout = null;
+      identityApiAbortControllerRef.current = null;
 
+      uiTimeout = createBoundedAbortController(PORTONE_IDENTITY_UI_TIMEOUT_MS);
+      identityUiAbortControllerRef.current = uiTimeout.controller;
       const result = await requestPortoneIdentityVerification({
-        storeId: env.portoneStoreId,
-        channelKey: env.portoneIdentityKcpChannelKey,
-        identityVerificationId,
-        windowType: { pc: "POPUP", mobile: "POPUP" },
-      });
+          storeId: env.portoneStoreId,
+          channelKey: env.portoneIdentityKcpChannelKey,
+          identityVerificationId: requestResult.providerIdentityVerificationId,
+          customData: JSON.stringify({ petmanagerIdentityState: requestResult.verificationState }),
+          windowType: { pc: "POPUP", mobile: "POPUP" },
+        }, {
+          signal: uiTimeout.controller.signal,
+          timeoutMs: PORTONE_IDENTITY_UI_TIMEOUT_MS,
+        });
+      if (!isCurrentIdentityAttempt() || uiTimeout.controller.signal.aborted) return;
 
       if (!result?.identityVerificationId) {
         setMessage("휴대폰 본인인증이 완료되지 않았어요.");
@@ -172,19 +215,28 @@ export default function ResetPasswordForm({
         return;
       }
 
+      uiTimeout.dispose();
+      uiTimeout = null;
+      identityUiAbortControllerRef.current = null;
+
+      apiTimeout = createBoundedAbortController(IDENTITY_API_TIMEOUT_MS);
+      identityApiAbortControllerRef.current = apiTimeout.controller;
       const response = await fetch("/api/auth/verify-pass", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: apiTimeout.controller.signal,
         body: JSON.stringify({
           purpose: "reset-password",
           verificationRequestId: requestResult.verificationRequestId,
           identityVerificationId: result.identityVerificationId,
+          verificationState: requestResult.verificationState,
         }),
       });
       const verifyResult = (await response.json()) as ApiMessage;
+      if (!isCurrentIdentityAttempt() || apiTimeout.controller.signal.aborted) return;
 
       if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "휴대폰 본인인증 확인에 실패했어요.");
+        setMessage("휴대폰 본인인증을 확인하지 못했어요. 다시 시도해 주세요.");
         setStep("account");
         return;
       }
@@ -192,14 +244,26 @@ export default function ResetPasswordForm({
       syncVerificationToken(verifyResult.verificationToken);
       setMessage(verifyResult.message ?? "휴대폰 본인인증이 완료됐어요. 새 비밀번호를 입력해 주세요.");
     } catch {
-      setMessage("본인인증을 진행하는 중 문제가 발생했어요. 다시 시도해 주세요.");
+      if (identityAttemptIdRef.current !== identityAttemptId) return;
+      setMessage(
+        apiTimeout?.didTimeout() || uiTimeout?.didTimeout()
+          ? "본인인증 확인 시간이 길어 요청을 중단했어요. 다시 시도해 주세요."
+          : "본인인증을 진행하지 못했어요. 다시 시도해 주세요.",
+      );
       setStep("account");
     } finally {
-      setLoading(false);
+      apiTimeout?.dispose();
+      uiTimeout?.dispose();
+      if (identityAttemptIdRef.current === identityAttemptId) {
+        identityApiAbortControllerRef.current = null;
+        identityUiAbortControllerRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
   const onSubmit = handleSubmit(async (values) => {
+    if (passwordResetAbortControllerRef.current) return;
     if (!ready) {
       setMessage("로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
@@ -210,24 +274,50 @@ export default function ResetPasswordForm({
       return;
     }
 
+    const passwordResetAttemptId = ++passwordResetAttemptIdRef.current;
+    const requestTimeout = createBoundedAbortController(IDENTITY_API_TIMEOUT_MS);
+    const requestController = requestTimeout.controller;
+    passwordResetAbortControllerRef.current = requestController;
+    const isCurrentPasswordResetAttempt = () => passwordResetAttemptIdRef.current === passwordResetAttemptId && !requestController.signal.aborted;
+    let redirectScheduled = false;
     setMessage(null);
-    const response = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
-    });
+    setLoading(true);
+    try {
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+        signal: requestController.signal,
+      });
+      const result = (await response.json().catch(() => ({}))) as ApiMessage;
+      if (!isCurrentPasswordResetAttempt()) return;
 
-    const result = (await response.json()) as ApiMessage;
-    if (!response.ok) {
-      setMessage(result.message ?? "비밀번호를 재설정하지 못했어요.");
-      return;
+      if (!response.ok) {
+        setMessage("비밀번호를 변경하지 못했어요. 다시 시도해 주세요.");
+        return;
+      }
+
+      setMessage(result.message ?? "비밀번호가 변경됐어요. 새 비밀번호로 다시 로그인해 주세요.");
+      redirectScheduled = true;
+      window.setTimeout(() => {
+        if (!isCurrentPasswordResetAttempt()) return;
+        router.replace("/login?message=reset-success");
+        router.refresh();
+      }, 900);
+    } catch {
+      if (passwordResetAttemptIdRef.current !== passwordResetAttemptId) return;
+      setMessage(
+        requestController.signal.aborted
+          ? "비밀번호 변경 시간이 길어 요청을 중단했어요. 다시 시도해 주세요."
+          : "비밀번호를 변경하지 못했어요. 다시 시도해 주세요.",
+      );
+    } finally {
+      requestTimeout.dispose();
+      if (passwordResetAttemptIdRef.current === passwordResetAttemptId && !redirectScheduled) {
+        passwordResetAbortControllerRef.current = null;
+        setLoading(false);
+      }
     }
-
-    setMessage(result.message ?? "비밀번호가 변경됐어요. 새 비밀번호로 다시 로그인해 주세요.");
-    window.setTimeout(() => {
-      router.replace("/login?message=reset-success");
-      router.refresh();
-    }, 900);
   });
 
   const firstError =
@@ -336,7 +426,7 @@ export default function ResetPasswordForm({
         </div>
 
         {notice && step !== "preparing" ? (
-          <p className="mt-4 mb-3 rounded-[10px] border border-[#fecaca] bg-white px-4 py-3 text-[13px] leading-5 text-[#c7493f]">{notice}</p>
+          <p aria-live="polite" className="mt-4 mb-3 rounded-[10px] border border-[#fecaca] bg-white px-4 py-3 text-[13px] leading-5 text-[#c7493f]">{notice}</p>
         ) : null}
 
         {step === "account" ? (
@@ -344,9 +434,9 @@ export default function ResetPasswordForm({
             type="button"
             onClick={() => void startIdentityVerification()}
             disabled={loading}
-            className="mt-6 flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
+            className="mt-6 flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] active:translate-y-px disabled:opacity-60"
           >
-            다음
+            {loading ? "확인 중..." : "다음"}
           </button>
         ) : null}
 
@@ -354,9 +444,9 @@ export default function ResetPasswordForm({
           <button
             type="submit"
             disabled={loading || isSubmitting || !verificationToken}
-            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
+            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] active:translate-y-px disabled:opacity-60"
           >
-            비밀번호 변경
+            {loading || isSubmitting ? "변경 중..." : "비밀번호 변경"}
           </button>
         ) : null}
       </form>

@@ -166,6 +166,26 @@ assertIncludes(
   "readOwnerAuthTokenCache",
   "Authenticated API calls must use owner access-token cache as a final recovery path.",
 );
+assertIncludes(
+  "src/lib/api.ts",
+  "error.status !== 401",
+  "Authenticated API recovery must use the HTTP status instead of matching a translated message.",
+);
+assertIncludes(
+  "src/lib/api.ts",
+  "clearOwnerAccessTokenCache()",
+  "A rejected access token must preserve the refresh credential for one recovery attempt.",
+);
+assertIncludes(
+  "src/app/api/bootstrap/route.ts",
+  'searchParams.get("phase") === "essential"',
+  "Owner bootstrap must expose an authorized essential phase for first usable paint.",
+);
+assertIncludes(
+  "src/app/api/bootstrap/route.ts",
+  "const owner = await requireOwnerShop",
+  "Every owner bootstrap phase must retain authorization and subscription enforcement.",
+);
 
 assertFile("scripts/smoke-owner-login.cjs", "Owner login API smoke test must exist.");
 assertFile("tests/e2e/owner-login.spec.ts", "Owner login browser E2E test must exist.");

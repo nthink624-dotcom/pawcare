@@ -8,7 +8,14 @@ import {
   BreedManagementDialog,
 } from "@/components/owner-web/service-price-guide-group-dialogs";
 import { ServicePriceGuideSectionCard } from "@/components/owner-web/service-price-guide-section-card";
+import PriceGuideV2ServiceDetail, { isFixedManualPriceGuideDocument } from "@/components/owner-web/price-guide-v2-service-detail";
+import { buildPriceGuideV2Compatibility } from "@/lib/auth/signup-service-pricing";
 import { cn } from "@/lib/utils";
+import {
+  ensurePriceGuideV2SourceItemIds,
+  priceGuideV2Schema,
+  type PriceGuideV2,
+} from "@/types/price-guide-photo-import";
 
 export type ServicePriceGuideCell = {
   price: string;
@@ -48,6 +55,8 @@ export type ServicePriceGuide = {
   sections?: ServicePriceGuideSection[];
   extraNote: string;
   extraFees: ServicePriceGuideExtraFee[];
+  /** Read-only canonical source for signup PriceGuideV2 rows. */
+  canonicalV2?: PriceGuideV2;
 };
 
 type DeleteTarget =
@@ -433,7 +442,59 @@ export function buildDefaultServicePriceGuide(): ServicePriceGuide {
   };
 }
 
+export function buildDefaultPriceGuideV2Draft(): PriceGuideV2 {
+  const sections = cloneDefaultSections()
+    .filter((section) => section.species === "dog")
+    .slice(0, 3);
+
+  return {
+    schemaVersion: 2,
+    source: "manual",
+    overallNote: defaultExtraNote,
+    rows: sections.flatMap((section) => section.items.flatMap((item) => section.weightBands.map((weightBand) => {
+      const cell = item.cells[weightBand];
+      const maxKg = Number(weightBand.match(/[0-9]+(?:\.[0-9]+)?/)?.[0] ?? "");
+      const priceMinKrw = Number(cell?.price.replace(/[^0-9]/g, "") ?? "");
+      const durationMinutes = Number(cell?.durationMinutes.replace(/[^0-9]/g, "") ?? "");
+      return {
+        serviceName: item.label,
+        species: "dog" as const,
+        breedNames: getBreedLabels(section.note),
+        breedGroup: section.title,
+        sizeClass: "all" as const,
+        minKg: null,
+        maxKg: Number.isFinite(maxKg) && maxKg > 0 ? maxKg : null,
+        priceKind: "fixed" as const,
+        priceMinKrw: Number.isFinite(priceMinKrw) && priceMinKrw > 0 ? priceMinKrw : null,
+        priceMaxKrw: null,
+        durationMinutes: Number.isFinite(durationMinutes) && durationMinutes > 0 ? durationMinutes : null,
+        note: null,
+      };
+    }))),
+    surcharges: [],
+    aiReview: [],
+  };
+}
+
 export function normalizeServicePriceGuide(value: unknown): ServicePriceGuide {
+  const rootDocument = priceGuideV2Schema.safeParse(value);
+  const nestedDocument =
+    !rootDocument.success && value && typeof value === "object"
+      ? priceGuideV2Schema.safeParse((value as Partial<ServicePriceGuide>).canonicalV2)
+      : null;
+  const canonicalV2 = rootDocument.success
+    ? ensurePriceGuideV2SourceItemIds(rootDocument.data)
+    : nestedDocument?.success
+      ? ensurePriceGuideV2SourceItemIds(nestedDocument.data)
+      : null;
+
+  if (canonicalV2) {
+    return {
+      ...buildPriceGuideV2Compatibility(canonicalV2).guide,
+      canonicalV2,
+    };
+  }
+
   const fallback = buildDefaultServicePriceGuide();
   if (!value || typeof value !== "object") return fallback;
 
@@ -450,6 +511,11 @@ export function normalizeServicePriceGuide(value: unknown): ServicePriceGuide {
         : fallback.extraNote,
     extraFees: normalizeExtraFees(source.extraFees),
   };
+}
+
+export function serializeServicePriceGuide(value: unknown): ServicePriceGuide | PriceGuideV2 {
+  const normalized = normalizeServicePriceGuide(value);
+  return normalized.canonicalV2 ?? normalized;
 }
 
 export function summarizeServicePriceGuide(guide: ServicePriceGuide) {
@@ -469,7 +535,10 @@ export function ServicePriceGuideEditor({
   showEnabledToggle = true,
 }: {
   value: ServicePriceGuide;
-  onChange: (value: ServicePriceGuide, options?: { saveImmediately?: boolean }) => void;
+  onChange: (
+    value: ServicePriceGuide,
+    options?: { saveImmediately?: boolean },
+  ) => void | boolean | Promise<void | boolean>;
   framed?: boolean;
   showHeader?: boolean;
   showEnabledToggle?: boolean;
@@ -480,6 +549,18 @@ export function ServicePriceGuideEditor({
   const [deleteHistory, setDeleteHistory] = useState<ServicePriceGuideSection[][]>([]);
   const [editingSectionIds, setEditingSectionIds] = useState<string[]>([]);
   const [sectionDialog, setSectionDialog] = useState<SectionDialog | null>(null);
+
+  if (guide.canonicalV2) {
+    const v2Content = (
+      <PriceGuideV2ServiceDetail
+        document={guide.canonicalV2}
+        onSave={(document) => onChange(normalizeServicePriceGuide(document), { saveImmediately: true })}
+        manualMatrixMode={isFixedManualPriceGuideDocument(guide.canonicalV2)}
+      />
+    );
+    if (!framed) return v2Content;
+    return <section className="rounded-[10px] border border-[#dbe2ea] bg-white p-4">{v2Content}</section>;
+  }
 
   function updateSections(nextSections: ServicePriceGuideSection[], saveImmediately = false) {
     onChange({

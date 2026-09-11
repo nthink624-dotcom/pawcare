@@ -167,6 +167,7 @@ const rejectionReasonTemplates = [
 const directRejectionReasonTemplate = rejectionReasonTemplates[4];
 
 const statusMeta: Partial<Record<AppointmentStatus, { label: string; color: string; bg: string }>> = {
+  pending: { label: "예약 대기", color: "#8a5b11", bg: "#fffaf0" },
   confirmed: { label: "\uD655\uC815", color: "#2f6bd4", bg: "#eef4ff" },
   in_progress: { label: "\uBBF8\uC6A9\uC911", color: "#2f6bd4", bg: "#eef4ff" },
   almost_done: { label: "\uD53D\uC5C5 \uC900\uBE44", color: "#4f5d73", bg: "#f3f6fb" },
@@ -333,6 +334,12 @@ export default function OwnerApp({
   const [pendingShopProfileEditId, setPendingShopProfileEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bottomNavRef = useRef<HTMLElement | null>(null);
+  const customerDeleteActionRef = useRef<HTMLDivElement | null>(null);
+  const [customerDeleteChromeMetrics, setCustomerDeleteChromeMetrics] = useState<{
+    navHeight: number;
+    actionHeight: number;
+  } | null>(null);
   const [ownerPageOrigin, setOwnerPageOrigin] = useState("");
   const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
   const [isGuardianEditing, setIsGuardianEditing] = useState(false);
@@ -1841,6 +1848,37 @@ export default function OwnerApp({
   const allFilteredGuardiansSelected =
     filteredGuardians.length > 0 && filteredGuardians.every((summary) => selectedGuardianIds.includes(summary.guardian.id));
   const selectedGuardianCount = selectedGuardianIds.length;
+  const isCustomerDeleteActionVisible =
+    activeTab === "customers" && !selectedGuardian && isCustomerListEditing && filteredGuardians.length > 0;
+
+  useEffect(() => {
+    if (!isCustomerDeleteActionVisible) {
+      setCustomerDeleteChromeMetrics(null);
+      return;
+    }
+
+    const bottomNav = bottomNavRef.current;
+    const deleteAction = customerDeleteActionRef.current;
+    if (!bottomNav || !deleteAction) return;
+
+    const measureChrome = () => {
+      const nextMetrics = {
+        navHeight: Math.ceil(bottomNav.getBoundingClientRect().height),
+        actionHeight: Math.ceil(deleteAction.getBoundingClientRect().height),
+      };
+      setCustomerDeleteChromeMetrics((currentMetrics) =>
+        currentMetrics?.navHeight === nextMetrics.navHeight && currentMetrics.actionHeight === nextMetrics.actionHeight
+          ? currentMetrics
+          : nextMetrics,
+      );
+    };
+    const resizeObserver = new ResizeObserver(measureChrome);
+    resizeObserver.observe(bottomNav);
+    resizeObserver.observe(deleteAction);
+    measureChrome();
+
+    return () => resizeObserver.disconnect();
+  }, [isCustomerDeleteActionVisible]);
   const selectedGuardianPetNames = selectedGuardianPets.map((pet) => pet.name).join(", ");
   const customerInlineSaveButtonClass =
     "inline-flex items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[13px] font-medium tracking-[-0.01em] text-white transition disabled:opacity-45";
@@ -1952,7 +1990,21 @@ export default function OwnerApp({
       </header>
       ) : null}
 
-      <main className={cn("flex-1", isHomeTab && !isCustomerDetailView ? "min-h-0 overflow-hidden pb-0" : "overflow-y-auto pb-24")}>
+      <main
+        className={cn(
+          "flex-1",
+          isHomeTab && !isCustomerDetailView
+            ? "min-h-0 overflow-hidden pb-0"
+            : isCustomerDeleteActionVisible
+              ? "overflow-y-auto"
+              : "overflow-y-auto pb-24",
+        )}
+        style={
+          isCustomerDeleteActionVisible && customerDeleteChromeMetrics !== null
+            ? { paddingBottom: `${customerDeleteChromeMetrics.navHeight + customerDeleteChromeMetrics.actionHeight}px` }
+            : undefined
+        }
+      >
         {error && <div className="mx-4 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         {activeTab === "home" && (
@@ -2201,7 +2253,7 @@ export default function OwnerApp({
 {activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[12px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[12px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
         {activeTab === "customers" && !selectedGuardian && (
-          <section className={`space-y-4 p-4 ${isCustomerListEditing && filteredGuardians.length > 0 ? "pb-[160px]" : "pb-4"}`}>
+          <section className={`space-y-4 p-4 ${isCustomerDeleteActionVisible ? "pb-0" : "pb-4"}`}>
             {isCustomerListEditing ? (
               <CustomerDeleteSelectionPanel
                 customerSearch={customerSearch}
@@ -2301,9 +2353,23 @@ export default function OwnerApp({
             )}
           </section>
         )}
-        {activeTab === "customers" && !selectedGuardian && isCustomerListEditing && filteredGuardians.length > 0 ? (
-          <div className="fixed bottom-[74px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-[rgba(248,246,242,0.96)] px-4 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-3 backdrop-blur">
-            <ActionButton disabled={selectedGuardianCount === 0 || saving} onClick={deleteSelectedGuardians}>
+        {isCustomerDeleteActionVisible ? (
+          <div
+            ref={customerDeleteActionRef}
+            className="fixed left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white px-4 py-2"
+            style={
+              customerDeleteChromeMetrics
+                ? { bottom: `${customerDeleteChromeMetrics.navHeight}px` }
+                : { bottom: "calc(49px + env(safe-area-inset-bottom))" }
+            }
+            data-testid="customer-delete-bottom-action"
+            aria-busy={saving}
+          >
+            <ActionButton
+              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+              disabled={selectedGuardianCount === 0 || saving}
+              onClick={deleteSelectedGuardians}
+            >
               선택한 고객 삭제
             </ActionButton>
           </div>
@@ -2579,7 +2645,7 @@ export default function OwnerApp({
         {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaffMembers={(payload) => mutate("/api/staff-members", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
       </main>
 
-      <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white/95 px-2.5 pb-[calc(env(safe-area-inset-bottom)+2px)] pt-1 backdrop-blur-xl">
+      <nav ref={bottomNavRef} className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white/95 px-2.5 pb-[calc(env(safe-area-inset-bottom)+2px)] pt-1 backdrop-blur-xl">
         <div className="grid grid-cols-4 gap-1">
             {tabItems.map((item) => {
               const Icon = item.icon;
@@ -2691,6 +2757,8 @@ export default function OwnerApp({
 
 function badgeToneForAppointmentStatus(status: AppointmentStatus): "success" | "warning" | "danger" | "neutral" | "info" {
   switch (status) {
+    case "pending":
+      return "warning";
     case "confirmed":
     case "in_progress":
       return "success";
@@ -4885,11 +4953,6 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
     </div>
   );
 }
-
-
-
-
-
 
 
 

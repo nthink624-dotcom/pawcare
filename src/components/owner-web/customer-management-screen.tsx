@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Bell, CalendarPlus, Check, ChevronRight, MessageSquareText, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Bell, CalendarPlus, MessageSquareText, Trash2, X } from "lucide-react";
 
 import { BasilIcon } from "@/components/owner-web/basil-icon";
 import CustomerDetailPanel from "@/components/owner-web/customer-detail-panel";
 import { buildCustomerDetailFromBootstrap } from "@/components/owner-web/customer-detail-helpers";
 import CustomerExcelTools from "@/components/owner-web/customer-excel-tools";
+import CustomerManagementTable, { type CustomerManagementTableRow } from "@/components/owner-web/customer-management-table";
 import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
@@ -17,6 +18,7 @@ import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
 import type {
   Appointment,
   BootstrapPayload,
+  CustomerGradeOverride,
   Guardian,
   GuardianNotificationSettings,
   MediaAsset,
@@ -62,6 +64,7 @@ type NewCustomerDraft = {
   staffMemo: string;
   alertEnabled: boolean;
   needsConsultation: boolean;
+  customerGradeOverride: CustomerGradeOverride | null;
 };
 
 type OwnerMediaUploadIntentResponse = {
@@ -114,10 +117,8 @@ const emptyNewCustomerDraft: NewCustomerDraft = {
   staffMemo: "",
   alertEnabled: true,
   needsConsultation: false,
+  customerGradeOverride: null,
 };
-
-const customerListGridClass =
-  "grid-cols-[28px_minmax(138px,0.85fr)_minmax(136px,0.8fr)_minmax(150px,0.85fr)_minmax(132px,0.75fr)_minmax(170px,1fr)_40px]";
 
 function formatMonthDay(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
@@ -493,8 +494,13 @@ export default function CustomerManagementScreen({
   const [reservationSaving, setReservationSaving] = useState(false);
   const [reservationError, setReservationError] = useState("");
   const [query, setQuery] = useState("");
+  const skippedInitialBootstrapSyncRef = useRef(false);
 
   useEffect(() => {
+    if (!skippedInitialBootstrapSyncRef.current) {
+      skippedInitialBootstrapSyncRef.current = true;
+      return;
+    }
     onDataChange?.(bootstrapData);
   }, [bootstrapData, onDataChange]);
   const [sort, setSort] = useState<CustomerSort>("recentDesc");
@@ -527,6 +533,23 @@ export default function CustomerManagementScreen({
     [bootstrapData, selectedCustomerId, selectedPetId],
   );
   const displayedCustomerIds = useMemo(() => displayedCustomers.map((row) => row.id), [displayedCustomers]);
+  const managementTableRows = useMemo<CustomerManagementTableRow[]>(() => {
+    const guardianById = new Map(bootstrapData.guardians.map((guardian) => [guardian.id, guardian]));
+    return displayedCustomers.map((row) => ({
+      id: row.id,
+      registeredAt: guardianById.get(row.id)?.created_at?.slice(0, 10) || "미등록",
+      name: row.name,
+      phone: row.phone,
+      pets: row.pets,
+      shopName: bootstrapData.shop.name || "미등록",
+      memo: row.memo,
+      alertEnabled: row.alertEnabled,
+      appointmentCount: row.appointmentCount,
+      groomingCount: row.groomingCount,
+      noshowCount: row.noshowCount,
+      customerGradeOverride: guardianById.get(row.id)?.customer_grade_override ?? null,
+    }));
+  }, [bootstrapData.guardians, bootstrapData.shop.name, displayedCustomers]);
   const allDisplayedCustomersSelected =
     displayedCustomerIds.length > 0 && displayedCustomerIds.every((id) => selectedDeleteIds.includes(id));
 
@@ -595,6 +618,7 @@ export default function CustomerManagementScreen({
         phone,
         memo: nextCustomer.memo,
         enabled: newCustomerDraft.alertEnabled,
+        customerGradeOverride: newCustomerDraft.customerGradeOverride,
         pet: {
           name: petName,
           breed,
@@ -991,6 +1015,51 @@ export default function CustomerManagementScreen({
     }
   }
 
+  async function saveCustomerGuardianProfile(
+    customerId: string,
+    patch: {
+      name: string;
+      phone: string;
+      memo: string;
+      customerGradeOverride: CustomerGradeOverride | null;
+    },
+  ) {
+    const guardian = bootstrapData.guardians.find((item) => item.id === customerId);
+    const customer = customers.find((item) => item.id === customerId);
+    if (!guardian || !customer) throw new Error("고객 정보를 다시 불러온 뒤 저장해 주세요.");
+
+    let saved = false;
+    try {
+      if (isLocalOnlyCustomer(customer)) {
+        setCustomers((current) => current.map((item) => (item.id === customerId ? { ...item, name: patch.name, phone: patch.phone, memo: patch.memo, searchText: buildSearchText([patch.name, patch.phone, ...item.pets, ...item.tags]) } : item)));
+        setBootstrapData((current) => ({
+          ...current,
+          guardians: current.guardians.map((item) => (item.id === customerId ? { ...item, name: patch.name, phone: patch.phone, memo: patch.memo, customer_grade_override: patch.customerGradeOverride } : item)),
+        }));
+        return;
+      }
+
+      const savedGuardian = await patchOwnerGuardian({
+        shopId: initialData.shop.id,
+        guardianId: customerId,
+        name: patch.name,
+        phone: patch.phone,
+        memo: patch.memo,
+        customerGradeOverride: patch.customerGradeOverride,
+      });
+      saved = true;
+
+      const refreshed = await fetchApiJsonWithAuth<BootstrapPayload>(
+        `/api/bootstrap?shopId=${encodeURIComponent(initialData.shop.id)}`,
+        { cache: "no-store" },
+      );
+      setCustomers((current) => current.map((item) => (item.id === customerId ? { ...item, name: savedGuardian.name, phone: savedGuardian.phone, memo: savedGuardian.memo, searchText: buildSearchText([savedGuardian.name, savedGuardian.phone, ...item.pets, ...item.tags]) } : item)));
+      setBootstrapData(refreshed);
+    } catch {
+      throw new Error(saved ? "저장 결과를 다시 확인하지 못했습니다. 화면을 새로 고친 뒤 확인해 주세요." : "고객 분류를 저장하지 못했습니다. 기존 값은 유지되었습니다. 다시 시도해 주세요.");
+    }
+  }
+
   async function updatePetDetail(
     customerId: string,
     petId: string,
@@ -1309,7 +1378,7 @@ export default function CustomerManagementScreen({
       <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
         <div className="border-b border-[#dbe2ea] px-4 py-2">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex h-9 min-w-[320px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b] focus-within:border-[#111827]">
+            <label className="flex h-11 min-w-[320px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b] focus-within:border-[#111827]">
               <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-4 w-4 text-[#94a3b8]" />
               <input
                 value={query}
@@ -1338,7 +1407,7 @@ export default function CustomerManagementScreen({
               aria-label={deleteMode ? "고객 삭제 모드 닫기" : "고객 삭제 모드"}
               onClick={toggleDeleteMode}
               className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-[8px] border transition",
+                "inline-flex h-11 w-11 items-center justify-center rounded-[8px] border transition",
                 deleteMode
                   ? "border-[#ead9cf] bg-[#fff7ed] text-[#9a4f1f]"
                   : "border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc] hover:text-[#334155]",
@@ -1359,10 +1428,10 @@ export default function CustomerManagementScreen({
             {deleteError ? <p className="mt-1 text-[16px] font-medium text-[#b42318]">{deleteError}</p> : null}
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#334155] transition hover:bg-[#f8fafc]" disabled={deletingCustomers}>
+              <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#334155] transition hover:bg-[#f8fafc]" disabled={deletingCustomers}>
                 {allDisplayedCustomersSelected ? "선택 해제" : "전체 선택"}
               </button>
-              <button type="button" onClick={moveSelectedCustomersToDeleted} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#9f3a3a] transition hover:border-[#efcaca] hover:bg-[#fffafa] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]" disabled={selectedDeleteIds.length === 0 || deletingCustomers}>
+              <button type="button" onClick={moveSelectedCustomersToDeleted} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#9f3a3a] transition hover:border-[#efcaca] hover:bg-[#fffafa] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]" disabled={selectedDeleteIds.length === 0 || deletingCustomers}>
                 선택 삭제
               </button>
             </div>
@@ -1375,36 +1444,19 @@ export default function CustomerManagementScreen({
           </p>
         ) : null}
 
-        <div className={cn("grid border-b border-[#dbe2ea] bg-[#f1f2ef] px-4 py-3 text-center text-[16px] font-medium text-[#4f5a64]", customerListGridClass)}>
-          <span />
-          <button type="button" onClick={() => setSort((current) => (current === "nameAsc" ? "recentDesc" : "nameAsc"))} className="text-center transition hover:text-[#1f6b5b]">
-            보호자명
-          </button>
-          <span className="text-center">반려동물</span>
-          <span className="text-center">연락처</span>
-          <span className="text-center">다음 예약</span>
-          <span className="text-center">알림 수신</span>
-          <span />
-        </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {displayedCustomers.length > 0 ? (
-            displayedCustomers.map((row) => (
-              <CustomerListRow
-                key={row.id}
-                row={row}
-                selected={row.id === selectedCustomerId}
-                deleteMode={deleteMode}
-                checked={selectedDeleteIds.includes(row.id)}
-                onToggleDelete={toggleDelete}
-                onOpen={openCustomer}
-              />
-            ))
-          ) : (
-            <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
-              <p className="text-[16px] font-medium text-[#111827]">조건에 맞는 고객이 없습니다.</p>
-              <p className="mt-1 text-[16px] text-[#64748b]">검색어를 줄이거나 고객을 추가해 주세요.</p>
-            </div>
-          )}
+          <CustomerManagementTable
+            rows={managementTableRows}
+            selectedId={selectedCustomerId}
+            deleteMode={deleteMode}
+            selectedDeleteIds={selectedDeleteIds}
+            onSortByName={() => setSort((current) => (current === "nameAsc" ? "recentDesc" : "nameAsc"))}
+            onToggleDelete={toggleDelete}
+            onOpen={(id) => {
+              const customer = displayedCustomers.find((row) => row.id === id);
+              if (customer) openCustomer(customer);
+            }}
+          />
         </div>
       </section>
 
@@ -1446,6 +1498,7 @@ export default function CustomerManagementScreen({
           onSelectPet={setSelectedPetId}
           onUpdatePetBiteLevel={updatePetBiteLevel}
           onUpdateGuardian={(guardianId, patch) => updateCustomer(guardianId, patch)}
+          onSaveGuardianProfile={saveCustomerGuardianProfile}
           onUpdatePet={updatePetDetail}
           onAddPet={addPet}
           onDeletePet={removePet}
@@ -1689,6 +1742,19 @@ function NewCustomerModal({
                     className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] tabular-nums text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                   />
                 </label>
+                <label className="block">
+                  <span className="text-[16px] font-medium text-[#64748b]">등급</span>
+                  <select
+                    value={draft.customerGradeOverride ?? "auto"}
+                    onChange={(event) => patchDraft({ customerGradeOverride: event.target.value === "auto" ? null : event.target.value as CustomerGradeOverride })}
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]"
+                  >
+                    <option value="auto">자동</option>
+                    <option value="normal">일반</option>
+                    <option value="loyal">단골</option>
+                    <option value="attention">주의</option>
+                  </select>
+                </label>
               </div>
             </section>
 
@@ -1782,77 +1848,6 @@ function NewCustomerModal({
         </form>
       </aside>
     </div>
-  );
-}
-
-function CustomerListRow({
-  row,
-  selected,
-  deleteMode,
-  checked,
-  onToggleDelete,
-  onOpen,
-}: {
-  row: CustomerViewRow;
-  selected: boolean;
-  deleteMode: boolean;
-  checked: boolean;
-  onToggleDelete: (id: string) => void;
-  onOpen: (row: CustomerViewRow) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(row)}
-      className={cn(
-        "relative grid min-h-[46px] w-full items-center border-b border-[#edf2f7] px-4 text-left transition last:border-b-0",
-        customerListGridClass,
-        selected ? "bg-[#fbfcfd] shadow-[inset_0_0_0_1px_rgba(148,163,184,0.22)]" : "bg-white hover:bg-[#f8fafc]",
-      )}
-    >
-      <span className="flex items-center">
-        {deleteMode ? (
-          <span
-            role="checkbox"
-            aria-checked={checked}
-            tabIndex={0}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleDelete(row.id);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                event.stopPropagation();
-                onToggleDelete(row.id);
-              }
-            }}
-            className={cn(
-              "inline-flex h-5 w-5 items-center justify-center rounded-[5px] border",
-              checked ? "border-[#2f7866] bg-[#2f7866] text-white" : "border-[#cbd5e1] bg-white",
-            )}
-          >
-            {checked ? <Check className="h-3.5 w-3.5" /> : null}
-          </span>
-        ) : (
-          <span className={row.noshowCount >= 2 ? getDotIndicatorClass("burgundy") : row.alertEnabled ? getDotIndicatorClass("teal") : getDotIndicatorClass("neutral")} />
-        )}
-      </span>
-      <span className="min-w-0 text-center">
-        <span className="block truncate text-[16px] font-normal text-[#334155]">{row.name}</span>
-      </span>
-      <span className="truncate text-center text-[16px] font-normal text-[#334155]">{row.pets.join(", ")}</span>
-      <span className="truncate text-center text-[16px] font-normal tabular-nums text-[#334155]">{formatPhoneNumber(row.phone)}</span>
-      <span className={cn("truncate text-center text-[16px] font-normal", row.nextBookingDate ? "text-[#334155]" : "text-[#94a3b8]")}>{row.nextBooking}</span>
-      <span className="flex min-w-0 justify-center">
-        <span className={cn("inline-flex h-7 items-center rounded-full px-2.5 text-[16px] font-normal", row.alertEnabled ? "bg-[#eef7f4] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]")}>
-          {row.alertEnabled ? "수신" : "중지"}
-        </span>
-      </span>
-      <span className="flex justify-end">
-        <ChevronRight className="h-4 w-4 text-[#94a3b8]" />
-      </span>
-    </button>
   );
 }
 

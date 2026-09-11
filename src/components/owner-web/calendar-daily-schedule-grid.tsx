@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, DragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -11,7 +11,8 @@ import {
 import { CalendarStaffLaneHeader } from "@/components/owner-web/calendar-staff-lane-header";
 import { CalendarTimeRail, CalendarTimeRailHeader } from "@/components/owner-web/calendar-time-rail";
 import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
-import { getStaffChipTone } from "@/lib/staff-chip-colors";
+import { statusIndicatorColor, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
+import { getScheduleStaffIdentityTone } from "@/lib/staff-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { StaffScheduleOverride } from "@/types/domain";
 
@@ -53,9 +54,11 @@ type DailyBooking = {
   sourceStatus?: string;
   start: number;
   duration: number;
+  memo?: string;
   staffKey: StaffKey;
   actualTimeLabel?: string;
   scheduledTimeLabel?: string;
+  staleGroomingSession?: boolean;
   displayMode?: "reservation-chip";
   sourceAppointmentId?: string;
 };
@@ -63,12 +66,14 @@ type DailyBooking = {
 const scheduleStartHour = 0;
 const scheduleEndHour = 24;
 const pixelsPerHour = 86.4;
+const minimumBookingCardHitTarget = 44;
 const scheduleBodyInsetY = 7;
 const quarterSlotHeight = pixelsPerHour / 4;
 const scheduleSnapSegmentsPerHour = 4;
 const expandableBookingDurationMax = 0.25;
 const bookingCardWidth = "96%";
 const bookingCardHorizontalInset = "2%";
+const requestNoteMinimumDuration = 0.75;
 
 function formatHourLabel(hour: number) {
   const fullHour = Math.floor(hour);
@@ -101,7 +106,8 @@ function isChangeBookingStatus(status: string) {
 }
 
 function getTimedBookingStatus(booking: DailyBooking, selectedDate: string, currentHour: number) {
-  const today = new Date().toLocaleDateString("en-CA");
+  const today = currentDateInTimeZone();
+  if (booking.staleGroomingSession && isActiveBookingStatus(booking.status)) return "완료 확인 필요";
   if (booking.status === "확정") {
     if (selectedDate < today) return "방문 확인 필요";
     if (selectedDate === today && currentHour >= booking.start) return "방문 확인 필요";
@@ -126,18 +132,19 @@ function getBookingCardTone(booking: Pick<DailyBooking, "service">): BookingCard
 function getBookingCardToneClass(tone: BookingCardTone) {
   void tone;
   return cn(
-    "border border-l-[3px] border-[#dbe3ec] border-l-[#b9c3cf] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition-[background-color,box-shadow,border-color] hover:border-[#c8d4e1] hover:bg-[#fbfdff] hover:shadow-[0_5px_14px_rgba(15,23,42,0.07)]",
+    "border border-l-[3px] border-[#dbe3ec] bg-[#fffefd] shadow-none transition-[background-color,border-color,box-shadow] hover:border-[#c8d4e1] hover:bg-white hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
   );
 }
 
-function getBookingStatusEdgeClass(status: string) {
-  if (status === "확정") return "border-l-[#1f9d55]";
-  if (status === "진행 중") return "border-l-[#2563eb]";
-  if (status === "픽업 준비") return "border-l-[#7c3aed]";
-  if (status === "완료") return "border-l-[#64748b]";
-  if (status.includes("변경") || status === "방문 확인 필요" || status === "완료 확인 필요") return "border-l-[#b98121]";
-  if (status.includes("취소") || status.includes("거절") || status.includes("노쇼")) return "border-l-[#a04455]";
-  return "border-l-[#b9c3cf]";
+function getBookingStatusEdgeTone(status: string): StatusIndicatorTone {
+  if (status.includes("대기") || status.includes("예정")) return "pending";
+  if (status === "확정") return "confirmed";
+  if (status === "진행 중") return "active";
+  if (status === "픽업 준비") return "pickupReady";
+  if (status === "완료") return "completed";
+  if (status.includes("변경") || status === "방문 확인 필요" || status === "완료 확인 필요") return "changed";
+  if (status.includes("취소") || status.includes("거절") || status.includes("노쇼")) return "cancelled";
+  return "neutral";
 }
 
 function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, currentHour: number) {
@@ -231,7 +238,7 @@ function isBookingVisibleInDisplayLayout(booking: { start: number }, layout: Sch
 }
 
 function getBookingHeight(duration: number) {
-  return Math.max(24, duration * pixelsPerHour - 4);
+  return Math.max(minimumBookingCardHitTarget, duration * pixelsPerHour - 4);
 }
 
 function getBookingCardDensity(duration: number) {
@@ -368,10 +375,6 @@ export function DailyScheduleGrid({
       ? "0 0 25%"
       : `0 0 calc(100% / ${columnCount})`;
   const scheduleTrackStyle = scheduleTrackWidth ? { width: scheduleTrackWidth, minWidth: scheduleTrackWidth } : undefined;
-  const selectedTimeRailStaff = selectedStaffKey
-    ? scheduleLaneColumns.flatMap((laneColumn) => laneColumn.segments).find((item) => item.key === selectedStaffKey)
-    : null;
-  const timeRailTone = getStaffChipTone(selectedTimeRailStaff?.key, selectedTimeRailStaff?.chipColorIndex);
   const displayedVisibleBookings = resizingBooking
     ? visibleBookings.map((booking) =>
         booking.id === resizingBooking.bookingId ? { ...booking, duration: resizingBooking.nextDuration } : booking,
@@ -391,15 +394,22 @@ export function DailyScheduleGrid({
     ),
   );
 
-  function renderScheduleLines(prefix: string) {
+  function renderScheduleLines(prefix: string, selected = false) {
     return scheduleDisplayLayout.segments.flatMap((segment) => {
       const segmentCount = Math.round((segment.end - segment.start) * 4);
       return Array.from({ length: segmentCount + 1 }).map((_, index) => (
         <div
           key={`${prefix}-line-${segment.key}-${index}`}
+          data-schedule-time-grid-line={selected ? "selected" : "default"}
           className={cn(
             "absolute left-0 right-0 border-t",
-            index % 4 === 0 ? "border-[#f1f4f7]" : "border-[#f8fafc]",
+            index % 4 === 0
+              ? selected
+                ? "border-[#d6e0ea]"
+                : "border-[#dfe8f2]"
+              : selected
+                ? "border-[#e8eef5]"
+                : "border-[#eef4f9]",
           )}
           style={{ top: segment.top + index * quarterSlotHeight }}
         />
@@ -627,7 +637,7 @@ export function DailyScheduleGrid({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#f8fafc] p-2">
+    <div data-schedule-board-grid="true" className="flex min-h-0 flex-1 flex-col bg-white">
       <style>{`
         .pm-schedule-y-scroll {
           scrollbar-width: none;
@@ -637,8 +647,8 @@ export function DailyScheduleGrid({
           width: 0;
         }
       `}</style>
-      <div className="flex shrink-0 overflow-hidden rounded-t-[14px] border border-[#e3eaf2] bg-white">
-        <CalendarTimeRailHeader tone={timeRailTone} />
+      <div className="flex shrink-0 overflow-hidden border-b border-[#e3eaf2] bg-white">
+            <CalendarTimeRailHeader />
         <div
           ref={headerScrollerRef}
           onScroll={() => syncHorizontalScroll("header")}
@@ -657,6 +667,7 @@ export function DailyScheduleGrid({
                   staffKey={primaryStaff?.key ?? laneColumn.key}
                   chipColorIndex={primaryStaff?.chipColorIndex}
                   profileImageUrl={primaryStaff?.profileImageUrl}
+                  profileImageAssetId={primaryStaff?.profileImageAssetIds?.[0]}
                   startLabel={primaryStaff ? formatHourLabel(primaryStaff.start) : undefined}
                   endLabel={primaryStaff ? formatHourLabel(primaryStaff.end) : undefined}
                   bookingCount={laneBookings.length}
@@ -679,7 +690,7 @@ export function DailyScheduleGrid({
         onPointerUp={stopBoardPan}
         onPointerCancel={stopBoardPan}
         className={cn(
-          "pm-schedule-y-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-b-[14px] border border-t-0 border-[#e3eaf2] bg-[#fbfcfe] select-none",
+          "pm-schedule-y-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-white select-none",
           boardPanning && "cursor-grabbing snap-none",
           !boardPanning && scrollable && "cursor-grab",
         )}
@@ -693,7 +704,6 @@ export function DailyScheduleGrid({
             showCurrentTime={showCurrentTime}
             currentTimeTop={currentTimeTop}
             currentHour={currentHour}
-            tone={timeRailTone}
           />
 
           <div
@@ -718,9 +728,12 @@ export function DailyScheduleGrid({
                   .sort((a, b) => a.start - b.start);
                 const bookingLayouts = getStaffBookingLayouts(laneBookings);
                 const firstStaffKey = laneColumn.segments[0]?.key ?? laneColumn.staffKeys[0] ?? laneColumn.key;
+                const selectedLane = Boolean(selectedStaffKey && laneColumn.staffKeys.includes(selectedStaffKey));
                 return (
                   <section
                     key={laneColumn.key}
+                    data-schedule-staff-column={firstStaffKey}
+                    data-schedule-staff-selected={selectedLane ? "true" : "false"}
                     onClick={() => {
                       const activeSegment =
                         laneColumn.segments.find((segment) => currentHour >= segment.start && currentHour < segment.end) ??
@@ -730,24 +743,37 @@ export function DailyScheduleGrid({
                     onDragOver={handleColumnDragOver}
                     onDrop={(event) => handleColumnDrop(event, laneColumn)}
                     className={cn(
-                      "min-w-0 cursor-pointer border border-l-0 border-t-0 border-[#edf1f5] bg-[#fbfcfe] p-0 transition",
-                       draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
+                      "min-w-[240px] cursor-pointer border border-l-0 border-t-0 border-[#dfe8f2] bg-white p-0 transition",
+                      selectedLane && "border-[#d6e0ea] bg-white",
+                      draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
                     )}
                     style={{ flex: columnFlexBasis }}
                   >
                     <div className="relative" style={{ height: scheduleBodyHeight }}>
-                      {renderScheduleLines(laneColumn.key)}
+                      {renderScheduleLines(laneColumn.key, selectedLane)}
                       {showCurrentTime ? (
-                        <div
-                          className="pointer-events-none absolute left-0 right-0 z-30 h-px bg-[#2563eb]/80"
-                          style={{ top: currentTimeTop }}
-                          aria-hidden="true"
-                        />
+                        <>
+                          <div
+                            data-schedule-current-time-wash="true"
+                            className="pointer-events-none absolute left-0 right-0 z-[5] h-6 -translate-y-1/2 bg-[#edf3ff]"
+                            style={{ top: currentTimeTop }}
+                            aria-hidden="true"
+                          />
+                          <div
+                            data-schedule-current-time-line="true"
+                            className="pointer-events-none absolute left-0 right-0 z-30 h-px"
+                            style={{ top: currentTimeTop, backgroundColor: "#3b6fd8" }}
+                            aria-hidden="true"
+                          />
+                        </>
                       ) : null}
                       {laneColumn.segments.map((segment) => (
                         <div
                           key={`${laneColumn.key}-${segment.key}-work-segment`}
-                          className="pointer-events-none absolute left-0 right-0 z-[6] border-y border-[#f5f6f8] bg-transparent"
+                          className={cn(
+                            "pointer-events-none absolute left-0 right-0 z-[6] border-y bg-transparent",
+                            selectedLane ? "border-[#d6e0ea]" : "border-[#f5f6f8]",
+                          )}
                           style={{
                             top: getBookingTop(segment.start, scheduleDisplayLayout),
                             height: Math.max(18, getBookingTop(segment.end, scheduleDisplayLayout) - getBookingTop(segment.start, scheduleDisplayLayout)),
@@ -759,12 +785,18 @@ export function DailyScheduleGrid({
                         <p className="absolute left-[5%] top-5 z-10 text-[12px] text-[#a0acb9]">예약 없음</p>
                       ) : (
                         laneBookings.map((booking) => {
+                          const bookingStaff = scheduleStaff.find((staffMember) => staffMember.key === booking.staffKey);
+                          const bookingIdentityTone = getScheduleStaffIdentityTone(
+                            booking.staffKey,
+                            bookingStaff?.chipColorIndex,
+                          );
                           const selected = selectedBookingId === booking.id;
                           const timeLabel = `${formatHourLabel(booking.start)}-${formatHourLabel(booking.start + booking.duration)}`;
-                          const displayTimeLabel = booking.actualTimeLabel?.replace(/^실제\s*/, "") || timeLabel;
+                          const displayTimeLabel = booking.scheduledTimeLabel ?? timeLabel;
                           const changeStatus = isChangeBookingStatus(booking.status);
                           const cardTone = getBookingCardTone(booking);
                           const timedStatus = getTimedBookingStatus(booking, selectedDate, currentHour);
+                          const statusTone = getBookingStatusEdgeTone(timedStatus);
                           const completedBooking = isCompletedBookingStatus(booking.sourceStatus ?? booking.status);
                           const canAdjustBookingTime = !changeStatus && !completedBooking;
                           const density = getBookingCardDensity(booking.duration);
@@ -777,6 +809,9 @@ export function DailyScheduleGrid({
                           const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
                           const statusPillClass = getReservationStatusPillClass(booking, selectedDate, currentHour);
                           const pendingOverlapLabel = getPendingOverlapLabel(booking, conflictBookings);
+                          const showRequestNote = booking.duration >= requestNoteMinimumDuration;
+                          const requestNote = booking.memo?.trim() ?? "";
+                          const requestNoteText = requestNote ? `요청사항 ${requestNote}` : "요청사항 없음";
 
                           if (booking.displayMode === "reservation-chip") {
                             return (
@@ -790,17 +825,32 @@ export function DailyScheduleGrid({
                                   onSelectStaff(booking.staffKey || firstStaffKey);
                                 }}
                                 className={cn(
-                                  "absolute z-20 box-border flex min-h-10 items-center justify-start overflow-hidden rounded-[9px] px-2.5 py-1.5 text-left text-[12px] font-medium leading-[14px] text-[#334155]",
+                                  "absolute z-20 box-border flex min-h-11 items-center justify-start overflow-hidden rounded-[9px] px-2.5 py-1.5 text-left text-[12px] font-medium leading-[14px] text-[#334155]",
                                   getBookingCardToneClass(cardTone),
+                                  selected && "!border-[#bcd5fa] ring-1 ring-[#bcd5fa]",
                                 )}
                                 style={{
                                   ...bookingLayoutStyle,
                                   top: getBookingTop(booking.start, scheduleDisplayLayout),
+                                  borderLeftColor: statusIndicatorColor[statusTone],
                                 }}
                               >
-                                <span className="flex min-w-0 flex-col whitespace-nowrap tabular-nums">
+                                <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap tabular-nums">
+                                  <span
+                                    data-booking-staff-identity={booking.staffKey}
+                                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border"
+                                    style={{
+                                      backgroundColor: bookingIdentityTone.background,
+                                      borderColor: bookingIdentityTone.border,
+                                    }}
+                                    aria-label={`담당 직원 ${bookingStaff?.name ?? ""}`}
+                                  >
+                                    <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: bookingIdentityTone.color }} />
+                                  </span>
+                                  <span className="flex min-w-0 flex-col">
                                   <span className="text-[10px] leading-[12px] text-[#64748b]">예약</span>
                                   <span className="leading-[14px]">{booking.scheduledTimeLabel ?? timeLabel}</span>
+                                  </span>
                                 </span>
                               </button>
                             );
@@ -822,31 +872,32 @@ export function DailyScheduleGrid({
                                 setExpandedMicroBookingId(density === "micro" ? booking.id : null);
                               }}
                               className={cn(
-                                "absolute z-20 box-border cursor-grab overflow-hidden rounded-[12px] p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1 active:cursor-grabbing",
+                                "absolute z-20 box-border cursor-grab overflow-hidden rounded-[12px] p-0 text-left outline-none !border-l-[color:var(--pm-booking-status-edge)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1 active:cursor-grabbing",
                                 !canAdjustBookingTime && "cursor-pointer active:cursor-pointer",
                                 resizingBooking?.bookingId === booking.id && "cursor-ns-resize",
                                 draggingBookingId === booking.id && "opacity-70 ring-1 ring-[#93c5fd]",
                                 expandedMicro && "z-50 shadow-none",
+                                selected && "!border-[#bcd5fa] ring-1 ring-[#bcd5fa]",
                                 getBookingCardToneClass(cardTone),
-                                getBookingStatusEdgeClass(timedStatus),
                               )}
                               style={{
                                 ...bookingLayoutStyle,
                                 top: getBookingTop(booking.start, scheduleDisplayLayout),
                                 height: bookingHeight,
-                              }}
+                                "--pm-booking-status-edge": statusIndicatorColor[statusTone],
+                              } as CSSProperties & Record<"--pm-booking-status-edge", string>}
                             >
                               <div
                                 className={cn(
                                   "absolute inset-0 flex min-h-0 min-w-0 items-start overflow-hidden text-left",
-                                  microCard ? "px-3 py-2" : "px-3.5 py-2.5",
+                                  microCard ? "px-3 py-2" : showRequestNote ? "px-3.5 py-[3px]" : "px-3.5 py-2.5",
                                 )}
                               >
                                 <div
                                   className={cn(
                                     "grid w-full min-w-0 content-start items-center gap-x-1.5",
                                     microCard ? "grid-cols-[minmax(0,1fr)_max-content]" : "grid-cols-[minmax(0,1fr)_auto]",
-                                    microCard ? "grid-rows-[16px]" : "grid-rows-[18px_17px] gap-y-0.5",
+                                    microCard ? "grid-rows-[16px]" : showRequestNote ? "grid-rows-[18px_17px_18px] gap-y-0.5" : "grid-rows-[18px_17px] gap-y-0.5",
                                   )}
                                 >
                                   <p
@@ -882,10 +933,38 @@ export function DailyScheduleGrid({
                                           {pendingOverlapLabel}
                                         </span>
                                       ) : null}
+                                      <span
+                                        data-booking-staff-identity={booking.staffKey}
+                                        className="inline-flex min-w-0 shrink items-center gap-1 rounded-[6px] border px-1.5 text-[11px] font-medium leading-[17px]"
+                                        style={{
+                                          backgroundColor: bookingIdentityTone.background,
+                                          borderColor: bookingIdentityTone.border,
+                                          color: bookingIdentityTone.text,
+                                        }}
+                                        title={`담당 ${bookingStaff?.name ?? "직원"}`}
+                                      >
+                                        <span
+                                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                                          style={{ backgroundColor: bookingIdentityTone.color }}
+                                          aria-hidden="true"
+                                        />
+                                        <span className="truncate">{bookingStaff?.name ?? "직원"}</span>
+                                      </span>
                                       <p className="min-w-0 truncate text-[12px] leading-[17px] text-[#56687b]">
                                         {booking.service}
                                       </p>
                                     </div>
+                                  ) : null}
+                                  {showRequestNote ? (
+                                    <p
+                                      className="col-span-2 min-w-0 truncate text-[12px] leading-[18px] text-[#56687b]"
+                                      title={requestNoteText}
+                                      aria-label={requestNoteText}
+                                      data-booking-request-note={requestNote ? "present" : "empty"}
+                                    >
+                                      <span className="font-medium text-[#475569]">요청사항</span>{" "}
+                                      <span className="font-normal">{requestNote || "없음"}</span>
+                                    </p>
                                   ) : null}
                                 </div>
                               </div>

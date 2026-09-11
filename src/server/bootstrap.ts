@@ -1,6 +1,7 @@
 import { normalizeShopBookingSettings } from "@/lib/booking-slot-settings";
 import { normalizeBusinessHours } from "@/lib/business-hours";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+import { emptyOwnerPilotCohortProjection } from "@/lib/billing/owner-pilot-cohort";
 import { defaultOwnerStaffDays } from "@/lib/owner-default-setup";
 import {
   normalizeBootstrapNotifications,
@@ -8,12 +9,22 @@ import {
   normalizeShopNotificationSettings,
 } from "@/lib/notification-settings";
 import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
+import { deriveOwnerInitialSetupReadiness } from "@/lib/owner-initial-setup-readiness";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { defaultStaffProfileMessage, getStaffProfileMessage } from "@/lib/staff-display";
+import { isStaffProfileFallbackKey } from "@/lib/staff-profile-fallback";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime } from "@/lib/utils";
 import { getMockStore } from "@/server/mock-store";
 import { getOwnerMediaSignedUrls } from "@/server/media-service";
+import { getOwnerPilotCohortProjection } from "@/server/owner-pilot-cohort";
+import { loadLatestCompletedPetDisplayPhotos } from "@/server/latest-pet-display-photo";
+import {
+  buildCompatibleStaffProfileSelect,
+  getNextStaffProfileOptionalColumn,
+  isMissingRequiredStaffPreferenceColumn,
+  staffProfileOptionalColumns,
+} from "@/server/staff-profile-column-compat";
 import type {
   Appointment,
   BootstrapPayload,
@@ -37,6 +48,10 @@ type BootstrapOptions = {
   includeLanding?: boolean;
   includeNotifications?: boolean;
   includeGroomingRecords?: boolean;
+  includeOwnerExtras?: boolean;
+  includeStaffProfileImages?: boolean;
+  includePilotCohort?: boolean;
+  includePetDisplayPhotos?: boolean;
   appointmentsFrom?: string;
   appointmentsTo?: string;
   groomingRecordsFrom?: string;
@@ -58,7 +73,17 @@ function buildMockBootstrap(shopId?: string): BootstrapPayload {
       store.shop.description,
     ),
   };
+  store.staffMembers = store.staffMembers.map((staffMember) => ({
+    ...staffMember,
+    profileImageFallbackKey: isStaffProfileFallbackKey(staffMember.profileImageFallbackKey) ? staffMember.profileImageFallbackKey : null,
+  }));
   store.appointments = store.appointments.map(normalizeAppointmentForBootstrap);
+  store.initialSetupReadiness = deriveOwnerInitialSetupReadiness({
+    shop: store.shop,
+    services: store.services,
+    persistedStaffMembers: store.staffMembers,
+  });
+  store.pilotCohort = emptyOwnerPilotCohortProjection(false);
   return store;
 }
 
@@ -77,13 +102,25 @@ function normalizeGuardianForBootstrap(guardian: Guardian): Guardian {
 }
 
 function normalizeAppointmentForBootstrap(appointment: Appointment): Appointment {
-  const normalizedStatus = String(appointment.status) === "pending" ? "confirmed" : appointment.status;
+  const knownStatuses = new Set<Appointment["status"]>([
+    "pending",
+    "confirmed",
+    "in_progress",
+    "almost_done",
+    "completed",
+    "cancelled",
+    "rejected",
+    "noshow",
+  ]);
+
+  if (!knownStatuses.has(appointment.status)) {
+    throw new Error("알 수 없는 예약 상태는 불러올 수 없습니다.");
+  }
 
   return {
     ...appointment,
     visit_reminder_offset_minutes: appointment.visit_reminder_offset_minutes ?? 10,
     pickup_ready_eta_minutes: appointment.pickup_ready_eta_minutes ?? 5,
-    status: normalizedStatus,
     appointment_time: formatClockTime(appointment.appointment_time),
   };
 }
@@ -113,6 +150,7 @@ type StaffMemberRow = {
   profile_image_url?: string | null;
   profile_image_urls?: unknown;
   profile_image_asset_ids?: unknown;
+  profile_image_fallback_key?: string | null;
   profile_message?: string | null;
   chip_color_index?: number | null;
   phone: string | null;
@@ -195,6 +233,7 @@ function normalizeStaffMember(row: StaffMemberRow): BootstrapStaffMember {
     profileImageUrl: profileImageUrls[0] ?? "",
     profileImageUrls,
     profileImageAssetIds,
+    profileImageFallbackKey: isStaffProfileFallbackKey(row.profile_image_fallback_key) ? row.profile_image_fallback_key : null,
     profileMessage: getStaffProfileMessage(row),
     chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
@@ -249,17 +288,22 @@ async function hydrateStaffProfileImageUrls(shopId: string, staffMembers: Bootst
   }
 }
 
-function buildDefaultBootstrapOwnerStaffMember(shop: Shop): BootstrapStaffMember {
+function buildDefaultBootstrapOwnerStaffMember(shop: Shop, ownerProfile: OwnerProfile | null): BootstrapStaffMember {
+  const ownerName = ownerProfile?.name.trim() || "대표자";
+  const ownerAgreements = ownerProfile?.agreements ?? {};
+  const ownerProfileImageUrl =
+    typeof ownerAgreements.profile_image_url === "string" ? ownerAgreements.profile_image_url : "";
   return {
     id: `${shop.id}-staff-owner`,
-    name: "원장",
-    displayName: "원장",
-    profileImageUrl: "",
+    name: ownerName,
+    displayName: ownerName,
+    profileImageUrl: ownerProfileImageUrl,
+    profileImageFallbackKey: null,
     profileMessage: defaultStaffProfileMessage,
     chipColorIndex: 0,
     phone: shop.phone ?? "",
-    role: "원장 / 전체 미용",
-    position: "원장",
+    role: "대표",
+    position: "대표",
     defaultDays: defaultOwnerStaffDays,
     startTime: "10:00",
     endTime: "19:00",
@@ -289,21 +333,35 @@ function isMissingAlimtalkCreditSummaryError(error: { code?: string | null; mess
   );
 }
 
-function isMissingStaffProfileColumnsError(error: { code?: string | null; message?: string | null } | null | undefined) {
-  const message = error?.message?.toLowerCase() ?? "";
-  return (
-    (error?.code === "PGRST204" || error?.code === "42703") &&
-    message.includes("staff_members") &&
-    (message.includes("display_name") ||
-      message.includes("profile_image_url") ||
-      message.includes("profile_image_urls") ||
-      message.includes("profile_image_asset_ids") ||
-      message.includes("profile_message") ||
-      message.includes("chip_color_index") ||
-      message.includes("title_prefix") ||
-      message.includes("position") ||
-      message.includes("schema cache"))
-  );
+const bootstrapStaffProfileSelectFields = [
+  "id", "name", "display_name", "profile_image_url", "profile_image_urls", "profile_image_asset_ids", "profile_image_fallback_key",
+  "profile_message", "chip_color_index", "phone", "role", "title_prefix",
+  "position", "default_days", "start_time", "end_time", "regular_off", "annual_remain",
+] as const;
+
+async function loadBootstrapStaffMemberRows(
+  supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
+  shopId: string,
+) {
+  const omittedColumns = new Set<string>();
+  for (let attempt = 0; attempt <= staffProfileOptionalColumns.length; attempt += 1) {
+    const result = await supabase
+      .from("staff_members")
+      .select(buildCompatibleStaffProfileSelect(bootstrapStaffProfileSelectFields, omittedColumns))
+      .eq("shop_id", shopId)
+      .eq("is_active", true)
+      .order("sort_order")
+      .order("created_at");
+    if (!result.error) return (result.data ?? []) as unknown as StaffMemberRow[];
+
+    if (isMissingRequiredStaffPreferenceColumn(result.error)) {
+      throw new Error("직원 프로필 정보를 최신 상태로 확인할 수 없습니다.");
+    }
+    const missingOptionalColumn = getNextStaffProfileOptionalColumn(result.error, omittedColumns);
+    if (!missingOptionalColumn) throw new Error(result.error.message);
+    omittedColumns.add(missingOptionalColumn);
+  }
+  throw new Error("직원 프로필 정보를 최신 상태로 확인할 수 없습니다.");
 }
 
 function isMissingAppointmentChangeEventsError(error: { code?: string | null; message?: string | null } | null | undefined) {
@@ -364,6 +422,10 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   const includeLanding = options.includeLanding ?? true;
   const includeNotifications = options.includeNotifications ?? true;
   const includeGroomingRecords = options.includeGroomingRecords ?? true;
+  const includeOwnerExtras = options.includeOwnerExtras ?? true;
+  const includeStaffProfileImages = options.includeStaffProfileImages ?? true;
+  const includePilotCohort = options.includePilotCohort ?? true;
+  const includePetDisplayPhotos = options.includePetDisplayPhotos ?? false;
   const appointmentsFrom = options.appointmentsFrom;
   const appointmentsTo = options.appointmentsTo;
   const groomingRecordsFrom = options.groomingRecordsFrom;
@@ -429,35 +491,27 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   const feedbackQuery = includeLanding
     ? supabase.from("landing_feedback").select("*").order("created_at", { ascending: false })
     : Promise.resolve({ data: [], error: null });
-  const alimtalkCreditSummaryQuery = supabase
-    .from("shop_alimtalk_credit_summaries")
-    .select("*")
-    .eq("shop_id", shopId)
-    .maybeSingle();
-  const petStaffNotesQuery = supabase
-    .from("pet_staff_notes")
-    .select("*")
-    .eq("shop_id", shopId)
-    .order("updated_at", { ascending: false });
-  const ownerProfileQuery = supabase
-    .from("owner_profiles")
-    .select("user_id,shop_id,login_id,name,birth_date,phone_number,identity_verified_at,agreements,created_at,updated_at")
-    .eq("shop_id", shopId)
-    .maybeSingle();
+  const alimtalkCreditSummaryQuery = includeOwnerExtras
+    ? supabase.from("shop_alimtalk_credit_summaries").select("*").eq("shop_id", shopId).maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+  const petStaffNotesQuery = includeOwnerExtras
+    ? supabase.from("pet_staff_notes").select("*").eq("shop_id", shopId).order("updated_at", { ascending: false })
+    : Promise.resolve({ data: [], error: null });
+  const ownerProfileQuery = includeOwnerExtras
+    ? supabase
+        .from("owner_profiles")
+        .select("user_id,shop_id,login_id,name,birth_date,phone_number,identity_verified_at,agreements,created_at,updated_at")
+        .eq("shop_id", shopId)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
 
-  const [shopRes, guardiansRes, petsRes, servicesRes, staffMembersRes, staffScheduleOverridesRes, appointmentsRes, appointmentChangeEventsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes, ownerProfileRes] =
+  const [shopRes, guardiansRes, petsRes, servicesRes, staffMemberRows, staffScheduleOverridesRes, appointmentsRes, appointmentChangeEventsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes, ownerProfileRes] =
     await Promise.all([
       supabase.from("shops").select("*").eq("id", shopId).is("deleted_at", null).single(),
       supabase.from("guardians").select("*").eq("shop_id", shopId).order("created_at"),
       supabase.from("pets").select("*").eq("shop_id", shopId).order("created_at"),
       supabase.from("services").select("*").eq("shop_id", shopId).order("created_at"),
-      supabase
-        .from("staff_members")
-        .select("id,name,display_name,profile_image_url,profile_image_urls,profile_image_asset_ids,profile_message,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain")
-        .eq("shop_id", shopId)
-        .eq("is_active", true)
-        .order("sort_order")
-        .order("created_at"),
+      loadBootstrapStaffMemberRows(supabase, shopId),
       supabase
         .from("staff_schedule_overrides")
         .select("id,shop_id,staff_id,work_date,status,start_time,end_time,period,reason,created_at,updated_at")
@@ -476,18 +530,6 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
 
   if (shopRes.error || !shopRes.data) {
     throw new Error("매장 정보를 찾을 수 없습니다.");
-  }
-
-  let staffMemberRows = (staffMembersRes.data ?? []) as StaffMemberRow[];
-  if (staffMembersRes.error && isMissingStaffProfileColumnsError(staffMembersRes.error)) {
-    const legacyStaffMembersRes = await supabase
-      .from("staff_members")
-      .select("id,name,phone,role,default_days,start_time,end_time,regular_off,annual_remain")
-      .eq("shop_id", shopId)
-      .eq("is_active", true)
-      .order("sort_order")
-      .order("created_at");
-    staffMemberRows = (legacyStaffMembersRes.data ?? []) as StaffMemberRow[];
   }
 
   const normalizedGuardians = ((guardiansRes.data ?? []) as Guardian[]).map(normalizeGuardianForBootstrap);
@@ -524,10 +566,10 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     notification_settings: normalizeShopNotificationSettings((shopRes.data as Shop).notification_settings),
     customer_page_settings: normalizedCustomerPageSettings,
   };
-  const staffMembers = await hydrateStaffProfileImageUrls(
-    shopId,
-    (staffMemberRows as StaffMemberRow[]).map(normalizeStaffMember),
-  );
+  const normalizedStaffMembers = staffMemberRows.map(normalizeStaffMember);
+  const staffMembers = includeStaffProfileImages
+    ? await hydrateStaffProfileImageUrls(shopId, normalizedStaffMembers)
+    : normalizedStaffMembers;
   let appointmentChangeEvents: AppointmentChangeEvent[] = [];
   if (appointmentChangeEventsRes.error) {
     if (!isMissingAppointmentChangeEventsError(appointmentChangeEventsRes.error)) {
@@ -542,15 +584,35 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     appointmentChangeEvents,
   ).map(normalizeAppointmentForBootstrap);
 
+  const normalizedOwnerProfile = ownerProfileRes.error
+    ? null
+    : normalizeOwnerProfile(ownerProfileRes.data as OwnerProfileRow | null);
+  const pilotCohort = includePilotCohort && rawShop.owner_user_id
+    ? await getOwnerPilotCohortProjection({ ownerUserId: rawShop.owner_user_id, shopId })
+    : emptyOwnerPilotCohortProjection(true);
+
+  const services = (servicesRes.data ?? []) as Service[];
+  const pets = ((petsRes.data ?? []) as Pet[]).filter((pet) => activeGuardianIds.has(pet.guardian_id));
+  const petDisplayPhotos = includePetDisplayPhotos
+    ? await loadLatestCompletedPetDisplayPhotos(shopId, pets, appointments)
+    : undefined;
+
   return normalizeBootstrapNotifications({
     mode: "supabase",
     shop: normalizedShop,
-    ownerProfile: ownerProfileRes.error ? null : normalizeOwnerProfile(ownerProfileRes.data as OwnerProfileRow | null),
+    initialSetupReadiness: deriveOwnerInitialSetupReadiness({
+      shop: normalizedShop,
+      services,
+      persistedStaffMembers: normalizedStaffMembers,
+    }),
+    ownerProfile: normalizedOwnerProfile,
+    pilotCohort,
     guardians: activeGuardians,
     deletedGuardians,
-    pets: ((petsRes.data ?? []) as Pet[]).filter((pet) => activeGuardianIds.has(pet.guardian_id)),
-    services: (servicesRes.data ?? []) as Service[],
-    staffMembers: staffMembers.length > 0 ? staffMembers : [buildDefaultBootstrapOwnerStaffMember(normalizedShop)],
+    pets,
+    petDisplayPhotos,
+    services,
+    staffMembers: staffMembers.length > 0 ? staffMembers : [buildDefaultBootstrapOwnerStaffMember(normalizedShop, normalizedOwnerProfile)],
     staffScheduleOverrides: ((staffScheduleOverridesRes.data ?? []) as StaffScheduleOverrideRow[]).map(normalizeStaffScheduleOverride),
     appointments,
     appointmentChangeEvents,

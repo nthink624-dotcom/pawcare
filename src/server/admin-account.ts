@@ -36,6 +36,22 @@ type DatabaseErrorLike = {
   code?: string | null;
 };
 
+export type AdminAccountInfraErrorCategory =
+  | "schema_missing"
+  | "permission_denied"
+  | "auth_key"
+  | "network"
+  | "unknown";
+
+type AdminAccountOperation =
+  | "check_any_account"
+  | "find_by_login_id"
+  | "find_by_id"
+  | "create_initial_account"
+  | "reset_password";
+
+const ADMIN_ACCOUNT_DIAGNOSTIC_WORK_ID = "ADMIN_HOME_REFERENCE_20260830";
+
 export class AdminAccountError extends Error {
   status: number;
 
@@ -50,15 +66,60 @@ function hasMissingAdminAccountsTableError(error: DatabaseErrorLike | null | und
   return error?.code === "42P01" || (haystack.includes("admin_accounts") && haystack.includes("schema cache"));
 }
 
-function toAdminAccountInfraError(error: DatabaseErrorLike) {
+export function classifyAdminAccountInfraError(error: DatabaseErrorLike): AdminAccountInfraErrorCategory {
+  const code = error.code?.trim().toUpperCase() ?? "";
+  const haystack = [error.message, error.details, error.hint].filter(Boolean).join(" ").toLowerCase();
+
+  if (hasMissingAdminAccountsTableError(error) || code === "PGRST205") return "schema_missing";
+  if (code === "42501" || haystack.includes("permission denied")) return "permission_denied";
+  if (
+    code === "PGRST301" ||
+    code === "401" ||
+    haystack.includes("invalid api key") ||
+    haystack.includes("invalid jwt") ||
+    haystack.includes("jwt expired")
+  ) {
+    return "auth_key";
+  }
+  if (
+    ["ECONNREFUSED", "ECONNRESET", "ENETUNREACH", "ENOTFOUND", "ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(
+      code,
+    ) ||
+    haystack.includes("fetch failed") ||
+    haystack.includes("network error") ||
+    haystack.includes("network request failed")
+  ) {
+    return "network";
+  }
+
+  return "unknown";
+}
+
+function toSafeAdminAccountErrorCode(code: string | null | undefined) {
+  const normalized = code?.trim().toUpperCase() ?? "";
+  return /^[A-Z0-9_]{1,32}$/.test(normalized) ? normalized : "NO_SAFE_CODE";
+}
+
+export function toAdminAccountInfraError(error: DatabaseErrorLike, operation: AdminAccountOperation) {
+  const category = classifyAdminAccountInfraError(error);
+
+  console.error(
+    JSON.stringify({
+      workId: ADMIN_ACCOUNT_DIAGNOSTIC_WORK_ID,
+      operation,
+      category,
+      code: toSafeAdminAccountErrorCode(error.code),
+    }),
+  );
+
   if (hasMissingAdminAccountsTableError(error)) {
     return new AdminAccountError(
-      "관리자 테이블이 아직 만들어지지 않았어요. Supabase SQL 편집기에서 admin_accounts 마이그레이션을 먼저 실행해 주세요.",
+      "관리자 계정 저장소가 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.",
       503,
     );
   }
 
-  return new AdminAccountError(error.message || "관리자 정보를 불러오는 중 문제가 발생했습니다.", 500);
+  return new AdminAccountError("관리자 데이터 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.", 503);
 }
 
 function mapAdminAccount(row: AdminAccountRow): AdminAccount {
@@ -109,7 +170,7 @@ export async function hasAnyAdminAccount() {
 
   const result = await admin.from("admin_accounts").select("id", { count: "exact", head: true });
   if (result.error) {
-    throw toAdminAccountInfraError(result.error);
+    throw toAdminAccountInfraError(result.error, "check_any_account");
   }
 
   return (result.count ?? 0) > 0;
@@ -128,7 +189,7 @@ export async function getAdminAccountByLoginId(loginId: string) {
     .maybeSingle();
 
   if (result.error) {
-    throw toAdminAccountInfraError(result.error);
+    throw toAdminAccountInfraError(result.error, "find_by_login_id");
   }
 
   return (result.data as AdminAccountRowWithPassword | null) ?? null;
@@ -147,7 +208,7 @@ export async function getAdminAccountById(adminId: string) {
     .maybeSingle();
 
   if (result.error) {
-    throw toAdminAccountInfraError(result.error);
+    throw toAdminAccountInfraError(result.error, "find_by_id");
   }
 
   return result.data ? mapAdminAccount(result.data as AdminAccountRow) : null;
@@ -187,7 +248,7 @@ export async function createInitialAdminAccount(input: {
     .single();
 
   if (result.error) {
-    throw toAdminAccountInfraError(result.error);
+    throw toAdminAccountInfraError(result.error, "create_initial_account");
   }
 
   return mapAdminAccount(result.data as AdminAccountRow);
@@ -218,7 +279,7 @@ export async function resetAdminPassword(input: {
     .single();
 
   if (result.error) {
-    throw toAdminAccountInfraError(result.error);
+    throw toAdminAccountInfraError(result.error, "reset_password");
   }
 
   return mapAdminAccount(result.data as AdminAccountRow);

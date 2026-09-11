@@ -1,4 +1,5 @@
 import type { Service } from "@/types/domain";
+import { priceGuideV2Schema } from "@/types/price-guide-photo-import";
 
 export type CustomerBreedPricingGroup = {
   key: string;
@@ -21,15 +22,6 @@ export function buildCustomerPriceGuideGroupKey(species: unknown, title: unknown
   return `${normalizedSpecies}:${normalizedTitle}`;
 }
 
-function getBreedAliases(note: unknown) {
-  if (typeof note !== "string") return [];
-
-  return note
-    .split(/[,\n\r，、]/)
-    .map((item) => item.replace(/^(?:대표\s*품종|품종)\s*[:：]\s*/i, "").trim())
-    .filter((item) => normalizeMatchText(item).length >= 2);
-}
-
 export function findCustomerBreedPricingGroup(services: Service[], breed: string): CustomerBreedPricingGroup | null {
   const normalizedBreed = normalizeMatchText(breed);
   if (normalizedBreed.length < 2) return null;
@@ -38,17 +30,23 @@ export function findCustomerBreedPricingGroup(services: Service[], breed: string
 
   for (const service of services) {
     if (!service.is_active || !service.price_guide || typeof service.price_guide !== "object") continue;
-    const sections = (service.price_guide as { sections?: unknown }).sections;
-    if (!Array.isArray(sections)) continue;
+    const rootDocument = priceGuideV2Schema.safeParse(service.price_guide);
+    const nestedDocument = rootDocument.success
+      ? null
+      : priceGuideV2Schema.safeParse((service.price_guide as { canonicalV2?: unknown }).canonicalV2);
+    const document = rootDocument.success
+      ? rootDocument.data
+      : nestedDocument?.success
+        ? nestedDocument.data
+        : null;
+    if (!document) continue;
 
-    for (const section of sections) {
-      if (!section || typeof section !== "object") continue;
-      const source = section as { species?: unknown; title?: unknown; note?: unknown };
-      const title = normalizeText(source.title);
-      const key = buildCustomerPriceGuideGroupKey(source.species, title);
+    for (const row of document.rows) {
+      const title = normalizeText(row.breedGroup);
+      const key = buildCustomerPriceGuideGroupKey(row.species, title);
       if (!title || !key) continue;
 
-      for (const alias of getBreedAliases(source.note)) {
+      for (const alias of row.breedNames) {
         const normalizedAlias = normalizeMatchText(alias);
         if (!normalizedAlias || (!normalizedBreed.includes(normalizedAlias) && !normalizedAlias.includes(normalizedBreed))) continue;
         matches.push({ key, title, matchedBreed: alias, aliasLength: normalizedAlias.length, exact: normalizedBreed === normalizedAlias });

@@ -69,11 +69,13 @@ export function scopeBootstrapForStaff(data: BootstrapPayload, owner: Pick<Owner
   return {
     ...data,
     ownerProfile: null,
+    pilotCohort: undefined,
     guardians: data.guardians
       .filter((guardian) => assignedGuardianIds.has(guardian.id))
       .map(sanitizeGuardianForStaff),
     deletedGuardians: [],
     pets: data.pets.filter((pet) => assignedPetIds.has(pet.id) && assignedGuardianIds.has(pet.guardian_id)),
+    petDisplayPhotos: (data.petDisplayPhotos ?? []).filter((photo) => assignedPetIds.has(photo.petId)),
     staffMembers,
     staffScheduleOverrides: (data.staffScheduleOverrides ?? []).filter((override) => override.staff_id === staffId),
     appointments,

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import sharp from "sharp";
@@ -12,6 +13,7 @@ import {
   encryptSignupPriceGuideCache,
   issueSignupPriceGuideAnalysisToken,
   markFixtureSignupPriceGuideAnalysisCompleted,
+  preflightSignupPriceGuideAnalysis,
   purgeFixtureSignupPriceGuideAnalysis,
   purgeSignupPriceGuideAnalysis,
   readSignupPriceGuideSession,
@@ -31,6 +33,7 @@ import {
 } from "../../src/server/signup-price-guide-multipart.ts";
 
 const secret = "test-secret-value-that-is-longer-than-thirty-two-characters";
+const signupPreviewRoutePath = new URL("../../src/app/api/auth/signup/price-guide-preview/route.ts", import.meta.url);
 
 async function png(width = 640, height = 480) {
   return sharp({ create: { width, height, channels: 3, background: "#f3e7de" } }).png().toBuffer();
@@ -111,6 +114,57 @@ test("fixture gate도 같은 token jti 재사용을 거절한다", async () => {
     claimSignupPriceGuideAnalysis({ supabase: null, token, fileHash: "a".repeat(64), estimatedCostMicroUsd: 0, dailyCostCapMicroUsd: 1000, allowFixtureMemory: true }),
     (error) => error instanceof SignupPriceGuideGuardError && error.code === "TOKEN_REUSED",
   );
+});
+
+test("저비용 preflight gate는 decode/hash 전 session 요청 폭주를 차단한다", () => {
+  resetFixtureSignupPriceGuideSecurityState();
+  const cookie = createSignupPriceGuideSession(secret);
+  const sessionId = readSignupPriceGuideSession(cookie, secret);
+  const nowMs = Date.parse("2026-08-30T02:00:00Z");
+  for (let index = 0; index < 6; index += 1) {
+    const issued = issueSignupPriceGuideAnalysisToken({
+      sessionId,
+      deviceFingerprint: "preflight_device_123456",
+      ip: "127.0.0.44",
+      secret,
+      nowMs,
+    });
+    const token = verifySignupPriceGuideAnalysisToken({
+      token: issued.token,
+      sessionId,
+      deviceFingerprint: "preflight_device_123456",
+      ip: "127.0.0.44",
+      secret,
+      nowMs: nowMs + 1,
+    });
+    preflightSignupPriceGuideAnalysis({ token, nowMs: nowMs + 2 });
+  }
+  const blockedIssue = issueSignupPriceGuideAnalysisToken({
+    sessionId,
+    deviceFingerprint: "preflight_device_123456",
+    ip: "127.0.0.44",
+    secret,
+    nowMs,
+  });
+  const blockedToken = verifySignupPriceGuideAnalysisToken({
+    token: blockedIssue.token,
+    sessionId,
+    deviceFingerprint: "preflight_device_123456",
+    ip: "127.0.0.44",
+    secret,
+    nowMs: nowMs + 1,
+  });
+  assert.throws(
+    () => preflightSignupPriceGuideAnalysis({ token: blockedToken, nowMs: nowMs + 2 }),
+    (error) => error instanceof SignupPriceGuideGuardError && error.code === "RATE_LIMITED" && error.status === 429,
+  );
+});
+
+test("preview route는 preflight 뒤에만 body/decode를 수행하고 hash 뒤에 비용을 예약한다", async () => {
+  const source = await readFile(signupPreviewRoutePath, "utf8");
+  assert.ok(source.indexOf("preflightSignupPriceGuideAnalysis({ token: verifiedToken })") < source.indexOf("const formData = await parseBoundedSignupPriceGuideMultipart(request)"));
+  assert.ok(source.indexOf("const formData = await parseBoundedSignupPriceGuideMultipart(request)") < source.indexOf("const sanitized = await sanitizeSignupPriceGuideImage"));
+  assert.ok(source.indexOf("const sanitized = await sanitizeSignupPriceGuideImage") < source.indexOf("const claim = await claimSignupPriceGuideAnalysis"));
 });
 
 test("fixture purge 뒤에도 같은 일회성 token은 재사용할 수 없다", async () => {

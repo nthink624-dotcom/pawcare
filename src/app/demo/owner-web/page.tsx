@@ -1,10 +1,17 @@
 import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
-import { getLandingDemoShopId } from "@/lib/development-demo";
-import { getBootstrap } from "@/server/bootstrap";
+import { buildDemoBootstrap, buildDemoInitialSetupBootstrap } from "@/lib/mock-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function DemoOwnerWebPage() {
-  const data = await getBootstrap(getLandingDemoShopId());
-  return <OwnerWebPreview initialData={data} />;
+export default async function DemoOwnerWebPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ initialSetup?: string | string[] }>;
+}) {
+  const initialSetup = (await searchParams).initialSetup;
+  const initialData = initialSetup === "1"
+    ? buildDemoInitialSetupBootstrap()
+    : buildDemoBootstrap();
+
+  return <OwnerWebPreview initialData={initialData} />;
 }

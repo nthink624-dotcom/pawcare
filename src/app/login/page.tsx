@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import LoginForm from "@/components/auth/login-form";
+import { getSafeOwnerLoginReturnPath } from "@/lib/auth/login-return-path";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 
 const errorMessages: Record<string, string> = {
@@ -21,7 +22,7 @@ export default async function LoginPage({
   const params = (await searchParams) ?? {};
   const errorKey = typeof params.error === "string" ? params.error : undefined;
   const messageKey = typeof params.message === "string" ? params.message : undefined;
-  const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
+  const nextPath = getSafeOwnerLoginReturnPath(typeof params.next === "string" ? params.next : undefined);
   const initialMessage = errorKey
     ? (errorMessages[errorKey] ?? null)
     : messageKey

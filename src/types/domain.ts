@@ -1,7 +1,9 @@
 ﻿export type ApprovalMode = "manual" | "auto";
+import type { OwnerPilotCohortProjection } from "@/lib/billing/owner-pilot-cohort";
 import type { CareReportDraft, CareReportObservations } from "@/types/care-report";
 
 export type AppointmentStatus =
+  | "pending"
   | "confirmed"
   | "in_progress"
   | "almost_done"
@@ -44,6 +46,7 @@ export type MediaKind =
   | "shop_profile"
   | "staff_profile"
   | "price_guide_source"
+  | "feedback_screenshot"
   | "customer_shared"
   | "memo_attachment";
 export type MediaVisibility = "private" | "customer_shared" | "public";
@@ -174,6 +177,7 @@ export type ReservationPolicySettings = {
   cancel_window: "none" | "1h" | "2h" | "6h" | "24h";
   customer_change_enabled: boolean;
   booking_blocked_windows?: BookingBlockedWindow[];
+  booking_close_grace_minutes?: 0 | 15 | 30 | 60;
   regular_closed_cycle?: RegularClosedCycle;
   regular_closed_anchor_date?: string | null;
   ai_booking_time_optimization_enabled?: boolean;
@@ -209,6 +213,8 @@ export type Shop = {
   booking_slot_offset_minutes: number;
   booking_available_start_time: string;
   booking_available_end_time: string;
+  /** Deprecated compatibility field. Canonical booking limits use the start window and booking_close_grace_minutes. */
+  last_booking_start_offset_minutes?: 0 | 30 | 60 | 90 | 120 | null;
   approval_mode: ApprovalMode;
   reservation_policy_settings?: ReservationPolicySettings;
   notification_settings: ShopNotificationSettings;
@@ -231,12 +237,17 @@ export type OwnerProfile = {
   updated_at: string;
 };
 
+export type CustomerGradeOverride = "normal" | "loyal" | "attention";
+export type CustomerMemberType = "guardian" | "proxy" | "guest";
+
 export type Guardian = {
   id: string;
   shop_id: string;
   name: string;
   phone: string;
   memo: string;
+  customer_grade_override?: CustomerGradeOverride | null;
+  customer_member_type?: CustomerMemberType;
   notification_settings: GuardianNotificationSettings;
   deleted_at?: string | null;
   deleted_restore_until?: string | null;
@@ -260,6 +271,16 @@ export type Pet = {
   avatar_seed: string;
   created_at: string;
   updated_at: string;
+};
+
+export type PetDisplayPhotoProjection = {
+  appointmentId: string;
+  petId: string;
+  url: string | null;
+  source: "appointment_grooming_after" | "prior_grooming_after" | "fallback";
+  sourceAppointmentId: string | null;
+  sourceGroomingRecordId: string | null;
+  latestCompletedAt: string | null;
 };
 
 export type Service = {
@@ -388,6 +409,8 @@ export type BootstrapStaffMember = {
   profileImageUrl?: string;
   profileImageUrls?: string[];
   profileImageAssetIds?: string[];
+  /** Explicit locally bundled avatar choice; never inferred from personal data. */
+  profileImageFallbackKey?: "korean-groomer-profile-01" | "korean-groomer-profile-02" | null;
   profileMessage?: string;
   chipColorIndex?: number | null;
   phone: string;
@@ -401,6 +424,15 @@ export type BootstrapStaffMember = {
   annualRemain: number;
   todayBookings: number;
   weekBookings: number;
+};
+
+export type OwnerInitialSetupStepKey = "hours" | "staff" | "pricing";
+
+export type OwnerInitialSetupReadiness = {
+  shopId: string;
+  steps: Record<OwnerInitialSetupStepKey, boolean>;
+  completed: boolean;
+  nextStep: OwnerInitialSetupStepKey | null;
 };
 
 export type StaffScheduleOverride = {
@@ -566,10 +598,13 @@ export type LandingFeedback = {
 export type BootstrapPayload = {
   mode: "mock" | "supabase";
   shop: Shop;
+  initialSetupReadiness?: OwnerInitialSetupReadiness;
   ownerProfile?: OwnerProfile | null;
+  pilotCohort?: OwnerPilotCohortProjection;
   guardians: Guardian[];
   deletedGuardians?: Guardian[];
   pets: Pet[];
+  petDisplayPhotos?: PetDisplayPhotoProjection[];
   services: Service[];
   staffMembers: BootstrapStaffMember[];
   staffScheduleOverrides?: StaffScheduleOverride[];

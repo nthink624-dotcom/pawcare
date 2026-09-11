@@ -90,8 +90,9 @@ test("Vision 비용은 13,000 micro-USD를 예약하고 provider usage 또는 fa
   assert.match(provider, /PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD\s*=\s*13_000/);
   assert.match(provider, /usage\.input_tokens|input_tokens/);
   assert.match(provider, /usage\.output_tokens|output_tokens/);
-  assert.match(provider, /usage\.inputTokens \* 0\.15/);
-  assert.match(provider, /usage\.outputTokens \* 0\.6/);
+  assert.match(provider, /PRICE_GUIDE_VISION_MODEL = "gpt-5\.6-luna"/);
+  assert.match(provider, /usage\.inputTokens \* 0\.2/);
+  assert.match(provider, /usage\.outputTokens \* 1\.2/);
   assert.match(route, /estimatedCostMicroUsd:\s*fixtureMode \? 0 : PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD/);
   assert.match(route, /actualCostMicroUsd:\s*fixtureMode \? 0 : actualCostMicroUsd \|\| PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD/);
   assert.doesNotMatch(route, /ESTIMATED_REQUEST_COST_MICRO_USD\s*=\s*1_200/);
@@ -130,7 +131,7 @@ test("AI 요금표 검토 문구는 web과 API가 한 계약을 사용하고 Dra
     readFile(signupPricingComponentPath, "utf8"),
     readFile(previewRoutePath, "utf8"),
   ]);
-  assert.match(contract, /AI가 읽은 임시 목록/);
+  assert.match(contract, /사진에서 읽은 임시 목록/);
   assert.match(contract, /틀린 내용을 고친 뒤 저장하세요\. 저장 전에는 공개되지 않습니다\./);
   assert.match(component, /signupPriceGuideReviewCopy\.label/);
   assert.match(component, /signupPriceGuideReviewCopy\.supporting/);

@@ -1,11 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { OwnerApiError, requireOwnerShop, type OwnerShopContext } from "@/server/owner-api-auth";
+import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import { careReportObservationsSchema } from "@/types/care-report";
 
 export const dynamic = "force-dynamic";
+
+const GROOMING_DRAFTS_CORS = { methods: "GET, PUT, DELETE, OPTIONS" } as const;
 
 const draftInputSchema = z.object({
   shopId: z.string().trim().min(1).max(120),
@@ -126,15 +129,20 @@ async function requireAfterMediaAsset(params: {
   }
 }
 
-function errorResponse(error: unknown, fallback: string) {
+function errorResponse(request: NextRequest, error: unknown, fallback: string) {
   if (error instanceof OwnerApiError) {
-    return NextResponse.json({ message: error.message }, { status: error.status });
+    const message = error.status >= 500 ? fallback : error.message;
+    return ownerMobileCorsJson(request, { message }, { status: error.status }, GROOMING_DRAFTS_CORS);
   }
   if (error instanceof z.ZodError) {
-    return NextResponse.json({ message: "임시저장할 미용 기록 형식을 확인해 주세요." }, { status: 400 });
+    return ownerMobileCorsJson(
+      request,
+      { message: "임시저장할 미용 기록 형식을 확인해 주세요." },
+      { status: 400 },
+      GROOMING_DRAFTS_CORS,
+    );
   }
-  const message = error instanceof Error ? error.message : fallback;
-  return NextResponse.json({ message }, { status: 500 });
+  return ownerMobileCorsJson(request, { message: fallback }, { status: 500 }, GROOMING_DRAFTS_CORS);
 }
 
 export async function GET(request: NextRequest) {
@@ -147,7 +155,12 @@ export async function GET(request: NextRequest) {
     const appointment = await requireAppointmentScope(owner, appointmentId);
     const admin = getSupabaseAdmin();
     if (!admin || !appointment) {
-      return NextResponse.json({ draft: serializeDraft(demoDrafts.get(draftKey(owner.shopId, appointmentId)) ?? null) });
+      return ownerMobileCorsJson(
+        request,
+        { draft: serializeDraft(demoDrafts.get(draftKey(owner.shopId, appointmentId)) ?? null) },
+        undefined,
+        GROOMING_DRAFTS_CORS,
+      );
     }
 
     const result = await admin
@@ -158,12 +171,14 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
     if (result.error) throw new OwnerApiError(result.error.message, 500);
 
-    return NextResponse.json(
+    return ownerMobileCorsJson(
+      request,
       { draft: serializeDraft((result.data as DraftRow | null) ?? null) },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      GROOMING_DRAFTS_CORS,
     );
   } catch (error) {
-    return errorResponse(error, "미용 기록 임시저장을 불러오지 못했습니다.");
+    return errorResponse(request, error, "미용 기록 임시저장을 불러오지 못했습니다. 다시 시도해 주세요.");
   }
 }
 
@@ -203,7 +218,7 @@ export async function PUT(request: NextRequest) {
         updated_at: now,
       };
       demoDrafts.set(key, row);
-      return NextResponse.json({ draft: serializeDraft(row) });
+      return ownerMobileCorsJson(request, { draft: serializeDraft(row) }, undefined, GROOMING_DRAFTS_CORS);
     }
 
     const result = await admin
@@ -237,9 +252,14 @@ export async function PUT(request: NextRequest) {
       .single();
     if (result.error) throw new OwnerApiError(result.error.message, 500);
 
-    return NextResponse.json({ draft: serializeDraft(result.data as DraftRow) });
+    return ownerMobileCorsJson(
+      request,
+      { draft: serializeDraft(result.data as DraftRow) },
+      undefined,
+      GROOMING_DRAFTS_CORS,
+    );
   } catch (error) {
-    return errorResponse(error, "미용 기록을 임시저장하지 못했습니다.");
+    return errorResponse(request, error, "미용 기록을 임시저장하지 못했습니다. 입력한 내용은 유지되었어요. 다시 시도해 주세요.");
   }
 }
 
@@ -254,7 +274,7 @@ export async function DELETE(request: NextRequest) {
     const admin = getSupabaseAdmin();
     if (!admin) {
       demoDrafts.delete(draftKey(owner.shopId, appointmentId));
-      return NextResponse.json({ deleted: true });
+      return ownerMobileCorsJson(request, { deleted: true }, undefined, GROOMING_DRAFTS_CORS);
     }
 
     const result = await admin
@@ -264,8 +284,12 @@ export async function DELETE(request: NextRequest) {
       .eq("appointment_id", appointmentId);
     if (result.error) throw new OwnerApiError(result.error.message, 500);
 
-    return NextResponse.json({ deleted: true });
+    return ownerMobileCorsJson(request, { deleted: true }, undefined, GROOMING_DRAFTS_CORS);
   } catch (error) {
-    return errorResponse(error, "미용 기록 임시저장을 정리하지 못했습니다.");
+    return errorResponse(request, error, "미용 기록 임시저장을 정리하지 못했습니다. 다시 시도해 주세요.");
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return ownerMobileCorsPreflight(request, GROOMING_DRAFTS_CORS);
 }

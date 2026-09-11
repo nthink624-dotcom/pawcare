@@ -49,20 +49,22 @@ const OWNER_LOAD_TIMEOUT_MS = 30000;
 const OWNER_SESSION_SLOW_NOTICE_MS = 8000;
 const OWNER_SESSION_TIMEOUT_MS = 10000;
 const OWNER_BACKGROUND_REFRESH_MS = 60_000;
+type OwnerBootstrapPhase = "essential" | "full";
 const ownerBootstrapInFlight = new Map<string, Promise<BootstrapPayload>>();
 
-function loadOwnerBootstrapOnce(shopId: string) {
-  const existing = ownerBootstrapInFlight.get(shopId);
+function loadOwnerBootstrapOnce(shopId: string, phase: OwnerBootstrapPhase) {
+  const requestKey = `${shopId}:${phase}`;
+  const existing = ownerBootstrapInFlight.get(requestKey);
   if (existing) return existing;
 
   const request = fetchApiJsonWithAuth<BootstrapPayload>(
-    `/api/bootstrap?shopId=${encodeURIComponent(shopId)}`,
+    `/api/bootstrap?shopId=${encodeURIComponent(shopId)}&phase=${phase}`,
   ).finally(() => {
-    if (ownerBootstrapInFlight.get(shopId) === request) {
-      ownerBootstrapInFlight.delete(shopId);
+    if (ownerBootstrapInFlight.get(requestKey) === request) {
+      ownerBootstrapInFlight.delete(requestKey);
     }
   });
-  ownerBootstrapInFlight.set(shopId, request);
+  ownerBootstrapInFlight.set(requestKey, request);
   return request;
 }
 
@@ -137,7 +139,8 @@ export default function OwnerPage() {
   const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [showSlowLoadHint, setShowSlowLoadHint] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const backgroundRefreshReadyAtRef = useRef(Date.now() + 5000);
 
@@ -205,6 +208,18 @@ export default function OwnerPage() {
   }
 
   useEffect(() => {
+    if (data || loadError) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setShowSlowLoadHint(true);
+    }, OWNER_SESSION_SLOW_NOTICE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [data, loadError]);
+
+  useEffect(() => {
     let active = true;
     window.performance.mark("petmanager:owner-login:owner-route-mounted");
 
@@ -216,20 +231,13 @@ export default function OwnerPage() {
 
       if (!hasSupabaseBrowserEnv() || !supabase) {
         if (active) {
-          setMessage("서비스 설정을 확인하지 못했습니다. 운영자에게 문의해 주세요.");
+          setLoadError("서비스 설정을 확인하지 못했습니다. 운영자에게 문의해 주세요.");
         }
         return;
       }
 
       try {
-        const slowSessionNotice = window.setTimeout(() => {
-          if (active) {
-            setMessage("로그인 상태를 확인하는 중입니다. 잠시만 기다려 주세요.");
-          }
-        }, OWNER_SESSION_SLOW_NOTICE_MS);
-        const ownerAccess = await getOwnerAccessContext().finally(() => {
-          window.clearTimeout(slowSessionNotice);
-        });
+        const ownerAccess = await getOwnerAccessContext();
 
         if (!ownerAccess?.accessToken) {
           router.replace("/login" as never);
@@ -239,7 +247,7 @@ export default function OwnerPage() {
 
         if (ownerAccess.session?.user.user_metadata?.account_suspended === true) {
           if (active) {
-            setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
+            setLoadError("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
           }
           return;
         }
@@ -264,9 +272,9 @@ export default function OwnerPage() {
             fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops"),
             "매장 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
           );
-        const loadBootstrap = (shopId: string) =>
+        const loadBootstrap = (shopId: string, phase: OwnerBootstrapPhase = "essential") =>
           withOwnerLoadTimeout(
-            loadOwnerBootstrapOnce(shopId),
+            loadOwnerBootstrapOnce(shopId, phase),
             "오너 초기 데이터를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
           );
 
@@ -311,6 +319,11 @@ export default function OwnerPage() {
         setData(bootstrap);
         window.performance.mark("petmanager:owner-login:owner-usable");
         backgroundRefreshReadyAtRef.current = Date.now() + 5000;
+        void loadBootstrap(resolvedShopId, "full").then((fullBootstrap) => {
+          if (active) setData(fullBootstrap);
+        }).catch(() => {
+          // Essential data is already authorized and usable; retry deferred data on the normal refresh cycle.
+        });
         void loadSubscription().catch(() => {
           // The bootstrap endpoint already validated access. Keep the home visible if this secondary summary misses.
         });
@@ -330,16 +343,16 @@ export default function OwnerPage() {
           nextMessage.includes("소유한 매장이 없습니다.") ||
           nextMessage.includes("연결된 매장 정보를 찾을 수 없습니다.")
         ) {
-          setMessage("연결된 매장 정보를 찾을 수 없습니다. 고객센터로 문의해 주세요.");
+          setLoadError("연결된 매장 정보를 찾을 수 없습니다. 고객센터로 문의해 주세요.");
           return;
         }
 
         if (nextMessage.includes("일시 중지")) {
-          setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
+          setLoadError("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
           return;
         }
 
-        setMessage(nextMessage);
+        setLoadError(nextMessage);
       }
     }
 
@@ -349,6 +362,11 @@ export default function OwnerPage() {
       active = false;
     };
   }, [router, supabase]);
+
+  useEffect(() => {
+    if (!accessToken || data) return;
+    window.performance.mark("petmanager:owner-login:owner-usable");
+  }, [accessToken, data]);
 
   useEffect(() => {
     if (!selectedShopId || !accessToken || typeof window === "undefined") return;
@@ -426,9 +444,51 @@ export default function OwnerPage() {
 
   if (!data) {
     return (
-      <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#faf7f2] px-4 py-6">
-        <div className="rounded-[10px] border border-[#e3ddd3] bg-white px-4 py-4 text-[14px] leading-6 text-[#6f665f]">
-          {message}
+      <div className="owner-font min-h-screen w-full bg-white text-[#15213b]">
+        <div className="mx-auto w-full max-w-[960px] px-4 sm:px-6 lg:px-8">
+          <header className="flex min-h-11 items-center justify-between gap-3 border-b border-[#e8edf3] py-4">
+            <div className="min-w-0">
+              <p className="text-[14px] font-semibold leading-5 tracking-[-0.005em]">펫매니저</p>
+              <p className="text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">오너 관리</p>
+            </div>
+            {accessToken ? (
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="min-h-11 shrink-0 rounded-[10px] border border-[#cbd5e1] bg-white px-4 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#15213b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-60"
+                data-testid="owner-authenticated-shell-control"
+              >
+                {loggingOut ? "로그아웃 중..." : "로그아웃"}
+              </button>
+            ) : null}
+          </header>
+
+          <main className="pt-7" aria-busy={loadError === null} data-testid="owner-login-loading-shell">
+            {loadError ? (
+              <div role="alert" className="max-w-[560px] text-[16px] leading-6 text-[#15213b]">
+                <p>{loadError}</p>
+              </div>
+            ) : (
+              <div role="status" aria-live="polite" aria-atomic="true" className="flex max-w-[560px] items-start gap-3">
+                <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#64748b]" aria-hidden="true" />
+                <span
+                  className="mt-1.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[#cbd5e1] border-t-[#64748b] motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+                <div className="min-w-0">
+                  <p className="text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#15213b]">
+                    오너 화면을 불러오는 중입니다.
+                  </p>
+                  {showSlowLoadHint ? (
+                    <p className="mt-2 text-[13px] font-normal leading-5 text-[#64748b]">
+                      로그인 상태와 매장 정보를 확인하고 있습니다.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </main>
         </div>
       </div>
     );

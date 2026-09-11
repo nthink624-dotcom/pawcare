@@ -1,5 +1,9 @@
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { OwnerWebStaffMember, OwnerWebWeekdayKey } from "@/components/owner-web/owner-web-staff-data";
+import type {
+  InitialSetupStaffPhotoDraft,
+  StaffProfilePhotoUploader,
+} from "@/components/owner-web/staff-profile-photo-field";
 import type { StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import type { StaffScheduleOverride as BootstrapStaffScheduleOverride } from "@/types/domain";
 
@@ -322,6 +326,101 @@ export function buildDraft(staff: StaffMember): StaffDraft {
     endTime: staff.endTime,
     regularOff: staff.regularOff,
     annualRemain: String(staff.annualRemain),
+  };
+}
+
+export async function persistInitialSetupStaffDraft({
+  shopId,
+  staff,
+  selectedStaff,
+  selectedStaffIsOwner,
+  ownerStaffName,
+  sessionStaffId,
+  draft,
+  photo,
+  nextDays,
+  uploadPhoto,
+  onPhotoUploadPending,
+  createStaffId,
+  persistStaff,
+}: {
+  shopId?: string;
+  staff: StaffMember[];
+  selectedStaff?: StaffMember;
+  selectedStaffIsOwner: boolean;
+  ownerStaffName: string;
+  sessionStaffId?: string | null;
+  draft: StaffDraft;
+  photo: InitialSetupStaffPhotoDraft;
+  nextDays: WeekdayKey[];
+  uploadPhoto: StaffProfilePhotoUploader;
+  onPhotoUploadPending?: (pendingUpload: { mediaAssetId: string; signedUrl: string }) => void;
+  createStaffId: () => string;
+  persistStaff: (nextStaff: StaffMember[]) => Promise<boolean>;
+}) {
+  const targetId = selectedStaff?.id ?? sessionStaffId ?? createStaffId();
+  let profileImageUrl = selectedStaff?.profileImageUrl?.trim() ?? "";
+  let profileImageUrls = [...(selectedStaff?.profileImageUrls?.filter(Boolean) ?? [])];
+  let profileImageAssetIds = [...(selectedStaff?.profileImageAssetIds?.filter(Boolean) ?? [])];
+
+  if (photo.mode === "replace") {
+    let pendingUpload = photo.pendingUpload ?? null;
+    if (!pendingUpload) {
+      if (!photo.file) throw new Error("저장할 사진을 다시 선택해 주세요.");
+      if (!shopId) throw new Error("매장 정보를 확인한 뒤 사진 업로드를 다시 시도해 주세요.");
+      pendingUpload = await uploadPhoto({ shopId, staffId: targetId }, photo.file);
+      onPhotoUploadPending?.(pendingUpload);
+    }
+    profileImageUrl = pendingUpload.signedUrl;
+    profileImageUrls = [pendingUpload.signedUrl];
+    profileImageAssetIds = [pendingUpload.mediaAssetId];
+  } else if (photo.mode === "remove") {
+    profileImageUrl = "";
+    profileImageUrls = [];
+    profileImageAssetIds = [];
+  }
+
+  const ownerRow = !selectedStaff || selectedStaffIsOwner;
+  const name = ownerRow ? ownerStaffName : draft.name.trim();
+  const role = ownerRow ? "대표" : draft.role.trim() || selectedStaff?.role || "직원";
+  const position = ownerRow ? "대표" : draft.position.trim() || role;
+  const nextMember: StaffMember = {
+    id: targetId,
+    name,
+    displayName: ownerRow ? ownerStaffName : draft.displayName.trim() || name,
+    profileImageUrl,
+    profileImageUrls,
+    profileImageAssetIds,
+    profileMessage: draft.profileMessage.trim(),
+    chipColorIndex: draft.chipColorIndex,
+    phone: draft.phone.trim(),
+    role,
+    titlePrefix: selectedStaff?.titlePrefix ?? "",
+    position,
+    defaultDays: nextDays,
+    startTime: draft.startTime,
+    endTime: draft.endTime,
+    regularOff: draft.regularOff.trim() || formatFixedOffDays(nextDays),
+    annualRemain: selectedStaff?.annualRemain ?? 0,
+    todayBookings: selectedStaff?.todayBookings ?? 0,
+    weekBookings: selectedStaff?.weekBookings ?? 0,
+  };
+  const saved = await persistStaff(selectedStaff
+    ? staff.map((item) => item.id === selectedStaff.id ? nextMember : item)
+    : [...staff, nextMember]);
+  if (!saved) throw new Error("직원 정보를 저장하지 못했습니다.");
+
+  return {
+    targetId,
+    savedDraft: {
+      ...draft,
+      name,
+      displayName: nextMember.displayName ?? name,
+      role,
+      position,
+      profileImageUrl,
+      phone: nextMember.phone,
+    },
   };
 }
 

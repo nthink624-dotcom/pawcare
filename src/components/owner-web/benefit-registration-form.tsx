@@ -15,12 +15,12 @@ type Props = {
 };
 
 const inputClassName =
-  "h-11 w-full rounded-[6px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]";
+  "h-11 w-full rounded-[6px] border border-[#e8edf3] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#bfdbfe]";
 
 function FormRow({ label, required = false, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
-    <div className="grid gap-4 border-b border-[#e5e7eb] px-1 py-5 lg:grid-cols-[150px_minmax(0,1fr)]">
-      <div className="flex items-start gap-1 pt-2 text-[14px] font-semibold text-[#475569]">
+    <div className="grid gap-3 border-b border-[#e5e7eb] px-1 py-4 lg:grid-cols-[150px_minmax(0,1fr)]">
+      <div className="flex items-start gap-1 pt-3 text-[14px] font-medium leading-5 text-[#475569]">
         <span>{label}</span>
         {required ? <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#c85b67]" aria-label="필수" /> : null}
       </div>
@@ -49,10 +49,10 @@ function ChoiceButton({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "benefit-registration-choice flex h-[74px] min-w-[132px] flex-col items-center justify-center gap-2 rounded-[6px] border px-4 text-[14px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-55",
+        "benefit-registration-choice inline-flex h-14 min-w-[148px] items-center justify-start gap-3 rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
         selected
-          ? "border-[#2f7866]! bg-[#f4faf8]! text-[#2f7866]!"
-          : "border-[#dbe2ea] bg-white text-[#475569]! hover:bg-[#f8fafc]",
+          ? "border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8]"
+          : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
       )}
     >
       {icon}
@@ -95,13 +95,6 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
 
   return (
     <div className="benefit-registration-form h-full overflow-y-auto px-1">
-      <style>{`
-        .benefit-registration-form .benefit-registration-choice[aria-pressed="true"] {
-          border-color: #2f7866 !important;
-          background: #f4faf8 !important;
-          color: #2f7866 !important;
-        }
-      `}</style>
       <FormRow label="혜택명" required>
         <div className="relative">
           <input
@@ -184,10 +177,10 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
                   const value = Number(event.target.value.replace(/[^0-9]/g, ""));
                   onChange({ discount_value: draft.discount_type === "percent" ? Math.min(value, 100) : value });
                 }}
-                className="h-11 min-w-0 flex-1 rounded-l-[6px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:z-10 focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]"
+                className="h-11 min-w-0 flex-1 rounded-l-[6px] border border-[#e8edf3] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus-visible:z-10 focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#bfdbfe]"
                 placeholder={draft.discount_type === "percent" ? "10" : "10000"}
               />
-              <span className="inline-flex h-11 w-[62px] shrink-0 items-center justify-center rounded-r-[6px] border border-l-0 border-[#dbe2ea] bg-[#f8fafc] text-[14px] font-semibold text-[#475569]">
+              <span className="inline-flex h-11 w-[62px] shrink-0 items-center justify-center rounded-r-[6px] border border-l-0 border-[#e8edf3] bg-[#f8fafc] text-[14px] font-medium leading-5 text-[#475569]">
                 {draft.discount_type === "percent" ? "%" : "원"}
               </span>
             </div>
@@ -206,10 +199,10 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.combination_policy === policy}
               onClick={() => onChange({ combination_policy: policy })}
               className={cn(
-                "benefit-registration-choice h-10 min-w-[132px] rounded-[6px] border px-4 text-[14px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-55",
+                "benefit-registration-choice h-11 min-w-[132px] rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
                 draft.combination_policy === policy
-                  ? "border-[#2f7866]! bg-[#f4faf8]! text-[#2f7866]!"
-                  : "border-[#dbe2ea] bg-white text-[#475569]! hover:bg-[#f8fafc]",
+                  ? "border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8]"
+                  : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
               )}
             >
               {policy === "exclusive" ? "단독 적용" : "중복 가능"}
@@ -239,10 +232,10 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.service_scope !== "specific"}
               onClick={() => onChange({ service_scope: "all", service_option_ids: [] })}
               className={cn(
-                "benefit-registration-choice h-10 min-w-[150px] rounded-[6px] border px-4 text-[14px] font-semibold transition",
+                "benefit-registration-choice h-11 min-w-[150px] rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
                 draft.service_scope !== "specific"
-                  ? "border-[#2f7866]! bg-[#f4faf8]! text-[#2f7866]!"
-                  : "border-[#dbe2ea] bg-white text-[#475569]! hover:bg-[#f8fafc]",
+                  ? "border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8]"
+                  : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
               )}
             >
               내 서비스 전체
@@ -252,10 +245,10 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.service_scope === "specific"}
               onClick={() => onChange({ service_scope: "specific", service_option_ids: [] })}
               className={cn(
-                "benefit-registration-choice h-10 min-w-[150px] rounded-[6px] border px-4 text-[14px] font-semibold transition",
+                "benefit-registration-choice h-11 min-w-[150px] rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
                 draft.service_scope === "specific"
-                  ? "border-[#2f7866]! bg-[#f4faf8]! text-[#2f7866]!"
-                  : "border-[#dbe2ea] bg-white text-[#475569]! hover:bg-[#f8fafc]",
+                  ? "border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8]"
+                  : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
               )}
             >
               서비스 선택

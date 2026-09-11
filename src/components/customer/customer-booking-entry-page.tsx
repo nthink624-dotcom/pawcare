@@ -3,7 +3,6 @@
 import { ChevronDown, Copy, Navigation, Phone, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 
-import { normalizeServicePriceGuide, type ServicePriceGuideExtraFee, type ServicePriceGuideSection } from "@/components/owner-web/service-price-guide";
 import CustomerEntryServicePicker from "@/components/customer/customer-entry-service-picker";
 import {
   applyConfiguredCustomerServiceOverrides,
@@ -211,6 +210,11 @@ function buildSelectedServiceBookingHref(
   return `${baseHref}${separator}serviceId=${encodeURIComponent(service.serviceId)}&serviceOptionId=${encodeURIComponent(service.id)}`;
 }
 
+export type CustomerBookingPreviewSelection = {
+  serviceId: string;
+  serviceOptionId: string;
+};
+
 export function resolveHeroImages(value: string | undefined, values?: string[]) {
   const uploadedImages = Array.isArray(values)
     ? values.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.trim().length > 0).slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES)
@@ -231,61 +235,6 @@ function areStringArraysEqual(left: string[], right: string[]) {
 function cssBackgroundUrl(imageUrl: string) {
   const escapedUrl = imageUrl.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   return `url("${escapedUrl}")`;
-}
-
-function getPriceGuideSections(service: Service): ServicePriceGuideSection[] {
-  const guide = service.price_guide;
-  if (!guide || typeof guide !== "object" || Array.isArray(guide)) return [];
-  const source = guide as { enabled?: unknown; sections?: unknown };
-  if (source.enabled === false || !Array.isArray(source.sections) || source.sections.length === 0) return [];
-  return normalizeServicePriceGuide(guide).sections ?? [];
-}
-
-type PriceGuideExtraFeeGroup = {
-  serviceId: string;
-  serviceName: string;
-  extraNote: string;
-  extraFees: ServicePriceGuideExtraFee[];
-};
-
-function getPriceGuideExtraFeeGroup(service: Service): PriceGuideExtraFeeGroup | null {
-  const guide = service.price_guide;
-  if (!guide || typeof guide !== "object" || Array.isArray(guide)) return null;
-  const source = guide as { enabled?: unknown };
-  if (source.enabled === false) return null;
-
-  const normalized = normalizeServicePriceGuide(guide);
-  const extraNote = normalized.extraNote.trim();
-  const extraFees = normalized.extraFees.filter((fee) => fee.label.trim() || fee.price.trim());
-  if (!extraNote && extraFees.length === 0) return null;
-
-  return {
-    serviceId: service.id,
-    serviceName: service.name,
-    extraNote,
-    extraFees,
-  };
-}
-
-function dedupePriceGuideExtraFeeGroups(groups: PriceGuideExtraFeeGroup[]) {
-  const seen = new Set<string>();
-  return groups.filter((group) => {
-    const key = JSON.stringify({
-      extraNote: group.extraNote,
-      extraFees: group.extraFees.map((fee) => ({ label: fee.label.trim(), price: fee.price.trim() })),
-    });
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function formatPriceGuideCell(cell: { price?: string; durationMinutes?: string } | undefined) {
-  const price = Number(String(cell?.price ?? "").replace(/[^0-9]/g, ""));
-  const duration = Number(String(cell?.durationMinutes ?? "").replace(/[^0-9]/g, ""));
-  const priceText = Number.isFinite(price) && price > 0 ? `${price.toLocaleString("ko-KR")}원` : "-";
-  const durationText = Number.isFinite(duration) && duration > 0 ? `${duration}분 예상` : "";
-  return { priceText, durationText };
 }
 
 function getTodayOperatingStatus(
@@ -323,6 +272,7 @@ export default function CustomerBookingEntryPage({
   infoHref,
   bookingHref,
   previewMode = false,
+  previewSelectedServiceOptionId = "",
   onPreviewBookingStart,
 }: {
   shop: Pick<Shop, "id" | "name" | "phone" | "address" | "description" | "approval_mode" | "customer_page_settings" | "business_hours" | "regular_closed_days" | "temporary_closed_dates">;
@@ -332,11 +282,12 @@ export default function CustomerBookingEntryPage({
   infoHref: string;
   bookingHref?: string;
   previewMode?: boolean | "entry" | "staffSelection";
-  onPreviewBookingStart?: () => void;
+  previewSelectedServiceOptionId?: string;
+  onPreviewBookingStart?: (selection: CustomerBookingPreviewSelection) => void;
 }) {
   const settings = shop.customer_page_settings;
   const displayName = shop.name;
-  const bookingAccentColor = "#ec7f72";
+  const bookingAccentColor = "#a9473f";
   const displayAddress = [shop.address, settings.address_detail].filter(Boolean).join(", ");
   const todayWeekday = getTodayWeekdayInSeoul();
   const [currentSeoulMinutes, setCurrentSeoulMinutes] = useState(() => getSeoulTimeMinutes());
@@ -354,27 +305,6 @@ export default function CustomerBookingEntryPage({
   const serviceOptions = useMemo(
     () => applyConfiguredCustomerServiceOverrides(sourceServiceOptions, settings.customer_service_overrides),
     [settings.customer_service_overrides, sourceServiceOptions],
-  );
-  const fullServiceOptions = serviceOptions.length > 0 ? serviceOptions : sourceServiceOptions;
-  const priceGuideSections = useMemo(
-    () =>
-      services.flatMap((service) =>
-        getPriceGuideSections(service).map((section) => ({
-          serviceId: service.id,
-          serviceName: service.name,
-          section,
-        })),
-      ),
-    [services],
-  );
-  const priceGuideExtraFeeGroups = useMemo(
-    () =>
-      dedupePriceGuideExtraFeeGroups(
-        services
-          .map(getPriceGuideExtraFeeGroup)
-          .filter((group): group is PriceGuideExtraFeeGroup => Boolean(group)),
-      ),
-    [services],
   );
   const heroMediaAssetIds = useMemo(
     () => uniqueNonEmptyStrings(settings.hero_media_asset_ids ?? (settings.hero_media_asset_id ? [settings.hero_media_asset_id] : [])).slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES),
@@ -443,6 +373,15 @@ export default function CustomerBookingEntryPage({
   const selectedServiceBookingHref = selectedServiceOption
     ? buildSelectedServiceBookingHref(baseBookingHref, selectedServiceOption)
     : "";
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      if (!previewMode || !previewSelectedServiceOptionId) return;
+      if (!serviceOptions.some((service) => service.id === previewSelectedServiceOptionId)) return;
+      setSelectedServiceOptionId(previewSelectedServiceOptionId);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [previewMode, previewSelectedServiceOptionId, serviceOptions]);
 
   const directionsQuery = useMemo(() => [displayName, displayAddress].filter(Boolean).join(" "), [displayName, displayAddress]);
   const naverWebUrl = `https://map.naver.com/p/search/${encodeURIComponent(directionsQuery)}`;
@@ -693,7 +632,9 @@ export default function CustomerBookingEntryPage({
   return (
     <div className={`pm-entry-proto${publicBenefitCards.length > 0 ? " has-benefits" : ""}${previewMode ? " is-preview" : ""} mx-auto min-h-screen w-full max-w-[430px] bg-[#fdf7f5] text-[#3a2e2a]`}>
       <style>{`
-        .pm-entry-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--open:#3a9e6e;--closed:#a04455;--primary:#ec7f72;--primaryDk:#d35f50;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;overflow:hidden}
+        .pm-entry-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--open:#1f9d55;--closed:#a04455;--primary:#ec7f72;--primaryDk:#a9473f;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;overflow:hidden}
+        .pm-entry-proto :is(button,a,input,textarea,select,[role="button"]):focus-visible{outline:2px solid #2563eb;outline-offset:2px;box-shadow:0 0 0 3px rgba(37,99,235,.18)}
+        .pm-entry-proto :is(input,textarea)::placeholder{color:#94a3b8;opacity:1;font-size:16px;line-height:24px}
         .pm-entry-proto .scroll{height:100dvh;overflow:auto;scrollbar-width:none;padding-bottom:102px}
         .pm-entry-proto.has-benefits .scroll{padding-bottom:132px}
         .pm-entry-proto.is-preview{height:100%;min-height:0}
@@ -705,16 +646,16 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .gallery::-webkit-scrollbar{display:none}
         .pm-entry-proto .gcard{flex:0 0 88%;scroll-snap-align:center;height:238px;border-radius:16px;position:relative;overflow:hidden;background-size:cover;background-position:center;background-repeat:no-repeat}
         .pm-entry-proto .gcard.clickable{cursor:pointer}
-        .pm-entry-proto .gslot{flex:0 0 54px;height:238px;border-radius:16px;background:repeating-linear-gradient(135deg,#f4e6fb 0,#f4e6fb 9px,#ecd8f7 9px,#ecd8f7 18px);opacity:.78}
-        .pm-entry-proto .gcard .ovl{position:absolute;inset:0;background:linear-gradient(to top,rgba(28,16,12,.5) 0%,transparent 42%)}
+        .pm-entry-proto .gslot{flex:0 0 54px;height:238px;border-radius:16px;background:repeating-linear-gradient(135deg,#fff3ef 0,#fff3ef 9px,#f6ddd6 9px,#f6ddd6 18px);opacity:.78}
+        .pm-entry-proto .gcard .ovl{position:absolute;inset:0;background:linear-gradient(to top,rgba(15,23,42,.5) 0%,transparent 42%)}
         .pm-entry-proto .gcard .id{position:absolute;left:16px;bottom:15px;color:#fff}
-        .pm-entry-proto .gcard .id .nm{font-size:22px;font-weight:700;letter-spacing:-.03em;text-shadow:0 1px 6px rgba(0,0,0,.35)}
-        .pm-entry-proto .gcard .cnt{position:absolute;right:12px;top:12px;border:0;font-family:inherit;font-size:11px;font-weight:600;color:#fff;background:rgba(20,12,10,.45);backdrop-filter:blur(4px);border-radius:20px;padding:5px 11px;cursor:pointer}
-        .pm-entry-proto .gcard.empty{border:1px solid rgba(213,220,230,.95);background:linear-gradient(135deg,#fff8f5 0%,#f7f9fc 58%,#eef4ff 100%)}
-        .pm-entry-proto .gcard.empty .id{color:#241b18}
+        .pm-entry-proto .gcard .id .nm{font-size:22px;font-weight:600;letter-spacing:-.03em;text-shadow:0 1px 6px rgba(0,0,0,.35)}
+        .pm-entry-proto .gcard .cnt{position:absolute;right:12px;top:12px;border:0;font-family:inherit;font-size:11px;font-weight:600;color:#fff;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);border-radius:20px;padding:5px 11px;cursor:pointer}
+        .pm-entry-proto .gcard.empty{border:1px solid var(--border);background:linear-gradient(135deg,#fff 0%,#fff8f5 58%,#fce9e4 100%)}
+        .pm-entry-proto .gcard.empty .id{color:var(--text)}
         .pm-entry-proto .gcard.empty .id .nm{text-shadow:none}
         .pm-entry-proto .gdots{display:flex;justify-content:center;align-items:center;gap:5px;padding:11px 0 1px}
-        .pm-entry-proto .gdots i{width:6px;height:6px;border-radius:999px;background:#f7dcd5;display:block;transition:width .2s,background-color .2s;opacity:.9}
+        .pm-entry-proto .gdots i{width:6px;height:6px;border-radius:999px;background:#efd8d1;display:block;transition:width .2s,background-color .2s;opacity:.9}
         .pm-entry-proto .gdots i.clickable{cursor:pointer}
         .pm-entry-proto .gdots i.on{width:18px;background:var(--primary);opacity:1}
         .pm-entry-proto .body{padding:12px 16px 6px;display:flex;flex-direction:column;gap:16px}
@@ -722,7 +663,7 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .pbar .ptrack{display:flex;transition:transform .28s ease;touch-action:pan-y;cursor:grab}
         .pm-entry-proto .pbar:active .ptrack{cursor:grabbing}
         .pm-entry-proto .pbar .pcard-profile{display:flex;min-width:100%;align-items:center;gap:12px;border:0;background:transparent;padding:0;text-align:left;color:inherit;font-family:inherit;cursor:pointer}
-        .pm-entry-proto .pbar .av{width:50px;height:50px;border-radius:50%;flex-shrink:0;background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#fff0ec;color:var(--primaryDk);display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .pbar .av{width:50px;height:50px;border-radius:50%;flex-shrink:0;background-size:cover;background-position:center;background-repeat:no-repeat;background-color:var(--primarySoft);color:var(--primaryDk);display:flex;align-items:center;justify-content:center}
         .pm-entry-proto .pbar .who{min-width:0;flex:1}
         .pm-entry-proto .pbar .nm{font-size:17px;font-weight:600;letter-spacing:-.02em}
         .pm-entry-proto .pbar .sub{font-size:13px;color:var(--textMuted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -731,10 +672,10 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .pdots i.on{width:14px;background:var(--primary)}
         .pm-entry-proto .srow{display:flex;align-items:flex-start;gap:10px}
         .pm-entry-proto .socials{display:flex;gap:9px;margin-left:auto}
-        .pm-entry-proto .socials .chip{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 9px rgba(60,40,30,.16);cursor:pointer;border:1px solid var(--border);background:var(--card);overflow:hidden}
-        .pm-entry-proto .socials .chip img{width:42px;height:42px;object-fit:contain;display:block}
+        .pm-entry-proto .socials .chip{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;box-shadow:none;cursor:pointer;border:1px solid var(--border);background:var(--card);overflow:hidden}
+        .pm-entry-proto .socials .chip img{width:30px;height:30px;object-fit:contain;display:block}
         .pm-entry-proto .hours{position:relative}
-        .pm-entry-proto .hours .top{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 14px;border:1px solid var(--border);border-radius:13px;background:var(--card);cursor:pointer;user-select:none;font-size:16px;font-weight:600;color:var(--text);white-space:nowrap}
+        .pm-entry-proto .hours .top{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;border:1px solid var(--border);border-radius:13px;background:var(--card);cursor:pointer;user-select:none;font-size:16px;font-weight:500;color:var(--text);white-space:nowrap}
         .pm-entry-proto .hours .top .od{width:8px;height:8px;border-radius:50%;background:var(--open);display:block}
         .pm-entry-proto .hours .top.closed .od{background:var(--closed)}
         .pm-entry-proto .hours .top .chev{width:14px;height:14px;color:var(--textMuted);transition:transform .25s;flex-shrink:0}
@@ -753,42 +694,44 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .benefit{display:flex;min-height:38px;width:calc(min(100vw,430px) - 32px);flex:0 0 auto;align-items:center;justify-content:space-between;gap:10px;border:1px solid #f2d8d2;background:rgba(255,255,255,.72);border-radius:11px;padding:8px 11px}
         .pm-entry-proto .benefit .txt{min-width:0}
         .pm-entry-proto .benefit .name{font-size:13.5px;font-weight:600;letter-spacing:-.02em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .pm-entry-proto .benefit .val{flex-shrink:0;font-size:13.5px;font-weight:700;color:var(--primaryDk);white-space:nowrap}
+        .pm-entry-proto .benefit .val{flex-shrink:0;font-size:13.5px;font-weight:500;color:var(--primaryDk);white-space:nowrap}
         .pm-entry-proto .pcard{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
         .pm-entry-proto .pcard .pr{display:flex;width:100%;align-items:center;padding:13px 15px;border:0;background:var(--card);font-family:inherit;color:inherit;text-align:left;cursor:pointer;transition:background .15s,box-shadow .15s}
         .pm-entry-proto .pcard .pr + .pr{border-top:1px solid var(--borderSoft)}
-        .pm-entry-proto .pcard .pr.sel{background:#fff7f5}
-        .pm-entry-proto .pcard .pr .radio-check{width:21px;height:21px;margin-right:10px;border:1.5px solid #d7c9c4;border-radius:50%;background:#fff;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .15s,background-color .15s,box-shadow .15s}
-        .pm-entry-proto .pcard .pr.sel .radio-check{border-color:var(--primary);background:var(--primary);box-shadow:0 0 0 3px rgba(236,127,114,.12)}
+        .pm-entry-proto .pcard .pr.sel{background:var(--primarySoft)}
+        .pm-entry-proto .pcard .pr .radio-check{width:21px;height:21px;margin-right:10px;border:1.5px solid #d7c9c4;border-radius:50%;background:#fff;color:var(--text);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .15s,background-color .15s,box-shadow .15s}
+        .pm-entry-proto .pcard .pr.sel .radio-check{border-color:var(--primary);background:var(--primary);box-shadow:0 0 0 3px rgba(236,127,114,.18)}
         .pm-entry-proto .pcard .pr .n{font-size:15px;font-weight:500;letter-spacing:-.02em;white-space:nowrap}
         .pm-entry-proto .pcard .pr .d{font-size:12.5px;color:var(--textMuted);margin-left:8px;white-space:nowrap;overflow:hidden}
         .pm-entry-proto .pcard .pr .p{margin-left:auto;font-size:16px;font-weight:600;color:var(--primaryDk);font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:8px}
         .pm-entry-proto .pcard .full{display:flex;width:100%;align-items:center;justify-content:center;gap:5px;padding:14px;border:0;border-top:1px solid var(--borderSoft);background:var(--card);font-family:inherit;font-size:13.5px;color:var(--textMid);cursor:pointer}
-        .pm-entry-proto .dock{position:fixed;bottom:0;left:50%;transform:translateX(-50%);right:auto;z-index:7;width:100%;max-width:430px;padding:10px 16px 16px;background:rgba(253,247,245,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+        .pm-entry-proto .dock{position:fixed;bottom:0;left:50%;transform:translateX(-50%);right:auto;z-index:7;width:100%;max-width:430px;padding:10px 16px 16px;background:rgba(253,247,245,.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
         .pm-entry-proto .dock .actions{display:flex;width:100%;align-items:center;gap:9px}
-        .pm-entry-proto .dock .quick{width:48px;height:52px;border-radius:var(--rbtn);border:1px solid var(--border);background:var(--card);color:var(--primaryDk);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(60,40,30,.1);flex-shrink:0}
-        .pm-entry-proto .cta{flex:1;min-width:0;padding:17px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:#fff;font-family:inherit;font-size:16.5px;font-weight:700;letter-spacing:-.02em;cursor:pointer;box-shadow:0 6px 16px rgba(236,127,114,.38);display:flex;align-items:center;justify-content:center}
-        .pm-entry-proto .cta:disabled{background:#e7d8d2;color:#b29f97;box-shadow:none;cursor:not-allowed}
-        .pm-entry-proto .staff-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(43,28,23,.3);padding:18px 16px}
+        .pm-entry-proto .dock .quick{width:48px;height:52px;border-radius:var(--rbtn);border:1px solid var(--border);background:var(--card);color:var(--primaryDk);display:flex;align-items:center;justify-content:center;box-shadow:none;flex-shrink:0}
+        .pm-entry-proto .cta{flex:1;min-width:0;min-height:52px;padding:14px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:var(--text);font-family:inherit;font-size:16px;line-height:24px;font-weight:500;letter-spacing:-.02em;cursor:pointer;box-shadow:none;display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .cta:disabled{background:#e8d9d2;color:#b9a89f;box-shadow:none;cursor:not-allowed}
+        .pm-entry-proto .staff-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(15,23,42,.3);padding:18px 16px}
         .pm-entry-proto.is-preview .staff-modal{position:absolute}
-        .pm-entry-proto .staff-sheet{width:100%;max-width:398px;border:1px solid #f1d7d1;border-radius:22px;background:#fff8f6;box-shadow:0 -18px 55px rgba(42,25,17,.18);padding:16px}
+        .pm-entry-proto .staff-sheet{width:100%;max-width:398px;border:1px solid #f1d7d1;border-radius:22px;background:#fff8f6;box-shadow:0 -18px 55px rgba(80,45,36,.16);padding:16px}
         .pm-entry-proto .staff-sheet .head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-        .pm-entry-proto .staff-sheet .head h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-.03em;color:#2f211d}
-        .pm-entry-proto .staff-sheet .close{width:38px;height:38px;border-radius:12px;border:1px solid #f1d7d1;background:#fff;color:#8b6259;display:flex;align-items:center;justify-content:center}
-        .pm-entry-proto .staff-sheet .photo{height:252px;border-radius:18px;background:#fff0ec;background-size:cover;background-position:center;background-repeat:no-repeat;display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
+        .pm-entry-proto .staff-sheet .head h3{margin:0;font-size:18px;font-weight:600;letter-spacing:-.03em;color:var(--text)}
+        .pm-entry-proto .staff-sheet .close{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:12px;border:1px solid #f1d7d1;background:#fff;color:var(--textMid);display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .staff-sheet .photo{height:252px;border-radius:18px;background:var(--primarySoft);background-size:cover;background-position:center;background-repeat:no-repeat;display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
         .pm-entry-proto .staff-sheet .photo-dots{display:flex;justify-content:center;gap:5px;margin:10px 0 12px}
-        .pm-entry-proto .staff-sheet .photo-dots button{width:7px;height:7px;border-radius:999px;border:0;background:#efd8d1;padding:0}
-        .pm-entry-proto .staff-sheet .photo-dots button.on{width:18px;background:var(--primary)}
-        .pm-entry-proto .staff-sheet .msg{border:1px solid #f1d7d1;border-radius:15px;background:#fff;padding:13px 14px;color:#4a342f;font-size:14.5px;line-height:1.6;white-space:pre-wrap}
-        .pm-entry-proto .gallery-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(43,28,23,.34);padding:18px 16px}
+        .pm-entry-proto .staff-sheet .photo-dots button{width:44px;height:44px;border-radius:999px;border:0;background:transparent;padding:0;position:relative}
+        .pm-entry-proto .staff-sheet .photo-dots button::after{content:"";position:absolute;inset:50% auto auto 50%;width:7px;height:7px;border-radius:999px;background:#efd8d1;transform:translate(-50%,-50%)}
+        .pm-entry-proto .staff-sheet .photo-dots button.on{width:44px;background:transparent}
+        .pm-entry-proto .staff-sheet .photo-dots button.on::after{width:18px;background:var(--primary)}
+        .pm-entry-proto .staff-sheet .msg{border:1px solid #f1d7d1;border-radius:15px;background:#fff;padding:13px 14px;color:var(--text);font-size:14.5px;line-height:1.6;white-space:pre-wrap}
+        .pm-entry-proto .gallery-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(15,23,42,.34);padding:18px 16px}
         .pm-entry-proto.is-preview .gallery-modal{position:absolute}
-        .pm-entry-proto .gallery-sheet{width:100%;max-width:398px;max-height:84vh;border:1px solid #f1d7d1;border-radius:22px;background:#fff8f6;box-shadow:0 -18px 55px rgba(42,25,17,.18);overflow:hidden;display:flex;flex-direction:column}
-        .pm-entry-proto .gallery-sheet .head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 16px 12px;border-bottom:1px solid #f4e1dc}
-        .pm-entry-proto .gallery-sheet .head h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-.03em;color:#2f211d}
-        .pm-entry-proto .gallery-sheet .head p{margin:3px 0 0;font-size:13px;color:#8b6259}
-        .pm-entry-proto .gallery-sheet .close{width:38px;height:38px;border-radius:12px;border:1px solid #f1d7d1;background:#fff;color:#8b6259;display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .gallery-sheet{width:100%;max-width:398px;max-height:84vh;border:1px solid #f1d7d1;border-radius:22px;background:#fff8f6;box-shadow:0 -18px 55px rgba(80,45,36,.16);overflow:hidden;display:flex;flex-direction:column}
+        .pm-entry-proto .gallery-sheet .head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 16px 12px;border-bottom:1px solid #f1d7d1}
+        .pm-entry-proto .gallery-sheet .head h3{margin:0;font-size:18px;font-weight:600;letter-spacing:-.03em;color:var(--text)}
+        .pm-entry-proto .gallery-sheet .head p{margin:3px 0 0;font-size:13px;color:var(--textMid)}
+        .pm-entry-proto .gallery-sheet .close{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:12px;border:1px solid #f1d7d1;background:#fff;color:var(--textMid);display:flex;align-items:center;justify-content:center}
         .pm-entry-proto .gallery-grid{overflow:auto;padding:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-        .pm-entry-proto .gallery-grid img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;border:1px solid #f1d7d1;background:#fff}
+        .pm-entry-proto .gallery-grid img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;border:1px solid #e8edf3;background:#fff}
         @keyframes benefitSlide{0%,18%{transform:translateX(0)}82%,100%{transform:translateX(calc(-100% + min(100vw,430px) - 32px))}}
         @media (prefers-reduced-motion: reduce){.pm-entry-proto .benefits.is-animated .benefits-track{animation:none}}
       `}</style>
@@ -989,8 +932,15 @@ export default function CustomerBookingEntryPage({
           <button className="quick" type="button" onClick={() => setDirectionsOpen(true)} aria-label="길찾기">
             <Navigation className="h-5 w-5" strokeWidth={1.9} />
           </button>
-          {previewMode && onPreviewBookingStart ? (
-            <button className="cta" type="button" onClick={onPreviewBookingStart}>
+          {previewMode && onPreviewBookingStart && selectedServiceOption ? (
+            <button
+              className="cta"
+              type="button"
+              onClick={() => onPreviewBookingStart({
+                serviceId: selectedServiceOption.serviceId,
+                serviceOptionId: selectedServiceOption.id,
+              })}
+            >
               간편예약 시작
             </button>
           ) : selectedServiceBookingHref ? (
@@ -1066,15 +1016,15 @@ export default function CustomerBookingEntryPage({
 
       {priceSheetOpen ? (
         <div className={`${previewMode ? "absolute" : "fixed"} inset-0 z-40 flex items-end justify-center bg-black/35 px-4`} onClick={() => setPriceSheetOpen(false)}>
-          <div className="max-h-[82vh] w-full max-w-[430px] overflow-hidden rounded-t-[22px] bg-[#fff8f6] shadow-[0_-18px_55px_rgba(42,25,17,0.18)]" onClick={(event) => event.stopPropagation()}>
-            <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#f3d8d1]" />
+          <div className="max-h-[82vh] w-full max-w-[430px] overflow-hidden rounded-t-[22px] border border-[#e8edf3] bg-white shadow-[0_-18px_55px_rgba(15,23,42,0.14)]" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#cbd5e1]" />
             <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">
               <div>
-                <h3 className="text-[20px] font-semibold tracking-[-0.03em] text-[#2f211d]">요금표</h3>
+                <h3 className="text-[20px] font-semibold tracking-[-0.03em] text-[#15213b]">요금표</h3>
               </div>
               <button
                 type="button"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[#f1d7d1] bg-white text-[#8b6259] shadow-sm"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-[#e8edf3] bg-white text-[#64748b] shadow-sm"
                 onClick={() => setPriceSheetOpen(false)}
                 aria-label="요금표 닫기"
               >
@@ -1083,108 +1033,33 @@ export default function CustomerBookingEntryPage({
             </div>
 
             <div className="max-h-[calc(82vh-92px)] overflow-y-auto px-5 pb-5">
-              {priceGuideSections.length > 0 ? (
-                <div className="space-y-3">
-                  {priceGuideSections.map(({ serviceId, section }) => {
-                    const priceGuideKey = `${serviceId}-${section.id}`;
-
-                    return (
-                    <section key={priceGuideKey} className="overflow-hidden rounded-[16px] border border-[#f1d7d1] bg-white shadow-[0_8px_24px_rgba(42,25,17,0.04)]">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-[430px] w-full border-collapse text-center">
-                          <thead>
-                            <tr className="bg-[#fff8f6] text-[12px] font-normal text-[#8b6259]">
-                              <th className="w-[64px] border-b border-r border-[#f6e2dd] px-2 py-1.5 text-center font-normal">무게</th>
-                              {section.items.map((item) => (
-                                <th key={item.id} className="border-b border-r border-[#f6e2dd] px-2 py-1.5 text-center font-normal last:border-r-0">
-                                  {item.label}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {section.weightBands.map((band) => (
-                              <tr key={band} className="text-[13px] text-[#2b241f]">
-                                <td className="border-b border-r border-[#f6e2dd] px-2 py-1.5 text-center text-[#7f625b]">{band}</td>
-                                {section.items.map((item) => {
-                                  const { priceText, durationText } = formatPriceGuideCell(item.cells[band]);
-                                  return (
-                                    <td key={`${item.id}-${band}`} className="border-b border-r border-[#f6e2dd] px-2 py-1.5 text-center last:border-r-0">
-                                      <span className="block whitespace-nowrap text-[13px] font-normal text-[#2f211d]">{priceText}</span>
-                                      {durationText ? <span className="block whitespace-nowrap text-[12px] font-normal text-[#9a7168]">{durationText}</span> : null}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-                    );
-                  })}
-                </div>
-              ) : fullServiceOptions.length > 0 ? (
+              {serviceOptions.length > 0 ? (
                 <div className="space-y-2">
-                  {fullServiceOptions.map((service) => (
-                    <div key={`sheet-${service.id}`} className="rounded-[14px] border border-[#f1d7d1] bg-white px-4 py-3 shadow-[0_8px_24px_rgba(42,25,17,0.04)]">
+                  {serviceOptions.map((service) => (
+                    <div key={`sheet-${service.id}`} className="rounded-[14px] border border-[#e8edf3] bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-[16px] font-normal text-[#2f211d]">{service.name}</p>
-                          <p className="mt-1 text-[13px] font-normal text-[#9a7168]">예상 {formatCustomerServiceDuration(service)}</p>
+                          <p className="truncate text-[16px] font-normal text-[#15213b]">{service.name}</p>
+                          <p className="mt-1 text-[13px] font-normal text-[#64748b]">예상 {formatCustomerServiceDuration(service)}</p>
                         </div>
-                        <p className="shrink-0 text-[17px] font-medium text-[#2f211d]">{formatServicePrice(service.price, service.priceType)}</p>
+                        <p className="shrink-0 text-[17px] font-medium text-[#15213b]">{formatServicePrice(service.price, service.priceType)}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="rounded-[16px] border border-[#f1d7d1] bg-white">
+                <div className="rounded-[16px] border border-[#e8edf3] bg-white">
                   <a
                     href={infoHref}
-                    className="flex h-14 items-center justify-center text-[16px] font-normal text-[#6d4b43]"
+                    className="flex h-14 items-center justify-center text-[16px] font-normal text-[#334155]"
                     onClick={previewMode ? (event) => event.preventDefault() : undefined}
                   >
                     등록된 서비스 안내가 없습니다.
                   </a>
                 </div>
               )}
-              {priceGuideExtraFeeGroups.length > 0 ? (
-                <div className="mt-3 space-y-2">
-                  {priceGuideExtraFeeGroups.map((group) => (
-                    <section key={`${group.serviceId}-extra-fees`} className="rounded-[16px] border border-[#f1d7d1] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(42,25,17,0.04)]">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[16px] font-normal text-[#2f211d]">추가 요금 안내</p>
-                          {priceGuideExtraFeeGroups.length > 1 ? (
-                            <p className="mt-0.5 text-[15px] font-normal text-[#9a7168]">{group.serviceName}</p>
-                          ) : null}
-                        </div>
-                      </div>
-                      {group.extraNote ? (
-                        <p className="mt-2 whitespace-pre-line text-[15px] font-normal leading-6 text-[#7f625b]">{group.extraNote}</p>
-                      ) : null}
-                      {group.extraFees.length > 0 ? (
-                        <div className="mt-3 overflow-hidden rounded-[12px] border border-[#f6e2dd]">
-                          {group.extraFees.map((fee, index) => (
-                            <div
-                              key={fee.id}
-                              className={`grid grid-cols-[minmax(0,1fr)_96px] items-center gap-2 px-3 py-2 text-[16px] ${
-                                index !== group.extraFees.length - 1 ? "border-b border-[#f6e2dd]" : ""
-                              }`}
-                            >
-                              <span className="truncate font-normal text-[#4d3a34]">{fee.label}</span>
-                              <span className="text-right font-normal text-[#e76557]">{fee.price}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </section>
-                  ))}
-                </div>
-              ) : null}
-              {priceGuideExtraFeeGroups.length === 0 ? (
-                <p className="mt-3 rounded-[14px] bg-white px-3 py-3 text-[15px] leading-6 text-[#9a7168]">실제 요금은 아이 상태와 털엉킴, 기장, 피부 상태에 따라 매장에서 최종 안내드릴 수 있어요.</p>
+              {serviceOptions.length > 0 ? (
+                <p className="mt-3 rounded-[14px] bg-white px-3 py-3 text-[15px] leading-6 text-[#64748b]">실제 요금은 아이 상태와 털엉킴, 기장, 피부 상태에 따라 매장에서 최종 안내드릴 수 있어요.</p>
               ) : null}
             </div>
           </div>
@@ -1193,15 +1068,15 @@ export default function CustomerBookingEntryPage({
 
       {directionsOpen ? (
         <div className={`${previewMode ? "absolute" : "fixed"} inset-0 z-40 flex items-end justify-center bg-black/35 px-4`} onClick={() => setDirectionsOpen(false)}>
-          <div className="w-full max-w-[430px] rounded-t-[26px] bg-[#fffaf8] p-4 shadow-[0_-18px_50px_rgba(60,34,24,0.16)]" onClick={(event) => event.stopPropagation()}>
-            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-[#f1d7d1]" />
+          <div className="w-full max-w-[430px] rounded-t-[26px] border border-[#e8edf3] bg-white p-4 shadow-[0_-18px_50px_rgba(15,23,42,0.14)]" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-[#cbd5e1]" />
             <div className="mb-4 flex items-center justify-between">
               <p className="text-[16px] font-normal" style={{ color: bookingAccentColor }}>
                 길찾기
               </p>
               <button
                 type="button"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#f0d8d2] bg-white text-[#8a665d] shadow-[0_8px_20px_rgba(60,34,24,0.04)]"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#e8edf3] bg-white text-[#64748b] shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
                 onClick={() => setDirectionsOpen(false)}
                 aria-label="길찾기 닫기"
               >
@@ -1209,13 +1084,13 @@ export default function CustomerBookingEntryPage({
               </button>
             </div>
 
-            <div className="rounded-[18px] border border-[#f1d7d1] bg-white px-4 py-4 shadow-[0_12px_34px_rgba(60,34,24,0.05)]">
-              <p className="text-[16px] leading-6 text-[#6f6258]">{displayAddress}</p>
+            <div className="rounded-[18px] border border-[#e8edf3] bg-white px-4 py-4 shadow-[0_12px_34px_rgba(15,23,42,0.05)]">
+              <p className="text-[16px] leading-6 text-[#64748b]">{displayAddress}</p>
               <div className="mt-4">
                 <button
                   type="button"
                   onClick={handleCopyAddress}
-                  className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-[12px] border border-[#f0d8d2] bg-white px-4 text-[16px] font-normal text-[#3f302b] hover:bg-[#fff3ef]"
+                  className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-[12px] border border-[#e8edf3] bg-white px-4 text-[16px] font-normal text-[#15213b] hover:bg-[#f8fafc]"
                 >
                   <Copy className="h-4 w-4" strokeWidth={1.9} />
                   {addressCopied ? "복사 완료" : "주소 복사"}
@@ -1245,15 +1120,15 @@ function MapButton({ label, onClick }: { label: string; onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-[54px] w-full items-center justify-between rounded-[14px] border border-[#f0d8d2] bg-[#fffaf8] px-4 text-left hover:bg-[#fff3ef]"
+      className="flex h-[54px] w-full items-center justify-between rounded-[14px] border border-[#e8edf3] bg-white px-4 text-left hover:bg-[#f8fafc]"
     >
       <span className="flex items-center gap-3">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#fde9e5] text-[#ec7f72]">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#edf2f8] text-[#15213b]">
           <Navigation className="h-4.5 w-4.5" strokeWidth={2} />
         </span>
-        <span className="text-[16px] font-normal tracking-[-0.02em] text-[#2f211d]">{label}</span>
+        <span className="text-[16px] font-normal tracking-[-0.02em] text-[#15213b]">{label}</span>
       </span>
-      <span className="text-[16px] font-normal text-[#e76557]">열기</span>
+      <span className="text-[16px] font-normal text-[#334155]">열기</span>
     </button>
   );
 }

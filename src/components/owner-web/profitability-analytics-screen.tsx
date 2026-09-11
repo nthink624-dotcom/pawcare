@@ -76,18 +76,18 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
   }, [range, reloadKey, shopId]);
 
   return (
-    <div className="h-full min-h-0 overflow-auto bg-[#f7f8fa] p-4">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-3">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-[#e2e7ee] bg-white px-4 py-3">
-          <div>
+    <div className="h-full min-h-0 min-w-0 overflow-auto">
+      <div className="flex min-w-0 flex-col gap-3">
+        <header className="flex min-w-0 flex-col items-stretch justify-between gap-3 rounded-[10px] border border-[#e2e7ee] bg-white px-3 py-3 sm:flex-row sm:items-center sm:px-4">
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-[#1f6f5f]" strokeWidth={1.9} />
               <h1 className="text-[18px] font-bold tracking-[-0.02em] text-[#111827]">시간당 수익 분석</h1>
             </div>
             <p className="mt-1 text-[12px] text-[#718096]">실제 미용시간과 받은 금액을 연결해 지연 구간과 가격 조정 후보를 찾습니다.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-[8px] border border-[#dfe5ec] bg-[#f8fafc] p-0.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
+            <div className="flex min-w-0 flex-1 flex-wrap rounded-[8px] border border-[#dfe5ec] bg-[#f8fafc] p-0.5 sm:flex-none">
               {rangeOptions.map((option) => (
                 <button
                   key={option.value}
@@ -98,7 +98,7 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
                     setRange(option.value);
                   }}
                   className={cn(
-                    "h-8 rounded-[7px] px-3 text-[12px] font-semibold transition",
+                    "min-h-11 min-w-[88px] flex-1 rounded-[7px] px-3 text-[14px] font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] sm:flex-none",
                     range === option.value ? "bg-white text-[#111827] shadow-sm" : "text-[#718096] hover:text-[#334155]",
                   )}
                 >
@@ -115,7 +115,7 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
               }}
               disabled={loading}
               aria-label="분석 새로고침"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dfe5ec] bg-white text-[#64748b] hover:bg-[#f8fafc] disabled:opacity-50"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#dfe5ec] bg-white text-[#64748b] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
             >
               <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             </button>
@@ -132,7 +132,7 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
           <EmptyState />
         ) : payload ? (
           <>
-            <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+            <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <MetricCard label="실수령 매출" value={won(payload.summary.netRevenue)} sub={`할인 전 ${won(payload.summary.grossRevenue)}`} />
               <MetricCard label="시간당 매출" value={won(payload.summary.hourlyRevenue)} sub={`실제 작업 ${hours(payload.summary.actualWorkMinutes)}`} />
               <MetricCard label="평균 예상 차이" value={minutes(payload.summary.averageDelayMinutes)} sub="실제시간 - 예상시간" />
@@ -166,8 +166,8 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
                   <Users className="h-4 w-4 text-[#607080]" />
                   <h2 className="text-[15px] font-bold text-[#172033]">직원별 실제시간과 매출</h2>
                 </div>
-                <div className="overflow-hidden rounded-[8px] border border-[#e7ebf0]">
-                  <table className="w-full table-fixed text-left">
+                <div className="min-w-0 max-w-full overflow-x-auto rounded-[8px] border border-[#e7ebf0]" style={{ contain: "inline-size" }}>
+                  <table className="min-w-[520px] w-full table-fixed text-left">
                     <thead className="bg-[#fafbfc] text-[11px] font-semibold text-[#718096]">
                       <tr><th className="px-3 py-2">담당</th><th className="px-3 py-2 text-right">작업시간</th><th className="px-3 py-2 text-right">매출</th><th className="px-3 py-2 text-right">시간당</th></tr>
                     </thead>
@@ -191,7 +191,7 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
                 <div><h2 className="text-[15px] font-bold text-[#172033]">서비스별 수익성과 지연</h2><p className="mt-0.5 text-[11px] text-[#94a3b8]">시간당 매출이 낮은 순서입니다.</p></div>
                 <span className="text-[11px] text-[#94a3b8]">분석 기간 {payload.from} ~ {payload.to}</span>
               </div>
-              <div className="overflow-x-auto rounded-[8px] border border-[#e7ebf0]">
+              <div className="min-w-0 max-w-full overflow-x-auto rounded-[8px] border border-[#e7ebf0]" style={{ contain: "inline-size" }}>
                 <table className="min-w-[900px] w-full text-left">
                   <thead className="bg-[#fafbfc] text-[11px] font-semibold text-[#718096]">
                     <tr><th className="px-3 py-2">서비스</th><th className="px-3 py-2 text-right">완료</th><th className="px-3 py-2 text-right">예상</th><th className="px-3 py-2 text-right">실제</th><th className="px-3 py-2 text-right">차이</th><th className="px-3 py-2 text-right">지연 비율</th><th className="px-3 py-2 text-right">실수령 매출</th><th className="px-3 py-2 text-right">시간당</th><th className="px-3 py-2 text-right">기준 대비</th></tr>
@@ -222,9 +222,9 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
               ) : (
                 <div className="grid gap-2 xl:grid-cols-2">
                   {payload.priceRecommendations.map((item) => (
-                    <div key={item.key} className="flex items-center justify-between gap-4 rounded-[8px] border border-[#e7ebf0] px-3.5 py-3">
-                      <div className="min-w-0"><p className="truncate text-[13px] font-bold text-[#253044]">{item.segmentLabel}</p><p className="mt-1 text-[11px] text-[#718096]">표본 {item.sampleCount}건 · 평균 {item.averageDelayMinutes}분 지연 · 시간당 기준 대비 {item.benchmarkGapPercent}%</p></div>
-                      <div className="shrink-0 text-right"><p className="text-[11px] text-[#94a3b8]">현재 평균 → 권장</p><p className="mt-0.5 text-[13px] font-bold text-[#1f6f5f]">{won(item.currentAveragePrice)} → {won(item.recommendedPrice)}</p></div>
+                    <div key={item.key} className="flex flex-col items-stretch justify-between gap-4 rounded-[8px] border border-[#e7ebf0] px-3.5 py-3 sm:flex-row sm:items-center">
+                      <div className="min-w-0"><p className="whitespace-normal break-words text-[13px] font-bold text-[#253044] sm:truncate">{item.segmentLabel}</p><p className="mt-1 text-[11px] text-[#718096]">표본 {item.sampleCount}건 · 평균 {item.averageDelayMinutes}분 지연 · 시간당 기준 대비 {item.benchmarkGapPercent}%</p></div>
+                      <div className="shrink-0 text-left sm:text-right"><p className="text-[11px] text-[#94a3b8]">현재 평균 → 권장</p><p className="mt-0.5 text-[13px] font-bold text-[#1f6f5f]">{won(item.currentAveragePrice)} → {won(item.recommendedPrice)}</p></div>
                     </div>
                   ))}
                 </div>

@@ -123,6 +123,7 @@ export function useGroomingRecordDraft(params: {
   const saveTimerRef = useRef<number | null>(null);
   const valueRef = useRef(value);
   const afterMediaAssetIdRef = useRef(afterMediaAssetId);
+  const persistInFlightRef = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
     valueRef.current = value;
@@ -177,53 +178,76 @@ export function useGroomingRecordDraft(params: {
     return () => window.removeEventListener("online", handleOnline);
   }, [hydrated, serverEnabled]);
 
-  const persistServerDraft = useCallback(async () => {
-    const updatedAt = new Date().toISOString();
-    const snapshot: DraftSnapshot = {
-      value: valueRef.current,
-      afterMediaAssetId: afterMediaAssetIdRef.current,
-      updatedAt,
-    };
-    writeLocalGroomingDraft(params.shopId, params.appointmentId, snapshot);
+  const persistServerDraft = useCallback(() => {
+    if (persistInFlightRef.current) return persistInFlightRef.current;
 
-    if (!serverEnabled) {
-      setStatus("local");
-      setSaveError("");
-      return true;
-    }
+    const persistPromise = (async () => {
+      const updatedAt = new Date().toISOString();
+      const snapshot: DraftSnapshot = {
+        value: valueRef.current,
+        afterMediaAssetId: afterMediaAssetIdRef.current,
+        updatedAt,
+      };
+      writeLocalGroomingDraft(params.shopId, params.appointmentId, snapshot);
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setStatus("offline");
-      setSaveError("인터넷 연결 후 자동으로 다시 저장합니다.");
-      return false;
-    }
+      if (!serverEnabled) {
+        setStatus("local");
+        setSaveError("");
+        return true;
+      }
 
-    setStatus("saving");
-    try {
-      const response = await fetchApiJsonWithAuth<DraftApiResponse>("/api/owner/grooming-record-drafts", {
-        method: "PUT",
-        body: JSON.stringify({
-          shopId: params.shopId,
-          appointmentId: params.appointmentId,
-          ...valueRef.current,
-          afterMediaAssetId: afterMediaAssetIdRef.current,
-        }),
-      });
-      const savedAt = response.draft?.updatedAt ?? updatedAt;
-      setLastSavedAt(savedAt);
-      setStatus("saved");
-      setSaveError("");
-      writeLocalGroomingDraft(params.shopId, params.appointmentId, {
-        ...snapshot,
-        updatedAt: savedAt,
-      });
-      return true;
-    } catch (error) {
-      setStatus("offline");
-      setSaveError(error instanceof Error ? error.message : "서버 임시저장에 실패했습니다.");
-      return false;
-    }
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setStatus("offline");
+        setSaveError("인터넷 연결 후 자동으로 다시 저장합니다.");
+        return false;
+      }
+
+      setStatus("saving");
+      try {
+        const response = await fetchApiJsonWithAuth<DraftApiResponse>("/api/owner/grooming-record-drafts", {
+          method: "PUT",
+          body: JSON.stringify({
+            shopId: params.shopId,
+            appointmentId: params.appointmentId,
+            ...valueRef.current,
+            afterMediaAssetId: afterMediaAssetIdRef.current,
+          }),
+        });
+        const savedAt = response.draft?.updatedAt ?? updatedAt;
+        setLastSavedAt(savedAt);
+        setStatus("saved");
+        setSaveError("");
+        writeLocalGroomingDraft(params.shopId, params.appointmentId, {
+          ...snapshot,
+          updatedAt: savedAt,
+        });
+        return true;
+      } catch (error) {
+        setStatus("offline");
+        setSaveError(error instanceof Error ? error.message : "서버 임시저장에 실패했습니다.");
+        return false;
+      }
+    })();
+
+    persistInFlightRef.current = persistPromise;
+    void persistPromise.then(
+      () => {
+        if (persistInFlightRef.current === persistPromise) persistInFlightRef.current = null;
+      },
+      () => {
+        if (persistInFlightRef.current === persistPromise) persistInFlightRef.current = null;
+      },
+    );
+    return persistPromise;
   }, [params.appointmentId, params.shopId, serverEnabled]);
+
+  const flushDraft = useCallback(() => {
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    return persistServerDraft();
+  }, [persistServerDraft]);
 
   useEffect(() => {
     if (!params.enabled || !hydrated) return;
@@ -292,7 +316,7 @@ export function useGroomingRecordDraft(params: {
     status,
     lastSavedAt,
     saveError,
-    flushDraft: persistServerDraft,
+    flushDraft,
     clearDraft,
   };
 }

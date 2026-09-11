@@ -123,6 +123,8 @@ Required behavior:
 - Gross, discount, and net revenue remain attributable to the one `shop_revenue_entries` row linked by `grooming_record_id`.
 - Breed, weight, service name, original price, and expected duration are snapshotted on completion so later profile or price-guide edits do not rewrite history.
 - Price recommendations require at least three timed records for the same breed, rounded weight, and service segment.
+- Service-duration recommendations require at least three uniquely linked completed appointments for the same durable service and rounded weight. The stored actual duration must match the appointment's actual start-to-completion elapsed time.
+- A duration recommendation is read-only evidence. It must never overwrite the owner's configured price-guide duration automatically.
 - Missing actual time is reported as a data-quality gap, never replaced with an invented duration.
 
 Forbidden regression:
@@ -130,6 +132,7 @@ Forbidden regression:
 - Calculating hourly revenue from scheduled time while labeling it actual.
 - Using the current pet/service profile as the only historical value after a snapshot exists.
 - Presenting a price increase from fewer than three comparable completed records.
+- Presenting a duration average from cancelled, unlinked, duplicate, missing-weight, or timestamp-mismatched records.
 
 Canonical API: `GET /api/owner/profitability`.
 

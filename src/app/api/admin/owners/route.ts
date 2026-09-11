@@ -874,6 +874,14 @@ function createAdminEvents(params: {
   return events;
 }
 
+function adminOwnerApiErrorResponse(error: AdminApiError, fallback: string) {
+  if (error.status >= 500) {
+    return NextResponse.json({ message: fallback }, { status: 503 });
+  }
+
+  return NextResponse.json({ message: error.message }, { status: error.status });
+}
+
 export async function GET(request: NextRequest) {
   try {
     await requireAdminSession(request);
@@ -881,7 +889,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(owners);
   } catch (error) {
     if (error instanceof AdminApiError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return adminOwnerApiErrorResponse(
+        error,
+        "오너 계정을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      );
     }
 
     return NextResponse.json({ message: "오너 계정을 불러오지 못했습니다." }, { status: 500 });
@@ -1089,7 +1100,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (error instanceof AdminApiError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return adminOwnerApiErrorResponse(
+        error,
+        "오너 계정 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      );
     }
 
     return NextResponse.json({ message: "오너 계정을 저장하지 못했습니다." }, { status: 500 });

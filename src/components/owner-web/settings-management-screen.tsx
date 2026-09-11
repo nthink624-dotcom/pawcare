@@ -961,7 +961,10 @@ export default function SettingsManagementScreen({
   onOwnerProfileChange,
   onServicesChange,
   onStaffMembersChange,
+  onOperatingHoursSaveSuccess,
+  onOperatingHoursNext,
   persistShopProfile = true,
+  initialSetupMode = false,
   automaticVisitReminderAvailable = true,
 }: {
   activeTab?: SettingsTabKey;
@@ -972,10 +975,13 @@ export default function SettingsManagementScreen({
   staffMembers?: BootstrapStaffMember[];
   ownerProfile?: OwnerProfile | null;
   onShopChange?: (shop: Shop) => void;
-  onOwnerProfileChange?: (profile: OwnerProfile) => void;
+  onOwnerProfileChange?: (profile: OwnerProfile) => void | Promise<void>;
   onServicesChange?: (services: Service[]) => void;
   onStaffMembersChange?: (staffMembers: BootstrapStaffMember[]) => void | Promise<void>;
+  onOperatingHoursSaveSuccess?: () => void;
+  onOperatingHoursNext?: () => void;
   persistShopProfile?: boolean;
+  initialSetupMode?: boolean;
   automaticVisitReminderAvailable?: boolean;
 }) {
   const [internalActiveTab, setInternalActiveTab] = useState<SettingsTabKey>("shop");
@@ -2199,7 +2205,7 @@ export default function SettingsManagementScreen({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto">
+    <div className={initialSetupMode ? "min-h-0 overflow-visible" : "h-full min-h-0 overflow-y-auto"}>
       {saveCompleteVisible ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none" aria-live="polite">
           <div className="flex min-w-[252px] items-center justify-center gap-3 rounded-[12px] border border-[#dbe2ea] bg-white px-6 py-5 text-[18px] font-semibold text-[#111827] shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
@@ -2257,7 +2263,10 @@ export default function SettingsManagementScreen({
               onClosedDaysChange={(value) => updateRow("closedDay", value)}
               shop={shop}
               onShopChange={onShopChange}
+              onSaveSuccess={onOperatingHoursSaveSuccess}
+              onInitialSetupNext={onOperatingHoursNext}
               persistToSupabase={persistShopProfile}
+              initialSetupMode={initialSetupMode}
             />
           ) : activeTab === "shop" ? (
             <>
@@ -2269,9 +2278,7 @@ export default function SettingsManagementScreen({
                 profileImagesBusy={shopProfileImageMutationBusy || profileImagesLoading || savingShopInfo}
                 profileImagesProcessing={shopProfileImageMutationBusy}
                 shop={customerPagePreviewShop ?? shop}
-                previewServices={previewServices}
                 staffMembers={staffMembers}
-                ownerProfile={ownerProfile}
                 businessHoursSummary={String(businessHoursRow?.value ?? "")}
                 closedDaysSummary={String(closedDayRow?.value ?? "")}
                 editable

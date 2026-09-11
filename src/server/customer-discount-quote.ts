@@ -80,7 +80,7 @@ export async function quoteCustomerDiscount(input: unknown): Promise<CustomerDis
     ? customerServiceOptions.find(
         (option) => option.id === payload.customerServiceOptionId && option.serviceId === payload.serviceId,
       )
-    : customerServiceOptions.find((option) => option.serviceId === payload.serviceId);
+    : null;
 
   if (!selectedOption) {
     throw new Error("선택한 서비스의 할인 정보를 확인할 수 없습니다.");

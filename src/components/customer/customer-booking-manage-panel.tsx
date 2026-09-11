@@ -41,6 +41,7 @@ type DateOption = {
 type ManageForm = {
   appointmentId: string;
   serviceId: string;
+  customerServiceOptionId: string;
   date: string;
   timeSlot: string;
   note: string;
@@ -53,6 +54,7 @@ type Feedback = {
 };
 
 const statusLabelMap: Partial<Record<Appointment["status"], string>> = {
+  pending: "예약 대기",
   confirmed: "확정",
   in_progress: "미용 중",
   almost_done: "픽업 준비",
@@ -63,6 +65,7 @@ const statusLabelMap: Partial<Record<Appointment["status"], string>> = {
 };
 
 const progressSteps: Array<{ status: Appointment["status"]; label: string }> = [
+  { status: "pending", label: "예약 대기" },
   { status: "confirmed", label: "확정" },
   { status: "in_progress", label: "미용 중" },
   { status: "almost_done", label: "픽업 준비" },
@@ -249,14 +252,15 @@ export default function CustomerBookingManagePanel({
     return sortedAppointments.filter(canManageAppointment);
   }, [lookupResult?.access?.action, lookupResult?.access?.appointmentId, sortedAppointments]);
   const latestAppointments = useMemo(() => visibleAppointments.slice(0, 1), [visibleAppointments]);
-  const selectedService = services.find((service) => service.id === manageForm?.serviceId);
-  const selectedServiceOption = customerServiceOptions.find((option) => option.serviceId === manageForm?.serviceId || option.id === manageForm?.serviceId);
+  const selectedServiceOption = customerServiceOptions.find(
+    (option) => option.id === manageForm?.customerServiceOptionId && option.serviceId === manageForm?.serviceId,
+  );
 
   useEffect(() => {
     let active = true;
 
     async function load() {
-      if (!manageForm?.date || !manageForm.serviceId || !manageForm.appointmentId) {
+      if (!manageForm?.date || !manageForm.serviceId || !manageForm.appointmentId || !selectedServiceOption) {
         setManageSlots([]);
         setManageRecommendedSlots([]);
         return;
@@ -268,6 +272,7 @@ export default function CustomerBookingManagePanel({
           shopId,
           date: manageForm.date,
           serviceId: manageForm.serviceId,
+          previewDurationMinutes: selectedServiceOption?.durationMinutes,
           excludeAppointmentId: manageForm.appointmentId,
         });
         if (!active) return;
@@ -285,7 +290,7 @@ export default function CustomerBookingManagePanel({
     return () => {
       active = false;
     };
-  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, shopId]);
+  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, selectedServiceOption?.durationMinutes, shopId]);
 
   useEffect(() => {
     let active = true;
@@ -308,10 +313,17 @@ export default function CustomerBookingManagePanel({
             : null;
 
         if (directRescheduleAppointment && canManageAppointment(directRescheduleAppointment)) {
+          const savedSourceId = typeof directRescheduleAppointment.discount_snapshot?.customerServiceOptionId === "string"
+            ? directRescheduleAppointment.discount_snapshot.customerServiceOptionId
+            : "";
+          const sourceOption = customerServiceOptions.find(
+            (option) => option.id === savedSourceId && option.serviceId === directRescheduleAppointment.service_id,
+          );
           setOpenAppointmentId(directRescheduleAppointment.id);
           setManageForm({
             appointmentId: directRescheduleAppointment.id,
-            serviceId: directRescheduleAppointment.service_id,
+            serviceId: sourceOption?.serviceId ?? "",
+            customerServiceOptionId: sourceOption?.id ?? "",
             date: directRescheduleAppointment.appointment_date,
             timeSlot: directRescheduleAppointment.appointment_time,
             note: directRescheduleAppointment.memo,
@@ -343,7 +355,7 @@ export default function CustomerBookingManagePanel({
     return () => {
       active = false;
     };
-  }, [initialAccessToken, shopId]);
+  }, [customerServiceOptions, initialAccessToken, shopId]);
 
   async function reloadBookingFromToken() {
     if (!initialAccessToken) return;
@@ -367,11 +379,18 @@ export default function CustomerBookingManagePanel({
   }
 
   function openRescheduleForm(appointment: Appointment) {
+    const savedSourceId = typeof appointment.discount_snapshot?.customerServiceOptionId === "string"
+      ? appointment.discount_snapshot.customerServiceOptionId
+      : "";
+    const sourceOption = customerServiceOptions.find(
+      (option) => option.id === savedSourceId && option.serviceId === appointment.service_id,
+    );
     setFeedback(null);
     setOpenAppointmentId(appointment.id);
     setManageForm({
       appointmentId: appointment.id,
-      serviceId: appointment.service_id,
+      serviceId: sourceOption?.serviceId ?? "",
+      customerServiceOptionId: sourceOption?.id ?? "",
       date: appointment.appointment_date,
       timeSlot: appointment.appointment_time,
       note: appointment.memo,
@@ -446,7 +465,14 @@ export default function CustomerBookingManagePanel({
   }
 
   async function submitReschedule() {
-    if (submitting || !initialAccessToken || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId) return;
+    if (
+      submitting
+      || !initialAccessToken
+      || !manageForm?.date
+      || !manageForm.timeSlot
+      || !manageForm.serviceId
+      || !manageForm.customerServiceOptionId
+    ) return;
 
     setSubmitting(true);
     setFeedback(null);
@@ -459,6 +485,7 @@ export default function CustomerBookingManagePanel({
           appointmentId: manageForm.appointmentId,
           accessToken: initialAccessToken,
           serviceId: manageForm.serviceId,
+          customerServiceOptionId: manageForm.customerServiceOptionId,
           appointmentDate: manageForm.date,
           appointmentTime: manageForm.timeSlot,
           memo: manageForm.note,
@@ -728,16 +755,20 @@ export default function CustomerBookingManagePanel({
                       <label className="block text-sm font-semibold text-[#3a2e2a]">
                         <span className="mb-2 block text-xs text-[#8a7a72]">서비스 선택</span>
                         <select
-                          value={manageForm?.serviceId || ""}
-                          onChange={(event) => setManageForm((prev) => (prev ? { ...prev, serviceId: event.target.value, timeSlot: "" } : prev))}
+                          value={manageForm?.customerServiceOptionId || ""}
+                          onChange={(event) => {
+                            const option = customerServiceOptions.find((item) => item.id === event.target.value);
+                            setManageForm((prev) => (prev ? {
+                              ...prev,
+                              serviceId: option?.serviceId ?? "",
+                              customerServiceOptionId: option?.id ?? "",
+                              timeSlot: "",
+                            } : prev));
+                          }}
                           className="field rounded-[12px] border-[#f3e5df] bg-white"
                         >
-                          {(customerServiceOptions.length > 0 ? customerServiceOptions : services.map((item) => ({
-                            id: item.id,
-                            serviceId: item.id,
-                            name: item.name,
-                          }))).map((item) => (
-                            <option key={item.id} value={item.serviceId}>{item.name}</option>
+                          {customerServiceOptions.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
                           ))}
                         </select>
                       </label>
@@ -745,9 +776,7 @@ export default function CustomerBookingManagePanel({
                       <div className="rounded-[14px] border border-[#f3e5df] bg-white px-4 py-3 text-sm text-[#8a7a72]">
                         {selectedServiceOption
                           ? `${selectedServiceOption.name} · ${formatServicePrice(selectedServiceOption.price, selectedServiceOption.priceType)}`
-                          : selectedService
-                            ? `${selectedService.name} · ${formatServicePrice(selectedService.price, selectedService.price_type ?? "starting")}`
-                            : "서비스를 선택해 주세요."}
+                          : "선택 가능한 저장 요금표가 없습니다."}
                       </div>
 
                       <label className="block text-sm font-semibold text-[#3a2e2a]">
@@ -767,7 +796,7 @@ export default function CustomerBookingManagePanel({
                         <button
                           type="button"
                           onClick={() => void submitReschedule()}
-                          disabled={submitting || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId}
+                          disabled={submitting || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId || !manageForm.customerServiceOptionId}
                           className="rounded-[12px] bg-[#ec7f72] px-4 py-3 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50"
                         >
                           바로 변경하기

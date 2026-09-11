@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import CustomerBookingManagePanel from "@/components/customer/customer-booking-manage-panel";
 import CustomerFirstVisitFlow from "@/components/customer/customer-first-visit-claude-flow";
-import { isShopClosedOnDate } from "@/lib/availability";
 import { fetchApiJson } from "@/lib/api";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import {
@@ -349,7 +348,7 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
   });
 }
 
-function buildDateOptions(shop: Shop): DateOption[] {
+function buildDateOptions(): DateOption[] {
   const options: DateOption[] = [];
   const today = currentDateInTimeZone();
   const todayDate = parseISO(`${today}T00:00:00`);
@@ -358,24 +357,16 @@ function buildDateOptions(shop: Shop): DateOption[] {
   while (offset < CUSTOMER_BOOKING_HORIZON_DAYS) {
     const date = addDays(todayDate, offset);
     const value = format(date, "yyyy-MM-dd");
-    const isClosed = isShopClosedOnDate(shop, value);
-
-    if (!isClosed || offset === 0) {
-      options.push({
-        value,
-        label: value === today ? "오늘" : format(date, "M/d"),
-        weekday: format(date, "EEE", { locale: ko }),
-      });
-    }
+    options.push({
+      value,
+      label: value === today ? "오늘" : format(date, "M/d"),
+      weekday: format(date, "EEE", { locale: ko }),
+    });
 
     offset += 1;
   }
 
   return options;
-}
-
-function getDefaultDateOptionValue(dateOptions: DateOption[]) {
-  return dateOptions.find((option) => option.label === "오늘")?.value ?? dateOptions[0]?.value ?? "";
 }
 
 export default function CustomerBookingPage({
@@ -395,6 +386,9 @@ export default function CustomerBookingPage({
   entryHref,
   initialBookingProfile,
   disableStoredProfile = false,
+  previewOnly = false,
+  onPreviewExit,
+  onPreviewBookingComplete,
 }: {
   shopId: string;
   initialShop: Shop;
@@ -413,6 +407,10 @@ export default function CustomerBookingPage({
   entryHref?: string;
   initialBookingProfile?: InitialBookingProfile;
   disableStoredProfile?: boolean;
+  /** Owner-only preview: exercises the real flow without creating an appointment. */
+  previewOnly?: boolean;
+  onPreviewExit?: () => void;
+  onPreviewBookingComplete?: () => void;
 }) {
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
   const initialCustomerServiceOptions = useMemo(
@@ -439,8 +437,7 @@ export default function CustomerBookingPage({
   const initialSelectableServiceOptionId = initialCustomerServiceOption?.id || "";
   const staffMembers = useMemo(() => initialStaffMembers.filter((staff) => staff.name.trim()), [initialStaffMembers]);
   const fixedStaffId = staffMembers.length === 1 ? staffMembers[0].id : "";
-  const dateOptions = useMemo(() => buildDateOptions(initialShop), [initialShop]);
-  const defaultFirstVisitDate = getDefaultDateOptionValue(dateOptions);
+  const dateOptions = useMemo(() => buildDateOptions(), []);
   const [activeMode, setActiveMode] = useState<ActiveMode>(initialMode);
   const [firstVisitStep, setFirstVisitStep] = useState<FirstVisitStep>(() => skipDuplicateServiceStep(initialFirstVisitStep));
   const [firstVisit, setFirstVisit] = useState<FirstVisitState>(() => {
@@ -453,7 +450,7 @@ export default function CustomerBookingPage({
       petName: selectedProfilePet?.name ?? "",
       breed: selectedProfilePet?.breed ?? "",
       weightKg: selectedProfilePet?.weight ? String(selectedProfilePet.weight) : "",
-      date: initialDate || (initialMode === "first" && initialFirstVisitStep === 3 ? defaultFirstVisitDate : ""),
+      date: initialDate,
       timeSlot: initialTime,
       serviceId: initialSelectableServiceId,
       customerServiceOptionId: initialSelectableServiceOptionId,
@@ -467,7 +464,10 @@ export default function CustomerBookingPage({
   const [firstVisitRecommendedSlots, setFirstVisitRecommendedSlots] = useState<string[]>([]);
   const [firstVisitRecommendationSource, setFirstVisitRecommendationSource] = useState<CustomerAvailabilityPayload["recommendationSource"]>();
   const [loadingFirstVisitSlots, setLoadingFirstVisitSlots] = useState(false);
-  const [earliestAvailableDate, setEarliestAvailableDate] = useState("");
+  const [dateAvailability, setDateAvailability] = useState<Record<string, boolean | undefined>>({});
+  const [staffAvailability, setStaffAvailability] = useState<Record<string, boolean | undefined>>({});
+  const [loadingDateAvailability, setLoadingDateAvailability] = useState(false);
+  const [staffSelectionRequiresAction, setStaffSelectionRequiresAction] = useState(false);
   const [shopInfoOpen, setShopInfoOpen] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
   const [savedPets, setSavedPets] = useState<BookingProfilePet[]>(() => initialBookingProfile?.pets ?? []);
@@ -499,7 +499,6 @@ export default function CustomerBookingPage({
   const firstVisitUsesCustomService = firstVisit.serviceId === CUSTOM_SERVICE_ID;
   const hasInitialFirstVisitSlot = Boolean(initialDate && initialTime);
   const shouldSkipFirstVisitDateTimeStep = false;
-  const firstVisitDateOptionValues = useMemo(() => new Set(dateOptions.map((option) => option.value)), [dateOptions]);
 
   useEffect(() => {
     if (!detectedBreedPricingGroup || customerServiceOptions.length === 0) return;
@@ -528,15 +527,6 @@ export default function CustomerBookingPage({
       setFirstVisitStep(4);
     }
   }, [firstVisitStep, shouldSkipFirstVisitDateTimeStep]);
-
-  useEffect(() => {
-    if (activeMode !== "first" || firstVisitStep !== 3 || !defaultFirstVisitDate) return;
-    if (firstVisit.date && firstVisitDateOptionValues.has(firstVisit.date)) return;
-    setFirstVisit((prev) => {
-      if (prev.date && firstVisitDateOptionValues.has(prev.date)) return prev;
-      return { ...prev, date: defaultFirstVisitDate, timeSlot: "" };
-    });
-  }, [activeMode, defaultFirstVisitDate, firstVisit.date, firstVisitDateOptionValues, firstVisitStep]);
 
   useEffect(() => {
     const validStaffIds = new Set(staffMembers.map((staff) => staff.id));
@@ -578,7 +568,7 @@ export default function CustomerBookingPage({
             ...restoredProfile,
             serviceId: initialSelectableServiceId || restoredProfile.serviceId,
             customerServiceOptionId: initialSelectableServiceOptionId || restoredProfile.customerServiceOptionId,
-            date: hasInitialSlot ? initialDate : restoredProfile.date || defaultFirstVisitDate,
+            date: hasInitialSlot ? initialDate : restoredProfile.date || "",
             timeSlot: hasInitialSlot ? initialTime : restoredProfile.timeSlot,
           }));
         } catch {
@@ -636,7 +626,7 @@ export default function CustomerBookingPage({
             : [],
           serviceId: initialSelectableServiceId || draft.serviceId || defaultServiceId,
           customerServiceOptionId: initialSelectableServiceOptionId || draft.customerServiceOptionId || defaultServiceOptionId,
-          date: hasInitialSlot ? initialDate : draft.date || defaultFirstVisitDate,
+          date: hasInitialSlot ? initialDate : draft.date || "",
           timeSlot: hasInitialSlot ? initialTime : draft.timeSlot ?? "",
           customServiceName: draft.customServiceName ?? "",
           note: draft.note ?? "",
@@ -648,7 +638,7 @@ export default function CustomerBookingPage({
     } finally {
       setDraftHydrated(true);
     }
-  }, [defaultFirstVisitDate, disableStoredProfile, draftHydrated, initialBookingProfile, initialDate, initialFirstVisitStep, initialMode, initialSelectableServiceId, initialSelectableServiceOptionId, initialTime, shopId]);
+  }, [disableStoredProfile, draftHydrated, initialBookingProfile, initialDate, initialFirstVisitStep, initialMode, initialSelectableServiceId, initialSelectableServiceOptionId, initialTime, shopId]);
 
   useEffect(() => {
     if (typeof window === "undefined" || initialBookingProfile || disableStoredProfile || activeMode !== "first" || !hasBookingProfileContent(firstVisit)) return;
@@ -662,6 +652,7 @@ export default function CustomerBookingPage({
         setFirstVisitSlots([]);
         setFirstVisitRecommendedSlots([]);
         setFirstVisitRecommendationSource(undefined);
+        setStaffAvailability({});
         return;
       }
       setLoadingFirstVisitSlots(true);
@@ -671,14 +662,17 @@ export default function CustomerBookingPage({
         const result: CustomerAvailabilityPayload = await fetchCustomerAvailability({
           shopId,
           date: firstVisit.date,
-            serviceId: usesPreviewSlots ? undefined : firstVisit.serviceId,
-            previewDurationMinutes: selectedDurationMinutes ?? (usesPreviewSlots ? (firstVisit.serviceId === CUSTOM_SERVICE_ID ? 120 : 30) : undefined),
-            staffId: firstVisit.staffId || null,
+          serviceId: usesPreviewSlots ? undefined : firstVisit.serviceId,
+          previewDurationMinutes: selectedDurationMinutes ?? (usesPreviewSlots ? (firstVisit.serviceId === CUSTOM_SERVICE_ID ? 120 : 30) : undefined),
+          staffId: firstVisit.staffId || null,
+          fullSlots: true,
+          includeStaffAvailability: true,
         });
         if (!active) return;
         setFirstVisitSlots(result.slots);
         setFirstVisitRecommendedSlots((result.recommendedSlots ?? []).filter((slot) => result.slots.includes(slot)));
         setFirstVisitRecommendationSource(result.recommendationSource);
+        setStaffAvailability(result.staffAvailability ?? {});
         if (firstVisit.timeSlot && !result.slots.includes(firstVisit.timeSlot)) {
           setFirstVisit((prev) => ({ ...prev, timeSlot: "" }));
         }
@@ -693,50 +687,59 @@ export default function CustomerBookingPage({
   useEffect(() => {
     let active = true;
 
-    async function loadEarliestAvailableDate() {
-      if (firstVisitStep !== 3 || !firstVisit.serviceId) {
-        setEarliestAvailableDate("");
+    async function loadDateAvailability() {
+      if (firstVisitStep !== 3 || !firstVisit.serviceId || dateOptions.length === 0) {
+        setDateAvailability({});
+        setLoadingDateAvailability(false);
         return;
       }
 
       const usesPreviewSlots = firstVisit.serviceId === CUSTOM_SERVICE_ID;
       const selectedDurationMinutes = selectedFirstServiceOption?.durationMinutes;
-      setEarliestAvailableDate("");
-
-      const batchSize = 4;
-      for (let index = 0; index < dateOptions.length; index += batchSize) {
-        const batch = dateOptions.slice(index, index + batchSize);
-        const results = await Promise.all(batch.map(async (dateOption) => {
-          try {
-            const result = await fetchCustomerAvailability({
-              shopId,
-              date: dateOption.value,
-              serviceId: usesPreviewSlots ? undefined : firstVisit.serviceId,
-              previewDurationMinutes: selectedDurationMinutes ?? (usesPreviewSlots ? 120 : undefined),
-              staffId: firstVisit.staffId || null,
-              summaryOnly: true,
-            });
-            return result.slots.length > 0 ? dateOption.value : "";
-          } catch {
-            return "";
-          }
-        }));
-        if (!active) return;
-        const earliest = results.find(Boolean);
-        if (earliest) {
-          setEarliestAvailableDate(earliest);
-          return;
-        }
+      setLoadingDateAvailability(true);
+      setDateAvailability({});
+      try {
+        const result = await fetchCustomerAvailability({
+          shopId,
+          date: dateOptions[0].value,
+          dates: dateOptions.map((option) => option.value),
+          serviceId: usesPreviewSlots ? undefined : firstVisit.serviceId,
+          previewDurationMinutes: selectedDurationMinutes ?? (usesPreviewSlots ? 120 : undefined),
+          summaryOnly: true,
+        });
+        if (active) setDateAvailability(result.availabilityByDate ?? {});
+      } catch {
+        // A failed authority read must not be presented as an unavailable date.
+        if (active) setDateAvailability({});
+      } finally {
+        if (active) setLoadingDateAvailability(false);
       }
     }
 
-    void loadEarliestAvailableDate();
+    void loadDateAvailability();
     return () => {
       active = false;
     };
-  }, [dateOptions, firstVisit.serviceId, firstVisit.staffId, firstVisitStep, selectedFirstServiceOption?.durationMinutes, shopId]);
+  }, [dateOptions, firstVisit.serviceId, firstVisitStep, selectedFirstServiceOption?.durationMinutes, shopId]);
+
+  useEffect(() => {
+    if (firstVisitStep !== 3 || !firstVisit.date || dateAvailability[firstVisit.date] !== false) return;
+    setFirstVisit((prev) => (prev.date === firstVisit.date ? { ...prev, date: "", timeSlot: "" } : prev));
+  }, [dateAvailability, firstVisit.date, firstVisitStep]);
+
+  useEffect(() => {
+    if (firstVisitStep !== 3 || !firstVisit.staffId || staffAvailability[firstVisit.staffId] !== false) return;
+    setStaffSelectionRequiresAction(true);
+    setFirstVisit((prev) =>
+      prev.staffId === firstVisit.staffId ? { ...prev, staffId: "", timeSlot: "" } : prev,
+    );
+  }, [firstVisit.staffId, firstVisitStep, staffAvailability]);
 
   function resetView() {
+    if (previewOnly) {
+      onPreviewExit?.();
+      return;
+    }
     window.location.href = entryHref || `/entry/${shopId}`;
   }
 
@@ -817,7 +820,10 @@ export default function CustomerBookingPage({
     );
     const contactInfoReady = Boolean(firstVisit.ownerName.trim() && isValidBookingPhoneNumber(firstVisit.phone));
     if (step === 1) return petInfoReady;
-    if (step === 2) return Boolean(firstVisit.serviceId && (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()));
+    if (step === 2) return Boolean(
+      firstVisit.serviceId
+      && (firstVisitUsesCustomService ? firstVisit.customServiceName.trim() : selectedFirstServiceOption),
+    );
     if (step === 3) return Boolean(firstVisit.date && firstVisit.timeSlot);
     return Boolean(
       petInfoReady &&
@@ -825,7 +831,7 @@ export default function CustomerBookingPage({
         firstVisit.date &&
         firstVisit.timeSlot &&
         firstVisit.serviceId &&
-        (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()),
+        (firstVisitUsesCustomService ? firstVisit.customServiceName.trim() : selectedFirstServiceOption),
     );
   }
 
@@ -850,14 +856,7 @@ export default function CustomerBookingPage({
       return;
     }
 
-    if (firstVisitStep === 2 && !firstVisit.date && dateOptions[0]) {
-      setFirstVisit((prev) => ({ ...prev, date: defaultFirstVisitDate || dateOptions[0].value, timeSlot: "" }));
-    }
-
     if (firstVisitStep === 1 && serviceSelectedBeforeFlow) {
-      if (!firstVisit.date && dateOptions[0]) {
-        setFirstVisit((prev) => ({ ...prev, date: defaultFirstVisitDate || dateOptions[0].value, timeSlot: "" }));
-      }
       setFirstVisitStep(3);
       return;
     }
@@ -905,6 +904,12 @@ export default function CustomerBookingPage({
         rebookingAccessToken: initialAccessToken ?? "",
         rebookingPetId: initialAccessToken ? selectedRebookingPetId : "",
       };
+
+      if (previewOnly) {
+        onPreviewBookingComplete?.();
+        setFirstVisitStep(5);
+        return;
+      }
 
       const createdBooking = await fetchJson<BookingCreateResponse>("/api/customer-bookings", {
         method: "POST",
@@ -976,10 +981,14 @@ export default function CustomerBookingPage({
               availableSlots={firstVisitSlots}
               recommendedSlots={firstVisitRecommendedSlots}
               recommendationSource={firstVisitRecommendationSource}
-              earliestAvailableDate={earliestAvailableDate}
+              dateAvailability={dateAvailability}
+              staffAvailability={staffAvailability}
+              loadingDateAvailability={loadingDateAvailability}
+              staffSelectionRequiresAction={staffSelectionRequiresAction}
               loadingSlots={loadingFirstVisitSlots}
               submitting={submitting}
               completedBooking={completedFirstVisitBooking}
+              previewOnly={previewOnly}
               onBackToEntry={resetView}
               onStepBack={() => {
                 if (lockFirstVisitStep) return;
@@ -1007,8 +1016,13 @@ export default function CustomerBookingPage({
                   };
                 });
               }}
-              onStaffSelect={(staffId) => setFirstVisit((prev) => ({ ...prev, staffId, timeSlot: prev.staffId === staffId ? prev.timeSlot : "" }))}
-              onDateSelect={(value) => setFirstVisit((prev) => ({ ...prev, date: value, timeSlot: "" }))}
+              onStaffSelect={(staffId) => {
+                setStaffSelectionRequiresAction(false);
+                setFirstVisit((prev) => ({ ...prev, staffId, timeSlot: prev.staffId === staffId ? prev.timeSlot : "" }));
+              }}
+              onDateSelect={(value) => {
+                setFirstVisit((prev) => ({ ...prev, date: value, timeSlot: "" }));
+              }}
               onTimeSelect={(value) => setFirstVisit((prev) => ({ ...prev, timeSlot: value }))}
               onOwnerNameChange={(value) => setFirstVisit((prev) => ({ ...prev, ownerName: value }))}
               onPhoneChange={(value) => setFirstVisit((prev) => ({ ...prev, phone: formatBookingPhoneNumber(value) }))}

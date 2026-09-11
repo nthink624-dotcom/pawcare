@@ -2,6 +2,8 @@ import {
   careReportDraftSchema,
   type CareReportDraft,
   type CareReportObservations,
+  type CareReportSourceFactCitation,
+  type CareReportSourceFact,
 } from "@/types/care-report";
 
 export type CareReportDraftContext = {
@@ -28,6 +30,169 @@ export function sanitizeCareReportText(value: string) {
     .replace(/[ㄱ-ㅎㅏ-ㅣ]{2,}/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+const careReportPiiPatterns = [
+  /(?:\+\s*82|0082)[\s().-]*(?:0?1[016789])[\s().-]*\d{3,4}[\s().-]*\d{4}/gi,
+  /0?1[016789][\s().-]*\d{3,4}[\s().-]*\d{4}/g,
+  /(?:\+\s*82|0082)[\s().-]*(?:0?(?:2|3[1-3]|4[1-4]|5[1-5]|6[1-4]|70))[\s().-]*\d{3,4}[\s().-]*\d{4}/gi,
+  /0(?:2|3[1-3]|4[1-4]|5[1-5]|6[1-4]|70)[\s().-]*\d{3,4}[\s().-]*\d{4}/g,
+  /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g,
+  /(?:(?:서울(?:특별시|시)?|부산(?:광역시)?|대구(?:광역시)?|인천(?:광역시)?|광주(?:광역시)?|대전(?:광역시)?|울산(?:광역시)?|세종(?:특별자치시)?|경기(?:도)?|강원(?:도)?|충(?:청)?[북남]도?|전(?:라)?[북남]도?|경(?:상)?[북남]도?|제주(?:특별자치도)?)[\s,]*)?(?:[가-힣]+(?:구|군|시)[\s,]+)?[가-힣0-9·ㆍ-]+(?:로|길)[\s,]*\d+[a-zA-Z가-힣]?(?:\s*[-–]\s*\d+[a-zA-Z가-힣]?)?(?:\s*(?:\d+동|\d+층|\d+호))?/g,
+];
+
+const careReportPiiResidualPatterns = [
+  /(?:\+\s*82|0082)?[\s().-]*0?1[016789][\s().-]*\d{3,4}[\s().-]*\d{4}/i,
+  /(?:\+\s*82|0082)?[\s().-]*0?(?:2|3[1-3]|4[1-4]|5[1-5]|6[1-4]|70)[\s().-]*\d{3,4}[\s().-]*\d{4}/i,
+  /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/i,
+  /(?:[가-힣]+(?:구|군|시)[\s,]+)?[가-힣0-9·ㆍ-]+(?:로|길)[\s,]*\d+[a-zA-Z가-힣]?(?:\s*[-–]\s*\d+[a-zA-Z가-힣]?)?/,
+];
+
+export class CareReportPiiResidualError extends Error {
+  constructor() {
+    super("연락처나 주소로 보이는 내용은 제외한 뒤 다시 작성해 주세요.");
+  }
+}
+
+/**
+ * Keeps the owner-visible note usable while ensuring direct contact and address
+ * fragments never enter an AI prompt or draft provenance payload.
+ */
+export function scrubCareReportSourceText(value: string) {
+  return sanitizeCareReportText(
+    careReportPiiPatterns.reduce((text, pattern) => text.replace(pattern, "[개인정보 제외]"), value),
+  ).slice(0, 1000);
+}
+
+export function hasCareReportPiiResidual(value: string) {
+  return careReportPiiResidualPatterns.some((pattern) => pattern.test(value));
+}
+
+export function assertCareReportTextPiiFree(value: string) {
+  if (hasCareReportPiiResidual(value)) throw new CareReportPiiResidualError();
+}
+
+/** Applies replacement first, then fails closed if a contact/address-shaped span remains. */
+export function prepareCareReportSourceText(value: string) {
+  const scrubbed = scrubCareReportSourceText(value);
+  if (hasCareReportPiiResidual(scrubbed)) throw new CareReportPiiResidualError();
+  return scrubbed;
+}
+
+export const CARE_REPORT_GENERATION_RETRY_MESSAGE =
+  "AI가 문장을 충분히 다듬지 못했습니다. 입력은 그대로 두었으니 다시 시도해 주세요.";
+
+export function normalizeCareReportComparisonText(value: string) {
+  return value.normalize("NFC").toLocaleLowerCase("ko-KR").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function generatedCareReportTexts(draft: CareReportDraft) {
+  return [
+    draft.oneLineSummary,
+    draft.conditionSummary,
+    draft.groomingResponse,
+    ...draft.homeCareTips,
+  ];
+}
+
+/** Rejects a provider or fallback result that only repeats the owner's source. */
+export function hasCareReportExactSourceEcho(sourceText: string, draft: CareReportDraft) {
+  const normalizedSource = normalizeCareReportComparisonText(sourceText);
+  if (!normalizedSource) return false;
+
+  return generatedCareReportTexts(draft).some((value) => {
+    const normalizedValue = normalizeCareReportComparisonText(value);
+    if (normalizedValue === normalizedSource) return true;
+    return value
+      .split(/(?<=[.!?])\s+|\n+/)
+      .some((sentence) => normalizeCareReportComparisonText(sentence) === normalizedSource);
+  });
+}
+
+/** Prevents an unchanged retry fallback from being presented as a newly generated draft. */
+export function isCareReportDraftUnchanged(currentDraft: CareReportDraft, nextDraft: CareReportDraft) {
+  const currentTexts = generatedCareReportTexts(currentDraft);
+  const nextTexts = generatedCareReportTexts(nextDraft);
+  return currentTexts.length === nextTexts.length && currentTexts.every((value, index) =>
+    normalizeCareReportComparisonText(value) === normalizeCareReportComparisonText(nextTexts[index] ?? ""),
+  );
+}
+
+export function sanitizeCareReportObservations(observations: CareReportObservations): CareReportObservations {
+  const scrub = (value: string) => prepareCareReportSourceText(value);
+  return {
+    ...observations,
+    coat: observations.coat.map(scrub),
+    skin: observations.skin.map(scrub),
+    ears: observations.ears.map(scrub),
+    pawsAndNails: observations.pawsAndNails.map(scrub),
+    groomingResponse: observations.groomingResponse.map(scrub),
+    customNote: scrub(observations.customNote),
+    sourceFacts: observations.sourceFacts.map((fact) => ({ ...fact, text: scrub(fact.text) })),
+  };
+}
+
+export function serializeCareReportSavePayload({
+  careReport,
+  observations,
+  sourceText,
+  photoConsent,
+}: {
+  careReport: CareReportDraft;
+  observations: CareReportObservations;
+  sourceText: string;
+  photoConsent: boolean;
+}) {
+  const { saveRequestId: _saveRequestId, savePayloadFingerprint: _savePayloadFingerprint, ...persistedObservations } = observations;
+  return JSON.stringify({ careReport, observations: persistedObservations, sourceText, photoConsent });
+}
+
+/**
+ * A draft is only marked saved after the canonical no-store read returns the
+ * exact owner-visible report, all persisted observations, and photo consent.
+ * Keeping this client-safe lets the completion UI and its no-call contract
+ * tests share the same equality boundary.
+ */
+export function matchesCanonicalCareReportSave({
+  expected,
+  actual,
+}: {
+  expected: {
+    careReport: CareReportDraft;
+    observations: CareReportObservations;
+    sourceText: string;
+    photoConsent: boolean;
+  };
+  actual: {
+    careReport: CareReportDraft;
+    observations: CareReportObservations;
+    sourceText: string;
+    photoConsent: boolean;
+  };
+}) {
+  return JSON.stringify(actual.careReport) === JSON.stringify(expected.careReport) &&
+    JSON.stringify(actual.observations) === JSON.stringify(expected.observations) &&
+    actual.sourceText === expected.sourceText &&
+    actual.photoConsent === expected.photoConsent;
+}
+
+export function createCareReportSourceFacts(
+  sourceText: string,
+  selectedCategories: Array<CareReportSourceFact["category"]> = [],
+): CareReportSourceFact[] {
+  const text = prepareCareReportSourceText(sourceText);
+  if (!text) return [];
+
+  const uniqueCategories = [...new Set(selectedCategories)].slice(0, 5);
+  return [
+    { id: "fact-note", category: "general", text, source: "note" },
+    ...uniqueCategories.map((category) => ({
+      id: `fact-chip-${category}`,
+      category,
+      text,
+      source: "chip" as const,
+    })),
+  ];
 }
 
 function cleanDetail(value: string) {
@@ -165,11 +330,16 @@ export function finalizeCareReportDraft(
 
 export function buildPreviewCareReportDraft(context: CareReportDraftContext): CareReportDraft {
   const ownerSourceText = sanitizeCareReportText(context.ownerSourceText);
-  const revisionOnly = Boolean(
-    context.currentDraft &&
-      /말투|부드럽|간결|짧게|다듬|정리/.test(ownerSourceText) &&
-      !/눈|귀|털|피부|발|샴푸|미용|반응|긴장|편안|홈케어/.test(ownerSourceText),
-  );
+  const normalizedOwnerSourceText = normalizeCareReportComparisonText(ownerSourceText);
+  const previewSummary = normalizedOwnerSourceText === "목욕잘했고괜찮았습니다"
+    ? "목욕을 잘 마쳤으며, 전반적인 상태도 양호했습니다."
+    : normalizedOwnerSourceText === "목욕잘했고컨디션좋았다"
+      ? "목욕을 잘 마쳤고, 컨디션도 좋았습니다."
+      : "";
+
+  if (ownerSourceText && !previewSummary) {
+    throw new Error(CARE_REPORT_GENERATION_RETRY_MESSAGE);
+  }
   const conditionLines = ownerSourceText
     ? ownerSourceText.split(/[.!?]\s*/).filter((line) => /털|엉킴|모질|피부|귀|눈물|눈가|발톱|발바닥|상처|스크래치|붉|색소/.test(line))
     : [];
@@ -182,9 +352,7 @@ export function buildPreviewCareReportDraft(context: CareReportDraftContext): Ca
 
   return finalizeCareReportDraft(
     {
-      oneLineSummary: revisionOnly
-        ? context.currentDraft?.oneLineSummary ?? ""
-        : [context.currentDraft?.oneLineSummary, ownerSourceText].filter(Boolean).join(" ") || `${context.petName}가 오늘 ${context.serviceName || "예약한 미용"}을 마쳤어요.`,
+      oneLineSummary: previewSummary || `${context.petName}가 오늘 ${context.serviceName || "예약한 미용"}을 마쳤어요.`,
       treatmentSummary: buildVerifiedTreatmentSummary(context.serviceName, context.actualDurationMinutes),
       conditionSummary: conditionLines.join(". "),
       groomingResponse: responseLines.join(". "),

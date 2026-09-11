@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 
 import { LEGAL_BUSINESS_INFO, LEGAL_LINKS, LEGAL_SERVICE_OPERATOR_NOTICE } from "@/lib/legal/legal-info";
@@ -28,7 +29,7 @@ export default function LegalLinksFooter() {
             상품 및 요금
           </Link>
           {LEGAL_LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className="underline underline-offset-4">
+            <Link key={link.href} href={link.href as Route} className="underline underline-offset-4">
               {link.label}
             </Link>
           ))}

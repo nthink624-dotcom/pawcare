@@ -1,4 +1,4 @@
-﻿import { randomUUID } from "node:crypto";
+﻿import { createHash, createHmac, randomUUID } from "node:crypto";
 
 import { after } from "next/server";
 import { z } from "zod";
@@ -22,7 +22,7 @@ import {
   phoneNormalize,
   timeFromMinutes,
 } from "@/lib/utils";
-import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
 import { deliverCustomerBookingNotificationSafely } from "@/lib/customer-booking-notification";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getBootstrap } from "@/server/bootstrap";
@@ -41,6 +41,11 @@ import { dispatchNotification } from "@/server/notification-dispatch";
 import type { Appointment, Guardian, Pet, Shop } from "@/types/domain";
 
 const customerBookingChangeCutoffMinutes = 2 * 60;
+
+type CustomerBookingPaymentContext = {
+  paymentId: string;
+  providerOrderId: string;
+};
 
 const customerBookingCreateSchema = z.object({
   shopId: z.string().min(1),
@@ -83,6 +88,7 @@ const customerBookingUpdateSchema = z.discriminatedUnion("action", [
     appointmentId: z.string().min(1),
     accessToken: z.string().trim().min(1),
     serviceId: z.string().min(1),
+    customerServiceOptionId: z.string().trim().min(1),
     appointmentDate: z.string().min(1),
     appointmentTime: z.string().min(1),
     memo: z.string().optional().default(""),
@@ -223,6 +229,116 @@ function makePetBase(
     avatar_seed: petName.slice(0, 1) || "M",
     created_at: nowIso(),
     updated_at: nowIso(),
+  };
+}
+
+function createCustomerBookingRequestHashes(
+  payload: z.infer<typeof customerBookingCreateSchema>,
+  payment: CustomerBookingPaymentContext | undefined,
+) {
+  if (!serverEnv.bookingAccessSecret) {
+    throw new Error("예약 보안 설정을 확인해 주세요.");
+  }
+
+  const canonicalPayload = JSON.stringify({
+    shopId: payload.shopId,
+    guardianName: normalizeName(payload.guardianName),
+    phone: normalizePhone(payload.phone),
+    petName: payload.petName.trim(),
+    breed: payload.breed.trim(),
+    weightKg: payload.weightKg,
+    extraPets: payload.extraPets.map((pet) => ({ name: pet.name.trim(), breed: pet.breed.trim() })),
+    serviceId: payload.serviceId,
+    customerServiceOptionId: payload.customerServiceOptionId,
+    staffId: payload.staffId ?? null,
+    customServiceName: payload.customServiceName.trim(),
+    appointmentDate: payload.appointmentDate,
+    appointmentTime: payload.appointmentTime,
+    memo: payload.memo.trim(),
+    rebookingPetId: payload.rebookingPetId,
+    ...(payment ? { paymentId: payment.paymentId, providerOrderId: payment.providerOrderId } : {}),
+  });
+  const canonicalPayloadHash = createHash("sha256").update(canonicalPayload).digest("hex");
+  const idempotencyHash = createHmac("sha256", serverEnv.bookingAccessSecret)
+    .update(
+      payment
+        ? `payment:${payment.paymentId}:${payment.providerOrderId}:${canonicalPayloadHash}`
+        : `booking:${canonicalPayloadHash}`,
+    )
+    .digest("hex");
+
+  return { idempotencyHash };
+}
+
+async function createSupabaseCustomerBookingAtomically(params: {
+  payload: z.infer<typeof customerBookingCreateSchema>;
+  guardianIdFromRebooking: string | null;
+  petIdFromRebooking: string | null;
+  serviceId: string;
+  durationMinutes: number;
+  memo: string;
+  customerVisitType: "first_visit" | "revisit";
+  discountCouponIds: string[];
+  discountCouponNames: string[];
+  originalServicePrice: number;
+  discountAmount: number;
+  finalServicePrice: number;
+  discountSnapshot: Record<string, unknown>;
+  payment?: CustomerBookingPaymentContext;
+}) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결을 확인해 주세요.");
+
+  const { idempotencyHash } = createCustomerBookingRequestHashes(params.payload, params.payment);
+  const rpcPayload = {
+    shopId: params.payload.shopId,
+    guardianName: params.payload.guardianName.trim(),
+    phone: normalizePhone(params.payload.phone),
+    petName: params.payload.petName.trim(),
+    breed: params.payload.breed.trim(),
+    weightKg: params.payload.weightKg,
+    extraPets: params.payload.extraPets.map((pet) => ({ name: pet.name.trim(), breed: pet.breed.trim() })),
+    serviceId: params.serviceId,
+    staffId: params.payload.staffId ?? null,
+    appointmentDate: params.payload.appointmentDate,
+    appointmentTime: params.payload.appointmentTime,
+    durationMinutes: params.durationMinutes,
+    memo: params.memo,
+    customerVisitType: params.customerVisitType,
+    discountCouponIds: params.discountCouponIds,
+    discountCouponNames: params.discountCouponNames,
+    originalServicePrice: params.originalServicePrice,
+    discountAmount: params.discountAmount,
+    finalServicePrice: params.finalServicePrice,
+    discountSnapshot: params.discountSnapshot,
+    rebookingGuardianId: params.guardianIdFromRebooking,
+    rebookingPetId: params.petIdFromRebooking,
+    ...(params.payment
+      ? { paymentId: params.payment.paymentId, providerOrderId: params.payment.providerOrderId }
+      : {}),
+  };
+  const payloadHash = createHash("sha256").update(JSON.stringify(rpcPayload)).digest("hex");
+  const { data, error } = await supabase.rpc("create_customer_booking_atomic_v1", {
+    p_idempotency_key_hash: idempotencyHash,
+    p_payload_hash: payloadHash,
+    p_payload: rpcPayload,
+  });
+
+  if (error) throw new Error(getAppointmentWriteErrorMessage(error));
+  const result = Array.isArray(data) ? data[0] : null;
+  if (
+    !result ||
+    typeof result.appointment_id !== "string" ||
+    typeof result.guardian_id !== "string" ||
+    typeof result.primary_pet_id !== "string"
+  ) {
+    throw new Error("예약 저장 결과를 확인하지 못했습니다.");
+  }
+
+  return {
+    appointmentId: result.appointment_id,
+    guardianId: result.guardian_id,
+    petId: result.primary_pet_id,
   };
 }
 
@@ -565,9 +681,42 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
   return { guardianId, petId };
 }
 
+function resolveCustomerBookingStaff(params: {
+  payload: z.infer<typeof customerBookingCreateSchema>;
+  bootstrap: Awaited<ReturnType<typeof getBootstrap>>;
+  serviceId: string;
+  durationMinutes: number;
+}) {
+  const { payload, bootstrap, serviceId, durationMinutes } = params;
+  const isAvailableFor = (staffId: string) =>
+    computeAvailableSlots({
+      date: payload.appointmentDate,
+      serviceId,
+      durationMinutesOverride: durationMinutes,
+      shop: bootstrap.shop,
+      services: bootstrap.services,
+      appointments: bootstrap.appointments,
+      staffId,
+      staffMembers: bootstrap.staffMembers,
+      staffScheduleOverrides: bootstrap.staffScheduleOverrides,
+    }).includes(payload.appointmentTime);
+
+  if (payload.staffId) {
+    if (!isAvailableFor(payload.staffId)) throw new Error("선택한 시간에는 예약할 수 없습니다.");
+    return payload.staffId;
+  }
+
+  const eligibleStaffIds = bootstrap.staffMembers
+    .filter((staffMember) => isAvailableFor(staffMember.id))
+    .map((staffMember) => staffMember.id)
+    .sort((left, right) => left.localeCompare(right));
+  if (eligibleStaffIds.length === 0) throw new Error("선택한 시간에는 예약 가능한 담당자가 없습니다.");
+  return eligibleStaffIds[0];
+}
+
 export async function createCustomerBooking(
   input: unknown,
-  options: { trustedDiscountQuote?: CustomerDiscountQuoteResponse } = {},
+  options: { trustedDiscountQuote?: CustomerDiscountQuoteResponse; payment?: CustomerBookingPaymentContext } = {},
 ) {
   const payload = customerBookingCreateSchema.parse(input);
   assertCustomerBookingDate(payload.appointmentDate);
@@ -591,11 +740,6 @@ export async function createCustomerBooking(
   ) {
     throw new Error("혜택 또는 서비스 금액이 변경되었습니다. 최종 금액을 다시 확인해 주세요.");
   }
-  const entityIds =
-    bootstrap.mode === "supabase" && hasSupabaseServerEnv()
-      ? await findOrCreateSupabaseEntities(payload)
-      : await findOrCreateMockEntities(payload);
-
   const fallbackServiceId = bootstrap.services[0]?.id;
   const usesCustomService = payload.serviceId === "__custom__";
   const pricingGroup = findCustomerBreedPricingGroup(bootstrap.services, payload.breed);
@@ -610,7 +754,7 @@ export async function createCustomerBooking(
     ? customerServiceOptions.find((option) => option.id === payload.customerServiceOptionId && option.serviceId === payload.serviceId)
     : null;
 
-  if (payload.customerServiceOptionId && !selectedCustomerServiceOption) {
+  if (!usesCustomService && !selectedCustomerServiceOption) {
     throw new Error("선택한 서비스가 현재 예약 페이지에 노출되어 있지 않습니다.");
   }
 
@@ -622,36 +766,86 @@ export async function createCustomerBooking(
     throw new Error("예약 가능한 서비스 정보를 찾을 수 없습니다.");
   }
 
+  const resolvedService = bootstrap.services.find((service) => service.id === resolvedServiceId);
+  if (!resolvedService) {
+    throw new Error("예약 가능한 서비스 정보를 찾을 수 없습니다.");
+  }
+
+  const resolvedDurationMinutes = selectedCustomerServiceOption?.durationMinutes ?? resolvedService.duration_minutes;
+  const resolvedBookingPayload = {
+    ...payload,
+    staffId: resolveCustomerBookingStaff({
+      payload,
+      bootstrap,
+      serviceId: resolvedServiceId,
+      durationMinutes: selectedCustomerServiceOption?.durationMinutes ?? resolvedService.duration_minutes,
+    }),
+  };
+
   const customServiceMemo = usesCustomService && payload.customServiceName.trim() ? `기타 요청 서비스: ${payload.customServiceName.trim()}` : "";
   const mergedMemo = [customServiceMemo, payload.memo.trim()].filter(Boolean).join("\n");
+  const discountSnapshot = {
+    ...discountQuote,
+    customerServiceOptionId: selectedCustomerServiceOption?.id ?? discountQuote.customerServiceOptionId,
+    customerServiceOptionName: selectedCustomerServiceOption?.name ?? null,
+    customerServiceOptionDurationMinutes: selectedCustomerServiceOption?.durationMinutes ?? null,
+  };
+  const rebookingAccess = resolveRebookingAccess(payload);
+  const runsAgainstSupabase = bootstrap.mode === "supabase" && hasSupabaseServerEnv();
+  let entityIds: { guardianId: string; petId: string };
+  let appointment: Appointment;
 
-  const appointment = await createAppointment({
-    shopId: payload.shopId,
-    guardianId: entityIds.guardianId,
-    petId: entityIds.petId,
-    serviceId: resolvedServiceId,
-    durationMinutes: selectedCustomerServiceOption?.durationMinutes,
-    staffId: payload.staffId ?? null,
-    customServiceName: usesCustomService ? payload.customServiceName.trim() : "",
-    appointmentDate: payload.appointmentDate,
-    appointmentTime: payload.appointmentTime,
-    memo: mergedMemo,
-    source: "customer",
-    customerVisitType: discountQuote.visitType,
-    discountCouponIds: discountQuote.appliedCoupons.map((coupon) => coupon.id),
-    discountCouponNames: discountQuote.appliedCoupons.map((coupon) => coupon.name),
-    originalServicePrice: discountQuote.originalAmount,
-    discountAmount: discountQuote.discountAmount,
-    finalServicePrice: discountQuote.finalAmount,
-    discountSnapshot: {
-      ...discountQuote,
-      customerServiceOptionId:
-        selectedCustomerServiceOption?.id ?? discountQuote.customerServiceOptionId,
-      customerServiceOptionName: selectedCustomerServiceOption?.name ?? null,
-      customerServiceOptionDurationMinutes:
-        selectedCustomerServiceOption?.durationMinutes ?? null,
-    },
-  });
+  if (runsAgainstSupabase) {
+    const atomicResult = await createSupabaseCustomerBookingAtomically({
+      payload: resolvedBookingPayload,
+      guardianIdFromRebooking: rebookingAccess?.guardianId ?? null,
+      petIdFromRebooking: rebookingAccess?.petId ?? null,
+      serviceId: resolvedServiceId,
+      durationMinutes: resolvedDurationMinutes,
+      memo: mergedMemo,
+      customerVisitType: discountQuote.visitType,
+      discountCouponIds: discountQuote.appliedCoupons.map((coupon) => coupon.id),
+      discountCouponNames: discountQuote.appliedCoupons.map((coupon) => coupon.name),
+      originalServicePrice: discountQuote.originalAmount,
+      discountAmount: discountQuote.discountAmount,
+      finalServicePrice: discountQuote.finalAmount,
+      discountSnapshot,
+      payment: options.payment,
+    });
+    entityIds = { guardianId: atomicResult.guardianId, petId: atomicResult.petId };
+    const persisted = await getBootstrap(payload.shopId, {
+      includeNotifications: false,
+      includeGroomingRecords: false,
+      includeLanding: false,
+    });
+    const persistedAppointment = persisted.appointments.find((item) => item.id === atomicResult.appointmentId);
+    if (!persistedAppointment) {
+      throw new Error("저장된 예약을 다시 확인하지 못했습니다. 같은 요청으로 다시 시도해 주세요.");
+    }
+    appointment = persistedAppointment;
+  } else {
+    entityIds = await findOrCreateMockEntities(resolvedBookingPayload);
+    appointment = await createAppointment({
+      shopId: payload.shopId,
+      guardianId: entityIds.guardianId,
+      petId: entityIds.petId,
+      serviceId: resolvedServiceId,
+      durationMinutes: resolvedDurationMinutes,
+      staffId: resolvedBookingPayload.staffId,
+      customServiceName: usesCustomService ? payload.customServiceName.trim() : "",
+      appointmentDate: payload.appointmentDate,
+      appointmentTime: payload.appointmentTime,
+      memo: mergedMemo,
+      source: "customer",
+      customerVisitType: discountQuote.visitType,
+      discountCouponIds: discountQuote.appliedCoupons.map((coupon) => coupon.id),
+      discountCouponNames: discountQuote.appliedCoupons.map((coupon) => coupon.name),
+      originalServicePrice: discountQuote.originalAmount,
+      discountAmount: discountQuote.discountAmount,
+      finalServicePrice: discountQuote.finalAmount,
+      discountSnapshot,
+    });
+  }
 
   scheduleCustomerBookingNotification({
     shopId: appointment.shop_id,
@@ -954,7 +1148,22 @@ export async function updateCustomerBooking(input: unknown) {
     return updateSupabaseAppointment(payload.appointmentId, nextValues);
   }
 
-  const service = bootstrap.services.find((item) => item.id === payload.serviceId);
+  const pricingGroup = findCustomerBreedPricingGroup(bootstrap.services, pet.breed ?? "");
+  const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
+    buildCustomerServiceSourceOptions(bootstrap.services, {
+      priceGuideGroupKey: pricingGroup?.key,
+      weightKg: pet.weight,
+    }),
+    bootstrap.shop.customer_page_settings.customer_service_overrides,
+  );
+  const selectedCustomerServiceOption = customerServiceOptions.find(
+    (option) => option.id === payload.customerServiceOptionId && option.serviceId === payload.serviceId,
+  );
+  if (!selectedCustomerServiceOption) {
+    throw new Error("선택한 서비스가 현재 예약 페이지에 노출되어 있지 않습니다.");
+  }
+
+  const service = bootstrap.services.find((item) => item.id === selectedCustomerServiceOption.serviceId);
   if (!service) {
     throw new Error("서비스 정보를 찾을 수 없습니다.");
   }
@@ -962,6 +1171,7 @@ export async function updateCustomerBooking(input: unknown) {
   const availableSlots = computeAvailableSlots({
     date: payload.appointmentDate,
     serviceId: payload.serviceId,
+    durationMinutesOverride: selectedCustomerServiceOption.durationMinutes,
     shop: bootstrap.shop,
     services: bootstrap.services,
     appointments: bootstrap.appointments,
@@ -975,7 +1185,11 @@ export async function updateCustomerBooking(input: unknown) {
     throw new Error("선택한 시간에는 예약할 수 없습니다.");
   }
 
-  const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
+  const appointmentWindow = buildAppointmentWindow(
+    payload.appointmentDate,
+    payload.appointmentTime,
+    selectedCustomerServiceOption.durationMinutes,
+  );
   const nextValues = {
     service_id: payload.serviceId,
     appointment_date: payload.appointmentDate,

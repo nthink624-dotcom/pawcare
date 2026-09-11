@@ -10,6 +10,7 @@ import {
   normalizeBookingSlotIntervalMinutes,
   normalizeBookingSlotOffsetMinutes,
 } from "@/lib/booking-slot-settings";
+import { getLatestBookingStartMinute, isBookingWithinCanonicalWindow } from "@/lib/booking-last-start-cutoff";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { hasBlockedWindowOverlap } from "@/lib/reservation-policy-settings";
 import { currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, timeFromMinutes } from "@/lib/utils";
@@ -128,8 +129,8 @@ export function computeAvailableSlots(params: {
     normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
   );
   const open = Math.max(businessOpen, bookingOpen);
-  const close = Math.min(businessClose, bookingClose);
-  if (close <= open) return [];
+  if (bookingClose < open) return [];
+  const closeGraceMinutes = shop.reservation_policy_settings?.booking_close_grace_minutes;
   const nowMinutes = currentMinutesInTimeZone();
   const isToday = date === currentDateInTimeZone();
   const slots: string[] = [];
@@ -139,7 +140,13 @@ export function computeAvailableSlots(params: {
     slotIntervalMinutes,
   );
   const firstSlotMinute = alignToSlotPattern(open, slotIntervalMinutes, slotOffsetMinutes);
-  const latestStartMinute = close - durationMinutes;
+  const latestStartMinute = getLatestBookingStartMinute({
+    bookingEndMinute: bookingClose,
+    businessCloseMinute: businessClose,
+    durationMinutes,
+    closeGraceMinutes,
+  });
+  if (latestStartMinute === null) return [];
   const candidateStartMinutes = new Set<number>();
 
   for (let cursor = firstSlotMinute; cursor <= latestStartMinute; cursor += slotIntervalMinutes) {
@@ -153,8 +160,15 @@ export function computeAvailableSlots(params: {
     if (!effectiveWindow || effectiveWindow.date !== date) continue;
 
     const appointmentEnd = effectiveWindow.endMinute;
-    if (appointmentEnd < open) continue;
-    if (appointmentEnd + durationMinutes > close) continue;
+    if (!isBookingWithinCanonicalWindow({
+      startMinute: appointmentEnd,
+      durationMinutes,
+      bookingStartMinute: bookingOpen,
+      bookingEndMinute: bookingClose,
+      businessOpenMinute: businessOpen,
+      businessCloseMinute: businessClose,
+      closeGraceMinutes,
+    })) continue;
 
     candidateStartMinutes.add(appointmentEnd);
   }
@@ -186,6 +200,7 @@ export function computeAvailableSlots(params: {
         date,
         startMinute: cursor,
         durationMinutes,
+        shop,
         staffId,
         staffMembers,
         staffScheduleOverrides,
@@ -248,6 +263,7 @@ function isStaffSlotAvailable(params: {
   date: string;
   startMinute: number;
   durationMinutes: number;
+  shop: Shop;
   staffId?: string | null;
   staffMembers: BootstrapStaffMember[];
   staffScheduleOverrides: StaffScheduleOverride[];
@@ -255,25 +271,19 @@ function isStaffSlotAvailable(params: {
   services: Service[];
   excludeAppointmentId?: string;
 }): boolean {
-  const { date, startMinute, durationMinutes, staffId, staffMembers, staffScheduleOverrides, appointments, services, excludeAppointmentId } = params;
+  const { date, startMinute, durationMinutes, shop, staffId, staffMembers, staffScheduleOverrides, appointments, services, excludeAppointmentId } = params;
   if (!staffId) {
-    if (staffMembers.length === 0) return true;
-    const unassignedAvailable = isSlotAvailable({
-      date,
-      startMinute,
-      durationMinutes,
-      appointments: appointments.filter((appointment) => !appointment.staff_id),
-      services,
-      excludeAppointmentId,
-    });
-    if (!unassignedAvailable) return false;
+    if (staffMembers.length === 0) {
+      return isSlotAvailable({ date, startMinute, durationMinutes, appointments, services, excludeAppointmentId });
+    }
     return staffMembers.some((staffMember) => isStaffSlotAvailable({ ...params, staffId: staffMember.id }));
   }
 
   const staffMember = staffMembers.find((item) => item.id === staffId);
   if (!staffMember) return false;
 
-  const endMinute = startMinute + durationMinutes;
+  let availableStart: number;
+  let availableEnd: number;
   const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
   const [year, month, day] = date.split("-").map(Number);
   const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
@@ -285,20 +295,37 @@ function isStaffSlotAvailable(params: {
 
     if (override.status === "half") {
       const splitMinute = minutesFromTime("13:00");
-      const availableStart = override.period === "오전" ? splitMinute : minutesFromTime(staffMember.startTime);
-      const availableEnd = override.period === "오후" ? splitMinute : minutesFromTime(staffMember.endTime);
-      if (startMinute < availableStart || endMinute > availableEnd) return false;
-    }
-
-    if (override.status === "work") {
-      const availableStart = minutesFromTime(override.start_time ?? staffMember.startTime);
-      const availableEnd = minutesFromTime(override.end_time ?? staffMember.endTime);
-      if (startMinute < availableStart || endMinute > availableEnd) return false;
+      availableStart = override.period === "오전" ? splitMinute : minutesFromTime(staffMember.startTime);
+      availableEnd = override.period === "오후" ? splitMinute : minutesFromTime(staffMember.endTime);
+    } else if (override.status === "work") {
+      availableStart = minutesFromTime(override.start_time ?? staffMember.startTime);
+      availableEnd = minutesFromTime(override.end_time ?? staffMember.endTime);
+    } else {
+      return false;
     }
   } else {
     if (!staffMember.defaultDays.includes(dayKey)) return false;
-    if (startMinute < minutesFromTime(staffMember.startTime) || endMinute > minutesFromTime(staffMember.endTime)) return false;
+    availableStart = minutesFromTime(staffMember.startTime);
+    availableEnd = minutesFromTime(staffMember.endTime);
   }
+
+  const hours = getBusinessHoursForWeekday(shop, weekday);
+  if (!hours?.enabled) return false;
+  if (!isBookingWithinCanonicalWindow({
+    startMinute,
+    durationMinutes,
+    bookingStartMinute: minutesFromTime(
+      normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
+    ),
+    bookingEndMinute: minutesFromTime(
+      normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
+    ),
+    businessOpenMinute: minutesFromTime(hours.open),
+    businessCloseMinute: minutesFromTime(hours.close),
+    closeGraceMinutes: shop.reservation_policy_settings?.booking_close_grace_minutes,
+    staffStartMinute: availableStart,
+    staffEndMinute: availableEnd,
+  })) return false;
 
   return isSlotAvailable({
     date,

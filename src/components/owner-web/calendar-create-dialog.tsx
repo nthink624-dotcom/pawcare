@@ -70,6 +70,7 @@ export function ScheduleCreateDialog({
   onClose: () => void;
   onSubmit: () => void;
 }) {
+  const bookingFieldFocusClassName = "focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15 focus-visible:ring-2 focus-visible:ring-[#2563eb]/20";
   const existingCustomerMode = form.customerMode === "existing";
   const customerRows = useMemo(() => {
     if (!existingCustomerMode) return [];
@@ -212,9 +213,9 @@ export function ScheduleCreateDialog({
   }
 
   return (
-    <div data-schedule-create-dialog="true" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4" onClick={onClose}>
+    <div data-schedule-create-dialog="true" className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/25 px-4 py-4" onClick={onClose}>
       <div
-        className="w-full max-w-[560px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.2)]"
+        className="my-auto w-full max-w-[560px] min-w-0 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.2)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-center">
@@ -263,6 +264,7 @@ export function ScheduleCreateDialog({
             value={form.customerMode}
             options={customerModeOptions}
             showMeta={false}
+            focusClassName={bookingFieldFocusClassName}
             onChange={(value) => onChange({ ...form, customerMode: value as "new" | "existing", time: "" })}
           />
 
@@ -278,6 +280,7 @@ export function ScheduleCreateDialog({
                 showOptionMeta
                 searchable
                 searchPlaceholder="고객명, 반려동물명, 연락처 검색"
+                focusClassName={bookingFieldFocusClassName}
                 onChange={(value) => {
                   const customerRow = customerRows.find((row) => row.value === value);
                   onChange({ ...form, petId: customerRow?.pets[0]?.id ?? "" });
@@ -315,7 +318,7 @@ export function ScheduleCreateDialog({
                   type="text"
                   value={form.customerName}
                   onChange={(event) => onChange({ ...form, customerName: event.target.value })}
-                  className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
+                  className={cn("h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition", bookingFieldFocusClassName)}
                   placeholder="예: 김민지"
                 />
               </label>
@@ -325,7 +328,7 @@ export function ScheduleCreateDialog({
                   type="text"
                   value={form.petName}
                   onChange={(event) => onChange({ ...form, petName: event.target.value })}
-                  className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
+                  className={cn("h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition", bookingFieldFocusClassName)}
                   placeholder="예: 몽이"
                 />
               </label>
@@ -336,7 +339,7 @@ export function ScheduleCreateDialog({
                   inputMode="numeric"
                   value={form.customerPhone}
                   onChange={(event) => onChange({ ...form, customerPhone: formatSchedulePhone(event.target.value) })}
-                  className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
+                  className={cn("h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition", bookingFieldFocusClassName)}
                   placeholder="010-1234-5678"
                 />
                 {isCustomerPhoneIncomplete ? (
@@ -352,6 +355,7 @@ export function ScheduleCreateDialog({
               value={form.serviceId}
               options={serviceOptions}
               showMeta={false}
+              focusClassName={bookingFieldFocusClassName}
               onChange={(value) => onChange({ ...form, serviceId: value, time: "" })}
             />
             <ScheduleDropdown
@@ -359,6 +363,7 @@ export function ScheduleCreateDialog({
               value={form.staffKey}
               options={staffOptions}
               showMeta={false}
+              focusClassName={bookingFieldFocusClassName}
               onChange={(value) => onChange({ ...form, staffKey: value as StaffKey, time: "" })}
             />
           </div>
@@ -372,17 +377,17 @@ export function ScheduleCreateDialog({
             {!availabilityReady ? (
               <p className="py-8 text-center text-[13px] text-[#64748b]">가능한 시간을 준비 중입니다.</p>
             ) : availableSlots.length > 0 ? (
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] gap-1.5">
                 {availableSlots.map((slot) => (
                   <button
                     key={slot}
                     type="button"
                     onClick={() => onChange({ ...form, time: slot })}
                     className={cn(
-                      "h-8 rounded-[8px] border text-[13px] tabular-nums transition",
+                      "h-11 min-w-0 rounded-[8px] border text-[14px] font-medium leading-5 tabular-nums transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
                       form.time === slot
-                        ? "border-[#1f6b5b] bg-[#1f6b5b] text-white"
-                        : "border-[#dbe2ea] bg-white text-[#334155] hover:border-[#9fc9bd]",
+                        ? "border-[#1d4ed8] bg-[#1d4ed8] text-white hover:border-[#1e40af] hover:bg-[#1e40af]"
+                        : "border-[#dbe2ea] bg-white text-[#334155] hover:border-[#2563eb]",
                     )}
                   >
                     {slot}
@@ -400,22 +405,22 @@ export function ScheduleCreateDialog({
           <textarea
             value={form.memo}
             onChange={(event) => onChange({ ...form, memo: event.target.value })}
-            className="min-h-[68px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px] outline-none focus:border-[#1f6b5b]"
+            className={cn("min-h-[68px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px] outline-none transition", bookingFieldFocusClassName)}
             placeholder="고객 요청사항이나 직원 참고 메모를 적어주세요."
           />
         </label>
 
         {error ? <p className="mt-3 rounded-[8px] bg-[#fff7ed] px-3 py-2 text-[13px] text-[#9a3412]">{error}</p> : null}
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155]">
+        <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2">
+          <button type="button" onClick={onClose} className="min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px] leading-5 text-[#334155]">
             취소
           </button>
           <button
             type="button"
             disabled={!canSubmit}
             onClick={onSubmit}
-            className="h-11 rounded-[8px] bg-[#1f6b5b] text-[14px] font-medium text-white disabled:bg-[#cbd5e1]"
+            className="min-h-11 rounded-[8px] border !border-[#1d4ed8] bg-[#1d4ed8] px-3 py-2 text-[14px] font-medium leading-5 text-white transition hover:!border-[#1e40af] hover:bg-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:!border-[#cbd5e1] disabled:bg-[#cbd5e1]"
           >
             {saving ? "등록 중" : "예약 등록"}
           </button>

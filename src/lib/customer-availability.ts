@@ -6,16 +6,21 @@ export type CustomerAvailabilityPayload = {
   slots: string[];
   recommendedSlots?: string[];
   recommendationSource?: RecommendationSource;
+  availabilityByDate?: Record<string, boolean>;
+  staffAvailability?: Record<string, boolean>;
 };
 
 type CustomerAvailabilityParams = {
   shopId: string;
   date: string;
+  dates?: string[];
   serviceId?: string;
   previewDurationMinutes?: number;
   staffId?: string | null;
   excludeAppointmentId?: string;
   summaryOnly?: boolean;
+  fullSlots?: boolean;
+  includeStaffAvailability?: boolean;
 };
 
 const dedupeWindowMs = 2_000;
@@ -35,6 +40,9 @@ export function fetchCustomerAvailability(params: CustomerAvailabilityParams) {
   if (params.staffId) query.set("staffId", params.staffId);
   if (params.excludeAppointmentId) query.set("excludeAppointmentId", params.excludeAppointmentId);
   if (params.summaryOnly) query.set("summary", "1");
+  if (params.fullSlots) query.set("full", "1");
+  if (params.includeStaffAvailability) query.set("includeStaff", "1");
+  if (params.dates?.length) query.set("dates", params.dates.join(","));
 
   const requestPath = `/api/availability?${query.toString()}`;
   const now = Date.now();

@@ -120,6 +120,9 @@ test("tester feedback sheet has its own modal semantics, focus lifecycle, trap, 
   assert.match(contextMenu, /aria-label="빠른 메뉴 열기 및 이동"/);
   assert.match(contextMenu, /aria-expanded=\{isOpen\}/);
   assert.match(contextMenu, /event\.key !== "Escape"/);
+  assert.match(contextMenu, /document\.addEventListener\("pointerdown", closeOnOutsidePointer\)/);
+  assert.match(contextMenu, /menuRootRef\.current\?\.contains\(event\.target as Node\)/);
+  assert.match(contextMenu, /document\.removeEventListener\("pointerdown", closeOnOutsidePointer\)/);
   assert.match(ownerApp, /if \(isOwnerContextMenuOpen\)/);
 });
 

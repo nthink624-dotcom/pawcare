@@ -100,6 +100,7 @@ const OwnerContextActionMenu = forwardRef<HTMLButtonElement, OwnerContextActionM
   onAddReservation,
   onOpenFeedback,
 }, forwardedRef) {
+  const menuRootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const firstActionRef = useRef<HTMLButtonElement | null>(null);
   const pointerRef = useRef<{ id: number; startX: number; startY: number; origin: MenuPosition; dragged: boolean } | null>(null);
@@ -125,15 +126,21 @@ const OwnerContextActionMenu = forwardRef<HTMLButtonElement, OwnerContextActionM
   useEffect(() => {
     if (!isOpen) return;
     const frame = window.requestAnimationFrame(() => firstActionRef.current?.focus());
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (menuRootRef.current?.contains(event.target as Node)) return;
+      onOpenChange(false);
+    };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       onOpenChange(false);
       triggerRef.current?.focus();
     };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
     return () => {
       window.cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [isOpen, onOpenChange]);
@@ -195,6 +202,7 @@ const OwnerContextActionMenu = forwardRef<HTMLButtonElement, OwnerContextActionM
 
   return (
     <div
+      ref={menuRootRef}
       data-testid="owner-context-action-menu"
       className={`fixed z-40 ${position ? "" : "bottom-[calc(env(safe-area-inset-bottom)+84px)] right-3"}`}
       style={position ? { left: position.x, top: position.y, transform: "translate(-50%, -50%)" } : undefined}

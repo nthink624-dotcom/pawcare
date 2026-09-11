@@ -14,9 +14,10 @@ test("staff setup uses a non-overlapping two-row header and left-aligned three-s
   assert.match(guide, /flex-\[1_1_160px\]/);
   assert.match(guide, /data-testid="owner-initial-setup-title-actions"/);
   assert.match(guide, /max-w-full flex-\[0_1_auto\] flex-wrap/);
-  assert.match(guide, /data-testid="owner-initial-setup-action-row"/);
-  assert.match(guide, /className="mt-3 flex min-h-11 min-w-0 flex-wrap items-center/);
-  assert.match(guide, /\{previousItem \? \([\s\S]*?<div className="flex min-w-0 shrink-0 items-center justify-start">[\s\S]*?\) : null\}/);
+  assert.doesNotMatch(guide, /data-testid="owner-initial-setup-action-row"/);
+  assert.match(guide, /data-testid="owner-initial-setup-header-actions"/);
+  assert.match(guide, /className="mt-3 flex min-h-11 min-w-0 justify-end empty:hidden"/);
+  assert.match(guide, /\{previousItem \? \([\s\S]*?onClick=\{\(\) => onNavigate\(previousItem\.screen\)\}[\s\S]*?aria-label="이전 단계로"[\s\S]*?\) : null\}/);
   assert.equal([...guide.matchAll(/whitespace-nowrap/g)].length >= 3, true);
   assert.match(guide, /id="owner-initial-setup-title"[\s\S]*?\[overflow-wrap:anywhere\][^"\n]*\[word-break:keep-all\]/);
   assert.doesNotMatch(guide, /grid-cols-\[minmax\(0,1fr\)_auto\]|absolute left-1\/2 top-1\/2|truncate/);

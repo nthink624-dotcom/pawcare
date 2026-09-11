@@ -6,14 +6,17 @@ import { useState } from "react";
 import {
   addDirectPriceGuideGroup,
   addDirectPriceGuideService,
+  addDirectPriceGuideWeightBand,
   directPriceGuideRowIndex,
   directPriceGuideWeightLabel,
   readDirectPriceGuideMatrix,
   removeDirectPriceGuideGroup,
   removeDirectPriceGuideService,
+  removeDirectPriceGuideWeightBand,
   updateDirectPriceGuideCell,
   updateDirectPriceGuideGroup,
   updateDirectPriceGuideService,
+  updateDirectPriceGuideWeightBand,
 } from "@/lib/price-guide-direct-matrix";
 import { priceGuideDisplayGroupLabel } from "@/lib/price-guide-structured-table";
 import {
@@ -42,6 +45,12 @@ const iconButtonClass = "inline-flex h-11 w-11 shrink-0 items-center justify-cen
 function nullableInteger(value: string) {
   const digits = value.replace(/\D/g, "");
   return digits ? Number(digits) : null;
+}
+
+function nullableDecimal(value: string) {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function rowInputId(rowIndex: number, field: keyof PriceGuideV2Row) {
@@ -351,7 +360,7 @@ export default function PriceGuideNativeInlineTable({
               <div className="mt-2 max-h-[min(62dvh,680px)] max-w-full overflow-auto overscroll-contain rounded-[10px] border border-[#dbe2ea]" tabIndex={0} aria-label={`${groupName} 인라인 요금표, 좌우와 위아래로 이동할 수 있습니다`} data-price-guide-matrix-scroll="true">
                 <table className="border-collapse text-[13px] leading-5 text-[#334155]" style={{ minWidth: tableWidth }}>
                   <thead className="sticky top-0 z-30"><tr className="bg-[#f8fafc] text-left text-[12px] font-medium leading-[18px] text-[#64748b]">
-                    <th className="sticky left-0 top-0 z-40 w-[160px] border-b border-r border-[#dbe2ea] bg-[#f8fafc] px-3 py-3">체중 상한</th>
+                    <th className="sticky left-0 top-0 z-40 w-[160px] border-b border-r border-[#dbe2ea] bg-[#f8fafc] px-3 py-3">체급(kg)</th>
                     {group.serviceNames.map((serviceName, serviceIndex) => {
                       const serviceRowIndex = directPriceGuideRowIndex(groups, groupIndex, 0, serviceIndex);
                       const serviceId = rowInputId(serviceRowIndex, "serviceName");
@@ -367,13 +376,54 @@ export default function PriceGuideNativeInlineTable({
                     const firstWeightRowIndex = directPriceGuideRowIndex(groups, groupIndex, weightIndex, 0);
                     const weightIssue = issues.get(`tableGroups:${groupIndex}.weightBands:${weightIndex}.label`) ?? issues.get(`rows:${firstWeightRowIndex}.maxKg`);
                     const weightLabel = weightBand.label.trim() || directPriceGuideWeightLabel(weightBand.minKg, weightBand.maxKg) || "체급 입력";
+                    const minWeightId = rowInputId(firstWeightRowIndex, "minKg");
+                    const maxWeightId = rowInputId(firstWeightRowIndex, "maxKg");
+                    const weightEditing = !photoReviewMode && [minWeightId, maxWeightId].includes(renderedStructureField ?? "");
                     return <tr key={`weight-${weightIndex}`} className="border-b border-[#edf2f7] last:border-b-0">
                       <th className="sticky left-0 z-20 border-r border-[#dbe2ea] bg-[#fbfcfd] p-1.5 text-left align-top font-normal">
-                        <div className="min-h-11 px-2.5 py-2 text-[14px] font-medium leading-5 text-[#334155]" data-price-guide-weight-limit={weightBand.maxKg ?? undefined}>
-                          {weightLabel}
-                          {weightBand.note ? <span className="mt-0.5 block text-[12px] font-normal leading-[18px] text-[#718096]">{weightBand.note}</span> : null}
-                        </div>
-                        <InlineError issue={weightIssue} />
+                        {weightEditing ? (
+                          <div className="grid min-w-[146px] grid-cols-2 gap-1" data-price-guide-weight-edit={weightIndex}>
+                            <label htmlFor={minWeightId} className="sr-only">체중 하한</label>
+                            <input
+                              id={minWeightId}
+                              autoFocus={renderedStructureField !== maxWeightId}
+                              value={weightBand.minKg ?? ""}
+                              type="number"
+                              min={0}
+                              step={0.1}
+                              inputMode="decimal"
+                              onChange={(event) => emit(updateDirectPriceGuideWeightBand(guide, groupIndex, weightIndex, { minKg: nullableDecimal(event.target.value), maxKg: weightBand.maxKg }), group.serviceNames.map((_, serviceIndex) => directPriceGuideRowIndex(groups, groupIndex, weightIndex, serviceIndex)), ["minKg", "maxKg", "weightBandLabel"])}
+                              className={inputClass}
+                              placeholder="최소"
+                            />
+                            <label htmlFor={maxWeightId} className="sr-only">체중 상한</label>
+                            <input
+                              id={maxWeightId}
+                              autoFocus={renderedStructureField === maxWeightId}
+                              value={weightBand.maxKg ?? ""}
+                              type="number"
+                              min={0}
+                              step={0.1}
+                              inputMode="decimal"
+                              onChange={(event) => emit(updateDirectPriceGuideWeightBand(guide, groupIndex, weightIndex, { minKg: weightBand.minKg, maxKg: nullableDecimal(event.target.value) }), group.serviceNames.map((_, serviceIndex) => directPriceGuideRowIndex(groups, groupIndex, weightIndex, serviceIndex)), ["minKg", "maxKg", "weightBandLabel"])}
+                              aria-invalid={Boolean(weightIssue)}
+                              aria-describedby={weightIssue ? `${weightIssue.inputId}-error` : undefined}
+                              className={inputClass}
+                              placeholder="최대"
+                            />
+                            <div className="col-span-2"><InlineError issue={weightIssue} /></div>
+                          </div>
+                        ) : photoReviewMode ? (
+                          <div className="min-h-11 px-2.5 py-2 text-[14px] font-medium leading-5 text-[#334155]" data-price-guide-weight-limit={weightBand.maxKg ?? undefined}>
+                            {weightLabel}
+                            {weightBand.note ? <span className="mt-0.5 block text-[12px] font-normal leading-[18px] text-[#718096]">{weightBand.note}</span> : null}
+                          </div>
+                        ) : (
+                          <button id={minWeightId} type="button" onClick={() => startStructureEdit(minWeightId)} className={cellButtonClass} data-price-guide-weight-limit={weightBand.maxKg ?? undefined}>
+                            {weightLabel}
+                            {weightBand.note ? <span className="mt-0.5 block text-[12px] font-normal leading-[18px] text-[#718096]">{weightBand.note}</span> : null}
+                          </button>
+                        )}
                       </th>
                       {group.serviceNames.map((_, serviceIndex) => {
                         const rowIndex = directPriceGuideRowIndex(groups, groupIndex, weightIndex, serviceIndex);
@@ -405,11 +455,18 @@ export default function PriceGuideNativeInlineTable({
                           />
                         </td>;
                       })}
-                      <td className="border-l border-[#edf2f7]" aria-hidden="true" />
+                      <td className="border-l border-[#edf2f7] p-1 align-top">
+                        {!photoReviewMode && group.weightBands.length > 1 ? (
+                          <button type="button" onClick={() => { startStructureEdit(null); onChange(removeDirectPriceGuideWeightBand(guide, groupIndex, weightIndex)); }} className={iconButtonClass} aria-label={`${groupName} ${weightLabel} 체급 삭제`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                        ) : null}
+                      </td>
                     </tr>;
                   })}</tbody>
                 </table>
               </div>
+              {!photoReviewMode ? (
+                <button type="button" onClick={() => { const nextWeightIndex = group.weightBands.length; const next = addDirectPriceGuideWeightBand(guide, groupIndex); const nextGroups = readDirectPriceGuideMatrix(next); onChange(next); if (nextGroups[groupIndex]?.weightBands.length === nextWeightIndex + 1) startStructureEdit(rowInputId(directPriceGuideRowIndex(nextGroups, groupIndex, nextWeightIndex, 0), "minKg")); }} className={`mt-2 ${actionClass}`}><Plus className="h-4 w-4" aria-hidden="true" />체급</button>
+              ) : null}
             </section>
           );
         })}

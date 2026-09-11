@@ -277,10 +277,12 @@ test("direct, saved, and photo review share one service-column table with inline
   assert.match(nativeTable, /<PriceDurationInlineCell[\s\S]*onEditStart=\{startIndependentCellEdit\}/);
   assert.match(nativeTable, /<Plus className="h-4 w-4" aria-hidden="true" \/>항목/);
   assert.match(nativeTable, /<Plus className="h-4 w-4" aria-hidden="true" \/>그룹/);
-  assert.doesNotMatch(nativeTable, /<Plus className="h-4 w-4" aria-hidden="true" \/>체급|체급 삭제/);
+  assert.match(nativeTable, /addDirectPriceGuideWeightBand\(guide, groupIndex\)[\s\S]*<Plus className="h-4 w-4" aria-hidden="true" \/>체급/);
+  assert.match(nativeTable, /removeDirectPriceGuideWeightBand\(guide, groupIndex, weightIndex\)[\s\S]*체급 삭제/);
   assert.match(nativeTable, /max-h-\[min\(62dvh,680px\)\][^"\n]*overflow-auto/);
   assert.match(nativeTable, /<thead className="sticky top-0 z-30"/);
-  assert.match(nativeTable, /className="sticky left-0 top-0 z-40[^\n]*">체중 상한/);
+  assert.match(nativeTable, /className="sticky left-0 top-0 z-40[^\n]*">체급\(kg\)/);
+  assert.match(nativeTable, /<label htmlFor=\{minWeightId\} className="sr-only">체중 하한<\/label>[\s\S]*<label htmlFor=\{maxWeightId\} className="sr-only">체중 상한<\/label>/);
   assert.match(nativeTable, /className="sticky left-0 z-20[^\n]*>[\s\S]*data-price-guide-weight-limit/);
   assert.match(nativeTable, /min-h-11|h-11/);
   assert.doesNotMatch(nativeTable, /한 줄 메모로 초안 만들기|요금 행|이 그룹 편집/);

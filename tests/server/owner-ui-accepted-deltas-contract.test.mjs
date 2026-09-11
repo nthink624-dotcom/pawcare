@@ -22,25 +22,26 @@ test("owner UI no longer presents Alimtalk counts, passes, or exhausted-state co
 });
 
 test("schedule selection and reservation cards keep the approved calm visual contract", async () => {
-  const [header, grid, timeRail] = await Promise.all([
+  const [header, grid, timeRail, statusIndicators] = await Promise.all([
     source("src/components/owner-web/calendar-staff-lane-header.tsx"),
     source("src/components/owner-web/calendar-daily-schedule-grid.tsx"),
     source("src/components/owner-web/calendar-time-rail.tsx"),
+    source("src/components/owner-web/status-indicators.ts"),
   ]);
-  assert.match(header, /backgroundColor: selected \? identityTone\.selectedBackground : identityTone\.background/);
-  assert.match(header, /--schedule-staff-identity-color.*identityTone\.color/);
-  assert.match(grid, /selectedLane && "bg-\[#f1f3f5\]"/);
-  assert.match(grid, /bg-\[#f8fbff\]/);
+  assert.match(header, /backgroundColor: headerTone\.background/);
+  assert.doesNotMatch(header, /if \(!selected\).*backgroundColor.*#ffffff/);
+  assert.match(grid, /selectedLane && "border-\[#d6e0ea\] bg-white"/);
+  assert.match(grid, /h-6 -translate-y-1\/2 bg-\[#edf3ff\]/);
   assert.match(grid, /border-\[#dfe8f2\]/);
-  assert.match(grid, /backgroundColor: "#2563eb"/);
-  assert.match(timeRail, /background: "#f8fbff"/);
-  assert.match(timeRail, /current: "#2563eb"/);
-  assert.match(timeRail, /backgroundColor: "#ffffff"/);
-  assert.match(grid, /bg-\[#fffdf8\]/);
-  assert.equal([...grid.matchAll(/backgroundColor: selected \? "#f4f8ff" : "#fffdf8"/g)].length, 2);
+  assert.match(grid, /backgroundColor: "#3b6fd8"/);
+  assert.match(timeRail, /background: "#ffffff"/);
+  assert.match(timeRail, /current: "#3b6fd8"/);
+  assert.match(grid, /border border-l-\[3px\] border-\[#dbe3ec\] bg-\[#fffefd\]/);
+  assert.match(grid, /backgroundColor: bookingIdentityTone\.background/);
+  assert.match(grid, /borderColor: bookingIdentityTone\.border/);
   assert.match(grid, /border-l-\[3px\]/);
   for (const color of ["#1f9d55", "#2563eb", "#7c3aed", "#64748b", "#b98121", "#a04455"]) {
-    assert.ok(grid.includes(color), color);
+    assert.ok(statusIndicators.includes(color), color);
   }
 });
 
@@ -73,7 +74,7 @@ test("initial setup portal is mounted before document.body is used as its render
   ]);
   assert.match(guide, /const \[portalTarget, setPortalTarget\] = useState<HTMLElement \| null>\(null\)/);
   assert.match(guide, /setPortalTarget\(document\.body\)/);
-  assert.match(guide, /if \(!open \|\| !portalTarget\) return null/);
+  assert.match(guide, /if \(!open \|\| !portalTarget \|\| allComplete\) return null/);
   assert.match(guide, /portalTarget,\s*\n\s*\)/);
   assert.doesNotMatch(guide, /createPortal\([\s\S]*,\s*document\.body,\s*\n\s*\)/);
   assert.match(guide, /pointer-events-none fixed inset-0 z-\[90\]/);
@@ -116,7 +117,7 @@ test("named owner controls keep at least 44px pointer targets", async () => {
   ]);
   assert.match(shell, /OWNER_HEADER_UTILITY_BUTTON_CLASS =[\s\S]*inline-flex h-11/);
   assert.match(shell, /relative flex h-11 w-full items-center/);
-  assert.equal([...shell.matchAll(/inline-flex h-11 w-11 items-center justify-center rounded-\[9px\]/g)].length, 2);
+  assert.equal([...shell.matchAll(/inline-flex h-11 w-11 items-center justify-center rounded-\[9px\]/g)].length, 3);
   assert.match(shell, /buttonClassName="h-11"/);
   assert.match(actionStyles, /OWNER_WEB_ACTION_BUTTON_BASE_CLASS =[\s\S]*inline-flex h-11/);
   assert.match(excelTools, /className=\{OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS\}/);
@@ -124,11 +125,11 @@ test("named owner controls keep at least 44px pointer targets", async () => {
   assert.match(customers, /inline-flex h-11 w-11 items-center justify-center rounded-\[8px\] border transition/);
   assert.match(customers, /onClick=\{toggleDisplayedCustomerSelection\} className="h-11/);
   assert.match(customers, /onClick=\{moveSelectedCustomersToDeleted\} className="h-11/);
-  assert.match(shopInfo, /flex h-\[52px\][\s\S]*inline-flex h-11 shrink-0 items-center rounded-full/);
+  assert.match(shopInfo, /flex min-h-\[54px\][\s\S]*inline-flex h-11 shrink-0 items-center rounded-full/);
   assert.match(alerts, /aria-label=\{`\$\{label\} 도움말`\}[\s\S]*inline-flex h-11 w-11/);
-  assert.match(alerts, /"h-11 rounded-\[8px\] border px-4 text-\[16px\] transition"/);
+  assert.match(alerts, /"min-h-11 rounded-\[8px\] border px-4 text-\[16px\] transition/);
   assert.match(alerts, /<label className="flex h-11 items-center overflow-hidden/);
-  assert.match(alerts, /inline-flex min-h-11 min-w-0 items-center text-left/);
+  assert.match(alerts, /inline-flex min-h-11 min-w-0 items-center whitespace-normal break-words text-left/);
 });
 
 test("staff setup and customer preview preserve their accepted handoff details", async () => {

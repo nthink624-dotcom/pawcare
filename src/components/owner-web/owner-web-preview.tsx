@@ -777,7 +777,6 @@ export default function OwnerWebPreview({
         setAlimtalkCreditMenuOpen(false);
       }}
       onOpenInitialSetup={openInitialSetup}
-      onAddReservation={() => handleCreateReservationForDate(currentDateInTimeZone())}
       showInitialSetupAction={initialSetupEligible}
       onLogout={handleLogout}
       loggingOut={loggingOut}

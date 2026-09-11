@@ -68,7 +68,7 @@ test("initial setup validates and previews staff photos without DataURL persiste
   assert.match(field, /20 \* 1024 \* 1024/);
   assert.match(field, /URL\.createObjectURL\(photo\.file\)/);
   assert.match(field, /URL\.revokeObjectURL\(objectUrl\)/);
-  assert.match(field, /사진 교체/);
+  assert.match(field, /프로필 사진 올리기/);
   assert.match(field, /사진 삭제/);
   assert.match(field, /초기화/);
   assert.doesNotMatch([field, screen].join("\n"), /FileReader|readAsDataURL/);

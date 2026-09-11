@@ -5,6 +5,7 @@ import test from "node:test";
 import { findPriceGuideV2ClassificationIssues } from "../../src/types/price-guide-photo-import.ts";
 import { shouldBypassSignupPhoneVerification } from "../../src/lib/auth/signup-local-phone-bypass.ts";
 import { buildDemoBootstrap, buildDemoInitialSetupBootstrap } from "../../src/lib/mock-data.ts";
+import { isConfirmedPriceGuideDuration } from "../../src/lib/price-guide-duration-confirmation.ts";
 
 const pricingStepPath = new URL("../../src/components/auth/signup-service-pricing-step.tsx", import.meta.url);
 const editorPath = new URL("../../src/components/auth/signup-price-guide-editor.tsx", import.meta.url);
@@ -441,6 +442,12 @@ test("service setup separates new-shop choice, inline direct matrix, photo revie
   assert.match(manual, /photoReviewMode=\{!manualMatrixMode\}/);
   assert.match(directMatrix, /data-price-guide-native-inline-table="true"/);
   assert.match(directMatrix, /<Plus className="h-4 w-4" aria-hidden="true" \/>체급/);
+  assert.match(directMatrix, /addDirectPriceGuideWeightBand\(guide, groupIndex\)/);
+  assert.match(directMatrix, /updateDirectPriceGuideWeightBand\(guide, groupIndex, weightIndex/);
+  assert.match(directMatrix, /removeDirectPriceGuideWeightBand\(guide, groupIndex, weightIndex\)/);
+  assert.match(directMatrix, /data-price-guide-weight-edit=\{weightIndex\}/);
+  assert.match(directMatrix, /className=\{iconButtonClass\} aria-label=\{`\$\{groupName\} \$\{weightLabel\} 체급 삭제`\}/);
+  assert.match(directMatrix, /const iconButtonClass = "inline-flex h-11 w-11/);
   assert.match(directMatrix, /<Plus className="h-4 w-4" aria-hidden="true" \/>항목/);
   assert.match(directMatrix, /<Plus className="h-4 w-4" aria-hidden="true" \/>그룹/);
   assert.doesNotMatch(directMatrix, /요금 행|이 그룹 편집|한 줄 메모로 초안 만들기/);
@@ -517,7 +524,7 @@ test("DB-free owner setup preview renders all three fixture forms and real save 
   assert.match(manual, /<PriceGuideStructuredReviewTable[\s\S]*document=\{draft\}[\s\S]*onEdit=/);
   assert.match(manual, /photoReviewMode=\{!manualMatrixMode\}/);
   assert.match(directMatrix, /바꿀 칸을 누르면 그 자리에서 입력할 수 있어요\. 저장 버튼을 누르기 전에는 반영되지 않습니다\./);
-  assert.match(directMatrix, /overflow-x-auto/);
+  assert.match(directMatrix, /overflow-auto overscroll-contain/);
   assert.match(manual, /onSaveActionReady\?\.\(registeredSaveAction\)/);
 });
 
@@ -552,34 +559,30 @@ test("manual signup price guide starts without invented price or duration", asyn
   assert.doesNotMatch(editor, /durationMinutes:\s*\d+/);
 });
 
-test("duration is required for every signup price row and accepts integers from five minutes", async () => {
+test("duration is required for every signup price row and accepts integers from fifteen minutes", async () => {
   const [editor, step] = await Promise.all([
     readFile(editorPath, "utf8"),
     readFile(pricingStepPath, "utf8"),
   ]);
-  const helper = /function isValidDurationMinutes\(durationMinutes: number \| null\) \{([\s\S]*?)\n\}/.exec(editor);
-  assert.ok(helper, "duration validator helper must remain directly testable");
-  const helperModule = `export default function isValidDurationMinutes(durationMinutes) {${helper[1]}\n}`;
-  const { default: isValidDurationMinutes } = await import(`data:text/javascript,${encodeURIComponent(helperModule)}`);
 
   for (const [durationMinutes, expected] of [
     [null, false],
     [0, false],
-    [4, false],
-    [4.5, false],
-    [5, true],
+    [14, false],
+    [14.5, false],
+    [15, true],
     [60, true],
-    [1_440, true],
-    [1_441, false],
+    [480, true],
+    [481, false],
   ]) {
-    assert.equal(isValidDurationMinutes(durationMinutes), expected, `durationMinutes=${durationMinutes}`);
+    assert.equal(isConfirmedPriceGuideDuration(durationMinutes), expected, `durationMinutes=${durationMinutes}`);
   }
 
-  assert.match(editor, /if \(!isValidDurationMinutes\(row\.durationMinutes\)\)/);
+  assert.match(editor, /if \(!isConfirmedPriceGuideDuration\(row\.durationMinutes\)\)/);
   assert.match(editor, /inputId: rowInputId\(index, "durationMinutes"\)/);
-  assert.match(editor, /message: "소요 시간은 5~1,440분의 정수로 입력해 주세요\."/);
+  assert.match(editor, /message: "소요 시간은 15~480분으로 확정해 주세요\."/);
   assert.match(editor, /issue=\{issue\("durationMinutes"\)\}/);
-  assert.match(editor, /placeholder="5분 이상 입력"/);
+  assert.match(editor, /placeholder="15분 이상 입력"/);
   assert.match(step, /focusValidationIssue\(issues\[0\]\)/);
 });
 

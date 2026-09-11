@@ -735,7 +735,7 @@ test("connected photo review uses one clean table and the same inline edit path 
   assert.match(nativeTable, /data-price-guide-price-duration-cell=\{rowIndex\}/);
   assert.match(nativeTable, /id=\{minPriceId\}[\s\S]*id=\{durationId\}/);
   assert.match(nativeTable, /if \(photoReviewMode\) \{[\s\S]*onChange\(corrected\)/);
-  assert.match(nativeTable, /평균 시간 설정이 필요해요/);
+  assert.match(nativeTable, /서비스별 평균 시간을 확인해 주세요/);
   assert.match(nativeTable, /weightBand\.note/);
   assert.doesNotMatch(projection, /sourceLabel === "소형견"|sizeGroupLabels/);
   assert.match(projection, /unplacedRowIndexes\.push\(rowIndex\)/);

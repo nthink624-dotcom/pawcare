@@ -50,30 +50,19 @@ test("dialog is compact, one-submit guarded, draft-preserving, and explicit abou
   assert.match(dialog, /screenshotAccepted/);
   assert.match(dialog, /fetchApiJsonWithAuth<FeedbackAcknowledgement>\("\/api\/owner\/tester-feedback"/);
   assert.match(dialog, /event\.key === "Escape"/);
+  assert.match(dialog, /event\.target === event\.currentTarget/);
+  assert.match(dialog, /previousFocusRef\.current\?\.focus\(\)/);
   assert.ok((dialog.match(/h-11|min-h-11/g) ?? []).length >= 8);
 });
 
-test("global owner shell exposes one-tap neutral entry and tester-only amber emphasis", async () => {
+test("global owner shell exposes only the two accepted header support actions", async () => {
   const shell = await readFile(shellPath, "utf8");
-  assert.match(shell, /문의·의견 보내기/);
-  assert.match(shell, /aria-label="한마디 메뉴 열기"/);
-  assert.match(shell, /aria-haspopup="menu"/);
-  assert.match(shell, /aria-controls=\{hanmadiMenuId\}/);
-  assert.match(shell, /id=\{hanmadiMenuId\} role="menu"/);
-  assert.match(shell, />새 예약 추가<\/button>/);
-  assert.match(shell, />문의 남기기<\/button>/);
-  assert.match(shell, />함께 고쳐요<\/button>/);
-  assert.ok(shell.indexOf("새 예약 추가") < shell.indexOf("문의 남기기"));
-  assert.ok(shell.indexOf("문의 남기기") < shell.indexOf("함께 고쳐요"));
-  assert.match(shell, /hanmadiMenuItemRefs\.current\[0\]\?\.focus\(\)/);
-  assert.match(shell, /document\.addEventListener\("pointerdown", handlePointerDown\)/);
-  assert.match(shell, /event\.key !== "Escape"/);
-  assert.match(shell, /hanmadiTriggerRef\.current\?\.focus\(\)/);
-  for (const key of ["ArrowDown", "ArrowUp", "Home", "End"]) {
-    assert.match(shell, new RegExp(`event\\.key === "${key}"`));
-  }
-  assert.match(shell, /inline-flex h-12 w-12/);
-  assert.ok((shell.match(/role="menuitem"[^>]+min-h-11/g) ?? []).length === 3);
+  assert.match(shell, />\s*함께 고쳐요\s*<\/button>/);
+  assert.match(shell, />\s*도움 문의\s*<\/button>/);
+  assert.match(shell, /aria-label="함께 고쳐요"/);
+  assert.match(shell, /aria-label="도움 문의"/);
+  assert.equal([...shell.matchAll(/>\s*(?:함께 고쳐요|도움 문의)\s*</g)].length, 2);
+  assert.doesNotMatch(shell, /한마디 메뉴|role="menu"|새 예약 추가|문의 남기기|onAddReservation/);
   assert.match(shell, /isTester && "!border-\[#decda9\] !bg-\[#fffaf0\]/);
   assert.match(shell, /activeScreen=\{activeScreen\}/);
   assert.doesNotMatch(shell, />\s*기능 개선\s*</);

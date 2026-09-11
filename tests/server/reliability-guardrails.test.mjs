@@ -248,13 +248,13 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.match(careReportPanel, /집에서 참고할 점 편집/);
   assert.match(careReportPanel, /아래에 케어 내용을 남기면 이곳에 정리됩니다/);
   assert.match(careReportPanel, /onReportChange=\{editReport\}/);
-  assert.match(careReportPanel, /max-h-\[148px\].*overflow-y-auto/);
-  assert.match(careReportPanel, /h-\[108px\].*resize-none.*overflow-y-auto/);
+  assert.match(careReportPanel, /min-h-\[180px\].*resize-y.*overflow-y-hidden.*\[field-sizing:content\]/);
+  assert.equal([...careReportPanel.matchAll(/min-h-11 w-full resize-y overflow-y-hidden[^"\n]*\[field-sizing:content\]/g)].length, 2);
   assert.match(careReportPanel, /sticky bottom-0/);
   assert.doesNotMatch(careReportPanel, /fixed bottom-2 left-1\/2/);
   assert.doesNotMatch(careReportPanel, /전체 케어리포트 보기/);
   assert.match(careNoteInput, /오늘 관찰 메모/);
-  assert.match(careNoteInput, /관찰 범위 선택/);
+  assert.match(careNoteInput, /예\) 목욕은 잘 진행했고, 귀가 조금 예민했어요\./);
   assert.match(careNoteInput, /h-\[58px\].*resize-none.*overflow-y-auto/);
   assert.match(careNoteInput, /speechBaseValueRef\.current = valueRef\.current/);
   assert.match(careNoteInput, /const spokenText = \[finalized\.trim\(\), interim\.trim\(\)\]/);

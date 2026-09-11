@@ -164,7 +164,7 @@ test("preview state controls retain 44px targets and mobile-safe layout", async 
   assert.match(page, /overflow-x-hidden/);
   assert.match(onboarding, /min-h-11/);
   assert.match(detail, /min-h-11/);
-  assert.match(nativeTable, /overflow-x-auto/);
+  assert.match(nativeTable, /overflow-auto overscroll-contain/);
   assert.match(detail, /data-price-guide-detail-matrix="true"/);
 });
 

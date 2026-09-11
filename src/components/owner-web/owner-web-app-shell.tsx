@@ -1,12 +1,11 @@
 "use client";
 
-import { CalendarPlus, ChevronDown, ChevronUp, CircleHelp, ClipboardCheck, HelpCircle, LogOut, MessageSquareText, MessageSquareWarning, Search } from "lucide-react";
+import { ChevronDown, ClipboardCheck, HelpCircle, LogOut, MessageSquareWarning, Search } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 
 import PetManagerBrand from "@/components/brand/petmanager-brand";
-import type { OwnerFeedbackKind } from "@/components/owner-web/owner-feedback-adapter";
 import { type OwnerWebScreenKey } from "@/components/owner-web/owner-web-data";
 import OwnerFeatureRequestDialog from "@/components/owner-web/owner-feature-request-dialog";
 import { SoftSelect } from "@/components/owner-web/owner-web-ui";
@@ -149,7 +148,6 @@ export default function OwnerWebAppShell({
   onOpenAlerts,
   onOpenHelp,
   onOpenInitialSetup,
-  onAddReservation,
   showInitialSetupAction = true,
   onLogout,
   loggingOut,
@@ -178,7 +176,6 @@ export default function OwnerWebAppShell({
   onOpenAlerts: () => void;
   onOpenHelp: () => void;
   onOpenInitialSetup: () => void;
-  onAddReservation: () => void;
   showInitialSetupAction?: boolean;
   onLogout: () => void;
   loggingOut: boolean;
@@ -188,54 +185,7 @@ export default function OwnerWebAppShell({
   children: ReactNode;
 }) {
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
-  const [feedbackKind, setFeedbackKind] = useState<OwnerFeedbackKind>("inquiry");
-  const [hanmadiOpen, setHanmadiOpen] = useState(false);
-  const hanmadiMenuId = useId();
-  const hanmadiContainerRef = useRef<HTMLDivElement>(null);
-  const hanmadiTriggerRef = useRef<HTMLButtonElement>(null);
-  const hanmadiMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const usesSinglePlaneCore = ownerWebSinglePlaneCoreScreens.has(activeScreen);
-
-  useEffect(() => {
-    if (!hanmadiOpen) return;
-
-    hanmadiMenuItemRefs.current[0]?.focus();
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !hanmadiContainerRef.current?.contains(event.target)) {
-        setHanmadiOpen(false);
-      }
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setHanmadiOpen(false);
-      hanmadiTriggerRef.current?.focus();
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [hanmadiOpen]);
-
-  const handleHanmadiMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const items = hanmadiMenuItemRefs.current.filter((item): item is HTMLButtonElement => item !== null);
-    if (items.length === 0) return;
-
-    const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
-    let nextIndex: number | null = null;
-    if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % items.length;
-    if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length;
-    if (event.key === "Home") nextIndex = 0;
-    if (event.key === "End") nextIndex = items.length - 1;
-    if (nextIndex === null) return;
-
-    event.preventDefault();
-    items[nextIndex]?.focus();
-  };
 
   return (
     <div className="owner-font pm-owner-web flex h-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
@@ -337,8 +287,8 @@ export default function OwnerWebAppShell({
                 isTester && "!border-[#decda9] !bg-[#fffaf0] !text-[#80643f] hover:!bg-[#fbf2df] hover:!text-[#6f5534]",
               )}
             >
-              <MessageSquareText className="h-4 w-4" strokeWidth={1.8} />
-              문의·의견 보내기
+              <MessageSquareWarning className="h-4 w-4" strokeWidth={1.8} />
+              함께 고쳐요
             </button>
             <button
               type="button"
@@ -346,7 +296,7 @@ export default function OwnerWebAppShell({
               className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
             >
               <HelpCircle className="h-4 w-4" strokeWidth={1.8} />
-              도움·문의
+              도움 문의
             </button>
             <div className="mx-2 h-6 w-px bg-[var(--line2)]" />
             <div ref={storeMenuRef} className="relative">
@@ -418,17 +368,17 @@ export default function OwnerWebAppShell({
                 "inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]",
                 isTester && "!border-[#decda9] !bg-[#fffaf0] !text-[#80643f]",
               )}
-              aria-label="문의·의견 보내기"
-              title="문의·의견 보내기"
+              aria-label="함께 고쳐요"
+              title="함께 고쳐요"
             >
-              <MessageSquareText className="h-4.5 w-4.5" strokeWidth={1.8} />
+              <MessageSquareWarning className="h-4.5 w-4.5" strokeWidth={1.8} />
             </button>
             <button
               type="button"
               onClick={onOpenHelp}
               className="inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
-              aria-label="도움·문의"
-              title="도움·문의"
+              aria-label="도움 문의"
+              title="도움 문의"
             >
               <HelpCircle className="h-4.5 w-4.5" strokeWidth={1.8} />
             </button>
@@ -462,25 +412,11 @@ export default function OwnerWebAppShell({
           )}
         </section>
       </main>
-      {!setupMode ? (
-        <div ref={hanmadiContainerRef} className="fixed bottom-6 right-6 z-[110]">
-          {hanmadiOpen ? (
-            <div id={hanmadiMenuId} role="menu" aria-label="한마디" onKeyDown={handleHanmadiMenuKeyDown} className="absolute bottom-[calc(100%+8px)] right-0 w-[156px] overflow-hidden rounded-[14px] border border-[#d9e0e8] bg-white p-1 shadow-[0_10px_28px_rgba(17,26,48,0.14)]">
-              <button ref={(element) => { hanmadiMenuItemRefs.current[0] = element; }} type="button" role="menuitem" className="flex min-h-11 w-full items-center gap-2 rounded-[10px] px-2.5 text-left text-[14px] font-medium text-[#111a30] hover:bg-[#f6f8fb]" onClick={() => { setHanmadiOpen(false); onAddReservation(); }}><CalendarPlus className="h-4.5 w-4.5 text-[#526176]" aria-hidden="true" />새 예약 추가</button>
-              <button ref={(element) => { hanmadiMenuItemRefs.current[1] = element; }} type="button" role="menuitem" className="flex min-h-11 w-full items-center gap-2 rounded-[10px] px-2.5 text-left text-[14px] font-medium text-[#111a30] hover:bg-[#f6f8fb]" onClick={() => { setHanmadiOpen(false); setFeedbackKind("inquiry"); setFeatureRequestOpen(true); }}><CircleHelp className="h-4.5 w-4.5 text-[#526176]" aria-hidden="true" />문의 남기기</button>
-              <button ref={(element) => { hanmadiMenuItemRefs.current[2] = element; }} type="button" role="menuitem" className="flex min-h-11 w-full items-center gap-2 rounded-[10px] px-2.5 text-left text-[14px] font-medium text-[#111a30] hover:bg-[#f6f8fb]" onClick={() => { setHanmadiOpen(false); setFeedbackKind("bug"); setFeatureRequestOpen(true); }}><MessageSquareWarning className="h-4.5 w-4.5 text-[#526176]" aria-hidden="true" />함께 고쳐요</button>
-            </div>
-          ) : null}
-          <button ref={hanmadiTriggerRef} type="button" aria-label="한마디 메뉴 열기" aria-haspopup="menu" aria-controls={hanmadiMenuId} aria-expanded={hanmadiOpen} onClick={() => setHanmadiOpen((current) => !current)} className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#cfd8e3] bg-white text-[#111a30] shadow-[0_5px_16px_rgba(17,26,48,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">
-            <ChevronUp className={`h-5 w-5 transition-transform motion-reduce:transition-none ${hanmadiOpen ? "rotate-180" : ""}`} strokeWidth={2.2} aria-hidden="true" />
-          </button>
-        </div>
-      ) : null}
       <OwnerFeatureRequestDialog
         open={featureRequestOpen}
         shopId={shopId}
         activeScreen={activeScreen}
-        initialKind={feedbackKind}
+        initialKind="bug"
         fixtureMode={feedbackFixtureMode}
         onClose={() => setFeatureRequestOpen(false)}
       />

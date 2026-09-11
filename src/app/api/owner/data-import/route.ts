@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { commitDataImport } from "@/server/data-import-commit";
 import { buildDataImportPreview } from "@/server/data-import-preview";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import type { DataImportSource } from "@/types/data-import";
 
 export const runtime = "nodejs";
@@ -34,6 +35,7 @@ export async function POST(request: NextRequest) {
 
     const owner = await requireOwnerShop(request, shopId || undefined);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const buffer = Buffer.from(await file.arrayBuffer());
 
     if (mode === "commit") {

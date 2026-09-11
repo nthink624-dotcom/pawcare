@@ -181,7 +181,10 @@ test("inline direct entry and photo review reuse the strict explicit canonical s
   assert.match(inlineMatrix, /updateDirectPriceGuideGroup/);
   assert.match(inlineMatrix, /updateDirectPriceGuideService/);
   assert.match(inlineMatrix, /updateDirectPriceGuideCell/);
-  assert.doesNotMatch(inlineMatrix, /updateDirectPriceGuideWeightBand|체급 삭제/);
+  assert.match(inlineMatrix, /updateDirectPriceGuideWeightBand/);
+  assert.match(inlineMatrix, /addDirectPriceGuideWeightBand/);
+  assert.match(inlineMatrix, /removeDirectPriceGuideWeightBand/);
+  assert.match(inlineMatrix, /체급 삭제/);
   assert.doesNotMatch(inlineMatrix, /요금 행|이 그룹 편집/);
 
   // The optional text parser remains source-only and is no longer connected to direct registration.

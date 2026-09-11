@@ -19,6 +19,7 @@ import {
   serializeCareReportSavePayload,
 } from "@/lib/care-report-draft";
 import { OwnerApiError, requireOwnerShop, type OwnerShopContext } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import {
   careReportDraftSchema,
@@ -232,6 +233,7 @@ export async function POST(request: NextRequest) {
   try {
     const input = careReportGenerationInputSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, input.shopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const appointment = await requireAppointmentScope(owner, input.appointmentId);
     const contextBase = await readCareReportContext(appointment);
     const observations = sanitizeCareReportObservations(input.observations);
@@ -267,6 +269,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const input = confirmInputSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, input.shopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const appointment = await requireAppointmentScope(owner, input.appointmentId);
     const admin = getSupabaseAdmin();
     if (!admin) throw new OwnerApiError("데이터베이스 서버 설정을 확인해 주세요.", 503);

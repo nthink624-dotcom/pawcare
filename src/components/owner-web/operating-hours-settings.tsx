@@ -672,7 +672,16 @@ export default function OperatingHoursSettings({
       const savedShop = await fetchApiJsonWithAuth<Shop>("/api/settings", {
         method: "PATCH",
         cache: "no-store",
-        body: JSON.stringify({
+        body: JSON.stringify(initialSetupMode ? {
+          shopId: nextShop.id,
+          bookingAvailableStartTime: nextShop.booking_available_start_time,
+          bookingAvailableEndTime: nextShop.booking_available_end_time,
+          regularClosedDays: nextShop.regular_closed_days,
+          regularClosedCycle: nextShop.regular_closed_cycle ?? "weekly",
+          regularClosedAnchorDate: nextShop.regular_closed_anchor_date ?? null,
+          temporaryClosedDates: nextShop.temporary_closed_dates,
+          businessHours: nextShop.business_hours,
+        } : {
           shopId: nextShop.id,
           name: nextShop.name,
           phone: nextShop.phone,

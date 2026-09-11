@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 
-import { completeOwnerMediaUpload } from "@/server/media-service";
+import { completeOwnerMediaUpload, getOwnerMediaAssetKind } from "@/server/media-service";
 import { reportPriceGuidePhotoLifecycle } from "@/lib/media/price-guide-photo-lifecycle";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupAllowsStoredMedia } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
 const WRITE_CORS = { methods: "POST, OPTIONS" };
@@ -12,8 +13,13 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const requestedShopId = typeof body.shopId === "string" ? body.shopId : undefined;
     const owner = await requireOwnerShop(request, requestedShopId);
+    const mediaAssetId = typeof body.mediaAssetId === "string" ? body.mediaAssetId : "";
+    await assertOwnerInitialSetupAllowsStoredMedia(
+      owner.shopId,
+      () => getOwnerMediaAssetKind(owner, mediaAssetId),
+    );
     const mediaAsset = await completeOwnerMediaUpload(owner, {
-      mediaAssetId: typeof body.mediaAssetId === "string" ? body.mediaAssetId : "",
+      mediaAssetId,
       byteSize: typeof body.byteSize === "number" ? body.byteSize : null,
       width: typeof body.width === "number" ? body.width : null,
       height: typeof body.height === "number" ? body.height : null,

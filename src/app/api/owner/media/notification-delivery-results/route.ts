@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { markNotificationMediaDeliveryResult } from "@/server/media-delivery-service";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import type { MediaSendStatus } from "@/types/domain";
 
@@ -14,6 +15,7 @@ export async function POST(request: NextRequest) {
     const providerMedia = Array.isArray(body.providerMedia) ? body.providerMedia : [];
     const owner = await requireOwnerShop(request, requestedShopId);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await markNotificationMediaDeliveryResult(owner, {
       notificationId: typeof body.notificationId === "string" ? body.notificationId : "",
       status: (typeof body.status === "string" ? body.status : "sent") as MediaSendStatus,

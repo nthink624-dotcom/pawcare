@@ -8,6 +8,7 @@ import {
   recordBoundShopAcquisitionMilestone,
 } from "@/server/marketing-acquisition";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { createAppointment } from "@/server/owner-mutations";
 
 const bodySchema = z.object({
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
     const owner = await requireOwnerShop(request, body.shopId);
     if (owner.role !== "owner") throw new OwnerApiError("대표 계정만 테스트 예약을 만들 수 있습니다.", 403);
     if (!owner.userId) throw new OwnerApiError("테스트 예약은 로그인된 개발 환경에서 확인해 주세요.", 503);
+    await assertOwnerInitialSetupComplete(owner.shopId);
 
     let replayed = true;
     let row = await findExactReadinessAppointment({

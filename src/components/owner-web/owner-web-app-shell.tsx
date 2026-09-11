@@ -154,6 +154,7 @@ export default function OwnerWebAppShell({
   isTester = false,
   feedbackFixtureMode = false,
   setupMode = false,
+  operationsLocked = false,
   children,
 }: {
   activeScreen: OwnerWebScreenKey;
@@ -182,6 +183,7 @@ export default function OwnerWebAppShell({
   isTester?: boolean;
   feedbackFixtureMode?: boolean;
   setupMode?: boolean;
+  operationsLocked?: boolean;
   children: ReactNode;
 }) {
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
@@ -191,7 +193,7 @@ export default function OwnerWebAppShell({
     <div className="owner-font pm-owner-web flex h-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
       <aside className={cn(
         "pm-owner-sidebar hidden h-screen w-[236px] shrink-0 flex-col border-r border-[var(--nav-bd)] bg-[var(--nav-bg)]",
-        setupMode ? "hidden" : "lg:flex",
+        setupMode || operationsLocked ? "hidden" : "lg:flex",
       )}>
         <div className="flex items-center pb-4 pl-[34px] pr-5 pt-[22px]">
           <PetManagerBrand
@@ -263,10 +265,14 @@ export default function OwnerWebAppShell({
           "hidden h-[60px] shrink-0 items-center gap-4 border-b border-[var(--line2)] bg-[var(--card)] px-[22px]",
           setupMode ? "hidden" : "lg:flex",
         )}>
+          {operationsLocked ? (
+            <PetManagerBrand imageClassName="h-5 w-auto" nameClassName="text-[15px] text-[#1f2937]" />
+          ) : (
           <label className="flex h-[38px] w-[300px] items-center gap-2 rounded-[10px] border border-transparent bg-[#eef1f5] px-3 text-[14px] text-[var(--mid)] transition focus-within:border-[var(--acc)] focus-within:bg-white focus-within:shadow-[0_0_0_3px_var(--acc-tint)]">
             <Search className="h-4 w-4 shrink-0" strokeWidth={1.7} />
             <input className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--mut)]" placeholder="검색" />
           </label>
+          )}
 
           <div className="ml-auto flex items-center gap-2">
             {showInitialSetupAction ? (
@@ -303,7 +309,7 @@ export default function OwnerWebAppShell({
               <button
                 type="button"
                 onClick={onStoreMenuToggle}
-                className="grid h-[42px] min-w-[178px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[10px] px-2.5 text-left transition hover:bg-[#eef1f5]"
+                className="grid h-11 min-w-[178px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[10px] px-2.5 text-left transition hover:bg-[#eef1f5]"
                 aria-expanded={storeMenuOpen}
               >
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[var(--acc-soft)] text-[12px] font-bold text-[var(--acc-dk)]">
@@ -320,9 +326,11 @@ export default function OwnerWebAppShell({
                   <button type="button" onClick={onOpenProfile} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
                     프로필
                   </button>
-                  <button type="button" onClick={onOpenShop} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
-                    매장 정보
-                  </button>
+                  {!operationsLocked ? (
+                    <button type="button" onClick={onOpenShop} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
+                      매장 정보
+                    </button>
+                  ) : null}
                   <div className="my-1 border-t border-[var(--line)]" />
                   <button
                     type="button"
@@ -382,6 +390,7 @@ export default function OwnerWebAppShell({
             >
               <HelpCircle className="h-4.5 w-4.5" strokeWidth={1.8} />
             </button>
+            {!operationsLocked ? (
             <SoftSelect<OwnerWebScreenKey>
               value={activeScreen}
               onChange={onScreenSelect}
@@ -392,6 +401,7 @@ export default function OwnerWebAppShell({
               valueClassName="whitespace-nowrap"
               menuClassName="[&_[role=option]]:h-auto [&_[role=option]]:min-h-11"
             />
+            ) : null}
           </div>
         </header>
 

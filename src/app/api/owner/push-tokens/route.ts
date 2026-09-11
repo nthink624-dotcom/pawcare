@@ -4,6 +4,7 @@ import { z } from "zod";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
 const PUSH_TOKEN_CORS = { methods: "POST, DELETE, OPTIONS" };
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
   try {
     const input = registerSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, input.shopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
 
     if (!hasSupabaseServerEnv()) {
       return ownerMobileCorsJson(request, {
@@ -190,6 +192,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const input = deactivateSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, input.shopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
 
     if (!hasSupabaseServerEnv()) {
       return ownerMobileCorsJson(request, { mode: "mock", deactivated: true, count: 0 }, undefined, PUSH_TOKEN_CORS);

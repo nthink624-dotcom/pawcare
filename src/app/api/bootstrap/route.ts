@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { getBootstrap } from "@/server/bootstrap";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+import { assertBootstrapOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { scopeBootstrapForStaff } from "@/server/staff-privacy";
 
 function formatDate(date: Date) {
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
         includeGroomingRecords: false,
         includePilotCohort: false,
       });
+      assertBootstrapOwnerInitialSetupComplete(data);
       return ownerMobileCorsJson(request, {
         mode: data.mode,
         shop: data.shop,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { upsertPetStaffNote } from "@/server/owner-mutations";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
@@ -44,6 +45,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     await assertStaffCanWriteNote(owner, body);
     const result = await upsertPetStaffNote({
       ...body,

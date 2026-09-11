@@ -4,7 +4,8 @@ import { computeAvailableSlots, computeRecommendedAvailableSlots } from "@/lib/a
 import { validateCustomerBookingDate } from "@/lib/customer-booking-window";
 import { getStaffBookingLoads } from "@/lib/staff-booking-load";
 import { recommendAvailableSlotsWithAi } from "@/server/ai-slot-recommendations";
-import { getBootstrap } from "@/server/bootstrap";
+import { OwnerApiError } from "@/server/owner-api-auth";
+import { requireOwnerInitialSetupCompleteBootstrap } from "@/server/owner-initial-setup-guard";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const bootstrap = await getBootstrap(shopId);
+    const bootstrap = await requireOwnerInitialSetupCompleteBootstrap(shopId);
     const slotsForDate = (requestedDate: string, requestedStaffId: string | null = staffId || null) => computeAvailableSlots({
       date: requestedDate,
       serviceId: serviceId || undefined,
@@ -139,6 +140,9 @@ export async function GET(request: NextRequest) {
       },
     );
   } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     const message = error instanceof Error ? error.message : "예약 가능 시간 조회 중 문제가 발생했습니다.";
     return NextResponse.json({ message }, { status: 400 });
   }

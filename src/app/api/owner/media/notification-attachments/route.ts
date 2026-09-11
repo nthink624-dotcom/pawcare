@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { attachMediaToNotification } from "@/server/media-service";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
 const WRITE_CORS = { methods: "POST, OPTIONS" };
@@ -12,6 +13,7 @@ export async function POST(request: NextRequest) {
     const requestedShopId = typeof body.shopId === "string" ? body.shopId : undefined;
     const media = Array.isArray(body.media) ? body.media : [];
     const owner = await requireOwnerShop(request, requestedShopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await attachMediaToNotification(owner, {
       notificationId: typeof body.notificationId === "string" ? body.notificationId : "",
       channel: typeof body.channel === "string" ? body.channel : null,

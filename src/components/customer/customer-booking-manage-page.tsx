@@ -2,7 +2,9 @@
 
 import { useMemo, type CSSProperties } from "react";
 
-import CustomerBookingManagePanel from "@/components/customer/customer-booking-manage-panel";
+import CustomerBookingManagePanel, {
+  type CustomerBookingManageLookupPayload,
+} from "@/components/customer/customer-booking-manage-panel";
 import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
@@ -15,14 +17,18 @@ export default function CustomerBookingManagePage({
   initialServices,
   initialStaffMembers = [],
   initialAccessToken,
+  initialLookupResult,
   entryHref,
+  operationsLocked = false,
 }: {
   shopId: string;
   initialShop: Shop;
   initialServices: Service[];
   initialStaffMembers?: BootstrapStaffMember[];
   initialAccessToken?: string;
+  initialLookupResult?: CustomerBookingManageLookupPayload | null;
   entryHref: string;
+  operationsLocked?: boolean;
 }) {
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
   const staffMembers = useMemo(() => initialStaffMembers.filter((staff) => staff.name.trim()), [initialStaffMembers]);
@@ -66,6 +72,8 @@ export default function CustomerBookingManagePage({
         customerServiceOptions={customerServiceOptions}
         staffMembers={staffMembers}
         initialAccessToken={initialAccessToken}
+        initialLookupResult={initialLookupResult}
+        operationsLocked={operationsLocked}
         onBack={() => {
           window.location.href = entryHref;
         }}

@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 
 import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
+import CustomerBookingUnavailable from "@/components/customer/customer-booking-unavailable";
 import { isDevelopmentDemoShopId, isLandingDemoShopId } from "@/lib/development-demo";
+import { getBootstrapOwnerInitialSetupReadiness } from "@/lib/owner-initial-setup-readiness";
 import { getBootstrap } from "@/server/bootstrap";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +46,10 @@ export default async function EntryPage({
     redirect(`${manageUrl.pathname}${manageUrl.search}` as never);
   }
 
-  const data = await getBootstrap(shopId);
+  const data = await getBootstrap(shopId).catch(() => null);
+  if (!data || !getBootstrapOwnerInitialSetupReadiness(data).completed) {
+    return <CustomerBookingUnavailable />;
+  }
   return (
     <CustomerBookingEntryPage
       shop={data.shop}

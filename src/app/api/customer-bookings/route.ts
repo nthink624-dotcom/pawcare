@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
 import { createCustomerBooking, updateCustomerBooking } from "@/server/customer-bookings";
+import { OwnerApiError } from "@/server/owner-api-auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,6 +9,9 @@ export async function POST(request: NextRequest) {
     const result = await createCustomerBooking(body);
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     const message = error instanceof Error ? error.message : "예약 신청 중 문제가 발생했습니다.";
     return NextResponse.json({ message }, { status: 400 });
   }
@@ -19,6 +23,9 @@ export async function PATCH(request: NextRequest) {
     const result = await updateCustomerBooking(body);
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     const message = error instanceof Error ? error.message : "예약 변경 중 문제가 발생했습니다.";
     return NextResponse.json({ message }, { status: 400 });
   }

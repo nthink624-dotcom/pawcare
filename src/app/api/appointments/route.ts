@@ -5,6 +5,7 @@ import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors"
 import { getBootstrap } from "@/server/bootstrap";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { createAppointment, updateAppointmentDetails, updateAppointmentStatus } from "@/server/owner-mutations";
 import { appointmentBelongsToStaff } from "@/server/staff-privacy";
 
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await createAppointment(
       { ...body, source: "owner" },
       { deferNotifications: (task) => after(task) },
@@ -54,6 +56,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const owner = await requireOwnerShop(request);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const bootstrap = await getBootstrap(owner.shopId);
     const appointment = bootstrap.appointments.find((item) => item.id === body?.appointmentId);
     if (!appointment || !appointmentBelongsToStaff(appointment, owner)) {

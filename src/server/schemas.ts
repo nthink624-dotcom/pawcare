@@ -322,6 +322,41 @@ export const shopSettingsSchema = z.object({
   }
 });
 
+export const initialSetupShopSettingsSchema = z.object({
+  shopId: z.string(),
+  bookingAvailableStartTime: z.string().regex(timePattern),
+  bookingAvailableEndTime: z.string().regex(timePattern),
+  regularClosedDays: z.array(z.number().min(0).max(6)),
+  regularClosedCycle: z.enum(["weekly", "biweekly", "monthly_1_3", "monthly_2_4"]),
+  regularClosedAnchorDate: z.string().nullable(),
+  temporaryClosedDates: z.array(z.string()),
+  businessHours: z.record(
+    z.string(),
+    z.object({
+      open: z.string().regex(timePattern),
+      close: z.string().regex(timePattern),
+      enabled: z.boolean(),
+    }),
+  ),
+}).strict().superRefine((value, ctx) => {
+  if (value.bookingAvailableStartTime >= value.bookingAvailableEndTime) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["bookingAvailableEndTime"],
+      message: "마지막 미용 예약 시간은 시작 시간보다 늦어야 합니다.",
+    });
+  }
+
+  for (const [day, hours] of Object.entries(value.businessHours)) {
+    if (!hours.enabled || isValidBusinessHoursRange(hours.open, hours.close)) continue;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["businessHours", day, "close"],
+      message: "영업 종료 시간은 시작 시간보다 늦어야 합니다.",
+    });
+  }
+});
+
 export const customerPageSettingsSchema = z.object({
   shopId: z.string(),
   customerPageSettings: z.object({

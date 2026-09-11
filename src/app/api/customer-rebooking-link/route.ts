@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { exchangeBookingAccessTokenForRebooking } from "@/server/booking-access-token";
+import { OwnerApiError } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 
 const customerRebookingLinkSchema = z.object({
   shopId: z.string().min(1),
@@ -13,6 +15,7 @@ const customerRebookingLinkSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const payload = customerRebookingLinkSchema.parse(await request.json());
+    await assertOwnerInitialSetupComplete(payload.shopId);
     const rebookingToken = exchangeBookingAccessTokenForRebooking(payload.shopId, payload.accessToken);
     const query = new URLSearchParams({ experience: "revisit", t: rebookingToken });
     if (payload.serviceId) query.set("serviceId", payload.serviceId);
@@ -22,6 +25,9 @@ export async function POST(request: NextRequest) {
       href: `/book/${encodeURIComponent(payload.shopId)}?${query.toString()}`,
     });
   } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     const message = error instanceof Error ? error.message : "재예약 링크를 준비하지 못했습니다.";
     return NextResponse.json({ message }, { status: 400 });
   }
@@ -33,12 +39,16 @@ export async function GET(request: NextRequest) {
 
   try {
     const payload = customerRebookingLinkSchema.parse({ shopId, accessToken });
+    await assertOwnerInitialSetupComplete(payload.shopId);
     const rebookingToken = exchangeBookingAccessTokenForRebooking(payload.shopId, payload.accessToken);
     const destination = new URL(`/book/${encodeURIComponent(payload.shopId)}`, request.nextUrl.origin);
     destination.searchParams.set("experience", "revisit");
     destination.searchParams.set("t", rebookingToken);
     return NextResponse.redirect(destination);
-  } catch {
+  } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     if (!shopId) {
       return NextResponse.json({ message: "유효하지 않은 재예약 링크입니다." }, { status: 400 });
     }

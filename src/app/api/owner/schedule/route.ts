@@ -4,6 +4,7 @@ import { getBootstrap } from "@/server/bootstrap";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { createAppointment, createGuardian, createPet } from "@/server/owner-mutations";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { scopeBootstrapForStaff } from "@/server/staff-privacy";
 
 function isDateString(value: string | null) {
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const owner = await requireOwnerShop(request, getBodyString(body, "shopId") || undefined);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const shopId = owner.shopId;
     const customerMode = getBodyString(body, "customerMode");
 

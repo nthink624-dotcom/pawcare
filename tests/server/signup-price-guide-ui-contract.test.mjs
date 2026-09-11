@@ -160,7 +160,7 @@ test("local signup completion opens the public DB-free owner setup while real si
     false,
   );
 
-  assert.match(ownerPreview, /const \[activeScreen, setActiveScreen\] = useState<OwnerWebScreenKey>\("schedule"\);/);
+  assert.match(ownerPreview, /const \[activeScreen, setActiveScreen\] = useState<OwnerWebScreenKey>\(\(\) => getInitialOwnerWebScreen\(initialData\)\);/);
   assert.match(ownerPreview, /const \[initialSetupScreen, setInitialSetupScreen\] = useState<OwnerWebScreenKey>\("operatingHours"\);/);
   assert.match(ownerPreview, /const \[initialSetupOpen, setInitialSetupOpen\] = useState\(false\);/);
   assert.doesNotMatch(ownerPreview, /useState\([^;]*window\.|useState[^;]*localStorage/);
@@ -188,7 +188,7 @@ test("local signup completion opens the public DB-free owner setup while real si
   const profitabilityEffectEnd = ownerPreview.indexOf("\n  useEffect(() => {", profitabilityWarmupStart);
   assert.ok(profitabilityEffectStart >= 0 && profitabilityEffectEnd > profitabilityWarmupStart);
   const profitabilityEffect = ownerPreview.slice(profitabilityEffectStart, profitabilityEffectEnd);
-  assert.match(profitabilityEffect, /if \(demoMode\) return;[\s\S]*fetchApiJsonWithAuth\(`\/api\/owner\/profitability/);
+  assert.match(profitabilityEffect, /if \(demoMode \|\| initialSetupEligible\) return;[\s\S]*fetchApiJsonWithAuth\(`\/api\/owner\/profitability/);
 
   const staffSaveStart = ownerPreview.indexOf("async function handleStaffMembersChange");
   const staffSaveEnd = ownerPreview.indexOf("\n  function handleScreenSelect", staffSaveStart);
@@ -391,9 +391,10 @@ test("owner setup uses one accessible responsive modal over an inert owner home"
   assert.doesNotMatch(shopInfoSettings, /xl:grid-cols-\[minmax\(0,1fr\)_320px\]|CustomerPagePhonePreview|<aside/);
   assert.match(guide, /data-testid="owner-initial-setup-resume-card"[\s\S]*매장 준비 이어하기/);
   assert.doesNotMatch(guide, /\{completedCount\}\/4/);
-  assert.match(ownerPreview, /setActiveScreen\("schedule"\);[\s\S]*searchParams\.delete\("initialSetup"\)/);
+  assert.match(ownerPreview, /setActiveScreen\(getBootstrapOwnerInitialSetupReadiness\(ownerDataRef\.current\)\.completed \? "schedule" : "operatingHours"\);[\s\S]*searchParams\.delete\("initialSetup"\)/);
   assert.match(ownerPreview, /<OwnerInitialSetupResumeCard readiness=\{initialSetupReadiness\} onResume=\{openInitialSetup\}/);
-  assert.match(ownerPreview, /activeScreen === "schedule" \? "grid h-full min-h-0 min-w-0[^"\n]+" : "h-full min-h-0 min-w-0"/);
+  assert.match(ownerPreview, /!initialSetupOpen && initialSetupEligible && activeScreen !== "ownerProfile" && activeScreen !== "help"/);
+  assert.match(ownerPreview, /!initialSetupEligible \|\| activeScreen === "ownerProfile" \|\| activeScreen === "help"/);
   assert.match(ownerPreview, /<div className="h-full min-h-0 min-w-0">[\s\S]*\{renderScreen\(/);
   assert.match(operatingHours, /initialSetupMode[\s\S]*grid-cols-\[minmax\(0,1fr\)_20px_minmax\(0,1fr\)\]/);
   assert.match(operatingHours, /initialSetupSubview[\s\S]*휴무일 추가[\s\S]*영업시간으로 돌아가기/);

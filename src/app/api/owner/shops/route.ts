@@ -13,6 +13,7 @@ import {
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete, OWNER_INITIAL_SETUP_REQUIRED_MESSAGE } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import {
   assertShopIdentityChangeLimit,
@@ -72,6 +73,11 @@ const updateShopSchema = z.object({
   customerServiceOverrides: z.unknown().optional(),
   discountCoupons: z.unknown().optional(),
 });
+
+function isInitialSetupCustomerServiceOverrideOnly(body: z.infer<typeof updateShopSchema>) {
+  const keys = Object.keys(body).filter((key) => key !== "shopId");
+  return keys.length === 1 && keys[0] === "customerServiceOverrides";
+}
 
 function toStoredNotificationSettings(patch: z.infer<typeof notificationSettingsPatchSchema>) {
   return {
@@ -224,6 +230,9 @@ export async function PATCH(request: NextRequest) {
       }
 
       const body = updateShopSchema.parse(await request.json());
+      if (!isInitialSetupCustomerServiceOverrideOnly(body)) {
+        throw new OwnerApiError(OWNER_INITIAL_SETUP_REQUIRED_MESSAGE, 409);
+      }
       const heroMediaAssetIds = body.heroMediaAssetIds ?? [];
       const heroImageUrls = body.heroImageUrls ?? (body.heroImageUrl ? [body.heroImageUrl] : []);
       const primaryHeroImageUrl = body.heroImageUrl ?? heroImageUrls[0] ?? "";
@@ -274,6 +283,9 @@ export async function PATCH(request: NextRequest) {
     const hasNotificationSettingsUpdate = body.notificationSettings !== undefined;
     const owner = await requireOwnerShop(request, body.shopId);
     assertOwnerOrManager(owner);
+    if (!isInitialSetupCustomerServiceOverrideOnly(body)) {
+      await assertOwnerInitialSetupComplete(owner.shopId);
+    }
     const admin = getSupabaseAdmin();
     if (!admin) {
       throw new OwnerApiError("Supabase 관리자 연결을 확인해 주세요.", 503);

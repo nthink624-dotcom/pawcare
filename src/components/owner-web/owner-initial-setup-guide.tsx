@@ -144,10 +144,7 @@ export function OwnerInitialSetupResumeCard({
       aria-label="매장 준비 이어하기"
       data-testid="owner-initial-setup-resume-card"
     >
-      <div className="min-w-0 sm:flex sm:items-baseline sm:gap-3">
-        <p className="text-[14px] font-medium leading-5 text-[#15213b]">매장 준비 이어하기</p>
-        <p className="mt-0.5 text-[13px] font-normal leading-5 text-[#64748b] sm:mt-0">필수 설정을 마치면 고객 예약을 받을 수 있어요.</p>
-      </div>
+      <p className="min-w-0 text-[14px] font-medium leading-5 text-[#15213b]">매장 준비 이어하기</p>
       <button
         type="button"
         onClick={onResume}

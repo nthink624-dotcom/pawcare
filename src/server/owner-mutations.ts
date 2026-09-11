@@ -39,6 +39,7 @@ import {
   customerPageSettingsSchema,
   guardianInputSchema,
   guardianRestoreSchema,
+  initialSetupShopSettingsSchema,
   guardianUpdateSchema,
   petDeleteSchema,
   petInputSchema,
@@ -869,6 +870,46 @@ function getServiceSavePayloadHash(input: {
       }),
     )
     .digest("hex");
+}
+
+export async function updateInitialSetupShopSettings(input: unknown) {
+  const payload = initialSetupShopSettingsSchema.parse(input);
+  const regularClosedAnchorDate = payload.regularClosedCycle === "biweekly" ? payload.regularClosedAnchorDate : null;
+  const updatePayload = {
+    booking_available_start_time: payload.bookingAvailableStartTime,
+    booking_available_end_time: payload.bookingAvailableEndTime,
+    regular_closed_days: payload.regularClosedDays,
+    regular_closed_cycle: payload.regularClosedCycle,
+    regular_closed_anchor_date: regularClosedAnchorDate,
+    temporary_closed_dates: payload.temporaryClosedDates,
+    business_hours: payload.businessHours,
+    updated_at: nowIso(),
+  };
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    store.shop = {
+      ...store.shop,
+      ...updatePayload,
+      id: payload.shopId,
+      business_hours: Object.fromEntries(
+        Object.entries(payload.businessHours).map(([key, value]) => [Number(key), value]),
+      ),
+    };
+    setMockStore(store);
+    return store.shop;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  const { data, error } = await supabase
+    .from("shops")
+    .update(updatePayload)
+    .eq("id", payload.shopId)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Shop;
 }
 
 export async function upsertService(input: unknown) {

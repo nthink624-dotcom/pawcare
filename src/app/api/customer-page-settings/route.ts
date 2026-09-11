@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { updateCustomerPageSettings } from "@/server/owner-mutations";
 
 export async function PATCH(request: NextRequest) {
@@ -8,6 +9,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await updateCustomerPageSettings(body, {
       ownerUserId: owner.userId,
       changedByUserId: owner.userId,

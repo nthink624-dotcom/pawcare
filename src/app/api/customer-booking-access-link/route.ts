@@ -4,6 +4,7 @@ import {
   checkCustomerBookingAccessRecoveryRateLimit,
   requestCustomerBookingAccessLink,
 } from "@/server/customer-booking-access-recovery";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 
 const NEUTRAL_MESSAGE = "예약 정보가 있다면 저장된 연락처로 예약 관리 링크를 보내드렸습니다.";
 
@@ -22,6 +23,14 @@ export async function POST(request: NextRequest) {
 
   const shopId = typeof body.shopId === "string" ? body.shopId.trim() : "";
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+  if (shopId) {
+    try {
+      await assertOwnerInitialSetupComplete(shopId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "매장 준비를 먼저 완료해 주세요";
+      return NextResponse.json({ message }, { status: 409 });
+    }
+  }
   const allowed = checkCustomerBookingAccessRecoveryRateLimit({ phone, clientIp: getClientIp(request) });
 
   if (!allowed) {

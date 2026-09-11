@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { OwnerApiError, requireOwnerShop, type OwnerShopContext } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import { careReportObservationsSchema } from "@/types/care-report";
 
@@ -186,6 +187,7 @@ export async function PUT(request: NextRequest) {
   try {
     const input = draftInputSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, input.shopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const appointment = await requireAppointmentScope(owner, input.appointmentId);
     await requireAfterMediaAsset({
       shopId: owner.shopId,
@@ -270,6 +272,7 @@ export async function DELETE(request: NextRequest) {
     if (!appointmentId) throw new OwnerApiError("appointmentId가 필요합니다.", 400);
 
     const owner = await requireOwnerShop(request, body.shopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     await requireAppointmentScope(owner, appointmentId);
     const admin = getSupabaseAdmin();
     if (!admin) {

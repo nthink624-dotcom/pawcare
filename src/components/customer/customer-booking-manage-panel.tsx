@@ -19,7 +19,7 @@ import type { CustomerServiceSourceOption } from "@/lib/customer-service-options
 import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
 
-type LookupPayload = {
+export type CustomerBookingManageLookupPayload = {
   guardians: Array<{ id: string; name: string; phone: string }>;
   appointments: Appointment[];
   groomingRecords: GroomingRecord[];
@@ -31,6 +31,8 @@ type LookupPayload = {
     action?: "manage" | "reschedule" | "result" | null;
   };
 };
+
+type LookupPayload = CustomerBookingManageLookupPayload;
 
 type DateOption = {
   value: string;
@@ -207,6 +209,8 @@ export default function CustomerBookingManagePanel({
   customerServiceOptions = [],
   staffMembers = [],
   initialAccessToken,
+  initialLookupResult = null,
+  operationsLocked = false,
   onBack,
 }: {
   shopId: string;
@@ -215,11 +219,13 @@ export default function CustomerBookingManagePanel({
   customerServiceOptions?: CustomerServiceSourceOption[];
   staffMembers?: BootstrapStaffMember[];
   initialAccessToken?: string;
+  initialLookupResult?: CustomerBookingManageLookupPayload | null;
+  operationsLocked?: boolean;
   onBack: () => void;
 }) {
   const dateOptions = useMemo(() => buildDateOptions(shop), [shop]);
   const [lookupPhone, setLookupPhone] = useState("");
-  const [lookupResult, setLookupResult] = useState<LookupPayload | null>(null);
+  const [lookupResult, setLookupResult] = useState<LookupPayload | null>(initialLookupResult);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -260,7 +266,7 @@ export default function CustomerBookingManagePanel({
     let active = true;
 
     async function load() {
-      if (!manageForm?.date || !manageForm.serviceId || !manageForm.appointmentId || !selectedServiceOption) {
+      if (operationsLocked || !manageForm?.date || !manageForm.serviceId || !manageForm.appointmentId || !selectedServiceOption) {
         setManageSlots([]);
         setManageRecommendedSlots([]);
         return;
@@ -290,7 +296,7 @@ export default function CustomerBookingManagePanel({
     return () => {
       active = false;
     };
-  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, selectedServiceOption?.durationMinutes, shopId]);
+  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, operationsLocked, selectedServiceOption?.durationMinutes, shopId]);
 
   useEffect(() => {
     let active = true;
@@ -312,7 +318,7 @@ export default function CustomerBookingManagePanel({
             ? result.appointments.find((appointment) => appointment.id === result.access?.appointmentId) ?? null
             : null;
 
-        if (directRescheduleAppointment && canManageAppointment(directRescheduleAppointment)) {
+        if (!operationsLocked && directRescheduleAppointment && canManageAppointment(directRescheduleAppointment)) {
           const savedSourceId = typeof directRescheduleAppointment.discount_snapshot?.customerServiceOptionId === "string"
             ? directRescheduleAppointment.discount_snapshot.customerServiceOptionId
             : "";
@@ -355,7 +361,7 @@ export default function CustomerBookingManagePanel({
     return () => {
       active = false;
     };
-  }, [customerServiceOptions, initialAccessToken, shopId]);
+  }, [customerServiceOptions, initialAccessToken, operationsLocked, shopId]);
 
   async function reloadBookingFromToken() {
     if (!initialAccessToken) return;
@@ -510,17 +516,22 @@ export default function CustomerBookingManagePanel({
     }
   }
 
-  const showLookupForm = !initialAccessToken;
+  const showLookupForm = !initialAccessToken && !operationsLocked;
 
   return (
     <>
+      {operationsLocked ? (
+        <p className="rounded-[14px] border border-[#e8edf3] bg-white px-5 py-6 text-center text-[16px] font-medium leading-6 text-[#15213b]">
+          매장 준비를 먼저 완료해 주세요
+        </p>
+      ) : null}
       {showLookupForm ? (
         <section className="rounded-[24px] bg-white p-4 shadow-[0_14px_32px_rgba(139,106,85,0.08)]">
           <div className="mb-4 flex justify-end">
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
               aria-label="닫기"
             >
               <X className="h-5 w-5" strokeWidth={1.9} />
@@ -562,7 +573,7 @@ export default function CustomerBookingManagePanel({
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
               aria-label="닫기"
             >
               <X className="h-5 w-5" strokeWidth={1.9} />
@@ -647,7 +658,7 @@ export default function CustomerBookingManagePanel({
                     />
                   ) : null}
 
-                  {manageable ? (
+                  {manageable && !operationsLocked ? (
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button type="button" onClick={() => openRescheduleForm(appointment)} className="h-11 rounded-[12px] border border-[#f3e5df] bg-white text-[15px] font-semibold text-[#3a2e2a]">
                         예약 변경
@@ -656,7 +667,7 @@ export default function CustomerBookingManagePanel({
                         예약 취소
                       </button>
                     </div>
-                  ) : (
+                  ) : !operationsLocked ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -671,7 +682,7 @@ export default function CustomerBookingManagePanel({
                       <MessageCircle className="h-4 w-4" />
                       {inquiryLabel}
                     </button>
-                  )}
+                  ) : null}
 
                   {isOpen ? (
                     <div className="mt-4 space-y-3 rounded-[18px] border border-[#f3e5df] bg-[#fffaf8] px-3 py-3">

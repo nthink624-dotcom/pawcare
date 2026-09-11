@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { dispatchNotification } from "@/server/notification-dispatch";
 import type { ChannelType, NotificationType } from "@/types/domain";
 
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
       const owner = await requireOwnerShop(request, requestedShopId);
       assertOwnerOrManager(owner);
     }
+    await assertOwnerInitialSetupComplete(requestedShopId);
 
     const type = (body?.type as NotificationType | undefined) ?? "booking_confirmed";
     const channel = (body?.channel as ChannelType | undefined) ?? "alimtalk";

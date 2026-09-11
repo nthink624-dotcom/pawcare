@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { currentDateInTimeZone, nowIso } from "@/lib/utils";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import type { StaffScheduleOverride } from "@/types/domain";
 
@@ -177,6 +178,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = upsertSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, body.shopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const supabase = getSupabaseAdmin();
     if (!supabase) throw new OwnerApiError("Supabase 설정을 확인해 주세요.", 503);
     const staffMember = await getActiveStaffForShop(supabase, body.staffId, owner.shopId);
@@ -234,6 +236,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const body = deleteSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, body.shopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const supabase = getSupabaseAdmin();
     if (!supabase) throw new OwnerApiError("Supabase 설정을 확인해 주세요.", 503);
     const staffMember = await getActiveStaffForShop(supabase, body.staffId, owner.shopId);

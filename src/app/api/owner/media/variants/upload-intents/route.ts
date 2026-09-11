@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
 
 import { createOwnerMediaVariantUploadIntent } from "@/server/media-variant-service";
+import { getOwnerMediaAssetKind } from "@/server/media-service";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupAllowsStoredMedia } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
 const WRITE_CORS = { methods: "POST, OPTIONS" };
@@ -11,8 +13,13 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const requestedShopId = typeof body.shopId === "string" ? body.shopId : undefined;
     const owner = await requireOwnerShop(request, requestedShopId);
+    const mediaAssetId = typeof body.mediaAssetId === "string" ? body.mediaAssetId : "";
+    await assertOwnerInitialSetupAllowsStoredMedia(
+      owner.shopId,
+      () => getOwnerMediaAssetKind(owner, mediaAssetId),
+    );
     const result = await createOwnerMediaVariantUploadIntent(owner, {
-      mediaAssetId: typeof body.mediaAssetId === "string" ? body.mediaAssetId : "",
+      mediaAssetId,
       variantKey: typeof body.variantKey === "string" ? body.variantKey : "",
       contentType: typeof body.contentType === "string" ? body.contentType : "",
       byteSize: typeof body.byteSize === "number" ? body.byteSize : -1,

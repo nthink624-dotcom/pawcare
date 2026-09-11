@@ -2,6 +2,7 @@ import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { dispatchNotification } from "@/server/notification-dispatch";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import type { Appointment, ShopNotificationSettings } from "@/types/domain";
 
 type ReminderCandidate = Pick<
@@ -174,6 +175,14 @@ export async function processAutomaticVisitReminders(options?: {
     result.ok = false;
     return { ...result, reasons: [{ appointmentId: "system", reason: "Supabase admin client is not available." }] };
   }
+  const readinessByShop = new Map<string, Promise<boolean>>();
+  const isShopReady = (shopId: string) => {
+    const existing = readinessByShop.get(shopId);
+    if (existing) return existing;
+    const readiness = assertOwnerInitialSetupComplete(shopId).then(() => true, () => false);
+    readinessByShop.set(shopId, readiness);
+    return readiness;
+  };
 
   const now = options?.now ?? new Date();
   const lookbackMinutes = Math.min(Math.max(Math.round(options?.lookbackMinutes ?? DEFAULT_LOOKBACK_MINUTES), 1), 60);
@@ -238,6 +247,11 @@ export async function processAutomaticVisitReminders(options?: {
   );
 
   for (const appointment of candidates) {
+    if (!(await isShopReady(appointment.shop_id))) {
+      result.skipped += 1;
+      pushReason(result, appointment.id, "Owner initial setup is incomplete.");
+      continue;
+    }
     if (appointmentIdsWithHandledVisitNotice.has(appointment.id)) {
       result.skipped += 1;
       pushReason(result, appointment.id, "Reservation visit notice was already handled for this appointment.");

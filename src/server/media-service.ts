@@ -950,6 +950,22 @@ export async function getOwnerMediaSignedUrls(owner: OwnerContext, input: OwnerM
   };
 }
 
+export async function getOwnerMediaAssetKind(owner: OwnerContext, mediaAssetIdInput: string) {
+  const admin = getAdmin();
+  const mediaAssetId = requiredUuid(mediaAssetIdInput, "mediaAssetId");
+  const result = await admin
+    .from("media_assets")
+    .select("media_kind")
+    .eq("id", mediaAssetId)
+    .eq("shop_id", owner.shopId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error || !result.data) {
+    throw new OwnerApiError("Media asset was not found.", result.error ? 500 : 404);
+  }
+  return result.data.media_kind as MediaKind;
+}
+
 export async function removeOwnerPriceGuideSourceMedia(
   owner: OwnerContext,
   input: RemoveOwnerPriceGuideSourceMediaInput,

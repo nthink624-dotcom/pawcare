@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { createPet, deletePet, updatePet } from "@/server/owner-mutations";
 
 export async function POST(request: NextRequest) {
@@ -8,6 +9,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await createPet(body);
     return NextResponse.json(result);
   } catch (error) {
@@ -25,6 +27,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await updatePet({ ...body, shopId: owner.shopId });
     return NextResponse.json(result);
   } catch (error) {
@@ -42,6 +45,7 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await deletePet({ ...body, shopId: owner.shopId });
     return NextResponse.json(result);
   } catch (error) {

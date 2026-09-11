@@ -90,7 +90,7 @@ test("analyzed price guide reuses the PC service-column editor with table-local 
   assert.match(nativeTable, /data-price-guide-matrix-scroll="true"/);
   assert.match(nativeTable, /max-h-\[min\(62dvh,680px\)\][^"\n]*overflow-auto/);
   assert.match(nativeTable, /<thead className="sticky top-0 z-30"/);
-  assert.match(nativeTable, /sticky left-0 top-0 z-40[^\n]*>체중 상한/);
+  assert.match(nativeTable, /sticky left-0 top-0 z-40[^\n]*>체급\(kg\)/);
   assert.match(nativeTable, /sticky left-0 z-20/);
   assert.match(nativeTable, /group\.serviceNames\.map\(\(serviceName, serviceIndex\) => \{[\s\S]*<th[\s\S]*updateDirectPriceGuideService/);
   assert.match(nativeTable, /group\.serviceNames\.map\(\(_, serviceIndex\) => \{[\s\S]*<PriceDurationInlineCell/);

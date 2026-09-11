@@ -2,6 +2,8 @@
 
 import { hasPortoneServerEnv, serverEnv } from "@/lib/server-env";
 import { createCustomerBooking } from "@/server/customer-bookings";
+import { OwnerApiError } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { quoteCustomerDiscount } from "@/server/customer-discount-quote";
 import { paymentBookingSchema } from "@/server/payment-booking-schema";
 
@@ -39,12 +41,12 @@ function extractPaymentShape(payload: PortonePaymentResponse) {
 
 export async function POST(request: NextRequest) {
   try {
+    const body = await request.json();
+    const payload = paymentBookingSchema.parse(body);
+    await assertOwnerInitialSetupComplete(payload.booking.shopId);
     if (!hasPortoneServerEnv()) {
       return NextResponse.json({ message: "PortOne 서버 설정이 아직 준비되지 않았습니다." }, { status: 503 });
     }
-
-    const body = await request.json();
-    const payload = paymentBookingSchema.parse(body);
     const discountQuote = await quoteCustomerDiscount(payload.booking);
 
     if (payload.expectedAmount !== discountQuote.finalAmount) {
@@ -95,6 +97,9 @@ export async function POST(request: NextRequest) {
       message: "결제가 완료되어 예약이 접수되었어요.",
     });
   } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     const message = error instanceof Error ? error.message : "결제 완료 처리 중 문제가 발생했습니다.";
     return NextResponse.json({ message }, { status: 400 });
   }

@@ -5,6 +5,7 @@ import { hasLaterRebooking, REBOOKING_APPOINTMENT_STATUSES } from "@/lib/revisit
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, currentDateInTimeZone } from "@/lib/utils";
 import { dispatchNotification } from "@/server/notification-dispatch";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import type { AppointmentStatus } from "@/types/domain";
 
 type RevisitReminderCandidate = {
@@ -111,6 +112,14 @@ export async function processAutomaticRevisitReminders(options?: {
       reasons: [{ groomingRecordId: "system", reason: "Supabase admin client is not available." }],
     };
   }
+  const readinessByShop = new Map<string, Promise<boolean>>();
+  const isShopReady = (shopId: string) => {
+    const existing = readinessByShop.get(shopId);
+    if (existing) return existing;
+    const readiness = assertOwnerInitialSetupComplete(shopId).then(() => true, () => false);
+    readinessByShop.set(shopId, readiness);
+    return readiness;
+  };
 
   const today = options?.today ?? currentDateInTimeZone();
   const earliestReminderDate = addDate(today, -CATCH_UP_DAYS);
@@ -185,6 +194,11 @@ export async function processAutomaticRevisitReminders(options?: {
   const laterAppointments = (appointments ?? []) as LaterAppointment[];
 
   for (const candidate of candidates) {
+    if (!(await isShopReady(candidate.shop_id))) {
+      result.skipped += 1;
+      result.reasons.push({ groomingRecordId: candidate.id, reason: "Owner initial setup is incomplete." });
+      continue;
+    }
     if (!candidate.appointment_id || handledAppointmentIds.has(candidate.appointment_id)) {
       result.skipped += 1;
       result.reasons.push({ groomingRecordId: candidate.id, reason: "Revisit reminder was already handled." });

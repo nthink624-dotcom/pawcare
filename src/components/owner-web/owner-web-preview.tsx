@@ -149,6 +149,7 @@ function shouldStartWithPriceGuideSetup(data: BootstrapPayload) {
 }
 
 function getInitialOwnerWebScreen(data: BootstrapPayload): OwnerWebScreenKey {
+  if (!getBootstrapOwnerInitialSetupReadiness(data).completed) return "operatingHours";
   if (typeof window === "undefined") return "schedule";
   const searchParams = new URLSearchParams(window.location.search);
   const screen = searchParams.get("screen") as OwnerWebScreenKey | null;
@@ -324,7 +325,7 @@ export default function OwnerWebPreview({
   currentPlanCode?: string | null;
   feedbackFixtureMode?: boolean;
 }) {
-  const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
+  const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>(() => getInitialOwnerWebScreen(initialData));
   const [initialSetupScreen, setInitialSetupScreen] = useState<OwnerWebScreenKey>("operatingHours");
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
@@ -371,6 +372,8 @@ export default function OwnerWebPreview({
     if (getBootstrapOwnerInitialSetupReadiness(initialData).completed) {
       setInitialSetupOpen(false);
       setInitialSetupSyncError(null);
+    } else {
+      setActiveScreen((screen) => screen === "ownerProfile" || screen === "help" ? screen : "operatingHours");
     }
   }, [initialData]);
 
@@ -385,9 +388,7 @@ export default function OwnerWebPreview({
     if (visibility.nextStep) {
       setInitialSetupScreen(screenForInitialSetupStep(visibility.nextStep));
     }
-    if (visibility.open) {
-      setActiveScreen("schedule");
-    }
+    if (visibility.open) setActiveScreen("operatingHours");
   }, [initialSetupReadiness, ownerData]);
 
   useEffect(() => {
@@ -397,14 +398,14 @@ export default function OwnerWebPreview({
   }, [demoMode]);
 
   useEffect(() => {
-    if (demoMode) return;
+    if (demoMode || initialSetupEligible) return;
     const warmProfitability = () => {
       void import("@/components/owner-web/profitability-analytics-screen");
       void fetchApiJsonWithAuth(`/api/owner/profitability?shopId=${encodeURIComponent(initialData.shop.id)}&range=90d`).catch(() => undefined);
     };
     const timer = window.setTimeout(warmProfitability, 1_200);
     return () => window.clearTimeout(timer);
-  }, [demoMode, initialData.shop.id]);
+  }, [demoMode, initialData.shop.id, initialSetupEligible]);
 
   useEffect(() => {
     if (!demoMode) return;
@@ -542,6 +543,10 @@ export default function OwnerWebPreview({
   }
 
   function handleScreenSelect(screen: OwnerWebScreenKey) {
+    if (initialSetupEligible && screen !== "operatingHours" && screen !== "staff" && screen !== "services" && screen !== "ownerProfile" && screen !== "help") {
+      setActiveScreen("operatingHours");
+      return;
+    }
     setActiveScreen(screen);
   }
 
@@ -643,7 +648,7 @@ export default function OwnerWebPreview({
   function closeInitialSetup() {
     setInitialSetupOpen(false);
     setInitialSetupSyncError(null);
-    setActiveScreen("schedule");
+    setActiveScreen(getBootstrapOwnerInitialSetupReadiness(ownerDataRef.current).completed ? "schedule" : "operatingHours");
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     url.searchParams.delete("initialSetup");
@@ -674,7 +679,8 @@ export default function OwnerWebPreview({
   }
 
   function openSettingsTab(tab: SettingsTabKey) {
-    setActiveScreen(screenBySettingsTab[tab]);
+    const nextScreen = screenBySettingsTab[tab];
+    setActiveScreen(initialSetupEligible && nextScreen !== "ownerProfile" ? "operatingHours" : nextScreen);
     setStoreMenuOpen(false);
     setAlimtalkCreditMenuOpen(false);
   }
@@ -782,11 +788,13 @@ export default function OwnerWebPreview({
       loggingOut={loggingOut}
       isTester={ownerData.pilotCohort?.isPilotMember === true}
       feedbackFixtureMode={feedbackFixtureMode}
+      operationsLocked={initialSetupEligible}
     >
-      <div className={initialSetupEligible && activeScreen === "schedule" ? "grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3" : "h-full min-h-0 min-w-0"}>
-        {!initialSetupOpen && initialSetupEligible && activeScreen === "schedule" ? (
+      <div className="h-full min-h-0 min-w-0">
+        {!initialSetupOpen && initialSetupEligible && activeScreen !== "ownerProfile" && activeScreen !== "help" ? (
           <OwnerInitialSetupResumeCard readiness={initialSetupReadiness} onResume={openInitialSetup} />
         ) : null}
+        {!initialSetupEligible || activeScreen === "ownerProfile" || activeScreen === "help" ? (
         <div className="h-full min-h-0 min-w-0">
           {renderScreen(
             activeScreen,
@@ -812,6 +820,7 @@ export default function OwnerWebPreview({
             uploadDemoInitialSetupStaffPhoto,
           )}
         </div>
+        ) : null}
       </div>
       </OwnerWebAppShell>
       </div>

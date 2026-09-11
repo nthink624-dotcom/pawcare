@@ -26,6 +26,7 @@ import { hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
 import { deliverCustomerBookingNotificationSafely } from "@/lib/customer-booking-notification";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getBootstrap } from "@/server/bootstrap";
+import { requireOwnerInitialSetupCompleteBootstrap } from "@/server/owner-initial-setup-guard";
 import {
   quoteCustomerDiscount,
   type CustomerDiscountQuoteResponse,
@@ -720,7 +721,7 @@ export async function createCustomerBooking(
 ) {
   const payload = customerBookingCreateSchema.parse(input);
   assertCustomerBookingDate(payload.appointmentDate);
-  const bootstrap = await getBootstrap(payload.shopId);
+  const bootstrap = await requireOwnerInitialSetupCompleteBootstrap(payload.shopId);
   const discountQuote =
     options.trustedDiscountQuote ??
     (await quoteCustomerDiscount({
@@ -1082,7 +1083,7 @@ export async function updateCustomerBooking(input: unknown) {
   ) {
     throw new Error("유효하지 않거나 만료된 예약 관리 링크입니다.");
   }
-  const bootstrap = await getBootstrap(payload.shopId);
+  const bootstrap = await requireOwnerInitialSetupCompleteBootstrap(payload.shopId);
   const appointment = bootstrap.appointments.find((item) => item.id === payload.appointmentId);
 
   if (!appointment) {

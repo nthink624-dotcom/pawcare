@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { createGuardian, softDeleteGuardians, updateGuardian } from "@/server/owner-mutations";
 
 export async function POST(request: NextRequest) {
@@ -8,6 +9,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await createGuardian(body);
     return NextResponse.json(result);
   } catch (error) {
@@ -25,6 +27,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await updateGuardian({ ...body, shopId: owner.shopId });
     return NextResponse.json(result);
   } catch (error) {
@@ -42,6 +45,7 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
     assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await softDeleteGuardians({ ...body, shopId: owner.shopId });
     return NextResponse.json(result);
   } catch (error) {

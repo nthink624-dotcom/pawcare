@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
 
 import CustomerBookingPage from "@/components/customer/customer-booking-page";
+import CustomerBookingUnavailable from "@/components/customer/customer-booking-unavailable";
 import {
   getLandingDemoShopId,
   isDevelopmentDemoShopId,
   isLandingDemoShopId,
   resolveLandingDemoServiceId,
 } from "@/lib/development-demo";
+import { getBootstrapOwnerInitialSetupReadiness } from "@/lib/owner-initial-setup-readiness";
 import { verifyBookingAccessToken } from "@/server/booking-access-token";
 import { getBootstrap } from "@/server/bootstrap";
 
@@ -38,7 +40,10 @@ export default async function BookPage({
     redirect(`${manageUrl.pathname}${manageUrl.search}` as never);
   }
 
-  const data = await getBootstrap(shopId);
+  const data = await getBootstrap(shopId).catch(() => null);
+  if (!data || !getBootstrapOwnerInitialSetupReadiness(data).completed) {
+    return <CustomerBookingUnavailable />;
+  }
   const initialServiceId = isStableLandingDemoShop
     ? resolveLandingDemoServiceId(resolvedSearchParams?.serviceId, data.services)
     : (resolvedSearchParams?.serviceId ?? "");

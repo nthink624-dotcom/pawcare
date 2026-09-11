@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { readAppointmentVisitWeight, saveAppointmentVisitWeight } from "@/server/appointment-visit-weight";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,7 @@ export async function PUT(request: NextRequest) {
   try {
     const input = saveSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, input.shopId);
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const measurement = await saveAppointmentVisitWeight(owner, input);
     return ownerMobileCorsJson(request, { measurement }, undefined, VISIT_WEIGHT_CORS);
   } catch (error) {

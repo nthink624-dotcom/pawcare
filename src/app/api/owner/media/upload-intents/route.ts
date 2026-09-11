@@ -10,6 +10,7 @@ import { createPriceGuidePhotoSupportCode } from "@/lib/media/price-guide-upload
 import { reportPriceGuidePhotoLifecycle } from "@/lib/media/price-guide-photo-lifecycle";
 import { createPriceGuideRequestCorrelationFingerprintForServer } from "@/server/price-guide-photo-cleanup-decision";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupAllowsMediaKind } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
 const WRITE_CORS = { methods: "POST, OPTIONS" };
@@ -21,6 +22,10 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const requestedShopId = typeof body.shopId === "string" ? body.shopId : undefined;
     const owner = await requireOwnerShop(request, requestedShopId);
+    await assertOwnerInitialSetupAllowsMediaKind(
+      owner.shopId,
+      typeof body.mediaKind === "string" ? body.mediaKind : null,
+    );
     const clientCorrelationId = typeof body.clientCorrelationId === "string" ? body.clientCorrelationId : null;
     const suppliedRequestFingerprint = typeof body.requestCorrelationFingerprint === "string"
       ? body.requestCorrelationFingerprint

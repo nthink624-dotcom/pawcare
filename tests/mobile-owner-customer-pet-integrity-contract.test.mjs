@@ -16,9 +16,9 @@ function loadHelper() {
   const output = ts.transpileModule(helperSource, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  const module = { exports: {} };
-  Function("module", "exports", output)(module, module.exports);
-  return module.exports;
+  const compiledModule = { exports: {} };
+  Function("module", "exports", output)(compiledModule, compiledModule.exports);
+  return compiledModule.exports;
 }
 
 const { assertCurrentShopEntity, assertCurrentShopEntities, assertOwnerBootstrapPayload, createGuardianAndPets } = loadHelper();

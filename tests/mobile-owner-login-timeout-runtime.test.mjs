@@ -7,9 +7,9 @@ const source = await readFile(new URL("../src/lib/auth/owner-login-timeout.ts", 
 const output = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const module = { exports: {} };
-Function("module", "exports", output)(module, module.exports);
-const { OwnerLoginTimeoutError, withOwnerLoginTimeout } = module.exports;
+const compiledModule = { exports: {} };
+Function("module", "exports", output)(compiledModule, compiledModule.exports);
+const { OwnerLoginTimeoutError, withOwnerLoginTimeout } = compiledModule.exports;
 
 test("a completed login result is returned before the deadline", async () => {
   assert.equal(await withOwnerLoginTimeout(() => Promise.resolve("ok"), 50), "ok");

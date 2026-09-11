@@ -8,6 +8,7 @@ const config = [
       "pawcare-landing.jsx",
       "android/**",
       "capacitor-web/**",
+      ".local-chrome-firebase/**",
     ],
   },
 ];

@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, Ban, CheckCircle2, CreditCard, WalletCards } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { OwnerBillingSuccessCard } from "@/components/owner/owner-billing-flow-shared";
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
@@ -152,12 +152,8 @@ function PgHandoffCard({ plan }: { plan: OwnerPlan }) {
 export function OwnerBillingProcessPreview() {
   const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlan["code"]>("yearly");
   const [agreed, setAgreed] = useState(true);
-  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(true);
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<PaymentMethodOptionId>("saved");
-
-  useEffect(() => {
-    setPaymentSheetOpen(true);
-  }, []);
   const sheetTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const selectedPlan = useMemo(

@@ -23,11 +23,11 @@ function loadHandoffModule() {
   const output = ts.transpileModule(handoffSource, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  const module = { exports: {} };
+  const compiledModule = { exports: {} };
   const storage = createStorage();
   const fakeWindow = { sessionStorage: storage, localStorage: storage, atob: (value) => Buffer.from(value, "base64").toString("utf8") };
-  Function("module", "exports", "window", output)(module, module.exports, fakeWindow);
-  return { api: module.exports, storage };
+  Function("module", "exports", "window", output)(compiledModule, compiledModule.exports, fakeWindow);
+  return { api: compiledModule.exports, storage };
 }
 
 test("handoff remains readable until cache persistence explicitly clears it", () => {

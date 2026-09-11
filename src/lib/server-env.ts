@@ -35,6 +35,7 @@ export const serverEnv = {
   allowProdSupabaseInDev: process.env.ALLOW_PROD_SUPABASE_IN_DEV === "true",
   authFlowSecret: readOptionalSecret(process.env.AUTH_FLOW_SECRET),
   bookingAccessSecret: readOptionalSecret(process.env.BOOKING_ACCESS_SECRET),
+  portoneStoreId: readOptionalSecret(process.env.PORTONE_STORE_ID || process.env.NEXT_PUBLIC_PORTONE_STORE_ID),
   portoneApiSecret: readOptionalSecret(process.env.PORTONE_API_SECRET),
   portoneWebhookSecret: readOptionalSecret(process.env.PORTONE_WEBHOOK_SECRET),
   billingKeyEncryptionSecret: readOptionalSecret(process.env.BILLING_KEY_ENCRYPTION_SECRET),
@@ -60,6 +61,10 @@ export const serverEnv = {
   alimtalkTemplateGroomingCompleted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED),
   alimtalkTemplateRevisitNotice: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_REVISIT_NOTICE),
   alimtalkTemplateBirthdayGreeting: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BIRTHDAY_GREETING),
+  firebaseServiceAccountJson: readOptionalSecret(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
+  firebaseProjectId: readOptionalSecret(process.env.FIREBASE_PROJECT_ID),
+  firebaseClientEmail: readOptionalSecret(process.env.FIREBASE_CLIENT_EMAIL),
+  firebasePrivateKey: readOptionalSecret(process.env.FIREBASE_PRIVATE_KEY)?.replace(/\\n/g, "\n"),
   notificationCronSecret: process.env.NOTIFICATION_CRON_SECRET,
   adminSetupKey: readOptionalSecret(process.env.ADMIN_SETUP_KEY),
   adminSessionSecret: readOptionalSecret(process.env.ADMIN_SESSION_SECRET),
@@ -85,6 +90,13 @@ export function isUnsafeProdSupabaseServerEnv() {
 
 export function hasPortoneServerEnv() {
   return Boolean(serverEnv.portoneApiSecret);
+}
+
+export function hasFirebaseMessagingServerEnv() {
+  return Boolean(
+    serverEnv.firebaseServiceAccountJson ||
+      (serverEnv.firebaseProjectId && serverEnv.firebaseClientEmail && serverEnv.firebasePrivateKey),
+  );
 }
 
 export function hasAlimtalkServerEnv() {

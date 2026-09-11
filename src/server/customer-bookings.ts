@@ -25,6 +25,7 @@ import {
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { createAppointment } from "@/server/owner-mutations";
 import { dispatchNotification } from "@/server/notification-dispatch";
+import { sendOwnerBookingRequestedPush } from "@/server/owner-push-delivery";
 import type { Appointment, Guardian, Pet } from "@/types/domain";
 
 const customerBookingCreateSchema = z.object({
@@ -432,6 +433,11 @@ export async function createCustomerBooking(input: unknown) {
     throw new Error("예약 가능한 서비스 정보를 찾을 수 없습니다.");
   }
 
+  const serviceName =
+    bootstrap.services.find((item) => item.id === resolvedServiceId)?.name ||
+    payload.customServiceName.trim() ||
+    "예약 서비스";
+
   const customServiceMemo = usesCustomService && payload.customServiceName.trim() ? `기타 요청 서비스: ${payload.customServiceName.trim()}` : "";
   const mergedMemo = [customServiceMemo, payload.memo.trim()].filter(Boolean).join("\n");
 
@@ -446,6 +452,38 @@ export async function createCustomerBooking(input: unknown) {
     memo: mergedMemo,
     source: "customer",
   });
+
+  // A customer booking must be visible to the shop even when the app is already
+  // open in the foreground. The mobile owner shell watches this durable in-app
+  // event and turns it into the booking alert banner.
+  try {
+    const ownerNotification = await dispatchNotification({
+      shopId: appointment.shop_id,
+      appointmentId: appointment.id,
+      guardianId: appointment.guardian_id,
+      petId: appointment.pet_id,
+      type: "owner_booking_requested",
+      channel: "in_app",
+      skipIfExists: true,
+    });
+
+    if (!ownerNotification.skipped && !ownerNotification.alreadyExists && ownerNotification.notification.status === "sent") {
+      await sendOwnerBookingRequestedPush({
+        notificationId: ownerNotification.notification.id,
+        appointment,
+        guardianName: payload.guardianName,
+        petName: payload.petName,
+        serviceName,
+      });
+    }
+  } catch (error) {
+    // The appointment has already been committed. Do not make a customer retry
+    // a valid booking solely because the owner-alert record could not be saved.
+    console.warn("[customer-bookings] owner booking alert dispatch failed", {
+      appointmentId: appointment.id,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   const bookingAccessToken = createBookingAccessToken({
     shopId: payload.shopId,

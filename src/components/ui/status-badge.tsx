@@ -54,7 +54,7 @@ export function StatusBadge({ className, label, status, tone }: StatusBadgeProps
   return (
     <span
       className={cn(
-        "inline-flex h-6 items-center justify-center rounded-full border px-2.5 text-[12px] font-semibold leading-4 tracking-[-0.01em]",
+        "inline-flex min-h-6 items-center justify-center rounded-full border px-2.5 text-[12px] font-medium leading-[18px] tracking-normal",
         TONE_CLASS_MAP[resolvedTone],
         className,
       )}

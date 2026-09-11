@@ -43,6 +43,7 @@ function makeAppointment(
   serviceId: string,
   memo = "",
   staffId: string | null = "staff-woojin",
+  customerVisitType: Appointment["customer_visit_type"] = null,
 ): Appointment {
   const service = demoServices.find((item) => item.id === serviceId);
   const durationMinutes = service?.duration_minutes ?? 60;
@@ -62,6 +63,7 @@ function makeAppointment(
     start_at: at(date, time),
     end_at: endAt(date, time, durationMinutes),
     source: "customer",
+    customer_visit_type: customerVisitType,
     created_at: now,
     updated_at: now,
   };
@@ -185,7 +187,7 @@ const demoStaffMembers: StaffMember[] = [
 
 const demoGuardians: Guardian[] = [
   { id: "g-woojin", shop_id: shopId, name: "정우진", phone: "010-8498-2077", memo: "문자 연락 선호", notification_settings: normalizeGuardianNotificationSettings({ enabled: true, revisit_enabled: true }), created_at: now, updated_at: now },
-  { id: "g-minji", shop_id: shopId, name: "김민지", phone: "010-1234-5678", memo: "오전 시간 선호", notification_settings: normalizeGuardianNotificationSettings({ enabled: true, revisit_enabled: true }), created_at: now, updated_at: now },
+  { id: "g-minji", shop_id: shopId, name: "김민지", phone: "010-1234-5678", memo: "오전 시간 선호", customer_grade_override: "loyal", notification_settings: normalizeGuardianNotificationSettings({ enabled: true, revisit_enabled: true }), created_at: now, updated_at: now },
   { id: "g-seojun", shop_id: shopId, name: "박서준", phone: "010-9876-5432", memo: "방문 전 문자 요청", notification_settings: normalizeGuardianNotificationSettings({ enabled: true, revisit_enabled: false }), created_at: now, updated_at: now },
   { id: "g-suyeon", shop_id: shopId, name: "이수연", phone: "010-5555-1234", memo: "겁이 많은 편", notification_settings: normalizeGuardianNotificationSettings({ enabled: false, revisit_enabled: false }), created_at: now, updated_at: now },
 ];
@@ -199,8 +201,8 @@ const demoPets: Pet[] = [
 ];
 
 const todayAppointments: Appointment[] = [
-  makeAppointment("demo-a-1", today, "09:30", "confirmed", "g-woojin", "p-uyu", "svc-sanitary", "첫 방문 상담 포함", "staff-woojin"),
-  makeAppointment("demo-a-2", today, "10:15", "confirmed", "g-minji", "p-coco", "svc-bath-trim", "발바닥 정리 추가", "staff-suhyun"),
+  makeAppointment("demo-a-1", today, "09:30", "confirmed", "g-woojin", "p-uyu", "svc-sanitary", "첫 방문 상담 포함", "staff-woojin", "first_visit"),
+  makeAppointment("demo-a-2", today, "10:15", "confirmed", "g-minji", "p-coco", "svc-bath-trim", "발바닥 정리 추가", "staff-suhyun", "revisit"),
   makeAppointment("demo-a-3", today, "11:00", "confirmed", "g-woojin", "p-krong", "svc-bath", "짧게 정리", "staff-woojin"),
   makeAppointment("demo-a-4", today, "13:00", "in_progress", "g-suyeon", "p-bori", "svc-full", "얼굴 라인 정리", "staff-woojin"),
   makeAppointment("demo-a-5", today, "15:00", "almost_done", "g-seojun", "p-mong", "svc-full", "다리 볼륨 유지", "staff-suhyun"),
@@ -265,7 +267,7 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
     ownerProfile: {
       user_id: "owner-demo-user",
       shop_id: shopId,
-      login_id: "demo-owner",
+      login_id: "demo-owner@petmanager.example",
       name: "정우진",
       birth_date: null,
       phone_number: "010-8498-2077",
@@ -275,6 +277,35 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
     guardians: demoGuardians,
     deletedGuardians: [],
     pets: demoPets,
+    petDisplayPhotos: [
+      {
+        appointmentId: "demo-a-4",
+        petId: "p-bori",
+        url: "/images/demo/grooming-salon-hero.png",
+        source: "prior_grooming_after",
+        sourceAppointmentId: "demo-a-21",
+        sourceGroomingRecordId: "demo-r-5",
+        latestCompletedAt: demoRecords.find((record) => record.id === "demo-r-5")?.groomed_at ?? null,
+      },
+      {
+        appointmentId: "demo-a-6",
+        petId: "p-uyu",
+        url: "/images/demo/grooming-salon-hero.png",
+        source: "appointment_grooming_after",
+        sourceAppointmentId: "demo-a-6",
+        sourceGroomingRecordId: "demo-r-1",
+        latestCompletedAt: demoRecords.find((record) => record.id === "demo-r-1")?.groomed_at ?? null,
+      },
+      {
+        appointmentId: "demo-a-5",
+        petId: "p-mong",
+        url: null,
+        source: "fallback",
+        sourceAppointmentId: null,
+        sourceGroomingRecordId: null,
+        latestCompletedAt: null,
+      },
+    ],
     services: demoServices,
     staffMembers: demoStaffMembers,
     appointments: demoAppointments,

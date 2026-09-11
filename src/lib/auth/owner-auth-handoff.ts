@@ -45,14 +45,12 @@ export function writeOwnerAuthHandoff(session: OwnerAuthHandoffSession) {
   safeSetItem(window.localStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY, payload);
 }
 
-export function consumeOwnerAuthHandoff() {
+export function peekOwnerAuthHandoff() {
   if (typeof window === "undefined") return null;
 
   const raw =
     safeGetItem(window.sessionStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY) ??
     safeGetItem(window.localStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY);
-  safeRemoveItem(window.sessionStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY);
-  safeRemoveItem(window.localStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY);
   if (!raw) return null;
 
   try {
@@ -65,6 +63,36 @@ export function consumeOwnerAuthHandoff() {
   } catch {
     return null;
   }
+}
+
+export function clearOwnerAuthHandoff() {
+  if (typeof window === "undefined") return;
+  safeRemoveItem(window.sessionStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY);
+  safeRemoveItem(window.localStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY);
+}
+
+export function consumeOwnerAuthHandoff() {
+  const handoff = peekOwnerAuthHandoff();
+  clearOwnerAuthHandoff();
+  return handoff;
+}
+
+export function createLatestOwnerAccessGate<T>() {
+  let pendingAccess: Promise<T> | null = null;
+  let latestRunId = 0;
+
+  return {
+    begin(factory: () => Promise<T>) {
+      const runId = ++latestRunId;
+      pendingAccess ??= Promise.resolve(factory()).finally(() => {
+        pendingAccess = null;
+      });
+      return { runId, access: pendingAccess };
+    },
+    isLatest(runId: number) {
+      return runId === latestRunId;
+    },
+  };
 }
 
 function getJwtExpiresAt(accessToken: string) {

@@ -9,6 +9,9 @@ dist
 *.log
 *.tsbuildinfo
 .local-secrets/
+.local-chrome-firebase/
+.tmp-fig/
+artifacts/
 android/keystore.properties
 android/app/google-services.json
 *.jks

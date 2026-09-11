@@ -1,7 +1,5 @@
-import { redirect } from "next/navigation";
-
-export const dynamic = "force-dynamic";
+import MobileWebLanding from "@/components/landing/mobile-web-landing";
 
 export default function Home() {
-  redirect("/owner/mobile");
+  return <MobileWebLanding />;
 }

@@ -79,7 +79,7 @@ export async function getPublicBootstrap(shopId?: string) {
   });
 }
 
-async function getAccessTokenWithRecovery() {
+export async function getAccessTokenWithRecovery() {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
     throw new Error("Supabase 연결을 확인할 수 없습니다.");

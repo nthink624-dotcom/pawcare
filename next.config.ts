@@ -1,5 +1,16 @@
 ﻿import type { NextConfig } from "next";
 
+const ownerMobileEmbedFrameAncestors = [
+  "'self'",
+  "https://www.petmanager.co.kr",
+  "https://petmanager.co.kr",
+  ...(process.env.NODE_ENV === "development" ? ["http://127.0.0.1:3000", "http://localhost:3000"] : []),
+  ...(process.env.PETMANAGER_EMBED_FRAME_ANCESTORS ?? "")
+    .split(/\s+/)
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+].join(" ");
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   typedRoutes: true,
@@ -13,7 +24,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: "frame-ancestors 'self' https://www.petmanager.co.kr https://petmanager.co.kr http://127.0.0.1:3000",
+            value: `frame-ancestors ${ownerMobileEmbedFrameAncestors}`,
           },
         ],
       },

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { isValidBirthDate8 } from "@/lib/auth/owner-credentials";
+import { isValidBirthDate8, isValidOwnerEmail, normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
 import { identityVerificationPurposeSchema } from "@/lib/auth/owner-identity";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { completeLocalIdentityVerification } from "@/server/owner-identity-verification";
@@ -13,6 +13,7 @@ const schema = z.object({
   birthDate: z.string().min(8).max(8),
   phoneNumber: z.string().min(10).max(11),
   code: z.string().length(6),
+  email: z.string().optional(),
 });
 
 function normalizePhoneNumber(value: string) {
@@ -34,7 +35,12 @@ export async function POST(request: NextRequest) {
       ...body,
       phoneNumber: normalizePhoneNumber(body?.phoneNumber ?? ""),
       code: String(body?.code ?? "").replace(/\D/g, "").slice(0, 6),
+      email: typeof body?.email === "string" ? normalizeOwnerEmail(body.email) : undefined,
     });
+
+    if (payload.email && !isValidOwnerEmail(payload.email)) {
+      return NextResponse.json({ message: "이메일 형식을 확인해 주세요." }, { status: 400 });
+    }
 
     if (!isValidBirthDate8(payload.birthDate)) {
       return NextResponse.json({ message: "생년월일은 숫자 8자리로 입력해 주세요." }, { status: 400 });

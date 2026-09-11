@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { staffProfileFallbackKey } from "@/lib/staff-profile-fallback";
 import { nowIso } from "@/lib/utils";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { upsertStaffMemberProfile } from "@/server/owner-mutations";
@@ -66,6 +67,7 @@ function toBootstrapStaffMember(row: any): BootstrapStaffMember {
     profileImageUrl: profileImageUrls[0] ?? "",
     profileImageUrls,
     profileImageAssetIds: normalizeProfileImageAssetIds(row.profile_image_asset_ids),
+    profileImageFallbackKey: staffProfileFallbackKey,
     profileMessage: row.profile_message?.trim() || "",
     chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
@@ -101,7 +103,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     await requireOwnerShop(request, body?.shopId);
     const result = await upsertStaffMemberProfile(body);
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, profileImageFallbackKey: staffProfileFallbackKey });
   } catch (error) {
     if (error instanceof OwnerApiError) {
       return NextResponse.json({ message: error.message }, { status: error.status });

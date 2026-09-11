@@ -642,14 +642,14 @@ export default function OwnerBillingScreen({
   return (
     <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] break-keep bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#111111]">
       <section className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-6 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">{PETMANAGER_SERVICE_NAME} 플랜 및 결제</p>
-        <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">다시 이용할 플랜을 확인해 주세요</h1>
-        <p className="mt-3 text-[15px] leading-6 text-[#615d56]">{copy.body}</p>
+        <p className="text-[12px] font-semibold tracking-[0.14em] text-[#335a50]">{PETMANAGER_SERVICE_NAME} 플랜 및 결제</p>
+        <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#173b33]">다시 이용할 플랜을 확인해 주세요</h1>
+        <p className="mt-3 text-[16px] leading-6 text-[#615d56]">{copy.body}</p>
 
         <div className="mt-5 rounded-[22px] border border-[#d9d2c7] bg-white px-4 py-4">
           <p className="text-sm font-semibold text-[#111111]">현재 선택된 플랜</p>
-          <p className="mt-2 text-[22px] font-extrabold tracking-[-0.03em] text-[#173b33]">{selectedPlanLabel}</p>
-          <p className="mt-2 text-[15px] font-semibold tracking-[-0.02em] text-[#18211f]">월 {won(selectedPlan.monthlyPrice)}</p>
+          <p className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#173b33]">{selectedPlanLabel}</p>
+          <p className="mt-2 text-[16px] font-semibold tracking-[-0.02em] text-[#18211f]">월 {won(selectedPlan.monthlyPrice)}</p>
           <p className="mt-1 text-sm leading-6 text-[#6e6a61]">예상 서비스 종료일 {projectedServiceEndDate}</p>
           <p className="mt-2 text-[13px] leading-5 text-[#6e6a61]">
             {isFreePlan
@@ -666,7 +666,7 @@ export default function OwnerBillingScreen({
               <CreditCard className="h-[18px] w-[18px]" />
             </div>
             <div className="min-w-0">
-              <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#173b33]">신용/체크카드</p>
+              <p className="text-[18px] font-semibold tracking-[-0.03em] text-[#173b33]">신용/체크카드</p>
               <p className="mt-1 text-[13px] leading-5 text-[#6e6a61]">
                 {isFreePlan
                   ? "체험 플랜은 결제가 필요하지 않습니다."
@@ -690,7 +690,7 @@ export default function OwnerBillingScreen({
           <button
             type="button"
             onClick={() => setIsSelectingPlan(true)}
-            className="flex h-[56px] w-full items-center justify-center rounded-[18px] border border-[#ddd6ca] bg-white px-4 text-[15px] font-semibold text-[#1f5b51]"
+            className="flex h-[56px] w-full items-center justify-center rounded-[18px] border border-[#ddd6ca] bg-white px-4 text-[16px] font-semibold text-[#1f5b51]"
           >
             플랜 다시 선택하기
           </button>

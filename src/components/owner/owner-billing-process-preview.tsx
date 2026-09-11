@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, Ban, CheckCircle2, CreditCard, WalletCards } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { OwnerBillingSuccessCard } from "@/components/owner/owner-billing-flow-shared";
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
@@ -86,7 +86,7 @@ function ProcessCard({
 }) {
   return (
     <div className="rounded-[20px] border border-[#e3dbcf] bg-[#fffdfa] p-4">
-      <p className="text-[15px] font-medium tracking-[-0.02em] text-[#171411]">{title}</p>
+      <p className="text-[16px] font-medium tracking-[-0.02em] text-[#171411]">{title}</p>
       <p className="mt-1 text-[13px] leading-[1.55] text-[#6b655e]">{description}</p>
       <div className="mt-4">{children}</div>
     </div>
@@ -97,7 +97,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 py-3">
       <p className="text-[14px] text-[#6f675d]">{label}</p>
-      <p className="text-right text-[15px] tracking-[-0.02em] text-[#171411]">{value}</p>
+      <p className="text-right text-[16px] tracking-[-0.02em] text-[#171411]">{value}</p>
     </div>
   );
 }
@@ -112,7 +112,7 @@ function ActionButton({
   return (
     <button
       type="button"
-      className={`flex h-[52px] items-center justify-center rounded-[14px] px-4 text-[15px] tracking-[-0.03em] ${
+      className={`flex h-[52px] items-center justify-center rounded-[14px] px-4 text-[16px] tracking-[-0.03em] ${
         primary
           ? "bg-[#1f6b5b] font-semibold text-white"
           : "border border-[#ddd5c8] bg-white font-medium text-[#171411]"
@@ -132,7 +132,7 @@ function PgHandoffCard({ plan }: { plan: OwnerPlan }) {
             <CreditCard className="h-[18px] w-[18px]" />
           </span>
           <div className="min-w-0">
-            <p className="text-[15px] font-medium tracking-[-0.02em] text-[#171411]">보안창에서 카드 등록이 진행돼요</p>
+            <p className="text-[16px] font-medium tracking-[-0.02em] text-[#171411]">보안창에서 카드 등록이 진행돼요</p>
             <p className="mt-1 text-[13px] leading-[1.6] text-[#6a645d]">
               동의 버튼을 누르면 PortOne/PG 보안창이 열리고, 카드번호와 유효기간, CVC는 해당 보안창에서만 입력됩니다.
             </p>
@@ -152,8 +152,12 @@ function PgHandoffCard({ plan }: { plan: OwnerPlan }) {
 export function OwnerBillingProcessPreview() {
   const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlan["code"]>("yearly");
   const [agreed, setAgreed] = useState(true);
-  const [paymentSheetOpen, setPaymentSheetOpen] = useState(true);
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<PaymentMethodOptionId>("saved");
+
+  useEffect(() => {
+    setPaymentSheetOpen(true);
+  }, []);
   const sheetTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const selectedPlan = useMemo(
@@ -176,7 +180,7 @@ export function OwnerBillingProcessPreview() {
       <div className="mx-auto max-w-[430px]">
         <header className="mb-6">
           <p className="text-[13px] font-medium tracking-[-0.02em] text-[#1f6b5b]">카드사 제출용</p>
-          <h1 className="mt-2 text-[30px] font-semibold tracking-[-0.05em] text-[#171411]">정기결제 프로세스</h1>
+          <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.05em] text-[#171411]">정기결제 프로세스</h1>
           <p className="mt-3 text-[14px] leading-[1.6] text-[#6a645d]">
             플랜 선택부터 정기결제 동의, 카드 등록, 결제 완료, 결제수단 관리, 해지, 결제 실패 안내까지 전체 흐름을 정리한 화면입니다.
           </p>
@@ -311,11 +315,11 @@ export function OwnerBillingProcessPreview() {
                   <div className="flex items-center gap-3">
                     <WalletCards className="h-5 w-5 text-[#1f6b5b]" />
                     <div>
-                      <p className="text-[15px] font-medium text-[#171411]">현재 등록 카드</p>
+                      <p className="text-[16px] font-medium text-[#171411]">현재 등록 카드</p>
                       <p className="mt-1 text-[13px] text-[#6a645d]">하나카드 ·•••• 1234</p>
                     </div>
                   </div>
-                  <button type="button" className="text-[14px] font-medium text-[#1f6b5b]">
+                  <button type="button" className="inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-[14px] font-medium text-[#1f6b5b]">
                     카드 변경
                   </button>
                 </div>

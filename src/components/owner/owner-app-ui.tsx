@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { Info, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import { SectionHeader as AppSectionHeader } from "@/components/ui/section-header";
@@ -52,7 +52,7 @@ export function InfoTip({
 }) {
   const [open, setOpen] = useState(false);
   const iconSizeClassName = "h-4 w-4";
-  const buttonSizeClassName = "h-5 w-5";
+  const buttonSizeClassName = "absolute left-1/2 top-1/2 h-11 w-11 -translate-x-1/2 -translate-y-1/2";
   const colorClassName =
     tone === "warm"
       ? "text-[#9b806f] hover:text-[#c99273]"
@@ -97,7 +97,7 @@ export function ApprovalModeInfoButton() {
       ariaLabel="승인 방식 안내"
       tone="warm"
       size="small"
-      popoverClassName="w-[208px] rounded-[11px] text-[11px] leading-[18px]"
+      popoverClassName="w-[208px] rounded-[11px] text-[12px] leading-[18px]"
     >
       고객 예약은 신청 단계 없이 바로 확정돼요.
     </InfoTip>
@@ -142,28 +142,88 @@ export function Sheet({
   onClose,
   footer,
   headerAction,
+  prominentTitle = false,
+  dialogLabel,
+  initialFocusRef,
+  restoreFocusRef,
+  focusKey,
+  safeAreaPadding = false,
 }: {
   title: string;
   children: React.ReactNode;
   onClose: () => void;
   footer?: React.ReactNode;
   headerAction?: React.ReactNode;
+  prominentTitle?: boolean;
+  dialogLabel?: string;
+  initialFocusRef?: RefObject<HTMLElement | null>;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
+  focusKey?: string;
+  safeAreaPadding?: boolean;
 }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!initialFocusRef?.current) return;
+    const frame = window.requestAnimationFrame(() => initialFocusRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusKey, initialFocusRef]);
+
+  useEffect(
+    () => () => {
+      restoreFocusRef?.current?.focus();
+    },
+    [restoreFocusRef],
+  );
+
+  useEffect(() => {
+    if (!dialogLabel) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [dialogLabel, onClose]);
+
+  function keepFocusInDialog(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Tab" || !dialogLabel) return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   return (
     <div className="pm-mobile-sheet-scrim fixed inset-0 z-30 flex items-end justify-center bg-black/30" onClick={onClose}>
       <div
-        className="pm-mobile-sheet flex max-h-[92vh] min-h-0 w-full max-w-[430px] flex-col overflow-hidden rounded-t-[24px] bg-white px-4 pb-5 pt-4 shadow-[0_-18px_44px_rgba(15,23,42,0.16)]"
+        ref={dialogRef}
+        role={dialogLabel ? "dialog" : undefined}
+        aria-modal={dialogLabel ? true : undefined}
+        aria-label={dialogLabel}
+        onKeyDown={keepFocusInDialog}
+        className={`pm-mobile-sheet flex max-h-[92vh] min-h-0 w-full max-w-[430px] flex-col overflow-hidden rounded-t-[24px] bg-white px-4 pt-4 shadow-[0_-18px_44px_rgba(15,23,42,0.16)] ${safeAreaPadding ? "pb-[calc(env(safe-area-inset-bottom)+20px)]" : "pb-5"}`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#cbd5e1]" />
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-[18px] font-semibold leading-6 tracking-[-0.02em] text-[var(--text)]">{title}</h3>
+          <h3 className={`${prominentTitle ? "text-[20px] leading-7 tracking-[-0.015em]" : "text-[18px] leading-[26px] tracking-[-0.01em]"} font-semibold text-[var(--text)]`}>{title}</h3>
           <div className="flex items-center gap-3">
             {headerAction}
             <button
               type="button"
               aria-label="닫기"
-              className="inline-flex size-8 items-center justify-center rounded-full border border-[rgba(47,49,46,0.12)] bg-white text-[var(--muted)] transition hover:bg-[#fcfaf7]"
+              className="inline-flex size-11 items-center justify-center rounded-full border border-[rgba(47,49,46,0.12)] bg-white text-[var(--muted)] transition hover:bg-[#fcfaf7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
               onClick={onClose}
             >
               <X className="h-4 w-4" strokeWidth={1.8} />
@@ -180,7 +240,7 @@ export function Sheet({
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block text-[13px] text-[var(--text)]">
-      <span className="mb-1.5 block text-[11px] font-medium tracking-[-0.01em] text-[var(--muted)]">{label}</span>
+      <span className="mb-1.5 block text-[12px] font-medium tracking-[-0.01em] text-[var(--muted)]">{label}</span>
       {children}
     </label>
   );
@@ -218,7 +278,7 @@ export function ActionButton({ children, disabled, onClick, variant = "primary",
     <button
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-[46px] w-full items-center justify-center rounded-[12px] px-4 text-[14px] font-semibold tracking-[-0.01em] transition hover:bg-opacity-95 disabled:opacity-50 ${variantClassName} ${className}`.trim()}
+      className={`flex min-h-[46px] w-full items-center justify-center rounded-[12px] px-4 py-2.5 text-[16px] font-medium leading-6 tracking-[-0.005em] transition hover:bg-opacity-95 disabled:opacity-50 ${variantClassName} ${className}`.trim()}
     >
       {children}
     </button>

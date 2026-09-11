@@ -37,16 +37,16 @@ export function QuickContactRow({
   onSendReminder?: () => Promise<void>;
 }) {
   return (
-    <div className="mt-2.5 grid grid-cols-2 gap-2">
+    <div className="mt-2.5 grid grid-cols-2 gap-2 max-[300px]:grid-cols-1">
       <a
         href={buildTelHref(phone)}
-        className="flex items-center justify-center rounded-[12px] border border-[#e8e0d2] bg-[#fcfaf7] px-4 py-3 text-[14px] font-medium text-[var(--text)]"
+        className="flex min-h-11 items-center justify-center rounded-[12px] border border-[var(--border)] bg-[#f8fafc] px-4 py-3 text-[16px] font-medium leading-6 text-[var(--text)]"
       >
         전화하기
       </a>
       <a
         href={buildSmsHref(phone)}
-        className="flex items-center justify-center rounded-[12px] border border-[#e8e0d2] bg-[#fcfaf7] px-4 py-3 text-[14px] font-medium text-[var(--text)]"
+        className="flex min-h-11 items-center justify-center rounded-[12px] border border-[var(--border)] bg-[#f8fafc] px-4 py-3 text-[16px] font-medium leading-6 text-[var(--text)]"
       >
         문자 보내기
       </a>
@@ -55,7 +55,7 @@ export function QuickContactRow({
           type="button"
           onClick={() => void onSendReminder()}
           disabled={sending || reminderSent}
-          className="col-span-2 flex items-center justify-center rounded-[12px] border border-[#dfe8e2] bg-[#fcfaf7] px-4 py-3 text-[14px] font-medium text-[#2f7266] disabled:opacity-60"
+          className="col-span-2 flex min-h-11 items-center justify-center rounded-[12px] border border-[#dfe8e2] bg-[#f8fafc] px-4 py-3 text-[14px] font-medium leading-5 text-[#2f7266] disabled:opacity-60"
         >
           {reminderSent ? "예약 10분 전 알림톡 발송됨" : "예약 10분 전 알림톡 발송"}
         </button>
@@ -116,7 +116,7 @@ export function CustomerDetailInfoRow({
 }) {
   const rowClassName = `relative -top-[2px] z-[1] flex w-full justify-between gap-3 px-3 ${multiline ? "items-start py-1.5" : "min-h-[52px] items-center py-1.5"} text-left ${onClick ? "transition hover:bg-[#fffdfa]" : ""}`.trim();
   const valueClassName = multiline
-    ? `text-[15px] leading-5 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-normal text-[var(--text)]"}`
+    ? `text-[16px] leading-5 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-normal text-[var(--text)]"}`
     : `text-[16px] leading-6 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-normal text-[var(--text)]"}`;
   const body = (
     <>
@@ -190,7 +190,7 @@ export function CustomerDetailNotificationItemRow({
       } ${disabled ? "cursor-not-allowed opacity-55" : "hover:border-[#d8d1c8] hover:bg-[#fffdfa]"}`}
     >
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{label}</p>
+        <p className="text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">{label}</p>
         <p className="mt-1 text-[13px] leading-[18px] tracking-[-0.01em] text-[#938c83]">{description}</p>
       </div>
       <Switch
@@ -209,7 +209,7 @@ export function CustomerMetricCard({ label, value, compact = false }: { label: s
   return (
     <div className={`rounded-[16px] border border-[var(--border)] bg-white px-3.5 ${compact ? "py-3" : "py-3.5"}`}>
       <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">{label}</p>
-      <p className={`mt-1 font-semibold tracking-[-0.02em] text-[var(--text)] ${compact ? "line-clamp-2 text-[14px] leading-5" : "text-[15px] leading-5"}`}>{value}</p>
+      <p className={`mt-1 font-semibold tracking-[-0.02em] text-[var(--text)] ${compact ? "line-clamp-2 text-[14px] leading-5" : "text-[16px] leading-5"}`}>{value}</p>
     </div>
   );
 }
@@ -239,7 +239,7 @@ export function CustomerDetailHistoryPagination({
             key={nextPage}
             type="button"
             onClick={() => onChange(nextPage)}
-            className={`inline-flex h-[24px] min-w-[40px] items-center justify-center rounded-[999px] border px-2 text-[11px] font-medium leading-none transition ${
+            className={`inline-flex h-[24px] min-w-[40px] items-center justify-center rounded-[999px] border px-2 text-[12px] font-medium leading-none transition ${
               active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-white text-[var(--muted)]"
             }`}
           >
@@ -262,7 +262,7 @@ export function ShopAvatar({ name, imageUrl }: { name: string; imageUrl?: string
   }
 
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dce4ef] bg-[#f8fafc] text-[11px] font-medium tracking-[-0.03em] text-[#475569] shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dce4ef] bg-[#f8fafc] text-[12px] font-medium tracking-[-0.03em] text-[#475569] shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
       {getShopInitials(name)}
     </div>
   );
@@ -275,14 +275,14 @@ export function Avatar({ seed }: { seed: string }) {
 export function UrgencyPill({ status, days }: { status: "overdue" | "soon" | "ok" | "unknown"; days: number | null }) {
   const text = status === "overdue" ? `${Math.abs(days || 0)}일 초과` : status === "soon" ? `${days}일 남음` : status === "ok" ? `${days}일 여유` : "미산정";
   const cls = status === "overdue" ? "bg-red-50 text-red-700" : status === "soon" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700";
-  return <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${cls}`}>{text}</span>;
+  return <span className={`rounded-full px-2 py-1 text-[12px] font-semibold ${cls}`}>{text}</span>;
 }
 
 export function InfoItem({ label, value, className = "" }: { label: string; value: string; className?: string }) {
   return (
     <div className={`rounded-[16px] border border-[var(--border)] bg-white px-4 py-2 ${className}`.trim()}>
       <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">{label}</p>
-      <p className="mt-1 flex min-h-[20px] items-center text-[15px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{value}</p>
+      <p className="mt-1 flex min-h-[20px] items-center text-[16px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{value}</p>
     </div>
   );
 }

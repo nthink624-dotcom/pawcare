@@ -6,8 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, Eye, EyeOff, Smartphone } from "lucide-react";
 
-import SocialLoginButtons from "@/components/auth/social-login-buttons";
 import { ServiceBrand } from "@/components/brand/service-brand";
+import MobileAiPriceGuideFixture, { type PriceGuideDraftRow } from "@/components/auth/mobile-ai-price-guide-fixture";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { MobileBackLinkButton } from "@/components/ui/mobile-back-button";
 import {
@@ -16,37 +16,29 @@ import {
   type OwnerSignupTermId,
 } from "@/lib/auth/owner-signup-terms";
 import {
-  buildOwnerAuthEmail,
   isValidBirthDate8,
-  isValidOwnerLoginId,
+  isValidOwnerEmail,
   isValidOwnerPassword,
-  normalizeOwnerLoginId,
+  normalizeOwnerEmail,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
 import { env, getSupabaseRuntimeStage } from "@/lib/env";
 import { PUBLIC_LEGAL_URLS } from "@/lib/legal/public-legal-links";
 import {
-  getSocialOAuthProvider,
-  PENDING_SOCIAL_PROVIDER_COOKIE,
-  PENDING_SOCIAL_PROVIDER_STORAGE,
-  type SocialProvider,
-} from "@/lib/auth/social-auth";
-import {
-  BUTTON_PRIMARY,
-  BUTTON_SECONDARY,
+  BUTTON_PRIMARY as UI_BUTTON_PRIMARY,
+  BUTTON_SECONDARY as UI_BUTTON_SECONDARY,
   INLINE_ERROR,
   INLINE_HELP,
   INPUT_BASE,
-  PAGE_DESCRIPTION,
-  PAGE_EYEBROW,
-  PAGE_FRAME,
-  PAGE_TITLE,
+  PAGE_EYEBROW as UI_PAGE_EYEBROW,
+  PAGE_FRAME as UI_PAGE_FRAME,
+  PAGE_TITLE as UI_PAGE_TITLE,
   cn,
 } from "@/lib/ui-system";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type Step = "entry" | "profile";
-type StartTarget = { kind: "email" } | { kind: "social"; provider: SocialProvider } | null;
+type Step = "entry" | "price-guide" | "profile";
+type StartTarget = "email" | null;
 type AgreementState = Record<OwnerSignupTermId, boolean>;
 type VerificationMethod = "phone" | "kakao-certificate" | "naver-certificate" | "toss" | "pass";
 type VerificationPurpose = "signup";
@@ -69,6 +61,23 @@ const termLinkById: Record<OwnerSignupTermId, string> = {
   privacy: PUBLIC_LEGAL_URLS.privacy,
   location: PUBLIC_LEGAL_URLS.terms,
   marketing: PUBLIC_LEGAL_URLS.privacy,
+};
+
+const PAGE_FRAME = cn(UI_PAGE_FRAME, "bg-[#f1f3f7] px-5 py-8");
+const PAGE_EYEBROW = cn(UI_PAGE_EYEBROW, "auth-type-label !text-[14px] !font-medium !leading-5 tracking-normal text-[#64748b]");
+const PAGE_TITLE = cn(UI_PAGE_TITLE, "auth-type-page-title tracking-[-0.02em] text-[#101a31]");
+const BUTTON_PRIMARY = cn(UI_BUTTON_PRIMARY, "auth-type-control min-h-[52px] rounded-[12px] bg-[#111a30] text-white");
+const BUTTON_SECONDARY = cn(UI_BUTTON_SECONDARY, "auth-type-control min-h-[52px] rounded-[12px] border-[#e8edf3] text-[#111827]");
+
+type AtomicSignupServicePrice = {
+  id: string;
+  name: string;
+  detailName: string;
+  price: number;
+  durationMinutes: number;
+  species: "dog" | "cat" | "all";
+  breedGroup: string;
+  weightBand: string;
 };
 
 function normalizePhone(value: string) {
@@ -181,19 +190,6 @@ function VerificationMethodLogo({ method }: { method: VerificationMethod }) {
   );
 }
 
-function toKoreanAuthError(message: string) {
-  const normalized = message.toLowerCase();
-
-  if (normalized.includes("invalid login credentials")) return "아이디 또는 비밀번호를 다시 확인해 주세요.";
-  if (normalized.includes("email not confirmed")) return "이메일 인증이 아직 완료되지 않았습니다.";
-  if (normalized.includes("user already registered")) return "이미 가입된 계정입니다.";
-  if (normalized.includes("password should be at least")) return "비밀번호는 6자 이상 입력해 주세요.";
-  if (normalized.includes("unable to validate email address")) return "이메일 형식을 다시 확인해 주세요.";
-  if (normalized.includes("oauth")) return "소셜 로그인 처리 중 문제가 발생했습니다. 다시 시도해 주세요.";
-
-  return "처리 중 문제가 발생했습니다. 다시 시도해 주세요.";
-}
-
 function AuthField({
   label,
   hint,
@@ -215,15 +211,15 @@ function AuthField({
     <label className="block">
       <div
         className={cn(
-          "group relative rounded-[12px] border bg-white px-4 pb-3 pt-3.5 transition focus-within:border-[#1f6b5b] focus-within:shadow-[0_0_0_3px_rgba(31,107,91,0.08)]",
+          "group relative rounded-[12px] border bg-white px-4 pb-3 pt-3.5 transition focus-within:border-[#2563eb] focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.1)]",
           error
             ? "border-[#d99a90] bg-[#fffdfc]"
             : tone === "success"
               ? "border-[#9ec6bb] bg-[#fdfefe]"
-              : "border-[#d9d3ca]",
+              : "border-[#e8edf3]",
         )}
       >
-        <span className="absolute -top-2 left-3 bg-white px-1.5 text-[12px] font-medium leading-4 text-[#7b746b]">
+        <span className="auth-type-label absolute -top-2.5 left-3 bg-white px-1.5 text-[#64748b]">
           {label}
         </span>
         {children}
@@ -231,7 +227,7 @@ function AuthField({
       {message ? (
         <p
           className={cn(
-            "mt-1 px-0.5 text-[12px] leading-[1.4]",
+            "auth-type-helper mt-1 px-0.5",
             error ? "text-[#c65c50]" : tone === "success" ? "text-[#3a7c6d]" : "text-[#9a9188]",
           )}
         >
@@ -254,8 +250,8 @@ function AuthSectionBlock({
   return (
     <section className="space-y-2">
       <div className="space-y-1 px-1">
-        <h2 className="text-[15px] font-semibold tracking-[-0.03em] text-[#2f2a25]">{title}</h2>
-        {description ? <p className="text-[12px] leading-[1.5] text-[#847c73]">{description}</p> : null}
+        <h2 className="auth-type-section-title text-[#101a31]">{title}</h2>
+        {description ? <p className="auth-type-helper text-[#64748b]">{description}</p> : null}
       </div>
       <div className="space-y-2.5">{children}</div>
     </section>
@@ -268,6 +264,7 @@ function AuthInput({
   placeholder,
   inputMode,
   type = "text",
+  autoComplete,
   rightSlot,
   className,
 }: {
@@ -276,6 +273,7 @@ function AuthInput({
   placeholder: string;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   type?: string;
+  autoComplete?: string;
   rightSlot?: React.ReactNode;
   className?: string;
 }) {
@@ -287,8 +285,9 @@ function AuthInput({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         inputMode={inputMode}
+        autoComplete={autoComplete}
         className={cn(
-          "h-[24px] w-full border-0 bg-white px-0 py-0 text-[16px] text-[#171411] outline-none placeholder:text-[#b8b1a7] focus:bg-white [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_white] [&:-webkit-autofill]:[-webkit-text-fill-color:#171411]",
+          "auth-type-control min-h-11 w-full border-0 bg-white px-0 py-0 text-[#171411] outline-none placeholder:text-[#94a3b8] focus:bg-white [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_white] [&:-webkit-autofill]:[-webkit-text-fill-color:#171411]",
           rightSlot ? "pr-8" : "",
           className,
         )}
@@ -299,39 +298,21 @@ function AuthInput({
 }
 
 function EntryStep({
-  loading,
-  socialLoading,
   onStartEmail,
-  onStartSocial,
   nextPath,
 }: {
-  loading: boolean;
-  socialLoading: SocialProvider | null;
   onStartEmail: () => void;
-  onStartSocial: (provider: SocialProvider) => void;
   nextPath: string;
 }) {
   return (
-    <div className="space-y-8">
-      <div className="space-y-3">
+    <div className="space-y-6">
+      <div>
         <button type="button" onClick={onStartEmail} className={BUTTON_PRIMARY}>
           일반 회원가입 시작하기
         </button>
-        <p className="text-center text-[13px] leading-6 text-[#7f786f]">
-          기본 정보 입력과 본인 인증을 마치면 2주 무료체험을 바로 시작할 수 있어요.
-        </p>
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-[#e7e1d8]" />
-          <span className="text-[14px] font-medium text-[#8b847b]">빠른 로그인 / 회원가입</span>
-          <div className="h-px flex-1 bg-[#e7e1d8]" />
-        </div>
-        <SocialLoginButtons onLogin={onStartSocial} loadingProvider={socialLoading} disabled={loading} />
-      </div>
-
-      <div className="text-center text-[14px] text-[#8b847b]">
+      <div className="auth-type-helper text-center text-[#64748b]">
         이미 계정이 있나요?{" "}
         <Link href={`/login?next=${encodeURIComponent(nextPath)}` as never} replace className="font-semibold text-[#111111]">
           로그인
@@ -346,20 +327,25 @@ export default function SignupForm({
   portoneReady,
   nextPath = "/owner",
   initialStart = null,
+  priceGuideFixtureEnabled = false,
 }: {
   supabaseReady: boolean;
   portoneReady: boolean;
   nextPath?: string;
   initialStart?: "email" | null;
+  priceGuideFixtureEnabled?: boolean;
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [step, setStep] = useState<Step>(initialStart === "email" ? "profile" : "entry");
+  const [step, setStep] = useState<Step>(initialStart === "email" ? (priceGuideFixtureEnabled ? "price-guide" : "profile") : "entry");
+  const [priceGuideFixtureRows, setPriceGuideFixtureRows] = useState<PriceGuideDraftRow[] | null>(null);
+  const [signupRequestId, setSignupRequestId] = useState(() => crypto.randomUUID());
   const [startTarget, setStartTarget] = useState<StartTarget>(null);
   const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
-  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [checkedEmail, setCheckedEmail] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [verificationRequestId, setVerificationRequestId] = useState<string | null>(null);
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
@@ -381,7 +367,7 @@ export default function SignupForm({
     birthDate: "",
     phoneNumber: "",
     verificationCode: "",
-    loginId: "",
+    email: "",
     password: "",
     passwordConfirm: "",
     shopName: "",
@@ -427,9 +413,11 @@ export default function SignupForm({
 
   useEffect(() => {
     if (initialStart !== "email") return;
-    setStep("profile");
-    setStartTarget({ kind: "email" });
-  }, [initialStart]);
+    setStep(priceGuideFixtureEnabled ? "price-guide" : "profile");
+    // The development-only price guide fixture starts before the consent/profile flow.
+    // Opening the consent sheet here would cover its camera and recovery checks.
+    setStartTarget(priceGuideFixtureEnabled ? null : "email");
+  }, [initialStart, priceGuideFixtureEnabled]);
 
   const updateField = (key: keyof typeof fields, value: string) => {
     const normalizedValue =
@@ -445,6 +433,10 @@ export default function SignupForm({
       ...(key === "name" || key === "birthDate" || key === "phoneNumber" ? { verificationCode: "" } : {}),
     }));
 
+    if (key === "email") {
+      setCheckedEmail(null);
+    }
+
     if (key === "name" || key === "birthDate" || key === "phoneNumber") {
       setVerificationRequestId(null);
       setVerificationToken(null);
@@ -452,44 +444,9 @@ export default function SignupForm({
     }
   };
 
-  const handleSocialLogin = async (provider: SocialProvider) => {
-    if (!supabaseReady || !supabase) {
-      setMessage("소셜 로그인 환경이 아직 준비되지 않았어요.");
-      return;
-    }
-
-    setSocialLoading(provider);
+  const openStart = () => {
     setMessage(null);
-
-    try {
-      document.cookie = `${PENDING_SOCIAL_PROVIDER_COOKIE}=${provider}; Path=/; Max-Age=600; SameSite=Lax`;
-      window.localStorage.setItem(PENDING_SOCIAL_PROVIDER_STORAGE, provider);
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}&provider=${encodeURIComponent(provider)}`;
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
-        options: {
-          redirectTo,
-          queryParams:
-            provider === "google"
-              ? { prompt: "select_account" }
-              : provider === "naver"
-                ? { auth_type: "reauthenticate" }
-                : undefined,
-        },
-      });
-
-      if (error) {
-        setMessage(toKoreanAuthError(error.message));
-      }
-    } finally {
-      setSocialLoading(null);
-    }
-  };
-
-  const openStart = (target: StartTarget) => {
-    setMessage(null);
-    setStartTarget(target);
+    setStartTarget("email");
   };
 
   const continueStart = async () => {
@@ -498,22 +455,32 @@ export default function SignupForm({
       return;
     }
 
-    const target = startTarget;
     setStartTarget(null);
-
-    if (target.kind === "email") {
-      setStep("profile");
-      return;
-    }
-
-    await handleSocialLogin(target.provider);
+    setStep(priceGuideFixtureEnabled ? "price-guide" : "profile");
   };
 
-  const moveToVerificationStep = () => {
-    const loginId = normalizeOwnerLoginId(fields.loginId);
+  const checkEmailAvailability = async (email: string) => {
+    setCheckingEmail(true);
+    try {
+      const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`);
+      const result = (await response.json()) as { available?: boolean; message?: string };
+      if (!response.ok || !result.available) {
+        setMessage(result.message ?? "이메일을 사용할 수 없습니다.");
+        return false;
+      }
 
-    if (!isValidOwnerLoginId(loginId)) {
-      setMessage("아이디는 영문 소문자, 숫자, 마침표(.), 하이픈(-), 밑줄(_) 조합으로 4자 이상 입력해 주세요.");
+      setCheckedEmail(email);
+      return true;
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
+
+  const moveToVerificationStep = async () => {
+    const email = normalizeOwnerEmail(fields.email);
+
+    if (!isValidOwnerEmail(email)) {
+      setMessage("이메일 형식을 확인해 주세요.");
       return;
     }
     if (!isValidOwnerPassword(fields.password)) {
@@ -534,6 +501,10 @@ export default function SignupForm({
     }
     if (!fields.shopAddress.trim()) {
       setMessage("매장 주소를 입력해 주세요.");
+      return;
+    }
+
+    if (checkedEmail !== email && !(await checkEmailAvailability(email))) {
       return;
     }
 
@@ -812,14 +783,16 @@ export default function SignupForm({
   };
 
   const submitSignup = async () => {
+    if (loading) return;
+
     if (!verificationToken) {
       setMessage("본인 인증을 먼저 완료해 주세요.");
       return;
     }
 
-    const loginId = normalizeOwnerLoginId(fields.loginId);
-    if (!isValidOwnerLoginId(loginId)) {
-      setMessage("아이디는 영문 소문자, 숫자, ., -, _ 조합으로 4자 이상 입력해 주세요.");
+    const email = normalizeOwnerEmail(fields.email);
+    if (!isValidOwnerEmail(email)) {
+      setMessage("이메일 형식을 확인해 주세요.");
       return;
     }
     if (!isValidOwnerPassword(fields.password)) {
@@ -843,6 +816,21 @@ export default function SignupForm({
       return;
     }
 
+    const servicePrices: AtomicSignupServicePrice[] = (priceGuideFixtureRows ?? []).map((row) => ({
+      id: row.id,
+      name: row.name.trim(),
+      detailName: "",
+      price: Number(row.price),
+      durationMinutes: 60,
+      species: "all",
+      breedGroup: "",
+      weightBand: "",
+    }));
+    if (priceGuideFixtureEnabled && servicePrices.length === 0) {
+      setMessage("서비스와 가격을 한 개 이상 검토해 저장해 주세요.");
+      return;
+    }
+
     setLoading(true);
     setMessage(null);
 
@@ -851,7 +839,8 @@ export default function SignupForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          loginId,
+          signupRequestId,
+          email,
           password: fields.password,
           passwordConfirm: fields.passwordConfirm,
           name: fields.name.trim(),
@@ -864,12 +853,18 @@ export default function SignupForm({
             ? `${fields.shopAddress.trim()}, ${shopDetailAddress.trim()}`
             : fields.shopAddress.trim(),
           agreements,
+          servicePrices,
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
         }),
       });
       const result = await response.json();
 
       if (!response.ok || !result.success) {
+        if (result.code === "SIGNUP_PAYLOAD_MISMATCH") {
+          setSignupRequestId(crypto.randomUUID());
+          setMessage("입력 내용이 변경되어 새 가입 요청을 준비했습니다. 다시 시도해 주세요.");
+          return;
+        }
         setMessage(result.message ?? "회원가입 중 문제가 발생했어요.");
         return;
       }
@@ -882,7 +877,8 @@ export default function SignupForm({
   };
 
   return (
-    <div className={cn(PAGE_FRAME, "bg-white text-[#111111]")}>
+    <div className={cn(PAGE_FRAME, "text-[#111827]")}>
+      <div className="rounded-[18px] border border-[#e8edf3] bg-white px-5 pb-8 pt-6">
       <div className="space-y-6">
         <MobileBackLinkButton
           href={step === "entry" ? `/login?next=${encodeURIComponent(nextPath)}` : "/signup"}
@@ -890,18 +886,13 @@ export default function SignupForm({
           aria-label={step === "entry" ? "로그인으로 이동" : "회원가입 첫 단계로 이동"}
         />
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             <ServiceBrand />
             <p className={PAGE_EYEBROW}>회원가입</p>
           <div>
             <h1 className={PAGE_TITLE}>
-              {step === "entry" ? "무료체험을 시작해볼까요?" : "계정과 매장 정보를 입력해 주세요"}
+              {step === "entry" ? "무료체험을 시작해볼까요?" : step === "price-guide" ? "서비스와 가격을 먼저 확인해 주세요" : "계정과 매장 정보를 입력해 주세요"}
             </h1>
-            <p className={cn(PAGE_DESCRIPTION, "mt-3")}>
-              {step === "entry"
-                ? "기본 약관에 동의하고 가입을 시작하면 2주 무료체험을 바로 이용할 수 있어요."
-                : "아이디, 비밀번호, 매장 정보를 먼저 입력하고 마지막에 본인 인증을 진행할게요."}
-            </p>
           </div>
         </div>
       </div>
@@ -909,27 +900,36 @@ export default function SignupForm({
       <div className="mt-7">
         {step === "entry" ? (
           <EntryStep
-            loading={loading}
-            socialLoading={socialLoading}
-            onStartEmail={() => openStart({ kind: "email" })}
-            onStartSocial={(provider) => openStart({ kind: "social", provider })}
+            onStartEmail={openStart}
             nextPath={nextPath}
+          />
+        ) : null}
+
+        {step === "price-guide" ? (
+          <MobileAiPriceGuideFixture
+            initialRows={priceGuideFixtureRows}
+            onComplete={(rows) => {
+              setPriceGuideFixtureRows(rows);
+              setStep("profile");
+            }}
+            onExit={(rows) => {
+              setPriceGuideFixtureRows(rows);
+              setStep("entry");
+            }}
           />
         ) : null}
 
         {step === "profile" ? (
           <div className="space-y-4">
-            <AuthSectionBlock
-              title="계정 정보"
-              description="로그인에 사용할 정보를 설정해 주세요."
-            >
-              <AuthField
-                label="아이디"
-              >
+            <AuthSectionBlock title="계정 정보">
+              <AuthField label="이메일">
                 <AuthInput
-                  value={fields.loginId}
-                  onChange={(value) => updateField("loginId", value)}
-                  placeholder="영문 소문자·숫자 포함 4자 이상"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  value={fields.email}
+                  onChange={(value) => updateField("email", value)}
+                  placeholder="example@petmanager.co.kr"
                 />
               </AuthField>
 
@@ -942,7 +942,7 @@ export default function SignupForm({
                   onChange={(value) => updateField("password", value)}
                   placeholder="대/소문자·숫자·특수문자 중 3종 이상"
                   rightSlot={
-                    <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="text-[#615d57]">
+                    <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="flex h-11 w-11 items-center justify-center rounded-[8px] text-[#64748b]" aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}>
                       {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                     </button>
                   }
@@ -964,7 +964,8 @@ export default function SignupForm({
                     <button
                       type="button"
                       onClick={() => setShowPasswordConfirm((prev) => !prev)}
-                      className="text-[#615d57]"
+                      className="flex h-11 w-11 items-center justify-center rounded-[8px] text-[#64748b]"
+                      aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 보기"}
                     >
                       {showPasswordConfirm ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                     </button>
@@ -973,10 +974,7 @@ export default function SignupForm({
               </AuthField>
             </AuthSectionBlock>
 
-            <AuthSectionBlock
-              title="매장 정보"
-              description="기본 매장 정보를 입력해 주세요."
-            >
+            <AuthSectionBlock title="매장 정보">
               <AuthField label="매장명">
                 <AuthInput
                   value={fields.shopName}
@@ -1004,8 +1002,8 @@ export default function SignupForm({
                       <div className="min-w-0">
                         <p
                           className={cn(
-                            "truncate text-[15px] font-medium tracking-[-0.02em]",
-                            fields.shopAddress ? "text-[#171411]" : "text-[#b8b1a7]",
+                            "auth-type-control text-left tracking-[-0.02em] [overflow-wrap:anywhere]",
+                            fields.shopAddress ? "text-[#171411]" : "text-[#6f665f]",
                           )}
                         >
                           {fields.shopAddress || "주소 검색으로 매장 주소를 선택해 주세요"}
@@ -1022,7 +1020,6 @@ export default function SignupForm({
                       onChange={setShopDetailAddress}
                       placeholder="상세 주소를 입력해 주세요"
                     />
-                    <p className={INLINE_HELP}>건물명, 층수, 호수는 상세 주소에 적어 주세요.</p>
                   </div>
 
                   <AuthInput
@@ -1044,14 +1041,16 @@ export default function SignupForm({
               >
                 이전
               </button>
-              <button type="button" onClick={moveToVerificationStep} disabled={loading} className={cn(BUTTON_PRIMARY, "h-[48px]")}>
-                다음
+              <button type="button" onClick={() => void moveToVerificationStep()} disabled={loading || checkingEmail} className={cn(BUTTON_PRIMARY, "h-[48px]")}>
+                {checkingEmail ? "이메일 확인 중..." : "다음"}
               </button>
             </div>
           </div>
         ) : null}
 
         {message ? <p className={cn(INLINE_ERROR, "mt-3.5")}>{message}</p> : null}
+      </div>
+
       </div>
 
       {startTarget ? (
@@ -1068,17 +1067,14 @@ export default function SignupForm({
               <div className="mt-5 flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[14px] font-semibold text-[#5f665f]">약관 동의</p>
-                  <h2 className="mt-2 text-[24px] font-extrabold tracking-[-0.05em] text-[#111827]">
+                  <h2 className="auth-type-page-title mt-2 text-[#111827]">
                     가입을 시작하기 전에 확인해 주세요
                   </h2>
-                  <p className="mt-3 text-[13px] leading-6 text-[#7b746b]">
-                    필수 약관에 동의하면 일반 회원가입 또는 소셜 회원가입을 이어서 진행할 수 있어요.
-                  </p>
                 </div>
               </div>
 
-              <div className="mt-6 rounded-[16px] border border-[#dce9e0] bg-[#f3faf6] p-4">
-                <label className="flex items-start gap-3">
+              <div className="mt-5 rounded-[16px] border border-[#dce9e0] bg-[#f3faf6] p-4">
+                <label className="flex min-h-11 w-full items-center gap-3">
                   <input
                     type="checkbox"
                     checked={allAgreed}
@@ -1092,10 +1088,7 @@ export default function SignupForm({
                     }
                     className="mt-1 h-[18px] w-[18px] rounded border border-[#c6d8cf] accent-[#1f6b5b]"
                   />
-                  <div>
-                    <p className="text-[15px] font-semibold text-[#111827]">전체 동의하기</p>
-                    <p className="mt-1 text-[12px] leading-5 text-[#6f7b73]">필수와 선택 약관을 한 번에 설정할 수 있어요.</p>
-                  </div>
+                  <p className="auth-type-control text-[#111827]">전체 동의하기</p>
                 </label>
               </div>
 
@@ -1103,7 +1096,7 @@ export default function SignupForm({
                 {ownerSignupTerms.map((term) => (
                   <div key={term.id} className="rounded-[16px] border border-[#ebe5dc] bg-[#faf9f6] px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
-                      <label className="flex min-w-0 items-start gap-3">
+                      <label className="flex min-h-11 min-w-0 flex-1 items-center gap-3">
                         <input
                           type="checkbox"
                           checked={agreements[term.id]}
@@ -1115,21 +1108,16 @@ export default function SignupForm({
                           }
                           className="mt-1 h-[18px] w-[18px] rounded border border-[#d2cbc0] accent-[#1f6b5b]"
                         />
-                        <div>
-                          <p className="text-[14px] font-semibold text-[#111827]">
-                            [{term.required ? "필수" : "선택"}] {term.title}
-                          </p>
-                          <p className="mt-1 text-[12px] leading-5 text-[#8b847b]">
-                            {term.required ? "회원가입을 위해 꼭 필요한 항목이에요." : "필요한 경우에만 선택해도 괜찮아요."}
-                          </p>
-                        </div>
+                        <p className="text-[14px] font-semibold text-[#111827]">
+                          [{term.required ? "필수" : "선택"}] {term.title}
+                        </p>
                       </label>
 
                       <Link
                         href={termLinkById[term.id] as never}
                         target="_blank"
                         rel="noreferrer"
-                        className="shrink-0 text-[13px] font-medium text-[#6f6b64]"
+                        className="auth-type-helper inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center px-2 text-[#64748b]"
                       >
                         보기
                       </Link>
@@ -1168,19 +1156,14 @@ export default function SignupForm({
               <div className="shrink-0 border-b border-[#f0e9df] px-5 pb-4 pt-4">
                 <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7dbd4]" />
                 <div className="mt-4 flex items-start justify-between gap-4">
-                  <div className="space-y-2.5">
+                  <div>
                     <div>
-                      <h2 className="text-[24px] font-extrabold tracking-[-0.04em] text-[#111827]">본인 확인</h2>
-                      <p className="mt-2 text-[13px] leading-[1.55] text-[#6f6b64]">
-                        입력은 거의 끝났어요.
-                        <br />
-                        운영자 확인만 마치면 바로 시작할 수 있어요.
-                      </p>
+                      <h2 className="auth-type-page-title text-[#111827]">본인 확인</h2>
                     </div>
 
-                    <div className="rounded-[16px] border border-[#ebe5dc] bg-[#faf9f6] px-4 py-2.5">
+                    <div className="mt-4 rounded-[16px] border border-[#ebe5dc] bg-[#faf9f6] px-4 py-2.5">
                       <p className="text-[12px] font-semibold text-[#5f665f]">왜 필요한가요?</p>
-                      <p className="mt-1 text-[12px] leading-[1.5] text-[#8b847b]">
+                      <p className="mt-1 text-[12px] leading-[1.5] text-[#6f665f]">
                         예약·고객 정보 보호와 계정 확인을 위해 필요해요.
                       </p>
                     </div>
@@ -1223,7 +1206,6 @@ export default function SignupForm({
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-[14px] font-semibold text-[#171411]">{method.title}</p>
-                          <p className="mt-0.5 text-[12px] leading-5 text-[#8b847b]">{method.description}</p>
                         </div>
                         <span
                           className={cn(
@@ -1239,20 +1221,6 @@ export default function SignupForm({
                     ))}
                   </div>
                 </div>
-
-                {selectedVerificationMeta ? (
-                  <div className="mt-5 rounded-[16px] border border-[#ece4da] bg-[#fcfaf7] px-4 py-3.5">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center">
-                        <VerificationMethodLogo method={selectedVerificationMeta.id} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[14px] font-semibold text-[#171411]">{selectedVerificationMeta.title}</p>
-                        <p className="mt-0.5 text-[12px] leading-5 text-[#8b847b]">{selectedVerificationMeta.description}</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
 
                 {selectedVerificationMethod === "phone" ? (
                   <div className="mt-5 space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
@@ -1366,7 +1334,7 @@ export default function SignupForm({
                 {selectedVerificationMethod && selectedVerificationMethod !== "phone" && selectedVerificationMethod !== "pass" ? (
                   <div className="mt-5 rounded-[16px] border border-dashed border-[#d9d3ca] bg-[#fcfaf7] px-4 py-5 text-center">
                     <p className="text-[14px] font-semibold text-[#2f2a25]">준비 중인 인증 수단입니다</p>
-                    <p className="mt-2 text-[12px] leading-5 text-[#8b847b]">
+                    <p className="mt-2 text-[12px] leading-5 text-[#6f665f]">
                       실제 인증 연동 전까지는 사용할 수 없어요.
                       <br />
                       서버에서 인증사 결과를 조회해 확인하도록 연결이 필요합니다.
@@ -1431,7 +1399,7 @@ export default function SignupForm({
                     </button>
                     <div className="min-w-0">
                       <p className="text-[12px] font-semibold text-[#7b746b]">본인 확인</p>
-                      <h2 className="mt-1 truncate text-[20px] font-extrabold tracking-[-0.04em] text-[#111827]">
+                      <h2 className="auth-type-section-title mt-1 truncate text-[#111827]">
                         {selectedVerificationMeta.title}
                       </h2>
                     </div>
@@ -1559,11 +1527,7 @@ export default function SignupForm({
                 ) : null}
 
                 {selectedVerificationMethod !== "phone" && selectedVerificationMethod !== "pass" ? (
-                  <div className="space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#2f2a25]">간편 인증을 시작할게요.</p>
-                    <p className="text-[12px] leading-5 text-[#8b847b]">
-                      선택한 인증 수단으로 이동해 본인 확인을 진행해 주세요.
-                    </p>
+                  <div className="rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
                     <button
                       type="button"
                       onClick={() =>

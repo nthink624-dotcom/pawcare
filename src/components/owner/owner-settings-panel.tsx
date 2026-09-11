@@ -1,11 +1,15 @@
 ﻿"use client";
 
-import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, Phone, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, Phone, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import OwnerAppNotificationSettings from "@/components/owner/owner-app-notification-settings";
+import OwnerAccountDeletionPanel from "@/components/owner/owner-account-deletion-panel";
+import OwnerSettingsOverview, { type OwnerSettingsOverviewGroup } from "@/components/owner/owner-settings-overview";
 import OwnerSupportPanel from "@/components/owner/owner-support-panel";
+import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
+import MobileAiPriceGuideFixture, { type PriceGuideSessionState } from "@/components/auth/mobile-ai-price-guide-fixture";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { Switch } from "@/components/ui/switch";
 import { ApiRequestError } from "@/lib/api";
@@ -14,18 +18,25 @@ import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+import { ensureMobilePriceGuideSourceItemIds } from "@/lib/price-photo/mobile-price-photo-adapter";
+import { isMobilePriceGuideV2, toMobilePriceDrafts } from "@/lib/price-photo/mobile-price-photo-http-adapter";
+import {
+  isStaffProfileFallbackKey,
+  staffProfileFallbackKeys,
+  type StaffProfileFallbackKey,
+} from "@/lib/staff-profile-fallback";
 import {
   PUBLIC_LEGAL_CONTACT,
   PUBLIC_LEGAL_LINKS,
   getPublicLegalMailtoHref,
   getPublicLegalTelHref,
 } from "@/lib/legal/public-legal-links";
-import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, won } from "@/lib/utils";
+import { addDate, currentDateInTimeZone, decodeUnicodeEscapes } from "@/lib/utils";
 import type { BootstrapPayload, BootstrapStaffMember, BusinessHours } from "@/types/domain";
 
 type SettingsPanelProps = {
   data: BootstrapPayload;
-  onSave: (payload: unknown) => Promise<unknown> | void;
+  onSave: (payload: unknown, options?: { errorFallbackMessage?: string }) => Promise<unknown> | void;
   onSaveCustomerPageSettings: (payload: unknown) => Promise<unknown> | void;
   onSaveStaff: (payload: unknown) => Promise<unknown> | void;
   onLogout?: () => void;
@@ -36,6 +47,9 @@ type SettingsPanelProps = {
   onActiveScreenChange?: (screen: SettingsScreen) => void;
   appRole?: MobileAppRole;
   currentStaffId?: string | null;
+  onOpenFeedback?: () => void;
+  feedbackTriggerRef?: RefObject<HTMLButtonElement | null>;
+  isTesterFeedback?: boolean;
 };
 
 type MobileAppRole = "owner" | "staff";
@@ -51,6 +65,7 @@ type StaffProfileDraft = {
   name: string;
   displayName: string;
   profileImageUrl: string;
+  profileImageFallbackKey: StaffProfileFallbackKey | null;
   titlePrefix: string;
   position: string;
   chipColorIndex: number | null;
@@ -70,6 +85,7 @@ type ShopNotificationSettingsState = {
 };
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
+const businessHoursRowValueWeightClass = "font-medium";
 const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
 const defaultStaffProfileMessage = "아이 성향에 맞춰 차분하게 미용해드려요.";
 
@@ -78,6 +94,9 @@ function createStaffProfileDraft(staffMember: BootstrapStaffMember): StaffProfil
     name: staffMember.name,
     displayName: staffMember.displayName ?? "",
     profileImageUrl: staffMember.profileImageUrl ?? "",
+    profileImageFallbackKey: isStaffProfileFallbackKey(staffMember.profileImageFallbackKey)
+      ? staffMember.profileImageFallbackKey
+      : null,
     titlePrefix: staffMember.titlePrefix ?? "",
     position: staffMember.position ?? "",
     chipColorIndex: staffMember.chipColorIndex ?? null,
@@ -87,6 +106,27 @@ function createStaffProfileDraft(staffMember: BootstrapStaffMember): StaffProfil
 
 function createStaffProfileDrafts(staffMembers: BootstrapStaffMember[]): Record<string, StaffProfileDraft> {
   return Object.fromEntries(staffMembers.map((staffMember) => [staffMember.id, createStaffProfileDraft(staffMember)]));
+}
+
+function readBootstrapPriceGuideState(services: BootstrapPayload["services"]): PriceGuideSessionState | null {
+  for (const service of services) {
+    if (!isMobilePriceGuideV2(service.price_guide)) continue;
+    const document = ensureMobilePriceGuideSourceItemIds(service.price_guide);
+    return {
+      serviceId: service.id,
+      document,
+      rows: toMobilePriceDrafts(document).map((row) => ({
+        id: row.clientId,
+        rowIndex: row.rowIndex,
+        name: row.serviceName,
+        priceKind: row.priceKind,
+        price: String(row.fixedPrice ?? row.minimumPrice ?? ""),
+        maximumPrice: String(row.maximumPrice ?? ""),
+        durationMinutes: row.durationMinutes === null ? "" : String(row.durationMinutes),
+      })),
+    };
+  }
+  return null;
 }
 function createBusinessHoursState(hours: BusinessHours, regularClosedDays: number[]): BusinessHours {
   return Object.fromEntries(
@@ -109,6 +149,10 @@ function formatBusinessHoursRange(entry?: { open: string; close: string }) {
   return `${entry.open} - ${entry.close}`;
 }
 
+function isOrderedTimeRange(open: string, close: string) {
+  return /^\d{2}:\d{2}$/.test(open) && /^\d{2}:\d{2}$/.test(close) && open < close;
+}
+
 function mapShopNotificationSettingsState(
   settings: BootstrapPayload["shop"]["notification_settings"],
 ): ShopNotificationSettingsState {
@@ -124,6 +168,29 @@ function mapShopNotificationSettingsState(
     groomingStartWithoutPhotoEnabled: settings.grooming_start_without_photo_enabled ?? false,
     groomingCompleteWithoutPhotoEnabled: settings.grooming_complete_without_photo_enabled ?? false,
   };
+}
+
+function getNotificationSettingsSaveFailureMessage(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 401 || error.status === 403) {
+      return "로그인 상태를 확인한 뒤 다시 시도해 주세요.";
+    }
+    if (error.status === 404 || error.status === 405) {
+      return "알림톡 설정 연결을 찾지 못했어요. 잠시 후 다시 시도해 주세요.";
+    }
+    if (error.status === 409) {
+      return "다른 설정 변경이 반영되었어요. 화면을 다시 확인해 주세요.";
+    }
+    if (error.status === 400 || error.status === 422) {
+      return "알림톡 설정 값을 다시 확인해 주세요.";
+    }
+  }
+
+  if (error instanceof TypeError) {
+    return "알림톡 설정 연결을 확인한 뒤 다시 시도해 주세요.";
+  }
+
+  return "알림톡 설정을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
 function withPrimedShopNotificationSettings(
@@ -191,18 +258,6 @@ function parseShopAddressParts(rawAddress: string) {
   };
 }
 
-function resolveLoginIdFromOwnerAuthEmail(email?: string | null) {
-  const trimmed = email?.trim();
-  if (!trimmed) return null;
-
-  const lowerEmail = trimmed.toLowerCase();
-  const ownerAuthEmailSuffixes = ["@owner.petmanager.local", "@owner.pawcare.local"];
-  const matchedSuffix = ownerAuthEmailSuffixes.find((suffix) => lowerEmail.endsWith(suffix));
-
-  if (!matchedSuffix) return null;
-  return trimmed.slice(0, -matchedSuffix.length);
-}
-
 export default function OwnerSettingsPanel({
   data,
   onSave,
@@ -216,6 +271,9 @@ export default function OwnerSettingsPanel({
   onActiveScreenChange,
   appRole = "owner",
   currentStaffId = null,
+  onOpenFeedback,
+  feedbackTriggerRef,
+  isTesterFeedback = false,
 }: SettingsPanelProps) {
   const initialAddressParts = parseShopAddressParts(data.shop.address);
   const [name, setName] = useState(decodeUnicodeEscapes(data.shop.name));
@@ -257,6 +315,7 @@ export default function OwnerSettingsPanel({
     createStaffProfileDrafts(data.staffMembers),
   );
   const [savingStaffId, setSavingStaffId] = useState<string | null>(null);
+  const [staffProfileChoiceErrorStaffId, setStaffProfileChoiceErrorStaffId] = useState<string | null>(null);
   const [staffFeedback, setStaffFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoFeedback, setBasicInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
@@ -266,6 +325,10 @@ export default function OwnerSettingsPanel({
   const operatingSaveCountRef = useRef(0);
   const [isBasicInfoEditing, setIsBasicInfoEditing] = useState(false);
   const [localActiveScreen, setLocalActiveScreen] = useState<SettingsScreen>(initialScreen ?? null);
+  const [isPriceGuideOpen, setIsPriceGuideOpen] = useState(false);
+  const [priceGuideState, setPriceGuideState] = useState<PriceGuideSessionState | null>(() =>
+    readBootstrapPriceGuideState(data.services),
+  );
   const [notificationSettings, setNotificationSettings] = useState<ShopNotificationSettingsState>(
     mapShopNotificationSettingsState(data.shop.notification_settings),
   );
@@ -274,6 +337,7 @@ export default function OwnerSettingsPanel({
   const [notificationSettingsFeedback, setNotificationSettingsFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
   const notificationSaveQueueRef = useRef(Promise.resolve());
   const notificationSaveCountRef = useRef(0);
+  const notificationSaveSequenceRef = useRef(0);
   const activeScreen = onActiveScreenChange ? (initialScreen ?? null) : localActiveScreen;
   const isStaffApp = appRole === "staff";
   const effectiveActiveScreen =
@@ -284,7 +348,7 @@ export default function OwnerSettingsPanel({
     activeScreen !== "account"
       ? null
       : activeScreen;
-  const accountLoginId = resolveLoginIdFromOwnerAuthEmail(userEmail);
+  const accountEmail = userEmail?.trim().toLowerCase() || null;
   const currentStaff = useMemo(
     () => data.staffMembers.find((staffMember) => staffMember.id === currentStaffId) ?? data.staffMembers[0] ?? null,
     [currentStaffId, data.staffMembers],
@@ -297,6 +361,7 @@ export default function OwnerSettingsPanel({
 
   useEffect(() => {
     setStaffProfileDrafts(createStaffProfileDrafts(data.staffMembers));
+    setStaffProfileChoiceErrorStaffId(null);
     setStaffFeedback({ type: "idle", message: "" });
   }, [data.staffMembers]);
 
@@ -418,11 +483,13 @@ export default function OwnerSettingsPanel({
       close: base.close,
       closed: target === "all" ? false : regularClosedDays.includes(target),
     });
+    setOperatingInfoFeedback({ type: "idle", message: "" });
     setTimeEditorTarget(target);
   }
 
-  function applyBusinessHoursEditor() {
+  async function applyBusinessHoursEditor() {
     if (timeEditorTarget === null) return;
+    if (!timeDraft.closed && !isOrderedTimeRange(timeDraft.open, timeDraft.close)) return;
 
     const nextBusinessHours = { ...businessHours };
     const nextRegularClosedDays = [...regularClosedDays];
@@ -451,9 +518,11 @@ export default function OwnerSettingsPanel({
       nextRegularClosedDays.sort((left, right) => left - right);
     }
 
+    const saved = await saveOperatingInfo(nextBusinessHours, nextRegularClosedDays, temporaryClosedDates);
+    if (!saved) return;
+
     setBusinessHours(nextBusinessHours);
     setRegularClosedDays(nextRegularClosedDays);
-    saveOperatingInfo(nextBusinessHours, nextRegularClosedDays, temporaryClosedDates);
     setTimeEditorTarget(null);
   }
 
@@ -560,6 +629,7 @@ export default function OwnerSettingsPanel({
           name: "",
           displayName: "",
           profileImageUrl: "",
+          profileImageFallbackKey: null,
           titlePrefix: "",
           position: "",
           chipColorIndex: null,
@@ -568,20 +638,6 @@ export default function OwnerSettingsPanel({
         ...patch,
       },
     }));
-  }
-
-  function handleStaffProfileImageChange(staffMemberId: string, event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = "";
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        updateStaffProfileDraft(staffMemberId, { profileImageUrl: reader.result });
-      }
-    };
-    reader.readAsDataURL(file);
   }
 
   function addPendingClosedDate() {
@@ -607,7 +663,7 @@ export default function OwnerSettingsPanel({
     nextBusinessHours: BusinessHours,
     nextRegularClosedDays: number[],
     nextTemporaryClosedDates: string[],
-  ) {
+  ): Promise<boolean> {
     operatingSaveCountRef.current += 1;
     setSavingOperatingInfo(true);
     setOperatingInfoFeedback({ type: "idle", message: "" });
@@ -634,21 +690,27 @@ export default function OwnerSettingsPanel({
           }),
         );
         setOperatingInfoFeedback({ type: "success", message: "자동 저장되었습니다." });
+        return true;
       } catch (error) {
         setOperatingInfoFeedback({
           type: "error",
-          message: error instanceof Error ? error.message : "운영 정보를 저장하지 못했습니다.",
+          message: `${error instanceof Error ? error.message : "운영 정보를 저장하지 못했습니다."} 입력값은 유지되었습니다. 확인 후 다시 시도해 주세요.`,
         });
+        return false;
       } finally {
         operatingSaveCountRef.current -= 1;
         if (operatingSaveCountRef.current === 0) setSavingOperatingInfo(false);
       }
     };
 
-    operatingSaveQueueRef.current = operatingSaveQueueRef.current.then(saveTask, saveTask);
+    const queuedTask = operatingSaveQueueRef.current.then(saveTask, saveTask);
+    operatingSaveQueueRef.current = queuedTask.then(() => undefined);
+    return queuedTask;
   }
 
   function saveNotificationSettings(nextSettings: ShopNotificationSettingsState) {
+    const saveSequence = notificationSaveSequenceRef.current + 1;
+    notificationSaveSequenceRef.current = saveSequence;
     notificationSaveCountRef.current += 1;
     setSavingNotificationSettings(true);
     setNotificationSettingsFeedback({ type: "idle", message: "" });
@@ -672,15 +734,18 @@ export default function OwnerSettingsPanel({
             temporaryClosedDates,
             businessHours,
             notificationSettings: nextSettings,
-          }),
+          }, { errorFallbackMessage: "알림톡 설정을 저장하지 못했어요." }),
         );
-        setIsNotificationSettingsDirty(false);
-        setNotificationSettingsFeedback({ type: "success", message: "자동 저장되었습니다." });
+        if (notificationSaveSequenceRef.current === saveSequence) {
+          setIsNotificationSettingsDirty(false);
+          setNotificationSettingsFeedback({ type: "success", message: "자동 저장되었습니다." });
+        }
       } catch (error) {
-        setNotificationSettingsFeedback({
-          type: "error",
-          message: error instanceof Error ? error.message : "알림톡 설정을 저장하지 못했습니다.",
-        });
+        if (notificationSaveSequenceRef.current === saveSequence) {
+          setNotificationSettings(mapShopNotificationSettingsState(data.shop.notification_settings));
+          setIsNotificationSettingsDirty(false);
+          setNotificationSettingsFeedback({ type: "error", message: getNotificationSettingsSaveFailureMessage(error) });
+        }
       } finally {
         notificationSaveCountRef.current -= 1;
         if (notificationSaveCountRef.current === 0) setSavingNotificationSettings(false);
@@ -784,7 +849,14 @@ export default function OwnerSettingsPanel({
     const draft = staffProfileDrafts[staffMember.id] ?? createStaffProfileDraft(staffMember);
     const name = draft.name.trim() || staffMember.name;
 
+    if (!draft.profileImageUrl.trim() && !isStaffProfileFallbackKey(draft.profileImageFallbackKey)) {
+      setStaffProfileChoiceErrorStaffId(staffMember.id);
+      setStaffFeedback({ type: "error", message: "기본 프로필 이미지 두 개 중 하나를 선택해 주세요." });
+      return;
+    }
+
     setSavingStaffId(staffMember.id);
+    setStaffProfileChoiceErrorStaffId(null);
     setStaffFeedback({ type: "idle", message: "" });
 
     try {
@@ -795,6 +867,7 @@ export default function OwnerSettingsPanel({
           name,
           displayName: draft.displayName.trim(),
           profileImageUrl: draft.profileImageUrl.trim(),
+          profileImageFallbackKey: draft.profileImageFallbackKey,
           titlePrefix: draft.titlePrefix.trim(),
           position: draft.position.trim() || staffMember.position || staffMember.role || "직원",
           chipColorIndex: draft.chipColorIndex,
@@ -812,64 +885,18 @@ export default function OwnerSettingsPanel({
     }
   }
 
-  const subscriptionSection = subscriptionSummary ? (
-    <section className="space-y-4">
-      {(() => {
-        const currentPlan = subscriptionSummary.currentPlan;
-        const isTrialStatus =
-          subscriptionSummary.status === "trialing" || subscriptionSummary.status === "trial_will_end";
-        const showTrialCard =
-          isTrialStatus &&
-          !subscriptionSummary.currentPeriodEndsAt &&
-          subscriptionSummary.lastPaymentStatus === "none";
-        const isFreePlan = currentPlan.code === "free";
-        const currentPlanTitle = isFreePlan || showTrialCard ? "체험 플랜" : getOwnerPlanDisplayName(currentPlan.code);
-        const currentPlanLine = isFreePlan || showTrialCard
-          ? "카드 등록 없이 이용 중"
-          : `${currentPlan.staffLimitLabel} · ${currentPlan.alimtalkIncludedLabel}`;
-        const currentPlanPriceLabel = isFreePlan || showTrialCard ? "무료" : `월 ${won(currentPlan.monthlyPrice)}`;
-        const currentPlanSubLabel = isFreePlan
-          ? "관리자 설정"
-          : showTrialCard
+  const planOverviewSummary = subscriptionSummary
+    ? {
+        name:
+          subscriptionSummary.currentPlan.code === "free" ||
+          ((subscriptionSummary.status === "trialing" || subscriptionSummary.status === "trial_will_end") &&
+            !subscriptionSummary.currentPeriodEndsAt &&
+            subscriptionSummary.lastPaymentStatus === "none")
             ? "체험 플랜"
-          : currentPlan.excessAlimtalkLabel;
-        const endDateLabel = "서비스 종료일";
-        return (
-      <div className="overflow-hidden rounded-[10px] border border-[#d9d4cb] bg-white shadow-[0_4px_12px_rgba(21,22,19,0.03)]">
-        <div className="px-5 py-4">
-          <div className="flex items-start justify-between gap-5">
-            <div className="min-w-0">
-              <p className="text-[12px] font-medium tracking-[0.02em] text-[#8a8277]">현재 플랜</p>
-              <p className="mt-2 text-[22px] font-medium leading-none tracking-[-0.04em] text-[#171411]">
-                {currentPlanTitle}
-              </p>
-              <p className="mt-2 text-[14px] font-normal leading-[1.45] text-[#6f675d]">{currentPlanLine}</p>
-            </div>
-            <div className="shrink-0 pt-0.5 text-right">
-              <p className="text-[22px] font-medium leading-none tracking-[-0.04em] text-[#171411]">{currentPlanPriceLabel}</p>
-              <p className="mt-2 text-[12px] font-normal text-[#8a8277]">
-                {currentPlanSubLabel}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 border-t border-[#ebe5dc] pt-3.5">
-            <div className="flex items-end justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-[12px] font-medium tracking-[0.02em] text-[#8a8277]">{endDateLabel}</p>
-                <p className="mt-1 text-[17px] font-medium tracking-[-0.02em] text-[#171411]">{subscriptionEndDate}</p>
-              </div>
-            </div>
-            <p className="mt-3 rounded-[8px] bg-[#f5f7fa] px-3 py-2 text-[12px] leading-5 text-[#607080]">
-              플랜 변경과 결제는 PC 웹에서만 가능해요.
-            </p>
-          </div>
-        </div>
-      </div>
-        );
-      })()}
-    </section>
-  ) : null;
+            : getOwnerPlanDisplayName(subscriptionSummary.currentPlan.code),
+        endDate: subscriptionEndDate,
+      }
+    : undefined;
 
   const shopSection = (
     <div className="rounded-[14px] border border-[#e2e7ed] bg-[#ffffff] p-3.5">
@@ -1000,10 +1027,10 @@ export default function OwnerSettingsPanel({
           className="mb-1 flex w-full items-center justify-between gap-3 rounded-[10px] bg-[#eaf1fc] px-3 py-2.5 text-left"
         >
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-[#1d4d9e]">전체 시간 설정</p>
-            <p className="mt-0.5 truncate text-[12px] text-[#4779c7]">{businessHoursSummary}</p>
+            <p className="text-[20px] font-semibold leading-7 text-[#1d4d9e]">전체 시간 설정</p>
+            <p className="mt-0.5 truncate text-[16px] font-medium leading-6 text-[#4779c7]">{businessHoursSummary}</p>
           </div>
-          <span className="inline-flex h-7 shrink-0 items-center rounded-[7px] border border-[#cfe0f7] bg-white px-2.5 text-[12px] font-semibold text-[#2f6fd6]">
+          <span className="inline-flex min-h-11 shrink-0 items-center rounded-[7px] border border-[#cfe0f7] bg-white px-3 text-[16px] font-medium leading-6 text-[#2f6fd6]">
             일괄 적용
           </span>
         </button>
@@ -1016,16 +1043,16 @@ export default function OwnerSettingsPanel({
                 key={day}
                 type="button"
                 onClick={() => openBusinessHoursEditor(day)}
-                className="flex h-[50px] w-full items-center justify-between gap-3 px-1 text-left"
+                className="flex min-h-14 w-full items-center justify-between gap-3 px-1 text-left"
               >
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <span className={`inline-flex w-10 shrink-0 items-center text-[14px] font-semibold leading-none ${day === 0 ? "text-[#e0594f]" : day === 6 ? "text-[#2f6fd6]" : "text-[#1e293b]"}`}>
+                  <span className={`inline-flex w-10 shrink-0 items-center text-[14px] leading-5 ${businessHoursRowValueWeightClass} ${day === 0 ? "text-[#e0594f]" : day === 6 ? "text-[#2f6fd6]" : "text-[#1e293b]"}`}>
                     {weekdayLabels[day]}요일
                   </span>
                   {isClosed ? (
-                    <span className="inline-flex items-center rounded-[6px] bg-[#fdeeec] px-2 py-1 text-[11px] font-semibold leading-none text-[#b3453b]">휴무</span>
+                    <span className="inline-flex items-center rounded-[6px] bg-[#fdeeec] px-2 py-1 text-[14px] font-medium leading-5 text-[#b3453b]">휴무</span>
                   ) : (
-                    <p className="min-w-0 truncate text-[15px] font-medium leading-5 text-[#334155]">{formatBusinessHoursRange(hours)}</p>
+                    <p className={`min-w-0 truncate text-[16px] leading-5 text-[#334155] ${businessHoursRowValueWeightClass}`}>{formatBusinessHoursRange(hours)}</p>
                   )}
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.8} />
@@ -1095,33 +1122,12 @@ export default function OwnerSettingsPanel({
 
   const notificationsSection = (
     <SettingsCard contentClassName="space-y-4">
-      <div className="rounded-[10px] border border-[#dfe7f1] bg-[#f7f9fc] px-4 py-3.5">
-        {data.alimtalkCreditSummary ? (
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="text-[13px] font-medium text-[#526274]">남은 알림톡</p>
-              <p className="mt-1 text-[24px] font-semibold tracking-[-0.03em] text-[#172033]">
-                {data.alimtalkCreditSummary.remaining_total.toLocaleString("ko-KR")}건
-              </p>
-            </div>
-            <p className="text-right text-[12px] leading-5 text-[#607080]">
-              포함 {data.alimtalkCreditSummary.included_remaining.toLocaleString("ko-KR")}건<br />
-              추가 {data.alimtalkCreditSummary.purchased_remaining.toLocaleString("ko-KR")}건
-            </p>
-          </div>
-        ) : (
-          <p className="text-[13px] leading-5 text-[#607080]">알림톡 잔여 정보를 불러오지 못했어요.</p>
-        )}
-        <p className="mt-3 border-t border-[#dfe7f1] pt-2.5 text-[12px] leading-5 text-[#607080]">
-          알림톡 추가 구매는 PC 웹에서만 가능해요.
-        </p>
-      </div>
       <SettingsFieldCard
         label="알림톡 발송"
         className="border-[#dfe7f1] bg-white px-4 pb-3 pt-2.5"
         labelAccessory={
           <InfoTip ariaLabel="알림톡 설정 안내" popoverClassName="w-[248px]">
-            매장 알림톡과 고객별 수신 설정이 모두 켜져 있어야 오너가 직접 알림을 보낼 수 있어요.
+            알림톡은 {PETMANAGER_SERVICE_NAME} 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
           </InfoTip>
         }
       >
@@ -1132,11 +1138,6 @@ export default function OwnerSettingsPanel({
             onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
             emphasized
           />
-          <div className="rounded-[10px] border border-[#e1e8f0] bg-[#f7f9fc] px-3 py-2.5">
-            <p className="text-[12px] leading-[18px] tracking-[-0.01em] text-[#607080]">
-              알림톡은 {PETMANAGER_SERVICE_NAME} 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
-            </p>
-          </div>
           <div className="space-y-2">
             <ToggleRow
               label="예약 확정 안내"
@@ -1197,8 +1198,9 @@ export default function OwnerSettingsPanel({
   const accountSection = onLogout ? (
     <SettingsCard>
       <div className="divide-y divide-[var(--border)]">
-        {accountLoginId ? <AccountRow icon={UserRound} label="로그인 아이디" value={accountLoginId} /> : null}
+        {accountEmail ? <AccountRow icon={UserRound} label="로그인 이메일" value={accountEmail} /> : null}
         <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
+        {appRole === "owner" ? <OwnerAccountDeletionPanel onDeleted={onLogout} /> : null}
         <AccountActionRow icon={LogOut} label={loggingOut ? "로그아웃 중..." : "로그아웃"} onClick={onLogout} disabled={loggingOut} />
       </div>
     </SettingsCard>
@@ -1209,55 +1211,83 @@ export default function OwnerSettingsPanel({
       {data.staffMembers.map((staffMember) => {
         const draft = staffProfileDrafts[staffMember.id] ?? createStaffProfileDraft(staffMember);
         const displayName = draft.displayName.trim() || draft.name.trim() || staffMember.name;
-        const avatarLabel = displayName.slice(0, 1);
-        const imageInputId = `staff-profile-image-${staffMember.id}`;
+        const profileRoleLine = Array.from(new Set([
+          draft.titlePrefix.trim(),
+          draft.position.trim() || staffMember.position?.trim() || staffMember.role?.trim() || "직원",
+        ].filter(Boolean))).join(" · ");
+        const hasProfileImage = Boolean(draft.profileImageUrl.trim()) || isStaffProfileFallbackKey(draft.profileImageFallbackKey);
 
         return (
           <div key={staffMember.id} className="rounded-[14px] border border-[#e2e7ed] bg-white p-4">
             <div className="space-y-3.5">
-              <div className="flex items-center gap-3 border-b border-[#edf1f5] pb-4">
-                <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#eaf1fc] text-[22px] font-bold text-[#2f6fd6]">
-                  {draft.profileImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={draft.profileImageUrl} alt="" className="h-full w-full object-cover" />
+              <div data-staff-profile-header className="flex items-center gap-4 border-b border-[#edf1f5] pb-4">
+                <div className="flex h-[84px] w-[84px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#e2e7ed] bg-[#f4f6f8] text-[#64748b]">
+                  {hasProfileImage ? (
+                    <StaffProfilePhoto
+                      src={draft.profileImageUrl}
+                      fallbackKey={draft.profileImageFallbackKey}
+                      alt={`${displayName} 프로필`}
+                    />
                   ) : (
-                    avatarLabel
+                    <UserRound className="h-8 w-8" aria-hidden="true" strokeWidth={1.6} />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[16px] font-bold tracking-[-0.02em] text-[#0f172a]">{displayName}</p>
-                  <p className="mt-0.5 truncate text-[12.5px] leading-4 text-[#64748b]">
-                    {[draft.titlePrefix, draft.position].filter(Boolean).join(" · ") || "고객에게 보일 프로필"}
+                  <p className="[overflow-wrap:anywhere] text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#0f172a]">{displayName}</p>
+                  <p className="mt-1 [overflow-wrap:anywhere] text-[14px] font-normal leading-5 text-[#64748b]">
+                    {profileRoleLine}
                   </p>
-                  <input
-                    id={imageInputId}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => handleStaffProfileImageChange(staffMember.id, event)}
-                  />
-                  <label
-                    htmlFor={imageInputId}
-                    className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#e2e7ed] bg-[#fafbfc] px-3 text-[12px] font-semibold text-[#334155]"
-                  >
-                    <Camera className="h-3.5 w-3.5" strokeWidth={2.2} />
-                    사진 올리기
-                  </label>
-                  {draft.profileImageUrl ? (
-                    <button
-                      type="button"
-                      onClick={() => updateStaffProfileDraft(staffMember.id, { profileImageUrl: "" })}
-                      className="ml-2 inline-flex h-8 items-center rounded-[8px] px-2 text-[12px] font-semibold text-[#94a3b8]"
-                    >
-                      사진 지우기
-                    </button>
-                  ) : null}
                 </div>
               </div>
 
+              <fieldset data-staff-profile-preset-picker className="space-y-2.5">
+                <legend className="text-[14px] font-medium leading-5 text-[#334155]">기본 프로필</legend>
+                <div className="grid grid-cols-2 gap-3">
+                  {staffProfileFallbackKeys.map((fallbackKey, index) => {
+                    const selected = draft.profileImageFallbackKey === fallbackKey;
+                    return (
+                      <button
+                        key={fallbackKey}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        aria-label={`기본 프로필 ${index + 1}`}
+                        onClick={() => {
+                          updateStaffProfileDraft(staffMember.id, { profileImageFallbackKey: fallbackKey });
+                          if (staffProfileChoiceErrorStaffId === staffMember.id) {
+                            setStaffProfileChoiceErrorStaffId(null);
+                            setStaffFeedback({ type: "idle", message: "" });
+                          }
+                        }}
+                        className={`relative flex min-h-[96px] items-center justify-center rounded-[12px] border bg-white p-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6fd6] focus-visible:ring-offset-2 ${
+                          selected ? "border-[#111a30]" : "border-[#e2e7ed]"
+                        }`}
+                      >
+                        <span className="h-[72px] w-[72px] overflow-hidden rounded-full bg-[#f4f6f8]">
+                          <StaffProfilePhoto
+                            fallbackKey={fallbackKey}
+                            alt={`기본 프로필 ${index + 1}`}
+                          />
+                        </span>
+                        {selected ? (
+                          <span className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#111a30] text-white" aria-hidden="true">
+                            <Check className="h-3 w-3" strokeWidth={2.2} />
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+                {staffProfileChoiceErrorStaffId === staffMember.id ? (
+                  <p className="text-[13px] font-normal leading-5 text-[#b3453b]" role="alert">
+                    기본 프로필 이미지 두 개 중 하나를 선택해 주세요.
+                  </p>
+                ) : null}
+              </fieldset>
+
               <StaffProfileEditField label="직원 이름">
                 <input
-                  className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  className="w-full bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                   value={draft.name}
                   onChange={(event) => updateStaffProfileDraft(staffMember.id, { name: event.target.value })}
                   placeholder="직원 이름"
@@ -1266,7 +1296,7 @@ export default function OwnerSettingsPanel({
 
               <StaffProfileEditField label="고객 표시 이름">
                 <input
-                  className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  className="w-full bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                   value={draft.displayName}
                   onChange={(event) => updateStaffProfileDraft(staffMember.id, { displayName: event.target.value })}
                   placeholder="예: 정우진 원장"
@@ -1276,7 +1306,7 @@ export default function OwnerSettingsPanel({
               <div className="grid grid-cols-2 gap-2">
                 <StaffProfileEditField label="호칭">
                   <input
-                    className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                    className="w-full bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                     value={draft.titlePrefix}
                     onChange={(event) => updateStaffProfileDraft(staffMember.id, { titlePrefix: event.target.value })}
                     placeholder="원장"
@@ -1284,7 +1314,7 @@ export default function OwnerSettingsPanel({
                 </StaffProfileEditField>
                 <StaffProfileEditField label="역할">
                   <input
-                    className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                    className="w-full bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                     value={draft.position}
                     onChange={(event) => updateStaffProfileDraft(staffMember.id, { position: event.target.value })}
                     placeholder="대표 미용사"
@@ -1294,7 +1324,7 @@ export default function OwnerSettingsPanel({
 
               <StaffProfileEditField label="상태메시지">
                 <textarea
-                  className="min-h-[82px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  className="min-h-[82px] w-full resize-none bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                   value={draft.profileMessage}
                   onChange={(event) => updateStaffProfileDraft(staffMember.id, { profileMessage: event.target.value })}
                   placeholder={defaultStaffProfileMessage}
@@ -1337,7 +1367,7 @@ export default function OwnerSettingsPanel({
             rel="noreferrer"
             className="flex min-h-[54px] items-center justify-between gap-3 px-4 py-3 text-left"
           >
-            <span className="min-w-0 text-[15px] font-medium text-[var(--text)]">{link.label}</span>
+            <span className="min-w-0 text-[16px] font-medium text-[var(--text)]">{link.label}</span>
             <ExternalLink className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
           </a>
         ))}
@@ -1375,15 +1405,33 @@ export default function OwnerSettingsPanel({
       shopId={data.shop.id}
       staffMemberId={appRole === "staff" ? currentStaff?.id ?? currentStaffId : null}
       appRole={appRole}
+      onBack={() => updateActiveScreen(null)}
+    />
+  );
+
+  const priceGuideSection = (
+    <MobileAiPriceGuideFixture
+      shopId={data.shop.id}
+      initialRows={priceGuideState?.rows ?? null}
+      initialDocument={priceGuideState?.document ?? null}
+      initialServiceId={priceGuideState?.serviceId ?? null}
+      onComplete={(_rows, state) => {
+        setPriceGuideState(state ?? null);
+        setIsPriceGuideOpen(false);
+      }}
+      onExit={(_rows, state) => {
+        setPriceGuideState(state ?? null);
+        setIsPriceGuideOpen(false);
+      }}
     />
   );
 
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     shop: { title: "매장 기본 정보", content: shopSection },
-    closures: { title: "영업 시간 설정", content: closuresSection },
-    notifications: { title: "알림톡 설정", content: notificationsSection },
-    appNotifications: { title: "앱 알림", content: appNotificationsSection },
-    staff: { title: "직원관리", content: staffSection },
+    closures: { title: "영업·예약 시간", content: closuresSection },
+    notifications: { title: "고객 알림톡", content: notificationsSection },
+    appNotifications: { title: "내 앱 알림", content: appNotificationsSection },
+    staff: { title: "직원 관리", content: staffSection },
     support: { title: "1:1 문의", content: supportSection },
     legal: { title: "약관 및 정책", content: legalSection },
     account: { title: "계정", content: accountSection },
@@ -1418,7 +1466,7 @@ export default function OwnerSettingsPanel({
             {noticeEditorTarget === "parking" ? (
               <SettingsFieldCard label="주차 안내 문구" className="pt-1.5">
                 <textarea
-                  className="min-h-[104px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  className="min-h-[104px] w-full resize-none bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                   value={parkingNoticeDraft}
                   onChange={(event) => setParkingNoticeDraft(event.target.value)}
                   placeholder="예: 건물 뒤편 공용 주차장을 이용해 주세요."
@@ -1429,7 +1477,7 @@ export default function OwnerSettingsPanel({
                 {noticeDrafts.map((notice, index) => (
                   <SettingsFieldCard key={index} label={`안내 문구 ${index + 1}`} className="pt-1.5">
                     <input
-                      className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                      className="w-full bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                       value={notice}
                       onChange={(event) =>
                         setNoticeDrafts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
@@ -1454,7 +1502,11 @@ export default function OwnerSettingsPanel({
             title={timeEditorTarget === "all" ? "전체 시간 설정" : `${weekdayLabels[timeEditorTarget]}요일 시간 설정`}
             draft={timeDraft}
             showClosedToggle={timeEditorTarget !== "all"}
-            onClose={() => setTimeEditorTarget(null)}
+            saving={savingOperatingInfo}
+            errorMessage={operatingInfoFeedback.type === "error" ? operatingInfoFeedback.message : null}
+            onClose={() => {
+              if (!savingOperatingInfo) setTimeEditorTarget(null);
+            }}
             onChange={(nextDraft) => setTimeDraft(nextDraft)}
             onApply={applyBusinessHoursEditor}
           />
@@ -1490,7 +1542,7 @@ export default function OwnerSettingsPanel({
       <StaffSettingsHome
         staffMember={currentStaff}
         shopName={decodeUnicodeEscapes(data.shop.name)}
-        accountLoginId={accountLoginId}
+        accountEmail={accountEmail}
         onSupportClick={() => updateActiveScreen("support")}
         onLegalClick={() => updateActiveScreen("legal")}
         onAccountClick={onLogout ? () => updateActiveScreen("account") : undefined}
@@ -1498,54 +1550,40 @@ export default function OwnerSettingsPanel({
     );
   }
 
-  return (
-    <section className="min-h-full bg-[#F4F5F7] p-4">
-      {subscriptionSummary ? <div className="mb-3.5">{subscriptionSection}</div> : null}
+  if (isPriceGuideOpen) {
+    return <section className="min-h-full bg-[#F4F5F7] py-4">{priceGuideSection}</section>;
+  }
 
-      <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white shadow-[var(--shadow-soft)] divide-y divide-[var(--border)]">
-        <SettingsNavRow
-          icon={Store}
-          title="매장 기본 정보"
-          onClick={() => updateActiveScreen("shop")}
-        />
-        <SettingsNavRow
-          icon={CalendarDays}
-          title="영업 시간 설정"
-          onClick={() => updateActiveScreen("closures")}
-        />
-        <SettingsNavRow
-          icon={Bell}
-          title="알림톡 설정"
-          onClick={() => updateActiveScreen("notifications")}
-        />
-        <SettingsNavRow
-          icon={BellRing}
-          title="앱 알림"
-          onClick={() => updateActiveScreen("appNotifications")}
-        />
-        <SettingsNavRow
-          icon={UserRound}
-          title="직원관리"
-          onClick={() => updateActiveScreen("staff")}
-        />
-        <SettingsNavRow
-          icon={MessageCircle}
-          title="1:1 문의"
-          onClick={() => updateActiveScreen("support")}
-        />
-        {onLogout ? (
-          <SettingsNavRow
-            icon={UserRound}
-            title="계정"
-            onClick={() => updateActiveScreen("account")}
-          />
-        ) : null}
-        <SettingsNavRow
-          icon={FileText}
-          title="약관 및 정책"
-          onClick={() => updateActiveScreen("legal")}
-        />
-      </div>
+  const settingsGroups: OwnerSettingsOverviewGroup[] = [
+    {
+      title: "매장 운영",
+      items: [
+        { key: "shop", icon: Store, title: "매장 기본 정보", onClick: () => updateActiveScreen("shop") },
+        { key: "closures", icon: CalendarDays, title: "영업·예약 시간", onClick: () => updateActiveScreen("closures") },
+        { key: "price", icon: Camera, title: "서비스·요금 설정", onClick: () => setIsPriceGuideOpen(true) },
+        { key: "staff", icon: UserRound, title: "직원 관리", onClick: () => updateActiveScreen("staff") },
+      ],
+    },
+    {
+      title: "알림·고객 응대",
+      items: [
+        { key: "notifications", icon: Bell, title: "고객 알림톡", onClick: () => updateActiveScreen("notifications") },
+        { key: "appNotifications", icon: BellRing, title: "내 앱 알림", onClick: () => updateActiveScreen("appNotifications") },
+        { key: "feedback", icon: MessageSquarePlus, title: "문의·도움", triggerRef: feedbackTriggerRef, testerEmphasis: isTesterFeedback, onClick: onOpenFeedback ?? (() => updateActiveScreen("support")) },
+      ],
+    },
+    {
+      title: "계정·정책",
+      items: [
+        ...(onLogout ? [{ key: "account", icon: UserRound, title: "계정", onClick: () => updateActiveScreen("account") }] : []),
+        { key: "legal", icon: FileText, title: "약관 및 정책", onClick: () => updateActiveScreen("legal") },
+      ],
+    },
+  ];
+
+  return (
+    <>
+      <OwnerSettingsOverview plan={planOverviewSummary} groups={settingsGroups} />
 
       {isClosedDatePickerOpen ? (
         <ClosedDatePickerSheet
@@ -1568,7 +1606,7 @@ export default function OwnerSettingsPanel({
           onSelect={handleAddressSelect}
         />
       ) : null}
-    </section>
+    </>
   );
 }
 
@@ -1591,7 +1629,7 @@ function GuideMessagesSheet({
         <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-stone-200" />
         <div className="mb-3.5 flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
+            <h3 className="text-[20px] font-semibold leading-7 text-[var(--text)]">{title}</h3>
             <p className="mt-0.5 text-xs leading-4 text-[var(--muted)]">{description}</p>
           </div>
           <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
@@ -1614,6 +1652,8 @@ function BusinessHoursSheet({
   title,
   draft,
   showClosedToggle,
+  saving,
+  errorMessage,
   onClose,
   onChange,
   onApply,
@@ -1621,19 +1661,33 @@ function BusinessHoursSheet({
   title: string;
   draft: { open: string; close: string; closed: boolean };
   showClosedToggle: boolean;
+  saving: boolean;
+  errorMessage: string | null;
   onClose: () => void;
   onChange: (draft: { open: string; close: string; closed: boolean }) => void;
-  onApply: () => void;
+  onApply: () => void | Promise<void>;
 }) {
+  const openInputId = useId();
+  const closeInputId = useId();
+  const rangeErrorId = useId();
+  const hasInvalidRange = !draft.closed && !isOrderedTimeRange(draft.open, draft.close);
+
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={() => {
+      if (!saving) onClose();
+    }}>
       <div className="w-full max-w-[430px] rounded-t-[28px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
         <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-stone-200" />
         <div className="mb-3.5 flex items-start justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
           </div>
-          <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
+          <button
+            type="button"
+            disabled={saving}
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-[10px] px-2 text-[16px] font-medium leading-6 text-[var(--muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
+            onClick={onClose}
+          >닫기</button>
         </div>
 
         <div className="space-y-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
@@ -1642,40 +1696,58 @@ function BusinessHoursSheet({
               className="flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 text-left"
             >
               <div className="min-w-0">
-                <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">휴무일로 설정</p>
+                <p className="text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">휴무일로 설정</p>
               </div>
               <Switch
                 checked={draft.closed}
+                disabled={saving}
                 aria-label="휴무일로 설정"
                 onCheckedChange={(checked) => onChange({ ...draft, closed: checked })}
+                className="h-11 w-[52px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
               />
             </div>
           ) : null}
           <div className="grid grid-cols-2 gap-2.5">
-            <SettingsFieldCard label="시작 시간">
+            <label htmlFor={openInputId} className="block rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 focus-within:border-[#2563eb] focus-within:ring-2 focus-within:ring-[#2563eb]/15">
+              <span className="mb-1.5 block text-[14px] font-medium leading-5 text-[var(--muted)]">시작 시간</span>
               <input
+                id={openInputId}
                 type="time"
-                className="w-full bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
+                step={300}
+                aria-invalid={hasInvalidRange}
+                aria-describedby={hasInvalidRange ? rangeErrorId : undefined}
+                className="min-h-11 w-full bg-transparent p-0 text-[16px] font-medium leading-6 tabular-nums tracking-[-0.02em] text-[var(--text)] outline-none"
                 value={draft.open}
                 onChange={(event) => onChange({ ...draft, open: event.target.value })}
-                disabled={draft.closed}
+                disabled={draft.closed || saving}
               />
-            </SettingsFieldCard>
-            <SettingsFieldCard label="마감 시간">
+            </label>
+            <label htmlFor={closeInputId} className="block rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 focus-within:border-[#2563eb] focus-within:ring-2 focus-within:ring-[#2563eb]/15">
+              <span className="mb-1.5 block text-[14px] font-medium leading-5 text-[var(--muted)]">마감 시간</span>
               <input
+                id={closeInputId}
                 type="time"
-                className="w-full bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
+                step={300}
+                aria-invalid={hasInvalidRange}
+                aria-describedby={hasInvalidRange ? rangeErrorId : undefined}
+                className="min-h-11 w-full bg-transparent p-0 text-[16px] font-medium leading-6 tabular-nums tracking-[-0.02em] text-[var(--text)] outline-none"
                 value={draft.close}
                 onChange={(event) => onChange({ ...draft, close: event.target.value })}
-                disabled={draft.closed}
+                disabled={draft.closed || saving}
               />
-            </SettingsFieldCard>
+            </label>
           </div>
+          {hasInvalidRange ? (
+            <p id={rangeErrorId} role="alert" className="text-[13px] font-medium leading-5 text-[#a04455]">
+              마감 시간은 시작 시간보다 늦게 설정해 주세요.
+            </p>
+          ) : null}
+          {errorMessage ? <p role="alert" className="text-[13px] font-medium leading-5 text-[#a04455]">{errorMessage}</p> : null}
         </div>
 
         <div className="mt-3.5 grid grid-cols-2 gap-2">
-          <OutlineButton onClick={onClose}>취소</OutlineButton>
-          <SolidButton onClick={onApply}>적용</SolidButton>
+          <OutlineButton className="text-[16px] font-medium leading-6" disabled={saving} onClick={onClose}>취소</OutlineButton>
+          <SolidButton className="text-[16px] font-medium leading-6" disabled={saving || hasInvalidRange} onClick={onApply}>{saving ? "저장 중..." : "적용"}</SolidButton>
         </div>
       </div>
     </div>
@@ -1771,7 +1843,7 @@ function SettingsCard({
     <section className={`px-4 py-4 ${className}`.trim()}>
       {title ? (
         <div className="mb-2">
-          <h2 className="text-[17px] font-medium tracking-[-0.02em] text-[var(--text)]">{title}</h2>
+          <h2 className="text-[18px] font-medium tracking-[-0.02em] text-[var(--text)]">{title}</h2>
         </div>
       ) : null}
       <div className={`${contentClassName || "space-y-1"} ${title ? "pt-2.5" : ""}`.trim()}>{children}</div>
@@ -1805,7 +1877,7 @@ function SettingsNavRow({
           <Icon className="h-5 w-5" strokeWidth={1.9} />
         </div>
         <div className="min-w-0">
-          <p className="text-[17px] font-normal tracking-[-0.02em] text-[var(--text)]">{title}</p>
+          <p className="text-[18px] font-normal tracking-[-0.02em] text-[var(--text)]">{title}</p>
         </div>
       </div>
       <ChevronRight className={`h-4 w-4 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} />
@@ -1816,14 +1888,14 @@ function SettingsNavRow({
 function StaffSettingsHome({
   staffMember,
   shopName,
-  accountLoginId,
+  accountEmail,
   onSupportClick,
   onLegalClick,
   onAccountClick,
 }: {
   staffMember: BootstrapStaffMember | null;
   shopName: string;
-  accountLoginId: string | null;
+  accountEmail: string | null;
   onSupportClick: () => void;
   onLegalClick: () => void;
   onAccountClick?: () => void;
@@ -1847,11 +1919,11 @@ function StaffSettingsHome({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[18px] font-medium tracking-[-0.02em] text-[#101828]">{staffName}</p>
-              <p className="mt-0.5 truncate text-[15px] text-[#667085]">{shopName} · {staffRole}</p>
+              <p className="mt-0.5 truncate text-[16px] text-[#667085]">{shopName} · {staffRole}</p>
             </div>
           </div>
           <div className="mt-4 rounded-[14px] bg-[#f8fafc] px-3.5 py-3">
-            <p className="text-[15px] leading-6 text-[#475467]">
+            <p className="text-[16px] leading-6 text-[#475467]">
               프로필 사진, 표시 이름, 담당 서비스는 오너가 관리해요. 변경이 필요하면 매장 관리자에게 요청해 주세요.
             </p>
           </div>
@@ -1860,7 +1932,7 @@ function StaffSettingsHome({
         <div className="rounded-[18px] border border-[#dfe7f0] bg-white">
           <p className="px-4 pt-4 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">계정 / 문의</p>
           <div className="mt-2 overflow-hidden divide-y divide-[#edf1f5]">
-            {accountLoginId ? <AccountRow icon={UserRound} label="로그인 아이디" value={accountLoginId} /> : null}
+            {accountEmail ? <AccountRow icon={UserRound} label="로그인 이메일" value={accountEmail} /> : null}
             <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
             <button type="button" onClick={onSupportClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
               <div className="flex min-w-0 items-center gap-3">
@@ -1951,7 +2023,7 @@ function ToggleRow({
         disabled ? "opacity-55" : ""
       }`}
     >
-      <p className="text-[15px] font-medium text-[#25364d]">{label}</p>
+      <p className="text-[16px] font-medium text-[#25364d]">{label}</p>
       <Switch
         checked={checked}
         disabled={disabled}
@@ -1993,16 +2065,16 @@ function SolidButton({
     <button
       disabled={disabled}
       onClick={() => void onClick()}
-      className={`flex h-10 w-full items-center justify-center rounded-[12px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] disabled:opacity-50 ${className}`.trim()}
+      className={`flex min-h-11 w-full items-center justify-center rounded-[12px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50 ${className}`.trim()}
     >
       {children}
     </button>
   );
 }
 
-function OutlineButton({ children, disabled, onClick }: { children: ReactNode; disabled?: boolean; onClick: () => void }) {
+function OutlineButton({ children, disabled, onClick, className = "" }: { children: ReactNode; disabled?: boolean; onClick: () => void; className?: string }) {
   return (
-    <button disabled={disabled} onClick={onClick} className="flex h-10 w-full items-center justify-center rounded-[12px] border border-[var(--border)] bg-white px-4 text-[14px] font-semibold text-[var(--muted)] disabled:opacity-50">
+    <button disabled={disabled} onClick={onClick} className={`flex min-h-11 w-full items-center justify-center rounded-[12px] border border-[var(--border)] bg-white px-4 text-[14px] font-semibold text-[var(--muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50 ${className}`.trim()}>
       {children}
     </button>
   );
@@ -2024,7 +2096,7 @@ function AccountRow({
       <div className="flex min-w-0 items-center gap-3">
         <Icon className="h-[18px] w-[18px] shrink-0 text-[var(--text)]" strokeWidth={1.9} />
         <div className="min-w-0">
-          <p className="text-[15px] font-medium text-[var(--text)]">{label}</p>
+          <p className="text-[16px] font-medium text-[var(--text)]">{label}</p>
           {value ? <p className="mt-0.5 truncate text-[13px] text-[var(--muted)]">{value}</p> : null}
         </div>
       </div>
@@ -2057,7 +2129,7 @@ function AccountActionRow({
     >
       <div className="flex min-w-0 items-center gap-3">
         <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />
-        <p className="text-[15px] font-medium">{label}</p>
+        <p className="text-[16px] font-medium">{label}</p>
       </div>
       <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" />
     </button>

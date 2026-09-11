@@ -1,27 +1,27 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
 
 import OwnerShell from "@/components/owner/owner-shell";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { assertOwnerBootstrapPayload } from "@/lib/owner-customer-pet-integrity";
 import {
   clearOwnerAuthTokenCache,
-  consumeOwnerAuthHandoff,
+  clearOwnerAuthHandoff,
+  createLatestOwnerAccessGate,
+  peekOwnerAuthHandoff,
   readOwnerAuthTokenCache,
   setCurrentOwnerAccessToken,
   writeOwnerAuthSessionCache,
   writeOwnerAuthTokenCache,
 } from "@/lib/auth/owner-auth-handoff";
-import {
-  PENDING_SOCIAL_PROVIDER_STORAGE,
-  resolveSocialProviderFromAuthUser,
-} from "@/lib/auth/social-auth";
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
-import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import type { Session } from "@supabase/supabase-js";
@@ -55,6 +55,8 @@ const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 
 function shouldUseLocalMobilePreview() {
   if (typeof window === "undefined") return false;
+  if (process.env.NODE_ENV === "production") return false;
+  if (window.location.hostname !== "127.0.0.1" && window.location.hostname !== "localhost") return false;
   const params = new URLSearchParams(window.location.search);
   return params.get("preview") === "1";
 }
@@ -100,12 +102,42 @@ function isOwnerAuthRecoveryError(message: string) {
   );
 }
 
+function OwnerMobileLoadingScreen({ message }: { message: string }) {
+  return (
+    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f7f8fa] px-4 pt-4">
+      <div className="animate-pulse rounded-[12px] border border-[#edf1f5] bg-white px-4 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="h-8 w-8 rounded-[9px] bg-[#e8eef8]" />
+            <span className="h-4 w-28 rounded bg-[#e8edf4]" />
+          </div>
+          <span className="h-8 w-20 rounded-[10px] bg-[#eef2f7]" />
+        </div>
+        <div className="mt-4 flex gap-5 border-t border-[#edf1f5] pt-3">
+          <span className="h-4 w-14 rounded bg-[#dce8fb]" />
+          <span className="h-4 w-16 rounded bg-[#eef2f7]" />
+          <span className="h-4 w-14 rounded bg-[#eef2f7]" />
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {["w-full", "w-10/12", "w-8/12"].map((width, index) => (
+          <div key={index} className="rounded-[12px] border border-[#edf1f5] bg-white px-4 py-4">
+            <div className={`h-4 ${width} animate-pulse rounded bg-[#edf1f5]`} />
+            <div className="mt-3 h-3 w-6/12 animate-pulse rounded bg-[#f1f4f8]" />
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-5 text-center text-[13px] tracking-[-0.02em] text-[#718096]">{message}</p>
+    </div>
+  );
+}
+
 export default function OwnerMobilePage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
-  const requestedOwnerMobilePath =
-    typeof window === "undefined" ? "/owner/mobile" : `${window.location.pathname}${window.location.search}`;
+  const requestedOwnerMobilePath = "/owner/mobile";
   const launchPhotoStatusAction = useMemo<OwnerMobileLaunchPhotoStatusAction | null>(() => {
     if (typeof window === "undefined") return null;
     const params = new URLSearchParams(window.location.search);
@@ -133,6 +165,7 @@ export default function OwnerMobilePage() {
     currentStaffId: null,
   });
   const [message, setMessage] = useState("모바일 오너 화면을 불러오는 중입니다.");
+  const ownerAccessGateRef = useRef(createLatestOwnerAccessGate<OwnerMobileAccessContext | null>());
 
   function loadOwnerMobileDemoFallback() {
     const demoBootstrap = buildOwnerDemoBootstrap();
@@ -154,10 +187,11 @@ export default function OwnerMobilePage() {
   async function getOwnerAccessContext(): Promise<OwnerMobileAccessContext | null> {
     if (!supabase) return null;
 
-    const handoffSession = consumeOwnerAuthHandoff();
+    const handoffSession = peekOwnerAuthHandoff();
     if (handoffSession) {
       writeOwnerAuthSessionCache(handoffSession);
       setCurrentOwnerAccessToken(handoffSession.accessToken);
+      clearOwnerAuthHandoff();
 
       try {
         const sessionResult = (await supabase.auth.setSession({
@@ -190,18 +224,6 @@ export default function OwnerMobilePage() {
         accessToken: cachedAccessToken,
         session: null,
       };
-    }
-
-    if (oauthSupabase) {
-      const oauthSession = await oauthSupabase.auth.getSession();
-      if (oauthSession.data.session?.access_token) {
-        writeOwnerAuthTokenCache(oauthSession.data.session.access_token, oauthSession.data.session.refresh_token);
-        setCurrentOwnerAccessToken(oauthSession.data.session.access_token);
-        return {
-          accessToken: oauthSession.data.session.access_token,
-          session: oauthSession.data.session,
-        };
-      }
     }
 
     const initialSession = await supabase.auth.getSession();
@@ -242,8 +264,6 @@ export default function OwnerMobilePage() {
 
   useEffect(() => {
     let active = true;
-    const pendingProvider =
-      typeof window !== "undefined" ? window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE) : null;
 
     async function load() {
       if (!hasSupabaseBrowserEnv() || !supabase) {
@@ -252,11 +272,12 @@ export default function OwnerMobilePage() {
           return;
         }
         router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
-        router.refresh();
         return;
       }
 
-      const ownerAccess = await getOwnerAccessContext();
+      const ownerAccessRun = ownerAccessGateRef.current.begin(getOwnerAccessContext);
+      const ownerAccess = await ownerAccessRun.access;
+      if (!active || !ownerAccessGateRef.current.isLatest(ownerAccessRun.runId)) return;
 
       if (!ownerAccess?.accessToken) {
         if (shouldUseLocalMobilePreview()) {
@@ -264,7 +285,6 @@ export default function OwnerMobilePage() {
           return;
         }
         router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
-        router.refresh();
         return;
       }
 
@@ -275,13 +295,6 @@ export default function OwnerMobilePage() {
         if (active) setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
         return;
       }
-
-      const provider =
-        pendingProvider === "google" || pendingProvider === "kakao" || pendingProvider === "naver"
-          ? pendingProvider
-          : ownerAccess.session
-            ? resolveSocialProviderFromAuthUser(ownerAccess.session.user)
-            : "google";
 
       try {
         const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops");
@@ -296,24 +309,25 @@ export default function OwnerMobilePage() {
           window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
         }
 
-        const subscription = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" });
+        const [subscription, bootstrap] = await Promise.all([
+          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
+          fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`, {
+            cache: "no-store",
+          }),
+        ]);
 
-        if (shouldBlockOwnerAccessBySubscription(subscription)) {
+        const isAndroidApp = Capacitor.getPlatform() === "android";
+        if (!isAndroidApp && shouldBlockOwnerAccessBySubscription(subscription)) {
           router.replace(`/owner/billing?compare=1&plan=${encodeURIComponent(subscription.autoRenewPlanCode)}` as never);
           router.refresh();
           return;
         }
         writeOwnerBillingSummaryCache(subscription);
 
-        const bootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
-          `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
-          { cache: "no-store" },
-        );
-
         if (!active) return;
         setOwnedShops(shops);
         setSelectedShopId(resolvedShopId);
-        setData(bootstrap);
+        setData(assertOwnerBootstrapPayload(bootstrap, resolvedShopId, { allowMock: shouldUseLocalMobilePreview() }));
         setSubscriptionSummary(subscription);
       } catch (error) {
         if (!active) return;
@@ -326,23 +340,14 @@ export default function OwnerMobilePage() {
           }
           clearOwnerAuthTokenCache();
           router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
-          router.refresh();
-          return;
-        }
-
-        if (nextMessage.includes("서비스 이용 기간이 만료") || nextMessage.includes("결제 정보를 확인")) {
-          router.replace("/owner/billing?compare=1" as never);
-          router.refresh();
           return;
         }
 
         if (
-          nextMessage.includes("소유한 매장이 없습니다.") ||
-          nextMessage.includes("연결된 매장 정보를 찾을 수 없습니다.")
+          Capacitor.getPlatform() !== "android" &&
+          (nextMessage.includes("서비스 이용 기간이 만료") || nextMessage.includes("결제 정보를 확인"))
         ) {
-          router.replace(
-            `/signup/social?next=${encodeURIComponent(requestedOwnerMobilePath)}&provider=${encodeURIComponent(provider)}` as never,
-          );
+          router.replace("/owner/billing?compare=1" as never);
           router.refresh();
           return;
         }
@@ -370,17 +375,11 @@ export default function OwnerMobilePage() {
       window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, shopId);
     }
     setSelectedShopId(shopId);
-    setData(nextBootstrap);
+    setData(assertOwnerBootstrapPayload(nextBootstrap, shopId, { allowMock: shouldUseLocalMobilePreview() }));
   }
 
   if (!data) {
-    return (
-      <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#faf7f2] px-4 py-6">
-        <div className="rounded-[10px] border border-[#e3ddd3] bg-white px-4 py-4 text-[14px] leading-6 text-[#6f665f]">
-          {message}
-        </div>
-      </div>
-    );
+    return <OwnerMobileLoadingScreen message={message} />;
   }
 
   return (

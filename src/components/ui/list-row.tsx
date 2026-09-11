@@ -17,8 +17,8 @@ export function ListRow({ className, description, leading, meta, onClick, title,
     <div className={cn("flex items-start gap-3 rounded-2xl border border-[var(--border)] bg-white px-4 py-3", className)}>
       {leading ? <div className="shrink-0 pt-0.5">{leading}</div> : null}
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="text-[16px] font-bold leading-6 tracking-[-0.02em] text-[var(--text)]">{title}</div>
-        {description ? <div className="text-[14px] leading-[22px] text-[#5f574f]">{description}</div> : null}
+        <div className="text-[16px] font-medium leading-6 tracking-[-0.005em] text-[var(--text)]">{title}</div>
+        {description ? <div className="text-[14px] leading-5 text-[#5f574f]">{description}</div> : null}
         {meta ? <div className="text-[12px] leading-[18px] text-[var(--muted)]">{meta}</div> : null}
       </div>
       {trailing ? <div className="shrink-0 pt-0.5">{trailing}</div> : null}

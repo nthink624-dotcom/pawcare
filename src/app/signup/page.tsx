@@ -11,6 +11,7 @@ export default async function SignupPage({
 }) {
   const params = (await searchParams) ?? {};
   const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
+  const priceGuideFixtureEnabled = process.env.SIGNUP_PRICE_GUIDE_FIXTURE_MODE === "true" && process.env.VERCEL_ENV !== "production";
   const user = await getServerSessionUser();
 
   if (user) {
@@ -23,6 +24,7 @@ export default async function SignupPage({
       portoneReady={hasPortoneBrowserEnv()}
       nextPath={nextPath}
       initialStart="email"
+      priceGuideFixtureEnabled={priceGuideFixtureEnabled}
     />
   );
 }

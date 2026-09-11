@@ -741,7 +741,7 @@ export default function CustomerBookingPage({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[12px] font-semibold tracking-[0.08em] text-[var(--muted)]">담당 미용사</p>
-                <h1 className="mt-1 truncate text-[22px] font-semibold tracking-[-0.03em] text-[var(--text)]">
+                <h1 className="mt-1 text-[20px] font-semibold tracking-[-0.015em] text-[var(--text)] [overflow-wrap:anywhere]">
                   {staffDisplayName}
                 </h1>
                 <p className="mt-2 text-[14px] leading-6 text-[var(--text)]">{staffProfileMessage}</p>
@@ -750,7 +750,7 @@ export default function CustomerBookingPage({
             <button
               type="button"
               onClick={() => setShopInfoOpen(true)}
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 text-[13px] font-semibold text-[var(--text)]"
+              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 text-[13px] font-medium text-[var(--text)]"
             >
               매장 정보 보기
             </button>
@@ -854,7 +854,7 @@ export default function CustomerBookingPage({
               {firstVisitStep === 2 ? (
                 <StepSection title="">
                   <div className="space-y-2.5">
-                    <p className="text-left text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">날짜 선택</p>
+                    <p className="text-left text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">날짜 선택</p>
                     <DateGrid
                       dateOptions={dateOptions}
                       selectedDate={firstVisit.date}
@@ -862,7 +862,7 @@ export default function CustomerBookingPage({
                     />
                     {firstVisit.date ? (
                       <div className="space-y-2">
-                        <p className="text-left text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">시간 선택</p>
+                        <p className="text-left text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">시간 선택</p>
                         <TimeGrid
                           timeSlot={firstVisit.timeSlot}
                           availableSlots={firstVisitSlots}
@@ -996,7 +996,7 @@ export default function CustomerBookingPage({
                     </BookingFieldCard>
                   ) : null}
                   <BookingFieldCard label="선택 서비스">
-                    <p className="text-[15px] font-medium leading-6 tracking-[-0.02em] text-[var(--text)]">
+                    <p className="text-[16px] font-medium leading-6 tracking-[-0.02em] text-[var(--text)]">
                       {returningVisitUsesCustomService
                         ? `기타 · ${returningVisit.customServiceName || "직접 입력"}`
                         : selectedReturningService
@@ -1080,7 +1080,7 @@ export default function CustomerBookingPage({
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-semibold text-[var(--text)]">매장 정보</h3>
-              <button type="button" className="text-sm font-semibold text-[var(--muted)]" onClick={() => setShopInfoOpen(false)}>닫기</button>
+              <button type="button" className="inline-flex min-h-11 items-center px-2 text-sm font-medium text-[var(--muted)]" onClick={() => setShopInfoOpen(false)}>닫기</button>
             </div>
             <div className="max-h-[72vh] overflow-y-auto pb-2">
               <CustomerShopInfoContent shop={initialShop} services={services} />

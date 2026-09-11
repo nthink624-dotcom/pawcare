@@ -7,6 +7,7 @@ import {
   normalizeShopNotificationSettings,
 } from "@/lib/notification-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { staffProfileFallbackKey } from "@/lib/staff-profile-fallback";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime } from "@/lib/utils";
 import type {
@@ -80,6 +81,7 @@ function normalizeStaffMember(row: StaffMemberRow): BootstrapStaffMember {
     profileImageUrl: profileImageUrls[0] ?? "",
     profileImageUrls,
     profileImageAssetIds: normalizeProfileImageAssetIds(row.profile_image_asset_ids),
+    profileImageFallbackKey: staffProfileFallbackKey,
     profileMessage: row.profile_message?.trim() || "",
     chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
@@ -104,6 +106,7 @@ function buildFallbackStaffMember(shop: Shop): BootstrapStaffMember {
     profileImageUrl: "",
     profileImageUrls: [],
     profileImageAssetIds: [],
+    profileImageFallbackKey: staffProfileFallbackKey,
     profileMessage: "아이 성향에 맞춰 차분하게 미용해드려요.",
     chipColorIndex: 0,
     phone: shop.phone ?? "",
@@ -142,7 +145,10 @@ function buildMockBootstrap(shopId?: string): BootstrapPayload {
     ),
   };
   store.appointments = store.appointments.map(normalizeAppointmentForBootstrap);
-  store.staffMembers = store.staffMembers.length > 0 ? store.staffMembers : [buildFallbackStaffMember(store.shop)];
+  store.staffMembers =
+    store.staffMembers.length > 0
+      ? store.staffMembers.map((staffMember) => ({ ...staffMember, profileImageFallbackKey: staffProfileFallbackKey }))
+      : [buildFallbackStaffMember(store.shop)];
   store.staffScheduleOverrides = store.staffScheduleOverrides ?? [];
   store.appointmentChangeEvents = store.appointmentChangeEvents ?? [];
   store.petStaffNotes = store.petStaffNotes ?? [];

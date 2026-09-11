@@ -1,11 +1,9 @@
 import { createBrowserClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
 
 import { env, isUnsafeProdSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
 
 let browserClient: ReturnType<typeof createBrowserClient> | null = null;
-let oauthBrowserClient: ReturnType<typeof createClient> | null = null;
 
 function assertSafeBrowserSupabaseEnv() {
   if (isUnsafeProdSupabaseBrowserEnv()) {
@@ -30,25 +28,4 @@ export function getSupabaseBrowserClient() {
   });
 
   return browserClient;
-}
-
-export function getSupabaseOAuthBrowserClient() {
-  assertSafeBrowserSupabaseEnv();
-
-  if (!env.supabaseUrl || !env.supabasePublishableKey || typeof window === "undefined") {
-    return null;
-  }
-
-  oauthBrowserClient ??= createClient(env.supabaseUrl, env.supabasePublishableKey, {
-    auth: {
-      autoRefreshToken: true,
-      detectSessionInUrl: false,
-      flowType: "pkce",
-      persistSession: true,
-      storage: window.localStorage,
-      storageKey: `petmanager.oauth.${new URL(env.supabaseUrl).hostname}.auth`,
-    },
-  });
-
-  return oauthBrowserClient;
 }

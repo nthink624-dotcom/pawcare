@@ -204,6 +204,7 @@ export async function createOwnerMediaAssetFromFile(
   context: OwnerMediaContext,
   mediaKind: MediaKind,
   file: File,
+  options?: { createProviderReadyVariant?: boolean },
 ): Promise<OwnerMediaUploadResult> {
   const compressed = await compressImageForPetmanager(file);
   const intent = await createUploadIntent(context, mediaKind, compressed);
@@ -219,7 +220,9 @@ export async function createOwnerMediaAssetFromFile(
   });
 
   const completed = await completeUpload(context, intent.mediaAsset.id, compressed);
-  const variant = await createProviderReadyVariant(context, intent.mediaAsset.id, file);
+  const variant = options?.createProviderReadyVariant === false
+    ? null
+    : await createProviderReadyVariant(context, intent.mediaAsset.id, file);
 
   return {
     mediaAsset: completed.mediaAsset,

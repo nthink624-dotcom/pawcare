@@ -8,19 +8,19 @@ export default function LegalLinksFooter() {
         <p className="text-[12px]">
           <span className="font-medium text-[#2a2522]">운영사</span> {LEGAL_BUSINESS_INFO.operatorName}
         </p>
-        <p className="text-[11px] leading-[1.45]">
+        <p className="text-[12px] leading-[1.45]">
           대표자 {LEGAL_BUSINESS_INFO.representativeName} · 사업자등록번호{" "}
           {LEGAL_BUSINESS_INFO.businessRegistrationNumber}
         </p>
-        <p className="text-[11px] leading-[1.45]">주소 {LEGAL_BUSINESS_INFO.address}</p>
-        <p className="text-[11px] leading-[1.45]">호스팅 제공자 {LEGAL_BUSINESS_INFO.hostingProvider}</p>
-        <p className="text-[11px] leading-[1.45]">
+        <p className="text-[12px] leading-[1.45]">주소 {LEGAL_BUSINESS_INFO.address}</p>
+        <p className="text-[12px] leading-[1.45]">호스팅 제공자 {LEGAL_BUSINESS_INFO.hostingProvider}</p>
+        <p className="text-[12px] leading-[1.45]">
           고객센터 {LEGAL_BUSINESS_INFO.customerServicePhone} · {LEGAL_BUSINESS_INFO.customerServiceEmail}
         </p>
       </div>
-      <div className="mt-2.5 flex flex-wrap gap-x-2.5 gap-y-1.5 border-t border-[#e3dbcf] pt-2.5 text-[11px] font-medium text-[#2a2522]">
+      <div className="mt-2.5 flex flex-wrap gap-x-2.5 gap-y-1.5 border-t border-[#e3dbcf] pt-2.5 text-[12px] font-medium text-[#2a2522]">
         {LEGAL_LINKS.map((link) => (
-          <a key={link.href} href={link.href} className="underline underline-offset-2">
+          <a key={link.href} href={link.href} className="inline-flex min-h-11 min-w-11 items-center justify-center underline underline-offset-2">
             {link.label}
           </a>
         ))}

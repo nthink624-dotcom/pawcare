@@ -925,7 +925,8 @@ export async function createAppointment(input: unknown) {
     appointment_date: payload.appointmentDate,
     appointment_time: payload.appointmentTime,
     status,
-    memo: payload.memo,
+    memo: payload.source === "customer" ? payload.memo : "",
+    staff_memo: payload.source === "owner" ? payload.memo : "",
     rejection_reason: null,
     start_at: appointmentWindow.start_at,
     end_at: appointmentWindow.end_at,
@@ -954,10 +955,16 @@ export async function createAppointment(input: unknown) {
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   let createdAppointment = await createAppointmentWithCapacityLock(supabase, appointment);
 
-  if (staffId && createdAppointment.staff_id !== staffId) {
+  const postCreateValues = {
+    ...(staffId && createdAppointment.staff_id !== staffId ? { staff_id: staffId } : {}),
+    ...(appointment.staff_memo ? { staff_memo: appointment.staff_memo } : {}),
+    updated_at: createdAppointment.updated_at,
+  };
+
+  if (Object.keys(postCreateValues).length > 1) {
     const staffUpdate = await supabase
       .from("appointments")
-      .update({ staff_id: staffId, updated_at: createdAppointment.updated_at })
+      .update(postCreateValues)
       .eq("id", createdAppointment.id)
       .select("*")
       .single();
@@ -1244,7 +1251,8 @@ export async function updateAppointmentDetails(input: unknown) {
     staff_id: payload.staffId ?? appointment.staff_id ?? null,
     appointment_date: payload.appointmentDate,
     appointment_time: payload.appointmentTime,
-    memo: payload.memo.trim(),
+    memo: appointment.memo,
+    staff_memo: payload.staffMemo.trim(),
     status: payload.preserveStatus ? appointment.status : ("confirmed" as const),
     rejection_reason: payload.preserveStatus ? appointment.rejection_reason : null,
     start_at: appointmentWindow.start_at,
@@ -1280,7 +1288,17 @@ export async function updateAppointmentDetails(input: unknown) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
 
-  const resolvedAppointment = await updateAppointmentWithCapacityLock(supabase, payload.appointmentId, nextValues);
+  let resolvedAppointment = await updateAppointmentWithCapacityLock(supabase, payload.appointmentId, nextValues);
+  if (resolvedAppointment.staff_memo !== nextValues.staff_memo) {
+    const staffMemoUpdate = await supabase
+      .from("appointments")
+      .update({ staff_memo: nextValues.staff_memo, updated_at: nextValues.updated_at })
+      .eq("id", payload.appointmentId)
+      .select("*")
+      .single();
+    if (staffMemoUpdate.error) throw new Error(staffMemoUpdate.error.message);
+    resolvedAppointment = staffMemoUpdate.data as Appointment;
+  }
 
   await persistAppointmentChangeEvent({
     before: appointment,

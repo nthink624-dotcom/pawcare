@@ -257,7 +257,7 @@ export default function OwnerSupportPanel({
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value as SupportCategory)}
-            className="h-11 w-full rounded-[10px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 text-[14.5px] font-medium text-[var(--text)] outline-none"
+            className="h-11 w-full rounded-[10px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 text-[14px] font-medium text-[var(--text)] outline-none"
           >
             {categoryOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -273,7 +273,7 @@ export default function OwnerSupportPanel({
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={`${categoryLabel} 문의`}
-            className="h-11 w-full rounded-[10px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 text-[14.5px] font-medium text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+            className="h-11 w-full rounded-[10px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 text-[14px] font-medium text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
           />
         </label>
 
@@ -283,7 +283,7 @@ export default function OwnerSupportPanel({
             value={contact}
             onChange={(event) => setContact(event.target.value)}
             placeholder="답변 받을 연락처"
-            className="h-11 w-full rounded-[10px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 text-[14.5px] font-medium text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+            className="h-11 w-full rounded-[10px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 text-[14px] font-medium text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
           />
         </label>
 
@@ -303,7 +303,7 @@ export default function OwnerSupportPanel({
           </div>
           <div className="min-w-0 [&>p:last-child]:hidden">
             <p className="text-[13px] font-semibold text-[#334155]">사진 첨부</p>
-            <p className="mt-1 text-[11.5px] leading-[1.5] text-[#94a3b8]">이미지 첨부는 업로드 API 연결 후 1~3장까지 사용할 수 있어요.</p>
+            <p className="mt-1 text-[12px] leading-[1.5] text-[#94a3b8]">이미지 첨부는 업로드 API 연결 후 1~3장까지 사용할 수 있어요.</p>
           </div>
         </div>
 
@@ -324,7 +324,7 @@ export default function OwnerSupportPanel({
           type="button"
           onClick={() => void submitSupportRequest()}
           disabled={submitting}
-          className="flex h-[50px] w-full items-center justify-center rounded-[12px] border border-[#2f6fd6] bg-[#2f6fd6] px-4 text-[15px] font-semibold text-white disabled:opacity-50"
+          className="flex h-[50px] w-full items-center justify-center rounded-[12px] border border-[#2f6fd6] bg-[#2f6fd6] px-4 text-[16px] font-semibold text-white disabled:opacity-50"
         >
           {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           문의 보내기
@@ -335,7 +335,7 @@ export default function OwnerSupportPanel({
       {activeView === "history" ? (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-[17px] font-semibold tracking-[-0.03em] text-[var(--text)]">문의 내역</h3>
+          <h3 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">문의 내역</h3>
           <button
             type="button"
             onClick={() => void loadRequests()}
@@ -352,7 +352,7 @@ export default function OwnerSupportPanel({
             문의 내역을 불러오는 중이에요
           </div>
         ) : requests.length === 0 ? (
-          <div className="rounded-[16px] border border-[var(--border)] bg-white px-4 py-8 text-center text-[15px] text-[var(--muted)]">
+          <div className="rounded-[16px] border border-[var(--border)] bg-white px-4 py-8 text-center text-[16px] text-[var(--muted)]">
             아직 남긴 문의가 없어요.
           </div>
         ) : (
@@ -395,12 +395,12 @@ export default function OwnerSupportPanel({
                       {request.message ? (
                         <div>
                           <p className="text-[13px] font-medium text-[var(--muted)]">문의 내용</p>
-                          <p className="mt-1 whitespace-pre-wrap text-[15px] leading-6 text-[var(--text)]">{request.message}</p>
+                          <p className="mt-1 whitespace-pre-wrap text-[16px] leading-6 text-[var(--text)]">{request.message}</p>
                         </div>
                       ) : null}
                       <div className="rounded-[12px] bg-[#f8fafc] px-3 py-3">
                         <p className="text-[13px] font-medium text-[var(--muted)]">운영팀 답변</p>
-                        <p className="mt-1 whitespace-pre-wrap text-[15px] leading-6 text-[var(--text)]">
+                        <p className="mt-1 whitespace-pre-wrap text-[16px] leading-6 text-[var(--text)]">
                           {answer || "아직 답변이 등록되지 않았어요."}
                         </p>
                         {request.answered_at ? (

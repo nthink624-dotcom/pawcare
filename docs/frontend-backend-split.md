@@ -60,4 +60,3 @@
 
 ## 보류/주의
 - 기존 Next `app/api`와 `src/server`는 백엔드 분리 후 제거 대상입니다.
-- OAuth callback은 브라우저 세션 교환을 위해 Next 라우트에 최소한으로 남아 있습니다.

@@ -34,6 +34,9 @@ export type NotificationDeliveryMode = "manual" | "auto";
 export type AlimtalkSenderMode = "petmanager" | "shop_channel";
 export type AlimtalkShopChannelStatus = "not_requested" | "requested" | "reviewing" | "active" | "rejected";
 export type PetBiteLevel = "none" | "mild" | "watch" | "bite" | "strong";
+export type CustomerGradeOverride = "normal" | "loyal" | "attention";
+export type CustomerMemberType = "guardian" | "proxy" | "guest";
+export type CustomerVisitType = "first_visit" | "revisit";
 export type MediaKind =
   | "grooming_before"
   | "grooming_after"
@@ -42,6 +45,7 @@ export type MediaKind =
   | "shop_profile"
   | "staff_profile"
   | "customer_shared"
+  | "feedback_screenshot"
   | "memo_attachment";
 export type MediaVisibility = "private" | "customer_shared" | "public";
 export type MediaStatus = "uploading" | "uploaded" | "processing" | "ready" | "failed" | "deleted";
@@ -228,6 +232,8 @@ export type Guardian = {
   name: string;
   phone: string;
   memo: string;
+  customer_grade_override?: CustomerGradeOverride | null;
+  customer_member_type?: CustomerMemberType | null;
   notification_settings: GuardianNotificationSettings;
   deleted_at?: string | null;
   deleted_restore_until?: string | null;
@@ -241,6 +247,7 @@ export type Pet = {
   guardian_id: string;
   name: string;
   breed: string;
+  pricing_group?: string | null;
   weight: number | null;
   age: number | null;
   notes: string;
@@ -281,6 +288,7 @@ export type Appointment = {
   appointment_time: string;
   status: AppointmentStatus;
   memo: string;
+  staff_memo?: string;
   rejection_reason: string | null;
   start_at: string;
   end_at: string;
@@ -289,6 +297,7 @@ export type Appointment = {
   visit_reminder_offset_minutes?: number;
   pickup_ready_eta_minutes?: number;
   source: "owner" | "customer";
+  customer_visit_type?: CustomerVisitType | null;
   created_at: string;
   updated_at: string;
 };
@@ -319,6 +328,8 @@ export type GroomingRecord = {
   groomed_at: string;
   created_at: string;
   updated_at: string;
+  care_report_data?: Record<string, unknown> | null;
+  care_report_owner_confirmed_at?: string | null;
 };
 
 export type PetStaffNote = {
@@ -342,6 +353,7 @@ export type BootstrapStaffMember = {
   profileImageUrl?: string | null;
   profileImageUrls?: string[];
   profileImageAssetIds?: string[];
+  profileImageFallbackKey?: "korean-groomer-profile-01" | "korean-groomer-profile-02" | null;
   profileMessage?: string | null;
   chipColorIndex?: number | null;
   phone?: string | null;
@@ -529,13 +541,31 @@ export type LandingFeedback = {
   created_at: string;
 };
 
+export type OwnerPilotCohortProjection = {
+  schemaReady: boolean;
+  isPilotMember: boolean;
+  status: "planned" | "active" | "paused" | "completed" | "excluded" | null;
+};
+
+export type PetDisplayPhotoProjection = {
+  appointmentId: string;
+  petId: string;
+  url: string | null;
+  source: "appointment_grooming_after" | "prior_grooming_after" | "fallback";
+  sourceAppointmentId: string | null;
+  sourceGroomingRecordId: string | null;
+  latestCompletedAt: string | null;
+};
+
 export type BootstrapPayload = {
   mode: "mock" | "supabase";
   shop: Shop;
   ownerProfile?: OwnerProfile | null;
+  pilotCohort?: OwnerPilotCohortProjection;
   guardians: Guardian[];
   deletedGuardians?: Guardian[];
   pets: Pet[];
+  petDisplayPhotos?: PetDisplayPhotoProjection[];
   services: Service[];
   staffMembers: BootstrapStaffMember[];
   staffScheduleOverrides?: StaffScheduleOverride[];

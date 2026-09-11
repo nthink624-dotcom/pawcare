@@ -1,12 +1,16 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
 import { X } from "lucide-react";
 
 import OwnerApp, { type OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
+import OwnerBookingNotificationWatcher from "@/components/owner/owner-booking-notification-watcher";
+import { OwnerNativeBillingNotice } from "@/components/owner/owner-native-billing-notice";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { clearOwnerCareReportLocalDrafts } from "@/lib/care-report/owner-care-report-local-draft";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
@@ -25,6 +29,18 @@ type OwnedShopSummary = {
   address: string;
   heroImageUrl: string;
 };
+
+function subscribeRuntimeMode() {
+  return () => undefined;
+}
+
+function getAndroidRuntimeSnapshot() {
+  return Capacitor.getPlatform() === "android";
+}
+
+function getServerConsumptionOnlySnapshot() {
+  return true;
+}
 
 function formatServiceEndDate(summary: OwnerSubscriptionSummary) {
   const serviceEndsAt = summary.currentPeriodEndsAt ?? summary.trialEndsAt;
@@ -84,10 +100,10 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
   };
 
   return (
-    <div className="owner-font mx-auto w-full max-w-[430px] px-4 pt-4">
-      <div className="rounded-[10px] border border-[#dde3de] bg-[#fafbf9] px-4 py-3.5">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#101b17]/30 px-5" role="dialog" aria-modal="true" aria-label="체험 플랜 종료 안내">
+      <div className="owner-font w-full max-w-[390px] rounded-[18px] border border-[#dde3de] bg-[#fafbf9] px-5 py-5 shadow-[0_20px_52px_rgba(20,36,30,0.22)]">
         <div className="flex items-center justify-between gap-3">
-          <p className="min-w-0 pr-2 text-[17px] font-semibold leading-6 tracking-[-0.03em] text-[#1d2b27]">{title}</p>
+          <p className="min-w-0 pr-2 text-[18px] font-semibold leading-6 tracking-[-0.03em] text-[#1d2b27]">{title}</p>
           <button
             type="button"
             onClick={handleDismiss}
@@ -97,13 +113,13 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
             <X className="h-4 w-4" strokeWidth={2.2} />
           </button>
         </div>
-        <div className="mt-2.5 space-y-2">
+        <div className="mt-3 space-y-2">
           <p className="text-[14px] leading-5 tracking-[-0.05em] text-[#4f5753]">{body}</p>
           <p className="text-[14px] leading-5 tracking-[-0.05em] text-[#4f5753]">서비스를 계속 이용하시려면 플랜 연장이 필요합니다.</p>
         </div>
         <a
           href="/owner/billing"
-          className="mt-4 flex h-[46px] w-full items-center justify-center rounded-[10px] border border-[#d8dfda] bg-white px-4 text-[15px] font-medium tracking-[-0.02em] text-[#2f5f55]"
+          className="mt-5 flex h-[48px] w-full items-center justify-center rounded-[12px] border border-[#d8dfda] bg-white px-4 text-[16px] font-medium tracking-[-0.02em] text-[#2f5f55]"
         >
           업그레이드 플랜
         </a>
@@ -126,8 +142,8 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
       <div className="rounded-[10px] border border-[#dfd8cc] bg-[#fffdf8] px-4 py-4 shadow-[0_10px_24px_rgba(41,41,38,0.05)]">
         <div className="space-y-4">
           <div>
-            <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">이용 재개 안내</p>
-            <h1 className="mt-2 text-[23px] font-semibold tracking-[-0.04em] text-[#173b33]">{title}</h1>
+            <p className="text-[12px] font-semibold tracking-[0.14em] text-[#335a50]">이용 재개 안내</p>
+            <h1 className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#173b33]">{title}</h1>
             <p className="mt-2.5 max-w-[330px] text-[14px] leading-6 tracking-[-0.02em] text-[#615d56]">{body}</p>
           </div>
 
@@ -156,7 +172,7 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
         <div className="mt-5 grid gap-2">
           <a
             href={`/owner/billing?compare=1&plan=${resumePlanCode}`}
-            className="flex h-[48px] items-center justify-center rounded-[10px] bg-[#1f5b51] px-4 text-[15px] font-medium text-white shadow-[0_10px_20px_rgba(31,91,81,0.12)]"
+            className="flex h-[48px] items-center justify-center rounded-[10px] bg-[#1f5b51] px-4 text-[16px] font-medium text-white shadow-[0_10px_20px_rgba(31,91,81,0.12)]"
           >
             기간 연장하기
           </a>
@@ -165,7 +181,7 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
         <div className="mt-3">
           <a
             href={supportHref}
-            className="flex h-[46px] items-center justify-center rounded-[10px] border border-[#e3ddd3] bg-white px-4 text-[15px] font-medium text-[#6b655d]"
+            className="flex h-[46px] items-center justify-center rounded-[10px] border border-[#e3ddd3] bg-white px-4 text-[16px] font-medium text-[#6b655d]"
           >
             문의하기
           </a>
@@ -211,6 +227,11 @@ export default function OwnerShell({
   const [loggingOut, setLoggingOut] = useState(false);
   const [summary, setSummary] = useState(subscriptionSummary);
   const [redirectingToBilling, setRedirectingToBilling] = useState(false);
+  const isAndroidApp = useSyncExternalStore(
+    subscribeRuntimeMode,
+    getAndroidRuntimeSnapshot,
+    getServerConsumptionOnlySnapshot,
+  );
 
   useEffect(() => {
     setSummary(subscriptionSummary);
@@ -228,14 +249,14 @@ export default function OwnerShell({
   }, [appRole, currentStaffId, initialData.shop.id]);
 
   useEffect(() => {
-    if (!summary || summary.status !== "past_due") {
+    if (isAndroidApp || !summary || summary.status !== "past_due") {
       setRedirectingToBilling(false);
       return;
     }
 
     setRedirectingToBilling(true);
     router.replace(`/owner/billing?compare=1&plan=${getResumePlanCode(summary)}` as never);
-  }, [router, summary]);
+  }, [isAndroidApp, router, summary]);
 
   useEffect(() => {
     let active = true;
@@ -289,6 +310,7 @@ export default function OwnerShell({
         await supabase.auth.signOut();
       }
     } finally {
+      clearOwnerCareReportLocalDrafts();
       router.replace("/login" as never);
       router.refresh();
       setLoggingOut(false);
@@ -305,13 +327,23 @@ export default function OwnerShell({
     );
   }
 
+  if (isAndroidApp && summary && (summary.status === "expired" || summary.status === "past_due")) {
+    return <OwnerNativeBillingNotice summary={summary} onRefresh={() => window.location.reload()} />;
+  }
+
   if (summary && summary.status === "expired") {
     return <ServiceLockedScreen summary={summary} onLogout={handleLogout} loggingOut={loggingOut} />;
   }
 
   return (
     <div className="owner-font">
-      {summary ? <TrialNoticeBanner summary={summary} /> : null}
+      {!isAndroidApp && summary ? <TrialNoticeBanner summary={summary} /> : null}
+      {appRole === "owner" ? (
+        <OwnerBookingNotificationWatcher
+          shopId={initialData.shop.id}
+          initialNotifications={initialData.notifications}
+        />
+      ) : null}
       <OwnerApp
         initialData={initialData}
         ownedShops={ownedShops}

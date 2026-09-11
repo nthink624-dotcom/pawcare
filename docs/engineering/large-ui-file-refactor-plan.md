@@ -22,9 +22,9 @@ This plan exists before further UI edits to files over the project threshold in 
 
 ## src/components/auth/signup-form.tsx
 - Line count: about 1490 lines
-- Current responsibility: signup flow, identity checks, terms, social completion paths, validation, and UI
+- Current responsibility: signup flow, identity checks, terms, validation, and UI
 - Risk reason: auth and validation behavior are intertwined with rendering
-- Suggested split candidates: identity verification step, credentials step, terms step, social provider helper UI, shared field groups
+- Suggested split candidates: identity verification step, credentials step, terms step, shared field groups
 - Functional risk: High
 - Safe to split now: No
 - Deferred reason: auth and billing onboarding behavior should be split in a dedicated pass with regression checks

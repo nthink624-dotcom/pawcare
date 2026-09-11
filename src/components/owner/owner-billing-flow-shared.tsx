@@ -44,7 +44,7 @@ export function OwnerBillingSuccessCard({
               type="button"
               onClick={onClose}
               aria-label="닫기"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#7f776d]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#7f776d]"
             >
               <X className="h-5 w-5" />
             </button>
@@ -55,8 +55,8 @@ export function OwnerBillingSuccessCard({
           <CheckCircle2 className="h-8 w-8" strokeWidth={2.2} />
         </div>
 
-        <p className="mt-5 text-center text-[12px] font-semibold tracking-[0.08em] text-[#5a8d82]">PAYMENT COMPLETE</p>
-        <h1 className="mt-3 text-center text-[31px] font-extrabold leading-[1.16] tracking-[-0.04em] text-[#171411]">
+        <p className="mt-5 text-center text-[12px] font-semibold tracking-[0.08em] text-[#3f6f66]">PAYMENT COMPLETE</p>
+        <h1 className="mt-3 text-center text-[28px] font-semibold leading-[1.16] tracking-[-0.04em] text-[#171411]">
           결제가 완료되었습니다
         </h1>
         <p className="mt-4 text-center text-[18px] font-semibold tracking-[-0.03em] text-[#173b33]">
@@ -69,17 +69,17 @@ export function OwnerBillingSuccessCard({
         <div className="mt-8 rounded-[24px] border border-[#e5ddd2] bg-[#fcfaf6] px-4 py-4 text-left">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-[#ece4d8] pb-3">
             <div>
-              <p className="text-[13px] font-semibold text-[#7b7369]">적용 플랜</p>
-              <p className="mt-1 text-[24px] font-extrabold tracking-[-0.03em] text-[#173b33]">
+              <p className="text-[13px] font-semibold text-[#6f665f]">적용 플랜</p>
+              <p className="mt-1 text-[24px] font-semibold tracking-[-0.03em] text-[#173b33]">
                 {getOwnerPlanDisplayName(plan.code)}
               </p>
-              <p className="mt-1 text-[13px] text-[#7b7369]">{getPlanSummaryLine(plan)}</p>
+              <p className="mt-1 text-[13px] text-[#6f665f]">{getPlanSummaryLine(plan)}</p>
             </div>
             <div className="text-right">
-              <p className="text-[13px] font-semibold text-[#7b7369]">
+              <p className="text-[13px] font-semibold text-[#6f665f]">
                 {plan.billingType === "one_time" ? "결제 금액" : "월 요금"}
               </p>
-              <p className="mt-1 text-[22px] font-extrabold tracking-[-0.03em] text-[#171411]">
+              <p className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">
                 {plan.billingType === "one_time" ? won(plan.totalPrice) : `월 ${won(plan.monthlyPrice)}`}
               </p>
             </div>
@@ -87,13 +87,13 @@ export function OwnerBillingSuccessCard({
 
           <div className="space-y-3 pt-3">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[14px] font-medium text-[#7b7369]">서비스 종료일</p>
-              <p className="text-[15px] font-semibold text-[#171411]">{formatDate(endAt)}</p>
+              <p className="text-[14px] font-medium text-[#6f665f]">서비스 종료일</p>
+              <p className="text-[16px] font-semibold text-[#171411]">{formatDate(endAt)}</p>
             </div>
             {paymentMethodLabel ? (
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[14px] font-medium text-[#7b7369]">결제수단</p>
-                <p className="text-[15px] font-semibold text-[#171411]">{paymentMethodLabel}</p>
+                <p className="text-[14px] font-medium text-[#6f665f]">결제수단</p>
+                <p className="text-[16px] font-semibold text-[#171411]">{paymentMethodLabel}</p>
               </div>
             ) : null}
           </div>
@@ -103,7 +103,7 @@ export function OwnerBillingSuccessCard({
 
         <AppButton
           fullWidth
-          className="mt-8 h-[58px] rounded-[18px] bg-[#1f5b51] text-[17px] font-semibold text-white shadow-[0_12px_28px_rgba(31,91,81,0.18)]"
+          className="mt-8 h-[58px] rounded-[18px] bg-[#1f5b51] text-[18px] font-semibold text-white shadow-[0_12px_28px_rgba(31,91,81,0.18)]"
           onClick={onConfirm}
         >
           확인

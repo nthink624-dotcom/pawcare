@@ -1,7 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
 
 import { OwnerBillingSuccessCard } from "@/components/owner/owner-billing-flow-shared";
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -26,12 +27,29 @@ function sleep(ms: number) {
   });
 }
 
+function subscribeRuntimeMode() {
+  return () => undefined;
+}
+
+function getAndroidRuntimeSnapshot() {
+  return Capacitor.getPlatform() === "android";
+}
+
+function getServerConsumptionOnlySnapshot() {
+  return true;
+}
+
 function OwnerBillingSuccessPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [summary, setSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [message, setMessage] = useState("결제 완료 내용을 확인하고 있어요.");
+  const isAndroidApp = useSyncExternalStore(
+    subscribeRuntimeMode,
+    getAndroidRuntimeSnapshot,
+    getServerConsumptionOnlySnapshot,
+  );
 
   const snapshotPlan = getSnapshotPlan(searchParams);
   const snapshotEndAt = searchParams.get("endAt");
@@ -39,6 +57,11 @@ function OwnerBillingSuccessPageContent() {
   const hasSnapshot = Boolean(snapshotPlan || snapshotEndAt || snapshotMethod);
 
   useEffect(() => {
+    if (isAndroidApp) {
+      router.replace("/owner/billing" as never);
+      return;
+    }
+
     let active = true;
 
     async function load() {
@@ -104,12 +127,20 @@ function OwnerBillingSuccessPageContent() {
     return () => {
       active = false;
     };
-  }, [hasSnapshot, router, supabase]);
+  }, [hasSnapshot, isAndroidApp, router, supabase]);
 
   const displayPlan: OwnerPlan | null = summary?.currentPlan ?? snapshotPlan ?? getOwnerPlanByCode("monthly");
   const displayEndAt =
     summary?.currentPeriodEndsAt ?? summary?.nextBillingAt ?? snapshotEndAt ?? summary?.trialEndsAt ?? null;
   const displayMethod = summary?.paymentMethodLabel ?? snapshotMethod;
+
+  if (isAndroidApp) {
+    return (
+      <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">
+        이용 상태를 확인하고 있어요.
+      </div>
+    );
+  }
 
   if (!displayPlan) {
     return (

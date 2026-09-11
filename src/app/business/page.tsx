@@ -20,7 +20,7 @@ export default function BusinessPage() {
         <div className="space-y-3">
           {rows.map(([label, value]) => (
             <div key={label} className="rounded-[18px] border border-[#e7e0d5] bg-white px-4 py-3">
-              <p className="text-[11px] font-semibold text-[#6a625b]">{label}</p>
+              <p className="text-[12px] font-semibold text-[#6a625b]">{label}</p>
               <p className="mt-1 text-[14px] font-semibold text-[#1f1a17]">{value}</p>
             </div>
           ))}

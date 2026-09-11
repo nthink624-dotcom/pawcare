@@ -326,12 +326,12 @@ export default function CustomerBookingManagePanel({
     <>
       <section className="rounded-[28px] bg-white p-4 shadow-sm">
         <MobileBackButton onClick={onBack} label="처음 화면으로" />
-        <h2 className="mt-4 text-lg font-extrabold">{"예약 확인 / 취소 / 변경"}</h2>
+        <h2 className="mt-4 text-lg font-semibold">{"예약 확인 / 취소 / 변경"}</h2>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{"보호자 이름, 연락처, 반려동물 이름으로 예약을 확인하고 가능한 건은 직접 취소하거나 시간 변경을 요청할 수 있어요."}</p>
       </section>
 
       <section className="rounded-[28px] bg-white p-4 shadow-sm">
-        <h2 className="text-base font-extrabold">{"예약 조회"}</h2>
+        <h2 className="text-base font-semibold">{"예약 조회"}</h2>
         <div className="mt-4 space-y-3">
           <input
             value={lookupGuardianName}
@@ -352,7 +352,7 @@ export default function CustomerBookingManagePanel({
               placeholder={"반려동물 이름 입력"}
               className="field flex-1 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
             />
-            <button type="button" onClick={() => void lookupBookings()} disabled={!lookupPhone || !lookupGuardianName || !lookupPetName} className="inline-flex h-[54px] items-center justify-center rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-white disabled:opacity-50">
+            <button type="button" onClick={() => void lookupBookings()} disabled={!lookupPhone || !lookupGuardianName || !lookupPetName} className="inline-flex h-[54px] items-center justify-center rounded-full bg-[var(--accent)] px-5 text-[16px] font-semibold text-white disabled:opacity-50">
               {"조회"}
             </button>
           </div>
@@ -379,7 +379,7 @@ export default function CustomerBookingManagePanel({
                 <div key={appointment.id} className="rounded-[24px] border border-[var(--border)] bg-[#f7f2e9] px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{pet?.name || "예약"} · {service?.name || "서비스"}</p>
+                      <p className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text)]">{pet?.name || "예약"} · {service?.name || "서비스"}</p>
                       <p className="mt-2 text-[13px] text-[var(--muted)]">{formatDateLabel(appointment.appointment_date)}{" · "}{formatClockTime(appointment.appointment_time)}</p>
                       <p className="mt-1 text-[13px] text-[var(--muted)]">{"상태: "}{statusLabelMap[appointment.status] || appointment.status}</p>
                       {appointment.memo ? <p className="mt-2 text-[13px] leading-6 text-[var(--muted)]">메모: {appointment.memo}</p> : null}
@@ -414,7 +414,7 @@ export default function CustomerBookingManagePanel({
                               key={option.value}
                               type="button"
                               onClick={() => setManageForm((prev) => (prev ? { ...prev, date: option.value, timeSlot: "" } : prev))}
-                              className={`rounded-2xl border px-2 py-3 text-center text-sm font-bold ${manageForm?.date === option.value ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-[#fffdfa] text-[var(--text)]"}`}
+                              className={`rounded-2xl border px-2 py-3 text-center text-sm font-semibold ${manageForm?.date === option.value ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-[#fffdfa] text-[var(--text)]"}`}
                             >
                               <div>{option.label}</div>
                               <div className="mt-1 text-xs font-medium">{option.weekday}</div>
@@ -437,7 +437,7 @@ export default function CustomerBookingManagePanel({
                                   key={slot}
                                   type="button"
                                   onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
-                                  className={`rounded-2xl border px-2 py-3 text-sm font-bold ${manageForm?.timeSlot === slot ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-[#fffdfa] text-[var(--text)]"}`}
+                                  className={`rounded-2xl border px-2 py-3 text-sm font-semibold ${manageForm?.timeSlot === slot ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-[#fffdfa] text-[var(--text)]"}`}
                                 >
                                   {slot}
                                 </button>
@@ -495,7 +495,7 @@ export default function CustomerBookingManagePanel({
 
             {lookupResult.groomingRecords.slice(0, 2).map((record) => (
               <div key={record.id} className="rounded-[24px] border border-[var(--border)] bg-[#f7f2e9] px-4 py-4">
-                <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">지난 기록</p>
+                <p className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text)]">지난 기록</p>
                 <p className="mt-2 text-[13px] text-[var(--muted)]">{formatVisitedAt(record.groomed_at)}</p>
                 <p className="mt-2 text-[13px] leading-6 text-[var(--muted)]">{record.style_notes || "스타일 메모 없음"}</p>
               </div>

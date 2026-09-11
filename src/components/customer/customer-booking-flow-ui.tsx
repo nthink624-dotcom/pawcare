@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, CheckCircle2, Plus } from "lucide-react";
-import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import { createContext, useContext, useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
 
 import { formatServicePrice } from "@/lib/utils";
 import type { Service } from "@/types/domain";
@@ -18,6 +18,7 @@ type ChoiceOption = {
 };
 
 const CUSTOM_SERVICE_OPTION = "__custom__";
+const BookingFieldLabelContext = createContext<string | undefined>(undefined);
 
 export function StepHeader({
   title,
@@ -34,16 +35,16 @@ export function StepHeader({
 }) {
   return (
     <div className="mb-3.5">
-      <div className="relative flex min-h-8 items-center justify-center">
+      <div className="relative flex min-h-11 items-center justify-center">
         <button
           type="button"
           onClick={onBack}
-          className="absolute left-0 inline-flex h-8 w-8 items-center justify-center text-[var(--text)] transition hover:text-[var(--accent)]"
+          className="absolute left-0 inline-flex h-11 w-11 items-center justify-center text-[var(--text)] transition hover:text-[var(--accent)]"
           aria-label="이전"
         >
           <ChevronLeft className="h-5 w-5" strokeWidth={1.9} />
         </button>
-        {title ? <h2 className="text-center text-[17px] font-semibold tracking-[-0.03em] text-[var(--text)]">{title}</h2> : null}
+        {title ? <h2 className="text-center text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{title}</h2> : null}
         <span className="absolute right-0 text-[13px] font-medium tracking-[-0.02em] text-[#7f756b]">
           {step}/{total}
         </span>
@@ -58,7 +59,7 @@ export function StepHeader({
 export function StepSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
-      {title ? <h3 className="text-[17px] font-semibold tracking-[-0.03em] text-[var(--text)]">{title}</h3> : null}
+      {title ? <h3 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{title}</h3> : null}
       {children}
     </div>
   );
@@ -71,7 +72,7 @@ export function FlowHeader({ title, onBack }: { title: string; onBack: () => voi
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] border border-[#e4ddd3] bg-white text-[var(--text)] shadow-[0_3px_8px_rgba(30,34,29,0.04)] transition hover:bg-[#fbfaf7]"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#e4ddd3] bg-white text-[var(--text)] shadow-[0_3px_8px_rgba(30,34,29,0.04)] transition hover:bg-[#fbfaf7]"
           aria-label="처음 화면으로"
         >
           <ChevronLeft className="h-4.5 w-4.5" strokeWidth={1.9} />
@@ -106,7 +107,7 @@ export function BookingStageCard({ children }: { children: ReactNode }) {
 export function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="rounded-[18px] border border-[#e6dfd5] bg-white px-3.5 py-3.5 shadow-[0_10px_22px_rgba(25,28,24,0.05)]">
-      <h2 className="text-[17px] font-semibold tracking-[-0.03em] text-[var(--text)]">{title}</h2>
+      <h2 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{title}</h2>
       <div className="mt-3 space-y-2.5">{children}</div>
     </section>
   );
@@ -121,10 +122,13 @@ export function BookingFieldCard({
   children: ReactNode;
   className?: string;
 }) {
+  const labelId = useId();
   return (
     <fieldset className={`rounded-[12px] border border-[#ddd5ca] bg-white px-3.5 pb-1.5 pt-0.5 ${className}`}>
-      <legend className="px-2 text-[15px] font-medium tracking-[-0.01em] text-[#8a8074]">{label}</legend>
-      <div className="flex min-h-[28px] items-center">{children}</div>
+      <legend id={labelId} className="px-2 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#6f665f]">{label}</legend>
+      <BookingFieldLabelContext.Provider value={labelId}>
+        <div className="flex min-h-11 items-center">{children}</div>
+      </BookingFieldLabelContext.Provider>
     </fieldset>
   );
 }
@@ -133,10 +137,12 @@ export function BookingTextInput({
   className = "",
   ...props
 }: InputHTMLAttributes<HTMLInputElement>) {
+  const labelId = useContext(BookingFieldLabelContext);
   return (
     <input
       {...props}
-      className={`relative -top-[2px] h-7 w-full border-0 bg-transparent px-0 pt-0 pb-[3px] text-[19px] font-medium leading-7 tracking-[-0.02em] text-[var(--text)] outline-none placeholder:font-normal placeholder:text-[#b1a79b] ${className}`}
+      aria-labelledby={props["aria-labelledby"] ?? labelId}
+      className={`min-h-11 w-full border-0 bg-transparent px-0 py-2 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[var(--text)] outline-none placeholder:font-normal placeholder:text-[#b1a79b] ${className}`}
     />
   );
 }
@@ -148,7 +154,7 @@ export function BookingTextArea({
   return (
     <textarea
       {...props}
-      className={`w-full resize-none border-0 bg-transparent px-0 py-0.5 text-[15px] leading-6 tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[#b1a79b] ${className}`}
+      className={`w-full resize-none border-0 bg-transparent px-0 py-0.5 text-[16px] leading-6 tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[#b1a79b] ${className}`}
     />
   );
 }
@@ -159,7 +165,7 @@ export function AddPetButton({ onClick, disabled = false }: { onClick: () => voi
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="mt-1.5 flex h-[46px] w-full items-center justify-center gap-1.5 rounded-[12px] border border-[#cfded8] bg-white px-4 text-[15px] font-medium tracking-[-0.02em] text-[var(--accent)] shadow-[0_4px_12px_rgba(31,107,91,0.05)] transition hover:bg-[#fcfaf7] disabled:cursor-not-allowed disabled:border-[#e6e0d7] disabled:bg-[#f7f3ed] disabled:text-[#b0a79b] disabled:shadow-none disabled:opacity-100"
+      className="mt-1.5 flex h-[46px] w-full items-center justify-center gap-1.5 rounded-[12px] border border-[#cfded8] bg-white px-4 text-[16px] font-medium tracking-[-0.02em] text-[var(--accent)] shadow-[0_4px_12px_rgba(31,107,91,0.05)] transition hover:bg-[#fcfaf7] disabled:cursor-not-allowed disabled:border-[#e6e0d7] disabled:bg-[#f7f3ed] disabled:text-[#b0a79b] disabled:shadow-none disabled:opacity-100"
     >
       <Plus className="h-4 w-4" strokeWidth={2.1} />
       아기 추가하기
@@ -244,10 +250,10 @@ export function TimeGrid({
   onSelect: (value: string) => void;
 }) {
   if (loading) {
-    return <div className="rounded-[18px] border border-[#ebe4db] bg-[#fcfaf6] px-4 py-4 text-[14px] text-[#8f8578]">가능한 시간을 확인하고 있어요.</div>;
+    return <div className="rounded-[18px] border border-[#ebe4db] bg-[#fcfaf6] px-4 py-4 text-[14px] text-[#6f665f]">가능한 시간을 확인하고 있어요.</div>;
   }
   if (availableSlots.length === 0) {
-    return <div className="rounded-[18px] border border-[#ebe4db] bg-[#fcfaf6] px-4 py-4 text-[14px] text-[#8f8578]">선택한 날짜에 가능한 시간이 없어요.</div>;
+    return <div className="rounded-[18px] border border-[#ebe4db] bg-[#fcfaf6] px-4 py-4 text-[14px] text-[#6f665f]">선택한 날짜에 가능한 시간이 없어요.</div>;
   }
   return (
     <div className="grid grid-cols-3 gap-1.5">
@@ -258,7 +264,7 @@ export function TimeGrid({
             key={slot}
             type="button"
             onClick={() => onSelect(slot)}
-            className={`rounded-[12px] border px-2 py-2.5 text-[15px] font-medium tracking-[-0.02em] transition ${
+            className={`rounded-[12px] border px-2 py-2.5 text-[16px] font-medium tracking-[-0.02em] transition ${
               active
                 ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_10px_20px_rgba(31,107,91,0.14)]"
                 : "border-[#dfd8cd] bg-[#fdfbf7] text-[var(--text)] hover:bg-[#faf7f0]"
@@ -320,7 +326,7 @@ export function ServiceCards({
           }`}
         >
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">기타 요청 서비스</p>
+            <p className="text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">기타 요청 서비스</p>
             <span className="text-[13px] font-medium text-[#847b6e]">직접 입력</span>
           </div>
         </button>
@@ -349,11 +355,11 @@ export function ReservationSlotPicker({
   return (
     <div className="space-y-2.5">
       <div className="space-y-2">
-        <p className="text-[13px] font-medium text-[#8a8074]">날짜 선택</p>
+        <p className="text-[13px] font-medium text-[#6f665f]">날짜 선택</p>
         <DateGrid dateOptions={dateOptions} selectedDate={date} onSelect={onDateChange} />
       </div>
       <div className="space-y-2">
-        <p className="text-[13px] font-medium text-[#8a8074]">시간 선택</p>
+        <p className="text-[13px] font-medium text-[#6f665f]">시간 선택</p>
         <TimeGrid timeSlot={timeSlot} availableSlots={availableSlots} loading={loading} onSelect={onTimeChange} />
       </div>
     </div>
@@ -392,8 +398,8 @@ export function ServiceSelect({
 export function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 rounded-[12px] border border-[#e4ddd3] bg-[#fcfaf6] px-3.5 py-2.5">
-      <span className="text-[13px] font-medium text-[#8a8074]">{label}</span>
-      <span className="text-right text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{value}</span>
+      <span className="text-[13px] font-medium text-[#6f665f]">{label}</span>
+      <span className="text-right text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">{value}</span>
     </div>
   );
 }
@@ -428,7 +434,7 @@ export function ActionButton({
       type="button"
       disabled={disabled}
       onClick={() => void onClick()}
-      className="w-full rounded-[12px] bg-[var(--accent)] px-4 py-3.5 text-[17px] font-semibold tracking-[-0.02em] text-white shadow-[0_12px_22px_rgba(31,107,91,0.16)] transition disabled:cursor-not-allowed disabled:opacity-45"
+      className="w-full rounded-[12px] bg-[var(--accent)] px-4 py-3.5 text-[18px] font-semibold tracking-[-0.02em] text-white shadow-[0_12px_22px_rgba(31,107,91,0.16)] transition disabled:cursor-not-allowed disabled:opacity-45"
     >
       {children}
     </button>
@@ -449,7 +455,7 @@ export function SecondaryButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="shrink-0 rounded-[12px] border border-[#ddd5ca] bg-white px-4.5 py-3.5 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] transition disabled:cursor-not-allowed disabled:opacity-40"
+      className="shrink-0 rounded-[12px] border border-[#ddd5ca] bg-white px-4.5 py-3.5 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] transition disabled:cursor-not-allowed disabled:opacity-40"
     >
       {children}
     </button>
@@ -477,7 +483,7 @@ export function FeedbackDialog({
           <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.1} />
           {tone === "success" ? "예약 완료" : "예약 실패"}
         </div>
-        <h3 className="mt-4 text-[22px] font-semibold leading-8 tracking-[-0.03em] text-[var(--text)]">{title}</h3>
+        <h3 className="mt-4 text-[20px] font-semibold leading-8 tracking-[-0.03em] text-[var(--text)]">{title}</h3>
         <p className="mt-3 text-[14px] leading-6 text-[var(--muted)]">{message}</p>
         <button
           type="button"

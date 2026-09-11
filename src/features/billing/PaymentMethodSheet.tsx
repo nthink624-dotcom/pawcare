@@ -55,8 +55,8 @@ function PaymentOptionCard({
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] tracking-[-0.02em] text-[#171411]">{option.title}</p>
-        <p className="mt-1 text-[12.5px] leading-[1.45] text-[#6b6a64]">{option.description}</p>
+        <p className="text-[16px] tracking-[-0.02em] text-[#171411]">{option.title}</p>
+        <p className="mt-1 text-[13px] leading-[1.45] text-[#6b6a64]">{option.description}</p>
       </div>
 
       <span
@@ -216,7 +216,7 @@ export function PaymentMethodSheet({
 
           <div className="mt-4 flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#9b9286]">{eyebrow}</p>
+              <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[#6f665f]">{eyebrow}</p>
               <h2 id={titleId} className="mt-[5px] text-[18px] font-semibold tracking-[-0.04em] text-[#171411]">
                 {title}
               </h2>
@@ -228,7 +228,7 @@ export function PaymentMethodSheet({
               type="button"
               aria-label={closeLabel}
               onClick={onClose}
-              className="inline-flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-[#e5ddd1] bg-white text-[#726b63]"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5ddd1] bg-white text-[#726b63]"
             >
               <X className="h-4 w-4" strokeWidth={1.7} />
             </button>
@@ -237,13 +237,13 @@ export function PaymentMethodSheet({
           <div className="mt-4 rounded-[16px] border border-[#e5ddd1] bg-[#fcfaf6] px-[14px] py-[12px]">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[12px] text-[#9b9286]">선택 플랜</p>
+                <p className="text-[12px] text-[#6f665f]">선택 플랜</p>
                 <p className="mt-1 text-[14px] tracking-[-0.02em] text-[#171411]">{planLabel}</p>
                 <p className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[#171411]">{amountLabel}</p>
               </div>
 
               <div className="shrink-0 text-right">
-                <p className="text-[12px] text-[#9b9286]">다음 결제 예정일</p>
+                <p className="text-[12px] text-[#6f665f]">다음 결제 예정일</p>
                 <p className="mt-1 text-[14px] tracking-[-0.02em] text-[#171411]">{nextBillingDateLabel}</p>
               </div>
             </div>
@@ -268,7 +268,7 @@ export function PaymentMethodSheet({
             <AppButton
               fullWidth
               disabled={loading}
-              className="h-[54px] rounded-[14px] bg-[#1f6b5b] text-[15px] font-semibold tracking-[-0.02em] text-white"
+              className="h-[54px] rounded-[14px] bg-[#1f6b5b] text-[16px] font-semibold tracking-[-0.02em] text-white"
               onClick={onContinue}
             >
               {continueLabel}

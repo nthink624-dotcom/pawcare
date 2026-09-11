@@ -1,0 +1,23 @@
+# Local-only dependencies and build caches.
+node_modules
+.next
+.vercel
+.git
+
+# Native Android project and generated artifacts are not part of the Next.js deployment.
+android
+capacitor-web
+
+# Device-test browser profile, captures, and local runtime logs.
+.local-chrome-firebase
+artifacts
+*.log
+
+# Local secrets and transient test data.
+.env
+.env.local
+.env.*.local
+.local-secrets
+coverage
+dist
+*.tsbuildinfo

@@ -36,6 +36,7 @@ export const appointmentEditSchema = z.object({
   appointmentTime: z.string(),
   durationMinutes: z.coerce.number().min(15).max(24 * 60).optional(),
   memo: z.string().default(""),
+  staffMemo: z.string().default(""),
   visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).optional(),
   pickupReadyEtaMinutes: z.coerce.number().int().min(0).max(180).optional(),
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),

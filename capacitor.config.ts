@@ -10,6 +10,10 @@ const config: CapacitorConfig = {
   appId: "kr.petmanager.owner",
   appName: PETMANAGER_SERVICE_NAME,
   webDir: "capacitor-web",
+  android: {
+    // Camera results can include base64 data. Keep Capacitor's bridge output out of Android logs.
+    loggingBehavior: "none",
+  },
   plugins: {
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],

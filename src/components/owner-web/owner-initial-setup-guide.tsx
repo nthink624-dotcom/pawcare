@@ -18,7 +18,7 @@ import {
   getBootstrapOwnerInitialSetupReadiness,
   OWNER_INITIAL_SETUP_ORDER,
 } from "@/lib/owner-initial-setup-readiness";
-import type { BootstrapPayload, OwnerInitialSetupReadiness, OwnerInitialSetupStepKey } from "@/types/domain";
+import type { BootstrapPayload, OwnerInitialSetupStepKey } from "@/types/domain";
 
 export type { OwnerInitialSetupStepKey } from "@/types/domain";
 
@@ -126,33 +126,6 @@ function SetupChecklist({
         );
       })}
     </ol>
-  );
-}
-
-export function OwnerInitialSetupResumeCard({
-  readiness,
-  onResume,
-}: {
-  readiness: OwnerInitialSetupReadiness;
-  onResume: () => void;
-}) {
-  if (readiness.completed) return null;
-
-  return (
-    <section
-      className="flex min-w-0 flex-col gap-3 rounded-[12px] border border-[#dbe2ea] bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-      aria-label="매장 준비 이어하기"
-      data-testid="owner-initial-setup-resume-card"
-    >
-      <p className="min-w-0 text-[14px] font-medium leading-5 text-[#15213b]">매장 준비 이어하기</p>
-      <button
-        type="button"
-        onClick={onResume}
-        className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[10px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-medium leading-5 text-[#15213b] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
-      >
-        이어하기
-      </button>
-    </section>
   );
 }
 

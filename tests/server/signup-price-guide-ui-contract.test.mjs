@@ -13,6 +13,7 @@ const signupFormPath = new URL("../../src/components/auth/signup-form.tsx", impo
 const signupViewPath = new URL("../../src/components/auth/signup-redesign-view.tsx", import.meta.url);
 const previewPath = new URL("../../src/app/dev/signup-and-initial-setup-preview/signup-and-initial-setup-preview-client.tsx", import.meta.url);
 const initialSetupGuidePath = new URL("../../src/components/owner-web/owner-initial-setup-guide.tsx", import.meta.url);
+const initialSetupBlockingModalPath = new URL("../../src/components/owner-web/owner-initial-setup-blocking-modal.tsx", import.meta.url);
 const initialSetupPreviewPath = new URL("../../src/app/dev/initial-setup-guide-preview/initial-setup-guide-preview-client.tsx", import.meta.url);
 const initialSetupFixtureFormPath = new URL("../../src/app/dev/initial-setup-guide-preview/initial-setup-fixture-form.tsx", import.meta.url);
 const initialSetupStaffPanelPath = new URL("../../src/components/owner-web/initial-setup-staff-management-panel.tsx", import.meta.url);
@@ -164,7 +165,7 @@ test("local signup completion opens the public DB-free owner setup while real si
   assert.match(ownerPreview, /const \[initialSetupScreen, setInitialSetupScreen\] = useState<OwnerWebScreenKey>\("operatingHours"\);/);
   assert.match(ownerPreview, /const \[initialSetupOpen, setInitialSetupOpen\] = useState\(false\);/);
   assert.doesNotMatch(ownerPreview, /useState\([^;]*window\.|useState[^;]*localStorage/);
-  assert.match(ownerPreview, /const requestedAfterSignup = new URLSearchParams\(window\.location\.search\)\.get\("initialSetup"\) === "1";[\s\S]*const visibility = resolveOwnerInitialSetupVisibility\(initialSetupReadiness, requestedAfterSignup\);[\s\S]*setInitialSetupOpen\(visibility\.open\);[\s\S]*setInitialSetupScreen\(screenForInitialSetupStep\(visibility\.nextStep\)\)/);
+  assert.match(ownerPreview, /const requestedAfterSignup = new URLSearchParams\(window\.location\.search\)\.get\("initialSetup"\) === "1";[\s\S]*const visibility = resolveOwnerInitialSetupVisibility\(initialSetupReadiness, requestedAfterSignup\);[\s\S]*setInitialSetupOpen\(false\);[\s\S]*setInitialSetupScreen\(screenForInitialSetupStep\(visibility\.nextStep\)\)/);
   assert.match(ownerPreview, /const initialSetupEligible = !initialSetupReadiness\.completed;[\s\S]*showInitialSetupAction=\{initialSetupEligible\}/);
   for (const component of ["OwnerWebAppShell", "SettingsManagementScreen", "StaffManagementScreen", "ServiceManagementScreen", "OwnerInitialSetupGuide"]) {
     assert.match(ownerPreview, new RegExp(component));
@@ -332,9 +333,10 @@ test("owner setup exposes only the three actionable setup items and advances fro
   assert.match(services, /const saved = await saveService\(\{[\s\S]*showError: false,[\s\S]*formToSave: nextForm,[\s\S]*refetchCanonicalAfterSave: true,[\s\S]*\}\);[\s\S]*if \(saved && hasValidDetailedRow\) onPriceGuideSaveSuccess\?\.\(lastCanonicalBootstrapRef\.current \?\? undefined\)/);
 });
 
-test("owner setup uses one accessible responsive modal over an inert owner home", async () => {
-  const [guide, ownerPreview, ownerShell, bookingReadiness, operatingHours, staff, staffPanel, services, shopInfoSettings] = await Promise.all([
+test("owner setup uses an accessible guide and a non-dismissible blocking modal over inert operations", async () => {
+  const [guide, blockingModal, ownerPreview, ownerShell, bookingReadiness, operatingHours, staff, staffPanel, services, shopInfoSettings] = await Promise.all([
     readFile(initialSetupGuidePath, "utf8"),
+    readFile(initialSetupBlockingModalPath, "utf8"),
     readFile(ownerPreviewPath, "utf8"),
     readFile(ownerShellPath, "utf8"),
     readFile(bookingReadinessPath, "utf8"),
@@ -345,7 +347,8 @@ test("owner setup uses one accessible responsive modal over an inert owner home"
     readFile(shopInfoSettingsPath, "utf8"),
   ]);
   assert.doesNotMatch(ownerPreview, /pm-initial-setup-layout|setupMode=\{initialSetupOpen\}/);
-  assert.match(ownerPreview, /<div inert=\{initialSetupOpen \? true : undefined\} aria-hidden=\{initialSetupOpen \? true : undefined\}>/);
+  assert.match(ownerShell, /inert=\{backgroundBlocked \? true : undefined\}[\s\S]*aria-hidden=\{backgroundBlocked \? true : undefined\}/);
+  assert.match(ownerShell, /backgroundBlocked && "pointer-events-none select-none"/);
   assert.match(ownerPreview, /\{initialSetupOpen \? \([\s\S]*<OwnerInitialSetupGuide[\s\S]*\{renderScreen\([\s\S]*initialSetupScreen[\s\S]*true,/);
   assert.doesNotMatch(guide, /lg:sticky|aria-label="매장 준비 4단계"|SetupRows|item\.description/);
   assert.match(guide, /min-h-11/);
@@ -389,12 +392,15 @@ test("owner setup uses one accessible responsive modal over an inert owner home"
   assert.match(guide, /hidden w-\[184px\][^"\n]*md:block/);
   assert.doesNotMatch(ownerPreview + "\n" + shopInfoSettings, /aria-label="매장 준비 단계"/);
   assert.doesNotMatch(shopInfoSettings, /xl:grid-cols-\[minmax\(0,1fr\)_320px\]|CustomerPagePhonePreview|<aside/);
-  assert.match(guide, /data-testid="owner-initial-setup-resume-card"[\s\S]*매장 준비 이어하기/);
+  assert.doesNotMatch(guide + ownerPreview + blockingModal, /owner-initial-setup-resume-card|매장 준비 이어하기/);
+  assert.match(blockingModal, /role="dialog"[\s\S]*aria-modal="true"[\s\S]*aria-labelledby="owner-initial-setup-blocking-title"/);
+  assert.match(blockingModal, />\s*중요\s*</);
+  assert.match(blockingModal, />\s*매장 준비를 먼저 완료해 주세요\s*</);
+  assert.match(blockingModal, /ref=\{primaryActionRef\}[\s\S]*min-h-12[\s\S]*>\s*초기 설정 이어하기\s*</);
+  assert.doesNotMatch(blockingModal, /onClose|onPointerDown|<X\b/);
   assert.doesNotMatch(guide, /\{completedCount\}\/4/);
   assert.match(ownerPreview, /setActiveScreen\(getBootstrapOwnerInitialSetupReadiness\(ownerDataRef\.current\)\.completed \? "schedule" : "operatingHours"\);[\s\S]*searchParams\.delete\("initialSetup"\)/);
-  assert.match(ownerPreview, /<OwnerInitialSetupResumeCard readiness=\{initialSetupReadiness\} onResume=\{openInitialSetup\}/);
-  assert.match(ownerPreview, /!initialSetupOpen && initialSetupEligible && activeScreen !== "ownerProfile" && activeScreen !== "help"/);
-  assert.match(ownerPreview, /!initialSetupEligible \|\| activeScreen === "ownerProfile" \|\| activeScreen === "help"/);
+  assert.match(ownerPreview, /setupBlockingModalOpen=\{initialSetupEligible && !initialSetupOpen && activeScreen !== "ownerProfile" && activeScreen !== "help"\}/);
   assert.match(ownerPreview, /<div className="h-full min-h-0 min-w-0">[\s\S]*\{renderScreen\(/);
   assert.match(operatingHours, /initialSetupMode[\s\S]*grid-cols-\[minmax\(0,1fr\)_20px_minmax\(0,1fr\)\]/);
   assert.match(operatingHours, /initialSetupSubview[\s\S]*휴무일 추가[\s\S]*영업시간으로 돌아가기/);

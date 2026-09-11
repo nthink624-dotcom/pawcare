@@ -6,9 +6,7 @@ import dynamic from "next/dynamic";
 import CalendarManagementScreen, { type OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
-import OwnerInitialSetupGuide, {
-  OwnerInitialSetupResumeCard,
-} from "@/components/owner-web/owner-initial-setup-guide";
+import OwnerInitialSetupGuide from "@/components/owner-web/owner-initial-setup-guide";
 import type { InitialSetupStaffSessionDraft } from "@/components/owner-web/initial-setup-staff-management-panel";
 import type { StaffProfilePhotoUploader } from "@/components/owner-web/staff-profile-photo-field";
 import {
@@ -384,11 +382,10 @@ export default function OwnerWebPreview({
     const requestedAfterSignup = new URLSearchParams(window.location.search).get("initialSetup") === "1";
     const visibility = resolveOwnerInitialSetupVisibility(initialSetupReadiness, requestedAfterSignup);
     setActiveScreen(getInitialOwnerWebScreen(ownerData));
-    setInitialSetupOpen(visibility.open);
+    setInitialSetupOpen(false);
     if (visibility.nextStep) {
       setInitialSetupScreen(screenForInitialSetupStep(visibility.nextStep));
     }
-    if (visibility.open) setActiveScreen("operatingHours");
   }, [initialSetupReadiness, ownerData]);
 
   useEffect(() => {
@@ -751,7 +748,6 @@ export default function OwnerWebPreview({
 
   return (
     <>
-      <div inert={initialSetupOpen ? true : undefined} aria-hidden={initialSetupOpen ? true : undefined}>
       <OwnerWebAppShell
       activeScreen={activeScreen}
       onScreenSelect={handleScreenSelect}
@@ -788,13 +784,10 @@ export default function OwnerWebPreview({
       loggingOut={loggingOut}
       isTester={ownerData.pilotCohort?.isPilotMember === true}
       feedbackFixtureMode={feedbackFixtureMode}
-      operationsLocked={initialSetupEligible}
+      backgroundBlocked={initialSetupEligible && activeScreen !== "ownerProfile" && activeScreen !== "help"}
+      setupBlockingModalOpen={initialSetupEligible && !initialSetupOpen && activeScreen !== "ownerProfile" && activeScreen !== "help"}
     >
       <div className="h-full min-h-0 min-w-0">
-        {!initialSetupOpen && initialSetupEligible && activeScreen !== "ownerProfile" && activeScreen !== "help" ? (
-          <OwnerInitialSetupResumeCard readiness={initialSetupReadiness} onResume={openInitialSetup} />
-        ) : null}
-        {!initialSetupEligible || activeScreen === "ownerProfile" || activeScreen === "help" ? (
         <div className="h-full min-h-0 min-w-0">
           {renderScreen(
             activeScreen,
@@ -820,10 +813,8 @@ export default function OwnerWebPreview({
             uploadDemoInitialSetupStaffPhoto,
           )}
         </div>
-        ) : null}
       </div>
       </OwnerWebAppShell>
-      </div>
 
       {initialSetupOpen ? (
         <OwnerInitialSetupGuide

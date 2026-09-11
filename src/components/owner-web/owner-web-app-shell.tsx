@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 
 import PetManagerBrand from "@/components/brand/petmanager-brand";
+import OwnerInitialSetupBlockingModal from "@/components/owner-web/owner-initial-setup-blocking-modal";
 import { type OwnerWebScreenKey } from "@/components/owner-web/owner-web-data";
 import OwnerFeatureRequestDialog from "@/components/owner-web/owner-feature-request-dialog";
 import { SoftSelect } from "@/components/owner-web/owner-web-ui";
@@ -154,7 +155,8 @@ export default function OwnerWebAppShell({
   isTester = false,
   feedbackFixtureMode = false,
   setupMode = false,
-  operationsLocked = false,
+  backgroundBlocked = false,
+  setupBlockingModalOpen = false,
   children,
 }: {
   activeScreen: OwnerWebScreenKey;
@@ -183,17 +185,27 @@ export default function OwnerWebAppShell({
   isTester?: boolean;
   feedbackFixtureMode?: boolean;
   setupMode?: boolean;
-  operationsLocked?: boolean;
+  backgroundBlocked?: boolean;
+  setupBlockingModalOpen?: boolean;
   children: ReactNode;
 }) {
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
   const usesSinglePlaneCore = ownerWebSinglePlaneCoreScreens.has(activeScreen);
 
   return (
-    <div className="owner-font pm-owner-web flex h-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
+    <>
+    <div
+      className={cn(
+        "owner-font pm-owner-web flex h-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)]",
+        backgroundBlocked && "pointer-events-none select-none",
+      )}
+      inert={backgroundBlocked ? true : undefined}
+      aria-hidden={backgroundBlocked ? true : undefined}
+      data-testid="owner-web-operations-background"
+    >
       <aside className={cn(
         "pm-owner-sidebar hidden h-screen w-[236px] shrink-0 flex-col border-r border-[var(--nav-bd)] bg-[var(--nav-bg)]",
-        setupMode || operationsLocked ? "hidden" : "lg:flex",
+        setupMode ? "hidden" : "lg:flex",
       )}>
         <div className="flex items-center pb-4 pl-[34px] pr-5 pt-[22px]">
           <PetManagerBrand
@@ -265,14 +277,10 @@ export default function OwnerWebAppShell({
           "hidden h-[60px] shrink-0 items-center gap-4 border-b border-[var(--line2)] bg-[var(--card)] px-[22px]",
           setupMode ? "hidden" : "lg:flex",
         )}>
-          {operationsLocked ? (
-            <PetManagerBrand imageClassName="h-5 w-auto" nameClassName="text-[15px] text-[#1f2937]" />
-          ) : (
           <label className="flex h-[38px] w-[300px] items-center gap-2 rounded-[10px] border border-transparent bg-[#eef1f5] px-3 text-[14px] text-[var(--mid)] transition focus-within:border-[var(--acc)] focus-within:bg-white focus-within:shadow-[0_0_0_3px_var(--acc-tint)]">
             <Search className="h-4 w-4 shrink-0" strokeWidth={1.7} />
             <input className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--mut)]" placeholder="검색" />
           </label>
-          )}
 
           <div className="ml-auto flex items-center gap-2">
             {showInitialSetupAction ? (
@@ -326,11 +334,9 @@ export default function OwnerWebAppShell({
                   <button type="button" onClick={onOpenProfile} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
                     프로필
                   </button>
-                  {!operationsLocked ? (
-                    <button type="button" onClick={onOpenShop} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
-                      매장 정보
-                    </button>
-                  ) : null}
+                  <button type="button" onClick={onOpenShop} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
+                    매장 정보
+                  </button>
                   <div className="my-1 border-t border-[var(--line)]" />
                   <button
                     type="button"
@@ -390,7 +396,6 @@ export default function OwnerWebAppShell({
             >
               <HelpCircle className="h-4.5 w-4.5" strokeWidth={1.8} />
             </button>
-            {!operationsLocked ? (
             <SoftSelect<OwnerWebScreenKey>
               value={activeScreen}
               onChange={onScreenSelect}
@@ -401,7 +406,6 @@ export default function OwnerWebAppShell({
               valueClassName="whitespace-nowrap"
               menuClassName="[&_[role=option]]:h-auto [&_[role=option]]:min-h-11"
             />
-            ) : null}
           </div>
         </header>
 
@@ -422,6 +426,13 @@ export default function OwnerWebAppShell({
           )}
         </section>
       </main>
+    </div>
+      <OwnerInitialSetupBlockingModal
+        open={setupBlockingModalOpen && !featureRequestOpen}
+        onResume={onOpenInitialSetup}
+        onFeedback={() => setFeatureRequestOpen(true)}
+        onHelp={onOpenHelp}
+      />
       <OwnerFeatureRequestDialog
         open={featureRequestOpen}
         shopId={shopId}
@@ -430,6 +441,6 @@ export default function OwnerWebAppShell({
         fixtureMode={feedbackFixtureMode}
         onClose={() => setFeatureRequestOpen(false)}
       />
-    </div>
+    </>
   );
 }

@@ -2,20 +2,11 @@ import type { Service } from "@/types/domain";
 import { buildCustomerPriceGuideGroupKey } from "@/lib/customer-breed-pricing-group";
 import { resolvePriceGuideOrderedWeightBands } from "@/lib/price-guide-structured-table";
 import {
-  ensurePriceGuideV2SourceItemIds,
-  priceGuideV2Schema,
   type PriceGuideV2,
   type PriceGuideV2Row,
 } from "@/types/price-guide-photo-import";
 import { isConfirmedPriceGuideDuration } from "@/lib/price-guide-duration-confirmation";
-
-export type CustomerServiceDisplayOverride = {
-  visible?: boolean;
-  order?: number;
-  linkedOptionId?: string;
-};
-
-export type CustomerServiceDisplayOverrides = Record<string, CustomerServiceDisplayOverride>;
+import { readCanonicalPriceGuide } from "@/lib/price-guide-core";
 
 export type CustomerServiceSourceOption = {
   id: string;
@@ -42,14 +33,6 @@ type PriceGuideWeightRange = {
   minimumInclusive: boolean | null;
   maximumInclusive: boolean | null;
 };
-
-function readCanonicalPriceGuideV2(guide: unknown): PriceGuideV2 | null {
-  const rootDocument = priceGuideV2Schema.safeParse(guide);
-  if (rootDocument.success) return ensurePriceGuideV2SourceItemIds(rootDocument.data);
-  if (!guide || typeof guide !== "object" || Array.isArray(guide)) return null;
-  const nestedDocument = priceGuideV2Schema.safeParse((guide as { canonicalV2?: unknown }).canonicalV2);
-  return nestedDocument.success ? ensurePriceGuideV2SourceItemIds(nestedDocument.data) : null;
-}
 
 const priceGuideV2SizeLabels: Record<PriceGuideV2Row["sizeClass"], string> = {
   small: "소형견",
@@ -136,7 +119,12 @@ function limitText(value: unknown, maxLength: number) {
 }
 
 function normalizeOptionLabelKey(label: string) {
-  return label.replace(/\s+/g, " ").trim().toLocaleLowerCase("ko-KR");
+  return label
+    .normalize("NFKC")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/\s+/g, "")
+    .trim()
+    .toLocaleLowerCase("ko-KR");
 }
 
 function createMenuOptionId(label: string) {
@@ -163,60 +151,6 @@ function buildPriceGuideOptionName(sectionTitle: string, itemLabel: string) {
 
 function getPriceGuideSpeciesLabel(value: unknown) {
   return value === "cat" ? "고양이" : "강아지";
-}
-
-function uniqueCustomerServiceOptions(options: CustomerServiceSourceOption[]) {
-  const seenKeys = new Set<string>();
-  return options.filter((option) => {
-    const key = option.linkedOptionId ?? option.id;
-    if (seenKeys.has(key)) return false;
-    seenKeys.add(key);
-    return true;
-  });
-}
-
-function buildOptionLookup(options: CustomerServiceSourceOption[]) {
-  const optionById = new Map<string, CustomerServiceSourceOption>();
-
-  for (const option of options) {
-    optionById.set(option.id, option);
-    for (const aliasId of option.aliasIds ?? []) {
-      optionById.set(aliasId, option);
-    }
-  }
-
-  return optionById;
-}
-
-function normalizeOrder(value: unknown) {
-  const order = Number(value);
-  if (!Number.isFinite(order)) return undefined;
-  return Math.max(1, Math.min(500, Math.round(order)));
-}
-
-export function normalizeCustomerServiceOverrides(value: unknown): CustomerServiceDisplayOverrides {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).flatMap(([key, rawOverride]) => {
-      const normalizedKey = key.trim().slice(0, 160);
-      if (!normalizedKey || !rawOverride || typeof rawOverride !== "object" || Array.isArray(rawOverride)) {
-        return [];
-      }
-
-      const source = rawOverride as Record<string, unknown>;
-      const override: CustomerServiceDisplayOverride = {};
-      if (typeof source.visible === "boolean") override.visible = source.visible;
-
-      const order = normalizeOrder(source.order);
-      if (order !== undefined) override.order = order;
-
-      const linkedOptionId = limitText(source.linkedOptionId, 180);
-      if (linkedOptionId) override.linkedOptionId = linkedOptionId;
-
-      return Object.keys(override).length > 0 ? [[normalizedKey, override]] : [];
-    }),
-  );
 }
 
 function selectPriceGuideV2RowIndexesForWeight(rows: PriceGuideV2Row[], weightKg: number | null | undefined) {
@@ -246,43 +180,6 @@ function selectPriceGuideV2RowIndexesForWeight(rows: PriceGuideV2Row[], weightKg
   return selected;
 }
 
-/**
- * Keeps only presentation settings that resolve to a currently saved canonical
- * price-guide source item. Display values are never accepted or copied here.
- */
-export function sanitizeCustomerServiceOverridesForSourceOptions(
-  value: unknown,
-  sourceOptions: CustomerServiceSourceOption[],
-): CustomerServiceDisplayOverrides {
-  const normalizedOverrides = normalizeCustomerServiceOverrides(value);
-  const optionById = buildOptionLookup(sourceOptions);
-  const defaultRowById = new Map(
-    buildDefaultCustomerServiceMenuOptions(sourceOptions).map((option) => [option.id, option]),
-  );
-  const seenSourceIds = new Set<string>();
-
-  return Object.fromEntries(
-    Object.entries(normalizedOverrides).flatMap(([rowId, override]) => {
-      const defaultRow = defaultRowById.get(rowId);
-      const sourceOption =
-        optionById.get(override.linkedOptionId ?? "") ??
-        optionById.get(defaultRow?.linkedOptionId ?? "") ??
-        optionById.get(rowId);
-      if (!sourceOption || seenSourceIds.has(sourceOption.id)) return [];
-      seenSourceIds.add(sourceOption.id);
-
-      return [[
-        sourceOption.id,
-        {
-          ...(override.visible !== undefined ? { visible: override.visible } : {}),
-          ...(override.order !== undefined ? { order: override.order } : {}),
-          linkedOptionId: sourceOption.id,
-        },
-      ]];
-    }),
-  );
-}
-
 export function buildCustomerServiceSourceOptions(
   services: Service[],
   options: { includeInactive?: boolean; priceGuideOnly?: boolean; priceGuideGroupKey?: string; weightKg?: number | null } = {},
@@ -292,7 +189,7 @@ export function buildCustomerServiceSourceOptions(
   const canonicalGroups = new Map<string, { document: PriceGuideV2; services: Service[] }>();
   for (const service of services) {
     if (!options.includeInactive && !service.is_active) continue;
-    const document = readCanonicalPriceGuideV2(service.price_guide);
+    const document = readCanonicalPriceGuide(service.price_guide);
     if (!document) continue;
     const documentKey = JSON.stringify(document);
     const group = canonicalGroups.get(documentKey);
@@ -357,69 +254,43 @@ export function buildCustomerServiceSourceOptions(
   return result;
 }
 
-function buildDefaultCustomerServiceMenuOptions(options: CustomerServiceSourceOption[]) {
-  const uniqueOptions = uniqueCustomerServiceOptions(options);
-  const priceGuideGroups = new Map<string, CustomerServiceSourceOption[]>();
-  const menuRows: CustomerServiceSourceOption[] = [];
-
-  for (const option of uniqueOptions) {
-    if (!option.priceGuideSpecies) {
-      menuRows.push({
-        ...option,
-        id: createMenuOptionId(option.sourceName),
-        name: option.sourceName,
-        sourceName: option.sourceName,
-        linkedOptionId: option.id,
-      });
-      continue;
-    }
-
-    const groupKey = [option.serviceId, option.priceGuideSpecies, normalizeOptionLabelKey(option.displayName)].join(":");
-    priceGuideGroups.set(groupKey, [...(priceGuideGroups.get(groupKey) ?? []), option]);
+/**
+ * Projects the canonical price guide into the customer-facing service picker.
+ * A display-normalized service name appears once, in its first canonical order,
+ * while the first saved spelling remains visible.
+ */
+export function buildCustomerServiceMenuOptions(options: CustomerServiceSourceOption[]) {
+  const groups = new Map<string, CustomerServiceSourceOption[]>();
+  for (const option of options) {
+    const key = normalizeOptionLabelKey(option.displayName);
+    if (!key) continue;
+    groups.set(key, [...(groups.get(key) ?? []), option]);
   }
 
-  const speciesByLabel = new Map<string, Set<"dog" | "cat">>();
-  for (const group of priceGuideGroups.values()) {
+  return Array.from(groups.entries()).map(([labelKey, group], index) => {
     const representative = group[0];
-    const labelKey = normalizeOptionLabelKey(representative.displayName);
-    speciesByLabel.set(labelKey, new Set([...(speciesByLabel.get(labelKey) ?? []), representative.priceGuideSpecies!]));
-  }
-
-  for (const [groupKey, group] of priceGuideGroups) {
-    const representative = group
-      .slice()
-      .sort((left, right) => left.price - right.price || left.order - right.order)[0];
     const prices = group.map((option) => option.price);
     const durations = group.flatMap((option) => [option.durationMinutes, option.durationMinutesMax ?? option.durationMinutes]);
     const minimumPrice = Math.min(...prices);
     const minimumDuration = Math.min(...durations);
     const maximumDuration = Math.max(...durations);
-    const labelKey = normalizeOptionLabelKey(representative.displayName);
-    const needsSpeciesLabel = (speciesByLabel.get(labelKey)?.size ?? 0) > 1;
-    const cleanName = needsSpeciesLabel
-      ? `${getPriceGuideSpeciesLabel(representative.priceGuideSpecies)} ${representative.displayName}`
-      : representative.displayName;
+    const displayName = representative.displayName;
 
-    menuRows.push({
+    return {
       ...representative,
-      id: createMenuOptionId(groupKey),
-      name: cleanName,
-      displayName: cleanName,
-      sourceName: cleanName,
-      category: getPriceGuideSpeciesLabel(representative.priceGuideSpecies),
+      id: createMenuOptionId(labelKey),
+      name: displayName,
+      displayName,
+      sourceName: displayName,
       durationMinutes: minimumDuration,
       durationMinutesMax: maximumDuration > minimumDuration ? maximumDuration : undefined,
       price: minimumPrice,
       priceType: prices.some((price) => price !== minimumPrice) ? "starting" : representative.priceType,
-      order: Math.min(...group.map((option) => option.order)),
+      order: index + 1,
       linkedOptionId: representative.id,
       aliasIds: group.flatMap((option) => [option.id, ...(option.aliasIds ?? [])]),
-    });
-  }
-
-  return menuRows
-    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "ko"))
-    .map((option, index) => ({ ...option, order: index + 1 }));
+    };
+  });
 }
 
 export function buildCustomerServiceMenuConnectionOptions(options: CustomerServiceSourceOption[]) {
@@ -430,110 +301,4 @@ export function buildCustomerServiceMenuConnectionOptions(options: CustomerServi
       left.durationMinutes - right.durationMinutes ||
       left.price - right.price,
   );
-}
-
-export function applyCustomerServiceOverrides(
-  options: CustomerServiceSourceOption[],
-  overrides: unknown,
-): CustomerServiceSourceOption[] {
-  const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
-  const optionById = buildOptionLookup(options);
-  const defaultRows = buildDefaultCustomerServiceMenuOptions(options);
-  const defaultRowByLabelKey = new Map(defaultRows.map((option) => [normalizeOptionLabelKey(option.sourceName), option]));
-
-  if (Object.keys(normalizedOverrides).length === 0) {
-    return defaultRows;
-  }
-
-  const rows: CustomerServiceSourceOption[] = [];
-  const consumedOverrideIds = new Set<string>();
-
-  for (const defaultRow of defaultRows) {
-    const override = normalizedOverrides[defaultRow.id];
-    consumedOverrideIds.add(defaultRow.id);
-    if (override?.visible === false) continue;
-
-    const linkedOption = optionById.get(override?.linkedOptionId ?? defaultRow.linkedOptionId ?? "") ?? optionById.get(defaultRow.linkedOptionId ?? "");
-    if (!linkedOption) continue;
-    const useDefaultProjection =
-      defaultRow.linkedOptionId === linkedOption.id || defaultRow.aliasIds?.includes(linkedOption.id);
-    const projectedOption = useDefaultProjection ? defaultRow : linkedOption;
-    rows.push({
-      ...projectedOption,
-      id: defaultRow.id,
-      order: override?.order ?? defaultRow.order,
-      linkedOptionId: linkedOption.id,
-    });
-  }
-
-  for (const [rowId, override] of Object.entries(normalizedOverrides)) {
-    if (consumedOverrideIds.has(rowId) || override.visible === false) continue;
-
-    const linkedOption = optionById.get(override.linkedOptionId ?? rowId) ?? optionById.get(rowId);
-    if (!linkedOption) continue;
-
-    if (!rowId.startsWith("menu-custom-") && defaultRowByLabelKey.has(normalizeOptionLabelKey(linkedOption.sourceName))) {
-      continue;
-    }
-
-    rows.push({
-      ...linkedOption,
-      id: rowId,
-      name: linkedOption.sourceName,
-      sourceName: linkedOption.sourceName,
-      description: linkedOption.description,
-      order: override.order ?? linkedOption.order,
-      linkedOptionId: linkedOption.id,
-    });
-  }
-
-  return uniqueCustomerServiceOptions(rows.sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "ko")));
-}
-
-export function applyConfiguredCustomerServiceOverrides(
-  options: CustomerServiceSourceOption[],
-  overrides: unknown,
-): CustomerServiceSourceOption[] {
-  const requestedOverrides = normalizeCustomerServiceOverrides(overrides);
-  const normalizedOverrides = sanitizeCustomerServiceOverridesForSourceOptions(requestedOverrides, options);
-  const optionById = buildOptionLookup(options);
-  const defaultRows = buildDefaultCustomerServiceMenuOptions(options);
-  const defaultRowById = new Map(defaultRows.map((option) => [option.id, option]));
-
-  if (Object.keys(requestedOverrides).length === 0) {
-    return defaultRows;
-  }
-
-  // Existing settings that no longer resolve to a saved source item must not
-  // cause default or compatibility prices to reappear.
-  if (Object.keys(normalizedOverrides).length === 0) return [];
-
-  return uniqueCustomerServiceOptions(Object.entries(normalizedOverrides)
-    .flatMap(([rowId, override]) => {
-      if (override.visible === false) return [];
-
-      const defaultRow = defaultRowById.get(rowId);
-      const linkedOption =
-        optionById.get(override.linkedOptionId ?? "") ??
-        optionById.get(defaultRow?.linkedOptionId ?? "") ??
-        optionById.get(rowId);
-
-      if (!linkedOption) return [];
-
-      const useDefaultProjection = Boolean(
-        defaultRow &&
-        (defaultRow.linkedOptionId === linkedOption.id || defaultRow.aliasIds?.includes(linkedOption.id)),
-      );
-      const projectedOption = useDefaultProjection ? defaultRow! : linkedOption;
-
-      return [
-        {
-          ...projectedOption,
-          id: rowId,
-          order: override.order ?? defaultRow?.order ?? linkedOption.order,
-          linkedOptionId: linkedOption.id,
-        },
-      ];
-    })
-    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "ko")));
 }

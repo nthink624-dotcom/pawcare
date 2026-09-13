@@ -59,11 +59,13 @@ test("shared table keeps one service per column and edits price and duration ins
   const table = await readFile(tablePath, "utf8");
 
   assert.match(table, /group\.serviceNames\.map\(\(serviceName, serviceIndex\)/);
+  assert.match(table, /group\.serviceNames\.length \* 210/);
+  assert.match(table, /updateDirectPriceGuideService/);
   assert.match(table, /data-price-guide-price-duration-cell=\{rowIndex\}/);
   assert.match(table, /data-price-guide-inline-edit="price-duration"/);
-  assert.match(table, /\{priceLabel\(row\)\} \/ \{row\.durationMinutes/);
+  assert.match(table, /compactPriceDurationLabel\(row\)/);
   assert.match(table, /sticky left-0/);
   assert.match(table, /sticky top-0/);
   assert.match(table, /overflow-auto/);
-  assert.doesNotMatch(table, /<dialog|role="dialog"|data-price-guide-editor-page/);
+  assert.match(table, /BreedManagementDialog/);
 });

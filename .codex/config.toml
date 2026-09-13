@@ -1,0 +1,4 @@
+# PC 프로젝트의 업무별 위임. 모델·추론·승인 모드는 현재 사용자 설정을 상속한다.
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3

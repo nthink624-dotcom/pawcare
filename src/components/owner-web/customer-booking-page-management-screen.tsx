@@ -1,22 +1,13 @@
 ﻿"use client";
 
-import { ArrowDown, ArrowUp, Clock, ImagePlus, Save, Trash2 } from "lucide-react";
+import { Clock, ImagePlus, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
-import {
-  buildCustomerServiceSourceOptions,
-  formatCustomerServiceDuration,
-  normalizeCustomerServiceOverrides,
-  sanitizeCustomerServiceOverridesForSourceOptions,
-  type CustomerServiceDisplayOverrides,
-  type CustomerServiceSourceOption,
-} from "@/lib/customer-service-options";
 import { createOwnerShopProfileImageFromFile, getOwnerMediaSignedUrl } from "@/lib/media/owner-media-client";
-import { formatServicePrice } from "@/lib/utils";
 import type { BootstrapPayload, CustomerPageSettings, Service, Shop } from "@/types/domain";
 
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
@@ -53,35 +44,6 @@ function buildShopPatch(shop: Shop, name: string, tagline: string) {
   };
 }
 
-function getCustomerServiceRows(options: CustomerServiceSourceOption[], overrides: CustomerServiceDisplayOverrides) {
-  const overrideBySourceId = new Map(
-    Object.values(overrides).flatMap((override) =>
-      override.linkedOptionId ? [[override.linkedOptionId, override] as const] : [],
-    ),
-  );
-  return options
-    .map((option) => {
-      const override = overrideBySourceId.get(option.id);
-      return {
-        option,
-        visible: override?.visible ?? true,
-        order: override?.order ?? option.order,
-        displayName: option.sourceName,
-        description: option.description,
-      };
-    })
-    .sort((left, right) => left.order - right.order || left.option.sourceName.localeCompare(right.option.sourceName, "ko"));
-}
-
-function rowsToCustomerServiceOverrides(
-  rows: Array<{ option: CustomerServiceSourceOption; visible: boolean }>,
-): CustomerServiceDisplayOverrides {
-  return Object.fromEntries(rows.map((row, index) => [
-    row.option.id,
-    { visible: row.visible, order: index + 1, linkedOptionId: row.option.id },
-  ]));
-}
-
 export default function CustomerBookingPageManagementScreen({
   initialData,
   onDataChange,
@@ -95,8 +57,6 @@ export default function CustomerBookingPageManagementScreen({
   const [tagline, setTagline] = useState(initialData.shop.customer_page_settings.tagline || initialData.shop.description || "");
   const [savingShop, setSavingShop] = useState(false);
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
-  const [savingServiceId, setSavingServiceId] = useState<string | null>(null);
-  const [orderDirty, setOrderDirty] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -104,7 +64,6 @@ export default function CustomerBookingPageManagementScreen({
     setServices(initialData.services);
     setShopName(initialData.shop.name);
     setTagline(initialData.shop.customer_page_settings.tagline || initialData.shop.description || "");
-    setOrderDirty(false);
   }, [initialData]);
 
   const businessHours = useMemo(() => formatBusinessHours(shop), [shop]);
@@ -138,21 +97,6 @@ export default function CustomerBookingPageManagementScreen({
     }),
     [heroDisplayImageUrl, heroImages, shop, shopName, tagline],
   );
-  const customerServiceOptions = useMemo(
-    () => buildCustomerServiceSourceOptions(sortCustomerPageServices(services)),
-    [services],
-  );
-  const customerServiceOverrides = useMemo(
-    () => sanitizeCustomerServiceOverridesForSourceOptions(
-      shop.customer_page_settings.customer_service_overrides,
-      customerServiceOptions,
-    ),
-    [customerServiceOptions, shop.customer_page_settings.customer_service_overrides],
-  );
-  const customerServiceRows = useMemo(
-    () => getCustomerServiceRows(customerServiceOptions, customerServiceOverrides),
-    [customerServiceOptions, customerServiceOverrides],
-  );
   const previewServices = useMemo(() => sortCustomerPageServices(services).filter((service) => service.is_active), [services]);
 
   useEffect(() => {
@@ -184,77 +128,6 @@ export default function CustomerBookingPageManagementScreen({
     };
     setShop(nextShop);
     onDataChange({ ...initialData, shop: nextShop, services });
-  }
-
-  function updateCustomerServiceOverridesLocal(nextOverrides: CustomerServiceDisplayOverrides) {
-    const sourceBoundOverrides = sanitizeCustomerServiceOverridesForSourceOptions(
-      nextOverrides,
-      customerServiceOptions,
-    );
-    updateCustomerPageSettings({
-      ...shop.customer_page_settings,
-      customer_service_overrides: sourceBoundOverrides,
-    });
-  }
-
-  function updateCustomerServiceOption(option: CustomerServiceSourceOption, patch: CustomerServiceDisplayOverrides[string]) {
-    const nextOverrides = rowsToCustomerServiceOverrides(customerServiceRows.map((row) =>
-      row.option.id === option.id
-        ? { ...row, visible: patch.visible ?? row.visible }
-        : row,
-    ));
-    updateCustomerServiceOverridesLocal(nextOverrides);
-    setOrderDirty(true);
-  }
-
-  function moveCustomerServiceOption(index: number, direction: -1 | 1) {
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= customerServiceRows.length) return;
-
-    const reordered = customerServiceRows.slice();
-    const [target] = reordered.splice(index, 1);
-    reordered.splice(targetIndex, 0, target);
-
-    updateCustomerServiceOverridesLocal(rowsToCustomerServiceOverrides(reordered));
-    setOrderDirty(true);
-  }
-
-  async function saveCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
-    const sourceBoundOverrides = sanitizeCustomerServiceOverridesForSourceOptions(
-      nextOverrides,
-      customerServiceOptions,
-    );
-    const savedShop = await fetchApiJsonWithAuth<{ shop: Shop }>("/api/owner/shops", {
-      method: "PATCH",
-      body: JSON.stringify({
-        shopId: shop.id,
-        customerServiceOverrides: sourceBoundOverrides,
-      }),
-    });
-    const nextShop: Shop = {
-      ...shop,
-      customer_page_settings: {
-        ...shop.customer_page_settings,
-        ...savedShop.shop.customer_page_settings,
-        customer_service_overrides: normalizeCustomerServiceOverrides(savedShop.shop.customer_page_settings.customer_service_overrides),
-      },
-    };
-    setShop(nextShop);
-    onDataChange({ ...initialData, shop: nextShop, services });
-  }
-
-  async function saveCustomerServiceOptionChanges(serviceKey = "customer-services") {
-    setSavingServiceId(serviceKey);
-    setMessage("");
-    try {
-      await saveCustomerServiceOverrides(customerServiceOverrides);
-      setOrderDirty(false);
-      setMessage("고객 예약페이지 서비스 메뉴가 저장되었습니다.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "고객 예약페이지 서비스 메뉴 저장에 실패했습니다.");
-    } finally {
-      setSavingServiceId(null);
-    }
   }
 
   async function saveHeroImage(heroImageUrl: string, heroMediaAssetId = "") {
@@ -486,108 +359,6 @@ export default function CustomerBookingPageManagementScreen({
             ))}
           </div>
           <p className="mt-3 text-[14px] text-[#64748b]">영업시간 수정은 기존 운영 시간 데이터와 동일하게 반영됩니다.</p>
-        </WebSurface>
-
-        <WebSurface className="p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-[18px] font-semibold text-[#111827]">고객에게 보여줄 요금표</h2>
-                {customerServiceOptions.length > 0 ? (
-                  <span className="rounded-full bg-[#edf7f3] px-2.5 py-1 text-[13px] font-medium text-[#2f7866]">
-                    저장된 요금표 기준
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-1 text-[15px] text-[#64748b]">
-                저장된 상세 요금표 항목의 순서와 노출 여부만 정할 수 있습니다.
-              </p>
-            </div>
-            {customerServiceOptions.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => void saveCustomerServiceOptionChanges("customer-services")}
-                disabled={!orderDirty || savingServiceId === "customer-services"}
-                className="inline-flex min-h-11 items-center justify-center rounded-[8px] bg-[#2f7866] px-4 text-[15px] font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[#94a3b8]"
-              >
-                {savingServiceId === "customer-services" ? "저장 중" : "노출 설정 저장"}
-              </button>
-            ) : null}
-          </div>
-
-          {customerServiceOptions.length === 0 ? (
-            <div className="mt-4 rounded-[10px] border border-dashed border-[#cfd7e3] bg-[#fbfcfd] px-4 py-5 text-center">
-              <p className="text-[16px] font-medium text-[#334155]">고객에게 보여줄 저장 요금표가 없습니다.</p>
-              <p className="mt-1 text-[14px] leading-5 text-[#64748b]">요금표 관리에서 요금표를 먼저 등록하고 저장해 주세요.</p>
-            </div>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <div className="min-w-[900px] overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white">
-                <div className="grid grid-cols-[132px_minmax(180px,1.2fr)_minmax(180px,1fr)_110px_130px_92px] items-center gap-3 border-b border-[#e5e7eb] bg-[#f8fafc] px-3 py-2 text-[13px] font-medium text-[#64748b]">
-                  <span>순서</span>
-                  <span>서비스명</span>
-                  <span>원본 안내</span>
-                  <span className="text-right">예상 시간</span>
-                  <span className="text-right">시작 가격</span>
-                  <span className="text-center">노출</span>
-                </div>
-                <div className="divide-y divide-[#edf1f5]">
-                  {customerServiceRows.map((row, index) => (
-                    <div
-                      key={row.option.id}
-                      className={`grid grid-cols-[132px_minmax(180px,1.2fr)_minmax(180px,1fr)_110px_130px_92px] items-center gap-3 px-3 py-2.5 ${
-                        row.visible ? "bg-white" : "bg-[#f8fafc]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-7 text-center text-[14px] font-medium text-[#64748b]">{String(index + 1).padStart(2, "0")}</span>
-                        <button
-                          type="button"
-                          onClick={() => moveCustomerServiceOption(index, -1)}
-                          disabled={index === 0}
-                          aria-label={`${row.displayName} 위로 이동`}
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-not-allowed disabled:opacity-35"
-                        >
-                          <ArrowUp className="h-4 w-4" aria-hidden="true" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveCustomerServiceOption(index, 1)}
-                          disabled={index === customerServiceRows.length - 1}
-                          aria-label={`${row.displayName} 아래로 이동`}
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-not-allowed disabled:opacity-35"
-                        >
-                          <ArrowDown className="h-4 w-4" aria-hidden="true" />
-                        </button>
-                      </div>
-                      <div className="flex min-h-11 min-w-0 items-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[16px] text-[#111827]">
-                        <span className="truncate">{row.displayName}</span>
-                      </div>
-                      <div className="flex min-h-11 min-w-0 items-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[16px] text-[#334155]">
-                        <span className="truncate">{row.description || "상세 요금표 원본 기준"}</span>
-                      </div>
-                      <div className="flex min-h-11 w-full items-center justify-end rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[16px] text-[#334155]">
-                        {formatCustomerServiceDuration(row.option)}
-                      </div>
-                      <div className="flex min-h-11 w-full items-center justify-end rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[16px] text-[#334155]">
-                        {formatServicePrice(row.option.price, row.option.priceType)}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => updateCustomerServiceOption(row.option, { visible: !row.visible })}
-                        aria-pressed={row.visible}
-                        className={`min-h-11 rounded-[8px] border px-3 text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] ${
-                          row.visible ? "border-[#c8ded8] bg-[#edf7f3] text-[#2f7866]" : "border-[#dbe2ea] bg-white text-[#64748b]"
-                        }`}
-                      >
-                        {row.visible ? "노출" : "숨김"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
         </WebSurface>
 
         {message ? <p className="text-[15px] font-medium text-[#2f7866]">{message}</p> : null}

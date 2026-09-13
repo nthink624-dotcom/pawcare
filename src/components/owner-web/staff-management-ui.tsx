@@ -11,7 +11,6 @@ import { cn, currentDateInTimeZone } from "@/lib/utils";
 import {
   applyScheduleToCell,
   buildDraft,
-  formatFixedOffDays,
   formatShortDate,
   formatWeekdayKeys,
   getAnnualLeaveUsage,
@@ -19,7 +18,6 @@ import {
   getCellTone,
   getScheduledLeaveCount,
   getStaffRank,
-  getStaffAvailability,
   getTodayKey,
   getWeeklyWorkDays,
   parseWeekdayText,
@@ -247,18 +245,14 @@ export function StaffList({
   const todayDate = currentDateInTimeZone();
 
   return (
-    <div className="max-h-[560px] overflow-y-auto py-4 pl-4 pr-1">
-      <div className="grid gap-3 2xl:grid-cols-2">
+    <div className="p-3 sm:p-4">
+      <div data-staff-list-grid className="grid gap-3 md:grid-cols-2">
           {staff.map((staffMember) => {
             const active = selectedStaffId === staffMember.id;
             const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex);
             const staffIdentityTone = getScheduleStaffIdentityTone(staffMember.id, staffMember.chipColorIndex);
             const weeklyDays = getWeeklyWorkDays(staffMember, weekStart, requests, overrides);
             const todayCell = applyScheduleToCell(staffMember, todayKey, todayDate, requests, overrides);
-            const annualUsage = getAnnualLeaveUsage(staffMember, requests);
-            const upcomingLeave = getUpcomingStaffLeave(staffMember, requests, todayDate);
-            const fixedOffDaysLabel = formatFixedOffDays(staffMember.defaultDays);
-            const todayStatusLabel = todayCell.status === "work" ? todayCell.label : todayCell.label || getStaffAvailability(staffMember, requests, overrides);
 
             return (
               <button
@@ -267,7 +261,7 @@ export function StaffList({
                 onClick={() => onSelect(staffMember)}
                 data-staff-identity-card={staffMember.id}
                 className={cn(
-                  "relative grid w-full gap-3 overflow-hidden rounded-[10px] border bg-white p-4 text-left transition hover:border-[#cbd5e1] hover:bg-[#fbfcfd]",
+                  "relative grid min-h-[112px] w-full content-between gap-2.5 overflow-hidden rounded-[10px] border bg-white p-3 text-left transition hover:border-[#cbd5e1] hover:bg-[#fbfcfd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff]/35",
                   getWrapIndicatorClass(getCellIndicatorTone(todayCell.status)),
                   active ? "border-[#cbd5e1] shadow-[0_10px_26px_rgba(15,23,42,0.06)]" : "border-[#dbe2ea]",
                 )}
@@ -277,14 +271,14 @@ export function StaffList({
                   borderLeftColor: staffTone.selectedBackground,
                 } as CSSProperties}
               >
-                <div className="flex min-w-0 items-center justify-between gap-3 rounded-[8px] px-2 py-1.5 -mx-2"
+                <div className="flex min-w-0 items-start justify-between gap-2.5 rounded-[8px] px-2 py-1.5 -mx-2"
                   style={{ backgroundColor: staffIdentityTone.background }}
                 >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <StaffAvatar name={staffMember.name} staffId={staffMember.id} imageUrl={staffMember.profileImageUrl} imageAssetId={staffMember.profileImageAssetIds?.[0]} size="md" />
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <StaffAvatar name={staffMember.name} staffId={staffMember.id} imageUrl={staffMember.profileImageUrl} imageAssetId={staffMember.profileImageAssetIds?.[0]} size="sm" />
                     <span className="min-w-0">
-                      <span className="block truncate text-[17px] font-medium text-[#111827]">{staffMember.name}</span>
-                      <span className="mt-0.5 block truncate text-[13px] text-[#64748b]">
+                      <span className="block break-words text-[16px] font-semibold leading-6 text-[#111827]">{staffMember.name}</span>
+                      <span className="mt-0.5 block break-words text-[14px] font-normal leading-5 text-[#64748b]">
                         {staffMember.position || staffMember.role || "직원"}
                         {staffMember.phone ? ` · ${staffMember.phone}` : ""}
                       </span>
@@ -292,7 +286,7 @@ export function StaffList({
                   </span>
                   <span
                     className={cn(
-                      "shrink-0 rounded-full border px-2.5 py-1 text-[13px] font-medium",
+                      "shrink-0 rounded-full border px-2.5 py-1 text-[14px] font-medium leading-5",
                       todayCell.status === "work"
                         ? "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]"
                         : "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]",
@@ -302,30 +296,9 @@ export function StaffList({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2">
-                  <StaffListMetric label="오늘 예약" value={`${staffMember.todayBookings ?? 0}건`} />
-                  <StaffListMetric label="주간 예약" value={`${staffMember.weekBookings ?? 0}건`} />
-                  <StaffListMetric label="주간 근무" value={`${weeklyDays}일`} />
-                  <StaffListMetric label="남은 연차" value={`${annualUsage.remaining}일`} />
-                </div>
-
-                <div className="grid gap-1.5 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[13px] leading-5 text-[#475569]">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[#64748b]">오늘 일정</span>
-                    <span className="truncate text-right font-medium text-[#111827]">{todayStatusLabel}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[#64748b]">고정 휴무일</span>
-                    <span className="truncate text-right font-medium text-[#111827]">
-                      {fixedOffDaysLabel || "없음"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[#64748b]">다음 휴무/연차</span>
-                    <span className="truncate text-right font-medium text-[#111827]">
-                      {upcomingLeave ? `${formatShortDate(upcomingLeave.date)} ${upcomingLeave.type}` : "예정 없음"}
-                    </span>
-                  </div>
+                <div data-staff-card-summary className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#edf2f7] pt-2 text-[14px] font-normal leading-5 text-[#475569]">
+                  <span>오늘 예약 {staffMember.todayBookings ?? 0}건</span>
+                  <span>주간 근무 {weeklyDays}일</span>
                 </div>
               </button>
             );
@@ -333,21 +306,6 @@ export function StaffList({
       </div>
     </div>
   );
-}
-
-function StaffListMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="min-w-0 rounded-[8px] border border-[#e2e8f0] bg-white px-2.5 py-2 text-center">
-      <span className="block truncate text-[12px] text-[#64748b]">{label}</span>
-      <span className="mt-0.5 block truncate text-[16px] font-medium text-[#111827]">{value}</span>
-    </span>
-  );
-}
-
-function getUpcomingStaffLeave(staffMember: StaffMember, requests: LeaveRequest[], today: string) {
-  return requests
-    .filter((request) => request.staffId === staffMember.id && request.status !== "거절" && request.date >= today)
-    .sort((first, second) => first.date.localeCompare(second.date))[0];
 }
 
 export function StaffDetailPanel({

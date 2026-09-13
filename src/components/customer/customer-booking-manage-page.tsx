@@ -6,7 +6,7 @@ import CustomerBookingManagePanel, {
   type CustomerBookingManageLookupPayload,
 } from "@/components/customer/customer-booking-manage-panel";
 import {
-  applyConfiguredCustomerServiceOverrides,
+  buildCustomerServiceMenuOptions,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import type { BootstrapStaffMember, Service, Shop } from "@/types/domain";
@@ -34,16 +34,15 @@ export default function CustomerBookingManagePage({
   const staffMembers = useMemo(() => initialStaffMembers.filter((staff) => staff.name.trim()), [initialStaffMembers]);
   const customerServiceOptions = useMemo(
     () =>
-      applyConfiguredCustomerServiceOverrides(
+      buildCustomerServiceMenuOptions(
         buildCustomerServiceSourceOptions(
           services
             .slice()
             .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
           {},
         ),
-        initialShop.customer_page_settings.customer_service_overrides,
       ),
-    [initialShop.customer_page_settings.customer_service_overrides, services],
+    [services],
   );
 
   return (

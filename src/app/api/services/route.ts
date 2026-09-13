@@ -4,7 +4,6 @@ import { z } from "zod";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import { deleteService, upsertService } from "@/server/owner-mutations";
-import { redactPriceGuideRawTextForStorage } from "@/server/price-guide-photo-import";
 
 const WRITE_CORS = { methods: "POST, DELETE, OPTIONS" };
 
@@ -16,7 +15,6 @@ export async function POST(request: NextRequest) {
     const result = await upsertService({
       ...body,
       shopId: owner.shopId,
-      priceGuide: redactPriceGuideRawTextForStorage(body?.priceGuide),
     });
     return ownerMobileCorsJson(request, result, undefined, WRITE_CORS);
   } catch (error) {

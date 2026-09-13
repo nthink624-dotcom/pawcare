@@ -57,7 +57,11 @@ test("owner photo import provides file selection, preview, retry, and direct edi
   assert.match(photo, /function returnToChoice\(\)[\s\S]*clearPhotoTemporaryState\(\)[\s\S]*setMode\("choice"\)/);
   assert.doesNotMatch(photo, /다른 방법 선택|사진 없이 직접 입력|사진 내용 자동으로 옮기기/);
   assert.match(photo, /JPG, PNG, WebP · 1장 · 최대 20MB/);
-  assert.match(photo, /사진을 읽기 전에 이름·전화번호·주소를 가려 주세요/);
+  assert.doesNotMatch(photo, /사진을 읽기 전에 이름·전화번호·주소를 가려 주세요/);
+  assert.match(photo, /사진에 이름·전화번호·주소가 없음을 확인했습니다/);
+  assert.doesNotMatch(photo, /저장 후 다시 불러온 요금표를 기준으로 보여드려요/);
+  assert.doesNotMatch(photo, /text-\[15px\]/);
+  assert.match(photo, /요금표 불러오기[\s\S]*!text-\[16px\] !font-medium !leading-6|!text-\[16px\] !font-medium !leading-6[\s\S]*요금표 불러오기/);
   assert.doesNotMatch(photo, /OpenAI 분석 전/);
   assert.doesNotMatch(photo, /사진을 선택한 뒤에만 업로드와 분석을 시작합니다/);
   assert.doesNotMatch(photo, /표 전체가 정면으로 보이게 찍으면 더 정확합니다/);
@@ -90,17 +94,42 @@ test("analyzed price guide reuses the PC service-column editor with table-local 
   assert.match(nativeTable, /data-price-guide-matrix-scroll="true"/);
   assert.match(nativeTable, /max-h-\[min\(62dvh,680px\)\][^"\n]*overflow-auto/);
   assert.match(nativeTable, /<thead className="sticky top-0 z-30"/);
-  assert.match(nativeTable, /sticky left-0 top-0 z-40[^\n]*>체급\(kg\)/);
+  assert.match(nativeTable, /sticky left-0 top-0 z-40[^\n]*>몸무게</);
   assert.match(nativeTable, /sticky left-0 z-20/);
-  assert.match(nativeTable, /group\.serviceNames\.map\(\(serviceName, serviceIndex\) => \{[\s\S]*<th[\s\S]*updateDirectPriceGuideService/);
+  assert.match(nativeTable, /group\.serviceNames\.length \* 210/);
+  assert.match(nativeTable, /group\.serviceNames\.map\(\(serviceName, serviceIndex\) => \{[\s\S]*<th[\s\S]*이름 수정/);
   assert.match(nativeTable, /group\.serviceNames\.map\(\(_, serviceIndex\) => \{[\s\S]*<PriceDurationInlineCell/);
   assert.match(nativeTable, /data-price-guide-inline-edit="price-duration"/);
   assert.match(nativeTable, /grid-cols-\[minmax\(0,1fr\)_88px\]/);
-  assert.match(nativeTable, /\{priceLabel\(row\)\} \/ \{row\.durationMinutes === null \? "시간 입력" : `\$\{row\.durationMinutes\}분`\}/);
+  assert.match(nativeTable, /compactPriceDurationLabel\(row\)/);
+  assert.match(nativeTable, /data-price-left-time-right="true"/);
+  assert.match(nativeTable, /row\.durationMinutes === null \? "미정"/);
+  assert.match(nativeTable, /const actionClass = "[^"]*!text-\[16px\][^"]*!font-medium[^"]*!leading-6/);
+  assert.doesNotMatch(nativeTable, /text-\[(?:12|14)px\]/);
+  assert.match(nativeTable, /updateDirectPriceGuideService/);
+  assert.match(nativeTable, /addDirectPriceGuideService/);
+  assert.match(nativeTable, /removeDirectPriceGuideService/);
   assert.doesNotMatch(nativeTable, />가격<\/th>|>예상시간<\/th>|function PriceInlineCell|function DurationInlineCell/);
   assert.match(photo, /validatePriceGuideDocument\(document, \{ photoTable: true \}\)/);
   assert.match(photo, /await onSave\(document\)/);
   assert.doesNotMatch(photo, /data-price-guide-layout="service-rows"|가격 기준/);
+});
+
+test("saved PC price guide keeps 16/24 typography with price left and duration right", async () => {
+  const sectionCard = await source("src/components/owner-web/service-price-guide-section-card.tsx");
+
+  assert.match(sectionCard, /PRICE_GUIDE_UI_HARD_CONTRACT/);
+  assert.match(sectionCard, /data-price-guide-ui-hard-contract="true"/);
+  assert.match(sectionCard, /data-price-guide-service-subheaders="true"/);
+  assert.match(sectionCard, />가격<\/span>[\s\S]*>예상시간<\/span>/);
+  assert.match(sectionCard, /data-price-left-time-right="true"/);
+  assert.match(sectionCard, /grid-cols-\[minmax\(0,1fr\)_80px\]/);
+  assert.match(sectionCard, /data-price-side="left"/);
+  assert.match(sectionCard, /data-duration-side="right"/);
+  assert.match(sectionCard, /cell\.durationMinutes \? `\$\{cell\.durationMinutes\}분` : "미정"/);
+  assert.doesNotMatch(sectionCard, /text-\[(?:12|12\.5|13|13\.5|14|15)px\]/);
+  assert.doesNotMatch(sectionCard, /fontSize: "(?:12|12\.5|13|13\.5|14|15)px"/);
+  assert.doesNotMatch(sectionCard, /flex-direction:\s*column|flex-col/);
 });
 
 test("photo analysis cancellation aborts only the current client request and clears temporary selection", async () => {

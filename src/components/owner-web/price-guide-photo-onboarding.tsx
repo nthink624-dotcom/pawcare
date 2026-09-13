@@ -91,7 +91,7 @@ function AnalyzedPriceGuideEditor({
 
   return (
     <section className="min-w-0 space-y-3" data-testid="price-guide-analyzed-editor" data-price-guide-layout="service-columns">
-      <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-[14px] font-medium leading-5 text-[#526174] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">
+      <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 !text-[14px] !font-medium !leading-5 text-[#526174] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         등록 방식으로 돌아가기
       </button>
@@ -108,7 +108,7 @@ function AnalyzedPriceGuideEditor({
         />
       </div>
       {saveError ? <p role="alert" className="text-[13px] font-medium leading-5 text-[#a04455]">{saveError}</p> : null}
-      <button type="button" onClick={() => void saveDraft()} disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[#172033] px-5 text-[16px] font-medium leading-6 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
+      <button type="button" onClick={() => void saveDraft()} disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[#172033] px-5 !text-[16px] !font-medium !leading-6 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
         <Check className="h-4 w-4" aria-hidden="true" />
         {saving ? "저장 중" : "상세 요금표 저장"}
       </button>
@@ -416,7 +416,7 @@ export default function PriceGuidePhotoOnboarding({
           <button type="button" onClick={returnToChoice} disabled={analyzing} aria-label="등록 방식 선택으로 돌아가기" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#526174] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:opacity-50">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </button>
-          <h3 ref={photoHeadingRef} tabIndex={-1} className="min-w-0 text-[20px] font-semibold tracking-[-0.025em] text-[#172033] outline-none">사진으로 요금표 만들기</h3>
+          <h3 ref={photoHeadingRef} tabIndex={-1} className="min-w-0 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#172033] outline-none">사진으로 요금표 만들기</h3>
         </header>
         <div className="p-4 sm:p-5">
         <div className="mx-auto w-full max-w-[680px]" data-price-guide-photo-picker="single">
@@ -444,20 +444,19 @@ export default function PriceGuidePhotoOnboarding({
               </div>
               <div className="flex min-h-11 items-center justify-between gap-3 border-t border-[#e5eaf0] px-3">
                 <span className="text-[13px] font-normal leading-5 text-[#607080]">요금표 사진 1장</span>
-                <button type="button" onClick={() => inputRef.current?.click()} disabled={analyzing} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] px-3 text-[13px] font-medium leading-5 text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-not-allowed disabled:opacity-60">사진 바꾸기</button>
+                <button type="button" onClick={() => inputRef.current?.click()} disabled={analyzing} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] px-3 !text-[14px] !font-medium !leading-5 text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-not-allowed disabled:opacity-60">사진 바꾸기</button>
               </div>
             </div>
           ) : (
             <button type="button" onClick={() => inputRef.current?.click()} disabled={analyzing} className="flex min-h-[128px] w-full flex-col items-center justify-center rounded-[12px] border border-dashed border-[#9fbcf0] bg-[#f7faff] px-5 text-center transition hover:bg-[#f2f7ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60" data-price-guide-photo-picker-state="empty">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#e5efff] text-[#2563eb]"><ImagePlus className="h-5 w-5" aria-hidden="true" /></span>
-              <span className="mt-2 text-[15px] font-semibold leading-5 text-[#1d4f9e]">요금표 사진 선택</span>
+              <span className="mt-2 text-[16px] font-medium leading-6 text-[#1d4f9e]">요금표 사진 선택</span>
               <span className="mt-1 text-[12px] font-normal leading-[18px] text-[#6b7f9f]">JPG, PNG, WebP · 1장 · 최대 20MB</span>
             </button>
           )}
 
-          <p className="mt-3 text-[12px] font-normal leading-[18px] text-[#607080]">사진을 읽기 전에 이름·전화번호·주소를 가려 주세요.</p>
           {selectedFile ? (
-            <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-2 rounded-[9px] border border-[#dce3eb] bg-white px-3 py-2.5 text-[13px] font-medium leading-5 text-[#42536a]">
+            <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-2 rounded-[9px] border border-[#dce3eb] bg-white px-3 py-2.5 text-[14px] font-medium leading-5 text-[#42536a]">
               <input
                 type="checkbox"
                 checked={privacyConfirmed}
@@ -465,38 +464,32 @@ export default function PriceGuidePhotoOnboarding({
                 disabled={analyzing}
                 className="mt-0.5 h-5 w-5 rounded border-[#aab7c7] accent-[#172033]"
               />
-              <span>표 가운데에 사람 이름·전화번호·주소가 없는 것을 확인했습니다.</span>
+              <span>사진에 이름·전화번호·주소가 없음을 확인했습니다.</span>
             </label>
           ) : null}
           {error ? (
-            <div className="mt-3 text-[12px] font-medium leading-[18px] text-[#a04455]" role="alert">
+            <div className="mt-3 text-[13px] font-medium leading-5 text-[#a04455]" role="alert">
               <p>{error}</p>
               {supportCode ? <p className="mt-1 font-normal text-[#64748b]">문의 코드: {supportCode}</p> : null}
             </div>
           ) : null}
           <div className="mt-4">
-            <button type="button" onClick={() => void analyzePhotos()} disabled={!selectedFile || !privacyConfirmed || analyzing} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#172033] px-5 text-[14px] font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">
+            <button type="button" onClick={() => void analyzePhotos()} disabled={!selectedFile || !privacyConfirmed || analyzing} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#172033] px-5 !text-[16px] !font-medium !leading-6 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">
               {analyzing ? <><LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />요금표 불러오는 중</> : "요금표 불러오기"}
             </button>
           </div>
           {analyzing ? (
-            <p className="mt-2 text-center text-[12px] font-normal leading-[18px] text-[#607080]" role="status" aria-live="polite">
+            <p className="mt-2 text-center text-[13px] font-normal leading-5 text-[#607080]" role="status" aria-live="polite">
               {analysisStage === "uploading" ? "사진을 안전하게 준비하고 있어요." : "사진 속 표의 행과 열을 읽고 있어요."}
             </p>
           ) : null}
-          {analyzing ? <button type="button" onClick={cancelAnalysis} className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-[8px] border border-[#cbd5e1] bg-white px-4 text-[14px] font-medium leading-5 text-[#475569] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">불러오기 취소</button> : null}
+          {analyzing ? <button type="button" onClick={cancelAnalysis} className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-[8px] border border-[#cbd5e1] bg-white px-4 !text-[14px] !font-medium !leading-5 text-[#475569] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">불러오기 취소</button> : null}
         </div>
         </div>
       </section> : null}
 
       {mode === "choice" && initialDocument ? (
         <div data-price-guide-source="saved">
-          <div className="mb-3 flex flex-wrap items-center gap-2" aria-label="요금표 등록 상태">
-            <span className="inline-flex min-h-7 items-center rounded-full border border-[#c8ded8] bg-[#edf7f3] px-2.5 text-[12px] font-medium text-[#2f7866]" data-price-guide-registration-status="saved">
-              요금표 등록됨
-            </span>
-            <p className="text-[13px] font-normal leading-5 text-[#607080]">저장 후 다시 불러온 요금표를 기준으로 보여드려요.</p>
-          </div>
           <PriceGuideV2ServiceDetail
             document={initialDocument}
             onSave={applyReviewedDocument}

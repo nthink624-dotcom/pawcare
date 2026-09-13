@@ -5,7 +5,7 @@ import {
   type CustomerDiscountQuote,
 } from "@/lib/discount-coupons";
 import {
-  applyConfiguredCustomerServiceOverrides,
+  buildCustomerServiceMenuOptions,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
@@ -56,12 +56,11 @@ export async function quoteCustomerDiscount(input: unknown): Promise<CustomerDis
   );
   const visitType = priorAppointments.length > 0 ? "revisit" : "first_visit";
   const pricingGroup = findCustomerBreedPricingGroup(bootstrap.services, payload.breed);
-  const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
+  const customerServiceOptions = buildCustomerServiceMenuOptions(
     buildCustomerServiceSourceOptions(bootstrap.services, {
       priceGuideGroupKey: pricingGroup?.key,
       weightKg: payload.weightKg,
     }),
-    bootstrap.shop.customer_page_settings.customer_service_overrides,
   );
   if (payload.serviceId === "__custom__") {
     return {

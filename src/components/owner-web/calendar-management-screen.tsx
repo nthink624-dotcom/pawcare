@@ -84,7 +84,7 @@ import { computeAvailableSlots, isShopClosedOnDate } from "@/lib/availability";
 import { getDateTimePartsInTimeZone, isStaleGroomingSession } from "@/lib/appointment-time";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import {
-  applyConfiguredCustomerServiceOverrides,
+  buildCustomerServiceMenuOptions,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import {
@@ -1039,10 +1039,7 @@ function buildBookingBenefitSummary(data: BootstrapPayload, booking: DailyBookin
   const coupons = data.shop.customer_page_settings.discount_coupons ?? [];
   if (coupons.length === 0) return null;
 
-  const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
-    buildCustomerServiceSourceOptions(data.services),
-    data.shop.customer_page_settings.customer_service_overrides,
-  );
+  const customerServiceOptions = buildCustomerServiceMenuOptions(buildCustomerServiceSourceOptions(data.services));
   const selectedOption =
     customerServiceOptions.find((option) => option.serviceId === booking.serviceId) ??
     customerServiceOptions.find((option) => option.id === booking.serviceId || option.linkedOptionId === booking.serviceId);

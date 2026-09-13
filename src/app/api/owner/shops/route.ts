@@ -3,10 +3,6 @@ import { z } from "zod";
 
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES, normalizeDiscountCoupons } from "@/lib/customer-page-settings";
 import {
-  buildCustomerServiceSourceOptions,
-  sanitizeCustomerServiceOverridesForSourceOptions,
-} from "@/lib/customer-service-options";
-import {
   coerceEnabledShopNotificationSettings,
   normalizeShopNotificationSettings,
 } from "@/lib/notification-settings";
@@ -21,7 +17,7 @@ import {
   insertShopIdentityChangeEvents,
   type ShopIdentityChange,
 } from "@/server/shop-identity-guard";
-import type { Service, ShopNotificationSettings } from "@/types/domain";
+import type { ShopNotificationSettings } from "@/types/domain";
 
 const SHOP_WRITE_CORS = { methods: "GET, PATCH, OPTIONS" };
 
@@ -70,14 +66,8 @@ const updateShopSchema = z.object({
   cancelWindow: z.enum(["none", "1h", "2h", "6h", "24h"]).optional(),
   notificationSettings: notificationSettingsPatchSchema.optional(),
   expectedUpdatedAt: z.string().trim().min(1).max(64).optional(),
-  customerServiceOverrides: z.unknown().optional(),
   discountCoupons: z.unknown().optional(),
 });
-
-function isInitialSetupCustomerServiceOverrideOnly(body: z.infer<typeof updateShopSchema>) {
-  const keys = Object.keys(body).filter((key) => key !== "shopId");
-  return keys.length === 1 && keys[0] === "customerServiceOverrides";
-}
 
 function toStoredNotificationSettings(patch: z.infer<typeof notificationSettingsPatchSchema>) {
   return {
@@ -228,51 +218,7 @@ export async function PATCH(request: NextRequest) {
       if (getSupabaseServerRuntimeStage() === "production") {
         throw new OwnerApiError("Supabase 서버 설정이 없어 운영 매장 정보를 저장할 수 없습니다.", 503);
       }
-
-      const body = updateShopSchema.parse(await request.json());
-      if (!isInitialSetupCustomerServiceOverrideOnly(body)) {
-        throw new OwnerApiError(OWNER_INITIAL_SETUP_REQUIRED_MESSAGE, 409);
-      }
-      const heroMediaAssetIds = body.heroMediaAssetIds ?? [];
-      const heroImageUrls = body.heroImageUrls ?? (body.heroImageUrl ? [body.heroImageUrl] : []);
-      const primaryHeroImageUrl = body.heroImageUrl ?? heroImageUrls[0] ?? "";
-      const notificationSettings = body.notificationSettings
-        ? toMobileNotificationSettingsReadback(toStoredNotificationSettings(body.notificationSettings))
-        : undefined;
-      return ownerMobileCorsJson(request, {
-        shop: {
-          id: body.shopId,
-          name: body.name ?? "데모 매장",
-          phone: body.phone ?? "",
-          address: body.address ?? "",
-          description: body.description ?? "",
-          approval_mode: "auto",
-          concurrent_capacity: 1,
-          reservation_policy_settings: {
-            cancel_window: "2h",
-            customer_change_enabled: true,
-          },
-          customer_page_settings: {
-            shop_name: body.name ?? "?곕え 留ㅼ옣",
-            business_category: body.businessCategory ?? "애견미용",
-            additional_contact: body.additionalContact ?? "",
-            postal_code: body.postalCode ?? "",
-            address_detail: body.addressDetail ?? "",
-            hero_image_url: primaryHeroImageUrl,
-            hero_image_urls: heroImageUrls,
-            hero_media_asset_id: heroMediaAssetIds[0] ?? "",
-            hero_media_asset_ids: heroMediaAssetIds,
-            showcase_title: body.showcaseTitle ?? "",
-            showcase_body: body.showcaseBody ?? "",
-            social_links: body.socialLinks ?? {},
-            ...(body.customerServiceOverrides !== undefined
-              ? { customer_service_overrides: sanitizeCustomerServiceOverridesForSourceOptions(body.customerServiceOverrides, []) }
-              : {}),
-            ...(body.discountCoupons !== undefined ? { discount_coupons: normalizeDiscountCoupons(body.discountCoupons) } : {}),
-          },
-          ...(notificationSettings ? { notificationSettings } : {}),
-        },
-      }, undefined, SHOP_WRITE_CORS);
+      throw new OwnerApiError(OWNER_INITIAL_SETUP_REQUIRED_MESSAGE, 409);
     }
 
     const body = updateShopSchema.parse(await request.json());
@@ -283,30 +229,10 @@ export async function PATCH(request: NextRequest) {
     const hasNotificationSettingsUpdate = body.notificationSettings !== undefined;
     const owner = await requireOwnerShop(request, body.shopId);
     assertOwnerOrManager(owner);
-    if (!isInitialSetupCustomerServiceOverrideOnly(body)) {
-      await assertOwnerInitialSetupComplete(owner.shopId);
-    }
+    await assertOwnerInitialSetupComplete(owner.shopId);
     const admin = getSupabaseAdmin();
     if (!admin) {
       throw new OwnerApiError("Supabase 관리자 연결을 확인해 주세요.", 503);
-    }
-
-    let sourceBoundCustomerServiceOverrides;
-    if (body.customerServiceOverrides !== undefined) {
-      const servicesResult = await admin
-        .from("services")
-        .select("*")
-        .eq("shop_id", owner.shopId)
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true });
-      if (servicesResult.error) {
-        throw new OwnerApiError("저장된 요금표 원본을 확인하지 못했습니다.", 500);
-      }
-      const sourceOptions = buildCustomerServiceSourceOptions((servicesResult.data ?? []) as Service[]);
-      sourceBoundCustomerServiceOverrides = sanitizeCustomerServiceOverridesForSourceOptions(
-        body.customerServiceOverrides,
-        sourceOptions,
-      );
     }
 
     const updates: Record<string, unknown> = {};
@@ -327,7 +253,6 @@ export async function PATCH(request: NextRequest) {
       body.heroImageUrl !== undefined ||
       body.heroImageUrls !== undefined ||
       body.heroMediaAssetIds !== undefined ||
-      body.customerServiceOverrides !== undefined ||
       body.discountCoupons !== undefined;
 
     if (
@@ -423,9 +348,6 @@ export async function PATCH(request: NextRequest) {
                 hero_media_asset_id: heroMediaAssetIds[0] ?? "",
                 hero_media_asset_ids: heroMediaAssetIds,
               }
-            : {}),
-          ...(body.customerServiceOverrides !== undefined
-            ? { customer_service_overrides: sourceBoundCustomerServiceOverrides ?? {} }
             : {}),
           ...(body.discountCoupons !== undefined ? { discount_coupons: normalizeDiscountCoupons(body.discountCoupons) } : {}),
         };

@@ -19,9 +19,7 @@ registerHooks({
 });
 
 const {
-  applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
-  sanitizeCustomerServiceOverridesForSourceOptions,
 } = await import("../../src/lib/customer-service-options.ts");
 const { ensurePriceGuideV2SourceItemIds } = await import("../../src/types/price-guide-photo-import.ts");
 
@@ -33,10 +31,6 @@ const structuredPriceGuidePath = new URL("../../src/lib/price-guide-structured-t
 const serviceManagementPath = new URL("../../src/components/owner-web/service-management-screen.tsx", import.meta.url);
 const priceGuideChoicePath = new URL("../../src/components/owner-web/price-guide-onboarding-choice.tsx", import.meta.url);
 const priceGuideOnboardingPath = new URL("../../src/components/owner-web/price-guide-photo-onboarding.tsx", import.meta.url);
-const customerExposurePath = new URL("../../src/components/owner-web/customer-service-exposure-panel.tsx", import.meta.url);
-const customerPageManagementPath = new URL("../../src/components/owner-web/customer-booking-page-management-screen.tsx", import.meta.url);
-const ownerShopsRoutePath = new URL("../../src/app/api/owner/shops/route.ts", import.meta.url);
-const ownerMutationsPath = new URL("../../src/server/owner-mutations.ts", import.meta.url);
 const customerEntryPath = new URL("../../src/components/customer/customer-booking-entry-page.tsx", import.meta.url);
 const customerManagePath = new URL("../../src/components/customer/customer-booking-manage-panel.tsx", import.meta.url);
 const customerBookingPagePath = new URL("../../src/components/customer/customer-booking-page.tsx", import.meta.url);
@@ -233,59 +227,6 @@ test("legacy and standalone service values never become customer price rows", ()
   assert.deepEqual(buildCustomerServiceSourceOptions([{ ...legacyService, price_guide: {} }]), []);
 });
 
-test("customer exposure stores only live source linkage and follows canonical edits", () => {
-  const document = ensurePriceGuideV2SourceItemIds(priceGuideV2());
-  const carrier = serviceFromRow(document, 0);
-  const originalOptions = buildCustomerServiceSourceOptions([carrier]);
-  const linkedOption = originalOptions[0];
-  const requested = {
-    "customer-row": {
-      visible: true,
-      order: 2,
-      linkedOptionId: linkedOption.id,
-      displayName: "복사된 이름",
-      price: 1,
-      durationMinutes: 1,
-    },
-    stale: { visible: true, linkedOptionId: "missing-source" },
-    duplicate: { visible: true, linkedOptionId: linkedOption.id },
-  };
-
-  assert.deepEqual(sanitizeCustomerServiceOverridesForSourceOptions(requested, originalOptions), {
-    [linkedOption.id]: { visible: true, order: 2, linkedOptionId: linkedOption.id },
-  });
-
-  const configuredOriginal = applyConfiguredCustomerServiceOverrides(originalOptions, requested);
-  assert.equal(configuredOriginal.length, 1);
-  assert.equal(configuredOriginal[0].price, 30_000);
-  assert.equal(configuredOriginal[0].durationMinutes, 45);
-
-  const editedDocument = structuredClone(document);
-  editedDocument.rows[0].priceMinKrw = 91_000;
-  editedDocument.rows[0].durationMinutes = 135;
-  const editedOptions = buildCustomerServiceSourceOptions([{ ...carrier, price_guide: editedDocument }]);
-  const configuredEdited = applyConfiguredCustomerServiceOverrides(editedOptions, requested);
-  assert.equal(configuredEdited.length, 1);
-  assert.equal(configuredEdited[0].id, linkedOption.id);
-  assert.equal(configuredEdited[0].price, 91_000);
-  assert.equal(configuredEdited[0].durationMinutes, 135);
-
-  const renamedDocument = structuredClone(document);
-  renamedDocument.rows[0].serviceName = "소형 스파 목욕";
-  const renamedOptions = buildCustomerServiceSourceOptions([{ ...carrier, price_guide: renamedDocument }]);
-  const configuredRenamed = applyConfiguredCustomerServiceOverrides(renamedOptions, requested);
-  assert.equal(configuredRenamed.length, 1);
-  assert.equal(configuredRenamed[0].id, linkedOption.id);
-  assert.equal(configuredRenamed[0].displayName, "소형 스파 목욕");
-
-  const deletedDocument = structuredClone(document);
-  deletedDocument.rows.splice(0, 1);
-  const deletedOptions = buildCustomerServiceSourceOptions([{ ...carrier, price_guide: deletedDocument }]);
-  assert.deepEqual(applyConfiguredCustomerServiceOverrides(deletedOptions, requested), []);
-
-  assert.deepEqual(applyConfiguredCustomerServiceOverrides([], requested), []);
-});
-
 test("owner V2 detail renders its native inline table and explicit save refetches canonical services", async () => {
   const [
     priceGuide,
@@ -297,10 +238,6 @@ test("owner V2 detail renders its native inline table and explicit save refetche
     mockData,
     choice,
     onboarding,
-    exposure,
-    customerPageManagement,
-    ownerShopsRoute,
-    ownerMutations,
     customerEntry,
     customerManage,
     customerBookingPage,
@@ -316,10 +253,6 @@ test("owner V2 detail renders its native inline table and explicit save refetche
     readFile(mockDataPath, "utf8"),
     readFile(priceGuideChoicePath, "utf8"),
     readFile(priceGuideOnboardingPath, "utf8"),
-    readFile(customerExposurePath, "utf8"),
-    readFile(customerPageManagementPath, "utf8"),
-    readFile(ownerShopsRoutePath, "utf8"),
-    readFile(ownerMutationsPath, "utf8"),
     readFile(customerEntryPath, "utf8"),
     readFile(customerManagePath, "utf8"),
     readFile(customerBookingPagePath, "utf8"),
@@ -362,11 +295,12 @@ test("owner V2 detail renders its native inline table and explicit save refetche
   assert.match(detail, /photoReviewMode=\{photoTable\}/);
   assert.doesNotMatch(nativeTable, /대상 동물|체급 분류|가격 방식 선택|메모 추가/);
   assert.match(nativeTable, /data-price-guide-breed-chips="true"/);
-  assert.match(nativeTable, /data-price-guide-fixed-price-ui="true"/);
+  assert.match(nativeTable, /data-price-guide-dynamic-service-ui="true"/);
   assert.match(nativeTable, /rowInputId\(rowIndex, "priceKind"\)/);
   assert.match(nativeTable, /rowInputId\(rowIndex, "priceMaxKrw"\)/);
   assert.match(nativeTable, /function PriceDurationInlineCell[\s\S]*data-price-guide-price-duration-cell=\{rowIndex\}/);
-  assert.doesNotMatch(nativeTable, /renderedStructureField === noteId|PriceGuideNativeInlineExtras/);
+  assert.doesNotMatch(nativeTable, /renderedStructureField === noteId/);
+  assert.match(nativeTable, /PriceGuideNativeInlineExtras/);
   assert.doesNotMatch(nativeTable, /firstIssueInputId \?\? activeField/);
   assert.match(mockData, /id: "svc-full"[\s\S]*price_guide: \{[\s\S]*schemaVersion: 2[\s\S]*priceMinKrw: 80000[\s\S]*durationMinutes: 120/);
 
@@ -392,20 +326,9 @@ test("owner V2 detail renders its native inline table and explicit save refetche
   assert.doesNotMatch(serviceManagement, /const previewServices|onServicesChange\?\.\(previewServices\)/);
   assert.doesNotMatch(serviceManagement, /setServices\(\(current\) =>[\s\S]{0,260}priceGuide: nextPriceGuide/);
   assert.match(serviceManagement, /const canonicalServices = useMemo/);
-  assert.match(serviceManagement, /buildCustomerServiceSourceOptions\(canonicalServices\)/);
-  assert.match(serviceManagement, /canonicalPriceGuideDocument && rawCustomerServiceConnectionOptions\.length > 0/);
   assert.match(serviceManagement, /canonicalPriceGuideDocument \? \([\s\S]*ServiceDurationRecommendationPanel/);
   assert.match(choice, /요금표 미등록/);
-  assert.match(onboarding, /data-price-guide-registration-status="saved"[\s\S]*요금표 등록됨/);
-  assert.match(exposure, /linkedOptionId: row\.option\.id/);
-  assert.match(exposure, /가격과 시간은 원본 요금표를 수정하면 고객 화면에도 같은 값으로 반영됩니다/);
-  assert.doesNotMatch(exposure, /onRenameOption|displayName:/);
-  assert.doesNotMatch(customerPageManagement, /\/api\/services|서비스 추가|priceGuide: \{\}/);
-  assert.match(customerPageManagement, /저장된 상세 요금표 항목의 순서와 노출 여부만 정할 수 있습니다/);
-  assert.match(customerPageManagement, /sanitizeCustomerServiceOverridesForSourceOptions/);
-  assert.match(ownerShopsRoute, /\.from\("services"\)[\s\S]*\.eq\("shop_id", owner\.shopId\)[\s\S]*\.eq\("is_active", true\)/);
-  assert.match(ownerShopsRoute, /customer_service_overrides: sourceBoundCustomerServiceOverrides \?\? \{\}/);
-  assert.match(ownerMutations, /customer_service_overrides: current\.customer_service_overrides/);
+  assert.doesNotMatch(onboarding, /data-price-guide-registration-status="saved"|요금표 등록됨/);
   assert.doesNotMatch(customerEntry, /getPriceGuideSections|fullServiceOptions|normalizeServicePriceGuide/);
   assert.match(customerEntry, /serviceOptions\.map\(\(service\) =>/);
   assert.doesNotMatch(customerManage, /customerServiceOptions\.length > 0 \? customerServiceOptions : services\.map/);
@@ -417,6 +340,7 @@ test("owner V2 detail renders its native inline table and explicit save refetche
   assert.doesNotMatch(customerDiscountQuote, /: customerServiceOptions\.find\(\(option\) => option\.serviceId === payload\.serviceId\)/);
   assert.match(priceGuide, /ensurePriceGuideV2SourceItemIds/);
   assert.match(nativeTable, /data-native-price-guide-group=\{groupIndex\}/);
-  assert.match(nativeTable, /group\.breedNames\.join\(", "\)/);
+  assert.match(nativeTable, /group\.breedNames\.map\(\(breed\) =>/);
+  assert.match(nativeTable, /BreedManagementDialog/);
   assert.doesNotMatch(`${detail}\n${nativeTable}`, /이 그룹 편집|MatrixGroupCard|EditableMatrixGroup/);
 });

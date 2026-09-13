@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
 import CustomerBookingEntryPage, {
   type CustomerBookingPreviewSelection,
@@ -41,7 +41,7 @@ export function CustomerPagePhonePreview({
         <div className="pointer-events-none absolute left-[3.4%] top-[1.25%] h-[97.4%] w-[93.2%] rounded-[40px] bg-[#070707]" />
         <div className="absolute left-[4.62%] top-[1.91%] z-10 h-[96.48%] w-[90.64%] overflow-hidden rounded-[31px] bg-[#fdf7f5]">
           {shop ? (
-            <div className="pm-preview-viewport absolute inset-0 overflow-hidden bg-[#fdf7f5]">
+            <div data-customer-phone-preview-frame="true" className="pm-preview-viewport absolute inset-0 overflow-hidden bg-[#fdf7f5]">
               <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[40px] items-center justify-between bg-[#fdf7f5] px-[24px] pt-[8px] text-[10.5px] font-semibold text-[#241916]">
                 <span>9:41</span>
                 <span className="flex items-center gap-[4px]">
@@ -62,12 +62,14 @@ export function CustomerPagePhonePreview({
                 </span>
               </div>
               <div
+                data-customer-phone-preview-viewport="430x804"
                 className="absolute left-0 top-[40px] origin-top-left overflow-hidden"
                 style={{
+                  "--customer-entry-viewport-height": `${CUSTOMER_PREVIEW_CONTENT_HEIGHT}px`,
                   width: CUSTOMER_PREVIEW_CONTENT_WIDTH,
                   height: CUSTOMER_PREVIEW_CONTENT_HEIGHT,
                   transform: `scale(${CUSTOMER_PREVIEW_CONTENT_SCALE})`,
-                }}
+                } as CSSProperties}
               >
                 {selection ? (
                   <CustomerBookingPage
@@ -139,10 +141,10 @@ export function CustomerPagePreviewLayout({
   hidePreview?: boolean;
 }) {
   return (
-    <div className={cn("grid h-full min-h-0 gap-2", !hidePreview && "xl:grid-cols-[minmax(0,1fr)_320px]", className)}>
+    <div className={cn("grid h-full min-h-0 gap-2", !hidePreview && "lg:grid-cols-[minmax(0,1fr)_320px]", className)}>
       <div className="min-h-0 min-w-0 overflow-y-auto">{children}</div>
       {!hidePreview ? (
-        <aside className="hidden h-full min-h-0 rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)] xl:flex">
+        <aside className="hidden h-full min-h-0 rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)] lg:flex">
           <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-5">
             <CustomerPagePhonePreview
               shop={shop}

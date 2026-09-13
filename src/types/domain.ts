@@ -132,18 +132,8 @@ export type CustomerPageSettings = {
   additional_contact?: string;
   postal_code?: string;
   address_detail?: string;
-  customer_service_overrides?: Record<
-    string,
-      {
-        visible?: boolean;
-        order?: number;
-        displayName?: string;
-        description?: string;
-        linkedOptionId?: string;
-      }
-    >;
-    discount_coupons?: CustomerDiscountCoupon[];
-  };
+  discount_coupons?: CustomerDiscountCoupon[];
+};
 
 export type CustomerDiscountCoupon = {
   id: string;

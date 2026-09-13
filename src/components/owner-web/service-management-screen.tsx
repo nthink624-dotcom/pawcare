@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { serviceRows } from "@/components/owner-web/owner-web-data";
 import type { OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
-import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
 import { OwnerInitialSetupSaveNextActions } from "@/components/owner-web/owner-initial-setup-guide";
 import PriceGuidePhotoOnboarding from "@/components/owner-web/price-guide-photo-onboarding";
 import ServiceDurationRecommendationPanel from "@/components/owner-web/service-duration-recommendation-panel";
@@ -24,13 +23,6 @@ import {
   WebSurface,
 } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import {
-  buildCustomerServiceMenuConnectionOptions,
-  buildCustomerServiceSourceOptions,
-  normalizeCustomerServiceOverrides,
-  sanitizeCustomerServiceOverridesForSourceOptions,
-  type CustomerServiceDisplayOverrides,
-} from "@/lib/customer-service-options";
 import { getOwnerPriceGuideServiceProjection } from "@/lib/owner-price-guide-onboarding";
 import { formatServicePriceInput, parseServicePriceInput, parseStoredServicePrice } from "@/lib/service-price-input";
 import { cn } from "@/lib/utils";
@@ -377,14 +369,9 @@ export default function ServiceManagementScreen({
   const [serviceForm, setServiceForm] = useState<ServiceForm>(() => initialServiceForm);
   const [formError, setFormError] = useState("");
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "pending" | "saved" | "needs-info">("saved");
-  const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
-    normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides),
-  );
-  const [customerServiceSaveStatus, setCustomerServiceSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [storageReady, setStorageReady] = useState(false);
   const [initialSetupPriceGuideSaveAction, setInitialSetupPriceGuideSaveAction] = useState<(() => Promise<void>) | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
-  const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedSignatureRef = useRef(getServiceFormSignature(initialServiceForm));
   const latestServiceFormSignatureRef = useRef(getServiceFormSignature(initialServiceForm));
   const lastExternalServicesSignatureRef = useRef(demoMode ? "" : getBootstrapServicesSignature(initialServices));
@@ -398,22 +385,6 @@ export default function ServiceManagementScreen({
   const registerInitialSetupPriceGuideSaveAction = useCallback((action: (() => Promise<void>) | null) => {
     setInitialSetupPriceGuideSaveAction(() => action);
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (customerServiceSaveTimerRef.current) {
-        clearTimeout(customerServiceSaveTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const nextOverrides = normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides);
-    setCustomerServiceOverrides((currentOverrides) =>
-      JSON.stringify(currentOverrides) === JSON.stringify(nextOverrides) ? currentOverrides : nextOverrides,
-    );
-    setCustomerServiceSaveStatus((currentStatus) => (currentStatus === "pending" ? currentStatus : "saved"));
-  }, [shop?.id, shop?.customer_page_settings.customer_service_overrides]);
 
   useEffect(() => {
     if (!demoMode || !persistDemoState) {
@@ -827,87 +798,12 @@ export default function ServiceManagementScreen({
     return true;
   }
 
-  function updateCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
-    const normalizedOverrides = sanitizeCustomerServiceOverridesForSourceOptions(
-      nextOverrides,
-      rawCustomerServiceConnectionOptions,
-    );
-    setCustomerServiceOverrides(normalizedOverrides);
-
-    if (customerServiceSaveTimerRef.current) {
-      clearTimeout(customerServiceSaveTimerRef.current);
-      customerServiceSaveTimerRef.current = null;
-    }
-
-    if (!shop) {
-      setCustomerServiceSaveStatus("idle");
-      return;
-    }
-
-    const optimisticShop: Shop = {
-      ...shop,
-      customer_page_settings: {
-        ...shop.customer_page_settings,
-        customer_service_overrides: normalizedOverrides,
-      },
-    };
-    onShopChange?.(optimisticShop);
-
-    if (demoMode || shop.id === "demo-shop" || shop.id === "owner-demo") {
-      setCustomerServiceSaveStatus("saved");
-      return;
-    }
-
-    setCustomerServiceSaveStatus("pending");
-    customerServiceSaveTimerRef.current = setTimeout(() => {
-      void fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
-        method: "PATCH",
-        body: JSON.stringify({
-          shopId: shop.id,
-          customerServiceOverrides: normalizedOverrides,
-        }),
-      })
-        .then((result) => {
-          onShopChange?.({
-            ...optimisticShop,
-            customer_page_settings: {
-              ...optimisticShop.customer_page_settings,
-              ...result.shop.customer_page_settings,
-            },
-          });
-          setCustomerServiceSaveStatus("saved");
-        })
-        .catch((error) => {
-          console.error("[OWNER SERVICES] failed to save customer service exposure", error);
-          setCustomerServiceSaveStatus("error");
-        });
-      customerServiceSaveTimerRef.current = null;
-    }, 500);
-  }
-
   const canonicalServices = useMemo(
     () => managedServicesToDomain(services, shopId),
     [services, shopId],
   );
 
-  const rawCustomerServiceConnectionOptions = useMemo(
-    () => buildCustomerServiceSourceOptions(canonicalServices),
-    [canonicalServices],
-  );
-  const customerServiceConnectionOptions = useMemo(
-    () => buildCustomerServiceMenuConnectionOptions(rawCustomerServiceConnectionOptions),
-    [rawCustomerServiceConnectionOptions],
-  );
-  const customerPagePreviewShop = useMemo<Shop | null>(() => {
-    if (!shop) return null;
-    return {
-      ...shop,
-      customer_page_settings: {
-        ...shop.customer_page_settings,
-        customer_service_overrides: customerServiceOverrides,
-      },
-    };
-  }, [customerServiceOverrides, shop]);
+  const customerPagePreviewShop = shop ?? null;
 
   const priceGuideWorkspace = (
     <PriceGuidePhotoOnboarding
@@ -961,30 +857,6 @@ export default function ServiceManagementScreen({
             serviceIds={services.map((service) => service.id)}
             demoMode={demoMode}
           />
-        ) : null}
-        {canonicalPriceGuideDocument && rawCustomerServiceConnectionOptions.length > 0 ? (
-          <div className="rounded-[12px] border border-[#dbe2ea] bg-[#fbfcfd] p-3.5">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#e6ebf2] pb-3">
-              <div>
-                <p className="text-[15px] font-medium text-[#334155]">고객에게 보여줄 요금표</p>
-                <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">
-                  <span className="block">저장된 상세 요금표 항목만 순서를 바꾸거나 숨길 수 있습니다.</span>
-                  <span className="block">가격과 시간은 위 원본 요금표를 수정하면 고객 화면에도 같은 값으로 반영됩니다.</span>
-                </p>
-              </div>
-              <span className="inline-flex h-7 items-center rounded-full border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-medium text-[#64748b]">
-                고객 화면
-              </span>
-            </div>
-            <CustomerServiceExposurePanel
-              options={customerServiceConnectionOptions}
-              overrides={customerServiceOverrides}
-              embedded
-              onChange={updateCustomerServiceOverrides}
-              hideHeader
-              hideGuidance
-            />
-          </div>
         ) : null}
       </section>
 

@@ -1,5 +1,4 @@
 ﻿import { decodeUnicodeEscapes } from "@/lib/utils";
-import { normalizeCustomerServiceOverrides } from "@/lib/customer-service-options";
 import type { CustomerDiscountCoupon, CustomerPageSettings } from "@/types/domain";
 
 export const MAX_CUSTOMER_PAGE_HERO_IMAGES = 200;
@@ -37,7 +36,6 @@ export const defaultCustomerPageSettings: CustomerPageSettings = {
   additional_contact: "",
   postal_code: "",
   address_detail: "",
-  customer_service_overrides: {},
   discount_coupons: [],
 };
 
@@ -210,7 +208,6 @@ export function normalizeCustomerPageSettings(
     additional_contact: normalizeOptionalText(settings?.additional_contact),
     postal_code: normalizeOptionalText(settings?.postal_code),
     address_detail: normalizeOptionalText(settings?.address_detail),
-    customer_service_overrides: normalizeCustomerServiceOverrides(settings?.customer_service_overrides),
     discount_coupons: normalizeDiscountCoupons(settings?.discount_coupons),
   };
 }

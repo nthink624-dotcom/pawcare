@@ -24,13 +24,7 @@ const PREVIEW_DATA = {
       6: { open: "10:00", close: "18:00", enabled: true },
     },
     booking_slot_interval_minutes: 15,
-    customer_page_settings: {
-      customer_service_overrides: {
-        "preview-service-full": { visible: true },
-        "preview-service-bath": { visible: true },
-        "preview-service-partial": { visible: true },
-      },
-    },
+    customer_page_settings: {},
   },
   initialSetupReadiness: {
     shopId: "initial-setup-guide-preview-shop",

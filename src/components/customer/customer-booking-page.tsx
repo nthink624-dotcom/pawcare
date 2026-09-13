@@ -10,7 +10,7 @@ import CustomerFirstVisitFlow from "@/components/customer/customer-first-visit-c
 import { fetchApiJson } from "@/lib/api";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import {
-  applyConfiguredCustomerServiceOverrides,
+  buildCustomerServiceMenuOptions,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import { fetchCustomerAvailability, invalidateCustomerAvailability, type CustomerAvailabilityPayload } from "@/lib/customer-availability";
@@ -415,16 +415,15 @@ export default function CustomerBookingPage({
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
   const initialCustomerServiceOptions = useMemo(
     () =>
-      applyConfiguredCustomerServiceOverrides(
+      buildCustomerServiceMenuOptions(
         buildCustomerServiceSourceOptions(
           services
             .slice()
             .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
           {},
         ),
-        initialShop.customer_page_settings.customer_service_overrides,
       ),
-    [initialShop.customer_page_settings.customer_service_overrides, services],
+    [services],
   );
   const initialCustomerServiceOption =
     initialCustomerServiceOptions.find((option) => option.id === initialServiceOptionId) ??
@@ -480,16 +479,15 @@ export default function CustomerBookingPage({
   );
   const customerServiceOptions = useMemo(
     () =>
-      applyConfiguredCustomerServiceOverrides(
+      buildCustomerServiceMenuOptions(
         buildCustomerServiceSourceOptions(
           services
             .slice()
             .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
           { priceGuideGroupKey: detectedBreedPricingGroup?.key, weightKg: Number(firstVisit.weightKg) || null },
         ),
-        initialShop.customer_page_settings.customer_service_overrides,
       ),
-    [detectedBreedPricingGroup?.key, firstVisit.weightKg, initialShop.customer_page_settings.customer_service_overrides, services],
+    [detectedBreedPricingGroup?.key, firstVisit.weightKg, services],
   );
 
   const selectedFirstService = services.find((service) => service.id === firstVisit.serviceId);

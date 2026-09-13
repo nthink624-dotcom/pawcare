@@ -141,9 +141,8 @@ function shouldStartWithPriceGuideSetup(data: BootstrapPayload) {
     (data.pets?.length ?? 0) > 0 ||
     (data.appointments?.length ?? 0) > 0 ||
     (data.groomingRecords?.length ?? 0) > 0;
-  const hasConfiguredCustomerMenu = Object.keys(data.shop.customer_page_settings.customer_service_overrides ?? {}).length > 0;
 
-  return !hasOperationalData && !hasConfiguredCustomerMenu;
+  return !hasOperationalData;
 }
 
 function getInitialOwnerWebScreen(data: BootstrapPayload): OwnerWebScreenKey {
@@ -182,10 +181,6 @@ function mergeOwnerWebShop(current: OwnerWebShop, incoming: OwnerWebShop): Owner
       social_links: {
         ...(current.customer_page_settings.social_links ?? {}),
         ...(incoming.customer_page_settings.social_links ?? {}),
-      },
-      customer_service_overrides: {
-        ...(current.customer_page_settings.customer_service_overrides ?? {}),
-        ...(incoming.customer_page_settings.customer_service_overrides ?? {}),
       },
       discount_coupons:
         incoming.customer_page_settings.discount_coupons ?? current.customer_page_settings.discount_coupons,

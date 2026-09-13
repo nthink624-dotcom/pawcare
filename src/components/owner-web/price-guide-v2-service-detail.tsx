@@ -9,6 +9,7 @@ import {
 } from "@/components/auth/signup-price-guide-editor";
 import PriceGuideNativeInlineTable from "@/components/owner-web/price-guide-native-inline-table";
 import PriceGuideStructuredReviewTable from "@/components/owner-web/price-guide-structured-review-table";
+import { buildPriceGuideStructuredProjection } from "@/lib/price-guide-structured-table";
 import type { PriceGuideV2 } from "@/types/price-guide-photo-import";
 
 export function isFixedManualPriceGuideDocument(document: PriceGuideV2) {
@@ -41,6 +42,7 @@ export default function PriceGuideV2ServiceDetail({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [editing, setEditing] = useState(!photoTable);
+  const [editingTarget, setEditingTarget] = useState<{ kind: "group"; groupIndex: number } | { kind: "extras" } | null>(null);
   const [focusFirstMissingDuration, setFocusFirstMissingDuration] = useState(false);
   const draftIssues = useMemo(() => validatePriceGuideDocument(draft, { photoTable }), [draft, photoTable]);
   const dirty = JSON.stringify(draft) !== valueSignature;
@@ -53,6 +55,7 @@ export default function PriceGuideV2ServiceDetail({
     setValidationIssues([]);
     setSaveError("");
     setEditing(!isPhotoPriceGuideDocument(value));
+    setEditingTarget(null);
     setFocusFirstMissingDuration(false);
   }, [value, valueSignature]);
 
@@ -68,6 +71,7 @@ export default function PriceGuideV2ServiceDetail({
     setValidationIssues([]);
     setSaveError("");
     setEditing(!photoTable);
+    setEditingTarget(null);
     setFocusFirstMissingDuration(false);
   }
 
@@ -87,7 +91,10 @@ export default function PriceGuideV2ServiceDetail({
         return;
       }
       setValidationIssues([]);
-      if (photoTable) setEditing(false);
+      if (photoTable) {
+        setEditing(false);
+        setEditingTarget(null);
+      }
     } catch {
       setSaveError("요금표를 저장하지 못했습니다. 입력 내용은 그대로 유지됩니다.");
     } finally {
@@ -105,17 +112,31 @@ export default function PriceGuideV2ServiceDetail({
     return () => onSaveActionReady?.(null);
   }, [onSaveActionReady, registeredSaveAction]);
 
+  const structuredGroups = useMemo(() => buildPriceGuideStructuredProjection(draft).groups, [draft]);
+  const editingHeading = editingTarget?.kind === "group"
+    ? `${structuredGroups[editingTarget.groupIndex]?.label ?? "요금표"} 수정`
+    : editingTarget?.kind === "extras"
+      ? "추가요금 수정"
+      : photoTable ? "요금표 수정" : "요금표";
+
   return (
     <div className="min-w-0" data-price-guide-detail-matrix="true">
       {photoTable && !editing ? (
         <PriceGuideStructuredReviewTable
           document={draft}
-          onEdit={() => {
+          onEditGroup={(groupIndex) => {
             setFocusFirstMissingDuration(false);
+            setEditingTarget({ kind: "group", groupIndex });
             setEditing(true);
           }}
-          onSetAverageTime={() => {
+          onEditExtras={() => {
+            setFocusFirstMissingDuration(false);
+            setEditingTarget({ kind: "extras" });
+            setEditing(true);
+          }}
+          onSetAverageTime={(groupIndex) => {
             setFocusFirstMissingDuration(true);
+            setEditingTarget({ kind: "group", groupIndex });
             setEditing(true);
           }}
         />
@@ -124,9 +145,11 @@ export default function PriceGuideV2ServiceDetail({
           document={draft}
           onChange={updateDraft}
           validationIssues={validationIssues}
-          heading={photoTable ? "요금표 수정" : "요금표"}
+          heading={editingHeading}
           photoReviewMode={photoTable}
           focusFirstMissingDuration={focusFirstMissingDuration}
+          visibleGroupIndex={editingTarget?.kind === "group" ? editingTarget.groupIndex : undefined}
+          extrasOnly={editingTarget?.kind === "extras"}
         />
       )}
       {saveError ? <p role="alert" className="mt-3 text-[13px] font-medium leading-5 text-[#a04455]">{saveError}</p> : null}

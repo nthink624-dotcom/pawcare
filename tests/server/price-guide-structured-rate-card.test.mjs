@@ -665,11 +665,17 @@ test("strict provider request asks for source table axes without inventing defau
   assert.match(instruction, /전역 서비스 목록을 복사하거나 강제하지 마세요/);
   assert.match(instruction, /가격 셀이 없는 명시적 무게 구간/);
   assert.match(instruction, /셀 경계, 병합 범위, 반복 block/);
+  assert.match(instruction, /각주·안내문에 있는 발톱, 귀청소 같은 단어/);
+  assert.match(instruction, /흔한 미용 서비스명으로 추측하지 말고/);
   assert.match(instruction, /물리적 행·열 방향이 표마다 반대여도/);
   assert.match(instruction, /요금 분류 값은 사진의 해당 header\/cell에서 동적으로 읽은 원문/);
   assert.match(instruction, /슬래시 문자의 유무만으로 텍스트를 합치거나 나누지 마세요/);
   assert.match(instruction, /오른쪽이나 아래쪽에 별도로 놓인 추가 서비스·추가요금/);
+  assert.match(instruction, /주 표 아래의 시작가 서비스/);
+  assert.match(instruction, /호텔 같은 독립 이름\+금액도 누락하지 마세요/);
   assert.match(instruction, /빈 셀, 일부만 읽힌 금액/);
+  assert.match(instruction, /상담 후 결정/);
+  assert.match(instruction, /숫자를 만들거나 빈칸으로 버리지 마세요/);
   assert.match(instruction, /tableGroups 다음에 surcharges를 먼저 완결/);
   assert.match(instruction, /짧은 키 g\/w\/s/);
   assert.match(instruction, /숫자 임계값과 포함 관계가 같은 표기만 같은 체급/);
@@ -694,13 +700,14 @@ test("strict provider request asks for source table axes without inventing defau
 });
 
 test("connected photo review uses one clean table and the same inline edit path before save and after reopen", async () => {
-  const [onboarding, manual, editor, reviewTable, detail, nativeTable, matrixModel, projection] = await Promise.all([
+  const [onboarding, manual, editor, reviewTable, detail, nativeTable, extras, matrixModel, projection] = await Promise.all([
     readFile(new URL("../../src/components/owner-web/price-guide-photo-onboarding.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../src/components/owner-web/price-guide-manual-onboarding.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../src/components/auth/signup-price-guide-editor.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../src/components/owner-web/price-guide-structured-review-table.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../src/components/owner-web/price-guide-v2-service-detail.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../src/components/owner-web/price-guide-native-inline-table.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../src/components/owner-web/price-guide-native-inline-extras.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../src/lib/price-guide-direct-matrix.ts", import.meta.url), "utf8"),
     readFile(new URL("../../src/lib/price-guide-structured-table.ts", import.meta.url), "utf8"),
   ]);
@@ -713,29 +720,63 @@ test("connected photo review uses one clean table and the same inline edit path 
   assert.match(manual, /photoReviewMode=\{!manualMatrixMode\}/);
   assert.match(editor, /<PriceGuideStructuredReviewTable document=\{document\} onEditRow=\{focusStructuredRow\}/);
   assert.match(reviewTable, /data-price-guide-photo-table-sheet="true"/);
+  assert.doesNotMatch(reviewTable, /사진에서 읽은 요금표/);
+  assert.match(reviewTable, /data-price-guide-group-edit-action=\{groupIndex\}/);
+  assert.match(reviewTable, /overflow-hidden rounded-\[12px\] border border-\[#dbe2ea\] bg-white/);
   assert.match(reviewTable, /group\.breeds\.join\(" · "\)/);
   assert.match(reviewTable, /group\.weights\.map/);
   assert.match(reviewTable, /group\.weightNotes\[weight\]/);
   assert.match(reviewTable, /group\.services\.map/);
   assert.match(reviewTable, /요금표 수정/);
   assert.match(reviewTable, /평균 시간 설정이 필요해요/);
-  assert.match(reviewTable, /실제 평균 시간을 계산해 추천해 드려요/);
+  assert.doesNotMatch(reviewTable, /실제 평균 시간을 계산해 추천해 드려요/);
   assert.doesNotMatch(reviewTable, /가격 방식 선택 필요|소요 시간 입력 필요|가격 입력 필요|확인 필요/);
   assert.match(reviewTable, /min-h-11/);
+  assert.match(reviewTable, /PRICE_GUIDE_UI_HARD_CONTRACT/);
+  assert.match(reviewTable, /data-price-guide-breeds="true"/);
+  assert.match(reviewTable, /data-price-guide-group-heading="true"/);
+  assert.match(reviewTable, /flex[^"\n]*flex-wrap[^"\n]*items-baseline/);
+  assert.match(reviewTable, /text-\[20px\] font-semibold leading-7/);
+  assert.match(reviewTable, /text-\[18px\] font-normal leading-\[26px\]/);
+  assert.match(reviewTable, /border-l border-\[#cbd5e1\] pl-3/);
+    assert.doesNotMatch(reviewTable, /읽힌 가격만 채웠어요/);
+  assert.match(reviewTable, />몸무게<\/th>/);
+  assert.doesNotMatch(reviewTable, /data-price-guide-service-subheaders="true"/);
+  assert.doesNotMatch(reviewTable, />가격<\/span>|>예상시간<\/span>/);
+  assert.match(reviewTable, /data-price-left-time-right="true"/);
+  assert.match(reviewTable, /grid-cols-\[minmax\(0,1fr\)_88px\]/);
+  assert.match(reviewTable, /data-price-side="left"/);
+  assert.match(reviewTable, /data-duration-side="right"/);
+  assert.match(reviewTable, /row\?\.durationMinutes === null[\s\S]*\? "미정"/);
+  assert.doesNotMatch(reviewTable, /text-\[(?:11|12|13|14|15)px\]/);
+  assert.doesNotMatch(reviewTable, /flex-col justify-center/);
+  assert.match(reviewTable, /px-3 py-3 font-medium[^>]*>몸무게<\/th>/);
+  assert.match(reviewTable, /px-3 py-3 font-medium text-\[#172033\]/);
+  assert.match(reviewTable, /font-normal[^>]*data-price-side="left">\{price\}<\/span>/);
+  assert.match(reviewTable, /font-normal[^>]*data-duration-side="right">\{duration\}<\/span>/);
+  assert.doesNotMatch(reviewTable, /font-bold/);
   assert.match(detail, /<PriceGuideStructuredReviewTable/);
   assert.match(detail, /data-price-guide-detail-matrix="true"/);
   assert.match(detail, /photoReviewMode=\{photoTable\}/);
   assert.match(detail, /setEditing\(true\)/);
+  assert.match(detail, /setEditingTarget\(\{ kind: "group", groupIndex \}\)/);
+  assert.match(nativeTable, /visibleGroupIndex !== undefined && groupIndex !== visibleGroupIndex/);
   assert.match(matrixModel, /buildPriceGuideStructuredProjection\(document\)\.groups/);
   assert.match(nativeTable, /updateDirectPriceGuideGroup/);
   assert.match(nativeTable, /photoReviewMode/);
   assert.match(nativeTable, /data-price-guide-breed-chips="true"/);
-  assert.match(nativeTable, /data-price-guide-fixed-price-ui="true"/);
-  assert.doesNotMatch(nativeTable, /대상 동물|체급 분류|가격 방식 선택|메모 추가|simplified=\{photoReviewMode\}|PriceGuideNativeInlineExtras/);
+  assert.match(nativeTable, /data-price-guide-dynamic-service-ui="true"/);
+  assert.doesNotMatch(nativeTable, /대상 동물|체급 분류|가격 방식 선택|메모 추가|simplified=\{photoReviewMode\}/);
+  assert.match(nativeTable, /PriceGuideNativeInlineExtras/);
+  assert.match(nativeTable, /data-price-left-time-right="true"/);
   assert.match(nativeTable, /data-price-guide-price-duration-cell=\{rowIndex\}/);
   assert.match(nativeTable, /id=\{minPriceId\}[\s\S]*id=\{durationId\}/);
   assert.match(nativeTable, /if \(photoReviewMode\) \{[\s\S]*onChange\(corrected\)/);
-  assert.match(nativeTable, /서비스별 평균 시간을 확인해 주세요/);
+  assert.match(nativeTable, /서비스별 예상시간/);
+  assert.doesNotMatch(nativeTable, /한 번 선택하면 같은 서비스의 모든 체급에 적용됩니다|완료 기록이 3건 이상 쌓이면 추천으로만 보여 드리며/);
+  assert.doesNotMatch(extras, /표 밖에 적힌 항목을 관리합니다/);
+  assert.match(nativeTable, /text-\[18px\] font-semibold leading-\[26px\]/);
+  assert.match(nativeTable, />몸무게<\/th>/);
   assert.match(nativeTable, /weightBand\.note/);
   assert.doesNotMatch(projection, /sourceLabel === "소형견"|sizeGroupLabels/);
   assert.match(projection, /unplacedRowIndexes\.push\(rowIndex\)/);

@@ -17,7 +17,20 @@ export default function CustomerEntryServicePicker({
   onOpenPriceSheet: () => void;
 }) {
   return (
-    <div className="pcard" role="radiogroup" aria-label="예약 서비스 선택">
+    <div className="pcard" data-customer-service-picker="card-pinned-action">
+      <div
+        className="service-options-scroll"
+        role="radiogroup"
+        aria-label="예약 서비스 선택"
+        data-customer-service-list-scroll="true"
+        onWheel={(event) => {
+          const list = event.currentTarget;
+          if (list.scrollHeight <= list.clientHeight) return;
+          list.scrollTop += event.deltaY;
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
         {services.map((service) => {
           const selected = selectedServiceOptionId === service.id;
           return (
@@ -38,9 +51,15 @@ export default function CustomerEntryServicePicker({
             </button>
           );
         })}
-        <button className="full" type="button" onClick={onOpenPriceSheet}>
-          요금표 전체 보기 ›
-        </button>
       </div>
+      <button
+        className="full"
+        type="button"
+        data-customer-price-guide-card-footer="true"
+        onClick={onOpenPriceSheet}
+      >
+        요금표 전체 보기 <span aria-hidden="true">›</span>
+      </button>
+    </div>
   );
 }

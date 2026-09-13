@@ -1,13 +1,9 @@
 import {
-  applyConfiguredCustomerServiceOverrides,
+  buildCustomerServiceMenuOptions,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import { buildDemoBootstrap } from "@/lib/mock-data";
-import {
-  ensurePriceGuideV2SourceItemIds,
-  priceGuideV2Schema,
-  type PriceGuideV2,
-} from "@/types/price-guide-photo-import";
+import { type PriceGuideV2 } from "@/types/price-guide-photo-import";
 import type { BootstrapPayload } from "@/types/domain";
 
 export type PriceGuideV2PreviewScenarioId =
@@ -153,8 +149,6 @@ export const priceGuideV2PreviewScenarios: Array<{
   },
 ];
 
-export type PriceGuideSourceTruthPreviewState = "stale-link" | "deleted-source";
-
 export type PriceGuideRegistrationPreviewPath = "photo-e2e" | "direct-e2e";
 
 export type PriceGuideRegistrationPreviewFixture = {
@@ -168,10 +162,7 @@ export function inspectPriceGuideRegistrationPreview(
   data: BootstrapPayload,
 ): Pick<PriceGuideRegistrationPreviewFixture, "sourceOptionIds" | "customerOptionIds" | "customerLinkedSourceOptionIds"> {
   const sourceOptions = buildCustomerServiceSourceOptions(data.services);
-  const customerOptions = applyConfiguredCustomerServiceOverrides(
-    sourceOptions,
-    data.shop.customer_page_settings.customer_service_overrides,
-  );
+  const customerOptions = buildCustomerServiceMenuOptions(sourceOptions);
   return {
     sourceOptionIds: sourceOptions.map((option) => option.id),
     customerOptionIds: customerOptions.map((option) => option.id),
@@ -187,10 +178,6 @@ export function buildPriceGuideRegistrationPreviewFixture(
   const shop = {
     ...base.shop,
     id: shopId,
-    customer_page_settings: {
-      ...base.shop.customer_page_settings,
-      customer_service_overrides: {},
-    },
   };
   const data: BootstrapPayload = {
     ...base,
@@ -210,76 +197,4 @@ export function buildPriceGuideRegistrationPreviewFixture(
   };
 
   return { data, ...inspectPriceGuideRegistrationPreview(data) };
-}
-
-export type PriceGuideSourceTruthPreviewFixture = {
-  data: BootstrapPayload;
-  linkedOptionId: string;
-  sourceOptionIds: string[];
-  customerOptionIds: string[];
-};
-
-export function buildPriceGuideSourceTruthPreviewFixture(
-  state: PriceGuideSourceTruthPreviewState,
-): PriceGuideSourceTruthPreviewFixture {
-  const base = buildDemoBootstrap();
-  const carrierIndex = base.services.findIndex((service) =>
-    priceGuideV2Schema.safeParse(service.price_guide).success,
-  );
-  if (carrierIndex < 0) {
-    throw new Error("검수용 상세 요금표 원본을 찾지 못했습니다.");
-  }
-
-  const carrier = base.services[carrierIndex];
-  const document = ensurePriceGuideV2SourceItemIds(
-    priceGuideV2Schema.parse(carrier.price_guide),
-  );
-  const currentSourceItemId = state === "deleted-source"
-    ? "preview-retained-source"
-    : "preview-live-source";
-  const currentDocument: PriceGuideV2 = {
-    ...document,
-    rows: document.rows.slice(0, 1).map((row) => ({
-      ...row,
-      sourceItemId: currentSourceItemId,
-    })),
-  };
-  const services = base.services.map((service, index) =>
-    index === carrierIndex ? { ...service, price_guide: currentDocument } : service,
-  );
-  const missingSourceItemId = state === "deleted-source"
-    ? "preview-deleted-source"
-    : "preview-missing-source";
-  const linkedOptionId = `${carrier.id}:price-guide-v2:${missingSourceItemId}:dog`;
-  const customerServiceOverrides = {
-    [linkedOptionId]: {
-      visible: true,
-      order: 1,
-      linkedOptionId,
-    },
-  };
-  const shop = {
-    ...base.shop,
-    customer_page_settings: {
-      ...base.shop.customer_page_settings,
-      customer_service_overrides: customerServiceOverrides,
-    },
-  };
-  const data: BootstrapPayload = {
-    ...base,
-    shop,
-    services,
-  };
-  const sourceOptions = buildCustomerServiceSourceOptions(data.services);
-  const customerOptions = applyConfiguredCustomerServiceOverrides(
-    sourceOptions,
-    data.shop.customer_page_settings.customer_service_overrides,
-  );
-
-  return {
-    data,
-    linkedOptionId,
-    sourceOptionIds: sourceOptions.map((option) => option.id),
-    customerOptionIds: customerOptions.map((option) => option.id),
-  };
 }

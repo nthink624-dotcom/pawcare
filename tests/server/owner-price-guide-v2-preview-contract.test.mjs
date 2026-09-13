@@ -4,7 +4,6 @@ import test from "node:test";
 
 import {
   buildPriceGuideRegistrationPreviewFixture,
-  buildPriceGuideSourceTruthPreviewFixture,
   inspectPriceGuideRegistrationPreview,
   priceGuideV2PreviewScenarios,
 } from "../../src/app/dev/price-guide-v2-preview/price-guide-v2-preview-fixtures.ts";
@@ -35,7 +34,7 @@ test("owner price guide preview exposes empty and saved DB-free states through t
   assert.match(page, /fixtureMode/);
   assert.match(page, /data-preview-source="fixture"/);
   assert.match(page, /data-persisted="false"/);
-  assert.match(page, /data-customer-exposure-count=\{fixture\.customerOptionIds\.length\}/);
+  assert.match(page, /data-customer-exposure-count=\{state\.customerOptionIds\.length\}/);
   assert.match(page, /검수용 예시 · 저장 없음/);
   assert.doesNotMatch(page, /fetch\(|createClient|supabase|signIn|signUp/);
   assert.match(onboarding, /mode === "choice" && !hasSavedPriceGuide \? <PriceGuideOnboardingChoice/);
@@ -52,7 +51,6 @@ test("photo and direct DB-free previews start empty and use the real source-boun
   for (const path of ["photo-e2e", "direct-e2e"]) {
     const fixture = buildPriceGuideRegistrationPreviewFixture(path);
     assert.equal(fixture.data.services.length, 0);
-    assert.deepEqual(fixture.data.shop.customer_page_settings.customer_service_overrides, {});
     assert.deepEqual(fixture.sourceOptionIds, []);
     assert.deepEqual(fixture.customerOptionIds, []);
     assert.deepEqual(fixture.customerLinkedSourceOptionIds, []);
@@ -62,10 +60,22 @@ test("photo and direct DB-free previews start empty and use the real source-boun
       customerLinkedSourceOptionIds: [],
     });
 
-    const sourceTruthFixture = buildPriceGuideSourceTruthPreviewFixture("stale-link");
-    const canonicalCarrier = sourceTruthFixture.data.services.find((service) =>
-      priceGuideV2Schema.safeParse(service.price_guide).success,
-    );
+    const canonicalCarrier = priceGuideV2PreviewScenarios[0]
+      ? {
+          ...fixture.data.services[0],
+          id: "preview-canonical-carrier",
+          shop_id: fixture.data.shop.id,
+          name: priceGuideV2PreviewScenarios[0].document.rows[0].serviceName,
+          description: "",
+          price: priceGuideV2PreviewScenarios[0].document.rows[0].priceMinKrw,
+          price_type: "fixed",
+          duration_minutes: priceGuideV2PreviewScenarios[0].document.rows[0].durationMinutes,
+          is_active: true,
+          category: "미용",
+          sort_order: 1,
+          price_guide: priceGuideV2PreviewScenarios[0].document,
+        }
+      : null;
     assert.ok(canonicalCarrier);
     const saved = inspectPriceGuideRegistrationPreview({
       ...fixture.data,
@@ -101,27 +111,6 @@ test("authoritative price-guide save keeps the normal services screen while setu
   assert.doesNotMatch(boundary, /setActiveScreen\("schedule"\)/);
   assert.doesNotMatch(boundary, /history\.(?:pushState|replaceState)/);
   assert.match(ownerPreview, /onPriceGuideSaveSuccess=\{\(canonicalBootstrap\) => onInitialSetupStepSaved\("pricing", canonicalBootstrap\)\}/);
-});
-
-test("DB-free source-truth fixtures hide stale and deleted source links without fallback rows", () => {
-  for (const state of ["stale-link", "deleted-source"]) {
-    const fixture = buildPriceGuideSourceTruthPreviewFixture(state);
-    assert.equal(fixture.sourceOptionIds.length, 1);
-    assert.deepEqual(fixture.customerOptionIds, []);
-    assert.equal(fixture.sourceOptionIds.includes(fixture.linkedOptionId), false);
-    assert.deepEqual(
-      fixture.data.shop.customer_page_settings.customer_service_overrides[fixture.linkedOptionId],
-      { visible: true, order: 1, linkedOptionId: fixture.linkedOptionId },
-    );
-
-    const carrier = fixture.data.services.find((service) =>
-      priceGuideV2Schema.safeParse(service.price_guide).success,
-    );
-    assert.ok(carrier);
-    const document = priceGuideV2Schema.parse(carrier.price_guide);
-    assert.equal(document.rows.length, 1);
-    assert.notEqual(document.rows[0].sourceItemId, state === "deleted-source" ? "preview-deleted-source" : "preview-missing-source");
-  }
 });
 
 test("preview fixtures cover all saved states and complete detailed price fields", () => {
@@ -168,16 +157,14 @@ test("preview state controls retain 44px targets and mobile-safe layout", async 
   assert.match(detail, /data-price-guide-detail-matrix="true"/);
 });
 
-test("the owner menu, screen, embedded settings tab, and empty customer guidance share the price-guide name", async () => {
-  const [ownerData, serviceScreen, settingsPanel, customerPage] = await Promise.all([
+test("the owner menu, screen, and embedded settings tab share the price-guide name", async () => {
+  const [ownerData, serviceScreen, settingsPanel] = await Promise.all([
     readFile(new URL("../../src/components/owner-web/owner-web-data.ts", import.meta.url), "utf8"),
     readFile(new URL("../../src/components/owner-web/service-management-screen.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../src/components/owner-web/settings-shop-info-panel.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../../src/components/owner-web/customer-booking-page-management-screen.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(ownerData, /\{ key: "services", label: "요금표 관리" \}/);
   assert.match(serviceScreen, />요금표 관리<\/h2>/);
   assert.match(settingsPanel, /\{ id: "menu", label: "요금표 관리"/);
-  assert.match(customerPage, /요금표 관리에서 요금표를 먼저 등록하고 저장해 주세요\./);
 });

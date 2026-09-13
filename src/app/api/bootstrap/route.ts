@@ -5,6 +5,10 @@ import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import { assertBootstrapOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { scopeBootstrapForStaff } from "@/server/staff-privacy";
+import {
+  getPriceGuideCoreContract,
+  projectCanonicalPriceGuidesForRead,
+} from "@/lib/price-guide-core";
 
 function formatDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -46,7 +50,8 @@ export async function GET(request: NextRequest) {
       return ownerMobileCorsJson(request, {
         mode: data.mode,
         shop: data.shop,
-        services: data.services,
+        services: projectCanonicalPriceGuidesForRead(data.services),
+        priceGuideCore: getPriceGuideCoreContract(),
       });
     }
 
@@ -67,7 +72,12 @@ export async function GET(request: NextRequest) {
       includeStaffProfileImages: phase === "full",
       includePetDisplayPhotos: phase === "full",
     });
-    return ownerMobileCorsJson(request, scopeBootstrapForStaff(data, owner));
+    const scoped = scopeBootstrapForStaff(data, owner);
+    return ownerMobileCorsJson(request, {
+      ...scoped,
+      services: projectCanonicalPriceGuidesForRead(scoped.services),
+      priceGuideCore: getPriceGuideCoreContract(),
+    });
   } catch (error) {
     if (error instanceof OwnerApiError) {
       return ownerMobileCorsJson(request, { message: error.message }, { status: error.status });

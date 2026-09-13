@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import type { ServicePriceGuide } from "@/components/owner-web/service-price-guide";
-
 export const PRICE_GUIDE_V2_SCHEMA_VERSION = 2 as const;
 
 export const priceGuideV2SourceSchema = z.enum([
@@ -254,7 +252,7 @@ export type PriceGuidePhotoHardPurgeReceipt = {
 export type PriceGuidePhotoImportResponse = {
   document: PriceGuideV2;
   /** @deprecated Explicit read adapter for clients that still consume ServicePriceGuide. */
-  guide: ServicePriceGuide;
+  guide: unknown;
   summary: string;
   issues: PriceGuidePhotoImportIssue[];
   sourceMediaAssetIds: string[];

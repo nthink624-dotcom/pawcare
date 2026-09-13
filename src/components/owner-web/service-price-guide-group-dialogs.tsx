@@ -1,13 +1,23 @@
 "use client";
 
-import { FormEvent, ReactNode, useState } from "react";
+import { FormEvent, ReactNode, useRef, useState } from "react";
 import { PencilLine, Plus, X } from "lucide-react";
 
 import { BasilIcon } from "@/components/owner-web/basil-icon";
 
+const RECOMMENDED_BREEDS = [
+  "말티즈", "믹스", "말티푸", "푸들", "포메라니안", "비숑", "시츄", "치와와",
+  "요크셔테리어", "미니어처푸들", "스피츠", "슈나우저", "비글", "페키니즈",
+  "꼬똥드툴레아", "코카스파니엘", "웰시코기", "베들링턴테리어", "빠삐용",
+] as const;
+
+function normalizedBreedKey(value: string) {
+  return value.replace(/\s+/g, "").trim().toLocaleLowerCase("ko-KR");
+}
+
 type DialogShellProps = {
   title: string;
-  description: string;
+  description?: string;
   children: ReactNode;
   onClose: () => void;
 };
@@ -27,24 +37,26 @@ function DialogShell({
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onClose();
+      }}
     >
       <div className="w-full max-w-[460px] overflow-hidden rounded-[16px] border border-[#dbe2ea] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.2)]">
-        <div className="flex items-start justify-between gap-4 border-b border-[#edf1f5] px-6 py-5">
-          <div className="min-w-0">
+        <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2 border-b border-[#edf1f5] px-6 py-4">
+          <span aria-hidden="true" />
+          <div className="min-w-0 text-center">
             <h2
               id="service-price-guide-dialog-title"
-              className="text-center text-[19px] font-bold tracking-[-0.02em] text-[#0f172a]"
+              className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#0f172a]"
             >
               {title}
             </h2>
-            <p className="mt-1 text-center text-[14px] leading-6 text-[#64748b]">
-              {description}
-            </p>
+            {description ? <p className="mt-1 text-[14px] font-normal leading-5 text-[#64748b]">{description}</p> : null}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#0f172a]"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#0f172a]"
             aria-label={`${title} 닫기`}
           >
             <X className="h-5 w-5" />
@@ -119,33 +131,46 @@ export function GroupNameDialog({
 
 export function BreedManagementDialog({
   initialBreeds,
+  unavailableBreeds = [],
   onClose,
   onSave,
 }: {
   initialBreeds: string[];
+  unavailableBreeds?: string[];
   onClose: () => void;
   onSave: (breeds: string[]) => void;
 }) {
   const [breeds, setBreeds] = useState<string[]>(initialBreeds);
   const [breedName, setBreedName] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [customBreedMode, setCustomBreedMode] = useState(false);
+  const breedInputRef = useRef<HTMLInputElement>(null);
 
   const trimmedBreedName = breedName.trim();
+  const unavailableKeys = new Set(unavailableBreeds.map(normalizedBreedKey));
+  const assignedElsewhere = unavailableKeys.has(normalizedBreedKey(trimmedBreedName));
   const duplicateBreed = breeds.some(
     (breed, index) =>
       index !== editingIndex &&
-      breed.trim().toLocaleLowerCase("ko-KR") ===
-        trimmedBreedName.toLocaleLowerCase("ko-KR"),
+      normalizedBreedKey(breed) === normalizedBreedKey(trimmedBreedName),
   );
 
   function resetBreedInput() {
     setBreedName("");
     setEditingIndex(null);
+    setCustomBreedMode(false);
+  }
+
+  function startCustomBreedInput() {
+    setBreedName("");
+    setEditingIndex(null);
+    setCustomBreedMode(true);
+    requestAnimationFrame(() => breedInputRef.current?.focus());
   }
 
   function handleBreedSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!trimmedBreedName || duplicateBreed) return;
+    if (!trimmedBreedName || duplicateBreed || assignedElsewhere) return;
 
     if (editingIndex === null) {
       setBreeds((current) => [...current, trimmedBreedName]);
@@ -162,26 +187,41 @@ export function BreedManagementDialog({
   return (
     <DialogShell
       title="품종 관리"
-      description="품종은 한 번에 하나씩 추가하고 개별 수정할 수 있습니다."
       onClose={onClose}
     >
       <div className="px-6 py-5">
         <form onSubmit={handleBreedSubmit}>
-          <label className="block text-center text-[14px] font-semibold text-[#334155]">
-            {editingIndex === null ? "추가할 품종" : "수정할 품종"}
+          <div>
+            <label htmlFor="price-guide-breed-name" className="block text-center text-[16px] font-medium leading-6 text-[#334155]">
+            {editingIndex !== null ? "수정할 품종" : customBreedMode ? "기타 품종명" : "추가할 품종"}
+            </label>
             <div className="mt-2 flex gap-2">
               <input
+                id="price-guide-breed-name"
+                ref={breedInputRef}
                 type="text"
                 value={breedName}
                 onChange={(event) => setBreedName(event.target.value)}
                 autoFocus
-                placeholder="예: 말티즈"
-                className="h-11 min-w-0 flex-1 rounded-[9px] border border-[#cbd5e1] bg-white px-3 text-center text-[16px] font-medium text-[#0f172a] outline-none transition placeholder:font-normal placeholder:text-[#94a3b8] focus:border-[var(--accent)] focus:ring-2 focus:ring-[#e8f0f7]"
+                placeholder={customBreedMode ? "원하는 품종 입력" : "품종 검색 또는 입력"}
+                list={customBreedMode ? undefined : "price-guide-available-breeds"}
+                className="h-11 min-w-0 flex-1 rounded-[9px] border border-[#cbd5e1] bg-white px-3 text-center !text-[16px] !font-normal !leading-6 text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[var(--accent)] focus:ring-2 focus:ring-[#e8f0f7]"
               />
+              {editingIndex === null ? (
+                <button
+                  type="button"
+                  onClick={startCustomBreedInput}
+                  aria-pressed={customBreedMode}
+                  data-price-guide-custom-breed="true"
+                  className="inline-flex h-11 min-w-[64px] items-center justify-center rounded-[9px] border border-[#cbd5e1] bg-white px-3 !text-[16px] !font-medium !leading-6 text-[#334155] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+                >
+                  기타
+                </button>
+              ) : null}
               <button
                 type="submit"
-                disabled={!trimmedBreedName || duplicateBreed}
-                className="inline-flex h-11 min-w-[88px] items-center justify-center gap-1.5 rounded-[9px] bg-[#0f172a] px-3 text-[15px] font-semibold text-white transition hover:bg-[#1e293b] disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!trimmedBreedName || duplicateBreed || assignedElsewhere}
+                className="inline-flex h-11 min-w-[80px] items-center justify-center gap-1.5 rounded-[9px] bg-[#0f172a] px-3 !text-[16px] !font-medium !leading-6 text-white transition hover:bg-[#1e293b] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {editingIndex === null ? (
                   <Plus className="h-4 w-4" strokeWidth={2} />
@@ -191,17 +231,28 @@ export function BreedManagementDialog({
                 {editingIndex === null ? "추가" : "수정"}
               </button>
             </div>
-          </label>
+            <datalist id="price-guide-available-breeds">
+              {RECOMMENDED_BREEDS.filter((breed) => (
+                !unavailableKeys.has(normalizedBreedKey(breed))
+                && !breeds.some((current) => normalizedBreedKey(current) === normalizedBreedKey(breed))
+              )).map((breed) => <option key={breed} value={breed} />)}
+            </datalist>
+          </div>
           {duplicateBreed ? (
-            <p className="mt-2 text-center text-[13px] text-[#a04455]">
+            <p className="mt-2 text-center text-[13px] font-medium leading-5 text-[#a04455]">
               이미 등록된 품종입니다.
+            </p>
+          ) : null}
+          {assignedElsewhere ? (
+            <p className="mt-2 text-center text-[13px] font-medium leading-5 text-[#a04455]">
+              다른 분류에 이미 등록된 품종입니다.
             </p>
           ) : null}
           {editingIndex !== null ? (
             <button
               type="button"
               onClick={resetBreedInput}
-              className="mx-auto mt-2 block text-[13px] font-medium text-[#64748b] underline-offset-4 hover:underline"
+              className="mx-auto mt-2 block min-h-11 !text-[14px] !font-medium !leading-5 text-[#64748b] underline-offset-4 hover:underline"
             >
               수정 취소
             </button>
@@ -210,8 +261,8 @@ export function BreedManagementDialog({
 
         <div className="mt-5 border-t border-[#edf1f5] pt-4">
           <div className="flex items-center justify-center gap-2">
-            <p className="text-[14px] font-semibold text-[#334155]">등록된 품종</p>
-            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#eef2f7] px-2 text-[12px] font-bold text-[#607080]">
+            <p className="text-[16px] font-medium leading-6 text-[#334155]">등록된 품종</p>
+            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#eef2f7] px-2 text-[12px] font-medium text-[#607080]">
               {breeds.length}
             </span>
           </div>
@@ -220,20 +271,21 @@ export function BreedManagementDialog({
               {breeds.map((breed, index) => (
                 <div
                   key={`${breed}-${index}`}
-                  className="grid grid-cols-[32px_minmax(0,1fr)_32px] items-center rounded-[9px] border border-[#e2e7ed] bg-[#f8fafc] px-2 py-2"
+                  className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center rounded-[9px] border border-[#e2e7ed] bg-[#f8fafc] px-2 py-2"
                 >
                   <button
                     type="button"
                     onClick={() => {
                       setBreedName(breed);
                       setEditingIndex(index);
+                      setCustomBreedMode(false);
                     }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-white hover:text-[var(--accent)]"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-white hover:text-[var(--accent)]"
                     aria-label={`${breed} 수정`}
                   >
                     <PencilLine className="h-4 w-4" strokeWidth={1.9} />
                   </button>
-                  <span className="min-w-0 truncate px-2 text-center text-[15px] font-medium text-[#1e293b]">
+                  <span className="min-w-0 truncate px-2 text-center text-[16px] font-medium leading-6 text-[#1e293b]">
                     {breed}
                   </span>
                   <button
@@ -244,7 +296,7 @@ export function BreedManagementDialog({
                       );
                       if (editingIndex === index) resetBreedInput();
                     }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-[7px] text-[#94a3b8] transition hover:bg-white hover:text-[#a04455]"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] text-[#94a3b8] transition hover:bg-white hover:text-[#a04455]"
                     aria-label={`${breed} 삭제`}
                   >
                     <BasilIcon name="trash" className="h-5 w-5" />
@@ -263,14 +315,14 @@ export function BreedManagementDialog({
           <button
             type="button"
             onClick={onClose}
-            className="h-11 rounded-[9px] border border-[#dbe2ea] bg-white text-[15px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
+            className="h-11 rounded-[9px] border border-[#dbe2ea] bg-white !text-[16px] !font-medium !leading-6 text-[#334155] transition hover:bg-[#f8fafc]"
           >
             취소
           </button>
           <button
             type="button"
             onClick={() => onSave(breeds)}
-            className="h-11 rounded-[9px] bg-[#0f172a] text-[15px] font-semibold text-white transition hover:bg-[#1e293b]"
+            className="h-11 rounded-[9px] bg-[#0f172a] !text-[16px] !font-medium !leading-6 text-white transition hover:bg-[#1e293b]"
           >
             완료
           </button>

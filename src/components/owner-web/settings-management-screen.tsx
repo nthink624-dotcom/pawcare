@@ -18,12 +18,8 @@ import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES, normalizeDiscountCoupons } from "@/lib/customer-page-settings";
 import {
-  applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceMenuConnectionOptions,
   buildCustomerServiceSourceOptions,
-  normalizeCustomerServiceOverrides,
-  type CustomerServiceDisplayOverrides,
-  type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
 import { createOwnerShopProfileMediaAssetFromFile, getOwnerMediaSignedUrls } from "@/lib/media/owner-media-client";
 import type { MediaAssetListResponse } from "@/lib/media/owner-media-client";
@@ -577,10 +573,6 @@ function mergeCustomerPageSettings(
       ...(current.social_links ?? {}),
       ...(incoming.social_links ?? {}),
     },
-    customer_service_overrides: {
-      ...(current.customer_service_overrides ?? {}),
-      ...(incoming.customer_service_overrides ?? {}),
-    },
     discount_coupons: incoming.discount_coupons ?? current.discount_coupons,
   };
 }
@@ -600,102 +592,6 @@ function buildServicePayload(shopId: string, service: Service, priceGuide: unkno
     capacityLabel: service.capacity_label ?? "동일 시간 1건",
     staffSelectionMode: service.staff_selection_mode ?? "all",
     priceGuide,
-  };
-}
-
-function optionItemId(option: CustomerServiceSourceOption) {
-  return option.id.includes(":") ? option.id.split(":").slice(1).join(":") : option.id;
-}
-
-function getCustomerServiceOptionDisplayKey(option: CustomerServiceSourceOption) {
-  return [
-    option.category,
-    option.sourceName,
-    option.durationMinutes,
-    option.price,
-    option.priceType,
-  ].join("|").replace(/\s+/g, " ").trim().toLocaleLowerCase("ko-KR");
-}
-
-function buildCustomerServiceOverrideBaseline(
-  options: CustomerServiceSourceOption[],
-  overrides: CustomerServiceDisplayOverrides,
-) {
-  const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
-
-  const baseline = Object.fromEntries(
-    options.map((option) => [
-      option.id,
-      {
-        visible: true,
-        order: option.order,
-        displayName: option.sourceName,
-        description: option.description,
-        linkedOptionId: option.linkedOptionId ?? option.id,
-      },
-    ]),
-  ) satisfies CustomerServiceDisplayOverrides;
-
-  return {
-    ...baseline,
-    ...normalizedOverrides,
-  };
-}
-
-function createCustomerServiceMenuRowId() {
-  return `menu-custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function removeOptionFromPriceGuide(priceGuide: unknown, option: CustomerServiceSourceOption) {
-  if (!priceGuide || typeof priceGuide !== "object" || Array.isArray(priceGuide)) return priceGuide;
-  const source = priceGuide as Record<string, unknown>;
-  if (!Array.isArray(source.sections)) return priceGuide;
-  const targetId = optionItemId(option);
-
-  return {
-    ...source,
-    sections: source.sections.map((section) => {
-      if (!section || typeof section !== "object" || Array.isArray(section)) return section;
-      const sectionRecord = section as Record<string, unknown>;
-      if (!Array.isArray(sectionRecord.items)) return section;
-      return {
-        ...sectionRecord,
-        items: sectionRecord.items.filter((item) => {
-          if (!item || typeof item !== "object" || Array.isArray(item)) return true;
-          const itemRecord = item as { id?: unknown; label?: unknown };
-          const itemId = String(itemRecord.id ?? itemRecord.label ?? "");
-          const itemLabel = String(itemRecord.label ?? "");
-          return itemId !== targetId && itemLabel !== option.sourceName;
-        }),
-      };
-    }),
-  };
-}
-
-function renameOptionInPriceGuide(priceGuide: unknown, option: CustomerServiceSourceOption, nextName: string) {
-  if (!priceGuide || typeof priceGuide !== "object" || Array.isArray(priceGuide)) return priceGuide;
-  const source = priceGuide as Record<string, unknown>;
-  if (!Array.isArray(source.sections)) return priceGuide;
-  const targetId = optionItemId(option);
-
-  return {
-    ...source,
-    sections: source.sections.map((section) => {
-      if (!section || typeof section !== "object" || Array.isArray(section)) return section;
-      const sectionRecord = section as Record<string, unknown>;
-      if (!Array.isArray(sectionRecord.items)) return section;
-      return {
-        ...sectionRecord,
-        items: sectionRecord.items.map((item) => {
-          if (!item || typeof item !== "object" || Array.isArray(item)) return item;
-          const itemRecord = item as { id?: unknown; label?: unknown };
-          const itemId = String(itemRecord.id ?? itemRecord.label ?? "");
-          const itemLabel = String(itemRecord.label ?? "");
-          if (itemId !== targetId && itemLabel !== option.sourceName) return item;
-          return { ...itemRecord, label: nextName };
-        }),
-      };
-    }),
   };
 }
 
@@ -995,11 +891,6 @@ export default function SettingsManagementScreen({
   const [shopInfoFeedback, setShopInfoFeedback] = useState("");
   const [previewServices, setPreviewServices] = useState<Service[]>(services);
   const [alertSettings, setAlertSettings] = useState<AlertSettingsDraft>(() => buildAlertSettingsDraft(shop?.notification_settings));
-  const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
-    normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides),
-  );
-  const [customerServiceActionId, setCustomerServiceActionId] = useState<string | null>(null);
-  const [, setCustomerServiceSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [discountCouponDrafts, setDiscountCouponDrafts] = useState<CustomerDiscountCoupon[]>(() =>
     normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons),
   );
@@ -1013,7 +904,6 @@ export default function SettingsManagementScreen({
   const [discountCouponSaveStatus, setDiscountCouponSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [saveCompleteVisible, setSaveCompleteVisible] = useState(false);
   const alertAutoSaveSeqRef = useRef(0);
-  const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const discountCouponSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const discountCouponSavingRef = useRef(false);
   const shopInfoAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1151,9 +1041,6 @@ export default function SettingsManagementScreen({
       if (saveCompleteTimerRef.current) {
         clearTimeout(saveCompleteTimerRef.current);
       }
-      if (customerServiceSaveTimerRef.current) {
-        clearTimeout(customerServiceSaveTimerRef.current);
-      }
       if (discountCouponSaveTimerRef.current) {
         clearTimeout(discountCouponSaveTimerRef.current);
       }
@@ -1162,14 +1049,6 @@ export default function SettingsManagementScreen({
       }
     };
   }, []);
-
-  useEffect(() => {
-    const nextOverrides = normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides);
-    setCustomerServiceOverrides((currentOverrides) =>
-      JSON.stringify(currentOverrides) === JSON.stringify(nextOverrides) ? currentOverrides : nextOverrides,
-    );
-    setCustomerServiceSaveStatus((currentStatus) => (currentStatus === "pending" ? currentStatus : "saved"));
-  }, [shop?.id, shop?.customer_page_settings.customer_service_overrides]);
 
   useEffect(() => {
     setPreviewServices((currentServices) =>
@@ -1209,10 +1088,6 @@ export default function SettingsManagementScreen({
     () => buildCustomerServiceMenuConnectionOptions(rawCustomerServiceConnectionOptions),
     [rawCustomerServiceConnectionOptions],
   );
-  const customerServiceOptions = useMemo(
-    () => applyConfiguredCustomerServiceOverrides(rawCustomerServiceConnectionOptions, customerServiceOverrides),
-    [rawCustomerServiceConnectionOptions, customerServiceOverrides],
-  );
   const discountCoupons = discountCouponDrafts;
   const benefitPreviewCoupons = useMemo(
     () => (benefitsView === "register" ? [...discountCoupons, benefitRegistrationDraft] : discountCoupons),
@@ -1226,7 +1101,6 @@ export default function SettingsManagementScreen({
       ...shop,
       customer_page_settings: {
         ...shop.customer_page_settings,
-        customer_service_overrides: customerServiceOverrides,
         discount_coupons: benefitPreviewCoupons,
         hero_image_url: heroImageUrls[0] ?? shop.customer_page_settings.hero_image_url,
         hero_image_urls: heroImageUrls.length > 0 ? heroImageUrls : shop.customer_page_settings.hero_image_urls,
@@ -1234,7 +1108,7 @@ export default function SettingsManagementScreen({
         hero_media_asset_ids: heroMediaAssetIds.length > 0 ? heroMediaAssetIds : shop.customer_page_settings.hero_media_asset_ids,
       },
     };
-  }, [benefitPreviewCoupons, customerServiceOverrides, shop, shopProfileImageAssetIds, shopProfileImages]);
+  }, [benefitPreviewCoupons, shop, shopProfileImageAssetIds, shopProfileImages]);
   const discountCouponsDirty = useMemo(
     () => JSON.stringify(discountCouponDrafts) !== JSON.stringify(savedDiscountCoupons),
     [discountCouponDrafts, savedDiscountCoupons],
@@ -1495,63 +1369,7 @@ export default function SettingsManagementScreen({
     };
   }, [draftSettings, persistShopProfile, savingShopInfo, shop, shopProfileImageAssetIds, shopProfileImages]);
 
-  function updateCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
-    const normalizedOverrides = normalizeCustomerServiceOverrides(nextOverrides);
-    setCustomerServiceOverrides(normalizedOverrides);
-
-    if (customerServiceSaveTimerRef.current) {
-      clearTimeout(customerServiceSaveTimerRef.current);
-      customerServiceSaveTimerRef.current = null;
-    }
-
-    if (!shop) {
-      setCustomerServiceSaveStatus("idle");
-      return;
-    }
-
-    const optimisticShop: Shop = {
-      ...shop,
-      customer_page_settings: {
-        ...shop.customer_page_settings,
-        customer_service_overrides: normalizedOverrides,
-      },
-    };
-    onShopChange?.(optimisticShop);
-
-    if (!persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
-      setCustomerServiceSaveStatus("saved");
-      return;
-    }
-
-    setCustomerServiceSaveStatus("pending");
-    customerServiceSaveTimerRef.current = setTimeout(() => {
-      void fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
-        method: "PATCH",
-        body: JSON.stringify({
-          shopId: shop.id,
-          customerServiceOverrides: normalizedOverrides,
-        }),
-      })
-        .then((result) => {
-          onShopChange?.({
-            ...optimisticShop,
-            customer_page_settings: mergeCustomerPageSettings(
-              optimisticShop.customer_page_settings,
-              result.shop.customer_page_settings,
-            ),
-          });
-          setCustomerServiceSaveStatus("saved");
-        })
-        .catch((error) => {
-          console.error("[OWNER SETTINGS] failed to save customer service exposure", error);
-          setCustomerServiceSaveStatus("error");
-        });
-      customerServiceSaveTimerRef.current = null;
-    }, 500);
-  }
-
   function handleServiceMenuShopChange(nextShop: Shop) {
-    setCustomerServiceOverrides(normalizeCustomerServiceOverrides(nextShop.customer_page_settings.customer_service_overrides));
     onShopChange?.(nextShop);
   }
 
@@ -1722,64 +1540,6 @@ export default function SettingsManagementScreen({
   function deleteDiscountCoupons(couponIds: string[]) {
     const couponIdSet = new Set(couponIds);
     updateDiscountCoupons(discountCoupons.filter((coupon) => !couponIdSet.has(coupon.id)));
-  }
-
-  function addCustomerServiceOption() {
-    if (!shop || customerServiceActionId) return;
-
-    const usedConnectionOptionKeys = new Set(customerServiceOptions.map(getCustomerServiceOptionDisplayKey));
-    const defaultConnectionOption = customerServiceConnectionOptions.find((option) => !usedConnectionOptionKeys.has(getCustomerServiceOptionDisplayKey(option)));
-    if (!defaultConnectionOption) return;
-
-    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
-    const rowId = createCustomerServiceMenuRowId();
-    const nextOrder =
-      Math.max(
-        0,
-        ...customerServiceOptions.map((option) => baselineOverrides[option.id]?.order ?? option.order),
-      ) + 1;
-    updateCustomerServiceOverrides({
-      ...baselineOverrides,
-      [rowId]: {
-        visible: true,
-        order: nextOrder,
-        linkedOptionId: defaultConnectionOption.linkedOptionId ?? defaultConnectionOption.id,
-      },
-    });
-  }
-
-  function deleteCustomerServiceOption(option: CustomerServiceSourceOption) {
-    if (!shop || customerServiceActionId) return;
-
-    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
-    updateCustomerServiceOverrides({
-      ...baselineOverrides,
-      [option.id]: {
-        ...(baselineOverrides[option.id] ?? {}),
-        visible: false,
-        order: baselineOverrides[option.id]?.order ?? option.order,
-      },
-    });
-  }
-
-  function relinkCustomerServiceOption(option: CustomerServiceSourceOption, nextOptionId: string) {
-    if (!nextOptionId) return;
-
-    const nextOption = rawCustomerServiceConnectionOptions.find((item) => item.id === nextOptionId);
-    if (!nextOption) return;
-
-    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
-    const currentOverride = baselineOverrides[option.id] ?? {};
-
-    updateCustomerServiceOverrides({
-      ...baselineOverrides,
-      [option.id]: {
-        ...currentOverride,
-        visible: true,
-        order: currentOverride.order ?? option.order,
-        linkedOptionId: nextOption.id,
-      },
-    });
   }
 
   function buildSettingsWithRow(

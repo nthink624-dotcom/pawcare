@@ -9,6 +9,7 @@ import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { isBookingWithinCanonicalWindow } from "@/lib/booking-last-start-cutoff";
 import { defaultBookingAvailableEndTime, defaultBookingAvailableStartTime, normalizeBookingAvailableTime } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+import { preparePriceGuideForStorage } from "@/lib/price-guide-core";
 import {
   coerceEnabledShopNotificationSettings,
   defaultGuardianNotificationSettings,
@@ -930,7 +931,9 @@ export async function upsertService(input: unknown) {
     sort_order: payload.sortOrder,
     capacity_label: payload.capacityLabel,
     staff_selection_mode: payload.staffSelectionMode,
-    price_guide: payload.priceGuide ?? {},
+    price_guide: payload.priceGuide === undefined
+      ? {}
+      : preparePriceGuideForStorage(payload.priceGuide),
     created_at: timestamp,
     updated_at: timestamp,
   };
@@ -1417,9 +1420,6 @@ export async function updateCustomerPageSettings(
       hero_image_urls: hasHeroImageUrls ? payload.customerPageSettings.hero_image_urls : current.hero_image_urls,
       hero_media_asset_id: hasHeroMediaAssetId ? payload.customerPageSettings.hero_media_asset_id : current.hero_media_asset_id,
       hero_media_asset_ids: hasHeroMediaAssetIds ? payload.customerPageSettings.hero_media_asset_ids : current.hero_media_asset_ids,
-      // Customer exposure has its own source-bound endpoint. Generic customer
-      // page updates must never create or copy independent service values.
-      customer_service_overrides: current.customer_service_overrides,
     });
   }
 

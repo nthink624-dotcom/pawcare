@@ -11,11 +11,10 @@ import {
 } from "@/lib/price-guide-structured-table";
 
 export const DIRECT_MATRIX_INITIAL_CUTOFFS_KG = [2, 4, 6, 8] as const;
-const DIRECT_MATRIX_STARTER_GROUPS = ["베이직", "플러스", "프리미엄"] as const;
-const DIRECT_MATRIX_STARTER_SERVICES = ["목욕", "전체 미용", "부분 미용", "스포팅"] as const;
+const DIRECT_MATRIX_STARTER_GROUPS = ["소형견", "중형견", "대형견"] as const;
+export const DEFAULT_PRICE_GUIDE_SERVICE_NAMES = ["목욕", "부분미용", "전체미용", "스포팅"] as const;
 const MAX_GROUPS = 40;
 const MAX_WEIGHT_BANDS = 40;
-const MAX_SERVICES = 40;
 const MAX_ROWS = 200;
 
 export type DirectPriceGuideMatrixGroup = PriceGuideV2TableGroup & {
@@ -27,6 +26,83 @@ function nullableText(value: string) {
   return trimmed || null;
 }
 
+function normalizedServiceKey(value: string | null | undefined) {
+  return (value ?? "").replace(/\s+/g, "").trim().toLocaleLowerCase("ko-KR");
+}
+
+function normalizedBreedKey(value: string) {
+  return value.replace(/\s+/g, "").trim().toLocaleLowerCase("ko-KR");
+}
+
+export function canonicalPriceGuideServiceName(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed || null;
+}
+
+function uniqueServiceNames(values: Array<string | null | undefined>, keepOneBlank = false) {
+  const seen = new Set<string>();
+  let keptBlank = false;
+  return values.flatMap((value) => {
+    const name = canonicalPriceGuideServiceName(value);
+    const key = normalizedServiceKey(name);
+    if (!name || !key) {
+      if (!keepOneBlank || keptBlank) return [];
+      keptBlank = true;
+      return [""];
+    }
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [name];
+  });
+}
+
+function mappedPriceGuideRowIndexes(document: PriceGuideV2, groups: DirectPriceGuideMatrixGroup[]) {
+  const cells = groups.flatMap((group, groupIndex) => group.weightBands.flatMap((weightBand, weightIndex) => (
+    group.serviceNames.map((serviceName, serviceIndex) => ({
+      cell: group.cells[weightIndex]?.[serviceIndex],
+      group,
+      groupIndex,
+      weightBand,
+      weightIndex,
+      serviceName,
+      serviceIndex,
+    }))
+  )));
+  const claimedCells = new Set<string>();
+  const mappedRows = new Set<number>();
+
+  document.rows.forEach((row, rowIndex) => {
+    const matchingCell = cells.find(({ cell, groupIndex, weightIndex, serviceIndex }) => {
+      const slot = `${groupIndex}:${weightIndex}:${serviceIndex}`;
+      if (!cell || claimedCells.has(slot)) return false;
+      if (row.sourceItemId && cell.sourceItemId) return row.sourceItemId === cell.sourceItemId;
+      return JSON.stringify(row) === JSON.stringify(cell);
+    });
+    const rowServiceKey = normalizedServiceKey(row.serviceName);
+    const coordinateCell = matchingCell ?? cells.find(({ group, groupIndex, weightBand, weightIndex, serviceName, serviceIndex }) => {
+      const slot = `${groupIndex}:${weightIndex}:${serviceIndex}`;
+      return !claimedCells.has(slot)
+        && Boolean(rowServiceKey)
+        && rowServiceKey === normalizedServiceKey(serviceName)
+        && row.species === group.species
+        && parsePriceGuideGroupHeading(row.breedGroup).sourceLabel === parsePriceGuideGroupHeading(group.sourceLabel).sourceLabel
+        && (
+          priceGuideWeightBandLabel(row) === weightBand.label
+          || (row.minKg === weightBand.minKg && row.maxKg === weightBand.maxKg)
+        );
+    });
+    if (!coordinateCell) return;
+    claimedCells.add(`${coordinateCell.groupIndex}:${coordinateCell.weightIndex}:${coordinateCell.serviceIndex}`);
+    mappedRows.add(rowIndex);
+  });
+  return mappedRows;
+}
+
+export function readPreservedPriceGuideRows(document: PriceGuideV2) {
+  const mappedRows = mappedPriceGuideRowIndexes(document, readDirectPriceGuideMatrix(document));
+  return document.rows.filter((_, rowIndex) => !mappedRows.has(rowIndex));
+}
+
 export function directPriceGuideWeightLabel(minKg: number | null, maxKg: number | null) {
   if (minKg !== null && maxKg !== null) return `${minKg}~${maxKg}kg`;
   if (maxKg !== null) return `${maxKg}kg 이하`;
@@ -36,7 +112,7 @@ export function directPriceGuideWeightLabel(minKg: number | null, maxKg: number 
 
 function createWeightBand(maxKg: number | null = null): PriceGuideV2WeightBand {
   return {
-    label: maxKg === null ? "" : `${maxKg}kg 미만`,
+    label: maxKg === null ? "" : `${maxKg}kg`,
     minKg: null,
     maxKg,
     note: null,
@@ -45,7 +121,7 @@ function createWeightBand(maxKg: number | null = null): PriceGuideV2WeightBand {
 
 function createTableGroup({
   sourceLabel = "",
-  serviceNames = [""],
+  serviceNames = [...DEFAULT_PRICE_GUIDE_SERVICE_NAMES],
 }: {
   sourceLabel?: string;
   serviceNames?: string[];
@@ -96,7 +172,7 @@ function createMatrixGroup(options?: Parameters<typeof createTableGroup>[0]): Di
 export function createDirectPriceGuideSkeleton(): PriceGuideV2 {
   const groups = DIRECT_MATRIX_STARTER_GROUPS.map((sourceLabel) => createMatrixGroup({
     sourceLabel,
-    serviceNames: [...DIRECT_MATRIX_STARTER_SERVICES],
+    serviceNames: [...DEFAULT_PRICE_GUIDE_SERVICE_NAMES],
   }));
   return writeDirectPriceGuideMatrix({
     schemaVersion: 2,
@@ -113,6 +189,7 @@ export function readDirectPriceGuideMatrix(document: PriceGuideV2): DirectPriceG
   if (!document.tableGroups?.length) {
     return buildPriceGuideStructuredProjection(document).groups.map((projectionGroup) => {
       const representative = projectionGroup.rows[0];
+      const serviceNames = uniqueServiceNames(projectionGroup.rows.map((row) => row.serviceName));
       const weightBands = projectionGroup.weights.map((label) => {
         const row = projectionGroup.rows.find((candidate) => priceGuideWeightBandLabel(candidate) === label);
         return {
@@ -128,15 +205,15 @@ export function readDirectPriceGuideMatrix(document: PriceGuideV2): DirectPriceG
         breedNames: [...projectionGroup.breeds],
         sizeClass: representative?.sizeClass ?? "unknown",
         weightBands,
-        serviceNames: [...projectionGroup.services],
+        serviceNames,
         note: null,
       };
       return {
         ...group,
-        cells: weightBands.map((weightBand) => projectionGroup.services.map((serviceName) => {
+        cells: weightBands.map((weightBand) => serviceNames.map((serviceName) => {
           const existing = projectionGroup.rows.find((candidate) => (
             priceGuideWeightBandLabel(candidate) === weightBand.label
-            && candidate.serviceName?.trim() === serviceName
+            && normalizedServiceKey(candidate.serviceName) === normalizedServiceKey(serviceName)
           ));
           return existing
             ? { ...existing, breedNames: [...existing.breedNames] }
@@ -148,12 +225,9 @@ export function readDirectPriceGuideMatrix(document: PriceGuideV2): DirectPriceG
   let rowIndex = 0;
   return (document.tableGroups ?? []).map((group) => {
     const weightBands = group.weightBands.map((band) => ({ ...band }));
-    const serviceNames = [...group.serviceNames];
     const sourceLabel = parsePriceGuideGroupHeading(group.sourceLabel).sourceLabel;
     const useExplicitCoordinates = Boolean(
       sourceLabel
-      && serviceNames.length > 0
-      && serviceNames.every((serviceName) => serviceName.trim())
       && weightBands.length > 0
       && weightBands.every((weightBand) => weightBand.label.trim()),
     );
@@ -163,12 +237,13 @@ export function readDirectPriceGuideMatrix(document: PriceGuideV2): DirectPriceG
         && parsePriceGuideGroupHeading(row.breedGroup).sourceLabel === sourceLabel
       ))
       : [];
+    const serviceNames = uniqueServiceNames(group.serviceNames, true);
     const cells = weightBands.map((weightBand) => serviceNames.map((serviceName) => {
       const sequentialRow = document.rows[rowIndex];
       rowIndex += 1;
       const existing = useExplicitCoordinates
         ? groupRows.find((row) => (
-          row.serviceName?.trim() === serviceName.trim()
+          normalizedServiceKey(row.serviceName) === normalizedServiceKey(serviceName)
           && (
             priceGuideWeightBandLabel(row) === weightBand.label
             || (row.minKg === weightBand.minKg && row.maxKg === weightBand.maxKg)
@@ -190,6 +265,7 @@ export function readDirectPriceGuideMatrix(document: PriceGuideV2): DirectPriceG
 export function writeDirectPriceGuideMatrix(
   document: PriceGuideV2,
   groups: DirectPriceGuideMatrixGroup[],
+  options: { discardOriginalRowIndexes?: ReadonlySet<number> } = {},
 ): PriceGuideV2 {
   const tableGroups = groups.map(({ cells: _cells, ...group }) => ({
     ...group,
@@ -213,7 +289,7 @@ export function writeDirectPriceGuideMatrix(
       };
     })
   )));
-  const rows = document.source === "manual"
+  const fixedRows = document.source === "manual"
     ? matrixRows
     : matrixRows.filter((row) => (
       row.priceMinKrw !== null
@@ -221,22 +297,39 @@ export function writeDirectPriceGuideMatrix(
       || row.durationMinutes !== null
       || row.note !== null
     ));
-  const nextRowIndexByCoordinate = new Map(rows.map((row, rowIndex) => [
-    [parsePriceGuideGroupHeading(row.breedGroup).sourceLabel, priceGuideWeightBandLabel(row), row.serviceName?.trim() ?? ""].join("\u0000"),
-    rowIndex,
+  const mappedRows = mappedPriceGuideRowIndexes(document, groups);
+  const preservedRows = document.rows
+    .map((row, previousIndex) => ({ row, previousIndex }))
+    .filter(({ previousIndex }) => (
+      !mappedRows.has(previousIndex)
+      && !options.discardOriginalRowIndexes?.has(previousIndex)
+    ));
+  const rows = [...fixedRows, ...preservedRows.map(({ row }) => ({ ...row, breedNames: [...row.breedNames] }))];
+  const nextPreservedIndexByPreviousIndex = new Map(preservedRows.map(({ previousIndex }, offset) => [
+    previousIndex,
+    fixedRows.length + offset,
   ]));
   const aiReview = document.aiReview.flatMap((review) => {
     const rowTarget = /^rows:(\d+)$/.exec(review.targetId);
     if (!rowTarget) return [review];
     const previousRow = document.rows[Number(rowTarget[1])];
     if (!previousRow) return [];
-    const coordinate = [
-      parsePriceGuideGroupHeading(previousRow.breedGroup).sourceLabel,
-      priceGuideWeightBandLabel(previousRow),
-      previousRow.serviceName?.trim() ?? "",
-    ].join("\u0000");
-    const nextRowIndex = nextRowIndexByCoordinate.get(coordinate);
-    return nextRowIndex === undefined ? [] : [{ ...review, targetId: `rows:${nextRowIndex}` }];
+    const nextPreservedIndex = nextPreservedIndexByPreviousIndex.get(Number(rowTarget[1]));
+    if (nextPreservedIndex !== undefined) return [{ ...review, targetId: `rows:${nextPreservedIndex}` }];
+    const previousServiceKey = normalizedServiceKey(previousRow.serviceName);
+    if (!previousServiceKey) return [];
+    const nextRowIndex = fixedRows.findIndex((row) => (
+      (previousRow.sourceItemId && row.sourceItemId
+        ? previousRow.sourceItemId === row.sourceItemId
+        : normalizedServiceKey(row.serviceName) === previousServiceKey
+          && row.species === previousRow.species
+          && parsePriceGuideGroupHeading(row.breedGroup).sourceLabel === parsePriceGuideGroupHeading(previousRow.breedGroup).sourceLabel
+          && (
+            priceGuideWeightBandLabel(row) === priceGuideWeightBandLabel(previousRow)
+            || (row.minKg === previousRow.minKg && row.maxKg === previousRow.maxKg)
+          ))
+    ));
+    return nextRowIndex < 0 ? [] : [{ ...review, targetId: `rows:${nextRowIndex}` }];
   });
   return {
     ...document,
@@ -249,10 +342,18 @@ export function writeDirectPriceGuideMatrix(
 function updateGroups(
   document: PriceGuideV2,
   update: (groups: DirectPriceGuideMatrixGroup[]) => void,
+  options: { discardRemovedMatrixRows?: boolean } = {},
 ) {
   const groups = readDirectPriceGuideMatrix(document);
+  const mappedBefore = options.discardRemovedMatrixRows
+    ? mappedPriceGuideRowIndexes(document, groups)
+    : null;
   update(groups);
-  return writeDirectPriceGuideMatrix(document, groups);
+  const mappedAfter = mappedBefore ? mappedPriceGuideRowIndexes(document, groups) : null;
+  const discardOriginalRowIndexes = mappedBefore && mappedAfter
+    ? new Set([...mappedBefore].filter((rowIndex) => !mappedAfter.has(rowIndex)))
+    : undefined;
+  return writeDirectPriceGuideMatrix(document, groups, { discardOriginalRowIndexes });
 }
 
 function rowCount(groups: DirectPriceGuideMatrixGroup[]) {
@@ -276,18 +377,20 @@ export function updateDirectPriceGuideGroup(
   patch: Partial<Pick<PriceGuideV2TableGroup, "sourceLabel" | "species" | "breedNames" | "sizeClass">>,
 ) {
   return updateGroups(document, (groups) => {
-    groups[groupIndex] = { ...groups[groupIndex], ...patch };
-  });
-}
-
-export function updateDirectPriceGuideService(
-  document: PriceGuideV2,
-  groupIndex: number,
-  serviceIndex: number,
-  serviceName: string,
-) {
-  return updateGroups(document, (groups) => {
-    groups[groupIndex].serviceNames[serviceIndex] = serviceName;
+    const nextPatch = { ...patch };
+    if (patch.breedNames) {
+      const unavailable = new Set(groups.flatMap((group, index) => (
+        index === groupIndex ? [] : group.breedNames.map(normalizedBreedKey)
+      )));
+      const seen = new Set<string>();
+      nextPatch.breedNames = patch.breedNames.filter((breed) => {
+        const key = normalizedBreedKey(breed);
+        if (!key || unavailable.has(key) || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+    groups[groupIndex] = { ...groups[groupIndex], ...nextPatch };
   });
 }
 
@@ -340,12 +443,31 @@ export function updateDirectPriceGuideCell(
   });
 }
 
+export function updateDirectPriceGuideService(
+  document: PriceGuideV2,
+  groupIndex: number,
+  serviceIndex: number,
+  serviceName: string,
+) {
+  return updateGroups(document, (groups) => {
+    const group = groups[groupIndex];
+    const nextKey = normalizedServiceKey(serviceName);
+    const duplicate = nextKey && group.serviceNames.some((candidate, index) => (
+      index !== serviceIndex && normalizedServiceKey(candidate) === nextKey
+    ));
+    if (duplicate) return;
+    group.serviceNames[serviceIndex] = serviceName;
+  });
+}
+
 export function addDirectPriceGuideService(document: PriceGuideV2, groupIndex: number) {
   return updateGroups(document, (groups) => {
     const group = groups[groupIndex];
-    if (group.serviceNames.length >= MAX_SERVICES || rowCount(groups) + group.weightBands.length > MAX_ROWS) return;
+    if (group.serviceNames.length >= 40 || rowCount(groups) + group.weightBands.length > MAX_ROWS) return;
     group.serviceNames.push("");
-    group.cells.forEach((row, weightIndex) => row.push(createCell(group, group.weightBands[weightIndex], "")));
+    group.cells.forEach((row, weightIndex) => {
+      row.push(createCell(group, group.weightBands[weightIndex], ""));
+    });
   });
 }
 
@@ -355,7 +477,7 @@ export function removeDirectPriceGuideService(document: PriceGuideV2, groupIndex
     if (group.serviceNames.length <= 1) return;
     group.serviceNames.splice(serviceIndex, 1);
     group.cells.forEach((row) => row.splice(serviceIndex, 1));
-  });
+  }, { discardRemovedMatrixRows: true });
 }
 
 export function addDirectPriceGuideWeightBand(document: PriceGuideV2, groupIndex: number) {
@@ -374,7 +496,7 @@ export function removeDirectPriceGuideWeightBand(document: PriceGuideV2, groupIn
     if (group.weightBands.length <= 1) return;
     group.weightBands.splice(weightIndex, 1);
     group.cells.splice(weightIndex, 1);
-  });
+  }, { discardRemovedMatrixRows: true });
 }
 
 export function addDirectPriceGuideGroup(document: PriceGuideV2) {
@@ -388,5 +510,5 @@ export function removeDirectPriceGuideGroup(document: PriceGuideV2, groupIndex: 
   return updateGroups(document, (groups) => {
     if (groups.length <= 1) return;
     groups.splice(groupIndex, 1);
-  });
+  }, { discardRemovedMatrixRows: true });
 }

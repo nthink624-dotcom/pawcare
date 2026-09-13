@@ -60,10 +60,12 @@ export function ServicePriceGuideSectionCard({
   onRemoveWeightBand,
   onUpdateCell,
 }: ServicePriceGuideSectionCardProps) {
+  // PRICE_GUIDE_UI_HARD_CONTRACT: every visible value is 16/24;
+  // price stays on the left and duration stays on the right without wrapping.
   const smallButtonStyle = {
-    fontSize: "12.5px",
-    fontWeight: 600,
-    lineHeight: "normal",
+    fontSize: "16px",
+    fontWeight: 500,
+    lineHeight: "24px",
   } as const;
   const editOnlyClassName = isEditing
     ? "opacity-100"
@@ -74,7 +76,7 @@ export function ServicePriceGuideSectionCard({
       <div className="mb-5 flex min-w-0 items-center justify-between">
         <div className="flex min-w-0 items-center gap-[10px]">
           {isEditing ? (
-            <label className="flex h-9 min-w-0 shrink-0 items-center gap-[7px] whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-[14px] text-[15px] font-extrabold tracking-[-0.84px] text-[#0f172a] transition focus-within:border-[#cbd5e1]">
+            <label className="flex min-h-11 min-w-0 shrink-0 items-center gap-[7px] whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-[14px] text-[16px] font-medium leading-6 text-[#0f172a] transition focus-within:border-[#cbd5e1]">
               <span className="sr-only">그룹명</span>
               <input
                 type="text"
@@ -82,8 +84,8 @@ export function ServicePriceGuideSectionCard({
                 onChange={(event) => onChangeTitle(event.target.value)}
                 placeholder="그룹명"
                 aria-label={`${formatGroupDisplayName(section.title)} 그룹명 수정`}
-                style={{ fontSize: "15px", fontWeight: 800, lineHeight: "normal" }}
-                className="min-w-[1ch] max-w-[120px] border-0 bg-transparent p-0 text-[15px] font-extrabold leading-none tracking-[-0.02em] text-[#0f172a] outline-none placeholder:text-[#94a3b8] [field-sizing:content]"
+                style={{ fontSize: "16px", fontWeight: 500, lineHeight: "24px" }}
+                className="min-w-[1ch] max-w-[120px] border-0 bg-transparent p-0 text-[16px] font-medium leading-6 text-[#0f172a] outline-none placeholder:text-[#94a3b8] [field-sizing:content]"
               />
               {section.title.trim() && !section.title.trim().endsWith("그룹") ? (
                 <span className="shrink-0 leading-none tracking-[-0.02em]" aria-hidden="true">
@@ -96,11 +98,11 @@ export function ServicePriceGuideSectionCard({
               />
             </label>
           ) : (
-            <h3 className="truncate text-[17px] font-extrabold tracking-[-0.02em] text-[#0f172a]">
+            <h3 className="truncate text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#0f172a]">
               {formatGroupDisplayName(section.title)}
             </h3>
           )}
-          <span className="shrink-0 whitespace-nowrap text-[13px] font-medium tracking-[-0.7px] text-[#94a3b8]">
+          <span className="shrink-0 whitespace-nowrap text-[16px] font-medium leading-6 text-[#64748b]">
             {breedLabels.length}종 등록됨
           </span>
         </div>
@@ -112,7 +114,7 @@ export function ServicePriceGuideSectionCard({
                 type="button"
                 onClick={onAddWeightBand}
                 style={smallButtonStyle}
-                className="inline-flex h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[12.5px] font-semibold text-[#334155] transition-colors hover:bg-[#f6f7f9]"
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#f6f7f9]"
               >
                 <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} />
                 무게
@@ -121,7 +123,7 @@ export function ServicePriceGuideSectionCard({
                 type="button"
                 onClick={onAddItem}
                 style={smallButtonStyle}
-                className="inline-flex h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[12.5px] font-semibold text-[#334155] transition-colors hover:bg-[#f6f7f9]"
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#f6f7f9]"
               >
                 <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} />
                 항목
@@ -131,7 +133,7 @@ export function ServicePriceGuideSectionCard({
                 type="button"
                 onClick={onToggleEdit}
                 style={smallButtonStyle}
-                className="inline-flex h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#0f172a] bg-[#0f172a] px-[13px] text-[12.5px] font-semibold text-white transition-colors hover:bg-[#1c2a3e]"
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#0f172a] bg-[#0f172a] px-[13px] text-[16px] font-medium leading-6 text-white transition-colors hover:bg-[#1c2a3e]"
               >
                 <Check className="h-[13px] w-[13px]" strokeWidth={2} />
                 완료
@@ -140,7 +142,7 @@ export function ServicePriceGuideSectionCard({
                 type="button"
                 onClick={onRemoveSection}
                 disabled={!canDeleteSection}
-                className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border border-[#f2d3d3] bg-white text-[#d64545] transition-colors hover:bg-[#fbebeb] disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#f2d3d3] bg-white text-[#d64545] transition-colors hover:bg-[#fbebeb] disabled:cursor-not-allowed disabled:opacity-40"
                 title={canDeleteSection ? "그룹 삭제" : "그룹은 최소 1개가 필요합니다."}
                 aria-label={canDeleteSection ? "그룹 삭제" : "그룹 삭제 불가"}
               >
@@ -152,7 +154,7 @@ export function ServicePriceGuideSectionCard({
               type="button"
               onClick={onToggleEdit}
               style={smallButtonStyle}
-              className="inline-flex h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#0f172a] bg-[#0f172a] px-[13px] text-[12.5px] font-semibold text-white transition-colors hover:bg-[#1c2a3e]"
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#0f172a] bg-[#0f172a] px-[13px] text-[16px] font-medium leading-6 text-white transition-colors hover:bg-[#1c2a3e]"
             >
               <PencilLine className="h-[13px] w-[13px]" strokeWidth={2} />
               편집
@@ -166,13 +168,13 @@ export function ServicePriceGuideSectionCard({
           breedLabels.map((breed, index) => (
             <span
               key={`${breed}-${index}`}
-              className="whitespace-nowrap rounded-full border border-[#e2e7ed] bg-white px-3 py-1.5 text-[13px] font-semibold leading-[15px] text-[#334155]"
+              className="whitespace-nowrap rounded-full border border-[#e2e7ed] bg-white px-3 py-1.5 text-[16px] font-medium leading-6 text-[#334155]"
             >
               {breed}
             </span>
           ))
         ) : (
-          <span className="text-[12px] font-medium text-[#94a3b8]">
+          <span className="text-[16px] font-normal leading-6 text-[#64748b]">
             등록된 품종이 없습니다.
           </span>
         )}
@@ -181,7 +183,7 @@ export function ServicePriceGuideSectionCard({
             type="button"
             onClick={onOpenBreedManagement}
             style={smallButtonStyle}
-            className="ml-auto inline-flex h-[34px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[12.5px] font-semibold text-[#334155] transition-colors hover:bg-[#f6f7f9]"
+            className="ml-auto inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#f6f7f9]"
           >
             <PencilLine className="h-[13px] w-[13px]" strokeWidth={2} />
             품종 관리
@@ -190,7 +192,7 @@ export function ServicePriceGuideSectionCard({
       </div>
 
       <div className="w-full max-w-full overflow-x-auto rounded-[13px] border border-[#e2e7ed]">
-        <table className="w-full border-collapse text-[14px] leading-[18px] text-[#1e293b]">
+        <table className="w-full border-collapse text-[16px] leading-6 text-[#1e293b]" data-price-guide-ui-hard-contract="true">
           <colgroup>
             <col className="w-28" />
             <col className="w-28" />
@@ -201,17 +203,17 @@ export function ServicePriceGuideSectionCard({
           </colgroup>
           <thead>
             <tr>
-              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-bold leading-[18px] text-[#334155]">
+              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[16px] font-medium leading-6 text-[#334155]">
                 그룹
               </th>
-              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-bold leading-[18px] text-[#334155]">
+              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[16px] font-medium leading-6 text-[#334155]">
                 무게
               </th>
               {section.items.map((item, itemIndex) => (
                 <th
                   key={item.id}
                   className={cn(
-                    "whitespace-nowrap border-b border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-bold leading-[18px] text-[#334155]",
+                    "min-w-[210px] whitespace-nowrap border-b border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[16px] font-medium leading-6 text-[#334155]",
                     (isEditing || itemIndex < section.items.length - 1) && "border-r",
                   )}
                 >
@@ -226,8 +228,8 @@ export function ServicePriceGuideSectionCard({
                           value={item.label}
                           onChange={(event) => onUpdateItemLabel(item.id, event.target.value)}
                           aria-label={`${item.label} 항목명 수정`}
-                          style={{ fontSize: "12px", fontWeight: 700, lineHeight: "16px" }}
-                          className="absolute inset-0 w-full border-0 bg-transparent p-0 text-left text-[12px] font-bold leading-normal text-[#334155] outline-none"
+                          style={{ fontSize: "16px", fontWeight: 500, lineHeight: "24px" }}
+                          className="absolute inset-0 w-full border-0 bg-transparent p-0 text-left text-[16px] font-medium leading-6 text-[#334155] outline-none"
                         />
                       ) : null}
                     </span>
@@ -242,6 +244,10 @@ export function ServicePriceGuideSectionCard({
                         <BasilIcon name="trash" className="h-[13px] w-[13px]" />
                       </button>
                     ) : null}
+                  </div>
+                  <div className="mt-2 grid grid-cols-[minmax(0,1fr)_80px] items-center gap-2 border-t border-[#e2e7ed] pt-1 text-[16px] font-medium leading-6 text-[#64748b]" aria-hidden="true" data-price-guide-service-subheaders="true">
+                    <span className="whitespace-nowrap">가격</span>
+                    <span className="whitespace-nowrap border-l border-[#e2e7ed] pl-2">예상시간</span>
                   </div>
                 </th>
               ))}
@@ -262,7 +268,7 @@ export function ServicePriceGuideSectionCard({
                   {bandIndex === 0 ? (
                     <td
                       rowSpan={section.weightBands.length}
-                      className="min-w-28 whitespace-nowrap border-b border-r border-[#edf1f5] bg-[#f6f7f9] px-4 py-[14px] align-middle text-left font-extrabold tracking-[-0.84px] text-[#0f172a]"
+                      className="min-w-28 whitespace-nowrap border-b border-r border-[#edf1f5] bg-[#f6f7f9] px-4 py-[14px] align-middle text-left font-medium text-[#0f172a]"
                     >
                       {formatGroupDisplayName(section.title)}
                     </td>
@@ -273,7 +279,7 @@ export function ServicePriceGuideSectionCard({
                       !isLastBand && "border-b border-[#edf1f5]",
                     )}
                   >
-                    <div className="flex min-w-0 items-center gap-1.5 font-bold text-[#0f172a]">
+                    <div className="flex min-w-0 items-center gap-1.5 font-medium text-[#0f172a]">
                       <span className="relative min-w-0 flex-1 whitespace-nowrap">
                         <span
                           className={cn(
@@ -290,12 +296,12 @@ export function ServicePriceGuideSectionCard({
                             onChange={(event) => onUpdateWeightBand(bandIndex, event.target.value)}
                             aria-label={`${band} 무게 구간 수정`}
                             style={{
-                              fontSize: "13.5px",
-                              fontWeight: 700,
-                              letterSpacing: "-0.7px",
-                              lineHeight: "17px",
+                              fontSize: "16px",
+                              fontWeight: 500,
+                              letterSpacing: "0",
+                              lineHeight: "24px",
                             }}
-                            className="absolute inset-0 w-full border-0 bg-transparent p-0 text-left text-[13.5px] font-bold leading-normal text-[#0f172a] outline-none"
+                            className="absolute inset-0 w-full border-0 bg-transparent p-0 text-left text-[16px] font-medium leading-6 text-[#0f172a] outline-none"
                           />
                         ) : null}
                       </span>
@@ -326,7 +332,7 @@ export function ServicePriceGuideSectionCard({
                             "border-r border-[#edf1f5]",
                         )}
                       >
-                        <div className="flex items-baseline gap-[6px] whitespace-nowrap">
+                        <div className="grid grid-cols-[minmax(0,1fr)_80px] items-center gap-2 whitespace-nowrap" data-price-left-time-right="true">
                           {isEditing ? (
                             <>
                               <input
@@ -339,15 +345,14 @@ export function ServicePriceGuideSectionCard({
                                 placeholder="-"
                                 aria-label={`${item.label} ${band} 가격 수정`}
                                 style={{
-                                  fontSize: "13.5px",
-                                  fontWeight: 800,
-                                  lineHeight: "17px",
+                                  fontSize: "16px",
+                                  fontWeight: 500,
+                                  lineHeight: "24px",
                                   width: priceInputWidth,
                                 }}
-                                className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-left text-[13.5px] font-extrabold leading-normal tabular-nums text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
+                                className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-left text-[16px] font-medium leading-6 tabular-nums text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
                               />
-                              <span className="inline-flex items-baseline whitespace-nowrap text-[12px] leading-[normal] text-[#64748b]">
-                                <span>/&nbsp;</span>
+                              <span className="inline-flex items-center whitespace-nowrap border-l border-[#e2e7ed] pl-2 text-[16px] font-medium leading-6 text-[#64748b]" data-duration-side="right">
                                 <input
                                   type="text"
                                   inputMode="numeric"
@@ -357,26 +362,26 @@ export function ServicePriceGuideSectionCard({
                                       durationMinutes: event.target.value,
                                     })
                                   }
-                                  placeholder="-"
+                                  placeholder="미정"
                                   aria-label={`${item.label} ${band} 예상 시간 수정`}
                                   style={{
-                                    fontSize: "12px",
-                                    fontWeight: 400,
-                                    lineHeight: "15px",
+                                    fontSize: "16px",
+                                    fontWeight: 500,
+                                    lineHeight: "24px",
                                     width: durationInputWidth,
                                   }}
-                                  className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-left text-[12px] leading-normal tabular-nums text-[#64748b] outline-none placeholder:text-[#94a3b8]"
+                                  className="min-w-[3ch] shrink-0 border-0 bg-transparent p-0 text-left text-[16px] font-medium leading-6 tabular-nums text-[#64748b] outline-none placeholder:text-[#94a3b8]"
                                 />
-                                <span>분 예상</span>
+                                <span>분</span>
                               </span>
                             </>
                           ) : (
                             <>
-                              <span className="font-extrabold tabular-nums text-[#0f172a]">
-                                {formattedPrice || "-"}
+                              <span className="whitespace-nowrap text-[16px] font-medium leading-6 tabular-nums text-[#0f172a]" data-price-side="left">
+                                {formattedPrice ? `${formattedPrice}원` : "미정"}
                               </span>
-                              <span className="text-[12px] leading-[normal] text-[#64748b]">
-                                / {cell.durationMinutes || "-"}분 예상
+                              <span className="whitespace-nowrap border-l border-[#e2e7ed] pl-2 text-[16px] font-medium leading-6 text-[#64748b]" data-duration-side="right">
+                                {cell.durationMinutes ? `${cell.durationMinutes}분` : "미정"}
                               </span>
                             </>
                           )}
@@ -414,7 +419,7 @@ export function ServicePriceGuideSectionCard({
           type="button"
           onClick={onAddWeightBand}
           style={smallButtonStyle}
-          className="mt-3 inline-flex h-[42px] w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-[#e2e7ed] bg-[#f6f7f9] text-[12.5px] font-semibold text-[#334155] transition-colors hover:bg-[#eef1f5]"
+          className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-[#e2e7ed] bg-[#f6f7f9] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#eef1f5]"
         >
           <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} />
           무게 구간 추가

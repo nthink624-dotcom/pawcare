@@ -45,9 +45,9 @@ test("direct registration opens a structure-only inline matrix without seeded sh
   assert.match(manual, /manualMatrixMode \|\| photoEditing \? \([\s\S]*<PriceGuideNativeInlineTable/);
   assert.doesNotMatch(manual, /buildDefaultPriceGuideV2Draft|PriceGuideRoughInputPanel|한 줄 메모로 초안 만들기/);
   assert.match(matrixModel, /DIRECT_MATRIX_INITIAL_CUTOFFS_KG = \[2, 4, 6, 8\]/);
-  assert.match(matrixModel, /label: maxKg === null \? "" : `\$\{maxKg\}kg 미만`/);
-  assert.match(matrixModel, /DIRECT_MATRIX_STARTER_GROUPS = \["베이직", "플러스", "프리미엄"\]/);
-  assert.match(matrixModel, /DIRECT_MATRIX_STARTER_SERVICES = \["목욕", "전체 미용", "부분 미용", "스포팅"\]/);
+  assert.match(matrixModel, /label: maxKg === null \? "" : `\$\{maxKg\}kg`/);
+  assert.match(matrixModel, /DIRECT_MATRIX_STARTER_GROUPS = \["소형견", "중형견", "대형견"\]/);
+  assert.match(matrixModel, /DEFAULT_PRICE_GUIDE_SERVICE_NAMES = \["목욕", "부분미용", "전체미용", "스포팅"\]/);
   assert.match(matrixModel, /breedNames: \[\]/);
   assert.match(matrixModel, /species: "dog"/);
   assert.match(matrixModel, /sizeClass: "all"/);
@@ -55,12 +55,13 @@ test("direct registration opens a structure-only inline matrix without seeded sh
   assert.match(matrixModel, /priceMinKrw: null/);
   assert.match(matrixModel, /durationMinutes: null/);
   assert.match(inlineMatrix, /data-price-guide-native-inline-table="true"/);
-  for (const label of ["그룹 제목 입력", "품종 입력", "항목명 입력", "가격 입력", "시간 입력"]) {
+  for (const label of ["그룹 제목 입력", "품종 선택", "몸무게", "확인 필요", "예상시간"]) {
     assert.match(inlineMatrix, new RegExp(label.replace(/[()]/g, "\\$&")));
   }
   assert.match(inlineMatrix, /data-price-guide-breed-chips="true"/);
-  assert.match(inlineMatrix, /data-price-guide-fixed-price-ui="true"/);
-  assert.doesNotMatch(inlineMatrix, /대상 동물|체급 분류|가격 방식 선택|메모 추가|PriceGuideNativeInlineExtras/);
+  assert.match(inlineMatrix, /data-price-guide-dynamic-service-ui="true"/);
+  assert.doesNotMatch(inlineMatrix, /대상 동물|체급 분류|가격 방식 선택|메모 추가/);
+  assert.match(inlineMatrix, /<PriceGuideNativeInlineExtras[\s\S]*document=\{guide\}[\s\S]*onChange=\{onChange\}/);
   assert.doesNotMatch(inlineMatrix, /요금 행|이 그룹 편집|한 줄 메모로 초안 만들기/);
 });
 
@@ -78,7 +79,7 @@ test("saved V2 remains the displayed source and drafts do not reach parent state
   assert.match(detail, /const \[draft, setDraft\] = useState<PriceGuideV2>\(value\)/);
   assert.match(detail, /const saved = await onSave\(draft\)/);
   assert.match(detail, /const saveDraftRef = useRef\(saveDraft\)[\s\S]*saveDraftRef\.current = saveDraft[\s\S]*const registeredSaveAction = useCallback\(async \(\) => saveDraftRef\.current\(\), \[\]\)/);
-  assert.match(detail, /<PriceGuideStructuredReviewTable[\s\S]*onEdit=/);
+  assert.match(detail, /<PriceGuideStructuredReviewTable[\s\S]*onEditGroup=\{\(groupIndex\)[\s\S]*onEditExtras=\{\(\)/);
   assert.match(detail, /상세 요금표 저장/);
 
   const explicitSaveIndex = serviceScreen.indexOf("if (saveImmediately)");
@@ -179,12 +180,14 @@ test("inline direct entry and photo review reuse the strict explicit canonical s
   assert.doesNotMatch(manual, /PriceGuideRoughInputPanel|한 줄 메모로 초안 만들기|buildDefaultPriceGuideV2Draft|입력 예시입니다/);
   assert.match(inlineMatrix, /data-price-guide-native-inline-table="true"/);
   assert.match(inlineMatrix, /updateDirectPriceGuideGroup/);
-  assert.match(inlineMatrix, /updateDirectPriceGuideService/);
   assert.match(inlineMatrix, /updateDirectPriceGuideCell/);
   assert.match(inlineMatrix, /updateDirectPriceGuideWeightBand/);
   assert.match(inlineMatrix, /addDirectPriceGuideWeightBand/);
   assert.match(inlineMatrix, /removeDirectPriceGuideWeightBand/);
-  assert.match(inlineMatrix, /체급 삭제/);
+  assert.match(inlineMatrix, /몸무게/);
+  assert.match(inlineMatrix, /updateDirectPriceGuideService/);
+  assert.match(inlineMatrix, /addDirectPriceGuideService/);
+  assert.match(inlineMatrix, /removeDirectPriceGuideService/);
   assert.doesNotMatch(inlineMatrix, /요금 행|이 그룹 편집/);
 
   // The optional text parser remains source-only and is no longer connected to direct registration.
@@ -226,7 +229,7 @@ test("inline direct entry and photo review reuse the strict explicit canonical s
   assert.match(inlineMatrix, /function PriceDurationInlineCell[\s\S]*data-price-guide-price-duration-cell=\{rowIndex\}/);
   assert.match(inlineMatrix, /data-price-guide-inline-edit="price-duration"/);
   assert.match(inlineMatrix, /grid-cols-\[minmax\(0,1fr\)_88px\][\s\S]*<PriceDurationInlineCell/);
-  assert.match(inlineMatrix, /\{priceLabel\(row\)\} \/ \{row\.durationMinutes === null \? "시간 입력" : `\$\{row\.durationMinutes\}분`\}/);
+  assert.match(inlineMatrix, /\{compactPriceDurationLabel\(row\)\}/);
   assert.doesNotMatch(inlineMatrix, /function PriceInlineCell|function DurationInlineCell/);
   assert.doesNotMatch(inlineMatrix, /renderedStructureField === noteId|메모 추가/);
   assert.doesNotMatch(inlineMatrix, /firstIssueInputId \?\? activeField/);

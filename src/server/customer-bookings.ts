@@ -6,7 +6,7 @@ import { z } from "zod";
 import { computeAvailableSlots } from "@/lib/availability";
 import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors";
 import {
-  applyConfiguredCustomerServiceOverrides,
+  buildCustomerServiceMenuOptions,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
@@ -744,12 +744,11 @@ export async function createCustomerBooking(
   const fallbackServiceId = bootstrap.services[0]?.id;
   const usesCustomService = payload.serviceId === "__custom__";
   const pricingGroup = findCustomerBreedPricingGroup(bootstrap.services, payload.breed);
-  const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
+  const customerServiceOptions = buildCustomerServiceMenuOptions(
     buildCustomerServiceSourceOptions(bootstrap.services, {
       priceGuideGroupKey: pricingGroup?.key,
       weightKg: payload.weightKg,
     }),
-    bootstrap.shop.customer_page_settings.customer_service_overrides,
   );
   const selectedCustomerServiceOption = payload.customerServiceOptionId
     ? customerServiceOptions.find((option) => option.id === payload.customerServiceOptionId && option.serviceId === payload.serviceId)
@@ -1150,12 +1149,11 @@ export async function updateCustomerBooking(input: unknown) {
   }
 
   const pricingGroup = findCustomerBreedPricingGroup(bootstrap.services, pet.breed ?? "");
-  const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
+  const customerServiceOptions = buildCustomerServiceMenuOptions(
     buildCustomerServiceSourceOptions(bootstrap.services, {
       priceGuideGroupKey: pricingGroup?.key,
       weightKg: pet.weight,
     }),
-    bootstrap.shop.customer_page_settings.customer_service_overrides,
   );
   const selectedCustomerServiceOption = customerServiceOptions.find(
     (option) => option.id === payload.customerServiceOptionId && option.serviceId === payload.serviceId,

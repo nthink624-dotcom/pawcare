@@ -1,5 +1,5 @@
 import type { Service } from "@/types/domain";
-import { priceGuideV2Schema } from "@/types/price-guide-photo-import";
+import { readCanonicalPriceGuide } from "@/lib/price-guide-core";
 
 export type CustomerBreedPricingGroup = {
   key: string;
@@ -30,15 +30,7 @@ export function findCustomerBreedPricingGroup(services: Service[], breed: string
 
   for (const service of services) {
     if (!service.is_active || !service.price_guide || typeof service.price_guide !== "object") continue;
-    const rootDocument = priceGuideV2Schema.safeParse(service.price_guide);
-    const nestedDocument = rootDocument.success
-      ? null
-      : priceGuideV2Schema.safeParse((service.price_guide as { canonicalV2?: unknown }).canonicalV2);
-    const document = rootDocument.success
-      ? rootDocument.data
-      : nestedDocument?.success
-        ? nestedDocument.data
-        : null;
+    const document = readCanonicalPriceGuide(service.price_guide);
     if (!document) continue;
 
     for (const row of document.rows) {

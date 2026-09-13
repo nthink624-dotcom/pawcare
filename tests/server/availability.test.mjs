@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 const { computeAvailableSlots } = await import("../../src/lib/availability.ts");
 const { buildRuleBasedSlotRecommendations } = await import("../../src/lib/booking-slot-recommendations.ts");
 const { findCustomerBreedPricingGroup } = await import("../../src/lib/customer-breed-pricing-group.ts");
-const { applyConfiguredCustomerServiceOverrides, buildCustomerServiceSourceOptions } = await import("../../src/lib/customer-service-options.ts");
+const { buildCustomerServiceMenuOptions, buildCustomerServiceSourceOptions } = await import("../../src/lib/customer-service-options.ts");
 const { getStaffBookingLoads } = await import("../../src/lib/staff-booking-load.ts");
 const { addDate, currentDateInTimeZone } = await import("../../src/lib/utils.ts");
 const {
@@ -437,7 +437,7 @@ describe("customer breed pricing group", () => {
     };
   }
 
-  it("groups the default customer menu by species and service label while keeping exact group ids stable", () => {
+  it("deduplicates the default customer menu by canonical service label while keeping ids stable", () => {
     const groupedService = {
       ...service,
       price_guide: canonicalPriceGuide([
@@ -449,30 +449,24 @@ describe("customer breed pricing group", () => {
       ]),
     };
 
-    const defaults = applyConfiguredCustomerServiceOverrides(
-      buildCustomerServiceSourceOptions([groupedService]),
-      {},
-    );
+    const defaults = buildCustomerServiceMenuOptions(buildCustomerServiceSourceOptions([groupedService]));
 
-    assert.equal(defaults.length, 3);
-    const dogBath = defaults.find((option) => option.name === "강아지 목욕");
-    const catBath = defaults.find((option) => option.name === "고양이 목욕");
+    assert.equal(defaults.length, 2);
+    const bath = defaults.find((option) => option.name === "목욕");
     const clipping = defaults.find((option) => option.name === "클리핑");
-    assert.ok(dogBath);
-    assert.ok(catBath);
+    assert.ok(bath);
     assert.ok(clipping);
-    assert.equal(dogBath.price, 30000);
-    assert.equal(dogBath.priceType, "starting");
-    assert.equal(dogBath.durationMinutes, 60);
-    assert.equal(dogBath.durationMinutesMax, 100);
+    assert.equal(bath.price, 30000);
+    assert.equal(bath.priceType, "starting");
+    assert.equal(bath.durationMinutes, 60);
+    assert.equal(bath.durationMinutesMax, 100);
 
-    const exactDogBath = applyConfiguredCustomerServiceOverrides(
+    const exactDogBath = buildCustomerServiceMenuOptions(
       buildCustomerServiceSourceOptions([groupedService], { priceGuideGroupKey: "dog:플러스", weightKg: 5.5 }),
-      {},
     ).find((option) => option.displayName === "목욕");
 
     assert.ok(exactDogBath);
-    assert.equal(exactDogBath.id, dogBath.id);
+    assert.equal(exactDogBath.id, bath.id);
     assert.equal(exactDogBath.price, 50000);
     assert.equal(exactDogBath.durationMinutes, 100);
     assert.equal(exactDogBath.durationMinutesMax, undefined);

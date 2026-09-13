@@ -43,8 +43,8 @@ test("mobile price-guide adapter keeps the authenticated write boundary and no-s
   assert.match(services, /ownerMobileCorsPreflight\(request, WRITE_CORS\)/);
   assert.match(services, /requireOwnerShop\(request, body\?\.shopId\)/);
   assert.match(services, /assertOwnerOrManager\(owner\)/);
-  assert.match(services, /priceGuide: redactPriceGuideRawTextForStorage\(body\?\.priceGuide\)/);
-  assert.match(bootstrap, /ownerMobileCorsJson\(request, scopeBootstrapForStaff\(data, owner\)\)/);
+  assert.doesNotMatch(services, /redactPriceGuideRawTextForStorage/);
+  assert.match(bootstrap, /priceGuideCore: getPriceGuideCoreContract\(\)/);
   assert.match(bootstrap, /ownerMobileCorsPreflight\(request\)/);
 
   assert.match(cors, /"capacitor:\/\/localhost"/);

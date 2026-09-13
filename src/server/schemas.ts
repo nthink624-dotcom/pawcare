@@ -3,6 +3,7 @@ import { z } from "zod";
 import { SERVICE_PRICE_MAX_KRW } from "@/lib/service-price-input";
 import { isValidBusinessHoursRange } from "@/lib/business-hours";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
+import { priceGuideCoreContractSchema, servicePriceGuideInputSchema } from "@/lib/price-guide-core";
 
 const bookingSlotIntervalOptions = [10, 15, 20, 30, 60] as const;
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -182,7 +183,8 @@ export const serviceInputSchema = z.object({
   sortOrder: z.coerce.number().int().min(1).default(1),
   capacityLabel: z.string().default("동일 시간 1건"),
   staffSelectionMode: z.enum(["all", "unassigned", "specific"]).default("all"),
-  priceGuide: z.unknown().optional(),
+  priceGuide: servicePriceGuideInputSchema.optional(),
+  priceGuideCore: priceGuideCoreContractSchema.optional(),
 }).superRefine((value, ctx) => {
   const operation = value.operation ?? (value.serviceId ? "update" : "create");
   if (operation === "create" && !value.requestId) {

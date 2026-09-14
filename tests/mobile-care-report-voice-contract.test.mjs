@@ -146,7 +146,7 @@ test("care-report editor preserves the compact composer and uses one editable re
   assert.match(careReport, /JSON\.stringify\(\{ shopId, appointmentId: appointment\.id, reportText: report\.reportText, photoConsent, action: "save_draft" \}\)/);
   assert.match(careReport, /JSON\.stringify\(\{ shopId, appointmentId: appointment\.id, reportText: report\.reportText, photoConsent, action: "publish" \}\)/);
   assert.match(careReport, /\{!isPublished \? <section data-testid="care-report-composer"/);
-  assert.match(careReport, /<\/section> : null\}\n          \{error[\s\S]*<\/div>\n        <footer/);
+  assert.match(careReport, /<\/section> : null\}\r?\n          \{error[\s\S]*<\/div>\r?\n        <footer/);
   assert.match(careReport, /<footer className=\{`grid shrink-0 gap-2 border-t border-\[#d7e4f2\] bg-white px-5 pt-3/);
 });
 

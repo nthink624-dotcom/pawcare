@@ -22,7 +22,7 @@ test("daily schedule uses one expanded board surface without an inner card inset
   assert.match(grid, /flex shrink-0 overflow-hidden border-b border-\[#e3eaf2\] bg-white/);
   assert.match(grid, /data-schedule-board-grid="true" className="flex min-h-0 flex-1 flex-col bg-white"/);
   assert.match(grid, /pm-schedule-y-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-white select-none/);
-  assert.match(grid, /min-w-\[240px\][^"\n]*border-\[#dfe8f2\][^"\n]*bg-white/);
+  assert.match(grid, /min-w-\[240px\][^"\n]*border-\[#e8eef5\][^"\n]*bg-white/);
   assert.match(grid, /selectedLane && "border-\[#d6e0ea\] bg-white"/);
   assert.doesNotMatch(grid, /bg-\[#f8fbff\]|bg-\[#f4f0e8\]|border-\[#e5ded2\]|border-\[#ede7dd\]/);
   assert.match(grid, /data-schedule-current-time-wash="true"[\s\S]*?bg-\[#edf3ff\]/);

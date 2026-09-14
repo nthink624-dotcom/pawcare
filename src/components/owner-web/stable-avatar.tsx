@@ -1,18 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { resolveStaffProfileFallbackImageUrl, type StaffProfileFallbackKey } from "@/lib/staff-profile-fallback";
+import {
+  buildStaffAvatarCandidates,
+  findFirstUsableStaffAvatarCandidate,
+  type StaffAvatarCandidate,
+} from "@/lib/staff-avatar-candidates";
+import { resolveStaffProfileFallbackOrDefaultImageUrl, type StaffProfileFallbackKey } from "@/lib/staff-profile-fallback";
 import { cn } from "@/lib/utils";
 
 const failedAvatarCandidates = new Set<string>();
-const lastDecodedAvatarByIdentity = new Map<string, { candidateKey: string; url: string }>();
+const lastDecodedAvatarByIdentity = new Map<string, { candidateSetKey: string; url: string }>();
 
 export function StableAvatar({
   identity,
   name,
   imageUrl,
+  imageUrls,
   imageAssetId,
+  imageAssetIds,
   profileImageFallbackKey,
   size = "md",
   className,
@@ -20,59 +27,68 @@ export function StableAvatar({
   identity: string;
   name: string;
   imageUrl?: string | null;
+  imageUrls?: Array<string | null | undefined> | null;
   imageAssetId?: string | null;
+  imageAssetIds?: Array<string | null | undefined> | null;
   profileImageFallbackKey?: StaffProfileFallbackKey | null;
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
-  const candidateUrl = imageUrl?.trim() ?? "";
-  const candidateKey = candidateUrl ? `${identity}:${imageAssetId?.trim() || candidateUrl}` : "";
-  const [decodedAvatar, setDecodedAvatar] = useState({ identity: "", candidateKey: "", url: "" });
+  const candidates = useMemo(
+    () => buildStaffAvatarCandidates({ identity, imageUrl, imageUrls, imageAssetId, imageAssetIds }),
+    [identity, imageAssetId, imageAssetIds, imageUrl, imageUrls],
+  );
+  const candidateSetKey = JSON.stringify(candidates.map((candidate) => candidate.key));
+  const [decodedAvatar, setDecodedAvatar] = useState({ identity: "", candidateSetKey: "", url: "" });
   const cachedAvatar = lastDecodedAvatarByIdentity.get(identity);
-  const decodedUrl = candidateKey
-    ? decodedAvatar.identity === identity && decodedAvatar.candidateKey === candidateKey
+  const decodedUrl = candidateSetKey
+    ? decodedAvatar.identity === identity && decodedAvatar.candidateSetKey === candidateSetKey
       ? decodedAvatar.url
-      : cachedAvatar?.candidateKey === candidateKey
+      : cachedAvatar?.candidateSetKey === candidateSetKey
         ? cachedAvatar.url
         : ""
     : "";
 
   useEffect(() => {
-    if (!candidateUrl || !candidateKey) return;
-    if (failedAvatarCandidates.has(candidateKey)) return;
-    if (lastDecodedAvatarByIdentity.get(identity)?.candidateKey === candidateKey) return;
+    if (candidates.length === 0 || !candidateSetKey) return;
+    if (lastDecodedAvatarByIdentity.get(identity)?.candidateSetKey === candidateSetKey) return;
 
     let cancelled = false;
-    const image = new Image();
-    image.decoding = "async";
-    image.onload = async () => {
-      try {
-        await image.decode();
-      } catch {
-        failedAvatarCandidates.add(candidateKey);
-        return;
-      }
-      if (cancelled) return;
-      lastDecodedAvatarByIdentity.set(identity, { candidateKey, url: candidateUrl });
-      setDecodedAvatar({ identity, candidateKey, url: candidateUrl });
-    };
-    image.onerror = () => {
-      failedAvatarCandidates.add(candidateKey);
-    };
-    image.src = candidateUrl;
+    void findFirstUsableStaffAvatarCandidate(
+      candidates,
+      (candidate: StaffAvatarCandidate) => new Promise((resolve) => {
+        const image = new Image();
+        image.decoding = "async";
+        image.onload = async () => {
+          try {
+            await image.decode();
+            resolve(true);
+          } catch {
+            resolve(false);
+          }
+        };
+        image.onerror = () => resolve(false);
+        image.src = candidate.url;
+      }),
+      failedAvatarCandidates,
+    ).then((candidate) => {
+      if (cancelled || !candidate) return;
+      lastDecodedAvatarByIdentity.set(identity, { candidateSetKey, url: candidate.url });
+      setDecodedAvatar({ identity, candidateSetKey, url: candidate.url });
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [candidateKey, candidateUrl, identity]);
+  }, [candidateSetKey, candidates, identity]);
 
   const sizeClass = size === "lg" ? "h-16 w-16" : size === "sm" ? "h-10 w-10" : "h-12 w-12";
   const showPhoto = Boolean(decodedUrl);
-  const displayImageUrl = decodedUrl || resolveStaffProfileFallbackImageUrl(profileImageFallbackKey);
+  const displayImageUrl = decodedUrl || resolveStaffProfileFallbackOrDefaultImageUrl(profileImageFallbackKey);
 
   return (
     <span
-      data-avatar-photo-state={showPhoto ? "decoded" : displayImageUrl ? "preset" : candidateUrl ? "fallback" : "not-requested"}
+      data-avatar-photo-state={showPhoto ? "decoded" : profileImageFallbackKey ? "preset" : candidates.length > 0 ? "fallback" : "default"}
       data-avatar-fallback-key={profileImageFallbackKey ?? ""}
       className={cn(
         "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#e8edf3] bg-[#f8fafc] text-[#475569]",
@@ -81,7 +97,7 @@ export function StableAvatar({
       )}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {displayImageUrl ? <img src={displayImageUrl} alt={showPhoto ? `${name || "직원"} 프로필` : "기본 프로필"} className="h-full w-full object-cover" /> : null}
+      <img src={displayImageUrl} alt={showPhoto ? `${name || "직원"} 프로필` : "기본 프로필"} className="h-full w-full object-cover" />
     </span>
   );
 }

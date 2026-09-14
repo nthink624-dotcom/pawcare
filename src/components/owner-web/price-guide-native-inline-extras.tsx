@@ -15,7 +15,7 @@ type ValidationIssue = {
 };
 
 const inputClass = "h-11 min-w-0 w-full rounded-[8px] border border-[#cbd5e1] bg-white px-3 !text-[16px] font-normal !leading-6 text-[#172033] outline-none placeholder:text-[#94a3b8] focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20";
-const cellButtonClass = "min-h-11 w-full min-w-0 rounded-[8px] px-3 py-2 text-left !text-[14px] !font-normal !leading-5 text-[#334155] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]";
+const fieldValueButtonClass = "min-h-11 w-full min-w-0 rounded-[8px] px-3 py-2 text-left !text-[16px] !font-normal !leading-6 text-[#334155] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]";
 const actionClass = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[8px] border border-[#cbd5e1] bg-white px-3 !text-[14px] !font-medium !leading-5 text-[#42536a] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
 const iconButtonClass = "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] hover:bg-[#f1f5f9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
 
@@ -116,65 +116,87 @@ export default function PriceGuideNativeInlineExtras({
           </button>
         </div>
         {document.surcharges.length > 0 ? (
-          <div className="mt-3 overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white">
-            {document.surcharges.map((surcharge, index) => (
-              <div key={`surcharge-${index}`} className="grid min-w-0 gap-1 border-b border-[#edf2f7] p-2 last:border-b-0 lg:grid-cols-[minmax(180px,1.3fr)_minmax(140px,.8fr)_minmax(140px,.8fr)_minmax(180px,1fr)_44px]">
-                {(["condition", "amountKrw", "percent", "note"] as const).map((field) => {
-                  const inputId = surchargeInputId(index, field);
-                  const issue = issueFor(issues, index, field);
-                  const rawValue = surcharge[field];
-                  const displayValue = field === "amountKrw"
-                    ? rawValue === null ? "추가 금액" : `${Number(rawValue).toLocaleString("ko-KR")}원`
-                    : field === "percent"
-                      ? rawValue === null ? "추가 비율" : `${rawValue}%`
-                      : rawValue || (field === "condition" ? "적용 조건" : "메모 추가");
-                  const placeholder = field === "condition" ? "적용 조건" : field === "amountKrw" ? "금액(원)" : field === "percent" ? "비율(%)" : "메모(선택)";
-                  return activeField === inputId ? (
-                    <div key={field} className="min-w-0">
-                      <label htmlFor={inputId} className="sr-only">추가요금 {index + 1} {placeholder}</label>
-                      <input
+          <div className="mt-3 space-y-3">
+            {document.surcharges.map((surcharge, index) => {
+              function renderSurchargeField(
+                field: keyof PriceGuideV2Surcharge,
+                label: string,
+                placeholder: string,
+                numeric = false,
+              ) {
+                const inputId = surchargeInputId(index, field);
+                const issue = issueFor(issues, index, field);
+                const rawValue = surcharge[field];
+                const displayValue = field === "amountKrw"
+                  ? rawValue === null ? "미정" : `${Number(rawValue).toLocaleString("ko-KR")}원`
+                  : field === "percent"
+                    ? rawValue === null ? "미정" : `${rawValue}%`
+                    : rawValue || placeholder;
+
+                return (
+                  <div className="min-w-0">
+                    {field !== "condition" ? <p className="text-[14px] font-medium leading-5 text-[#64748b]">{label}</p> : null}
+                    {activeField === inputId ? (
+                      <>
+                        <label htmlFor={inputId} className="sr-only">추가요금 {index + 1} {label}</label>
+                        <input
+                          id={inputId}
+                          autoFocus
+                          value={rawValue ?? ""}
+                          inputMode={field === "amountKrw" ? "numeric" : field === "percent" ? "decimal" : undefined}
+                          onChange={(event) => updateSurcharge(index, field, event.target.value)}
+                          aria-invalid={Boolean(issue)}
+                          aria-describedby={issue ? `${inputId}-error` : undefined}
+                          className={`${inputClass} mt-1 ${numeric ? "tabular-nums" : ""}`}
+                          placeholder={placeholder}
+                        />
+                      </>
+                    ) : (
+                      <button
                         id={inputId}
-                        autoFocus
-                        value={rawValue ?? ""}
-                        inputMode={field === "amountKrw" ? "numeric" : field === "percent" ? "decimal" : undefined}
-                        onChange={(event) => updateSurcharge(index, field, event.target.value)}
-                        aria-invalid={Boolean(issue)}
-                        aria-describedby={issue ? `${inputId}-error` : undefined}
-                        className={`${inputClass} ${field === "amountKrw" || field === "percent" ? "tabular-nums" : ""}`}
-                        placeholder={placeholder}
-                      />
-                      <InlineError issue={issue} />
-                    </div>
-                  ) : (
-                    <button
-                      key={field}
-                      id={inputId}
-                      type="button"
-                      onClick={() => setActiveField(inputId)}
-                      className={`${cellButtonClass} ${rawValue === null ? "text-[#7a8798]" : ""}`}
-                      aria-label={`추가요금 ${index + 1} ${placeholder} 수정`}
-                    >
-                      {displayValue}
-                    </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveField(null);
-                    emit({
-                      ...document,
-                      surcharges: document.surcharges.filter((_, surchargeIndex) => surchargeIndex !== index),
-                      aiReview: removeSurchargeReviews(document, index),
-                    });
-                  }}
-                  aria-label={`추가요금 ${index + 1} 삭제`}
-                  className={iconButtonClass}
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-            ))}
+                        type="button"
+                        onClick={() => setActiveField(inputId)}
+                        className={`${fieldValueButtonClass} mt-1 ${field === "condition" ? "!font-medium text-[#172033]" : ""} ${field === "note" ? "line-clamp-2" : ""} ${rawValue === null ? "text-[#7a8798]" : ""} ${numeric ? "tabular-nums" : ""}`}
+                        aria-label={`추가요금 ${index + 1} ${label} 수정`}
+                      >
+                        {displayValue}
+                      </button>
+                    )}
+                    <InlineError issue={issue} />
+                  </div>
+                );
+              }
+
+              return (
+              <article key={`surcharge-${index}`} data-price-guide-surcharge-card="true" className="min-w-0 rounded-[14px] border border-[#dbe2ea] bg-white p-4">
+                <div className="flex min-w-0 items-center gap-2">
+                  {renderSurchargeField("condition", "적용 조건", "적용 조건")}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveField(null);
+                      emit({
+                        ...document,
+                        surcharges: document.surcharges.filter((_, surchargeIndex) => surchargeIndex !== index),
+                        aiReview: removeSurchargeReviews(document, index),
+                      });
+                    }}
+                    aria-label={`추가요금 ${index + 1} 삭제`}
+                    className={iconButtonClass}
+                  >
+                    <Trash2 className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {renderSurchargeField("amountKrw", "가격", "금액(원)", true)}
+                  {renderSurchargeField("percent", "추가 비율", "비율(%)", true)}
+                </div>
+                <div className="mt-2 min-w-0">
+                  {renderSurchargeField("note", "설명", "설명 추가")}
+                </div>
+              </article>
+              );
+            })}
           </div>
         ) : null}
       </section>

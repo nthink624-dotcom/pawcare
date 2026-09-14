@@ -5489,6 +5489,7 @@ export default function CalendarManagementScreen({
             onAddSchedule={handleAddSchedule}
           />
           <DailyScheduleGrid
+            shopId={bootstrapData.shop.id}
             bookings={filteredBookings}
             staff={staff}
             visibleStaff={visibleStaff}

@@ -20,7 +20,7 @@ test("staff profile accepts only explicit bundled preset keys without a gender a
   assert.match(route, /profile_image_fallback_key: staffMember\.profileImageFallbackKey/);
   assert.match(route, /프로필 사진을 올리거나 기본 프로필 이미지를 선택해 주세요/);
   assert.match(bootstrap, /profile_image_fallback_key/);
-  assert.match(avatar, /const displayImageUrl = decodedUrl \|\| resolveStaffProfileFallbackImageUrl\(profileImageFallbackKey\)/);
+  assert.match(avatar, /const displayImageUrl = decodedUrl \|\| resolveStaffProfileFallbackOrDefaultImageUrl\(profileImageFallbackKey\)/);
   assert.match(migration, /profile_image_fallback_key/);
   for (const source of [fallback, route, bootstrap, avatar, migration]) assert.doesNotMatch(source, /default_profile_variant|gender_key|female|male/i);
 });

@@ -303,6 +303,7 @@ function hasStaffBookingConflict(bookings: DailyBooking[], bookingId: string, ne
 }
 
 export function DailyScheduleGrid({
+  shopId,
   bookings,
   staff,
   visibleStaff,
@@ -320,6 +321,7 @@ export function DailyScheduleGrid({
   onMoveBooking,
   onResizeBooking,
 }: {
+  shopId: string;
   bookings: DailyBooking[];
   staff: StaffFilter;
   visibleStaff: OwnerWebStaffColumn[];
@@ -397,23 +399,31 @@ export function DailyScheduleGrid({
   function renderScheduleLines(prefix: string, selected = false) {
     return scheduleDisplayLayout.segments.flatMap((segment) => {
       const segmentCount = Math.round((segment.end - segment.start) * 4);
-      return Array.from({ length: segmentCount + 1 }).map((_, index) => (
-        <div
-          key={`${prefix}-line-${segment.key}-${index}`}
-          data-schedule-time-grid-line={selected ? "selected" : "default"}
-          className={cn(
-            "absolute left-0 right-0 border-t",
-            index % 4 === 0
-              ? selected
-                ? "border-[#d6e0ea]"
-                : "border-[#dfe8f2]"
-              : selected
-                ? "border-[#e8eef5]"
-                : "border-[#eef4f9]",
-          )}
-          style={{ top: segment.top + index * quarterSlotHeight }}
-        />
-      ));
+      return Array.from({ length: segmentCount + 1 }).map((_, index) => {
+        const lineInterval = index % 4 === 0 ? "hour" : index % 2 === 0 ? "half-hour" : "quarter-hour";
+        return (
+          <div
+            key={`${prefix}-line-${segment.key}-${index}`}
+            data-schedule-time-grid-line={selected ? "selected" : "default"}
+            data-schedule-time-grid-interval={lineInterval}
+            className={cn(
+              "absolute left-0 right-0 border-t",
+              lineInterval === "hour"
+                ? selected
+                  ? "border-[#d6e0ea]"
+                  : "border-[#dfe8f2]"
+                : lineInterval === "half-hour"
+                  ? selected
+                    ? "border-[#dfe8f2]"
+                    : "border-[#e8eef5]"
+                  : selected
+                    ? "border-[#e8eef5]/50"
+                    : "border-[#eef4f9]/50",
+            )}
+            style={{ top: segment.top + index * quarterSlotHeight }}
+          />
+        );
+      });
     });
   }
 
@@ -665,9 +675,13 @@ export function DailyScheduleGrid({
                   key={laneColumn.key}
                   name={laneColumn.name}
                   staffKey={primaryStaff?.key ?? laneColumn.key}
+                  avatarIdentity={`${shopId}:${primaryStaff?.key ?? laneColumn.key}`}
                   chipColorIndex={primaryStaff?.chipColorIndex}
                   profileImageUrl={primaryStaff?.profileImageUrl}
+                  profileImageUrls={primaryStaff?.profileImageUrls}
                   profileImageAssetId={primaryStaff?.profileImageAssetIds?.[0]}
+                  profileImageAssetIds={primaryStaff?.profileImageAssetIds}
+                  profileImageFallbackKey={primaryStaff?.profileImageFallbackKey}
                   startLabel={primaryStaff ? formatHourLabel(primaryStaff.start) : undefined}
                   endLabel={primaryStaff ? formatHourLabel(primaryStaff.end) : undefined}
                   bookingCount={laneBookings.length}
@@ -743,7 +757,7 @@ export function DailyScheduleGrid({
                     onDragOver={handleColumnDragOver}
                     onDrop={(event) => handleColumnDrop(event, laneColumn)}
                     className={cn(
-                      "min-w-[240px] cursor-pointer border border-l-0 border-t-0 border-[#dfe8f2] bg-white p-0 transition",
+                      "min-w-[240px] cursor-pointer border border-l-0 border-t-0 border-[#e8eef5] bg-white p-0 transition",
                       selectedLane && "border-[#d6e0ea] bg-white",
                       draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
                     )}

@@ -210,6 +210,7 @@ function renderScreen(
   onInitialSetupStaffNext: () => void,
   onInitialSetupPricingNext: () => void,
   uploadInitialSetupStaffPhoto?: StaffProfilePhotoUploader,
+  onServiceSettingsBack?: () => void,
 ) {
   const handleStaffScheduleOverridesChange = (staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"]) => {
     onDataChange({ ...initialData, staffScheduleOverrides });
@@ -251,6 +252,7 @@ function renderScreen(
           onShopChange={onShopChange}
           onPriceGuideSaveSuccess={(canonicalBootstrap) => onInitialSetupStepSaved("pricing", canonicalBootstrap)}
           onInitialSetupNext={onInitialSetupPricingNext}
+          onBackToSettings={onServiceSettingsBack}
         />
       );
     case "staff":
@@ -806,6 +808,7 @@ export default function OwnerWebPreview({
             handleInitialSetupStaffNext,
             handleInitialSetupPricingNext,
             uploadDemoInitialSetupStaffPhoto,
+            () => setActiveScreen("shopInfo"),
           )}
         </div>
       </div>

@@ -9,9 +9,13 @@ import { cn } from "@/lib/utils";
 export function CalendarStaffLaneHeader({
   name,
   staffKey,
+  avatarIdentity,
   chipColorIndex,
   profileImageUrl,
+  profileImageUrls,
   profileImageAssetId,
+  profileImageAssetIds,
+  profileImageFallbackKey,
   startLabel,
   endLabel,
   bookingCount,
@@ -21,9 +25,13 @@ export function CalendarStaffLaneHeader({
 }: {
   name: string;
   staffKey: string;
+  avatarIdentity: string;
   chipColorIndex?: number | null;
   profileImageUrl?: string | null;
+  profileImageUrls?: string[] | null;
   profileImageAssetId?: string | null;
+  profileImageAssetIds?: string[] | null;
+  profileImageFallbackKey?: "korean-groomer-profile-01" | "korean-groomer-profile-02" | null;
   startLabel?: string;
   endLabel?: string;
   bookingCount: number;
@@ -57,10 +65,13 @@ export function CalendarStaffLaneHeader({
       />
       <div className="flex h-full min-w-0 items-center gap-3">
         <StableAvatar
-          identity={staffKey}
+          identity={avatarIdentity}
           name={name}
           imageUrl={profileImageUrl}
+          imageUrls={profileImageUrls}
           imageAssetId={profileImageAssetId}
+          imageAssetIds={profileImageAssetIds}
+          profileImageFallbackKey={profileImageFallbackKey}
           size="md"
           className="border-[#e8edf3] bg-[#f8fafc] text-[#52657a]"
         />

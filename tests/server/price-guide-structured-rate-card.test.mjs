@@ -782,3 +782,22 @@ test("connected photo review uses one clean table and the same inline edit path 
   assert.match(projection, /unplacedRowIndexes\.push\(rowIndex\)/);
   assert.doesNotMatch(`${reviewTable}\n${projection}`, /\["4kg 이하", "6kg 이하", "8kg 이하"\]/);
 });
+
+test("additional-fee cards keep the compact three-row editing structure", async () => {
+  const extras = await readFile(new URL("../../src/components/owner-web/price-guide-native-inline-extras.tsx", import.meta.url), "utf8");
+  const cardStart = extras.indexOf('data-price-guide-surcharge-card="true"');
+  const cardEnd = extras.indexOf("</article>", cardStart);
+  const card = extras.slice(cardStart, cardEnd);
+
+  assert.ok(cardStart >= 0 && cardEnd > cardStart);
+  assert.match(card, /rounded-\[14px\] border border-\[#dbe2ea\] bg-white p-4/);
+  assert.match(card, /renderSurchargeField\("condition", "적용 조건", "적용 조건"\)/);
+  assert.match(card, /grid grid-cols-2 gap-2/);
+  assert.match(card, /renderSurchargeField\("amountKrw", "가격", "금액\(원\)", true\)/);
+  assert.match(card, /renderSurchargeField\("percent", "추가 비율", "비율\(%\)", true\)/);
+  assert.match(card, /renderSurchargeField\("note", "설명", "설명 추가"\)/);
+  assert.match(card, /className=\{iconButtonClass\}/);
+  assert.match(extras, /field === "note" \? "line-clamp-2"/);
+  assert.doesNotMatch(card, /grid-cols-\[minmax\(180px,1\.3fr\)/);
+  assert.doesNotMatch(extras, /overflow-hidden rounded-\[10px\] border border-\[#dbe2ea\] bg-white/);
+});

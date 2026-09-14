@@ -51,6 +51,7 @@ test("daily schedule keeps staff identity, selection, and current-time colors in
   assert.match(header, /focus-visible:outline-none.*focus-visible:ring-2.*focus-visible:ring-\[#2563eb\]/);
   assert.match(grid, /selectedLane && "border-\[#d6e0ea\] bg-white"/);
   assert.match(grid, /data-schedule-time-grid-line=\{selected \? "selected" : "default"\}/);
+  assert.match(grid, /data-schedule-time-grid-interval=\{lineInterval\}/);
   assert.match(grid, /selected\s*\? "border-\[#d6e0ea\]"/);
   assert.match(grid, /backgroundColor: "#3b6fd8"/);
   assert.match(grid, /data-schedule-current-time-wash="true"/);

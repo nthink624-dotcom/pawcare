@@ -87,6 +87,7 @@ function readStoredPosition(): MenuPosition {
 
 type OwnerContextActionMenuProps = {
   isOpen: boolean;
+  isSuppressed: boolean;
   isTester: boolean;
   onOpenChange: (open: boolean) => void;
   onAddReservation: () => void;
@@ -95,6 +96,7 @@ type OwnerContextActionMenuProps = {
 
 const OwnerContextActionMenu = forwardRef<HTMLButtonElement, OwnerContextActionMenuProps>(function OwnerContextActionMenu({
   isOpen,
+  isSuppressed,
   isTester,
   onOpenChange,
   onAddReservation,
@@ -144,6 +146,11 @@ const OwnerContextActionMenu = forwardRef<HTMLButtonElement, OwnerContextActionM
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [isOpen, onOpenChange]);
+
+  useEffect(() => {
+    if (!isSuppressed || !isOpen) return;
+    onOpenChange(false);
+  }, [isOpen, isSuppressed, onOpenChange]);
 
   function handlePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
     if (event.button !== 0) return;
@@ -204,7 +211,9 @@ const OwnerContextActionMenu = forwardRef<HTMLButtonElement, OwnerContextActionM
     <div
       ref={menuRootRef}
       data-testid="owner-context-action-menu"
-      className={`fixed z-40 ${position ? "" : "bottom-[calc(env(safe-area-inset-bottom)+84px)] right-3"}`}
+      data-suppressed={isSuppressed ? "true" : "false"}
+      aria-hidden={isSuppressed || undefined}
+      className={`fixed z-40 ${isSuppressed ? "invisible pointer-events-none" : ""} ${position ? "" : "bottom-[calc(env(safe-area-inset-bottom)+84px)] right-3"}`}
       style={position ? { left: position.x, top: position.y, transform: "translate(-50%, -50%)" } : undefined}
     >
       {isOpen ? (
@@ -236,6 +245,7 @@ const OwnerContextActionMenu = forwardRef<HTMLButtonElement, OwnerContextActionM
         aria-label="빠른 메뉴 열기 및 이동"
         aria-expanded={isOpen}
         aria-controls="owner-context-action-menu-actions"
+        tabIndex={isSuppressed ? -1 : undefined}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={finishPointer}

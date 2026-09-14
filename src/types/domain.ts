@@ -68,6 +68,7 @@ export type ShopNotificationSettings = {
   alimtalk_template_request_note?: string;
   alimtalk_template_request_updated_at?: string | null;
   revisit_enabled: boolean;
+  revisit_reminder_default_days?: number;
   booking_confirmed_enabled: boolean;
   booking_rejected_enabled: boolean;
   booking_cancelled_enabled: boolean;
@@ -328,7 +329,7 @@ export type GroomingRecord = {
   groomed_at: string;
   created_at: string;
   updated_at: string;
-  care_report_data?: Record<string, unknown> | null;
+  care_report_data?: { reportText: string } | null;
   care_report_owner_confirmed_at?: string | null;
 };
 

@@ -21,7 +21,14 @@ function buildCareReportFixture() {
 
 export default function OwnerCareReportDevPreview() {
   const fixture = useMemo(() => buildCareReportFixture(), []);
-  const developmentFixture = useMemo(() => ({ items: [], draft: null, visitWeightKg: 3.2 }), []);
+  const developmentFixture = useMemo(() => ({
+    items: [],
+    draft: {
+      reportText: "오늘 미용은 전반적으로 편안하게 잘 마쳤고, 얼굴 주변을 정리할 때에도 차분하게 기다려 주었습니다. 집에서는 편안히 쉴 수 있도록 지켜봐 주세요.",
+      nextRecommendedVisitDate: null,
+    },
+    visitWeightKg: 3.2,
+  }), []);
   const [isOpen, setIsOpen] = useState(true);
 
   if (!isOpen) {
@@ -43,6 +50,7 @@ export default function OwnerCareReportDevPreview() {
         staffName="개발 미리보기"
         publishedCareReport={null}
         developmentFixture={developmentFixture}
+        revisitReminderDefaultDays={73}
         onClose={() => setIsOpen(false)}
         onReturnToDetail={() => setIsOpen(false)}
         onPublished={() => undefined}

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, PawPrint, Plus, QrCode, Settings, Sparkles, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, UserRound, type LucideIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
@@ -22,7 +22,6 @@ import {
   CustomerMetricCard,
   InfoItem,
   NotificationHistoryRow,
-  PetDetailInputField,
   QuickContactRow,
   ShopAvatar,
   UrgencyPill,
@@ -33,7 +32,7 @@ import OwnerBookingDatePicker from "@/components/owner/owner-booking-date-picker
 import OwnerBookingDaySchedule from "@/components/owner/owner-booking-day-schedule";
 import OwnerExternalPhotoSheet from "@/components/owner/owner-external-photo-sheet";
 import OwnerHomeDateNavigator from "@/components/owner/owner-home-date-navigator";
-import OwnerAiCareReportSheet, { type CareReport } from "@/components/owner/owner-ai-care-report-sheet";
+import OwnerAiCareReportSheet, { normalizeCareReport, prepareOwnerCareReportInitialData, type OwnerCareReportInitialData } from "@/components/owner/owner-ai-care-report-sheet";
 import { readOwnerCareReportLocalDraft } from "@/lib/care-report/owner-care-report-local-draft";
 import OwnerContextActionMenu from "@/components/owner/owner-context-action-menu";
 import OwnerMobileGroomingStartSheet from "@/components/owner/owner-mobile-grooming-start-sheet";
@@ -49,6 +48,7 @@ import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { createOwnerMediaAssetFromFile, type MediaAssetListItem } from "@/lib/media/owner-media-client";
+import { DEFAULT_REVISIT_REMINDER_DAYS } from "@/lib/notification-settings";
 import { canUseExternalCameraApps, captureWithAndroidCameraApp } from "@/lib/media/external-camera";
 import { ownerHomeCopy } from "@/lib/owner-home-copy";
 import { getStaffScheduleAvailability, getStaffScheduleIdentityTone, shouldRenderStaffScheduleLane } from "@/lib/staff-schedule-identity";
@@ -70,6 +70,7 @@ import {
   getOwnerTodaySlideDirection,
   shouldApplyOwnerMobileRefresh,
 } from "@/lib/owner-mobile-today";
+import { ownerTodayCareReportFollowupKey, selectOwnerTodayCareReportFollowups } from "@/lib/owner-today-care-report-followup";
 import {
   indexTodayPetDisplayPhotosByAppointmentId,
   resolveTodayAppointmentPetDisplayPhoto,
@@ -399,6 +400,13 @@ export default function OwnerApp({
   const [mobilePhotoPreviewFile, setMobilePhotoPreviewFile] = useState<File | null>(null);
   const [mobilePhotoPreparing, setMobilePhotoPreparing] = useState(false);
   const [careReportAppointmentId, setCareReportAppointmentId] = useState<string | null>(null);
+  const [careReportInitialData, setCareReportInitialData] = useState<OwnerCareReportInitialData | null>(null);
+  const [careReportLoadingAppointmentId, setCareReportLoadingAppointmentId] = useState<string | null>(null);
+  const [careReportEntryError, setCareReportEntryError] = useState<{ appointmentId: string; message: string } | null>(null);
+  const careReportOpenInFlightRef = useRef<Promise<void> | null>(null);
+  const [publishedCareReportFollowupKeys, setPublishedCareReportFollowupKeys] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [settingsEntryScreen, setSettingsEntryScreen] = useState<SettingsEntryScreen>(null);
   const [guideScreen, setGuideScreen] = useState<OwnerGuideScreen>(null);
   const [isShopPickerOpen, setIsShopPickerOpen] = useState(false);
@@ -507,8 +515,17 @@ export default function OwnerApp({
       clearRootBackExitNotice();
       return;
     }
+    if (careReportEntryError) {
+      setCareReportEntryError(null);
+      clearRootBackExitNotice();
+      return;
+    }
+    if (careReportLoadingAppointmentId) {
+      clearRootBackExitNotice();
+      return;
+    }
     if (careReportAppointmentId) {
-      setCareReportAppointmentId(null);
+      closeCareReport();
       clearRootBackExitNotice();
       return;
     }
@@ -901,6 +918,16 @@ export default function OwnerApp({
   );
   const homeCompletedHistoryAppointments = useMemo(() => homeHistoryAppointments, [homeHistoryAppointments]);
   const homeCancelChangeAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => item.status === "cancelled"), [homeConfirmedAppointments]);
+  const homeCareReportFollowupAppointments = useMemo(
+    () => selectOwnerTodayCareReportFollowups({
+      appointments: data.appointments,
+      groomingRecords: data.groomingRecords,
+      shopId: data.shop.id,
+      dateKey: homeWorkDateKey,
+      hiddenFollowupKeys: publishedCareReportFollowupKeys,
+    }),
+    [data.appointments, data.groomingRecords, data.shop.id, homeWorkDateKey, publishedCareReportFollowupKeys],
+  );
   const homeWorkAppointments = useMemo(
     () => [...homeActionAppointments, ...homeCompletedHistoryAppointments],
     [homeActionAppointments, homeCompletedHistoryAppointments],
@@ -952,6 +979,9 @@ export default function OwnerApp({
         (appointment) => matchesHomeRoleScope(appointment) && (!isStaffApp ? matchesHomeStaffFilter(appointment, homeStaffFilter) : true),
       ),
     [currentStaffId, homeCompletedHistoryAppointments, homeStaffFilter, isStaffApp],
+  );
+  const filteredHomeCareReportFollowupAppointments = homeCareReportFollowupAppointments.filter(
+    (appointment) => matchesHomeRoleScope(appointment) && (!isStaffApp ? matchesHomeStaffFilter(appointment, homeStaffFilter) : true),
   );
   const filteredHomeCancelChangeAppointments = useMemo(
     () =>
@@ -1618,12 +1648,50 @@ export default function OwnerApp({
     void updateAppointmentStatusWithMobilePhoto(appointmentId, "in_progress", "grooming_before", file);
   }
 
+  async function openCareReport(appointmentId: string) {
+    if (isOwnerDemo || careReportOpenInFlightRef.current) return;
+    const appointment = data.appointments.find((item) => item.id === appointmentId);
+    if (!appointment) {
+      setCareReportEntryError({ appointmentId, message: "케어리포트 예약 정보를 찾지 못했습니다." });
+      return;
+    }
+    const publishedCareReport = normalizeCareReport(data.groomingRecords.find((record) => record.appointment_id === appointment.id)?.care_report_data);
+    setCareReportLoadingAppointmentId(appointmentId);
+    setCareReportEntryError(null);
+    const openPromise = (async () => {
+      try {
+        const prepared = await prepareOwnerCareReportInitialData({
+          shopId: data.shop.id,
+          appointmentId,
+          publishedCareReport,
+        });
+        setCareReportInitialData(prepared);
+        setModal((current) => current?.type === "appointment" && current.appointment.id === appointmentId ? null : current);
+        setCareReportAppointmentId(appointmentId);
+      } catch {
+        setCareReportEntryError({ appointmentId, message: "케어리포트를 불러오지 못했습니다." });
+      }
+    })();
+    careReportOpenInFlightRef.current = openPromise;
+    try {
+      await openPromise;
+    } finally {
+      if (careReportOpenInFlightRef.current === openPromise) careReportOpenInFlightRef.current = null;
+      setCareReportLoadingAppointmentId((current) => current === appointmentId ? null : current);
+    }
+  }
+
+  function closeCareReport() {
+    setCareReportAppointmentId(null);
+    setCareReportInitialData(null);
+  }
+
   async function completeMobileAppointment(appointmentId: string, mode: "photo" | "without-photo") {
     if (mode === "without-photo") {
       // A photo remains optional. The care-report editor can add one after completion.
       try {
         await updateAppointment(appointmentId, { status: "completed" }, { rethrow: true });
-        setCareReportAppointmentId(appointmentId);
+        await openCareReport(appointmentId);
       } catch {
         // updateAppointment already shows the actionable request error.
       }
@@ -1688,7 +1756,7 @@ export default function OwnerApp({
       }, { rethrow: true });
       setMobilePhotoPreviewFile(null);
       setMobilePhotoStatusAction(null);
-      if (nextStatus === "completed") setCareReportAppointmentId(appointment.id);
+      if (nextStatus === "completed") await openCareReport(appointment.id);
     } catch (uploadError) {
       await handleRequestError(uploadError, "사진 업로드 또는 상태 변경에 실패했습니다.");
     } finally {
@@ -2240,7 +2308,7 @@ export default function OwnerApp({
         : null;
   const homeCurrentSectionLabel = homeWorkDateKey === todayDate ? "오늘 할 일" : "선택한 날";
   const homeScheduleTabs: Array<{ key: HomeReservationSectionKey; label: string; count: number }> = [
-    { key: "current", label: homeCurrentSectionLabel, count: filteredHomeActionAppointments.length },
+    { key: "current", label: homeCurrentSectionLabel, count: filteredHomeActionAppointments.length + filteredHomeCareReportFollowupAppointments.length },
     { key: "cancelChange", label: ownerHomeCopy.statCancelChange, count: filteredHomeCancelChangeAppointments.length },
   ];
   const testerFeedbackScreenKey: TesterFeedbackScreenKey =
@@ -2386,6 +2454,7 @@ export default function OwnerApp({
                 <div className="min-h-0 flex-1">
                   <TodayConfirmedContent
                     currentAppointments={filteredHomeActionAppointments}
+                    careReportFollowupAppointments={filteredHomeCareReportFollowupAppointments}
                     cancelChangeAppointments={filteredHomeCancelChangeAppointments}
                     completedAppointments={filteredHomeCompletedHistoryAppointments}
                     petMap={petMap}
@@ -2398,7 +2467,9 @@ export default function OwnerApp({
                     selectedDateKey={homeWorkDateKey}
                     isToday={homeWorkDateKey === todayDate}
                     slideDirection={homeReservationSlideDirection}
+                    careReportLoadingAppointmentId={careReportLoadingAppointmentId}
                     onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })}
+                    onResumeCareReport={(appointmentId) => void openCareReport(appointmentId)}
                     onStatusChange={requestMobileAppointmentStatusChange}
                     onStartWithoutPhoto={(appointmentId) => requestMobileGroomingStart(appointmentId, "without-photo")}
                     onCompleteWithoutPhoto={(appointmentId) => completeMobileAppointment(appointmentId, "without-photo")}
@@ -2885,11 +2956,13 @@ export default function OwnerApp({
               </div>
 
               <div className="space-y-2.5">
-                  <div className="grid grid-cols-3 gap-1 rounded-[10px] border border-[var(--border)] bg-[#f8f5f0] p-1">
+                  <div data-testid="owner-customer-detail-tabs" className="grid grid-cols-3 gap-1 rounded-[10px] border border-[var(--border)] bg-[#f8f5f0] p-1">
                     {(["records", "pets", "notifications"] as const).map((item) => (
                       <button
                         key={item}
-                        className={`flex h-[36px] items-center justify-center rounded-[8px] px-2 py-1 text-center text-[14px] font-medium leading-[1.2] transition ${
+                        type="button"
+                        data-customer-detail-tab={item}
+                        className={`flex min-h-11 items-center justify-center rounded-[8px] px-1 py-2 text-center text-[16px] font-medium leading-6 tracking-[-0.005em] [overflow-wrap:anywhere] transition ${
                           detailTab === item
                             ? "bg-white text-[var(--text)] shadow-[0_2px_6px_rgba(35,35,31,0.05)]"
                             : "text-[var(--muted)]"
@@ -2939,7 +3012,7 @@ export default function OwnerApp({
                       ))}
                       <button
                         type="button"
-                        className="mt-1 flex h-[42px] w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#cfded8] bg-white px-4 text-[16px] font-medium tracking-[-0.02em] text-[var(--accent)] transition hover:bg-[#fcfaf7]"
+                        className="mt-1 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#cfded8] bg-white px-4 py-2.5 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[var(--accent)] transition hover:bg-[#fcfaf7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/30 focus-visible:ring-offset-2"
                         onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
                       >
                         <Plus className="h-4 w-4" strokeWidth={2.1} />
@@ -2984,6 +3057,7 @@ export default function OwnerApp({
         <OwnerContextActionMenu
           ref={ownerContextMenuTriggerRef}
           isOpen={isOwnerContextMenuOpen}
+          isSuppressed={isTesterFeedbackHubOpen}
           isTester={isTesterFeedback}
           onOpenChange={setIsOwnerContextMenuOpen}
           onAddReservation={() => setModal({ type: "new-appointment" })}
@@ -3079,7 +3153,7 @@ export default function OwnerApp({
         </p>
       ) : null}
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => { if (isOwnerDemo) return; setModal(null); setCareReportAppointmentId(modal.appointment.id); }} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
         if (isOwnerDemo) {
           setModal(null);
           return;
@@ -3160,14 +3234,15 @@ export default function OwnerApp({
           }}
         />
       ) : null}
-      {!isOwnerDemo && careReportAppointmentId ? (() => {
+      {!isOwnerDemo && careReportAppointmentId && careReportInitialData ? (() => {
         const appointment = data.appointments.find((item) => item.id === careReportAppointmentId);
         const pet = appointment ? petMap[appointment.pet_id] : null;
         if (!appointment || !pet) return null;
         const staffName = appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 디자이너" : "담당 디자이너";
-        const publishedCareReport = data.groomingRecords.find((record) => record.appointment_id === appointment.id)?.care_report_data as CareReport | null | undefined;
-        return <OwnerAiCareReportSheet shopId={data.shop.id} appointment={appointment} pet={pet} services={data.services} staffName={staffName} publishedCareReport={publishedCareReport} onClose={() => setCareReportAppointmentId(null)} onReturnToDetail={() => { setCareReportAppointmentId(null); setModal({ type: "appointment", appointment }); void refresh(); }} onPublished={() => void refresh()} />;
+        const publishedCareReport = normalizeCareReport(data.groomingRecords.find((record) => record.appointment_id === appointment.id)?.care_report_data);
+        return <OwnerAiCareReportSheet key={appointment.id} shopId={data.shop.id} appointment={appointment} pet={pet} services={data.services} staffName={staffName} publishedCareReport={publishedCareReport} initialData={careReportInitialData} revisitReminderDefaultDays={data.shop.notification_settings.revisit_reminder_default_days ?? DEFAULT_REVISIT_REMINDER_DAYS} onClose={closeCareReport} onReturnToDetail={() => { closeCareReport(); setModal({ type: "appointment", appointment }); void refresh(); }} onPublished={() => { setPublishedCareReportFollowupKeys((previous) => new Set(previous).add(ownerTodayCareReportFollowupKey(appointment))); void refresh(); }} />;
       })() : null}
+      {careReportEntryError ? <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0b1b2c]/35 px-5"><section role="alertdialog" aria-modal="true" aria-label="케어리포트 불러오기 실패" className="w-full max-w-[360px] rounded-[18px] border border-[#dce7f2] bg-white p-6"><p className="text-[16px] font-normal leading-6 text-[#101a31]">{careReportEntryError.message}</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => setCareReportEntryError(null)} className="min-h-11 rounded-[10px] border border-[#d7e4f2] bg-white px-3 text-[16px] font-medium leading-6 text-[#526b84]">닫기</button><button type="button" onClick={() => { const appointmentId = careReportEntryError.appointmentId; setCareReportEntryError(null); void openCareReport(appointmentId); }} className="min-h-11 rounded-[10px] bg-[#2f6fd6] px-3 text-[16px] font-medium leading-6 text-white">다시 시도</button></div></section></div> : null}
       {isShopPickerOpen ? (
         <Overlay>
           <ShopPickerSheet
@@ -3319,57 +3394,6 @@ function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRe
         <p className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{service?.name || "서비스"}</p>
       </div>
       <AppointmentListTrailing status="record-completed" />
-    </div>
-  );
-}
-
-function MobileStatusSummary({ items, activeKey }: { items: Array<{ key: HomeReservationSectionKey; label: string; value: number; tone: "accent" | "warning" | "danger" | "neutral"; onClick: () => void }>; activeKey: HomeReservationSectionKey }) {
-  const toneMap = {
-    accent: {
-      dot: "bg-[var(--accent)]",
-      text: "text-[var(--accent)]",
-    },
-    warning: {
-      dot: "bg-[#c79a37]",
-      text: "text-[#4f5d73]",
-    },
-    danger: {
-      dot: "bg-[#b56a78]",
-      text: "text-[#4f5d73]",
-    },
-    neutral: {
-      dot: "bg-[#8c98aa]",
-      text: "text-[#4f5d73]",
-    },
-  } as const;
-  return (
-    <div className="pb-0.5 text-[var(--text)]">
-      <HorizontalDragScroll>
-        {items.map((item) => {
-          const active = item.key === activeKey;
-          return (
-        <button
-          key={item.key}
-          type="button"
-          aria-pressed={active}
-          onClick={item.onClick}
-          className={`mr-2 inline-flex h-9 min-w-[118px] shrink-0 items-center rounded-[8px] border px-3 text-left transition last:mr-0 ${
-            active
-              ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-              : "border-[var(--border)] bg-white text-[var(--text)] hover:bg-[#f3f6fb]"
-          }`}
-        >
-          <span className={`flex w-full items-center justify-between gap-2 text-[13px] font-medium leading-[18px] tracking-[-0.02em] ${active ? "text-white" : toneMap[item.tone].text}`}>
-            <span className="flex min-w-0 items-center gap-1.5">
-            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? "bg-white/85" : toneMap[item.tone].dot}`} />
-            <span className="min-w-0 truncate">{item.label}</span>
-            </span>
-            <span className={`shrink-0 text-[13px] ${active ? "text-white" : "text-[#8c98aa]"}`}>{item.value}</span>
-          </span>
-        </button>
-          );
-        })}
-      </HorizontalDragScroll>
     </div>
   );
 }
@@ -3814,7 +3838,7 @@ function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string
   );
 }
 
-export function AppointmentDetail({ data, appointment, pet, guardian, service, saving, isReadOnly = false, canViewGuardianContact = true, visitWeightTransport, showMediaHistory = true, onClose, onUpdate, onOpenCareReport }: { data: BootstrapPayload; appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; isReadOnly?: boolean; canViewGuardianContact?: boolean; visitWeightTransport?: OwnerAppointmentVisitWeightTransport; showMediaHistory?: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void; onOpenCareReport: () => void }) {
+export function AppointmentDetail({ data, appointment, pet, guardian, service, saving, careReportLoading = false, isReadOnly = false, canViewGuardianContact = true, visitWeightTransport, showMediaHistory = true, onClose, onUpdate, onOpenCareReport }: { data: BootstrapPayload; appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; careReportLoading?: boolean; isReadOnly?: boolean; canViewGuardianContact?: boolean; visitWeightTransport?: OwnerAppointmentVisitWeightTransport; showMediaHistory?: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void; onOpenCareReport: () => void }) {
   const [notificationPageState, setNotificationPageState] = useState({ appointmentId: appointment.id, page: 1 });
   const [careReportStatus, setCareReportStatus] = useState<"before" | "draft" | "published">("before");
   const canEditSchedule = ["pending", "confirmed"].includes(appointment.status);
@@ -4176,8 +4200,8 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
         {appointment.status === "completed" ? (
           <div className="rounded-[14px] border border-[#d4e3f2] bg-[#f8fbfe] p-3">
             <div className="mb-2 flex items-center justify-between"><span className="text-[16px] font-semibold leading-6 text-[#526b84]">케어리포트</span><span className={`text-[13px] font-medium leading-5 ${resolvedCareReportStatus === "published" ? "text-[#2f8c72]" : resolvedCareReportStatus === "draft" ? "text-[#4b77b6]" : "text-[#64748b]"}`}>{resolvedCareReportStatus === "published" ? "발송 완료" : resolvedCareReportStatus === "draft" ? "임시저장" : "작성 전"}</span></div>
-            <button type="button" onClick={onOpenCareReport} className="flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#c9ddef] bg-white text-[16px] font-semibold text-[#326fac]">
-              <Sparkles className="h-4 w-4" />{resolvedCareReportStatus === "published" ? "케어리포트 보기" : resolvedCareReportStatus === "draft" ? "이어서 작성" : "AI 케어리포트 작성"}
+            <button type="button" onClick={onOpenCareReport} disabled={careReportLoading} aria-busy={careReportLoading} className="flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#c9ddef] bg-white text-[16px] font-semibold text-[#326fac] disabled:opacity-60">
+              {careReportLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Sparkles className="h-4 w-4" />}{resolvedCareReportStatus === "published" ? "케어리포트 보기" : resolvedCareReportStatus === "draft" ? "이어서 작성" : "AI 케어리포트 작성"}
             </button>
           </div>
         ) : null}
@@ -5347,13 +5371,20 @@ function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle 
   );
 }
 
-function TodayConfirmedContent({ currentAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, petDisplayPhotos, saving, focusedSection, selectedDateKey, isToday, slideDirection, onOpenAppointment, onStatusChange, onStartWithoutPhoto, onCompleteWithoutPhoto, onOpenPhotoStatusAction }: { currentAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; petDisplayPhotos: NonNullable<BootstrapPayload["petDisplayPhotos"]>; saving: boolean; focusedSection: HomeReservationSectionKey; selectedDateKey: string; isToday: boolean; slideDirection: "prev" | "next"; onOpenAppointment: (appointment: Appointment) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onStartWithoutPhoto: (appointmentId: string) => void; onCompleteWithoutPhoto: (appointmentId: string) => void; onOpenPhotoStatusAction: (appointmentId: string, status: Extract<AppointmentStatus, "in_progress" | "completed">) => void; }) {
+function TodayConfirmedContent({ currentAppointments, careReportFollowupAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, petDisplayPhotos, saving, focusedSection, selectedDateKey, isToday, slideDirection, careReportLoadingAppointmentId, onOpenAppointment, onResumeCareReport, onStatusChange, onStartWithoutPhoto, onCompleteWithoutPhoto, onOpenPhotoStatusAction }: { currentAppointments: Appointment[]; careReportFollowupAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; petDisplayPhotos: NonNullable<BootstrapPayload["petDisplayPhotos"]>; saving: boolean; focusedSection: HomeReservationSectionKey; selectedDateKey: string; isToday: boolean; slideDirection: "prev" | "next"; careReportLoadingAppointmentId: string | null; onOpenAppointment: (appointment: Appointment) => void; onResumeCareReport: (appointmentId: string) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onStartWithoutPhoto: (appointmentId: string) => void; onCompleteWithoutPhoto: (appointmentId: string) => void; onOpenPhotoStatusAction: (appointmentId: string, status: Extract<AppointmentStatus, "in_progress" | "completed">) => void; }) {
   const petDisplayPhotoByAppointmentId = useMemo(
     () => indexTodayPetDisplayPhotosByAppointmentId(petDisplayPhotos),
     [petDisplayPhotos],
   );
   const resolvePetDisplayPhoto = (appointment: Appointment) =>
     resolveTodayAppointmentPetDisplayPhoto(petDisplayPhotoByAppointmentId, appointment);
+  const careReportFollowupPhotoByAppointmentId = useMemo(
+    () => new Map(careReportFollowupAppointments.map((appointment) => [
+      appointment.id,
+      resolveTodayAppointmentPetDisplayPhoto(petDisplayPhotoByAppointmentId, appointment),
+    ])),
+    [careReportFollowupAppointments, petDisplayPhotoByAppointmentId],
+  );
   const currentGroups = groupAppointmentsByTime(currentAppointments);
   const cancelChangeGroups = groupAppointmentsByTime(cancelChangeAppointments);
   const animationFrameRef = useRef<number | null>(null);
@@ -5393,7 +5424,7 @@ function TodayConfirmedContent({ currentAppointments, cancelChangeAppointments, 
 
   const renderSectionBody = () => {
     if (focusedSection === "current") {
-      return currentAppointments.length === 0 ? (
+      return currentAppointments.length === 0 && careReportFollowupAppointments.length === 0 ? (
         <EmptyState compact className={emptySectionClassName} title={isToday ? ownerHomeCopy.currentSectionEmpty : "선택한 날짜에 처리할 예약이 없어요"} />
       ) : (
         <div className="space-y-2.5">
@@ -5408,6 +5439,9 @@ function TodayConfirmedContent({ currentAppointments, cancelChangeAppointments, 
               </div>
             );
           })}
+          {careReportFollowupAppointments.map((appointment) => (
+            <CompletedAppointmentRow key={`care-report-${appointment.id}`} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} petDisplayPhoto={careReportFollowupPhotoByAppointmentId.get(appointment.id)} showTodayPetDisplayPhoto careReportLoading={careReportLoadingAppointmentId === appointment.id} onClick={() => onOpenAppointment(appointment)} onResumeCareReport={() => onResumeCareReport(appointment.id)} />
+          ))}
         </div>
       );
     }
@@ -5463,11 +5497,10 @@ function CompletedReservationsContent({ historyAppointments, petMap, guardianMap
   return <div className="overflow-hidden rounded-[10px] border border-[#e1e7ef] bg-white p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#94a3b8]" /><div className="mb-2.5"><h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap?.[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} petDisplayPhoto={resolveTodayAppointmentPetDisplayPhoto(petDisplayPhotoByAppointmentId, appointment)} showTodayPetDisplayPhoto onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
 }
 
-function CompletedAppointmentRow({ appointment, pet, guardian, service, staffName, petDisplayPhoto, showTodayPetDisplayPhoto = false, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; staffName?: string; petDisplayPhoto?: NonNullable<BootstrapPayload["petDisplayPhotos"]>[number]; showTodayPetDisplayPhoto?: boolean; onClick: () => void }) {
+function CompletedAppointmentRow({ appointment, pet, guardian, service, staffName, petDisplayPhoto, showTodayPetDisplayPhoto = false, careReportLoading = false, onClick, onResumeCareReport }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; staffName?: string; petDisplayPhoto?: NonNullable<BootstrapPayload["petDisplayPhotos"]>[number]; showTodayPetDisplayPhoto?: boolean; careReportLoading?: boolean; onClick: () => void; onResumeCareReport?: () => void }) {
   const trailingStatus = appointment.status === "pending" ? "missed-pending" : "completed";
-
-  return (
-    <button onClick={onClick} className={`flex min-h-[52px] w-full items-center gap-2.5 rounded-[12px] border border-[#e1e7ef] bg-white px-3 text-left transition hover:bg-[#f8fafc] ${showTodayPetDisplayPhoto ? "py-1" : "py-2"}`}>
+  const summary = (
+    <>
       <div className="min-w-[42px] text-[16px] font-normal leading-none tracking-[-0.01em] text-[#0f172a]">{formatClockTime(appointment.appointment_time)}</div>
       <div className="h-6 w-px shrink-0 bg-[#e1e7ef]" />
       {showTodayPetDisplayPhoto ? <TodayPetPhoto name={pet.name} src={petDisplayPhoto?.url} /> : <AppointmentMonogram name={pet.name} />}
@@ -5479,7 +5512,20 @@ function CompletedAppointmentRow({ appointment, pet, guardian, service, staffNam
         <p className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{service.name}</p>
       </div>
       <AppointmentListTrailing status={trailingStatus} />
-    </button>
+    </>
+  );
+
+  if (!onResumeCareReport) {
+    return <button onClick={onClick} className={`flex min-h-[52px] w-full items-center gap-2.5 rounded-[12px] border border-[#e1e7ef] bg-white px-3 text-left transition hover:bg-[#f8fafc] ${showTodayPetDisplayPhoto ? "py-1" : "py-2"}`}>{summary}</button>;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[12px] border border-[#dbe5f1] bg-white">
+      <button type="button" onClick={onClick} className="flex min-h-[52px] w-full items-center gap-2.5 px-3 py-1 text-left transition hover:bg-[#f8fafc]">{summary}</button>
+      <div className="border-t border-[#e8edf3] px-3 py-2">
+        <button type="button" onClick={onResumeCareReport} disabled={careReportLoading} aria-busy={careReportLoading} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[16px] font-medium leading-6 text-[var(--text)] transition-colors hover:bg-[var(--background)] active:bg-[var(--border)]/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-[var(--border)] disabled:bg-[var(--background)] disabled:text-[var(--muted)]">{careReportLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}케어리포트 이어서 작성</button>
+      </div>
+    </div>
   );
 }
 
@@ -5896,26 +5942,24 @@ function PetStoreVerificationPanel({ pet }: { pet: Pet }) {
               ? "강함"
               : "미입력";
   const items = [
-    ["몸무게", pet.weight === null ? "미입력" : `${pet.weight}kg`],
-    ["생일", pet.birthday ?? "미입력"],
-    ["입질 정도", biteLevelLabel],
-    ["요금표 그룹", "미입력"],
+    ["몸무게", pet.weight === null ? "미입력" : `${pet.weight}kg`, pet.weight === null],
+    ["생일", pet.birthday ?? "미입력", !pet.birthday],
+    ["입질 정도", biteLevelLabel, biteLevelLabel === "미입력"],
+    ["요금표 그룹", "미입력", true],
   ] as const;
 
   return (
-    <div className="col-span-2 rounded-[10px] border border-[#e2e7ed] bg-white p-3">
-      <p className="text-[13px] font-semibold text-[#0f172a]">매장 확인 정보</p>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        {items.map(([label, value]) => (
-          <div key={label} className="rounded-[8px] bg-[#f8fafc] px-2.5 py-2">
-            <p className="text-[12px] font-semibold text-[#64748b]">{label}</p>
-            <p className="mt-0.5 text-[13px] font-medium text-[#334155]">{value}</p>
+    <section data-testid="pet-store-verification" className="border-t border-[#e8edf3] pt-3">
+      <h4 className="text-[14px] font-medium leading-5 text-[#0f172a]">매장 확인 정보</h4>
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 max-[340px]:grid-cols-1">
+        {items.map(([label, value, isEmpty]) => (
+          <div key={label} className="min-w-0 space-y-1">
+            <dt className="text-[14px] font-medium leading-5 text-[#64748b]">{label}</dt>
+            <dd className={cn("text-[16px] font-normal leading-6 [overflow-wrap:anywhere]", isEmpty ? "text-[#64748b]" : "text-[#1e293b]")}>{value}</dd>
           </div>
         ))}
-      </div>
-      <p className="mt-2 text-[12px] leading-4 text-[#64748b]">실제 반려동물을 확인한 뒤 요금표 기준에 맞는 그룹을 선택해 주세요.</p>
-      <p className="mt-1 text-[12px] leading-4 text-[#94a3b8]">매장 확인값 저장 필드와 요금표 그룹 연동 후 수정할 수 있어요.</p>
-    </div>
+      </dl>
+    </section>
   );
 }
 
@@ -5932,7 +5976,6 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
     return () => window.cancelAnimationFrame(frame);
   }, [pet.birthday, pet.breed, pet.name]);
 
-  const summary = [pet.breed, pet.birthday ? `생일 ${pet.birthday}` : null, isBirthdayToday ? "오늘 생일" : null].filter(Boolean).join(" · ");
   const handleSelectKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -5941,25 +5984,26 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
   };
 
   return (
-    <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white">
+    <div data-testid={`guardian-pet-card-${pet.id}`} className={cn("overflow-hidden rounded-[10px] border bg-white", isSelected ? "border-[#b8d1c9]" : "border-[var(--border)]")}>
       <div
         role="button"
         tabIndex={0}
-        className="flex w-full cursor-pointer items-start justify-between gap-3 bg-white px-3.5 py-3 text-left transition hover:bg-[#fffdfa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25"
+        className="flex min-h-[68px] w-full cursor-pointer items-start justify-between gap-3 bg-white px-4 py-3 text-left transition hover:bg-[#fffdfa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25"
         onClick={onSelect}
         onKeyDown={handleSelectKeyDown}
         aria-pressed={isSelected}
       >
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-[16px] font-medium leading-5 tracking-[-0.02em] text-[var(--text)]">{pet.name}</p>
+          <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[var(--text)] [overflow-wrap:anywhere]">{pet.name}</p>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <p className={cn("text-[16px] font-normal leading-6 [overflow-wrap:anywhere]", pet.breed ? "text-[var(--muted)]" : "text-[#64748b]")}>{pet.breed || "미입력"}</p>
+            {isBirthdayToday ? <span className="text-[14px] font-medium leading-5 text-[var(--accent)]">오늘 생일</span> : null}
           </div>
-          {summary ? <p className="mt-0.5 text-[14px] leading-5 text-[var(--muted)]">{summary}</p> : null}
         </div>
         <div className="shrink-0">
           <button
             type="button"
-            className="text-[14px] font-medium leading-5 text-[var(--accent)]"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[8px] px-2 text-[16px] font-medium leading-6 text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/30 focus-visible:ring-offset-2"
             onClick={(event) => {
               event.stopPropagation();
               setIsEditing((prev) => !prev);
@@ -5971,26 +6015,27 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
       </div>
 
       {isEditing ? (
-        <div className="border-t border-[var(--border)] px-3.5 py-3">
-          <div className="grid grid-cols-2 gap-2">
-            <PetDetailInputField label="아기 이름">
-              <input className="field !h-[40px] !rounded-[10px] !px-3 !py-2 text-[16px] tracking-[-0.02em]" value={name} onChange={(event) => setName(event.target.value)} />
-            </PetDetailInputField>
-            <div className="rounded-[10px] border border-[#e2e7ed] bg-[#f8fafc] px-3 py-2">
-              <p className="text-[12px] font-semibold text-[#475569]">고객 입력 품종</p>
-              <p className="mt-1 truncate text-[16px] font-medium text-[#1e293b]">{pet.breed || "미입력"}</p>
+        <div data-testid="guardian-pet-editor" className="border-t border-[var(--border)] px-4 py-4">
+          <div className="space-y-3">
+            <label className="block min-w-0">
+              <span className="mb-1.5 block text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">아기 이름</span>
+              <input className="field !h-auto min-h-11 !rounded-[10px] !px-3 !py-2 text-[16px] font-normal leading-6 tracking-[-0.005em]" value={name} onChange={(event) => setName(event.target.value)} />
+            </label>
+            <div className="border-t border-[#e8edf3] pt-3">
+              <p className="text-[14px] font-medium leading-5 text-[#64748b]">고객 입력 품종</p>
+              <p className={cn("mt-1 text-[16px] font-normal leading-6 [overflow-wrap:anywhere]", pet.breed ? "text-[#1e293b]" : "text-[#64748b]")}>{pet.breed || "미입력"}</p>
             </div>
-            <div className="col-span-2 rounded-[10px] border border-[#e2e7ed] bg-[#f8fafc] px-3 py-2">
-              <p className="text-[12px] font-semibold text-[#475569]">고객 요청사항</p>
-              <p className="mt-1 whitespace-pre-wrap text-[14px] leading-5 text-[#334155]">{pet.notes || "미입력"}</p>
+            <div className="border-t border-[#e8edf3] pt-3">
+              <p className="text-[14px] font-medium leading-5 text-[#64748b]">고객 요청사항</p>
+              <p className={cn("mt-1 whitespace-pre-wrap text-[16px] font-normal leading-6 [overflow-wrap:anywhere]", pet.notes ? "text-[#334155]" : "text-[#64748b]")}>{pet.notes || "미입력"}</p>
             </div>
             <PetStoreVerificationPanel pet={pet} />
           </div>
-          <div className="mt-2 flex items-center justify-end gap-3">
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-[#e8edf3] pt-3">
             <button
               type="button"
               disabled={saving}
-              className="text-[14px] font-medium text-[var(--muted)] disabled:opacity-45"
+              className="inline-flex min-h-11 items-center justify-center rounded-[8px] px-3 text-[16px] font-medium leading-6 text-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/30 focus-visible:ring-offset-2 disabled:opacity-45"
               onClick={() => {
                 setName(pet.name);
                 setIsEditing(false);
@@ -6005,7 +6050,7 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
                 setIsEditing(false);
               }}
               disabled={saving || !name.trim()}
-              className="text-[14px] font-medium text-[var(--accent)] disabled:opacity-45"
+              className="inline-flex min-h-11 items-center justify-center rounded-[8px] px-3 text-[16px] font-medium leading-6 text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/30 focus-visible:ring-offset-2 disabled:opacity-45"
             >
               정보 저장
             </button>

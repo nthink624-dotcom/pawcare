@@ -1,7 +1,7 @@
 export type OwnerCareReportLocalDraft = {
   sourceText: string;
   revisionText: string;
-  report: Record<string, unknown> | null;
+  reportText: string | null;
   photoConsent: boolean;
   weight: string;
   nextDate: string | null;
@@ -33,21 +33,31 @@ export function readOwnerCareReportLocalDraft(shopId: string, appointmentId: str
   try {
     const parsed: unknown = JSON.parse(storage.getItem(storageKey(shopId, appointmentId)) ?? "null");
     if (!parsed || typeof parsed !== "object") return null;
-    const draft = parsed as Partial<OwnerCareReportLocalDraft>;
+    const draft = parsed as Partial<OwnerCareReportLocalDraft> & { report?: Record<string, unknown> | null };
     if (
       typeof draft.sourceText !== "string" ||
       typeof draft.revisionText !== "string" ||
       typeof draft.photoConsent !== "boolean" ||
       typeof draft.weight !== "string" ||
       !isStringOrNull(draft.nextDate) ||
-      (draft.report !== null && (typeof draft.report !== "object" || Array.isArray(draft.report))) ||
+      (draft.reportText !== undefined && !isStringOrNull(draft.reportText)) ||
       !draft.selectedIds ||
       typeof draft.selectedIds !== "object"
     ) return null;
+    const legacyReport = draft.report && typeof draft.report === "object" ? draft.report : null;
+    const legacyParts = legacyReport ? [
+      legacyReport.oneLineSummary,
+      legacyReport.treatmentSummary,
+      legacyReport.conditionSummary,
+      legacyReport.groomingResponse,
+      ...(Array.isArray(legacyReport.homeCareTips) ? legacyReport.homeCareTips : []),
+      legacyReport.nextVisitGuide,
+    ].filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [];
+    const legacyText = legacyParts.filter((part, index) => legacyParts.indexOf(part) === index).join(" ");
     return {
       sourceText: draft.sourceText.slice(0, 4000),
       revisionText: draft.revisionText.slice(0, 1000),
-      report: draft.report as Record<string, unknown> | null,
+      reportText: ((draft.reportText ?? legacyText) || null)?.slice(0, 4000) ?? null,
       photoConsent: draft.photoConsent,
       weight: draft.weight.slice(0, 24),
       nextDate: draft.nextDate,

@@ -1,29 +1,27 @@
 "use client";
 
-import { ArrowUp, Camera, Check, ImagePlus, Mic, Pause, Send, X } from "lucide-react";
+import { ArrowUp, Camera, Check, ImagePlus, LoaderCircle, Mic, Pause, Send, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerCareReportLocalDraft, readOwnerCareReportLocalDraft, writeOwnerCareReportLocalDraft } from "@/lib/care-report/owner-care-report-local-draft";
 import { startOwnerCareReportSpeechInput, type OwnerSpeechInputErrorCode, type OwnerSpeechInputController } from "@/lib/care-report/owner-speech-input";
-import { createOwnerMediaAssetFromFile, type MediaAssetListItem } from "@/lib/media/owner-media-client";
+import { createOwnerMediaAssetFromFile, getOwnerMediaSignedUrl, type MediaAssetListItem } from "@/lib/media/owner-media-client";
+import { DEFAULT_REVISIT_REMINDER_DAYS } from "@/lib/notification-settings";
 import { fetchOwnerAppointmentVisitWeight } from "@/lib/owner-appointment-visit-weight";
+import { addDate, currentDateInTimeZone } from "@/lib/utils";
 import type { Appointment, MediaKind, Pet, Service } from "@/types/domain";
 
 export type CareReport = {
-  oneLineSummary: string;
-  treatmentSummary: string;
-  conditionSummary: string;
-  groomingResponse: string;
-  homeCareTips: string[];
-  nextVisitGuide: string;
+  reportText: string;
 };
 
 type DraftResponse = {
   draft: {
     afterMediaAssetId?: string | null;
     nextRecommendedVisitDate?: string | null;
-    careReportAiDraft?: CareReport | null;
+    reportText?: string | null;
+    careReportAiDraft?: unknown;
     careReportPhotoConsent?: boolean;
   } | null;
 };
@@ -34,14 +32,112 @@ export type OwnerCareReportDevelopmentFixture = {
   visitWeightKg?: number | null;
 };
 
-function createObservations(source: string, nextDate: string | null) {
+export type OwnerCareReportInitialData = {
+  items: MediaAssetListItem[];
+  selectedIds: Partial<Record<"grooming_before" | "grooming_after", string>>;
+  signedUrl: string;
+  nextDate: string | null;
+  sourceText: string;
+  revisionText: string;
+  report: CareReport | null;
+  visitWeightKg: number | null;
+  recoveredDraft: ReturnType<typeof readOwnerCareReportLocalDraft>;
+};
+
+export function normalizeCareReport(value: unknown): CareReport | null {
+  if (typeof value === "string") return value.trim() ? { reportText: value.trim() } : null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.reportText === "string" && row.reportText.trim()) return { reportText: row.reportText.trim().slice(0, 4000) };
+  const legacyParts = [
+    row.oneLineSummary,
+    row.treatmentSummary,
+    row.conditionSummary,
+    row.groomingResponse,
+    ...(Array.isArray(row.homeCareTips) ? row.homeCareTips : []),
+    row.nextVisitGuide,
+  ].filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim());
+  const reportText = legacyParts.filter((part, index) => legacyParts.indexOf(part) === index).join(" ").slice(0, 4000);
+  return reportText ? { reportText } : null;
+}
+
+function resizeTextarea(element: HTMLTextAreaElement | null, minHeight: number, maxHeight: number) {
+  if (!element) return;
+  element.style.height = "auto";
+  const nextHeight = Math.min(Math.max(element.scrollHeight, minHeight), maxHeight);
+  element.style.height = `${nextHeight}px`;
+  element.style.overflowY = element.scrollHeight > maxHeight ? "auto" : "hidden";
+}
+
+function clampReminderDays(value: number) {
+  return Math.min(Math.max(Math.round(Number.isFinite(value) ? value : DEFAULT_REVISIT_REMINDER_DAYS), 1), 365);
+}
+
+function reminderDaysBetween(today: string, target: string) {
+  const difference = (new Date(`${target}T00:00:00`).getTime() - new Date(`${today}T00:00:00`).getTime()) / 86400000;
+  return clampReminderDays(difference);
+}
+
+export async function prepareOwnerCareReportInitialData({
+  shopId,
+  appointmentId,
+  publishedCareReport,
+  developmentFixture,
+}: {
+  shopId: string;
+  appointmentId: string;
+  publishedCareReport: CareReport | null;
+  developmentFixture?: OwnerCareReportDevelopmentFixture;
+}): Promise<OwnerCareReportInitialData> {
+  const recoveredDraft = publishedCareReport ? null : readOwnerCareReportLocalDraft(shopId, appointmentId);
+  if (developmentFixture) {
+    const draft = developmentFixture.draft ?? null;
+    const items = developmentFixture.items ?? [];
+    const firstBefore = items.find((item) => item.mediaAsset.media_kind === "grooming_before")?.mediaAsset.id;
+    const firstAfter = draft?.afterMediaAssetId ?? items.find((item) => item.mediaAsset.media_kind === "grooming_after")?.mediaAsset.id;
+    return {
+      items,
+      selectedIds: recoveredDraft?.selectedIds ?? { grooming_before: firstBefore, grooming_after: firstAfter },
+      signedUrl: "",
+      nextDate: recoveredDraft?.nextDate ?? draft?.nextRecommendedVisitDate ?? null,
+      sourceText: recoveredDraft?.sourceText ?? "",
+      revisionText: recoveredDraft?.revisionText ?? "",
+      report: normalizeCareReport(recoveredDraft?.reportText ?? draft?.reportText ?? draft?.careReportAiDraft ?? publishedCareReport),
+      visitWeightKg: developmentFixture.visitWeightKg ?? null,
+      recoveredDraft,
+    };
+  }
+
+  const mediaQuery = new URLSearchParams({ shopId, appointmentId, includeVariants: "true", limit: "40" });
+  const draftQuery = new URLSearchParams({ shopId, appointmentId });
+  const [media, draft, visitWeight] = await Promise.all([
+    fetchApiJsonWithAuth<{ items: MediaAssetListItem[] }>(`/api/owner/media/assets?${mediaQuery.toString()}`, { cache: "no-store" }),
+    fetchApiJsonWithAuth<DraftResponse>(`/api/owner/grooming-record-drafts?${draftQuery.toString()}`, { cache: "no-store" }),
+    fetchOwnerAppointmentVisitWeight(shopId, appointmentId),
+  ]);
+  const items = media.items.filter((item) => item.mediaAsset.media_kind === "grooming_before" || item.mediaAsset.media_kind === "grooming_after");
+  const firstBefore = items.find((item) => item.mediaAsset.media_kind === "grooming_before")?.mediaAsset.id;
+  const firstAfter = draft.draft?.afterMediaAssetId ?? items.find((item) => item.mediaAsset.media_kind === "grooming_after")?.mediaAsset.id;
+  const selectedIds = recoveredDraft?.selectedIds ?? { grooming_before: firstBefore, grooming_after: firstAfter };
+  const selectedItem = items.find((item) => item.mediaAsset.id === selectedIds.grooming_after) ?? null;
+  let signedUrl = "";
+  if (selectedItem) {
+    try {
+      signedUrl = await getOwnerMediaSignedUrl(shopId, selectedItem.mediaAsset.id, "provider_ready");
+    } catch {
+      signedUrl = "";
+    }
+  }
   return {
-    coat: [],
-    skin: [],
-    ears: [],
-    pawsAndNails: [],
-    groomingResponse: [],
-    customNote: [source.trim(), nextDate ? `다음 권장 방문일: ${nextDate}` : ""].filter(Boolean).join("\n").slice(0, 1000),
+    items,
+    selectedIds,
+    signedUrl,
+    nextDate: recoveredDraft?.nextDate ?? draft.draft?.nextRecommendedVisitDate ?? null,
+    sourceText: recoveredDraft?.sourceText ?? "",
+    revisionText: recoveredDraft?.revisionText ?? "",
+    report: normalizeCareReport(recoveredDraft?.reportText ?? draft.draft?.reportText ?? draft.draft?.careReportAiDraft ?? publishedCareReport),
+    visitWeightKg: visitWeight.current?.weightKg ?? null,
+    recoveredDraft,
   };
 }
 
@@ -53,6 +149,8 @@ export default function OwnerAiCareReportSheet({
   staffName,
   publishedCareReport = null,
   developmentFixture,
+  initialData,
+  revisitReminderDefaultDays = DEFAULT_REVISIT_REMINDER_DAYS,
   onClose,
   onReturnToDetail,
   onPublished,
@@ -65,36 +163,52 @@ export default function OwnerAiCareReportSheet({
   publishedCareReport?: CareReport | null;
   /** Development-only no-network seam used by the real sheet preview. */
   developmentFixture?: OwnerCareReportDevelopmentFixture;
+  initialData?: OwnerCareReportInitialData;
+  revisitReminderDefaultDays?: number;
   onClose: () => void;
   onReturnToDetail: () => void;
   onPublished: () => void;
 }) {
   const cameraInputId = useId();
   const albumInputId = useId();
+  const exitDialogTitleId = useId();
   const voiceControllerRef = useRef<OwnerSpeechInputController | null>(null);
   const voiceSessionRef = useRef(0);
   const lastVoiceTranscriptRef = useRef("");
   const generationInFlightRef = useRef(false);
+  const reportTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const exitDialogRef = useRef<HTMLElement | null>(null);
+  const exitPrimaryActionRef = useRef<HTMLButtonElement | null>(null);
+  const exitReturnFocusRef = useRef<HTMLElement | null>(null);
+  const exitHistoryActiveRef = useRef(false);
+  const exitAfterHistoryRef = useRef<"dismiss" | "close" | null>(null);
+  const reminderHistoryActiveRef = useRef(false);
+  const initialRecoveredDraftRef = useRef(initialData?.recoveredDraft ?? null);
   const activeKind: Extract<MediaKind, "grooming_before" | "grooming_after"> = "grooming_after";
-  const [items, setItems] = useState<MediaAssetListItem[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Partial<Record<"grooming_before" | "grooming_after", string>>>({});
-  const [signedUrl, setSignedUrl] = useState("");
+  const [items, setItems] = useState<MediaAssetListItem[]>(initialData?.items ?? []);
+  const [selectedIds, setSelectedIds] = useState<Partial<Record<"grooming_before" | "grooming_after", string>>>(initialData?.selectedIds ?? {});
+  const [signedUrl, setSignedUrl] = useState(initialData?.signedUrl ?? "");
   // Care-report photos are included when a suitable grooming-after asset exists.
   // Missing photos never block drafting, generation, saving, or publishing.
   const photoConsent = true;
-  const [visitWeightKg, setVisitWeightKg] = useState<number | null>(null);
-  const [nextDate, setNextDate] = useState<string | null>(null);
-  const [sourceText, setSourceText] = useState("");
-  const [revisionText, setRevisionText] = useState("");
-  const [report, setReport] = useState<CareReport | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [visitWeightKg, setVisitWeightKg] = useState<number | null>(initialData?.visitWeightKg ?? null);
+  const [nextDate, setNextDate] = useState<string | null>(initialData?.nextDate ?? null);
+  const [sourceText, setSourceText] = useState(initialData?.sourceText ?? "");
+  const [revisionText, setRevisionText] = useState(initialData?.revisionText ?? "");
+  const [report, setReport] = useState<CareReport | null>(initialData?.report ?? null);
+  const [loading, setLoading] = useState(!initialData);
+  const [initialLoadError, setInitialLoadError] = useState("");
   const [action, setAction] = useState<"upload" | "generate" | "save" | "publish" | null>(null);
   const [recording, setRecording] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState("");
   const [error, setError] = useState("");
-  const [hasEdited, setHasEdited] = useState(false);
+  const [hasEdited, setHasEdited] = useState(Boolean(initialData?.recoveredDraft));
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+  const [showReminderSheet, setShowReminderSheet] = useState(false);
+  const [pendingReminderMode, setPendingReminderMode] = useState<"default" | "custom">("default");
+  const [pendingReminderDays, setPendingReminderDays] = useState(DEFAULT_REVISIT_REMINDER_DAYS);
 
   const selectedService = useMemo(() => services.find((service) => service.id === appointment.service_id), [appointment.service_id, services]);
   const isPublished = Boolean(publishedCareReport);
@@ -103,61 +217,126 @@ export default function OwnerAiCareReportSheet({
   const kindItems = items.filter((item) => item.mediaAsset.media_kind === activeKind && item.mediaAsset.status === "ready");
   const composerText = report ? revisionText : sourceText;
   const hasComposerInput = Boolean(composerText.trim());
+  const defaultReminderDays = clampReminderDays(revisitReminderDefaultDays);
+  const today = currentDateInTimeZone();
+  const defaultReminderDate = addDate(today, defaultReminderDays);
+  const resolvedReminderDate = nextDate ?? defaultReminderDate;
+  const reminderOptions = useMemo(() => [defaultReminderDays, 30, 45, 60, 90].filter((days, index, values) => values.indexOf(days) === index), [defaultReminderDays]);
+
+  useEffect(() => {
+    const syncHeight = () => resizeTextarea(reportTextareaRef.current, 128, 288);
+    syncHeight();
+    window.addEventListener("resize", syncHeight);
+    return () => window.removeEventListener("resize", syncHeight);
+  }, [report?.reportText]);
+
+  useEffect(() => {
+    const syncHeight = () => resizeTextarea(composerTextareaRef.current, 84, 144);
+    syncHeight();
+    window.addEventListener("resize", syncHeight);
+    return () => window.removeEventListener("resize", syncHeight);
+  }, [composerText]);
+
+  useEffect(() => {
+    if (!showExitConfirm) return;
+
+    const restoreFocus = () => requestAnimationFrame(() => exitReturnFocusRef.current?.focus());
+    const handlePopState = () => {
+      exitHistoryActiveRef.current = false;
+      setShowExitConfirm(false);
+      const nextAction = exitAfterHistoryRef.current;
+      exitAfterHistoryRef.current = null;
+      if (nextAction === "close") onClose();
+      else restoreFocus();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        dismissExitConfirm();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(exitDialogRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])") ?? []);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    if (!exitHistoryActiveRef.current) {
+      window.history.pushState({ ...window.history.state, petManagerExitConfirm: true }, "");
+      exitHistoryActiveRef.current = true;
+    }
+    window.addEventListener("popstate", handlePopState);
+    document.addEventListener("keydown", handleKeyDown);
+    exitPrimaryActionRef.current?.focus();
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showExitConfirm, onClose]);
+
+  useEffect(() => {
+    if (!showReminderSheet) return;
+    const handlePopState = () => {
+      reminderHistoryActiveRef.current = false;
+      setShowReminderSheet(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      if (reminderHistoryActiveRef.current) window.history.back();
+      else setShowReminderSheet(false);
+    };
+    if (!reminderHistoryActiveRef.current) {
+      window.history.pushState({ ...window.history.state, petManagerReminderSheet: true }, "");
+      reminderHistoryActiveRef.current = true;
+    }
+    window.addEventListener("popstate", handlePopState);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showReminderSheet]);
 
   async function load() {
     setLoading(true);
-    setError("");
-    const recoveredDraft = isPublished ? null : readOwnerCareReportLocalDraft(shopId, appointment.id);
+    setInitialLoadError("");
     try {
-      if (developmentFixture) {
-        const draft = developmentFixture.draft ?? null;
-        const items = developmentFixture.items ?? [];
-        setItems(items);
-        const firstBefore = items.find((item) => item.mediaAsset.media_kind === "grooming_before")?.mediaAsset.id;
-        const firstAfter = draft?.afterMediaAssetId ?? items.find((item) => item.mediaAsset.media_kind === "grooming_after")?.mediaAsset.id;
-        setSelectedIds(recoveredDraft?.selectedIds ?? { grooming_before: firstBefore, grooming_after: firstAfter });
-        setNextDate(recoveredDraft?.nextDate ?? draft?.nextRecommendedVisitDate ?? null);
-        setSourceText(recoveredDraft?.sourceText ?? "");
-        setRevisionText(recoveredDraft?.revisionText ?? "");
-        setReport((recoveredDraft?.report as CareReport | null | undefined) ?? draft?.careReportAiDraft ?? publishedCareReport ?? null);
-        setVisitWeightKg(developmentFixture.visitWeightKg ?? null);
-        setHasEdited(Boolean(recoveredDraft));
-        return;
-      }
-      const query = new URLSearchParams({ shopId, appointmentId: appointment.id, includeVariants: "true", limit: "40" });
-      const [media, draft, visitWeight] = await Promise.all([
-        fetchApiJsonWithAuth<{ items: MediaAssetListItem[] }>(`/api/owner/media/assets?${query.toString()}`, { cache: "no-store" }),
-        fetchApiJsonWithAuth<DraftResponse>(`/api/owner/grooming-record-drafts?${new URLSearchParams({ shopId, appointmentId: appointment.id }).toString()}`, { cache: "no-store" }),
-        fetchOwnerAppointmentVisitWeight(shopId, appointment.id),
-      ]);
-      const available = media.items.filter((item) => item.mediaAsset.media_kind === "grooming_before" || item.mediaAsset.media_kind === "grooming_after");
-      setItems(available);
-      const firstBefore = available.find((item) => item.mediaAsset.media_kind === "grooming_before")?.mediaAsset.id;
-      const firstAfter = draft.draft?.afterMediaAssetId ?? available.find((item) => item.mediaAsset.media_kind === "grooming_after")?.mediaAsset.id;
-      setSelectedIds(recoveredDraft?.selectedIds ?? { grooming_before: firstBefore, grooming_after: firstAfter });
-      setNextDate(recoveredDraft?.nextDate ?? draft.draft?.nextRecommendedVisitDate ?? null);
-      setSourceText(recoveredDraft?.sourceText ?? "");
-      setRevisionText(recoveredDraft?.revisionText ?? "");
-      setReport((recoveredDraft?.report as CareReport | null | undefined) ?? draft.draft?.careReportAiDraft ?? publishedCareReport ?? null);
-      setVisitWeightKg(visitWeight.current?.weightKg ?? null);
-      setHasEdited(Boolean(recoveredDraft));
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "케어리포트를 불러오지 못했습니다.");
-      if (recoveredDraft) {
-        setSelectedIds(recoveredDraft.selectedIds);
-        setNextDate(recoveredDraft.nextDate);
-        setSourceText(recoveredDraft.sourceText);
-        setRevisionText(recoveredDraft.revisionText);
-        setReport(recoveredDraft.report as CareReport | null);
-        setVisitWeightKg(null);
-        setHasEdited(true);
-      }
+      const prepared = await prepareOwnerCareReportInitialData({
+        shopId,
+        appointmentId: appointment.id,
+        publishedCareReport,
+        developmentFixture,
+      });
+      initialRecoveredDraftRef.current = prepared.recoveredDraft;
+      setItems(prepared.items);
+      setSelectedIds(prepared.selectedIds);
+      setSignedUrl(prepared.signedUrl);
+      setNextDate(prepared.nextDate);
+      setSourceText(prepared.sourceText);
+      setRevisionText(prepared.revisionText);
+      setReport(prepared.report);
+      setVisitWeightKg(prepared.visitWeightKg);
+      setHasEdited(Boolean(prepared.recoveredDraft));
+    } catch {
+      setInitialLoadError("케어리포트를 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { void load(); }, [appointment.id, developmentFixture, publishedCareReport, shopId]);
+  useEffect(() => {
+    if (initialData) return;
+    void load();
+  }, [appointment.id, developmentFixture, initialData, publishedCareReport, shopId]);
 
   useEffect(() => {
     if (isPublished) {
@@ -168,7 +347,7 @@ export default function OwnerAiCareReportSheet({
     writeOwnerCareReportLocalDraft(shopId, appointment.id, {
       sourceText,
       revisionText,
-      report: report as Record<string, unknown> | null,
+      reportText: report?.reportText ?? null,
       photoConsent,
       weight: visitWeightKg === null ? "" : String(visitWeightKg),
       nextDate,
@@ -186,9 +365,12 @@ export default function OwnerAiCareReportSheet({
     let active = true;
     if (developmentFixture) { setSignedUrl(""); return; }
     if (!selectedItem) { setSignedUrl(""); return; }
-    const query = new URLSearchParams({ shopId, mediaAssetId: selectedItem.mediaAsset.id, variant: "provider_ready" });
-    void fetchApiJsonWithAuth<{ signedUrl: string }>(`/api/owner/media/signed-url?${query.toString()}`)
-      .then((result) => { if (active) setSignedUrl(result.signedUrl); })
+    if (initialData?.selectedIds.grooming_after === selectedItem.mediaAsset.id && initialData.signedUrl) {
+      setSignedUrl(initialData.signedUrl);
+      return;
+    }
+    void getOwnerMediaSignedUrl(shopId, selectedItem.mediaAsset.id, "provider_ready")
+      .then((result) => { if (active) setSignedUrl(result); })
       .catch(() => { if (active) setSignedUrl(""); });
     return () => { active = false; };
   }, [developmentFixture, selectedItem, shopId]);
@@ -218,10 +400,10 @@ export default function OwnerAiCareReportSheet({
     try {
       await fetchApiJsonWithAuth("/api/owner/grooming-record-drafts", {
         method: "PUT",
-        body: JSON.stringify({ shopId, appointmentId: appointment.id, treatmentNotes: "", specialNotes: "", internalNotes: "", nextRecommendedVisitDate: nextDate, afterMediaAssetId: selectedIds.grooming_after ?? null, careReportPhotoConsent: photoConsent }),
+        body: JSON.stringify({ shopId, appointmentId: appointment.id, treatmentNotes: "", specialNotes: "", internalNotes: "", nextRecommendedVisitDate: resolvedReminderDate, afterMediaAssetId: selectedIds.grooming_after ?? null, careReportPhotoConsent: photoConsent }),
       });
       if (report) {
-        await fetchApiJsonWithAuth("/api/owner/care-reports", { method: "PATCH", body: JSON.stringify({ shopId, appointmentId: appointment.id, careReport: report, photoConsent, action: "save_draft" }) });
+        await fetchApiJsonWithAuth("/api/owner/care-reports", { method: "PATCH", body: JSON.stringify({ shopId, appointmentId: appointment.id, reportText: report.reportText, photoConsent, action: "save_draft" }) });
       }
       return true;
     } catch (saveError) {
@@ -251,11 +433,13 @@ export default function OwnerAiCareReportSheet({
     setAction("generate");
     setError("");
     try {
-      const result = await fetchApiJsonWithAuth<{ careReport: CareReport }>("/api/owner/care-reports", {
+      const result = await fetchApiJsonWithAuth<{ reportText: string }>("/api/owner/care-reports", {
         method: "POST",
-        body: JSON.stringify({ shopId, appointmentId: appointment.id, observations: createObservations(input, nextDate), voiceTranscript: input, currentDraft: report ?? undefined, photoConsent, currentWeightKg: visitWeightKg ?? undefined }),
+        body: JSON.stringify(report
+          ? { shopId, appointmentId: appointment.id, sourceText: "", currentReportText: report.reportText, revisionRequest: revisionText, photoConsent }
+          : { shopId, appointmentId: appointment.id, sourceText: input, photoConsent }),
       });
-      setReport(result.careReport);
+      setReport({ reportText: result.reportText });
       setRevisionText("");
       setHasEdited(true);
     } catch (generationError) {
@@ -276,7 +460,7 @@ export default function OwnerAiCareReportSheet({
     setError("");
     try {
       if (!(await persistDraft())) return;
-      await fetchApiJsonWithAuth("/api/owner/care-reports", { method: "PATCH", body: JSON.stringify({ shopId, appointmentId: appointment.id, careReport: report, photoConsent, action: "publish" }) });
+      await fetchApiJsonWithAuth("/api/owner/care-reports", { method: "PATCH", body: JSON.stringify({ shopId, appointmentId: appointment.id, reportText: report.reportText, photoConsent, action: "publish" }) });
       setHasEdited(false);
       clearOwnerCareReportLocalDraft(shopId, appointment.id);
       onPublished();
@@ -292,7 +476,7 @@ export default function OwnerAiCareReportSheet({
         writeOwnerCareReportLocalDraft(shopId, appointment.id, {
           sourceText,
           revisionText,
-          report: report as Record<string, unknown> | null,
+          reportText: report?.reportText ?? null,
           photoConsent,
           weight: visitWeightKg === null ? "" : String(visitWeightKg),
           nextDate,
@@ -303,15 +487,33 @@ export default function OwnerAiCareReportSheet({
       return;
     }
     if (hasEdited) {
+      exitReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setShowExitConfirm(true);
       return;
     }
     onClose();
   }
 
+  function finishExitConfirm(nextAction: "dismiss" | "close") {
+    if (exitHistoryActiveRef.current) {
+      exitAfterHistoryRef.current = nextAction;
+      window.history.back();
+      return;
+    }
+    setShowExitConfirm(false);
+    if (nextAction === "close") onClose();
+    else requestAnimationFrame(() => exitReturnFocusRef.current?.focus());
+  }
+
+  function dismissExitConfirm() {
+    finishExitConfirm("dismiss");
+  }
+
   function discardAndClose() {
-    clearOwnerCareReportLocalDraft(shopId, appointment.id);
-    onClose();
+    const recoveredDraft = initialRecoveredDraftRef.current;
+    if (recoveredDraft) writeOwnerCareReportLocalDraft(shopId, appointment.id, recoveredDraft);
+    else clearOwnerCareReportLocalDraft(shopId, appointment.id);
+    finishExitConfirm("close");
   }
 
   async function saveAndExit() {
@@ -320,11 +522,30 @@ export default function OwnerAiCareReportSheet({
     try {
       if (await persistDraft()) {
         setHasEdited(false);
-        onClose();
+        finishExitConfirm("close");
       }
     } finally {
       setAction(null);
     }
+  }
+
+  function openReminderSettings() {
+    setPendingReminderMode(nextDate ? "custom" : "default");
+    setPendingReminderDays(nextDate ? reminderDaysBetween(today, nextDate) : defaultReminderDays);
+    setShowReminderSheet(true);
+  }
+
+  function dismissReminderSettings() {
+    if (reminderHistoryActiveRef.current) window.history.back();
+    else {
+      setShowReminderSheet(false);
+    }
+  }
+
+  function applyReminderSettings() {
+    setNextDate(pendingReminderMode === "custom" ? addDate(today, pendingReminderDays) : null);
+    setHasEdited(true);
+    dismissReminderSettings();
   }
 
   function getVoiceMessage(code: OwnerSpeechInputErrorCode) {
@@ -376,27 +597,45 @@ export default function OwnerAiCareReportSheet({
     }
   }
 
-  const inputClass = "h-11 w-full rounded-[12px] border border-[#d7e4f2] bg-white px-3 text-[16px] text-[#20344c] outline-none focus:border-[#76a8df]";
-  const updateReport = (key: keyof CareReport, value: string) => {
-    if (!report) return;
-    setReport({ ...report, [key]: key === "homeCareTips" ? value.split("\n").map((item) => item.trim()).filter(Boolean).slice(0, 4) : value });
-    setHasEdited(true);
-  };
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0b1b2c]/35 px-5">
+        <section data-testid="care-report-loading-plane" aria-busy="true" aria-label="케어리포트 준비 중" className="flex min-h-24 w-full max-w-[360px] items-center justify-center rounded-[18px] border border-[#dce7f2] bg-white">
+          <LoaderCircle className="h-5 w-5 animate-spin text-[#2f6fd6] motion-reduce:animate-none" aria-hidden="true" />
+        </section>
+      </div>
+    );
+  }
+
+  if (initialLoadError) {
+    return (
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0b1b2c]/35 px-5">
+        <section role="alertdialog" aria-modal="true" aria-label="케어리포트 불러오기 실패" className="w-full max-w-[360px] rounded-[18px] border border-[#dce7f2] bg-white p-6">
+          <p className="text-[16px] font-normal leading-6 text-[#101a31]">{initialLoadError}</p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button type="button" onClick={onClose} className="min-h-11 rounded-[10px] border border-[#d7e4f2] bg-white px-3 text-[16px] font-medium leading-6 text-[#526b84]">닫기</button>
+            <button type="button" onClick={() => void load()} className="min-h-11 rounded-[10px] bg-[#2f6fd6] px-3 text-[16px] font-medium leading-6 text-white">다시 시도</button>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[80] flex justify-center bg-[#0b1b2c]/35" role="dialog" aria-modal="true" aria-label="AI 케어리포트 작성">
-      <section className="flex min-h-0 w-full max-w-[430px] flex-col bg-white">
-        <header className="flex shrink-0 items-start justify-between border-b border-[#dce7f2] bg-white px-4 pb-3 pt-[calc(env(safe-area-inset-top)+12px)]">
+      <section className="flex min-h-0 w-full max-w-[430px] flex-col overflow-hidden bg-white">
+        <header className="flex shrink-0 items-start justify-between border-b border-[#dce7f2] bg-white px-5 pb-3 pt-[calc(env(safe-area-inset-top)+12px)]">
           <div className="min-w-0"><h1 className="text-[20px] font-semibold tracking-[-0.04em] text-[#14213a]">AI 케어리포트 작성</h1><p className="mt-1 truncate text-[14px] text-[#637890]">{pet.name} · {staffName || "담당 디자이너"}</p></div>
           <button type="button" onClick={requestClose} className="ml-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef4fa] text-[#58708a]" aria-label="닫기"><X className="h-5 w-5" /></button>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + env(keyboard-inset-height, 0px) + 80px)" }}>
-          <section className="border-b border-[#dce7f2] py-2" aria-label="미용 사진">
+        <div data-testid="care-report-scroll-region" role="region" aria-label="케어리포트 내용" tabIndex={0} className="min-h-0 max-h-[calc(100dvh-180px)] flex-none overflow-y-auto px-5 pb-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">
+          <div data-testid="care-report-summary" className="border-b border-[#dce7f2]">
+          <section className="border-b border-[#dce7f2] py-3" aria-label="미용 사진">
             <input id={cameraInputId} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
             <input id={albumInputId} type="file" accept="image/*" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
             <div className="flex min-h-11 items-center gap-2">
-              {selectedItem && signedUrl ? <img src={signedUrl} alt="포함할 미용 사진" className="h-11 w-11 rounded-[10px] border border-[#d7e4f2] object-cover" /> : <span className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-dashed border-[#cbd8e5] text-[#71859a]" aria-label="포함할 미용 사진 없음"><ImagePlus className="h-4 w-4" aria-hidden="true" /></span>}
+              {selectedItem && signedUrl ? <img src={signedUrl} alt="포함할 미용 사진" className="h-11 w-11 rounded-[10px] border border-[#d7e4f2] object-cover" /> : <span className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-dashed border-[#cbd8e5] text-[#71859a]"><ImagePlus className="h-4 w-4" aria-hidden="true" /><span className="sr-only">포함할 미용 사진 없음</span></span>}
               <p className="min-w-0 flex-1 truncate text-[14px] text-[#64748b]">{selectedItem ? "미용 사진 포함" : "사진 없음"}</p>
               <label htmlFor={cameraInputId} aria-label="미용 사진 촬영" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d7e4f2] text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]"><Camera className="h-4 w-4" aria-hidden="true" /></label>
               <label htmlFor={albumInputId} aria-label="미용 사진 선택" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d7e4f2] text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]"><ImagePlus className="h-4 w-4" aria-hidden="true" /></label>
@@ -407,18 +646,43 @@ export default function OwnerAiCareReportSheet({
           <section className="flex min-w-0 flex-wrap items-end justify-between gap-3 border-b border-[#dce7f2] py-3" aria-label="예약 정보">
             <div className="min-w-0"><p className="text-[13px] leading-5 text-[#64748b]">예약 서비스</p><p className="truncate text-[16px] font-medium leading-6 text-[#20344c]">{selectedService?.name ?? "서비스 확인 필요"}</p></div>
             <div><p className="text-[13px] leading-5 text-[#64748b]">오늘 몸무게</p><p className="text-[16px] font-medium leading-6 tabular-nums text-[#20344c]">{visitWeightKg === null ? "미입력" : `${visitWeightKg}kg`}</p></div>
-            <button type="button" onClick={onReturnToDetail} className="min-h-11 rounded-[10px] border border-[#d7e4f2] px-3 text-[14px] font-medium leading-5 text-[#4d6d89] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">예약 정보 수정</button>
+            <button type="button" onClick={onReturnToDetail} className="min-h-11 shrink-0 rounded-[10px] border border-[#2f6fd6] bg-white px-3 text-[16px] font-medium leading-6 text-[#2f6fd6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">예약 정보 수정</button>
           </section>
-          <details className="border-b border-[#dce7f2] py-2"><summary className="flex min-h-11 cursor-pointer list-none items-center text-[14px] font-medium leading-5 text-[#526b84]">재예약 알림 설정</summary><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 pb-2"><input aria-label="재예약 알림 날짜" type="date" value={nextDate ?? ""} onChange={(event) => { setNextDate(event.target.value || null); setHasEdited(true); }} className={inputClass} /><button type="button" onClick={() => { setNextDate(null); setHasEdited(true); }} className="min-h-11 rounded-[10px] border border-[#d7e4f2] px-3 text-[14px] font-medium text-[#587a9f]">알림 안 함</button></div></details>
+          <button data-testid="care-report-revisit-row" type="button" onClick={openReminderSettings} aria-haspopup="dialog" className="flex min-h-11 w-full items-center justify-between gap-3 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">
+            <span className="text-[16px] font-medium leading-6 text-[#526b84]">재예약 알림 설정</span>
+            <span className="min-w-0 text-right text-[14px] font-normal leading-5 text-[#64748b]">{nextDate ? `${reminderDaysBetween(today, nextDate)}일 후` : `매장 기본값 · ${defaultReminderDays}일 후`}</span>
+          </button>
+          </div>
 
-          <section className="py-3">{report ? <><div className="flex items-center justify-between"><h2 className="text-[16px] font-semibold text-[#20344c]">AI가 정리한 결과</h2><span className="text-[14px] text-[#587a9f]">{isPublished ? "발송 완료" : "직접 편집 가능"}</span></div>{([['oneLineSummary','디자이너 한마디'],['treatmentSummary','오늘 진행한 미용'],['conditionSummary','오늘 확인한 상태'],['groomingResponse','미용 중 반응'],['homeCareTips','홈케어 안내'],['nextVisitGuide','다음 방문 안내']] as Array<[keyof CareReport,string]>).map(([key,label]) => <label key={key} className="mt-2 block text-[14px] text-[#637890]">{label}<textarea disabled={isPublished} value={key === 'homeCareTips' ? report.homeCareTips.join('\n') : report[key] as string} onChange={(event) => updateReport(key, event.target.value)} className="mt-1 min-h-16 w-full resize-y rounded-[11px] border border-[#d7e4f2] px-3 py-2 text-[16px] leading-6 text-[#263b53] disabled:bg-[#f8fbfe] disabled:opacity-70" /></label>)}</> : null}<div className={report ? "mt-3" : ""}><textarea disabled={isPublished} value={composerText} onChange={(event) => { if (report) setRevisionText(event.target.value.slice(0, 1000)); else setSourceText(event.target.value.slice(0, 4000)); setHasEdited(true); }} aria-label={report ? "수정 요청 입력" : "케어리포트 내용 입력"} placeholder={report ? "수정할 부분을 적어 주세요" : "오늘 미용 내용을 적어 주세요"} className="min-h-24 w-full resize-y rounded-[12px] border border-[#d7e4f2] bg-white px-3 py-3 text-[16px] leading-6 text-[#263b53] outline-none focus:border-[#76a8df] disabled:opacity-50" /><div className="mt-2 flex items-center justify-end gap-2"><button type="button" onClick={() => void toggleVoice()} disabled={isPublished || action !== null} aria-label={recording ? "음성 입력 중지" : "음성 입력 시작"} aria-pressed={recording} className={`flex h-11 w-11 items-center justify-center rounded-full border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50 ${recording ? "border-[#f0b8bf] bg-[#fff7f8] text-[#a04455]" : "border-[#d7e4f2] bg-white text-[#52708c]"}`}>{recording ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />}</button><button type="button" onClick={() => void generate()} disabled={isPublished || action !== null || !hasComposerInput} aria-label="케어리포트 만들기" className="flex h-11 w-11 items-center justify-center rounded-full bg-[#111A30] text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-40"><ArrowUp className="h-5 w-5" aria-hidden="true" /></button></div>{voiceMessage ? <p className="mt-2 text-[13px] leading-5 text-[#64748b]" role="status">{voiceMessage}</p> : null}</div></section>
-          {error ? <p className="mt-2 rounded-[12px] border border-[#f0c4c8] bg-[#fff8f8] px-3 py-2 text-[14px] leading-5 text-[#a04455]">{error}</p> : null}
-          {loading ? <p className="py-3 text-center text-[14px] text-[#71859a]">기존 초안과 사진을 불러오는 중이에요.</p> : null}
-        </main>
-        <footer className={`grid shrink-0 gap-2 border-t border-[#d7e4f2] bg-white px-4 pt-3 ${isPublished ? "grid-cols-1" : "grid-cols-2"}`} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + env(keyboard-inset-height, 0px) + 12px)" }}>{isPublished ? <button type="button" onClick={onClose} className="flex h-12 items-center justify-center rounded-[12px] bg-[#3f7fc6] text-[16px] font-semibold text-white">닫기</button> : <><button type="button" onClick={() => setShowPublishConfirm(true)} disabled={!report || action !== null} className="flex h-12 items-center justify-center gap-1.5 rounded-[12px] bg-[#3f7fc6] text-[16px] font-semibold text-white disabled:opacity-40"><Send className="h-4 w-4" />리포트 보내기</button><button type="button" onClick={() => void saveDraft()} disabled={action !== null} className="flex h-12 items-center justify-center gap-1.5 rounded-[12px] border border-[#cbddec] text-[16px] font-semibold text-[#4d6d89] disabled:opacity-50"><Check className="h-4 w-4" />{action === 'save' ? '저장 중…' : '임시저장'}</button></>}</footer>
+          {report ? <section data-testid="care-report-draft" className="space-y-2 pt-4"><h2 className="text-[16px] font-semibold leading-6 text-[#101a31]">케어리포트 초안</h2><textarea ref={reportTextareaRef} aria-label="케어리포트 초안" disabled={isPublished} value={report.reportText} onChange={(event) => { setReport({ reportText: event.target.value.slice(0, 4000) }); setHasEdited(true); }} maxLength={4000} wrap="soft" className="min-h-[128px] max-h-72 w-full resize-none overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-[14px] border border-[#d7e4f2] bg-white px-3 py-3 text-[16px] font-normal leading-6 text-[#263b53] [overflow-wrap:anywhere] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#f8fbfe] disabled:opacity-70" /></section> : null}
+          {!isPublished ? <section data-testid="care-report-composer" className="space-y-2 pt-4">
+            <h2 className="text-[16px] font-semibold leading-6 text-[#101a31]">{report ? "수정 요청" : "케어리포트 내용"}</h2>
+            <div className="overflow-hidden rounded-[14px] border border-[#d7e4f2] bg-white focus-within:border-[#76a8df]">
+              <textarea ref={composerTextareaRef} disabled={isPublished} value={composerText} onChange={(event) => { if (report) setRevisionText(event.target.value.slice(0, 1000)); else setSourceText(event.target.value.slice(0, 4000)); setHasEdited(true); }} aria-label={report ? "수정 요청 입력" : "케어리포트 내용 입력"} placeholder={report ? "수정할 부분을 적어 주세요" : "오늘 미용 내용을 적어 주세요"} wrap="soft" className="min-h-[84px] max-h-36 w-full resize-none overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-transparent px-3 pt-3 text-[16px] font-normal leading-6 text-[#263b53] [overflow-wrap:anywhere] outline-none disabled:opacity-50" />
+              <div className="flex min-h-12 items-center justify-end gap-0 border-t border-[#edf2f7] px-1.5 py-0.5">
+                <button type="button" onClick={() => void toggleVoice()} disabled={isPublished || action !== null} aria-label={recording ? "음성 입력 중지" : "음성 입력 시작"} aria-pressed={recording} className="flex h-11 w-11 items-center justify-center rounded-full bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"><span className={`flex h-[30px] w-[30px] items-center justify-center rounded-full border ${recording ? "border-[#f0b8bf] bg-[#fff7f8] text-[#a04455]" : "border-[#d7e4f2] bg-white text-[#52708c]"}`}>{recording ? <Pause className="h-3.5 w-3.5" aria-hidden="true" /> : <Mic className="h-3.5 w-3.5" aria-hidden="true" />}</span></button>
+                <button type="button" onClick={() => void generate()} disabled={isPublished || action !== null || !hasComposerInput} aria-label="케어리포트 만들기" className="flex h-11 w-11 items-center justify-center rounded-full bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-40"><span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#111A30] text-white"><ArrowUp className="h-4 w-4" aria-hidden="true" /></span></button>
+              </div>
+            </div>
+            {voiceMessage ? <p className="text-[13px] leading-5 text-[#64748b]" role="status">{voiceMessage}</p> : null}
+          </section> : null}
+          {error ? <p className="mt-3 rounded-[10px] border border-[#f0c4c8] bg-[#fff8f8] px-3 py-2 text-[14px] leading-5 text-[#a04455]">{error}</p> : null}
+        </div>
+        <footer className={`grid shrink-0 gap-2 border-t border-[#d7e4f2] bg-white px-5 pt-3 ${isPublished ? "grid-cols-1" : "grid-cols-2"}`} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + env(keyboard-inset-height, 0px) + 12px)" }}>{isPublished ? <button type="button" onClick={onClose} className="flex min-h-12 items-center justify-center rounded-[14px] bg-[#2f6fd6] px-2 text-[16px] font-semibold leading-6 text-white">닫기</button> : <><button type="button" onClick={() => setShowPublishConfirm(true)} disabled={!report || action !== null} className="flex min-h-12 items-center justify-center gap-1.5 rounded-[14px] bg-[#2f6fd6] px-2 text-[16px] font-semibold leading-6 text-white disabled:opacity-40"><Send className="h-4 w-4 shrink-0" />리포트 보내기</button><button type="button" onClick={() => void saveDraft()} disabled={action !== null} className="flex min-h-12 items-center justify-center gap-1.5 rounded-[14px] border border-[#cbddec] px-2 text-[16px] font-semibold leading-6 text-[#4d6d89] disabled:opacity-50"><Check className="h-4 w-4 shrink-0" />{action === 'save' ? '저장 중…' : '임시저장'}</button></>}</footer>
       </section>
-      {showPublishConfirm ? <div className="fixed inset-0 z-[81] flex items-center justify-center bg-[#0b1b2c]/40 px-5"><section className="w-full max-w-[360px] rounded-[18px] border border-[#d4e3f2] bg-white p-5"><h2 className="text-[20px] font-semibold text-[#1b3048]">작성한 케어리포트를 보호자에게 보낼까요?</h2><p className="mt-2 text-[14px] leading-5 text-[#667b91]">보내기 전에는 내용을 다시 수정할 수 있어요.</p><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setShowPublishConfirm(false)} className="h-11 rounded-[11px] border border-[#d4e3f2] text-[16px] font-medium text-[#58708a]">계속 수정</button><button type="button" onClick={() => { setShowPublishConfirm(false); void publish(); }} className="h-11 rounded-[11px] bg-[#3f7fc6] text-[16px] font-semibold text-white">확인하고 보내기</button></div></section></div> : null}
-      {showExitConfirm ? <div className="fixed inset-0 z-[81] flex items-center justify-center bg-[#0b1b2c]/40 px-5"><section className="w-full max-w-[360px] rounded-[18px] border border-[#d4e3f2] bg-white p-5"><h2 className="text-[20px] font-semibold text-[#1b3048]">작성 중인 내용이 있어요</h2><p className="mt-2 text-[14px] leading-5 text-[#667b91]">저장하지 않으면 이번에 입력한 내용은 사라집니다.</p><div className="mt-5 grid gap-2"><button type="button" onClick={() => setShowExitConfirm(false)} className="h-11 rounded-[11px] border border-[#d4e3f2] text-[16px] font-medium text-[#58708a]">계속 작성</button><button type="button" onClick={() => void saveAndExit()} disabled={action !== null} className="h-11 rounded-[11px] bg-[#3f7fc6] text-[16px] font-semibold text-white">임시저장하고 나가기</button><button type="button" onClick={discardAndClose} className="h-11 rounded-[11px] text-[16px] font-medium text-[#8a5d63]">저장하지 않고 나가기</button></div></section></div> : null}
+      {showReminderSheet ? <div className="fixed inset-0 z-[82] flex items-end justify-center bg-[#0b1b2c]/35" onMouseDown={(event) => { if (event.target === event.currentTarget) dismissReminderSettings(); }}><section role="dialog" aria-modal="true" aria-labelledby="care-report-reminder-title" className="w-full max-w-[430px] rounded-t-[18px] border border-[#dce7f2] bg-white px-5 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-5">
+        <div className="flex min-h-11 items-center gap-2">
+          <h2 id="care-report-reminder-title" className="min-w-0 flex-1 text-[20px] font-semibold leading-7 text-[#101a31]">재예약 알림 설정</h2>
+          <button type="button" onClick={dismissReminderSettings} aria-label="닫기" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#526b84] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"><X className="h-5 w-5" aria-hidden="true" /></button>
+        </div>
+        <div className="mt-3 divide-y divide-[#e8edf3] border-y border-[#e8edf3]" role="radiogroup" aria-label="재예약 알림 기간">
+          <button type="button" role="radio" aria-checked={pendingReminderMode === "default"} onClick={() => setPendingReminderMode("default")} className="flex min-h-14 w-full items-center gap-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]"><span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${pendingReminderMode === "default" ? "border-[#2f6fd6] bg-[#2f6fd6] text-white" : "border-[#cbd8e5] bg-white text-transparent"}`}><Check className="h-3.5 w-3.5" aria-hidden="true" /></span><span className="block text-[16px] font-medium leading-6 text-[#101a31]">매장 기본값 · {defaultReminderDays}일 후</span></button>
+          {reminderOptions.filter((days) => days !== defaultReminderDays).map((days) => <button key={days} type="button" role="radio" aria-checked={pendingReminderMode === "custom" && pendingReminderDays === days} onClick={() => { setPendingReminderMode("custom"); setPendingReminderDays(days); }} className="flex min-h-14 w-full items-center gap-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]"><span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${pendingReminderMode === "custom" && pendingReminderDays === days ? "border-[#2f6fd6] bg-[#2f6fd6] text-white" : "border-[#cbd8e5] bg-white text-transparent"}`}><Check className="h-3.5 w-3.5" aria-hidden="true" /></span><span className="block text-[16px] font-medium leading-6 text-[#101a31]">{days}일 후</span></button>)}
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={dismissReminderSettings} className="min-h-12 rounded-[10px] border border-[#d7e4f2] bg-white px-3 text-[16px] font-medium leading-6 text-[#526b84]">취소</button><button type="button" onClick={applyReminderSettings} className="min-h-12 rounded-[10px] bg-[#2f6fd6] px-3 text-[16px] font-medium leading-6 text-white">적용</button></div>
+      </section></div> : null}
+      {showPublishConfirm ? <div className="fixed inset-0 z-[81] flex items-center justify-center bg-[#0b1b2c]/40 px-5"><section className="w-full max-w-[360px] rounded-[18px] border border-[#d4e3f2] bg-white p-5"><h2 className="text-[20px] font-semibold leading-7 text-[#1b3048]">작성한 케어리포트를<br />보호자에게 보낼까요?</h2><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setShowPublishConfirm(false)} className="h-11 rounded-[11px] border border-[#d4e3f2] text-[16px] font-medium text-[#58708a]">계속 수정</button><button type="button" onClick={() => { setShowPublishConfirm(false); void publish(); }} className="h-11 rounded-[11px] bg-[#2f6fd6] text-[16px] font-semibold text-white">확인하고 보내기</button></div></section></div> : null}
+      {showExitConfirm ? <div className="fixed inset-0 z-[81] flex items-center justify-center bg-[#0b1b2c]/40 px-5" onMouseDown={(event) => { if (event.target === event.currentTarget) dismissExitConfirm(); }}><section ref={exitDialogRef} role="dialog" aria-modal="true" aria-labelledby={exitDialogTitleId} className="w-full max-w-[360px] rounded-[18px] border border-[#d4e3f2] bg-white p-6"><h2 id={exitDialogTitleId} className="text-[20px] font-semibold leading-7 text-[#1b3048]">나가기 전에 저장할까요?</h2><div className="mt-5 grid gap-2"><button ref={exitPrimaryActionRef} type="button" onClick={() => void saveAndExit()} disabled={action !== null} className="min-h-12 rounded-[10px] bg-[#2f6fd6] px-3 text-[16px] font-medium leading-6 text-white disabled:opacity-50">임시저장 후 나가기</button><button type="button" onClick={dismissExitConfirm} className="min-h-12 rounded-[10px] border border-[#d4e3f2] bg-white px-3 text-[16px] font-medium leading-6 text-[#58708a]">계속 작성</button><button type="button" onClick={discardAndClose} className="min-h-11 rounded-[10px] bg-transparent px-3 text-[16px] font-medium leading-6 text-[#8a5d63]">저장하지 않고 나가기</button></div></section></div> : null}
     </div>
   );
 }

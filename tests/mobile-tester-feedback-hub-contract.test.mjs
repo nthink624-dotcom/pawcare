@@ -23,9 +23,19 @@ test("tester access changes only amber emphasis while every authenticated owner 
   assert.doesNotMatch(ownerApp, /ReservationCreateFab/);
   assert.match(ownerApp, /!isStaffApp && !modal/);
   assert.match(ownerApp, /<OwnerContextActionMenu/);
+  assert.match(ownerApp, /isSuppressed=\{isTesterFeedbackHubOpen\}/);
   assert.match(ownerApp, /returnFocusRef=\{ownerFeedbackReturnFocusRef\}/);
   assert.match(ownerApp, /adapter=\{sharedOwnerFeedbackAdapter\}/);
   assert.match(contextMenu, /isTester \? "border-\[#d8c59c\] bg-\[#fff5d9\]" : "border-\[#cfd8e3\] bg-white"/);
+});
+
+test("feedback sheet suppresses the movable trigger without unmounting its focus target", () => {
+  assert.match(contextMenu, /isSuppressed: boolean/);
+  assert.match(contextMenu, /data-suppressed=\{isSuppressed \? "true" : "false"\}/);
+  assert.match(contextMenu, /aria-hidden=\{isSuppressed \|\| undefined\}/);
+  assert.match(contextMenu, /isSuppressed \? "invisible pointer-events-none" : ""/);
+  assert.match(contextMenu, /tabIndex=\{isSuppressed \? -1 : undefined\}/);
+  assert.match(fixture, /isSuppressed=\{feedbackOpen\}/);
 });
 
 test("movable owner menu contains exactly three contextual actions and preselects feedback intent", () => {

@@ -1,8 +1,11 @@
 ﻿import type { BootstrapPayload, Guardian, GuardianNotificationSettings, Shop, ShopNotificationSettings } from "@/types/domain";
 
+export const DEFAULT_REVISIT_REMINDER_DAYS = 45;
+
 export const defaultShopNotificationSettings: ShopNotificationSettings = {
   enabled: true,
   revisit_enabled: true,
+  revisit_reminder_default_days: DEFAULT_REVISIT_REMINDER_DAYS,
   booking_confirmed_enabled: true,
   booking_rejected_enabled: true,
   booking_cancelled_enabled: true,

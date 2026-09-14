@@ -58,6 +58,7 @@ export default function OwnerFeedbackDevPreview() {
       <OwnerContextActionMenu
         ref={triggerRef}
         isOpen={menuOpen}
+        isSuppressed={feedbackOpen}
         isTester={isTester}
         onOpenChange={setMenuOpen}
         onAddReservation={() => setReservationOpenCount((count) => count + 1)}

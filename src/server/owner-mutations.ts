@@ -5,7 +5,7 @@ import { coerceEnabledShopNotificationSettings, defaultGuardianNotificationSetti
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
-import { createAppointmentWithCapacityLock, updateAppointmentWithCapacityLock } from "@/server/appointment-capacity";
+import { createAppointmentWithDatabaseGuard, updateAppointmentWithDatabaseGuard } from "@/server/appointment-capacity";
 import { getBootstrap } from "@/server/bootstrap";
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { dispatchNotification } from "@/server/notification-dispatch";
@@ -906,7 +906,9 @@ export async function createAppointment(input: unknown) {
     serviceId: service.id,
     shop: data.shop,
     services: data.services,
-    appointments: data.appointments,
+    appointments: staffId
+      ? data.appointments.filter((appointment) => appointment.staff_id === staffId)
+      : data.appointments,
   });
 
   if (!availableSlots.includes(payload.appointmentTime)) {
@@ -953,28 +955,7 @@ export async function createAppointment(input: unknown) {
 
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
-  let createdAppointment = await createAppointmentWithCapacityLock(supabase, appointment);
-
-  const postCreateValues = {
-    ...(staffId && createdAppointment.staff_id !== staffId ? { staff_id: staffId } : {}),
-    ...(appointment.staff_memo ? { staff_memo: appointment.staff_memo } : {}),
-    updated_at: createdAppointment.updated_at,
-  };
-
-  if (Object.keys(postCreateValues).length > 1) {
-    const staffUpdate = await supabase
-      .from("appointments")
-      .update(postCreateValues)
-      .eq("id", createdAppointment.id)
-      .select("*")
-      .single();
-
-    if (staffUpdate.error) {
-      throw new Error(staffUpdate.error.message);
-    }
-
-    createdAppointment = staffUpdate.data as Appointment;
-  }
+  const createdAppointment = await createAppointmentWithDatabaseGuard(supabase, appointment);
 
   if (createdAppointment.status === "confirmed") {
     await dispatchAppointmentNotificationWithLogs({
@@ -1229,6 +1210,7 @@ export async function updateAppointmentDetails(input: unknown) {
   if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
 
   const durationMinutes = payload.durationMinutes ?? service.duration_minutes;
+  const nextStaffId = payload.staffId ?? appointment.staff_id ?? null;
   const availableSlots = payload.enforceShopCapacity
     ? computeAvailableSlots({
         date: payload.appointmentDate,
@@ -1236,7 +1218,9 @@ export async function updateAppointmentDetails(input: unknown) {
         durationMinutesOverride: durationMinutes,
         shop: data.shop,
         services: data.services,
-        appointments: data.appointments,
+        appointments: nextStaffId
+          ? data.appointments.filter((candidate) => candidate.staff_id === nextStaffId)
+          : data.appointments,
         excludeAppointmentId: payload.appointmentId,
       })
     : [payload.appointmentTime];
@@ -1248,7 +1232,7 @@ export async function updateAppointmentDetails(input: unknown) {
   const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, durationMinutes);
   const nextValues = {
     service_id: payload.serviceId,
-    staff_id: payload.staffId ?? appointment.staff_id ?? null,
+    staff_id: nextStaffId,
     appointment_date: payload.appointmentDate,
     appointment_time: payload.appointmentTime,
     memo: appointment.memo,
@@ -1288,17 +1272,7 @@ export async function updateAppointmentDetails(input: unknown) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
 
-  let resolvedAppointment = await updateAppointmentWithCapacityLock(supabase, payload.appointmentId, nextValues);
-  if (resolvedAppointment.staff_memo !== nextValues.staff_memo) {
-    const staffMemoUpdate = await supabase
-      .from("appointments")
-      .update({ staff_memo: nextValues.staff_memo, updated_at: nextValues.updated_at })
-      .eq("id", payload.appointmentId)
-      .select("*")
-      .single();
-    if (staffMemoUpdate.error) throw new Error(staffMemoUpdate.error.message);
-    resolvedAppointment = staffMemoUpdate.data as Appointment;
-  }
+  const resolvedAppointment = await updateAppointmentWithDatabaseGuard(supabase, payload.appointmentId, nextValues);
 
   await persistAppointmentChangeEvent({
     before: appointment,

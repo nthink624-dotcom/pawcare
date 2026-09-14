@@ -15,7 +15,7 @@ import {
 } from "@/lib/utils";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { updateAppointmentWithCapacityLock } from "@/server/appointment-capacity";
+import { updateAppointmentWithDatabaseGuard } from "@/server/appointment-capacity";
 import { getBootstrap } from "@/server/bootstrap";
 import {
   buildBookingManageUrl,
@@ -583,7 +583,7 @@ async function updateSupabaseAppointment(appointmentId: string, values: Partial<
     typeof values.end_at === "string" &&
     typeof values.updated_at === "string"
   ) {
-    return updateAppointmentWithCapacityLock(supabase, appointmentId, {
+    return updateAppointmentWithDatabaseGuard(supabase, appointmentId, {
       service_id: values.service_id,
       appointment_date: values.appointment_date,
       appointment_time: values.appointment_time,
@@ -689,7 +689,9 @@ export async function updateCustomerBooking(input: unknown) {
     serviceId: payload.serviceId,
     shop: bootstrap.shop,
     services: bootstrap.services,
-    appointments: bootstrap.appointments,
+    appointments: appointment.staff_id
+      ? bootstrap.appointments.filter((candidate) => candidate.staff_id === appointment.staff_id)
+      : bootstrap.appointments,
     excludeAppointmentId: payload.appointmentId,
   });
 

@@ -25,16 +25,7 @@ const record = {
   care_report_owner_confirmed_at: "2026-08-18T11:10:00+09:00",
   care_report_photo_consent: true,
   care_report_data: {
-    oneLineSummary:
-      "오늘 두부는 눈물이 평소보다 많아 눈가 주변을 자극 없이 꼼꼼하게 세정했습니다. 피부 부담을 줄이기 위해 기존 샴푸 대신 저자극 샴푸를 사용했어요.",
-    treatmentSummary: "전체미용 · 몸 6mm · 얼굴 둥글게 · 눈가 세정 · 저자극 샴푸",
-    conditionSummary: "눈가가 오래 젖어 있지 않도록 집에서도 부드럽게 닦아 주세요.",
-    groomingResponse: "발 주변은 예민한 반응이 있어 천천히 나누어 진행했어요.",
-    homeCareTips: [
-      "눈가가 젖었을 때 부드러운 거즈로 톡톡 닦아 주세요.",
-      "귀 뒤쪽은 엉킴이 생기기 쉬워 주 2~3회 빗질해 주세요.",
-    ],
-    nextVisitGuide: "지금의 길이와 얼굴 라인을 편하게 유지하려면 약 5주 뒤 관리를 권장드려요.",
+    reportText: "오늘 두부는 눈물이 평소보다 많아 눈가 주변을 자극 없이 꼼꼼하게 세정했고, 발 주변은 예민한 반응이 있어 천천히 나누어 진행했어요. 눈가가 젖었을 때는 부드러운 거즈로 닦아 주시고 귀 뒤쪽은 주 2~3회 빗질해 주세요.",
   },
 } as GroomingRecord;
 

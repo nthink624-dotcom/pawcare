@@ -152,7 +152,7 @@ export function OwnerCareReportCompletionPreviewClient({
                         aria-selected={activePhoto === key}
                         onClick={() => setActivePhoto(key)}
                         className={`${CARE_REPORT_TYPOGRAPHY.label} inline-flex min-h-11 min-w-11 items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3 py-2 [line-height:1.4] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] ${
-                          activePhoto === key ? "bg-[#edf4ff] font-semibold text-[#2f6fd6] shadow-sm" : "text-[#7a8490] hover:text-[#37485a]"
+                          activePhoto === key ? "bg-[#edf4ff] font-semibold text-[#245fbd] shadow-sm" : "text-[#526171] hover:text-[#37485a]"
                         }`}
                       >
                         {label}
@@ -197,6 +197,12 @@ export function OwnerCareReportCompletionPreviewClient({
               currentWeightKg={currentWeightKg}
               hasRegisteredPhotos={photoRegistrationEnabled}
               serviceName={previewServiceName}
+              previewMode
+              previewFixture={{
+                sourceText: "오늘 작업 전체적으로 괜찮았어",
+                reportText: "오늘 미용은 전반적으로 편안하게 잘 마쳤고, 얼굴 주변을 정리할 때에도 차분하게 기다려 주었습니다. 집에서는 편안히 쉴 수 있도록 지켜봐 주세요.",
+                savedReport: true,
+              }}
               onPendingChange={setCareReportBusy}
             />
           </div>

@@ -12,6 +12,7 @@ import {
 import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
 import { assertCustomerBookingDate } from "@/lib/customer-booking-window";
 import { buildCustomerWeightHistory } from "@/lib/customer-weight-history";
+import { normalizeStoredCareReport } from "@/lib/care-report-draft";
 import {
   addDate,
   currentDateInTimeZone,
@@ -954,7 +955,7 @@ export async function lookupCustomerBookingsByToken(shopId: string, token: strin
     actual_duration_minutes: record.actual_duration_minutes ?? null,
     service_name_snapshot: record.service_name_snapshot ?? null,
     next_recommended_visit_date: record.next_recommended_visit_date ?? null,
-    care_report_data: record.care_report_owner_confirmed_at ? record.care_report_data ?? null : null,
+    care_report_data: record.care_report_owner_confirmed_at ? normalizeStoredCareReport(record.care_report_data) : null,
     care_report_owner_confirmed_at: record.care_report_owner_confirmed_at ?? null,
     care_report_photo_consent: record.care_report_photo_consent ?? false,
     groomed_at: record.groomed_at,

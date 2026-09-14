@@ -74,7 +74,7 @@ test("grooming completion opens care authoring before the final status mutation"
     calendar,
     /if \(!statusAlreadyCompleted\) \{\s+const succeeded = await applyBookingStatusChange\(booking\.id, "완료"\);[\s\S]{0,200}\}\s+await fetchApiJsonWithAuth\("\/api\/owner\/care-reports"/,
   );
-  assert.match(panel, /await onBeforePublish\?\.\(\);\s+if \(previewMode\)/);
+  assert.match(panel, /if \(previewMode \|\| !reportText\.trim\(\)[^\n]+\) return;[\s\S]{0,240}await onBeforePublish\?\.\(\);[\s\S]{0,160}fetchApiJsonWithAuth\("\/api\/owner\/care-reports"/);
   assert.match(choice, /미용 완료 기록을 남겨주세요/);
   assert.doesNotMatch(choice, /미용을 완료했어요/);
 });

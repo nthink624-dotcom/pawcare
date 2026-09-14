@@ -57,12 +57,14 @@ export function CalendarCareNoteInput({
   value,
   onChange,
   onSubmit,
+  submitLabel,
   submitting,
   disabled,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  submitLabel: "AI 초안 만들기" | "다시 작성";
   submitting?: boolean;
   disabled?: boolean;
 }) {
@@ -181,7 +183,7 @@ export function CalendarCareNoteInput({
         disabled={disabled}
         maxLength={1000}
         placeholder={"오늘 관찰 메모\n예) 목욕은 잘 진행했고, 귀가 조금 예민했어요."}
-        className={`${OWNER_TYPOGRAPHY.body} min-h-[58px] max-h-[116px] w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent pb-1 pl-4 pr-[96px] pt-2 text-[#263547] [field-sizing:content] [line-height:1.5] outline-none focus:outline-none focus:ring-0 placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
+        className={`${OWNER_TYPOGRAPHY.body} min-h-[88px] max-h-[164px] w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent pb-12 pl-4 pr-4 pt-3 text-[#263547] [field-sizing:content] [line-height:1.5] outline-none focus:outline-none focus:ring-0 placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
         style={textareaFocusStyle}
       />
 
@@ -191,7 +193,7 @@ export function CalendarCareNoteInput({
 
       {listening ? <p className="sr-only" aria-live="polite">{interimText || "듣고 있어요"}</p> : null}
 
-      <div data-care-note-actions-visual className="absolute right-1 top-[7px] flex w-[92px] items-center justify-end gap-1">
+      <div data-care-note-actions-visual className="absolute bottom-1.5 right-1.5 flex items-center justify-end gap-1.5">
         <button
           type="button"
           aria-label={listening ? "음성 입력 마치기" : "음성으로 입력하기"}
@@ -206,15 +208,14 @@ export function CalendarCareNoteInput({
         </button>
         <button
           type="button"
-          aria-label="AI에게 정리 맡기기"
-          title="AI에게 정리 맡기기"
+          aria-label={submitLabel}
+          title={submitLabel}
           onClick={onSubmit}
           disabled={disabled || submitting || !value.trim()}
-          className="group grid h-11 w-11 place-items-center rounded-full text-white transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-45"
+          className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium leading-6 text-white transition hover:bg-[#1b2944] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-45"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-[#263b52] transition group-hover:bg-[#1d3045]">
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
-          </span>
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+          {submitLabel}
         </button>
       </div>
     </div>

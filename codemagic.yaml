@@ -13,11 +13,11 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: kr.co.petmanager.owner
+        bundle_identifier: kr.petmanager.owner
       vars:
         OWNER_MOBILE_DIR: "apps/owner-mobile"
         OWNER_WEB_URL: "https://www.petmanager.co.kr"
-        BUNDLE_ID: "kr.co.petmanager.owner"
+        BUNDLE_ID: "kr.petmanager.owner"
         XCODE_PROJECT: "apps/owner-mobile/ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
         APP_STORE_APPLE_ID: "6811699450"
@@ -44,8 +44,8 @@ workflows:
           test -f "$APP_DIR/capacitor.config.ts"
           test -d "$PROJECT_PATH"
           test "$OWNER_WEB_URL" = "https://www.petmanager.co.kr"
-          grep -Fq 'appId: "kr.co.petmanager.owner"' "$APP_DIR/capacitor.config.ts"
-          grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = kr.co.petmanager.owner;' "$PROJECT_PATH/project.pbxproj"
+          grep -Fq 'appId: "kr.petmanager.owner"' "$APP_DIR/capacitor.config.ts"
+          grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = kr.petmanager.owner;' "$PROJECT_PATH/project.pbxproj"
           grep -Fq 'name = App;' "$PROJECT_PATH/project.pbxproj"
 
       - name: Install locked Node dependencies and type-check

@@ -6,7 +6,7 @@ import { buildOwnerShellConfig } from "./src/config/owner-web";
 const ownerShell = buildOwnerShellConfig(process.env.OWNER_WEB_URL);
 
 const config: CapacitorConfig = {
-  appId: "kr.co.petmanager.owner",
+  appId: "kr.petmanager.owner",
   appName: "PetManager Owner",
   webDir: "www",
   server: ownerShell.url

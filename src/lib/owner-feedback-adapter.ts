@@ -1,4 +1,4 @@
-import { fetchApiJsonWithAuth } from "@/lib/api";
+import { ApiRequestError, fetchApiJsonWithAuth } from "@/lib/api";
 import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
 import type { TesterFeedbackScreenKey } from "@/lib/tester-feedback";
 
@@ -42,6 +42,19 @@ const acceptedScreenshotTypes = new Set<OwnerFeedbackScreenshotReceipt["contentT
   "image/webp",
 ]);
 const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+
+const OWNER_FEEDBACK_RETRY_MESSAGE = "피드백을 보내지 못했습니다. 작성한 내용은 유지됐습니다. 잠시 후 다시 시도해 주세요.";
+
+export function getOwnerFeedbackRecoveryMessage(error: unknown) {
+  if (!(error instanceof ApiRequestError)) return OWNER_FEEDBACK_RETRY_MESSAGE;
+  if (error.status === 400) return "입력한 내용을 확인해 주세요. 작성한 내용은 유지됐습니다.";
+  if (error.status === 401) return "로그인이 만료됐습니다. 다시 로그인한 뒤 보내 주세요. 작성한 내용은 유지됐습니다.";
+  if (error.status === 403) return "현재 매장의 대표 권한을 확인해 주세요. 작성한 내용은 유지됐습니다.";
+  if (error.status === 404) return "피드백 접수 연결을 확인하지 못했습니다. 작성한 내용은 유지됐습니다. 잠시 후 다시 시도해 주세요.";
+  if (error.status === 409) return "피드백 접수를 확인하는 중입니다. 작성한 내용은 유지됐습니다. 잠시 후 다시 시도해 주세요.";
+  if (error.status === 429) return "피드백을 연속으로 많이 보냈습니다. 작성한 내용은 유지됐습니다. 잠시 후 다시 보내 주세요.";
+  return OWNER_FEEDBACK_RETRY_MESSAGE;
+}
 
 /** Shared stage01 owner contract: the POST contains only its allowlisted receipt. */
 export const sharedOwnerFeedbackAdapter: OwnerFeedbackAdapter = {

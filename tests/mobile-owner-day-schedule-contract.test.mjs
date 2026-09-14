@@ -14,12 +14,13 @@ const cardGapsPath = new URL("../src/lib/owner-schedule-card-gaps.ts", import.me
 const profileFallbackPath = new URL("../src/lib/staff-profile-fallback.ts", import.meta.url);
 const staffProfilePhotoPath = new URL("../src/components/owner/staff-profile-photo.tsx", import.meta.url);
 const ownerAppPath = new URL("../src/components/owner/owner-app.tsx", import.meta.url);
+const schedulePreviewPath = new URL("../src/app/dev/owner-schedule-preview/page.tsx", import.meta.url);
 const domainPath = new URL("../src/types/domain.ts", import.meta.url);
 const bootstrapPath = new URL("../src/server/bootstrap.ts", import.meta.url);
 const staffRoutePath = new URL("../src/app/api/staff-members/route.ts", import.meta.url);
 const fallbackAssetPath = new URL("../public/images/profiles/korean-groomer-profile-01.jpg", import.meta.url);
 const secondFallbackAssetPath = new URL("../public/images/profiles/korean-groomer-profile-02.jpg", import.meta.url);
-const [schedule, lanesSource, identitySource, reservationDateDisplaySource, refreshStabilitySource, cardGapsSource, profileFallbackSource, staffProfilePhotoSource, ownerApp, domainSource, bootstrapSource, staffRouteSource, fallbackAsset, secondFallbackAsset] = await Promise.all([
+const [schedule, lanesSource, identitySource, reservationDateDisplaySource, refreshStabilitySource, cardGapsSource, profileFallbackSource, staffProfilePhotoSource, ownerApp, schedulePreview, domainSource, bootstrapSource, staffRouteSource, fallbackAsset, secondFallbackAsset] = await Promise.all([
   readFile(schedulePath, "utf8"),
   readFile(lanesPath, "utf8"),
   readFile(identityPath, "utf8"),
@@ -29,6 +30,7 @@ const [schedule, lanesSource, identitySource, reservationDateDisplaySource, refr
   readFile(profileFallbackPath, "utf8"),
   readFile(staffProfilePhotoPath, "utf8"),
   readFile(ownerAppPath, "utf8"),
+  readFile(schedulePreviewPath, "utf8"),
   readFile(domainPath, "utf8"),
   readFile(bootstrapPath, "utf8"),
   readFile(staffRoutePath, "utf8"),
@@ -253,6 +255,21 @@ test("schedule fixes the time rail and scrolls staff headers with their boards",
   assert.match(schedule, /sticky left-0 z-30 border-r border-\[#c8d1dc\] bg-white/);
   assert.match(schedule, /data-testid="time-header" className="flex h-\[68px\][^"]+bg-white/);
   assert.match(schedule, /data-testid="time-rail" className="relative bg-white"/);
+});
+
+test("one saved staff owns the full available lane width without synthetic choices", () => {
+  assert.match(ownerApp, /\.\.\.\(data\.staffMembers\.length > 1 \? \[\{ id: "all", label: "전체"/);
+  assert.match(ownerApp, /if \(data\.staffMembers\.length > 1 && countFor\(null\) > 0\) options\.push/);
+  assert.match(schedule, /const isSingleStaffLane = laneOptions\.length === 1/);
+  assert.match(schedule, /data-staff-lane-layout=\{isSingleStaffLane \? "single" : "multiple"\}/);
+  assert.match(schedule, /isSingleStaffLane \? "flex w-full min-w-full" : "flex w-max min-w-full"/);
+  assert.match(schedule, /isSingleStaffLane \? "w-full min-w-0 max-w-none flex-1 shrink-0 border-r border-\[#d8dee7\]"/);
+  assert.match(schedule, /: "w-\[calc\(\(100vw-48px\)\*0\.88\)\] min-w-\[260px\] max-w-\[332px\] shrink-0 snap-start/);
+  assert.match(schedulePreview, /NODE_ENV === "production".*notFound\(\)/s);
+  assert.match(schedulePreview, /staffMode === "single" && singleStaff/);
+  assert.match(schedulePreview, /staffMembers: \[singleStaff\]/);
+  assert.match(schedulePreview, /appointment\.staff_id === singleStaff\.id/);
+  assert.match(schedulePreview, /<OwnerLandingEmbed data=\{data\} \/>/);
 });
 
 test("reservation chips keep booking information without rendering pet profile media", () => {

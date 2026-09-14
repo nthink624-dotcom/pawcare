@@ -1192,7 +1192,7 @@ export default function OwnerApp({
     const currentDateAppointments = data.appointments.filter((appointment) => appointment.appointment_date === selectedVisitDate);
     const countFor = (staffId: string | null) => currentDateAppointments.filter((appointment) => appointment.staff_id === staffId).length;
     const options = [
-      { id: "all", label: "전체", count: currentDateAppointments.length },
+      ...(data.staffMembers.length > 1 ? [{ id: "all", label: "전체", count: currentDateAppointments.length }] : []),
       ...data.staffMembers.flatMap((staffMember) => {
         const appointmentCount = countFor(staffMember.id);
         const exactOverride = data.staffScheduleOverrides?.find((override) => override.staff_id === staffMember.id && override.work_date === selectedVisitDate);
@@ -1217,7 +1217,7 @@ export default function OwnerApp({
         }];
       }),
     ];
-    if (countFor(null) > 0) options.push({ id: "unassigned", label: "미배정", count: countFor(null) });
+    if (data.staffMembers.length > 1 && countFor(null) > 0) options.push({ id: "unassigned", label: "미배정", count: countFor(null) });
     return isStaffApp && currentStaffId ? options.filter((option) => option.id === currentStaffId) : options;
   }, [currentStaffId, data.appointments, data.staffMembers, data.staffScheduleOverrides, isBookingDayClosed, isStaffApp, selectedVisitDate]);
   useEffect(() => {

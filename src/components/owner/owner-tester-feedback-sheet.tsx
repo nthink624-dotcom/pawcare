@@ -13,7 +13,11 @@ import {
   type TesterFeedbackCategory,
   type TesterFeedbackScreenKey,
 } from "@/lib/tester-feedback";
-import type { OwnerFeedbackAdapter, OwnerFeedbackScreenshotReceipt } from "@/lib/owner-feedback-adapter";
+import {
+  getOwnerFeedbackRecoveryMessage,
+  type OwnerFeedbackAdapter,
+  type OwnerFeedbackScreenshotReceipt,
+} from "@/lib/owner-feedback-adapter";
 
 const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 
@@ -56,8 +60,7 @@ export default function OwnerTesterFeedbackSheet({
   returnFocusRef: RefObject<HTMLElement | null>;
   isTester: boolean;
   initialCategory: TesterFeedbackCategory;
-  /** General-owner transport is injected only after shared contract landing. */
-  adapter?: OwnerFeedbackAdapter;
+  adapter: OwnerFeedbackAdapter;
 }) {
   const initialDraft = readDraft(shopId, screenKey, isTester, initialCategory);
   const [category, setCategory] = useState<TesterFeedbackCategory>(initialDraft.category);
@@ -80,19 +83,18 @@ export default function OwnerTesterFeedbackSheet({
 
   async function submitFeedback() {
     if (!canSubmit || submitState === "submitting") return;
-    if (!adapter) return;
-
-    const fingerprint = `${category}\n${normalizedBody}`;
-    if (lastAttemptFingerprintRef.current !== fingerprint) {
-      requestIdRef.current = createTesterFeedbackRequestId();
-      lastAttemptFingerprintRef.current = fingerprint;
-    }
-    const requestId = requestIdRef.current;
-    if (!requestId) return;
 
     setSubmitState("submitting");
     setErrorMessage(null);
     try {
+      const fingerprint = `${category}\n${normalizedBody}`;
+      if (lastAttemptFingerprintRef.current !== fingerprint) {
+        requestIdRef.current = createTesterFeedbackRequestId();
+        lastAttemptFingerprintRef.current = fingerprint;
+      }
+      const requestId = requestIdRef.current;
+      if (!requestId) throw new Error();
+
       let receipt = screenshotReceipt;
       if (screenshot && !receipt) {
         if (!adapter.createScreenshotReceipt) throw new Error("스크린샷 전송 연결을 준비하고 있습니다.");
@@ -116,16 +118,16 @@ export default function OwnerTesterFeedbackSheet({
       window.sessionStorage.removeItem(legacyDraftKey(shopId, screenKey, isTester));
     } catch (error) {
       setSubmitState("error");
-      setErrorMessage(error instanceof Error ? error.message : "피드백을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      setErrorMessage(getOwnerFeedbackRecoveryMessage(error));
     }
   }
 
   if (submitState === "success") {
     return (
-      <Sheet title="피드백 보내기" onClose={onClose} dialogLabel="문의·의견 보내기" initialFocusRef={categoryRef} restoreFocusRef={returnFocusRef} focusKey="success" safeAreaPadding>
+      <Sheet title="문의·의견 보내기" onClose={onClose} dialogLabel="문의·의견 보내기" initialFocusRef={categoryRef} restoreFocusRef={returnFocusRef} focusKey="success" safeAreaPadding>
         <div className="space-y-4 pb-1">
-          <div className="rounded-[12px] border border-[#d9e5dd] bg-[#f7fbf8] px-3.5 py-3 text-[14px] leading-5 text-[#1f6b5b]">
-            피드백을 보냈어요. 확인 후 개선에 반영하겠습니다.
+          <div role="status" className="rounded-[12px] border border-[#d9e5dd] bg-[#f7fbf8] px-3.5 py-3 text-[14px] font-normal leading-5 text-[#1f6b5b]">
+            피드백을 보냈어요.
           </div>
           <ActionButton onClick={onClose}>닫기</ActionButton>
         </div>
@@ -164,7 +166,7 @@ export default function OwnerTesterFeedbackSheet({
         </div>
 
         <label className="block">
-          <span className="mb-1.5 flex items-center justify-between gap-2 text-[13px] font-medium text-[var(--text)]"><span>내용</span></span>
+          <span className="mb-1.5 flex items-center justify-between gap-2 text-[14px] font-medium leading-5 text-[var(--text)]"><span>내용</span></span>
           <textarea
             value={body}
             onChange={(event) => {
@@ -176,7 +178,6 @@ export default function OwnerTesterFeedbackSheet({
             required
             aria-required="true"
             maxLength={TESTER_FEEDBACK_BODY_MAX_LENGTH}
-            aria-describedby="tester-feedback-privacy-note"
             className="field min-h-[132px] w-full resize-y !rounded-[12px] !px-3.5 !py-3 text-[16px] leading-6"
             placeholder="불편했던 점이나 바라는 점을 적어 주세요"
           />
@@ -202,8 +203,6 @@ export default function OwnerTesterFeedbackSheet({
             }}
           />
         </label>
-        <p className="text-[12px] leading-5 text-[var(--muted)]">선택한 스크린샷만 전송하며, 고객 정보가 보이지 않는 화면으로 첨부해 주세요.</p>
-        <p id="tester-feedback-privacy-note" className="text-[13px] leading-5 text-[var(--muted)]">고객 개인정보는 입력하지 마세요</p>
         {errorMessage ? <p role="alert" className="rounded-[10px] border border-[#f0d7d7] bg-[#fff7f7] px-3 py-2 text-[14px] leading-5 text-[#9a5e4e]">{errorMessage}</p> : null}
         <ActionButton disabled={!canSubmit || submitState === "submitting"} onClick={() => void submitFeedback()}>
           {submitState === "submitting" ? "보내는 중" : "제출하기"}

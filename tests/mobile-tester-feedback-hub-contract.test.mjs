@@ -7,6 +7,7 @@ const contextMenu = await readFile(new URL("../src/components/owner/owner-contex
 const feedbackSheet = await readFile(new URL("../src/components/owner/owner-tester-feedback-sheet.tsx", import.meta.url), "utf8");
 const feedbackContract = await readFile(new URL("../src/lib/tester-feedback.ts", import.meta.url), "utf8");
 const feedbackAdapter = await readFile(new URL("../src/lib/owner-feedback-adapter.ts", import.meta.url), "utf8");
+const apiClient = await readFile(new URL("../src/lib/api.ts", import.meta.url), "utf8");
 const fixturePage = await readFile(new URL("../src/app/dev/owner-feedback-preview/page.tsx", import.meta.url), "utf8");
 const fixture = await readFile(new URL("../src/components/owner/owner-feedback-dev-preview.tsx", import.meta.url), "utf8");
 const domain = await readFile(new URL("../src/types/domain.ts", import.meta.url), "utf8");
@@ -74,11 +75,16 @@ test("context menu drag is thresholded, locally restored, clamped, and never dis
 });
 
 test("shared feedback transport keeps retry receipts private and POST payload allowlisted", () => {
-  assert.match(feedbackSheet, /adapter\?: OwnerFeedbackAdapter/);
+  assert.match(feedbackSheet, /adapter: OwnerFeedbackAdapter/);
+  assert.doesNotMatch(feedbackSheet, /adapter\?: OwnerFeedbackAdapter/);
   assert.match(feedbackSheet, /await adapter\.submit\(\{/);
   assert.match(feedbackSheet, /shopId,\s*requestId,\s*category,\s*body: normalizedBody,\s*screenKey,\s*appVersion,\s*screenshot: receipt/);
   assert.match(feedbackAdapter, /sharedOwnerFeedbackAdapter/);
   assert.match(feedbackAdapter, /fetchApiJsonWithAuth<\{ feedback: Omit<OwnerFeedbackAcknowledgement, "replayed">; replayed: boolean \}>\("\/api\/owner\/tester-feedback"/);
+  assert.match(feedbackAdapter, /method: "POST"/);
+  assert.match(feedbackAdapter, /body: JSON\.stringify\(submission\)/);
+  assert.match(apiClient, /if \(env\.apiBaseUrl\)/);
+  assert.equal(apiClient.includes('return `${env.apiBaseUrl.replace(/\\/$/, "")}${normalizedPath}`;'), true);
   assert.match(feedbackAdapter, /createOwnerMediaAssetFromFile\(\s*\{ shopId \},\s*"feedback_screenshot"/);
   assert.match(feedbackAdapter, /createProviderReadyVariant: false/);
   assert.match(feedbackAdapter, /consent: true/);
@@ -90,15 +96,17 @@ test("shared feedback transport keeps retry receipts private and POST payload al
   assert.match(feedbackSheet, /setScreenshotReceipt\(receipt\)/);
 });
 
-test("owner and tester forms keep explicit privacy, optional safe screenshots, and compact 44px controls", () => {
+test("owner and tester forms keep only labels, optional screenshots, submission, and compact states", () => {
   assert.match(feedbackContract, /"inquiry"/);
   assert.match(feedbackContract, /bug: "문제 발견"/);
   assert.match(feedbackContract, /improvement: "개선 제안"/);
-  assert.match(feedbackSheet, /고객 개인정보는 입력하지 마세요/);
   assert.match(feedbackSheet, /required/);
   assert.match(feedbackSheet, /aria-required="true"/);
   assert.match(feedbackSheet, /보내는 중/);
   assert.match(feedbackSheet, /피드백을 보냈어요/);
+  assert.match(feedbackSheet, /role="status"/);
+  assert.doesNotMatch(feedbackSheet, /확인 후 개선에 반영하겠습니다|고객 개인정보는 입력하지 마세요|선택한 스크린샷만 전송하며/);
+  assert.doesNotMatch(feedbackSheet, /aria-describedby="tester-feedback-privacy-note"/);
   assert.match(feedbackSheet, /dialogLabel="문의·의견 보내기"/);
   assert.match(feedbackSheet, /initialCategory: TesterFeedbackCategory/);
   assert.match(feedbackSheet, /feedback-draft\.v2/);
@@ -111,6 +119,16 @@ test("owner and tester forms keep explicit privacy, optional safe screenshots, a
   assert.match(feedbackSheet, /sessionStorage/);
   assert.match(feedbackContract, /TESTER_FEEDBACK_BODY_MIN_LENGTH = 2/);
   assert.match(feedbackContract, /TESTER_FEEDBACK_BODY_MAX_LENGTH = 2000/);
+});
+
+test("feedback failures expose only recoverable Korean copy while keeping the draft path intact", () => {
+  assert.match(feedbackSheet, /setErrorMessage\(getOwnerFeedbackRecoveryMessage\(error\)\)/);
+  assert.doesNotMatch(feedbackSheet, /error instanceof Error \? error\.message/);
+  assert.match(feedbackAdapter, /error\.status === 404/);
+  assert.match(feedbackAdapter, /피드백 접수 연결을 확인하지 못했습니다\. 작성한 내용은 유지됐습니다\. 잠시 후 다시 시도해 주세요\./);
+  assert.match(feedbackAdapter, /피드백을 보내지 못했습니다\. 작성한 내용은 유지됐습니다\. 잠시 후 다시 시도해 주세요\./);
+  assert.match(feedbackSheet, /setSubmitState\("success"\);\s*setBody\(""\)/s);
+  assert.doesNotMatch(feedbackSheet, /catch \(error\) \{[\s\S]*?setBody\(""\)/);
 });
 
 test("tester feedback sheet has its own modal semantics, focus lifecycle, trap, and safe-area clearance", async () => {
@@ -136,8 +154,10 @@ test("tester feedback sheet has its own modal semantics, focus lifecycle, trap, 
   assert.match(ownerApp, /if \(isOwnerContextMenuOpen\)/);
 });
 
-test("development fixture mounts four owner screens and both owner modes with an injected no-call adapter and production guard", () => {
+test("development fixture mounts four owner screens and deterministic success or failure without a remote call", () => {
   assert.match(fixturePage, /NODE_ENV === "production".*notFound\(\)/s);
+  assert.match(fixturePage, /searchParams: Promise<\{ result\?: string \| string\[\] \}>/);
+  assert.match(fixturePage, /result === "failure" \? "failure" : "success"/);
   assert.match(fixture, /"home", label: "오늘"/);
   assert.match(fixture, /"schedule", label: "예약 조회"/);
   assert.match(fixture, /"customers", label: "고객 관리"/);
@@ -146,5 +166,6 @@ test("development fixture mounts four owner screens and both owner modes with an
   assert.match(fixture, /isTester=\{isTester\}/);
   assert.match(fixture, /adapter=\{adapter\}/);
   assert.match(fixture, /async submit\(submission\)/);
+  assert.match(fixture, /submitResult === "failure"/);
   assert.doesNotMatch(fixture, /fetch\(|fetchApiJsonWithAuth|\/api\//);
 });

@@ -14,21 +14,7 @@ const previewScreens = [
   { key: "settings", label: "설정", screenKey: "shop_settings" },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; screenKey: TesterFeedbackScreenKey }>;
 
-const noCallAdapter: OwnerFeedbackAdapter = {
-  async submit(submission) {
-    return {
-      id: `fixture-${submission.requestId}`,
-      category: submission.category,
-      screenKey: submission.screenKey,
-      appVersion: submission.appVersion,
-      status: "accepted",
-      createdAt: "2026-09-09T00:00:00.000Z",
-      replayed: false,
-    };
-  },
-};
-
-export default function OwnerFeedbackDevPreview() {
+export default function OwnerFeedbackDevPreview({ submitResult = "success" }: { submitResult?: "success" | "failure" }) {
   const [isTester, setIsTester] = useState(false);
   const [activeScreen, setActiveScreen] = useState<(typeof previewScreens)[number]["key"]>("home");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -36,7 +22,20 @@ export default function OwnerFeedbackDevPreview() {
   const [feedbackCategory, setFeedbackCategory] = useState<TesterFeedbackCategory>("inquiry");
   const [reservationOpenCount, setReservationOpenCount] = useState(0);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const adapter = useMemo(() => noCallAdapter, []);
+  const adapter = useMemo<OwnerFeedbackAdapter>(() => ({
+    async submit(submission) {
+      if (submitResult === "failure") throw new Error("fixture failure");
+      return {
+        id: `fixture-${submission.requestId}`,
+        category: submission.category,
+        screenKey: submission.screenKey,
+        appVersion: submission.appVersion,
+        status: "accepted",
+        createdAt: "2026-09-09T00:00:00.000Z",
+        replayed: false,
+      };
+    },
+  }), [submitResult]);
   const screen = previewScreens.find((item) => item.key === activeScreen) ?? previewScreens[0];
 
   return (

@@ -214,6 +214,7 @@ export default function OwnerBookingDaySchedule(props: Props) {
     [appointments, date],
   );
   const laneOptions = useMemo(() => staffOptions.filter((staff) => staff.id !== "all"), [staffOptions]);
+  const isSingleStaffLane = laneOptions.length === 1;
   const appointmentsByLane = useMemo(
     () => assignAppointmentsToStaffLanes(laneOptions.map((staff) => staff.id), visibleAppointments),
     [laneOptions, visibleAppointments],
@@ -323,7 +324,7 @@ export default function OwnerBookingDaySchedule(props: Props) {
           </div>
 
           <div ref={scrollRef} data-testid="staff-lane-scroller" tabIndex={0} aria-label="직원별 예약 시간표" onPointerDown={beginLaneDrag} onPointerMove={moveLaneDrag} onPointerUp={endLaneDrag} onPointerCancel={endLaneDrag} onClickCapture={suppressLaneClickAfterDrag} className="no-scrollbar min-w-0 overflow-x-auto overscroll-x-contain bg-white [touch-action:pan-y] [scroll-snap-type:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]">
-            <div className="flex w-max min-w-full">
+            <div data-staff-lane-layout={isSingleStaffLane ? "single" : "multiple"} className={isSingleStaffLane ? "flex w-full min-w-full" : "flex w-max min-w-full"}>
               {laneOptions.map((staff) => {
                 const laneAppointments = appointmentsByLane.get(staff.id) ?? [];
                 const override = staffScheduleOverrides.find((item) => item.staff_id === staff.id && item.work_date === date);
@@ -332,7 +333,7 @@ export default function OwnerBookingDaySchedule(props: Props) {
                 const workEnd = override?.status === "work" ? override.end_time : staff.endTime;
                 const workHoursLabel = unavailable ? "근무하지 않음" : workStart && workEnd ? `${workStart.slice(0, 5)}–${workEnd.slice(0, 5)}` : "근무시간 미설정";
                 return (
-                  <div key={staff.id} data-staff-id={staff.id} data-lane-appointment-count={laneAppointments.length} className="w-[calc((100vw-48px)*0.88)] min-w-[260px] max-w-[332px] shrink-0 snap-start border-r border-[#d8dee7] min-[410px]:w-[calc((100vw-52px)*0.88)] md:w-[240px]">
+                  <div key={staff.id} data-staff-id={staff.id} data-lane-appointment-count={laneAppointments.length} className={isSingleStaffLane ? "w-full min-w-0 max-w-none flex-1 shrink-0 border-r border-[#d8dee7]" : "w-[calc((100vw-48px)*0.88)] min-w-[260px] max-w-[332px] shrink-0 snap-start border-r border-[#d8dee7] min-[410px]:w-[calc((100vw-52px)*0.88)] md:w-[240px]"}>
                     <button type="button" data-testid="staff-lane-chip" aria-pressed={!unavailable && selectedStaffId === staff.id} aria-disabled={unavailable} disabled={unavailable} onClick={() => onSelectStaff(staff.id)} className="relative flex h-[68px] w-full items-center justify-start gap-3 border-b border-b-[#d8dee7] px-3 text-left text-[#172033] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb] disabled:cursor-default" style={{ backgroundColor: staff.background ?? "#ffffff" }}>
                       <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#eef2f6]" style={{ color: staff.color, backgroundColor: staff.bookingBackground, boxShadow: staff.bookingBorder ? `inset 0 0 0 1px ${staff.bookingBorder}` : undefined }}>
                         <StaffProfilePhoto key={`${staff.id}:${staff.profileImageUrl ?? ""}:${staff.profileImageFallbackKey ?? ""}`} src={staff.profileImageUrl} fallbackKey={staff.profileImageFallbackKey} alt={`${staff.label} 프로필 사진`} />

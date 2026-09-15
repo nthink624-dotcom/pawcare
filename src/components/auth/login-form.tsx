@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -11,10 +11,8 @@ import {
 import { isValidOwnerEmail, normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
 import {
   OWNER_LOGIN_CLIENT_TIMEOUT_MS,
-  OwnerLoginTimeoutError,
-  withOwnerLoginTimeout,
 } from "@/lib/auth/owner-login-timeout";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { traceOwnerMobileStartupStep } from "@/lib/owner-mobile-startup";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
 
@@ -45,12 +43,11 @@ export default function LoginForm({
   nextPath?: string;
 }) {
   const router = useRouter();
-  const supabase = useMemo(() => {
+  useEffect(() => {
     // This form is rendered only after the server rejected the current session.
-    // Remove only stale Supabase auth cookies before its browser client starts
-    // automatic token recovery; saved email and unrelated app data stay intact.
+    // Remove only stale Supabase auth cookies; login itself has one server-owned
+    // auth request and the destination page persists the returned session.
     clearRejectedSupabaseSessionCookies();
-    return getSupabaseBrowserClient();
   }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -74,7 +71,7 @@ export default function LoginForm({
       setMessage("이메일과 비밀번호를 입력해 주세요.");
       return;
     }
-    if (!supabaseReady || !supabase) {
+    if (!supabaseReady) {
       setMessage("로그인 환경을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
       return;
     }
@@ -86,12 +83,14 @@ export default function LoginForm({
     const requestTimer = window.setTimeout(() => requestController.abort(), OWNER_LOGIN_CLIENT_TIMEOUT_MS);
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-        signal: requestController.signal,
-      });
+      const response = await traceOwnerMobileStartupStep("login-api", () =>
+        fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: normalizedEmail, password }),
+          signal: requestController.signal,
+        }),
+      );
       const result = (await response.json()) as LoginResponse;
       const accessToken = result.session?.accessToken;
       const refreshToken = result.session?.refreshToken;
@@ -99,16 +98,6 @@ export default function LoginForm({
         const nextMessage = result.message ?? "이메일 또는 비밀번호를 다시 확인해 주세요.";
         setMessage(nextMessage);
         setCanResendConfirmation(nextMessage.includes("이메일 인증"));
-        return;
-      }
-
-      const sessionResult = await withOwnerLoginTimeout(
-        () => supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }),
-        OWNER_LOGIN_CLIENT_TIMEOUT_MS,
-      );
-      const { error } = sessionResult as { error: { message?: string } | null };
-      if (error) {
-        setMessage("로그인 정보를 저장하지 못했습니다. 다시 시도해 주세요.");
         return;
       }
 
@@ -128,7 +117,7 @@ export default function LoginForm({
       // before client navigation commits on slower WebView render processes.
       router.replace("/owner/mobile" as never);
     } catch (error) {
-      const timedOut = error instanceof OwnerLoginTimeoutError || (error instanceof DOMException && error.name === "AbortError");
+      const timedOut = error instanceof DOMException && error.name === "AbortError";
       setMessage(
         timedOut
           ? "로그인 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요."

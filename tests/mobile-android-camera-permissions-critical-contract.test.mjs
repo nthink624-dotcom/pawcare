@@ -22,10 +22,13 @@ test("manifest declares camera, microphone, Android 13 notifications, and camera
 test("camera asks contextually, checks availability, uses chooser, and never pins a package", () => {
   assert.match(camera, /requestPermissionForAlias\("camera"/);
   assert.match(camera, /handlers\.isEmpty\(\)[\s\S]*CAMERA_UNAVAILABLE/);
+  assert.match(camera, /getCapabilities\(PluginCall call\)[\s\S]*availableAppCount[\s\S]*canChoose/);
+  assert.match(camera, /call\.getBoolean\("chooser", false\) && handlers\.size\(\) > 1/);
   assert.match(camera, /Intent\.createChooser\(cameraIntent, "카메라 앱 선택"\)/);
   assert.doesNotMatch(camera, /setPackage\(|setComponent\(/);
-  assert.doesNotMatch(photoUi, /onCapture\("default"\)/);
-  assert.match(photoUi, /onCapture\("chooser"\)/);
+  assert.match(photoUi, /getExternalCameraCapabilities/);
+  assert.match(photoUi, /cameraMode = effectiveCameraCapabilities\?\.canChoose === false \? "default" : "chooser"/);
+  assert.match(photoUi, /onCapture\(cameraMode\)/);
 });
 
 test("camera covers cancellation, FileProvider URI grants, process recreation, and missing result", () => {
@@ -36,7 +39,8 @@ test("camera covers cancellation, FileProvider URI grants, process recreation, a
   assert.match(camera, /protected void restoreState\(Bundle state\)/);
   assert.match(camera, /STALE_OUTPUT_MAX_AGE_MS/);
   assert.match(camera, /file\.lastModified\(\) < staleBefore/);
-  assert.match(camera, /if \(resultUri == null\)[\s\S]*촬영한 사진을 찾을 수 없습니다/);
+  assert.match(camera, /if \(pendingOutputFile == null\)[\s\S]*촬영한 사진을 찾을 수 없습니다/);
+  assert.match(camera, /pendingOutputFile\.length\(\) == 0[\s\S]*촬영한 사진을 읽을 수 없습니다/);
 });
 
 test("settings exposes three individual permissions without a bulk first-run request", () => {

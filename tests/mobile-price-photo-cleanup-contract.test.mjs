@@ -45,16 +45,17 @@ test("failed DELETE remains pending and retryable", async () => {
   assert.equal(calls, 2);
 });
 
-test("native bridge clears task cache on load/resume and byte buffers after handoff", async () => {
+test("native bridge clears stale cache, releases handed-off files, and wipes copy buffers", async () => {
   const java = await readFile(new URL("../android/app/src/main/java/kr/petmanager/owner/ExternalCameraPlugin.java", import.meta.url), "utf8");
   const js = await readFile(new URL("../src/lib/media/external-camera.ts", import.meta.url), "utf8");
   assert.match(java, /public void load\(\)[\s\S]*clearStaleOutputFiles\(\)/);
   assert.match(java, /handleOnResume\(\)[\s\S]*clearStaleOutputFiles\(\)/);
   assert.match(java, /name\.startsWith\(FILE_PREFIX\)/);
-  assert.match(java, /Arrays\.fill\(encoded, \(byte\) 0\)/);
-  assert.match(java, /Arrays\.fill\(bytes, \(byte\) 0\)/);
   assert.match(java, /Arrays\.fill\(buffer, \(byte\) 0\)/);
-  assert.match(java, /output\.wipe\(\)/);
+  assert.match(java, /public void release\(PluginCall call\)[\s\S]*file\.delete\(\)/);
+  assert.match(java, /detachPendingOutput\(\)/);
+  assert.doesNotMatch(java, /Base64\.encode|ByteArrayOutputStream/);
   assert.match(js, /bytes\.fill\(0\)/);
   assert.match(js, /result\.base64 = ""/);
+  assert.match(js, /ExternalCamera\.release/);
 });

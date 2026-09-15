@@ -220,7 +220,9 @@ export default function OwnerMobilePage() {
     setEntryFailed(false);
   }
 
-  async function getOwnerAccessContext(): Promise<OwnerMobileAccessContext | null> {
+  async function getOwnerAccessContext(
+    onPersistedSession?: (session: Session) => void,
+  ): Promise<OwnerMobileAccessContext | null> {
     if (!supabase) return null;
 
     const handoffSession = peekOwnerAuthHandoff();
@@ -229,23 +231,19 @@ export default function OwnerMobilePage() {
       setCurrentOwnerAccessToken(handoffSession.accessToken);
       clearOwnerAuthHandoff();
 
-      try {
+      void traceOwnerMobileStartupStep("auth-session-persist", async () => {
         const sessionResult = (await supabase.auth.setSession({
           access_token: handoffSession.accessToken,
           refresh_token: handoffSession.refreshToken,
         })) as SupabaseSessionResult;
         const nextSession = sessionResult.data.session;
-        if (nextSession?.access_token) {
-          writeOwnerAuthTokenCache(nextSession.access_token, nextSession.refresh_token);
-          setCurrentOwnerAccessToken(nextSession.access_token);
-          return {
-            accessToken: nextSession.access_token,
-            session: nextSession,
-          };
-        }
-      } catch {
-        // The handoff token is enough for owner APIs; do not block mobile entry on browser session persistence.
-      }
+        if (!nextSession?.access_token) return;
+        writeOwnerAuthTokenCache(nextSession.access_token, nextSession.refresh_token);
+        setCurrentOwnerAccessToken(nextSession.access_token);
+        onPersistedSession?.(nextSession);
+      }).catch(() => {
+        // The handoff token is already enough for owner APIs. Persistence is noncritical.
+      });
 
       return {
         accessToken: handoffSession.accessToken,
@@ -262,7 +260,7 @@ export default function OwnerMobilePage() {
       };
     }
 
-    const initialSession = await supabase.auth.getSession();
+    const initialSession = await traceOwnerMobileStartupStep("auth-get-session", async () => await supabase.auth.getSession());
     if (initialSession.data.session?.access_token) {
       writeOwnerAuthTokenCache(initialSession.data.session.access_token, initialSession.data.session.refresh_token);
       setCurrentOwnerAccessToken(initialSession.data.session.access_token);
@@ -272,7 +270,7 @@ export default function OwnerMobilePage() {
       };
     }
 
-    const refreshedSession = await supabase.auth.refreshSession();
+    const refreshedSession = await traceOwnerMobileStartupStep("auth-refresh-session", async () => await supabase.auth.refreshSession());
     if (refreshedSession.data.session?.access_token) {
       writeOwnerAuthTokenCache(refreshedSession.data.session.access_token, refreshedSession.data.session.refresh_token);
       setCurrentOwnerAccessToken(refreshedSession.data.session.access_token);
@@ -282,19 +280,6 @@ export default function OwnerMobilePage() {
       };
     }
 
-    const userResult = await supabase.auth.getUser();
-    if (userResult.data.user) {
-      const recoveredSession = await supabase.auth.getSession();
-      if (recoveredSession.data.session?.access_token) {
-        writeOwnerAuthTokenCache(recoveredSession.data.session.access_token, recoveredSession.data.session.refresh_token);
-        setCurrentOwnerAccessToken(recoveredSession.data.session.access_token);
-        return {
-          accessToken: recoveredSession.data.session.access_token,
-          session: recoveredSession.data.session,
-        };
-      }
-    }
-
     return null;
   }
 
@@ -302,6 +287,7 @@ export default function OwnerMobilePage() {
     let active = true;
 
     async function load() {
+      let accountSuspended = false;
       setEntryFailed(false);
       setMessage("모바일 오너 화면을 불러오는 중입니다.");
 
@@ -316,7 +302,17 @@ export default function OwnerMobilePage() {
 
       const ownerAccessRun = ownerAccessGateRef.current.begin(() =>
         traceOwnerMobileStartupStep("auth", () =>
-          withOwnerMobileTimeout(() => getOwnerAccessContext(), 12_000),
+          withOwnerMobileTimeout(() => getOwnerAccessContext((persistedSession) => {
+            if (!active) return;
+            setUserEmail(persistedSession.user.email ?? null);
+            setMobileRoleContext(resolveMobileAppRoleContext(persistedSession));
+            if (persistedSession.user.user_metadata?.account_suspended === true) {
+              accountSuspended = true;
+              setData(null);
+              setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
+              setEntryFailed(true);
+            }
+          }), 12_000),
         ),
       );
       let ownerAccess: OwnerMobileAccessContext | null;
@@ -351,6 +347,7 @@ export default function OwnerMobilePage() {
       }
 
       try {
+        const isAndroidApp = Capacitor.getPlatform() === "android";
         const storedShopId =
           typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE) : null;
         const criticalData = await traceOwnerMobileStartupStep("critical-data", () =>
@@ -358,21 +355,23 @@ export default function OwnerMobilePage() {
             (signal) =>
               loadOwnerMobileCriticalData({
                 signal,
-                loadShops: (requestSignal) =>
+                loadShops: (requestSignal) => traceOwnerMobileStartupStep("shops", () =>
                   fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops", {
                     cache: "no-store",
                     signal: requestSignal,
-                  }),
-                loadSubscription: (requestSignal) =>
-                  fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
-                    cache: "no-store",
-                    signal: requestSignal,
-                  }),
-                loadBootstrap: (shopId, requestSignal) =>
+                  })),
+                loadSubscription: isAndroidApp
+                  ? null
+                  : (requestSignal) => traceOwnerMobileStartupStep("subscription", () =>
+                      fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
+                        cache: "no-store",
+                        signal: requestSignal,
+                      })),
+                loadBootstrap: (shopId, requestSignal) => traceOwnerMobileStartupStep("bootstrap", () =>
                   fetchApiJsonWithAuth<BootstrapPayload>(
                     `/api/bootstrap?shopId=${encodeURIComponent(shopId)}`,
                     { cache: "no-store", signal: requestSignal },
-                  ),
+                  )),
                 resolveShopId: (shops) =>
                   (storedShopId && shops.some((shop) => shop.id === storedShopId)
                     ? storedShopId
@@ -382,17 +381,18 @@ export default function OwnerMobilePage() {
           ),
         );
 
+        if (accountSuspended) return;
+
         if (typeof window !== "undefined") {
           window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, criticalData.shopId);
         }
 
-        const isAndroidApp = Capacitor.getPlatform() === "android";
-        if (!isAndroidApp && shouldBlockOwnerAccessBySubscription(criticalData.subscription)) {
+        if (!isAndroidApp && criticalData.subscription && shouldBlockOwnerAccessBySubscription(criticalData.subscription)) {
           router.replace(`/owner/billing?compare=1&plan=${encodeURIComponent(criticalData.subscription.autoRenewPlanCode)}` as never);
           router.refresh();
           return;
         }
-        writeOwnerBillingSummaryCache(criticalData.subscription);
+        if (criticalData.subscription) writeOwnerBillingSummaryCache(criticalData.subscription);
 
         if (!active) return;
         setOwnedShops(criticalData.shops);
@@ -403,6 +403,17 @@ export default function OwnerMobilePage() {
           }),
         );
         setSubscriptionSummary(criticalData.subscription);
+        if (isAndroidApp) {
+          void traceOwnerMobileStartupStep("subscription-deferred", () =>
+            fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
+          ).then((summary) => {
+            if (!active) return;
+            writeOwnerBillingSummaryCache(summary);
+            setSubscriptionSummary(summary);
+          }).catch(() => {
+            // Billing summary is noncritical inside the installed Android app.
+          });
+        }
       } catch (error) {
         if (!active) return;
         const nextMessage = error instanceof Error ? error.message : "모바일 오너 화면을 불러오지 못했습니다.";

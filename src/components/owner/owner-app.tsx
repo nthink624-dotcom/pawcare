@@ -50,6 +50,8 @@ import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { createOwnerMediaAssetFromFile, type MediaAssetListItem } from "@/lib/media/owner-media-client";
+import { traceOwnerMediaStep } from "@/lib/media/owner-media-timing";
+import { createOwnerMobileBackgroundRefreshGate } from "@/lib/owner-mobile-background-refresh";
 import { DEFAULT_REVISIT_REMINDER_DAYS } from "@/lib/notification-settings";
 import { canUseExternalCameraApps, captureWithAndroidCameraApp } from "@/lib/media/external-camera";
 import { ownerHomeCopy } from "@/lib/owner-home-copy";
@@ -443,6 +445,7 @@ export default function OwnerApp({
   const refreshRequestIdRef = useRef(0);
   const lastAppliedRefreshRequestIdRef = useRef(0);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const backgroundRefreshGateRef = useRef(createOwnerMobileBackgroundRefreshGate(60_000));
   const statusMutationGateRef = useRef(createOwnerStatusMutationGate());
   const activeTabBackStackRef = useRef<TabKey[]>([]);
   const previousActiveTabRef = useRef<TabKey>(activeTab);
@@ -1405,10 +1408,11 @@ export default function OwnerApp({
         !isShopPickerOpen;
 
       if (!canSync) return;
+      if (!backgroundRefreshGateRef.current.shouldRun()) return;
       void refreshSilently();
     };
 
-    const intervalId = window.setInterval(syncIfIdle, 15000);
+    const intervalId = window.setInterval(syncIfIdle, 60_000);
     window.addEventListener("focus", syncIfIdle);
     document.addEventListener("visibilitychange", syncIfIdle);
 
@@ -1798,12 +1802,15 @@ export default function OwnerApp({
         },
         mediaKind,
         file,
+        { waitForProviderReadyVariant: false },
       );
 
-      const committed = await updateAppointment(appointment.id, {
-        status: nextStatus,
-        mediaAssetIds: [uploaded.mediaAsset.id],
-      }, { rethrow: true });
+      const committed = await traceOwnerMediaStep("appointment-status-commit", () =>
+        updateAppointment(appointment.id, {
+          status: nextStatus,
+          mediaAssetIds: [uploaded.mediaAsset.id],
+        }, { rethrow: true }),
+      );
       if (!committed) return;
       setMobilePhotoPreviewFile(null);
       setMobilePhotoStatusAction(null);

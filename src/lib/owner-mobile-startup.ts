@@ -60,7 +60,7 @@ export async function traceOwnerMobileStartupStep<T>(step: string, work: () => P
 type OwnerMobileCriticalLoadOptions<TShop, TSubscription, TBootstrap> = {
   signal: AbortSignal;
   loadShops: (signal: AbortSignal) => Promise<TShop[]>;
-  loadSubscription: (signal: AbortSignal) => Promise<TSubscription>;
+  loadSubscription?: ((signal: AbortSignal) => Promise<TSubscription>) | null;
   loadBootstrap: (shopId: string, signal: AbortSignal) => Promise<TBootstrap>;
   resolveShopId: (shops: TShop[]) => string | null;
 };
@@ -76,24 +76,26 @@ export async function loadOwnerMobileCriticalData<TShop, TSubscription, TBootstr
   loadBootstrap,
   resolveShopId,
 }: OwnerMobileCriticalLoadOptions<TShop, TSubscription, TBootstrap>) {
-  const subscriptionPromise: Promise<OwnerMobileSettledResult<TSubscription>> = loadSubscription(signal).then(
-    (value) => ({ ok: true, value }),
-    (error: unknown) => ({ ok: false, error }),
-  );
+  const subscriptionPromise: Promise<OwnerMobileSettledResult<TSubscription>> | null = loadSubscription
+    ? loadSubscription(signal).then(
+        (value) => ({ ok: true, value }),
+        (error: unknown) => ({ ok: false, error }),
+      )
+    : null;
   const shops = await loadShops(signal);
   const shopId = resolveShopId(shops);
   if (!shopId) throw new Error("소유한 매장이 없습니다.");
 
-  const [subscriptionResult, bootstrap] = await Promise.all([
-    subscriptionPromise,
-    loadBootstrap(shopId, signal),
-  ]);
-  if (!subscriptionResult.ok) throw subscriptionResult.error;
+  const bootstrapPromise = loadBootstrap(shopId, signal);
+  const [subscriptionResult, bootstrap] = subscriptionPromise
+    ? await Promise.all([subscriptionPromise, bootstrapPromise])
+    : [null, await bootstrapPromise] as const;
+  if (subscriptionResult && !subscriptionResult.ok) throw subscriptionResult.error;
 
   return {
     shops,
     shopId,
-    subscription: subscriptionResult.value,
+    subscription: subscriptionResult?.ok ? subscriptionResult.value : null,
     bootstrap,
   };
 }

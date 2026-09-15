@@ -42,7 +42,7 @@ test("login controls preserve accessible mobile sizing and error recovery", () =
 
 test("authentication and session handoff navigate once to the canonical owner route", () => {
   assert.match(form, /fetch\("\/api\/auth\/login"/);
-  assert.match(form, /supabase\.auth\.setSession/);
+  assert.doesNotMatch(form, /getSupabaseBrowserClient|supabase\.auth\.setSession/);
   assert.match(form, /writeOwnerAuthHandoff\(handoff\)/);
   assert.match(form, /writeOwnerAuthSessionCache\(handoff\)/);
   assert.match(form, /router\.replace\("\/owner\/mobile" as never\)/);
@@ -64,7 +64,7 @@ test("login request and session handoff always finish within a bounded timeout",
   assert.match(route, /status: 504/);
   assert.match(form, /new AbortController\(\)/);
   assert.match(form, /signal: requestController\.signal/);
-  assert.match(form, /withOwnerLoginTimeout\(/);
+  assert.match(form, /traceOwnerMobileStartupStep\("login-api"/);
   assert.match(form, /로그인 응답이 지연되고 있습니다/);
   assert.match(timeout, /Promise\.race/);
   assert.match(timeout, /clearTimeout\(timer\)/);

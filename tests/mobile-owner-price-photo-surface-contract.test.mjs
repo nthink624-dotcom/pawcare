@@ -215,7 +215,10 @@ test("photo recovery names the failed lifecycle boundary without backend detail 
 
 test("camera and preview boundaries do not log sensitive image payloads", () => {
   assert.doesNotMatch(fixture, /String\(error\)|console\.(?:log|debug|warn|error)/);
-  assert.doesNotMatch(externalCamera, /console\.(?:log|debug|warn|error)/);
+  assert.doesNotMatch(externalCamera, /console\.(?:log|debug|error)/);
+  assert.match(externalCamera, /console\.info\("\[owner-camera\]", \{ step, outcome: "success", durationMs:/);
+  assert.match(externalCamera, /console\.warn\("\[owner-camera\]", \{[\s\S]*errorName:/);
+  assert.doesNotMatch(externalCamera, /console\.(?:info|warn)\([^\n]*(?:base64|path|fileName|mimeType)/);
   assert.doesNotMatch(nativeCamera, /\bLog\.(?:d|i|v|w|e)\s*\(/);
   assert.match(externalCamera, /bytes\.fill\(0\)/);
   assert.match(externalCamera, /result\.base64 = ""/);
@@ -228,13 +231,14 @@ test("the effective Android Capacitor config disables bridge logging", () => {
 
 test("grooming photo sources keep only their actions and native chooser grants stay temporary", () => {
   assert.match(photoSheet, /카메라 앱 선택/);
-  assert.match(photoSheet, /onCapture\("chooser"\)/);
-  assert.match(photoSheet, /onCapture\("default"\)/);
+  assert.match(photoSheet, /기본 카메라로 촬영/);
+  assert.match(photoSheet, /getExternalCameraCapabilities/);
+  assert.match(photoSheet, /onCapture\(cameraMode\)/);
   assert.match(photoSheet, /앨범에서 선택/);
   assert.doesNotMatch(photoSheet, /원본 사진을 선택한 뒤|등록을 누르기 전까지|설치된 카메라 앱 중에서 골라 촬영해요|촬영한 사진을 미리보기로 확인해요|바로 촬영하기|촬영한 사진 불러오기/);
   assert.match(nativeCamera, /Intent\.createChooser\(cameraIntent, "카메라 앱 선택"\)/);
   assert.doesNotMatch(nativeCamera, /setPackage\(/);
-  assert.match(nativeCamera, /queryIntentActivities\(cameraIntent, 0\)/);
+  assert.match(nativeCamera, /queryIntentActivities\(cameraIntent, PackageManager\.MATCH_DEFAULT_ONLY\)/);
   assert.match(nativeCamera, /grantUriPermission\([\s\S]*FLAG_GRANT_WRITE_URI_PERMISSION \| Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
   assert.match(nativeCamera, /revokeUriPermission\([\s\S]*FLAG_GRANT_WRITE_URI_PERMISSION \| Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
   assert.match(nativeCamera, /clearPendingOutput\(\);/);

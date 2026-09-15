@@ -4,10 +4,10 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.provider.MediaStore;
-import android.util.Base64;
 import android.os.Bundle;
 
 import androidx.core.content.FileProvider;
@@ -23,9 +23,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
@@ -44,13 +43,6 @@ public class ExternalCameraPlugin extends Plugin {
     private static final String CAMERA_LAUNCH_FAILED = "CAMERA_LAUNCH_FAILED";
     private Uri pendingOutputUri;
     private File pendingOutputFile;
-
-    private static final class WipingByteArrayOutputStream extends ByteArrayOutputStream {
-        void wipe() {
-            Arrays.fill(buf, (byte) 0);
-            reset();
-        }
-    }
 
     @Override
     public void load() {
@@ -72,6 +64,27 @@ public class ExternalCameraPlugin extends Plugin {
         launchCamera(call);
     }
 
+    @PluginMethod
+    public void getCapabilities(PluginCall call) {
+        List<ResolveInfo> handlers = queryCameraHandlers();
+        JSObject response = new JSObject();
+        response.put("availableAppCount", handlers.size());
+        response.put("canChoose", handlers.size() > 1);
+        call.resolve(response);
+    }
+
+    @PluginMethod
+    public void release(PluginCall call) {
+        String cacheFileName = call.getString("cacheFileName");
+        if (cacheFileName == null || cacheFileName.contains("/") || cacheFileName.contains("\\") || !cacheFileName.startsWith(FILE_PREFIX)) {
+            call.reject("촬영 임시 파일을 확인할 수 없습니다.");
+            return;
+        }
+        File file = new File(new File(getContext().getCacheDir(), CACHE_DIRECTORY), cacheFileName);
+        if (file.exists()) file.delete();
+        call.resolve();
+    }
+
     @PermissionCallback
     private void cameraPermissionCallback(PluginCall call) {
         if (getPermissionState("camera") != PermissionState.GRANTED) {
@@ -85,7 +98,7 @@ public class ExternalCameraPlugin extends Plugin {
     private void launchCamera(PluginCall call) {
         try {
             Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-            List<ResolveInfo> handlers = getContext().getPackageManager().queryIntentActivities(cameraIntent, 0);
+            List<ResolveInfo> handlers = queryCameraHandlers();
             if (handlers.isEmpty()) {
                 clearPendingOutput();
                 call.reject("사용할 수 있는 카메라 앱이 없습니다.", CAMERA_UNAVAILABLE);
@@ -104,7 +117,7 @@ public class ExternalCameraPlugin extends Plugin {
             cameraIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
             cameraIntent.setClipData(ClipData.newRawUri("petmanager-photo", pendingOutputUri));
             grantOutputUriToCameraApps(handlers);
-            Intent launchIntent = call.getBoolean("chooser", false)
+            Intent launchIntent = call.getBoolean("chooser", false) && handlers.size() > 1
                 ? Intent.createChooser(cameraIntent, "카메라 앱 선택")
                 : cameraIntent;
             startActivityForResult(call, launchIntent, "externalCameraResult");
@@ -134,56 +147,71 @@ public class ExternalCameraPlugin extends Plugin {
 
     @ActivityCallback
     private void externalCameraResult(PluginCall call, ActivityResult result) {
+        boolean retainOutputForBridge = false;
         try {
             if (result.getResultCode() != Activity.RESULT_OK) {
                 call.reject("CAMERA_CANCELLED");
                 return;
             }
-            Uri resultUri = pendingOutputUri;
-            if ((pendingOutputFile == null || pendingOutputFile.length() == 0) && result.getData() != null && result.getData().getData() != null) {
-                resultUri = result.getData().getData();
-            }
-            if (resultUri == null) {
+            if (pendingOutputFile == null) {
                 call.reject("촬영한 사진을 찾을 수 없습니다.");
                 return;
             }
-            byte[] bytes = readBytes(resultUri);
-            if (bytes.length == 0) {
+            Uri resultUri = pendingOutputUri;
+            if (pendingOutputFile.length() == 0 && result.getData() != null && result.getData().getData() != null) {
+                Uri returnedUri = result.getData().getData();
+                copyResultToPendingFile(returnedUri, pendingOutputFile);
+                resultUri = returnedUri;
+            }
+            if (pendingOutputFile.length() == 0) {
                 call.reject("촬영한 사진을 읽을 수 없습니다.");
                 return;
             }
-            byte[] encoded = Base64.encode(bytes, Base64.NO_WRAP);
-            try {
-                JSObject response = new JSObject();
-                response.put("base64", new String(encoded, java.nio.charset.StandardCharsets.US_ASCII));
-                response.put("mimeType", getContext().getContentResolver().getType(resultUri) == null ? "image/jpeg" : getContext().getContentResolver().getType(resultUri));
-                response.put("fileName", "petmanager-photo-" + System.currentTimeMillis() + ".jpg");
-                call.resolve(response);
-            } finally {
-                Arrays.fill(encoded, (byte) 0);
-                Arrays.fill(bytes, (byte) 0);
-            }
+            String mimeType = resultUri == null ? null : getContext().getContentResolver().getType(resultUri);
+            JSObject response = new JSObject();
+            response.put("path", pendingOutputFile.getAbsolutePath());
+            response.put("cacheFileName", pendingOutputFile.getName());
+            response.put("mimeType", mimeType == null ? "image/jpeg" : mimeType);
+            response.put("fileName", "petmanager-photo-" + System.currentTimeMillis() + ".jpg");
+            call.resolve(response);
+            retainOutputForBridge = true;
         } catch (Exception error) {
             call.reject("촬영한 사진을 불러올 수 없습니다.", error);
         } finally {
-            clearPendingOutput();
+            if (retainOutputForBridge) detachPendingOutput();
+            else clearPendingOutput();
         }
     }
 
-    private byte[] readBytes(Uri uri) throws Exception {
-        InputStream stream = "file".equals(uri.getScheme()) ? new FileInputStream(new File(uri.getPath())) : getContext().getContentResolver().openInputStream(uri);
-        if (stream == null) return new byte[0];
+    private void copyResultToPendingFile(Uri uri, File destination) throws Exception {
+        InputStream stream = getContext().getContentResolver().openInputStream(uri);
+        if (stream == null) return;
         byte[] buffer = new byte[8192];
-        try (InputStream input = stream; WipingByteArrayOutputStream output = new WipingByteArrayOutputStream()) {
+        try (InputStream input = stream; FileOutputStream output = new FileOutputStream(destination, false)) {
             int count;
             try {
                 while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-                return output.toByteArray();
+                output.flush();
             } finally {
                 Arrays.fill(buffer, (byte) 0);
-                output.wipe();
             }
         }
+    }
+
+    private List<ResolveInfo> queryCameraHandlers() {
+        Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        return getContext().getPackageManager().queryIntentActivities(cameraIntent, PackageManager.MATCH_DEFAULT_ONLY);
+    }
+
+    private void detachPendingOutput() {
+        if (pendingOutputUri != null) {
+            getContext().revokeUriPermission(
+                pendingOutputUri,
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
+        }
+        pendingOutputFile = null;
+        pendingOutputUri = null;
     }
 
     private void clearPendingOutput() {

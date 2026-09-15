@@ -1,7 +1,9 @@
 "use client";
 
 import { Camera, ChevronRight, ImagePlus, RotateCcw, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+
+import { getExternalCameraCapabilities, type ExternalCameraCapabilities } from "@/lib/media/external-camera";
 
 type PhotoAction = {
   title: string;
@@ -38,6 +40,16 @@ export default function OwnerExternalPhotoSheet({
   const libraryInputId = useId();
   const fallbackCameraInputId = useId();
   const previewUrlRef = useRef<string | null>(null);
+  const [cameraCapabilities, setCameraCapabilities] = useState<ExternalCameraCapabilities | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!canUseCameraApps) return () => { active = false; };
+    void getExternalCameraCapabilities().then((capabilities) => {
+      if (active) setCameraCapabilities(capabilities);
+    });
+    return () => { active = false; };
+  }, [canUseCameraApps]);
 
   const setPreviewImage = useCallback((image: HTMLImageElement | null) => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
@@ -58,6 +70,18 @@ export default function OwnerExternalPhotoSheet({
 
   const isPreviewing = Boolean(previewFile);
   const confirmLabel = action.buttonLabel.replace("사진 찍고", "사진 등록하고");
+  const effectiveCameraCapabilities = canUseCameraApps
+    ? cameraCapabilities
+    : { availableAppCount: 0, canChoose: false };
+  const cameraUnavailable = effectiveCameraCapabilities?.availableAppCount === 0;
+  const cameraMode = effectiveCameraCapabilities?.canChoose === false ? "default" : "chooser";
+  const cameraLabel = effectiveCameraCapabilities?.canChoose === true
+    ? "카메라 앱 선택"
+    : effectiveCameraCapabilities?.availableAppCount === 1
+      ? "기본 카메라로 촬영"
+      : cameraUnavailable
+        ? "사용 가능한 카메라 없음"
+        : "카메라로 촬영";
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[#0d1726]/45 pt-12" onClick={onClose}>
@@ -117,12 +141,12 @@ export default function OwnerExternalPhotoSheet({
             {canUseCameraApps ? (
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => onCapture("chooser")}
+                disabled={busy || cameraUnavailable}
+                onClick={() => onCapture(cameraMode)}
                 className="group flex w-full items-center gap-3 rounded-[18px] border border-[#a9c8f4] bg-[#eaf3ff] px-4 py-4 text-left shadow-[0_8px_18px_rgba(62,125,210,0.12)] transition active:scale-[0.99] disabled:opacity-55"
               >
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#286bd1] text-white shadow-[0_5px_11px_rgba(40,107,209,0.24)]"><Camera className="h-5 w-5" /></span>
-                <span className="min-w-0 flex-1 text-[16px] font-semibold tracking-[-0.03em] text-[#1b457c]">카메라 앱 선택</span>
+                <span className="min-w-0 flex-1 text-[16px] font-semibold tracking-[-0.03em] text-[#1b457c]">{cameraLabel}</span>
                 <ChevronRight className="h-5 w-5 shrink-0 text-[#6b94c8] transition-transform group-active:translate-x-0.5" />
               </button>
             ) : (

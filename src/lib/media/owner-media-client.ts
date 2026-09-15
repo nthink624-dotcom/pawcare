@@ -6,6 +6,7 @@ import {
   compressImageVariantsForPetmanager,
   type PetmanagerCompressedImage,
 } from "@/lib/media/client-image-compression";
+import { traceOwnerMediaStep } from "@/lib/media/owner-media-timing";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { MediaAsset, MediaKind, MediaVariant } from "@/types/domain";
 
@@ -204,12 +205,12 @@ export async function createOwnerMediaAssetFromFile(
   context: OwnerMediaContext,
   mediaKind: MediaKind,
   file: File,
-  options?: { createProviderReadyVariant?: boolean },
+  options?: { createProviderReadyVariant?: boolean; waitForProviderReadyVariant?: boolean },
 ): Promise<OwnerMediaUploadResult> {
-  const compressed = await compressImageForPetmanager(file);
-  const intent = await createUploadIntent(context, mediaKind, compressed);
+  const compressed = await traceOwnerMediaStep("compress-original", () => compressImageForPetmanager(file));
+  const intent = await traceOwnerMediaStep("create-upload-intent", () => createUploadIntent(context, mediaKind, compressed));
 
-  await uploadCompressedFile({
+  await traceOwnerMediaStep("upload-original", () => uploadCompressedFile({
     bucket: intent.upload.bucket,
     path: intent.upload.path,
     signedUrl: intent.upload.signedUrl,
@@ -217,12 +218,24 @@ export async function createOwnerMediaAssetFromFile(
     method: intent.upload.method,
     headers: intent.upload.headers,
     file: compressed.file,
-  });
+  }));
 
-  const completed = await completeUpload(context, intent.mediaAsset.id, compressed);
-  const variant = options?.createProviderReadyVariant === false
-    ? null
-    : await createProviderReadyVariant(context, intent.mediaAsset.id, file);
+  const completed = await traceOwnerMediaStep("complete-upload-readback", () => completeUpload(context, intent.mediaAsset.id, compressed));
+  let variant: MediaVariant | null = null;
+  if (options?.createProviderReadyVariant !== false) {
+    const createVariant = () => traceOwnerMediaStep(
+      "create-provider-ready-variant",
+      () => createProviderReadyVariant(context, intent.mediaAsset.id, file),
+    );
+    if (options?.waitForProviderReadyVariant === false) {
+      void createVariant().catch(() => {
+        // The original asset is authoritative; a failed AI-ready derivative
+        // must not roll back a confirmed upload or delay a status commit.
+      });
+    } else {
+      variant = await createVariant();
+    }
+  }
 
   return {
     mediaAsset: completed.mediaAsset,

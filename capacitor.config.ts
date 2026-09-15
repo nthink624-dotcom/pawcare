@@ -11,7 +11,7 @@ const config: CapacitorConfig = {
   appName: PETMANAGER_SERVICE_NAME,
   webDir: "capacitor-web",
   android: {
-    // Camera results can include base64 data. Keep Capacitor's bridge output out of Android logs.
+    // Camera results use a task-scoped file bridge. Keep all native bridge output out of Android logs.
     loggingBehavior: "none",
   },
   plugins: {

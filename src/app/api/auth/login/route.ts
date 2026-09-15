@@ -25,6 +25,23 @@ function toLoginMessage(message: string | undefined) {
   return "이메일 또는 비밀번호를 다시 확인해 주세요.";
 }
 
+async function traceLoginServerStep<T>(step: string, work: () => Promise<T>) {
+  const startedAt = Date.now();
+  try {
+    const result = await work();
+    console.info("[owner-login]", { step, outcome: "success", durationMs: Date.now() - startedAt });
+    return result;
+  } catch (error) {
+    console.warn("[owner-login]", {
+      step,
+      outcome: "failure",
+      durationMs: Date.now() - startedAt,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    throw error;
+  }
+}
+
 async function executeLogin(request: NextRequest, signal: AbortSignal) {
   if (!hasSupabaseServerEnv()) {
       return NextResponse.json({ message: "로그인 환경이 준비되지 않았습니다." }, { status: 503 });
@@ -42,12 +59,19 @@ async function executeLogin(request: NextRequest, signal: AbortSignal) {
       return NextResponse.json({ message: "로그인 환경이 준비되지 않았습니다." }, { status: 503 });
   }
 
-  const profileResult = await admin
-      .from("owner_profiles")
-      .select("user_id, login_id")
-      .eq("login_id", email)
-      .abortSignal(signal)
-      .maybeSingle<{ user_id: string; login_id: string }>();
+  const [profileResult, authResult] = await Promise.all([
+    traceLoginServerStep("owner-profile", async () =>
+      await admin
+        .from("owner_profiles")
+        .select("user_id, login_id")
+        .eq("login_id", email)
+        .abortSignal(signal)
+        .maybeSingle<{ user_id: string; login_id: string }>(),
+    ),
+    traceLoginServerStep("password-auth", () =>
+      supabase.auth.signInWithPassword({ email, password: body.password }),
+    ),
+  ]);
   if (profileResult.error) {
       return NextResponse.json({ message: "로그인 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
   }
@@ -55,7 +79,7 @@ async function executeLogin(request: NextRequest, signal: AbortSignal) {
       return NextResponse.json({ message: "등록되지 않은 이메일입니다. 이메일을 확인해 주세요." }, { status: 401 });
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password: body.password });
+  const { data, error } = authResult;
   if (
       error ||
       !data.user ||

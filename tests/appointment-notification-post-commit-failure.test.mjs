@@ -128,7 +128,9 @@ test("POST keeps the committed appointment successful when booking-link notifica
       if (specifier === "@/server/bootstrap") return { getBootstrap: async () => bootstrap };
       if (specifier === "@/server/mock-store") return { getMockStore: () => ({}), setMockStore() {} };
       if (specifier === "@/server/notification-dispatch") {
+        class NotificationLedgerPersistenceError extends Error {}
         return {
+          NotificationLedgerPersistenceError,
           dispatchNotification: async () => {
             notificationAttempts += 1;
             throw new Error("BOOKING_ACCESS_SECRET server configuration is missing");
@@ -186,6 +188,7 @@ test("POST keeps the committed appointment successful when booking-link notifica
         appointmentId: response.body.id,
         notificationType: "booking_confirmed",
         reason: "dispatch_failed",
+        code: "NOTIFICATION_DISPATCH_FAILED_AFTER_APPOINTMENT_COMMIT",
       },
     },
   ]);

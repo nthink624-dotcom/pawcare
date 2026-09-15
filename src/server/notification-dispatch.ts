@@ -58,13 +58,27 @@ type DispatchNotificationResult = {
   alreadyExists: boolean;
 };
 
-function normalizePhone(value: string) {
-  return phoneNormalize(value).slice(0, 11);
+export const NOTIFICATION_LEDGER_PERSISTENCE_ERROR_CODE =
+  "NOTIFICATION_PROVIDER_SUCCEEDED_LEDGER_PERSIST_FAILED" as const;
+
+export class NotificationLedgerPersistenceError extends Error {
+  readonly code = NOTIFICATION_LEDGER_PERSISTENCE_ERROR_CODE;
+  readonly providerSucceeded = true as const;
+  readonly ledgerPersisted = false as const;
+  readonly automaticRetryAllowed = false as const;
+  readonly appointmentId: string | null;
+  readonly notificationType: NotificationType;
+
+  constructor(params: { appointmentId: string | null; notificationType: NotificationType }) {
+    super("Notification provider delivery succeeded, but the notification ledger was not persisted.");
+    this.name = "NotificationLedgerPersistenceError";
+    this.appointmentId = params.appointmentId;
+    this.notificationType = params.notificationType;
+  }
 }
 
-function getPhoneTail(value: string | null | undefined) {
-  const normalized = phoneNormalize(value ?? "");
-  return normalized ? normalized.slice(-4) : null;
+function normalizePhone(value: string) {
+  return phoneNormalize(value).slice(0, 11);
 }
 
 function logNotificationSkipped(params: {
@@ -74,7 +88,7 @@ function logNotificationSkipped(params: {
 }) {
   console.log("[notification-dispatch] skipped", {
     reason: params.reason,
-    type: params.type,
+    notificationType: params.type,
     appointmentId: params.appointmentId ?? null,
   });
 }
@@ -365,14 +379,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
         : null;
   const service =
     appointment ? bootstrap.services.find((item) => item.id === appointment.service_id) ?? null : null;
-  const target = input.type === "owner_booking_requested" || (input.channel ?? "alimtalk") === "in_app" ? "owner" : "guardian";
-  const initialPhoneTail = getPhoneTail(input.recipientPhone) ?? getPhoneTail(guardian?.phone ?? null);
-
   console.log("[notification-dispatch] called", {
-    type: input.type,
+    notificationType: input.type,
     appointmentId: input.appointmentId ?? appointment?.id ?? null,
-    target,
-    phoneTail: initialPhoneTail,
+    reason: "dispatch_started",
   });
 
   if (input.skipIfExists && hasExistingNotification(bootstrap.notifications, input)) {
@@ -451,6 +461,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   let sentAt: string | null = null;
   let failReason: string | null = null;
   let providerMessageId: string | null = null;
+  let providerSucceeded = false;
   const alimtalkSenderConfig = getAlimtalkSenderConfig(bootstrap.shop);
   const scheduledAt = input.scheduledAt ?? null;
   const shouldSendNow = !scheduledAt || new Date(scheduledAt).getTime() <= Date.now();
@@ -531,6 +542,8 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
         const delivery = await sendAlimtalkMessage({
           to: recipientPhone,
           message,
+          appointmentId: input.appointmentId ?? appointment?.id ?? null,
+          notificationType: input.type,
           templateAlias,
           templateKey,
           templateType,
@@ -541,13 +554,14 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           recipientName,
           metadata: input.metadata ?? null,
         });
+        providerSucceeded = true;
         status = "sent";
         provider = delivery.provider;
         providerMessageId = delivery.providerMessageId;
         sentAt = nowIso();
-      } catch (error) {
+      } catch {
         status = "failed";
-        failReason = error instanceof Error ? error.message : "Alimtalk send failed.";
+        failReason = "ALIMTALK_PROVIDER_FAILED";
       }
     } else {
       status = "queued";
@@ -605,6 +619,12 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
 
   const admin = getSupabaseAdmin();
   if (!admin) {
+    if (providerSucceeded) {
+      throw new NotificationLedgerPersistenceError({
+        appointmentId: notification.appointment_id ?? null,
+        notificationType: notification.type,
+      });
+    }
     throw new Error("Notification server connection is unavailable.");
   }
 
@@ -630,16 +650,26 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     created_at: notification.created_at,
   };
 
-  const result = await admin.from("notifications").insert(insertPayload).select("*").single();
-  if (result.error) {
-    throw new Error(result.error.message);
-  }
+  try {
+    const result = await admin.from("notifications").insert(insertPayload).select("*").single();
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
 
-  return {
-    notification: result.data as Notification,
-    skipped: status === "skipped",
-    alreadyExists: false,
-  };
+    return {
+      notification: result.data as Notification,
+      skipped: status === "skipped",
+      alreadyExists: false,
+    };
+  } catch (error) {
+    if (providerSucceeded) {
+      throw new NotificationLedgerPersistenceError({
+        appointmentId: notification.appointment_id ?? null,
+        notificationType: notification.type,
+      });
+    }
+    throw error;
+  }
 }
 
 export async function runScheduledNotificationDispatch() {

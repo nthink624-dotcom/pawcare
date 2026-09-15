@@ -8,7 +8,10 @@ import { addDate, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
 import { createAppointmentWithDatabaseGuard, updateAppointmentWithDatabaseGuard } from "@/server/appointment-capacity";
 import { getBootstrap } from "@/server/bootstrap";
 import { getMockStore, setMockStore } from "@/server/mock-store";
-import { dispatchNotification } from "@/server/notification-dispatch";
+import {
+  dispatchNotification,
+  NotificationLedgerPersistenceError,
+} from "@/server/notification-dispatch";
 import {
   appointmentInputSchema,
   appointmentEditSchema,
@@ -170,10 +173,9 @@ type AppointmentStatusNotificationType =
   | "grooming_completed";
 
 function getAppointmentNotificationReason(result: Awaited<ReturnType<typeof dispatchNotification>>) {
-  if (result.notification.fail_reason) return result.notification.fail_reason;
+  if (result.alreadyExists) return "already_exists";
   if (result.skipped) return "skipped";
-  if (result.alreadyExists) return "already exists";
-  return null;
+  return result.notification.status;
 }
 
 async function dispatchAppointmentNotificationWithLogs(params: {
@@ -187,7 +189,7 @@ async function dispatchAppointmentNotificationWithLogs(params: {
   console.log("[appointments-api] notification dispatch start", {
     appointmentId: params.appointment.id,
     notificationType: params.type,
-    target: "guardian",
+    reason: "dispatch_started",
   });
 
   try {
@@ -205,16 +207,31 @@ async function dispatchAppointmentNotificationWithLogs(params: {
     console.log("[appointments-api] notification dispatch result", {
       appointmentId: params.appointment.id,
       notificationType: params.type,
-      ok: result.notification.status !== "failed",
       reason: getAppointmentNotificationReason(result),
+      code: "NOTIFICATION_DISPATCH_RECORDED",
     });
 
     return result;
-  } catch {
+  } catch (error) {
+    if (error instanceof NotificationLedgerPersistenceError) {
+      console.error("[appointments-api] P1 notification ledger persistence failed after provider success", {
+        appointmentId: params.appointment.id,
+        notificationType: params.type,
+        reason: "provider_succeeded_ledger_persist_failed_no_retry",
+        code: error.code,
+      });
+      return {
+        providerSucceeded: error.providerSucceeded,
+        ledgerPersisted: error.ledgerPersisted,
+        automaticRetryAllowed: error.automaticRetryAllowed,
+      };
+    }
+
     console.warn("[appointments-api] notification dispatch failed after appointment commit", {
       appointmentId: params.appointment.id,
       notificationType: params.type,
       reason: "dispatch_failed",
+      code: "NOTIFICATION_DISPATCH_FAILED_AFTER_APPOINTMENT_COMMIT",
     });
     return null;
   }

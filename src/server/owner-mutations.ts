@@ -210,14 +210,13 @@ async function dispatchAppointmentNotificationWithLogs(params: {
     });
 
     return result;
-  } catch (error) {
-    console.log("[appointments-api] notification dispatch result", {
+  } catch {
+    console.warn("[appointments-api] notification dispatch failed after appointment commit", {
       appointmentId: params.appointment.id,
       notificationType: params.type,
-      ok: false,
-      reason: error instanceof Error ? error.message : String(error),
+      reason: "dispatch_failed",
     });
-    throw error;
+    return null;
   }
 }
 

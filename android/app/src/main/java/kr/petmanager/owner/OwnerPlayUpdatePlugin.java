@@ -49,6 +49,14 @@ public class OwnerPlayUpdatePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getInstalledState(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("supported", isInstalledFromGooglePlay());
+        result.put("installedVersionCode", installedVersionCode());
+        call.resolve(result);
+    }
+
+    @PluginMethod
     public void checkForUpdate(PluginCall call) {
         if (!isInstalledFromGooglePlay()) {
             call.resolve(baseState(false, true));

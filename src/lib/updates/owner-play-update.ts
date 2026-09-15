@@ -10,6 +10,10 @@ import {
 } from "@/lib/updates/owner-play-update-policy";
 
 type OwnerPlayUpdatePlugin = {
+  getInstalledState(): Promise<{
+    supported: boolean;
+    installedVersionCode?: number;
+  }>;
   checkForUpdate(): Promise<OwnerPlayUpdateNativeState>;
   startFlexibleUpdate(): Promise<{ started: boolean; accepted: boolean }>;
   completeFlexibleUpdate(): Promise<{ requested: boolean }>;
@@ -77,6 +81,8 @@ function readCachedUpdate() {
     if (
       !parsed ||
       typeof parsed.checkedAt !== "number" ||
+      typeof parsed.available !== "boolean" ||
+      typeof parsed.downloaded !== "boolean" ||
       typeof parsed.installedVersionCode !== "number" ||
       (parsed.targetVersionCode !== null && typeof parsed.targetVersionCode !== "number")
     ) {
@@ -129,15 +135,54 @@ function installNoticeTarget(targetVersionCode: number, downloaded: boolean) {
   return targetVersionCode;
 }
 
-function hydrateCachedAvailability() {
-  if (!isGooglePlayAndroidRuntime()) return;
+function resetSnapshot() {
+  snapshot = EMPTY_SNAPSHOT;
+  for (const listener of listeners) listener();
+}
+
+async function useFreshCachedAvailability() {
   const cached = readCachedUpdate();
-  if (!cached?.available || cached.targetVersionCode === null) return;
+  if (!cached || !isOwnerPlayUpdateCacheFresh(cached.checkedAt)) return false;
+
+  let installedState: Awaited<ReturnType<OwnerPlayUpdatePlugin["getInstalledState"]>>;
+  try {
+    installedState = await OwnerPlayUpdate.getInstalledState();
+  } catch {
+    return false;
+  }
+
+  const installedVersionCode = installedState.installedVersionCode;
+  if (
+    !installedState.supported ||
+    typeof installedVersionCode !== "number" ||
+    !Number.isSafeInteger(installedVersionCode) ||
+    installedVersionCode < 0
+  ) {
+    removeCachedUpdate();
+    resetSnapshot();
+    return true;
+  }
+
+  if (
+    installedVersionCode !== cached.installedVersionCode ||
+    (cached.targetVersionCode !== null && cached.targetVersionCode <= installedVersionCode)
+  ) {
+    removeCachedUpdate();
+    resetSnapshot();
+    return false;
+  }
+
+  if (!cached.available || cached.targetVersionCode === null) {
+    resetSnapshot();
+    return true;
+  }
+
   publish({
     available: true,
     downloaded: cached.downloaded,
     targetVersionCode: cached.targetVersionCode,
   });
+  return true;
 }
 
 export function subscribeOwnerPlayUpdate(listener: () => void) {
@@ -155,19 +200,16 @@ export function getOwnerPlayUpdateServerSnapshot() {
 
 export async function checkOwnerPlayUpdate(options: { force?: boolean; allowPrompt?: boolean } = {}) {
   if (!isGooglePlayAndroidRuntime()) return;
-  if (!options.force) {
-    const cached = readCachedUpdate();
-    if (cached && isOwnerPlayUpdateCacheFresh(cached.checkedAt)) return;
-  }
   if (checkInFlight) return checkInFlight;
 
   checkInFlight = (async () => {
     try {
+      if (!options.force && await useFreshCachedAvailability()) return;
+
       const nativeState = await OwnerPlayUpdate.checkForUpdate();
       if (!nativeState.supported) {
         removeCachedUpdate();
-        snapshot = EMPTY_SNAPSHOT;
-        for (const listener of listeners) listener();
+        resetSnapshot();
         return;
       }
 
@@ -253,7 +295,6 @@ export async function completeOwnerPlayFlexibleUpdate() {
 
 export function startOwnerPlayUpdateCoordinator() {
   if (!isGooglePlayAndroidRuntime()) return () => undefined;
-  hydrateCachedAvailability();
 
   let disposed = false;
   let nativeListener: PluginListenerHandle | null = null;

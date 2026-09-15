@@ -57,6 +57,16 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const owner = await requireOwnerShop(request);
     await assertOwnerInitialSetupComplete(owner.shopId);
+
+    if (typeof body?.status === "string") {
+      const result = await updateAppointmentStatus(body, {
+        deferNotifications: (task) => after(task),
+        ownerAccess: owner,
+        allowCompletedReplay: true,
+      });
+      return ownerMobileCorsJson(request, result, undefined, APPOINTMENTS_CORS);
+    }
+
     const bootstrap = await getBootstrap(owner.shopId);
     const appointment = bootstrap.appointments.find((item) => item.id === body?.appointmentId);
     if (!appointment || !appointmentBelongsToStaff(appointment, owner)) {
@@ -68,7 +78,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (owner.role === "staff" && typeof body?.status !== "string") {
+    if (owner.role === "staff") {
       return ownerMobileCorsJson(
         request,
         { message: "직원 계정은 예약 상세 정보를 변경할 수 없습니다." },
@@ -77,14 +87,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (body?.status === "completed" && appointment.status === "completed") {
-      return ownerMobileCorsJson(request, appointment, undefined, APPOINTMENTS_CORS);
-    }
-
-    const result =
-      typeof body?.status === "string"
-        ? await updateAppointmentStatus(body, { deferNotifications: (task) => after(task) })
-        : await updateAppointmentDetails({ ...body, shopId: owner.shopId });
+    const result = await updateAppointmentDetails({ ...body, shopId: owner.shopId });
 
     return ownerMobileCorsJson(request, result, undefined, APPOINTMENTS_CORS);
   } catch (error) {

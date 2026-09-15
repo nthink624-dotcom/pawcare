@@ -26,7 +26,8 @@ import { getBootstrap } from "@/server/bootstrap";
 import { readCurrentVisitWeightForCompletion } from "@/server/appointment-visit-weight";
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { dispatchNotification } from "@/server/notification-dispatch";
-import { OwnerApiError } from "@/server/owner-api-auth";
+import { OwnerApiError, type OwnerShopContext } from "@/server/owner-api-auth";
+import { appointmentBelongsToStaff } from "@/server/staff-privacy";
 import {
   assertShopIdentityChangeLimit,
   buildShopIdentityChanges,
@@ -526,6 +527,26 @@ type AppointmentMutationOptions = {
     requestId: string;
   };
 };
+
+type AppointmentStatusMutationOptions = AppointmentMutationOptions & {
+  ownerAccess?: Pick<OwnerShopContext, "shopId" | "role" | "staffId">;
+  allowCompletedReplay?: boolean;
+};
+
+function assertAppointmentStatusMutationAccess(
+  appointment: Appointment,
+  ownerAccess: AppointmentStatusMutationOptions["ownerAccess"],
+) {
+  if (!ownerAccess) return;
+  const missingStaffIdentity = ownerAccess.role === "staff" && !ownerAccess.staffId;
+  if (
+    appointment.shop_id !== ownerAccess.shopId ||
+    missingStaffIdentity ||
+    !appointmentBelongsToStaff(appointment, ownerAccess)
+  ) {
+    throw new OwnerApiError("예약을 찾을 수 없습니다.", 404);
+  }
+}
 
 async function runAppointmentNotificationTask(
   task: () => Promise<void>,
@@ -2357,7 +2378,7 @@ export async function createAppointment(input: unknown, options?: AppointmentMut
   return appointment;
 }
 
-export async function updateAppointmentStatus(input: unknown, options?: AppointmentMutationOptions) {
+export async function updateAppointmentStatus(input: unknown, options?: AppointmentStatusMutationOptions) {
   const payload = appointmentStatusSchema.parse(input);
   const rejectionReason = payload.status === "rejected" ? getRejectionReason(payload) : null;
   const statusMediaAssetIds = payload.mediaAssetIds ?? [];
@@ -2370,8 +2391,17 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
-    const appointment = store.appointments.find((item) => item.id === payload.appointmentId);
-    if (!appointment) throw new Error("예약을 찾을 수 없습니다.");
+    const appointment = store.appointments.find(
+      (item) => item.id === payload.appointmentId && (!options?.ownerAccess || item.shop_id === options.ownerAccess.shopId),
+    );
+    if (!appointment) {
+      if (options?.ownerAccess) throw new OwnerApiError("예약을 찾을 수 없습니다.", 404);
+      throw new Error("예약을 찾을 수 없습니다.");
+    }
+    assertAppointmentStatusMutationAccess(appointment, options?.ownerAccess);
+    if (options?.allowCompletedReplay && payload.status === "completed" && appointment.status === "completed") {
+      return appointment;
+    }
     const previousAppointment = { ...appointment };
 
     assertAppointmentStatusIsNotRepeated({
@@ -2548,14 +2578,26 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
-  const { data: currentAppointment, error: appointmentError } = await supabase
+  const appointmentQuery = supabase
     .from("appointments")
     .select("*")
-    .eq("id", payload.appointmentId)
-    .single();
+    .eq("id", payload.appointmentId);
+  const scopedAppointmentQuery = options?.ownerAccess
+    ? appointmentQuery.eq("shop_id", options.ownerAccess.shopId)
+    : appointmentQuery;
+  const { data: appointmentData, error: appointmentError } = await scopedAppointmentQuery.maybeSingle();
 
   if (appointmentError) throw new Error(appointmentError.message);
-  const previousAppointment = currentAppointment as Appointment;
+  if (!appointmentData) {
+    if (options?.ownerAccess) throw new OwnerApiError("예약을 찾을 수 없습니다.", 404);
+    throw new Error("예약을 찾을 수 없습니다.");
+  }
+  const currentAppointment = appointmentData as Appointment;
+  assertAppointmentStatusMutationAccess(currentAppointment, options?.ownerAccess);
+  if (options?.allowCompletedReplay && payload.status === "completed" && currentAppointment.status === "completed") {
+    return currentAppointment;
+  }
+  const previousAppointment = currentAppointment;
 
   assertAppointmentStatusIsNotRepeated({
     previousStatus: currentAppointment.status,

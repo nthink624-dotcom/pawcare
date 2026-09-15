@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, Eye, EyeOff, Smartphone } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 
 import { ServiceBrand } from "@/components/brand/service-brand";
 import MobileAiPriceGuideFixture, { type PriceGuideDraftRow } from "@/components/auth/mobile-ai-price-guide-fixture";
@@ -48,6 +49,43 @@ type VerificationApiResponse = {
   devVerificationCode?: string | null;
   verificationToken?: string | null;
 };
+
+type PendingPortoneVerification = {
+  verificationRequestId: string;
+  identityVerificationId: string;
+  successMessage: string;
+};
+
+const PENDING_PORTONE_VERIFICATION_KEY = "petmanager:signup:portone-pending";
+
+function savePendingPortoneVerification(value: PendingPortoneVerification) {
+  window.sessionStorage.setItem(PENDING_PORTONE_VERIFICATION_KEY, JSON.stringify(value));
+}
+
+function readPendingPortoneVerification() {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_PORTONE_VERIFICATION_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<PendingPortoneVerification>;
+    if (!value.verificationRequestId || !value.identityVerificationId || !value.successMessage) return null;
+    return value as PendingPortoneVerification;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingPortoneVerification() {
+  window.sessionStorage.removeItem(PENDING_PORTONE_VERIFICATION_KEY);
+}
+
+function buildPortoneSignupReturnUrl() {
+  const url = new URL(window.location.href);
+  ["identityVerificationId", "identityVerificationTxId", "code", "message", "pgCode", "pgMessage"].forEach((key) =>
+    url.searchParams.delete(key),
+  );
+  url.searchParams.set("portoneReturn", "1");
+  return url.toString();
+}
 
 const initialAgreements: AgreementState = {
   service: false,
@@ -419,6 +457,64 @@ export default function SignupForm({
     setStartTarget(priceGuideFixtureEnabled ? null : "email");
   }, [initialStart, priceGuideFixtureEnabled]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("portoneReturn") !== "1") return;
+
+    const pending = readPendingPortoneVerification();
+    const returnedIdentityVerificationId = params.get("identityVerificationId");
+    const providerMessage = params.get("message") ?? params.get("pgMessage");
+    if (!pending || returnedIdentityVerificationId !== pending.identityVerificationId) {
+      clearPendingPortoneVerification();
+      setMessage(providerMessage ?? "본인인증 복귀 정보를 확인하지 못했어요. 다시 인증해 주세요.");
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+    setStep("profile");
+
+    void fetch("/api/auth/verify-pass", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        purpose: verificationPurpose,
+        verificationRequestId: pending.verificationRequestId,
+        identityVerificationId: pending.identityVerificationId,
+      }),
+    })
+      .then(async (response) => ({ response, result: (await response.json()) as VerificationApiResponse & { identity?: { name?: string; birthDate?: string; phoneNumber?: string } } }))
+      .then(({ response, result }) => {
+        if (!active) return;
+        if (!response.ok || !result.verificationToken) {
+          setMessage(result.message ?? providerMessage ?? "본인 인증 확인에 실패했어요.");
+          return;
+        }
+        setFields((current) => ({
+          ...current,
+          name: result.identity?.name ?? current.name,
+          birthDate: result.identity?.birthDate ?? current.birthDate,
+          phoneNumber: result.identity?.phoneNumber ?? current.phoneNumber,
+        }));
+        setVerificationToken(result.verificationToken);
+        setVerificationSheetOpen(false);
+        setVerificationDetailSheetOpen(false);
+        setMessage(`${pending.successMessage} 보안을 위해 비밀번호와 매장 정보를 다시 입력해 주세요.`);
+      })
+      .catch(() => {
+        if (active) setMessage("본인 인증 확인 중 네트워크 문제가 발생했어요. 다시 인증해 주세요.");
+      })
+      .finally(() => {
+        clearPendingPortoneVerification();
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [verificationPurpose]);
+
   const updateField = (key: keyof typeof fields, value: string) => {
     const normalizedValue =
       key === "birthDate"
@@ -642,11 +738,20 @@ export default function SignupForm({
       const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
       const identityVerificationId = `petmanager_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+      const pendingVerification = {
+        verificationRequestId: requestResult.verificationRequestId,
+        identityVerificationId,
+        successMessage,
+      };
+      const useMobileRedirect = Capacitor.getPlatform() === "android";
+      if (useMobileRedirect) savePendingPortoneVerification(pendingVerification);
+
       const result = await requestIdentityVerification({
         storeId: env.portoneStoreId,
         channelKey,
         identityVerificationId,
-        windowType: { pc: "POPUP", mobile: "POPUP" },
+        windowType: { pc: "POPUP", mobile: useMobileRedirect ? "REDIRECTION" : "POPUP" },
+        ...(useMobileRedirect ? { redirectUrl: buildPortoneSignupReturnUrl(), forceRedirect: true } : {}),
         customer: {
           fullName: fields.name.trim(),
           phoneNumber: fields.phoneNumber,
@@ -657,8 +762,9 @@ export default function SignupForm({
         ...(bypass ? { bypass } : {}),
       });
 
-      if (!result?.identityVerificationId) {
-        setMessage("본인 인증을 완료하지 못했어요.");
+      if (result?.code || !result?.identityVerificationId) {
+        clearPendingPortoneVerification();
+        setMessage(result?.message ?? "본인 인증을 완료하지 못했어요.");
         return;
       }
 
@@ -680,6 +786,9 @@ export default function SignupForm({
 
       setVerificationToken(verifyResult.verificationToken);
       setMessage(successMessage);
+    } catch {
+      clearPendingPortoneVerification();
+      setMessage("본인 인증창을 열지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }

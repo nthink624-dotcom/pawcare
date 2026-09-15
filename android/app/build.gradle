@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 apply plugin: 'com.android.application'
 
 def releaseKeystoreProperties = new Properties()
@@ -10,6 +12,47 @@ if (hasReleaseKeystore) {
 
 def androidVersionCode = (System.getenv('PETMANAGER_ANDROID_VERSION_CODE') ?: '1') as Integer
 def androidVersionName = System.getenv('PETMANAGER_ANDROID_VERSION_NAME') ?: '1.0'
+def generatedCapacitorConfig = file('src/main/assets/capacitor.config.json')
+
+tasks.register('verifyReleaseServerUrl') {
+    group = 'verification'
+    description = 'Fails closed when an Android release has no production HTTPS Capacitor server URL.'
+
+    doLast {
+        if (!generatedCapacitorConfig.exists()) {
+            throw new GradleException("Release Capacitor configuration is missing. Run the approved release sync first.")
+        }
+
+        def config = new JsonSlurper().parse(generatedCapacitorConfig)
+        def serverUrl = config?.server?.url?.toString()?.trim()
+        if (!serverUrl) {
+            throw new GradleException("Release Capacitor server.url is missing. Refusing to package the offline placeholder.")
+        }
+
+        URI parsedServerUrl
+        try {
+            parsedServerUrl = new URI(serverUrl)
+        } catch (Exception ignored) {
+            throw new GradleException("Release Capacitor server.url is not a valid URL.")
+        }
+
+        def hostname = parsedServerUrl.host?.toLowerCase()
+        if (
+            parsedServerUrl.scheme?.toLowerCase() != 'https' ||
+            !hostname ||
+            hostname == 'localhost' ||
+            hostname == '127.0.0.1' ||
+            parsedServerUrl.port == 3000 ||
+            parsedServerUrl.port == 3100
+        ) {
+            throw new GradleException("Release Capacitor server.url must use a production HTTPS endpoint.")
+        }
+    }
+}
+
+tasks.named('preReleaseBuild').configure {
+    dependsOn tasks.named('verifyReleaseServerUrl')
+}
 
 android {
     namespace = "kr.petmanager.owner"

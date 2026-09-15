@@ -15,6 +15,9 @@ const schema = z.object({
   password: z.string().min(1),
 });
 
+const APP_ACCOUNT_NOT_PROVISIONED_MESSAGE =
+  "Google Play 테스트 참여 계정과 앱 로그인 계정은 별개입니다. 이 이메일에는 펫매니저 앱 계정이 등록되어 있지 않습니다.";
+
 function toLoginMessage(message: string | undefined) {
   const normalized = (message ?? "").toLowerCase();
 
@@ -40,6 +43,10 @@ async function traceLoginServerStep<T>(step: string, work: () => Promise<T>) {
     });
     throw error;
   }
+}
+
+function traceLoginDecision(outcome: "credentials-rejected" | "profile-unavailable" | "profile-missing" | "success", status: number) {
+  console.info("[owner-login]", { step: "decision", outcome, status });
 }
 
 async function executeLogin(request: NextRequest, signal: AbortSignal) {
@@ -72,23 +79,27 @@ async function executeLogin(request: NextRequest, signal: AbortSignal) {
       supabase.auth.signInWithPassword({ email, password: body.password }),
     ),
   ]);
-  if (profileResult.error) {
-      return NextResponse.json({ message: "로그인 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
-  }
-  if (!profileResult.data?.user_id) {
-      return NextResponse.json({ message: "등록되지 않은 이메일입니다. 이메일을 확인해 주세요." }, { status: 401 });
-  }
-
   const { data, error } = authResult;
   if (
       error ||
       !data.user ||
-      data.user.id !== profileResult.data.user_id ||
       !data.session?.access_token ||
       !data.session.refresh_token
   ) {
+      traceLoginDecision("credentials-rejected", 401);
       return NextResponse.json({ message: toLoginMessage(error?.message) }, { status: 401 });
   }
+
+  if (profileResult.error) {
+      traceLoginDecision("profile-unavailable", 503);
+      return NextResponse.json({ message: "앱 계정 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+  }
+  if (!profileResult.data?.user_id || data.user.id !== profileResult.data.user_id) {
+      traceLoginDecision("profile-missing", 403);
+      return NextResponse.json({ message: APP_ACCOUNT_NOT_PROVISIONED_MESSAGE }, { status: 403 });
+  }
+
+  traceLoginDecision("success", 200);
 
   return NextResponse.json({
     session: {

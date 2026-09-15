@@ -69,3 +69,13 @@ test("login request and session handoff always finish within a bounded timeout",
   assert.match(timeout, /Promise\.race/);
   assert.match(timeout, /clearTimeout\(timer\)/);
 });
+
+test("valid Supabase credentials are distinguished from a missing app owner profile", () => {
+  const credentialsCheck = route.indexOf('traceLoginDecision("credentials-rejected", 401)');
+  const profileCheck = route.indexOf('traceLoginDecision("profile-missing", 403)');
+  assert.ok(credentialsCheck >= 0);
+  assert.ok(profileCheck > credentialsCheck);
+  assert.match(route, /Google Play 테스트 참여 계정과 앱 로그인 계정은 별개입니다/);
+  assert.match(route, /!profileResult\.data\?\.user_id \|\| data\.user\.id !== profileResult\.data\.user_id/);
+  assert.doesNotMatch(route, /등록되지 않은 이메일입니다\. 이메일을 확인해 주세요/);
+});

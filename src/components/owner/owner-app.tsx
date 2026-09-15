@@ -43,6 +43,11 @@ import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { StatusBadge as AppStatusBadge } from "@/components/ui/status-badge";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import {
+  assertOwnerAppointmentCreateReadback,
+  createOwnerAppointmentCreateGate,
+  mergeOwnerAppointmentCreateReadback,
+} from "@/lib/appointments/owner-appointment-create";
 import { createOwnerStatusMutationGate } from "@/lib/appointments/owner-status-mutation-gate";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { withOwnerMobileTimeout } from "@/lib/owner-mobile-startup";
@@ -512,6 +517,7 @@ export default function OwnerApp({
   const lastAppliedRefreshRequestIdRef = useRef(0);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const backgroundRefreshGateRef = useRef(createOwnerMobileBackgroundRefreshGate(60_000));
+  const appointmentCreateGateRef = useRef(createOwnerAppointmentCreateGate());
   const statusMutationGateRef = useRef(createOwnerStatusMutationGate());
   const activeTabBackStackRef = useRef<TabKey[]>([]);
   const previousActiveTabRef = useRef<TabKey>(activeTab);
@@ -1583,6 +1589,41 @@ export default function OwnerApp({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function createOwnerAppointment(payload: unknown) {
+    if (isOwnerDemo) {
+      setModal(null);
+      return;
+    }
+
+    await appointmentCreateGateRef.current.run(async () => {
+      setSaving(true);
+      setError(null);
+      try {
+        const created = assertOwnerAppointmentCreateReadback(
+          await fetchJson<Appointment>("/api/appointments", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          }),
+          data.shop.id,
+        );
+        setData((previous) => ({
+          ...previous,
+          appointments: mergeOwnerAppointmentCreateReadback(previous.appointments, created),
+        }));
+        setActiveTab("book");
+        setVisitSelectionMode("single");
+        setVisitRange(null);
+        setVisitDateFilter(created.appointment_date);
+        setModal(null);
+        void refreshSilently();
+      } catch (mutationError) {
+        await handleRequestError(mutationError, "예약 등록에 실패했습니다.");
+      } finally {
+        setSaving(false);
+      }
+    });
   }
 
   async function saveStaffMemberProfile(payload: unknown) {
@@ -3401,7 +3442,7 @@ export default function OwnerApp({
         </p>
       ) : null}
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={createOwnerAppointment} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
         if (isOwnerDemo) {
           setModal(null);
           return;
@@ -4523,7 +4564,7 @@ function isBookableOwnerService(service: Service) {
   return service.is_active && name.length > 0 && name !== "새 항목";
 }
 
-function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true, onClose, onNewCustomer, onSave }: { data: BootstrapPayload; petId?: string; saving: boolean; canViewGuardianContact?: boolean; onClose: () => void; onNewCustomer: () => void; onSave: (payload: unknown) => void }) {
+function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true, onClose, onNewCustomer, onSave }: { data: BootstrapPayload; petId?: string; saving: boolean; canViewGuardianContact?: boolean; onClose: () => void; onNewCustomer: () => void; onSave: (payload: unknown) => void | Promise<void> }) {
   const [selectedPetId, setSelectedPetId] = useState(petId || "");
   const [customerQuery, setCustomerQuery] = useState("");
   const [serviceId, setServiceId] = useState("");
@@ -4600,7 +4641,7 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
         <ActionButton
           disabled={!canSave}
           onClick={() =>
-            onSave({
+            void onSave({
               shopId: data.shop.id,
               guardianId: selectedPet?.guardian_id,
               petId: selectedPetId,
@@ -4613,7 +4654,7 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
             })
           }
         >
-          예약 등록
+          {saving ? "등록 중…" : "예약 등록"}
         </ActionButton>
       </div>
     );

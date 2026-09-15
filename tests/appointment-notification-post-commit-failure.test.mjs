@@ -68,8 +68,10 @@ test("POST keeps the committed appointment successful when booking-link notifica
   const capacityModule = loadTypeScriptModule(capacitySource, () => ({}));
   const database = createDatabaseClient();
   const warnings = [];
+  const afterTasks = [];
   let notificationAttempts = 0;
   const safeConsole = {
+    info() {},
     log() {},
     warn(message, context) {
       warnings.push({ message, context });
@@ -151,9 +153,12 @@ test("POST keeps the committed appointment successful when booking-link notifica
     (specifier) => {
       if (specifier === "next/server") {
         return {
+          after(task) {
+            afterTasks.push(task);
+          },
           NextResponse: {
             json(body, init) {
-              return { body, status: init?.status ?? 200 };
+              return { body, headers: init?.headers ?? {}, status: init?.status ?? 200 };
             },
           },
         };
@@ -176,11 +181,16 @@ test("POST keeps the committed appointment successful when booking-link notifica
   assert.equal(database.persistedAppointment.id, response.body.id);
   assert.equal(database.calls.filter((call) => call.kind === "insert").length, 1);
   assert.equal(database.calls.filter((call) => call.kind === "delete").length, 0);
-  assert.equal(notificationAttempts, 1);
+  assert.equal(notificationAttempts, 0);
+  assert.equal(afterTasks.length, 1);
+  assert.match(response.headers["Server-Timing"], /auth;dur=\d+/);
+  assert.match(response.headers["Server-Timing"], /database;dur=\d+/);
   assert.deepEqual(
     database.calls.map((call) => call.kind),
     ["from", "insert", "select", "single"],
   );
+  await afterTasks[0]();
+  assert.equal(notificationAttempts, 1);
   assert.deepEqual(warnings, [
     {
       message: "[appointments-api] notification dispatch failed after appointment commit",

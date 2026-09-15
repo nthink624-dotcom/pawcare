@@ -1,29 +1,54 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 import { getBootstrap } from "@/server/bootstrap";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
-import { createAppointment, updateAppointmentDetails, updateAppointmentStatus } from "@/server/owner-mutations";
+import {
+  createAppointment,
+  type CreateAppointmentStage,
+  updateAppointmentDetails,
+  updateAppointmentStatus,
+} from "@/server/owner-mutations";
+
+function timingHeaderValue(timings: Partial<Record<"auth" | CreateAppointmentStage | "total", number>>) {
+  return Object.entries(timings)
+    .filter((entry): entry is [string, number] => typeof entry[1] === "number")
+    .map(([stage, durationMs]) => `${stage};dur=${durationMs}`)
+    .join(", ");
+}
 
 export async function POST(request: NextRequest) {
+  const requestStartedAt = Date.now();
+  const timings: Partial<Record<"auth" | CreateAppointmentStage | "total", number>> = {};
   try {
     const body = await request.json();
+    const authStartedAt = Date.now();
     await requireOwnerShop(request, body?.shopId);
-    console.log("[appointments-api] POST received", {
-      shopId: body?.shopId ?? null,
-      guardianId: body?.guardianId ?? null,
-      petId: body?.petId ?? null,
-      serviceId: body?.serviceId ?? null,
-      appointmentDate: body?.appointmentDate ?? null,
-      appointmentTime: body?.appointmentTime ?? null,
-      source: body?.source ?? null,
+    timings.auth = Math.max(0, Date.now() - authStartedAt);
+    const result = await createAppointment(body, {
+      onTiming(stage, durationMs) {
+        timings[stage] = durationMs;
+      },
+      schedulePostCommit(task) {
+        after(async () => {
+          await task();
+          console.info("[appointments-performance] post-commit complete", {
+            notificationMs: timings.notification ?? null,
+          });
+        });
+      },
     });
-    const result = await createAppointment(body);
-    console.log("[appointments-api] POST created", {
-      appointmentId: result?.id ?? null,
+    timings.total = Math.max(0, Date.now() - requestStartedAt);
+    console.info("[appointments-performance] response ready", {
       status: result?.status ?? null,
       source: result?.source ?? null,
+      authMs: timings.auth,
+      prepareMs: timings.prepare ?? null,
+      databaseMs: timings.database ?? null,
+      totalMs: timings.total,
     });
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: { "Server-Timing": timingHeaderValue(timings) },
+    });
   } catch (error) {
     console.log("[appointments-api] POST failed", {
       message: error instanceof Error ? error.message : String(error),

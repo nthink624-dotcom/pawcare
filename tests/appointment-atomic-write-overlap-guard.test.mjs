@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
@@ -9,9 +9,19 @@ import ts from "typescript";
 const capacityPath = new URL("../src/server/appointment-capacity.ts", import.meta.url);
 const ownerMutationsPath = new URL("../src/server/owner-mutations.ts", import.meta.url);
 const customerBookingsPath = new URL("../src/server/customer-bookings.ts", import.meta.url);
-const migrationPath = new URL(
-  "../../petmanager/supabase/migrations/20260914214756_repair_appointment_atomic_write_overlap_guard.sql",
-  import.meta.url,
+const migrationPath = await Promise.any(
+  [
+    new URL(
+      "../../petmanager/supabase/migrations/20260914214756_repair_appointment_atomic_write_overlap_guard.sql",
+      import.meta.url,
+    ),
+    new URL(
+      "file:///D:/petmanager/supabase/migrations/20260914214756_repair_appointment_atomic_write_overlap_guard.sql",
+    ),
+  ].map(async (candidate) => {
+    await access(candidate);
+    return candidate;
+  }),
 );
 
 const [capacitySource, ownerMutationsSource, customerBookingsSource, migrationSource] = await Promise.all([

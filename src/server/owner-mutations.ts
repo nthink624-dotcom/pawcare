@@ -906,9 +906,22 @@ export async function updatePet(input: unknown) {
   return data;
 }
 
-export async function createAppointment(input: unknown) {
+export type CreateAppointmentStage = "prepare" | "database" | "notification";
+
+type CreateAppointmentOptions = {
+  onTiming?: (stage: CreateAppointmentStage, durationMs: number) => void;
+  schedulePostCommit?: (task: () => Promise<void>) => void;
+};
+
+function elapsedMilliseconds(startedAt: number) {
+  return Math.max(0, Date.now() - startedAt);
+}
+
+export async function createAppointment(input: unknown, options: CreateAppointmentOptions = {}) {
   const payload = appointmentInputSchema.parse(input);
+  const prepareStartedAt = Date.now();
   const data = await getBootstrap(payload.shopId);
+  options.onTiming?.("prepare", elapsedMilliseconds(prepareStartedAt));
   const service = data.services.find((item) => item.id === payload.serviceId);
   const staffId = payload.staffId?.trim() || null;
 
@@ -956,29 +969,51 @@ export async function createAppointment(input: unknown) {
   };
 
   if (data.mode !== "supabase" || !hasSupabaseServerEnv()) {
+    const databaseStartedAt = Date.now();
     const store = getMutableStore();
     store.appointments = [...store.appointments, appointment];
     setMockStore(store);
+    options.onTiming?.("database", elapsedMilliseconds(databaseStartedAt));
     if (appointment.status === "confirmed") {
-      await dispatchAppointmentNotificationWithLogs({
-        shopId: appointment.shop_id,
-        appointment,
-        type: "booking_confirmed",
-      });
+      const dispatchConfirmedNotification = async () => {
+        const notificationStartedAt = Date.now();
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "booking_confirmed",
+        });
+        options.onTiming?.("notification", elapsedMilliseconds(notificationStartedAt));
+      };
+      if (options.schedulePostCommit) {
+        options.schedulePostCommit(dispatchConfirmedNotification);
+      } else {
+        await dispatchConfirmedNotification();
+      }
     }
     return appointment;
   }
 
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  const databaseStartedAt = Date.now();
   const createdAppointment = await createAppointmentWithDatabaseGuard(supabase, appointment);
+  options.onTiming?.("database", elapsedMilliseconds(databaseStartedAt));
 
   if (createdAppointment.status === "confirmed") {
-    await dispatchAppointmentNotificationWithLogs({
-      shopId: createdAppointment.shop_id,
-      appointment: createdAppointment,
-      type: "booking_confirmed",
-    });
+    const dispatchConfirmedNotification = async () => {
+      const notificationStartedAt = Date.now();
+      await dispatchAppointmentNotificationWithLogs({
+        shopId: createdAppointment.shop_id,
+        appointment: createdAppointment,
+        type: "booking_confirmed",
+      });
+      options.onTiming?.("notification", elapsedMilliseconds(notificationStartedAt));
+    };
+    if (options.schedulePostCommit) {
+      options.schedulePostCommit(dispatchConfirmedNotification);
+    } else {
+      await dispatchConfirmedNotification();
+    }
   }
 
   return createdAppointment;

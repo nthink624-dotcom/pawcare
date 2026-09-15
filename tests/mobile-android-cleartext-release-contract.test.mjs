@@ -4,7 +4,7 @@ import test from "node:test";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("release manifest blocks cleartext while debug limits the exception to loopback hosts", async () => {
+test("release manifest and generated Capacitor config pin the production HTTPS endpoint", async () => {
   const [mainManifest, debugManifest, debugNetworkSecurity, capacitorConfig, generatedConfig] = await Promise.all([
     source("android/app/src/main/AndroidManifest.xml"),
     source("android/app/src/debug/AndroidManifest.xml"),
@@ -24,5 +24,6 @@ test("release manifest blocks cleartext while debug limits the exception to loop
   const effectiveProductionConfig = JSON.parse(generatedConfig);
   assert.equal(effectiveProductionConfig.appId, "kr.petmanager.owner");
   assert.equal(effectiveProductionConfig.android?.loggingBehavior, "none");
-  assert.equal("server" in effectiveProductionConfig, false);
+  assert.equal(effectiveProductionConfig.server?.url, "https://app.petmanager.co.kr");
+  assert.equal(effectiveProductionConfig.server?.cleartext, false);
 });

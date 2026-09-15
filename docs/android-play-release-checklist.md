@@ -5,7 +5,7 @@
 - 앱 이름: `넘친데이 펫매니저`
 - 패키지명: `kr.petmanager.owner`
 - 첫 출시 버전: `1.0.0` (`versionCode 1`)
-- 운영 앱 주소: `https://petmanager-app.vercel.app/login`
+- 운영 앱 주소: `https://app.petmanager.co.kr`
 - 개인정보처리방침: `https://www.petmanager.co.kr/privacy`
 - 고객지원 이메일: `nthink624@gmail.com`
 - 고객지원 전화: `041-557-5529`
@@ -23,8 +23,24 @@
 - `android/app/google-services.json`이 존재하고 Git에서 제외됐는지 확인한다.
 - `.local-secrets/android/petmanager-upload.jks`와 `android/keystore.properties`가 존재하고 Git에서 제외됐는지 확인한다.
 - 업로드 키와 비밀번호 파일을 별도 안전한 위치에 백업한다.
-- `npm run lint`, `npm run typecheck`, `npm run build`를 통과한다.
-- `npx cap sync android`를 통과한다.
+- 개발 중에는 변경 범위 focused test와 `npm run typecheck`, 필요한 native compile만 수행한다.
+- 현재 SHA와 일치하는 Production web build 증거가 있으면 `PETMANAGER_WEB_BUILD_EVIDENCE_SHA`로 전달하고 전체 web build를 반복하지 않는다. 증거가 없거나 SHA가 다르면 릴리스 스크립트가 `npm run build`를 1회 수행한다.
+- 최종 후보에서만 `npm run android:release`를 실행한다. 이 명령은 Capacitor sync 1회와 Gradle `bundleRelease` 1회만 실행하며 별도 compile, clean, 의존성 재설치를 수행하지 않는다.
+- 릴리스 스크립트는 생성된 동일 AAB에서 package/version, jarsigner exit code, 인증서 SHA256, 파일 SHA256, `server.url=https://app.petmanager.co.kr`, 실제 local/dev/preview endpoint 0건을 readback한다.
+- 결과 JSON의 `stageSeconds`에서 web build, server probe, sync, bundle, verify, total 시간을 보존한다.
+
+### 빠른 경로 실행
+
+```powershell
+$env:PETMANAGER_ANDROID_VERSION_CODE = "<Play 최고 code보다 큰 값>"
+$env:PETMANAGER_ANDROID_VERSION_NAME = "<x.y.z>"
+$env:PETMANAGER_WEB_BUILD_EVIDENCE_SHA = git rev-parse HEAD
+npm run android:release
+```
+
+- Production web build 증거가 현재 SHA와 일치할 때만 마지막 환경 변수를 설정한다.
+- 스크립트는 `node_modules`, Gradle wrapper/cache, `.gradle`, `.next`를 그대로 재사용한다.
+- 이전 `app-release.aab`는 빌드 동안 별도 보관되며, 새 bundle 또는 검증 실패 시 복구된다. 검증을 통과한 후보만 `artifacts/android-release`에 보존한다.
 
 ## Play Console 입력
 

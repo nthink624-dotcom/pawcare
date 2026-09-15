@@ -3,7 +3,11 @@
 import { Camera, ChevronRight, ImagePlus, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
-import { getExternalCameraCapabilities, type ExternalCameraCapabilities } from "@/lib/media/external-camera";
+import {
+  getExternalCameraCapabilities,
+  openExternalCameraAppPicker,
+  type ExternalCameraCapabilities,
+} from "@/lib/media/external-camera";
 
 type PhotoAction = {
   title: string;
@@ -41,6 +45,9 @@ export default function OwnerExternalPhotoSheet({
   const fallbackCameraInputId = useId();
   const previewUrlRef = useRef<string | null>(null);
   const [cameraCapabilities, setCameraCapabilities] = useState<ExternalCameraCapabilities | null>(null);
+  const [externalPickerBusy, setExternalPickerBusy] = useState(false);
+  const [externalPickerError, setExternalPickerError] = useState("");
+  const [externalAppFlowStarted, setExternalAppFlowStarted] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -74,14 +81,31 @@ export default function OwnerExternalPhotoSheet({
     ? cameraCapabilities
     : { availableAppCount: 0, canChoose: false };
   const cameraUnavailable = effectiveCameraCapabilities?.availableAppCount === 0;
-  const cameraMode = effectiveCameraCapabilities?.canChoose === false ? "default" : "chooser";
+  const cameraMode = effectiveCameraCapabilities?.canChoose === true ? "chooser" : "default";
   const cameraLabel = effectiveCameraCapabilities?.canChoose === true
-    ? "카메라 앱 선택"
+    ? "기본 카메라 선택"
     : effectiveCameraCapabilities?.availableAppCount === 1
       ? "기본 카메라로 촬영"
       : cameraUnavailable
         ? "사용 가능한 카메라 없음"
-        : "카메라로 촬영";
+        : "기본 카메라로 촬영";
+
+  const launchExternalAppPicker = async () => {
+    setExternalPickerBusy(true);
+    setExternalPickerError("");
+    setExternalAppFlowStarted(true);
+    try {
+      await openExternalCameraAppPicker();
+    } catch (error) {
+      if (error instanceof Error && error.message === "EXTERNAL_APP_PICKER_CANCELLED") {
+        setExternalAppFlowStarted(false);
+        return;
+      }
+      setExternalPickerError("앱 선택기를 열 수 없습니다. 아래에서 앨범 사진을 선택해 주세요.");
+    } finally {
+      setExternalPickerBusy(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[#0d1726]/45 pt-12" onClick={onClose}>
@@ -135,13 +159,13 @@ export default function OwnerExternalPhotoSheet({
           </div>
         ) : (
           <div className="px-5 pb-5">
-            <input id={libraryInputId} type="file" accept="image/*" className="sr-only" disabled={busy} onChange={(event) => chooseFile(event.target.files?.[0])} />
-            <input id={fallbackCameraInputId} type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy} onChange={(event) => chooseFile(event.target.files?.[0])} />
+            <input id={libraryInputId} type="file" accept="image/*" className="sr-only" disabled={busy || externalPickerBusy} onChange={(event) => chooseFile(event.target.files?.[0])} />
+            <input id={fallbackCameraInputId} type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy || externalPickerBusy} onChange={(event) => chooseFile(event.target.files?.[0])} />
 
             {canUseCameraApps ? (
               <button
                 type="button"
-                disabled={busy || cameraUnavailable}
+                disabled={busy || externalPickerBusy || cameraUnavailable}
                 onClick={() => onCapture(cameraMode)}
                 className="group flex w-full items-center gap-3 rounded-[18px] border border-[#a9c8f4] bg-[#eaf3ff] px-4 py-4 text-left shadow-[0_8px_18px_rgba(62,125,210,0.12)] transition active:scale-[0.99] disabled:opacity-55"
               >
@@ -157,8 +181,31 @@ export default function OwnerExternalPhotoSheet({
             )}
 
             <div className="mt-2 grid gap-2">
-              <label htmlFor={libraryInputId} className={`flex min-h-[56px] items-center gap-2.5 rounded-[16px] border border-[#e0e6ef] bg-white px-3 text-left ${busy ? "pointer-events-none opacity-50" : "active:scale-[0.99]"}`}><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#edf1f5] text-[#526276]"><ImagePlus className="h-[18px] w-[18px]" /></span><span className="text-[14px] font-semibold text-[#2c3b50]">앨범에서 선택</span></label>
+              {canUseCameraApps ? (
+                <button
+                  type="button"
+                  disabled={busy || externalPickerBusy}
+                  onClick={() => void launchExternalAppPicker()}
+                  className="flex min-h-[56px] w-full items-center gap-2.5 rounded-[16px] border border-[#e0e6ef] bg-white px-3 text-left active:scale-[0.99] disabled:opacity-50"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#edf1f5] text-[#526276]"><Camera className="h-[18px] w-[18px]" /></span>
+                  <span className="text-[14px] font-medium text-[#2c3b50]">{externalPickerBusy ? "앱 선택기 여는 중…" : "다른 촬영 앱 선택"}</span>
+                </button>
+              ) : null}
+              <label
+                htmlFor={libraryInputId}
+                className={`flex min-h-[56px] items-center gap-2.5 rounded-[16px] border px-3 text-left transition ${externalAppFlowStarted ? "border-[#7aa7e8] bg-[#f0f6ff] shadow-[0_6px_14px_rgba(62,125,210,0.10)]" : "border-[#e0e6ef] bg-white"} ${busy || externalPickerBusy ? "pointer-events-none opacity-50" : "active:scale-[0.99]"}`}
+              >
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${externalAppFlowStarted ? "bg-[#286bd1] text-white" : "bg-[#edf1f5] text-[#526276]"}`}><ImagePlus className="h-[18px] w-[18px]" /></span>
+                <span className={`text-[14px] font-semibold ${externalAppFlowStarted ? "text-[#1b457c]" : "text-[#2c3b50]"}`}>{externalAppFlowStarted ? "촬영한 사진을 앨범에서 선택" : "앨범에서 선택"}</span>
+              </label>
             </div>
+            {canUseCameraApps ? (
+              <p className="mt-2 text-[13px] font-normal leading-5 text-[#64748b]">
+                시스템 앱 선택기에서 촬영 앱을 골라 사진을 저장하세요. 이 경로는 촬영 결과를 바로 받을 수 없어 돌아온 뒤 앨범에서 선택해야 합니다.
+              </p>
+            ) : null}
+            {externalPickerError ? <p role="alert" className="mt-2 text-[13px] leading-5 text-[#9a5e4e]">{externalPickerError}</p> : null}
 
             {allowSkip ? <button type="button" onClick={onSkip} disabled={busy} className="mt-3 h-10 w-full text-[13px] font-medium text-[#8a96a6] disabled:opacity-50">{action.skipLabel}</button> : null}
           </div>

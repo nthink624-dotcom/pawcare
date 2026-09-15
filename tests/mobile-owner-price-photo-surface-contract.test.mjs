@@ -230,16 +230,21 @@ test("the effective Android Capacitor config disables bridge logging", () => {
 });
 
 test("grooming photo sources keep only their actions and native chooser grants stay temporary", () => {
-  assert.match(photoSheet, /카메라 앱 선택/);
+  assert.match(photoSheet, /기본 카메라 선택/);
+  assert.match(photoSheet, /다른 촬영 앱 선택/);
   assert.match(photoSheet, /기본 카메라로 촬영/);
   assert.match(photoSheet, /getExternalCameraCapabilities/);
   assert.match(photoSheet, /onCapture\(cameraMode\)/);
   assert.match(photoSheet, /앨범에서 선택/);
   assert.doesNotMatch(photoSheet, /원본 사진을 선택한 뒤|등록을 누르기 전까지|설치된 카메라 앱 중에서 골라 촬영해요|촬영한 사진을 미리보기로 확인해요|바로 촬영하기|촬영한 사진 불러오기/);
   assert.match(nativeCamera, /Intent\.createChooser\(cameraIntent, "카메라 앱 선택"\)/);
+  assert.match(nativeCamera, /ACTION_PICK_ACTIVITY/);
+  assert.match(nativeCamera, /ACTION_MAIN/);
+  assert.match(nativeCamera, /CATEGORY_LAUNCHER/);
   assert.doesNotMatch(nativeCamera, /setPackage\(/);
   assert.match(nativeCamera, /queryIntentActivities\(cameraIntent, PackageManager\.MATCH_DEFAULT_ONLY\)/);
-  assert.match(nativeCamera, /grantUriPermission\([\s\S]*FLAG_GRANT_WRITE_URI_PERMISSION \| Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
-  assert.match(nativeCamera, /revokeUriPermission\([\s\S]*FLAG_GRANT_WRITE_URI_PERMISSION \| Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
+  assert.match(nativeCamera, /OUTPUT_URI_PERMISSION_FLAGS =[\s\S]*FLAG_GRANT_WRITE_URI_PERMISSION \| Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
+  assert.match(nativeCamera, /grantUriPermission\([^;]*OUTPUT_URI_PERMISSION_FLAGS\)/);
+  assert.match(nativeCamera, /revokeUriPermission\([\s\S]*OUTPUT_URI_PERMISSION_FLAGS/);
   assert.match(nativeCamera, /clearPendingOutput\(\);/);
 });

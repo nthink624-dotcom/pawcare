@@ -3,6 +3,7 @@ package kr.petmanager.owner;
 import android.Manifest;
 import android.app.Activity;
 import android.content.ClipData;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -41,6 +42,10 @@ public class ExternalCameraPlugin extends Plugin {
     private static final String CAMERA_PERMISSION_DENIED = "CAMERA_PERMISSION_DENIED";
     private static final String CAMERA_UNAVAILABLE = "CAMERA_UNAVAILABLE";
     private static final String CAMERA_LAUNCH_FAILED = "CAMERA_LAUNCH_FAILED";
+    private static final String EXTERNAL_APP_PICKER_CANCELLED = "EXTERNAL_APP_PICKER_CANCELLED";
+    private static final String EXTERNAL_APP_PICKER_UNAVAILABLE = "EXTERNAL_APP_PICKER_UNAVAILABLE";
+    private static final int OUTPUT_URI_PERMISSION_FLAGS =
+        Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION;
     private Uri pendingOutputUri;
     private File pendingOutputFile;
 
@@ -74,6 +79,20 @@ public class ExternalCameraPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void openExternalCameraAppPicker(PluginCall call) {
+        Intent launcherIntent = new Intent(Intent.ACTION_MAIN);
+        launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        Intent pickerIntent = new Intent(Intent.ACTION_PICK_ACTIVITY);
+        pickerIntent.putExtra(Intent.EXTRA_INTENT, launcherIntent);
+        pickerIntent.putExtra(Intent.EXTRA_TITLE, "다른 촬영 앱 선택");
+        try {
+            startActivityForResult(call, pickerIntent, "externalAppPickerResult");
+        } catch (Exception error) {
+            call.reject("앱 선택기를 열 수 없습니다. 앨범에서 사진을 선택해 주세요.", EXTERNAL_APP_PICKER_UNAVAILABLE, error);
+        }
+    }
+
+    @PluginMethod
     public void release(PluginCall call) {
         String cacheFileName = call.getString("cacheFileName");
         if (cacheFileName == null || cacheFileName.contains("/") || cacheFileName.contains("\\") || !cacheFileName.startsWith(FILE_PREFIX)) {
@@ -97,7 +116,6 @@ public class ExternalCameraPlugin extends Plugin {
 
     private void launchCamera(PluginCall call) {
         try {
-            Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             List<ResolveInfo> handlers = queryCameraHandlers();
             if (handlers.isEmpty()) {
                 clearPendingOutput();
@@ -113,13 +131,15 @@ public class ExternalCameraPlugin extends Plugin {
             pendingOutputFile = File.createTempFile(FILE_PREFIX, ".jpg", directory);
             pendingOutputUri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", pendingOutputFile);
 
-            cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, pendingOutputUri);
-            cameraIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            cameraIntent.setClipData(ClipData.newRawUri("petmanager-photo", pendingOutputUri));
+            Intent cameraIntent = createCaptureIntent(pendingOutputUri);
             grantOutputUriToCameraApps(handlers);
-            Intent launchIntent = call.getBoolean("chooser", false) && handlers.size() > 1
-                ? Intent.createChooser(cameraIntent, "카메라 앱 선택")
-                : cameraIntent;
+            Intent launchIntent = cameraIntent;
+            if (call.getBoolean("chooser", false) && handlers.size() > 1) {
+                Intent chooserIntent = Intent.createChooser(cameraIntent, "카메라 앱 선택");
+                chooserIntent.setClipData(cameraIntent.getClipData());
+                chooserIntent.addFlags(OUTPUT_URI_PERMISSION_FLAGS);
+                launchIntent = chooserIntent;
+            }
             startActivityForResult(call, launchIntent, "externalCameraResult");
         } catch (Exception error) {
             clearPendingOutput();
@@ -183,6 +203,27 @@ public class ExternalCameraPlugin extends Plugin {
         }
     }
 
+    @ActivityCallback
+    private void externalAppPickerResult(PluginCall call, ActivityResult result) {
+        if (result.getResultCode() != Activity.RESULT_OK) {
+            call.reject(EXTERNAL_APP_PICKER_CANCELLED);
+            return;
+        }
+        Intent selectedIntent = result.getData();
+        ComponentName selectedComponent = selectedIntent == null ? null : selectedIntent.getComponent();
+        if (selectedComponent == null) {
+            call.reject("선택한 앱을 열 수 없습니다. 앨범에서 사진을 선택해 주세요.", EXTERNAL_APP_PICKER_UNAVAILABLE);
+            return;
+        }
+        try {
+            Intent launchIntent = Intent.makeMainActivity(selectedComponent);
+            getActivity().startActivity(launchIntent);
+            call.resolve();
+        } catch (Exception error) {
+            call.reject("선택한 앱을 열 수 없습니다. 앨범에서 사진을 선택해 주세요.", EXTERNAL_APP_PICKER_UNAVAILABLE, error);
+        }
+    }
+
     private void copyResultToPendingFile(Uri uri, File destination) throws Exception {
         InputStream stream = getContext().getContentResolver().openInputStream(uri);
         if (stream == null) return;
@@ -203,11 +244,19 @@ public class ExternalCameraPlugin extends Plugin {
         return getContext().getPackageManager().queryIntentActivities(cameraIntent, PackageManager.MATCH_DEFAULT_ONLY);
     }
 
+    private Intent createCaptureIntent(Uri outputUri) {
+        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, outputUri);
+        intent.addFlags(OUTPUT_URI_PERMISSION_FLAGS);
+        intent.setClipData(ClipData.newRawUri("petmanager-photo", outputUri));
+        return intent;
+    }
+
     private void detachPendingOutput() {
         if (pendingOutputUri != null) {
             getContext().revokeUriPermission(
                 pendingOutputUri,
-                Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION
+                OUTPUT_URI_PERMISSION_FLAGS
             );
         }
         pendingOutputFile = null;
@@ -218,7 +267,7 @@ public class ExternalCameraPlugin extends Plugin {
         if (pendingOutputUri != null) {
             getContext().revokeUriPermission(
                 pendingOutputUri,
-                Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION
+                OUTPUT_URI_PERMISSION_FLAGS
             );
         }
         if (pendingOutputFile != null && pendingOutputFile.exists()) pendingOutputFile.delete();
@@ -230,12 +279,13 @@ public class ExternalCameraPlugin extends Plugin {
         if (pendingOutputUri == null) return;
         for (ResolveInfo handler : handlers) {
             if (handler.activityInfo == null || handler.activityInfo.packageName == null) continue;
-            getContext().grantUriPermission(
-                handler.activityInfo.packageName,
-                pendingOutputUri,
-                Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION
-            );
+            grantOutputUriToPackage(handler.activityInfo.packageName);
         }
+    }
+
+    private void grantOutputUriToPackage(String packageName) {
+        if (pendingOutputUri == null) return;
+        getContext().grantUriPermission(packageName, pendingOutputUri, OUTPUT_URI_PERMISSION_FLAGS);
     }
 
     private void clearStaleOutputFiles() {

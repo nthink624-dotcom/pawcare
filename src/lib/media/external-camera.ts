@@ -9,6 +9,7 @@ type ExternalCameraPlugin = {
     fileName?: string;
   }>;
   getCapabilities(): Promise<{ availableAppCount: number; canChoose: boolean }>;
+  openExternalCameraAppPicker(): Promise<void>;
   release(options: { cacheFileName: string }): Promise<void>;
 };
 
@@ -21,6 +22,11 @@ export function canUseExternalCameraApps() {
 export type ExternalCameraCapabilities = {
   availableAppCount: number | null;
   canChoose: boolean | null;
+};
+
+const UNKNOWN_EXTERNAL_CAMERA_CAPABILITIES: ExternalCameraCapabilities = {
+  availableAppCount: null,
+  canChoose: null,
 };
 
 function cameraNow() {
@@ -45,18 +51,25 @@ async function traceCameraStep<T>(step: string, work: () => Promise<T>) {
 }
 
 export async function getExternalCameraCapabilities(): Promise<ExternalCameraCapabilities> {
-  if (!canUseExternalCameraApps()) return { availableAppCount: 0, canChoose: false };
+  if (!canUseExternalCameraApps()) {
+    return { availableAppCount: 0, canChoose: false };
+  }
   try {
     const result = await ExternalCamera.getCapabilities();
     return {
       availableAppCount: Math.max(0, Math.trunc(result.availableAppCount)),
-      canChoose: result.canChoose,
+      canChoose: result.canChoose === true,
     };
   } catch {
-    // Older installed shells do not expose capability discovery. Keep their
-    // chooser call working while avoiding a false claim in the UI.
-    return { availableAppCount: null, canChoose: null };
+    // Older installed shells do not expose capability discovery. Keep the UI
+    // on the truthful default-camera label instead of claiming a chooser.
+    return UNKNOWN_EXTERNAL_CAMERA_CAPABILITIES;
   }
+}
+
+export async function openExternalCameraAppPicker() {
+  if (!canUseExternalCameraApps()) throw new Error("Android 앱에서만 다른 촬영 앱을 열 수 있습니다.");
+  await traceCameraStep("open-external-camera-app-picker", () => ExternalCamera.openExternalCameraAppPicker());
 }
 
 export async function captureWithAndroidCameraApp(mode: "default" | "chooser") {

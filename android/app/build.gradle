@@ -50,8 +50,10 @@ tasks.register('verifyReleaseServerUrl') {
     }
 }
 
-tasks.named('preReleaseBuild').configure {
-    dependsOn tasks.named('verifyReleaseServerUrl')
+tasks.configureEach {
+    if (name == 'preReleaseBuild') {
+        dependsOn tasks.named('verifyReleaseServerUrl')
+    }
 }
 
 android {

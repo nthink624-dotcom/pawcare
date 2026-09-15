@@ -13,6 +13,7 @@ test("Android release packaging fails closed without a production Capacitor endp
   assert.match(gradle, /hostname == '127\.0\.0\.1'/);
   assert.match(gradle, /parsedServerUrl\.port == 3000/);
   assert.match(gradle, /parsedServerUrl\.port == 3100/);
-  assert.match(gradle, /tasks\.named\('preReleaseBuild'\)\.configure/);
+  assert.match(gradle, /tasks\.configureEach/);
+  assert.match(gradle, /name == 'preReleaseBuild'/);
   assert.match(gradle, /dependsOn tasks\.named\('verifyReleaseServerUrl'\)/);
 });

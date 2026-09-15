@@ -7,6 +7,7 @@ export type OwnerSettingsOverviewItem = Readonly<{
   key: string;
   icon: LucideIcon;
   title: string;
+  badge?: string;
   triggerRef?: RefObject<HTMLButtonElement | null>;
   testerEmphasis?: boolean;
   onClick: () => void;
@@ -67,6 +68,11 @@ export default function OwnerSettingsOverview({
                     <span className="min-w-0 flex-1">
                       <span className="block text-[16px] font-medium leading-6 text-[#0f172a]">{item.title}</span>
                     </span>
+                    {item.badge ? (
+                      <span className="shrink-0 rounded-full bg-[#eef4ff] px-2 py-1 text-[12px] font-semibold leading-4 text-[#2563eb]">
+                        {item.badge}
+                      </span>
+                    ) : null}
                     <ChevronRight className="size-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} aria-hidden />
                   </button>
                 );

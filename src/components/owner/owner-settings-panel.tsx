@@ -1,11 +1,12 @@
 ﻿"use client";
 
-import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, Phone, Plus, ShieldCheck, Store, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, Phone, Plus, ShieldCheck, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import OwnerAppNotificationSettings from "@/components/owner/owner-app-notification-settings";
 import OwnerAppPermissionsSettings from "@/components/owner/owner-app-permissions-settings";
+import { runOwnerPlayUpdateAction, useOwnerPlayUpdateSnapshot } from "@/components/owner/owner-app-update";
 import OwnerAccountDeletionPanel from "@/components/owner/owner-account-deletion-panel";
 import OwnerSettingsOverview, { type OwnerSettingsOverviewGroup } from "@/components/owner/owner-settings-overview";
 import OwnerSupportPanel from "@/components/owner/owner-support-panel";
@@ -276,6 +277,7 @@ export default function OwnerSettingsPanel({
   feedbackTriggerRef,
   isTesterFeedback = false,
 }: SettingsPanelProps) {
+  const appUpdateState = useOwnerPlayUpdateSnapshot();
   const initialAddressParts = parseShopAddressParts(data.shop.address);
   const [name, setName] = useState(decodeUnicodeEscapes(data.shop.name));
   const [phone, setPhone] = useState(data.shop.phone);
@@ -1580,6 +1582,15 @@ export default function OwnerSettingsPanel({
       title: "계정·정책",
       items: [
         ...(onLogout ? [{ key: "account", icon: UserRound, title: "계정", onClick: () => updateActiveScreen("account") }] : []),
+        ...(appUpdateState.available
+          ? [{
+              key: "appUpdate",
+              icon: Download,
+              title: appUpdateState.downloaded ? "업데이트 설치" : "앱 업데이트",
+              badge: appUpdateState.downloaded ? "설치 준비됨" : "업데이트 가능",
+              onClick: () => void runOwnerPlayUpdateAction(),
+            }]
+          : []),
         { key: "legal", icon: FileText, title: "약관 및 정책", onClick: () => updateActiveScreen("legal") },
       ],
     },
@@ -1904,6 +1915,7 @@ function StaffSettingsHome({
   onLegalClick: () => void;
   onAccountClick?: () => void;
 }) {
+  const appUpdateState = useOwnerPlayUpdateSnapshot();
   const staffName = staffMember?.displayName || staffMember?.name || "직원";
   const staffRole = staffMember?.position || "직원";
   const staffInitial = staffName.trim().slice(0, 1) || "직";
@@ -1915,6 +1927,26 @@ function StaffSettingsHome({
       </div>
 
       <div className="space-y-3.5">
+        {appUpdateState.available ? (
+          <button
+            type="button"
+            disabled={appUpdateState.starting}
+            onClick={() => void runOwnerPlayUpdateAction()}
+            className="flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[14px] border border-[#dfe7f0] bg-white px-4 py-3 text-left disabled:opacity-50"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#f1f5f9] text-[#334155]">
+                <Download className="size-[18px]" strokeWidth={1.9} aria-hidden />
+              </span>
+              <span className="text-[16px] font-medium text-[#101828]">
+                {appUpdateState.downloaded ? "업데이트 설치" : "앱 업데이트"}
+              </span>
+            </span>
+            <span className="shrink-0 rounded-full bg-[#eef4ff] px-2 py-1 text-[12px] font-semibold text-[#2563eb]">
+              {appUpdateState.downloaded ? "설치 준비됨" : "업데이트 가능"}
+            </span>
+          </button>
+        ) : null}
         <div className="rounded-[18px] border border-[#dfe7f0] bg-white p-4">
           <p className="mb-3 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">내 계정 정보</p>
           <div className="flex items-center gap-3">

@@ -36,6 +36,7 @@ import OwnerAiCareReportSheet, { createOwnerCareReportImmediateData, normalizeCa
 import { readOwnerCareReportLocalDraft } from "@/lib/care-report/owner-care-report-local-draft";
 import OwnerContextActionMenu from "@/components/owner/owner-context-action-menu";
 import OwnerMobileGroomingStartSheet from "@/components/owner/owner-mobile-grooming-start-sheet";
+import OwnerAppUpdateCoordinator from "@/components/owner/owner-app-update";
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
 import OwnerTesterFeedbackSheet from "@/components/owner/owner-tester-feedback-sheet";
 import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
@@ -2614,6 +2615,7 @@ export default function OwnerApp({
             : "min-h-screen",
       )}
     >
+      <OwnerAppUpdateCoordinator />
       {pushNotice ? (
         <button
           type="button"

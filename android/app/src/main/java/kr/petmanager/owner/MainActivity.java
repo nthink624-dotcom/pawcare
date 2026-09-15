@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(OwnerAppPermissionsPlugin.class);
         registerPlugin(OwnerSpeechRecognitionPlugin.class);
         registerPlugin(OwnerBackNavigationPlugin.class);
+        registerPlugin(OwnerPlayUpdatePlugin.class);
         super.onCreate(savedInstanceState);
     }
 

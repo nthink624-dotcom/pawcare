@@ -16,6 +16,7 @@ export type OwnerMediaContext = {
   petId?: string | null;
   appointmentId?: string | null;
   groomingRecordId?: string | null;
+  metadata?: Record<string, string | boolean | number | null>;
 };
 
 export type MediaAssetListItem = {
@@ -141,6 +142,7 @@ async function createUploadIntent(context: OwnerMediaContext, mediaKind: MediaKi
       petId: context.petId ?? null,
       appointmentId: context.appointmentId ?? null,
       groomingRecordId: context.groomingRecordId ?? null,
+      metadata: context.metadata ?? {},
     }),
   });
 }
@@ -248,10 +250,18 @@ export async function getOwnerMediaSignedUrl(
   mediaAssetId: string,
   variant: "original" | "thumbnail" | "preview" | "optimized" | "provider_ready" = "original",
 ) {
-  const query = new URLSearchParams({ shopId, mediaAssetId });
-  if (variant !== "original") query.set("variant", variant);
-  const result = await fetchApiJsonWithAuth<SignedUrlResponse>(`/api/owner/media/signed-url?${query.toString()}`);
-  return result.signedUrl;
+  const requestSignedUrl = async (requestedVariant: typeof variant) => {
+    const query = new URLSearchParams({ shopId, mediaAssetId });
+    if (requestedVariant !== "original") query.set("variant", requestedVariant);
+    const result = await fetchApiJsonWithAuth<SignedUrlResponse>(`/api/owner/media/signed-url?${query.toString()}`);
+    return result.signedUrl;
+  };
+  try {
+    return await requestSignedUrl(variant);
+  } catch (error) {
+    if (variant === "original") throw error;
+    return requestSignedUrl("original");
+  }
 }
 
 export async function createOwnerShopProfileImageFromFile(

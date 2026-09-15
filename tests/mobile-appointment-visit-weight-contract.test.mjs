@@ -109,7 +109,7 @@ test("booking detail shares heading roles and keeps one divider at each requeste
 test("photo history keeps empty and present items between its heading and single lower divider", () => {
   assert.match(mediaDetail, /\{items\.length === 0 \? \(/);
   assert.match(mediaDetail, /이 예약에 연결된 시작\/완료 사진이 아직 없어요/);
-  assert.match(mediaDetail, /items\.map\(\(\{ item, signedUrl \}\) => \(/);
+  assert.match(mediaDetail, /items\.map\(\(\{ item, signedUrl \}\) => (?:\(|\{)/);
   assert.match(mediaDetail, /<img[\s\S]*?src=\{signedUrl\}[\s\S]*?getAppointmentMediaKindLabel/);
   assert.doesNotMatch(mediaDetail, /rounded-\[18px\][\s\S]*?rounded-\[18px\]/);
 });

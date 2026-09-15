@@ -103,7 +103,7 @@ test("care-report entry renders its local shell before supplemental network hydr
   assert.ok(hydrationStart > 0 && hydrationEnd > hydrationStart);
   assert.match(hydrationFlow, /supplementalLoadStartedRef\.current = true/);
   assert.equal((hydrationFlow.match(/prepareOwnerCareReportInitialData\(/g) ?? []).length, 1);
-  assert.match(hydrationFlow, /setItems\(\(current\) => \{[\s\S]*currentIds[\s\S]*prepared\.items\.filter/);
+  assert.match(hydrationFlow, /setItems\(\(current\) => \{[\s\S]*mergeBoundOwnerMediaItems\(current, prepared\.items/);
   assert.match(hydrationFlow, /if \(!userInteractionRef\.current\)/);
   assert.match(hydrationFlow, /입력은 계속할 수 있습니다/);
 });

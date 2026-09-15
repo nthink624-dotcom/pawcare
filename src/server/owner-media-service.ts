@@ -92,6 +92,27 @@ export async function createMediaUploadIntent(
   }
 
   const supabase = assertSupabase();
+  if (input.appointmentId) {
+    if (!input.guardianId || !input.petId) {
+      throw new OwnerApiError("사진을 연결할 예약 정보를 다시 확인해 주세요.", 400);
+    }
+    const appointment = await supabase
+      .from("appointments")
+      .select("id,shop_id,guardian_id,pet_id")
+      .eq("shop_id", context.shopId)
+      .eq("id", input.appointmentId)
+      .maybeSingle();
+    if (appointment.error) {
+      throw new OwnerApiError("사진을 연결할 예약 정보를 확인하지 못했습니다.", 500);
+    }
+    if (
+      !appointment.data ||
+      appointment.data.guardian_id !== input.guardianId ||
+      appointment.data.pet_id !== input.petId
+    ) {
+      throw new OwnerApiError("사진과 예약의 고객·반려동물 정보가 일치하지 않습니다.", 409);
+    }
+  }
   const mediaAssetId = randomUUID();
   const now = nowIso();
   const storagePath = buildMediaPath({

@@ -21,6 +21,7 @@ export default function OwnerExternalPhotoSheet({
   busy,
   canUseCameraApps,
   previewFile,
+  recoveredPreview = false,
   allowSkip = true,
   onClose,
   onSkip,
@@ -33,6 +34,7 @@ export default function OwnerExternalPhotoSheet({
   busy: boolean;
   canUseCameraApps: boolean;
   previewFile: File | null;
+  recoveredPreview?: boolean;
   allowSkip?: boolean;
   onClose: () => void;
   onSkip: () => void;
@@ -137,6 +139,11 @@ export default function OwnerExternalPhotoSheet({
 
         {isPreviewing ? (
           <div className="px-5 pb-5">
+            {recoveredPreview ? (
+              <p role="status" className="mb-3 rounded-[12px] border border-[#b9d4f6] bg-[#f0f6ff] px-3 py-2 text-[13px] font-medium leading-5 text-[#1b527f]">
+                업데이트 또는 재진입 전에 선택한 사진을 복구했습니다. 등록을 완료하면 예약에 안전하게 저장됩니다.
+              </p>
+            ) : null}
             <div className="overflow-hidden rounded-[20px] border border-[#dce5f1] bg-white p-2 shadow-[0_8px_22px_rgba(49,75,112,0.08)]">
               <img ref={setPreviewImage} alt="등록할 사진 미리보기" className="h-[248px] w-full rounded-[14px] bg-[#f2f5f9] object-contain" />
             </div>

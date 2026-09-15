@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 
 import { AppointmentDetail } from "@/components/owner/owner-app";
+import OwnerExternalPhotoSheet from "@/components/owner/owner-external-photo-sheet";
 import {
   type AppointmentVisitWeightResponse,
   type OwnerAppointmentVisitWeightTransport,
@@ -10,6 +11,14 @@ import {
   type VisitWeightMeasurement,
 } from "@/lib/owner-appointment-visit-weight";
 import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
+import {
+  clearPendingOwnerStatusPhoto,
+  createPendingOwnerStatusPhoto,
+  pendingOwnerStatusPhotoToFile,
+  readPendingOwnerStatusPhoto,
+  writePendingOwnerStatusPhoto,
+  type PendingOwnerStatusPhotoBinding,
+} from "@/lib/media/owner-pending-status-photo";
 
 const fixtureAppointmentId = "dev-booking-detail-200pct";
 
@@ -44,6 +53,8 @@ export default function OwnerBookingDetailDevPreview() {
   const fixture = useMemo(() => buildBookingDetailFixture(), []);
   const [appointment, setAppointment] = useState(fixture.appointment);
   const [isOpen, setIsOpen] = useState(true);
+  const [recoveredPhoto, setRecoveredPhoto] = useState<File | null>(null);
+  const [photoRecoveryError, setPhotoRecoveryError] = useState("");
   const [requestCounts, setRequestCounts] = useState({ get: 0, put: 0, cancel: 0 });
   const weightsRef = useRef<AppointmentVisitWeightResponse>({
     current: {
@@ -82,6 +93,41 @@ export default function OwnerBookingDetailDevPreview() {
     () => ({ ...fixture.data, appointments: fixture.data.appointments.map((item) => item.id === fixtureAppointmentId ? appointment : item) }),
     [appointment, fixture.data],
   );
+  const pendingPhotoBinding: PendingOwnerStatusPhotoBinding = {
+    shopId: fixture.data.shop.id,
+    appointmentId: appointment.id,
+    guardianId: appointment.guardian_id,
+    petId: appointment.pet_id,
+    mediaKind: "grooming_before",
+    nextStatus: "in_progress",
+    allowSkip: false,
+  };
+
+  const openRecoveredPhotoPreview = async () => {
+    setPhotoRecoveryError("");
+    try {
+      let pending = await readPendingOwnerStatusPhoto(pendingPhotoBinding);
+      if (!pending) {
+        pending = createPendingOwnerStatusPhoto(
+          pendingPhotoBinding,
+          new File([
+            '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="#eaf3ff"/><circle cx="320" cy="210" r="96" fill="#9dc4f4"/><text x="320" y="390" text-anchor="middle" font-size="32" fill="#1b457c">복구된 미용 전 사진</text></svg>',
+          ], "recovered-before-photo.svg", { type: "image/svg+xml" }),
+        );
+        await writePendingOwnerStatusPhoto(pending);
+        pending = await readPendingOwnerStatusPhoto(pendingPhotoBinding);
+      }
+      if (!pending) throw new Error("PENDING_PHOTO_NOT_FOUND");
+      setRecoveredPhoto(pendingOwnerStatusPhotoToFile(pending));
+    } catch {
+      setPhotoRecoveryError("기기 임시 사진을 복구하지 못했습니다.");
+    }
+  };
+
+  const discardRecoveredPhoto = async () => {
+    await clearPendingOwnerStatusPhoto(pendingPhotoBinding).catch(() => undefined);
+    setRecoveredPhoto(null);
+  };
 
   if (!isOpen) {
     return (
@@ -93,6 +139,15 @@ export default function OwnerBookingDetailDevPreview() {
 
   return (
     <main data-testid="owner-booking-detail-dev-preview" className="min-h-screen bg-[#f1f3f7]">
+      <button
+        type="button"
+        data-testid="open-recovered-photo-preview"
+        onClick={() => void openRecoveredPhotoPreview()}
+        className="fixed right-3 top-3 z-[65] min-h-11 rounded-[10px] bg-[#1b457c] px-3 text-[13px] font-semibold text-white"
+      >
+        사진 복구 UI 열기
+      </button>
+      {photoRecoveryError ? <p role="alert" className="fixed left-3 top-16 z-[65] rounded bg-white p-2 text-[13px] text-[#9a5e4e]">{photoRecoveryError}</p> : null}
       <AppointmentDetail
         data={fixtureData}
         appointment={appointment}
@@ -115,6 +170,27 @@ export default function OwnerBookingDetailDevPreview() {
       <output aria-live="polite" className="sr-only" data-testid="booking-detail-preview-request-counts">
         GET {requestCounts.get}, PUT {requestCounts.put}, 취소 {requestCounts.cancel}
       </output>
+      {recoveredPhoto ? (
+        <OwnerExternalPhotoSheet
+          action={{
+            title: "미용 전 사진",
+            description: "미용 전 사진 복구 확인",
+            buttonLabel: "사진 찍고 미용 시작",
+            skipLabel: "사진 없이 미용 시작",
+          }}
+          busy={false}
+          canUseCameraApps={false}
+          previewFile={recoveredPhoto}
+          recoveredPreview
+          allowSkip={false}
+          onClose={() => setRecoveredPhoto(null)}
+          onSkip={() => undefined}
+          onSelectFile={setRecoveredPhoto}
+          onCapture={() => undefined}
+          onClearPreview={() => void discardRecoveredPhoto()}
+          onConfirm={() => void discardRecoveredPhoto()}
+        />
+      ) : null}
     </main>
   );
 }

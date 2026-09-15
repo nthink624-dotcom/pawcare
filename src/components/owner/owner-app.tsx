@@ -49,8 +49,28 @@ import { withOwnerMobileTimeout } from "@/lib/owner-mobile-startup";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
-import { createOwnerMediaAssetFromFile, type MediaAssetListItem } from "@/lib/media/owner-media-client";
+import { createOwnerMediaAssetFromFile, type MediaAssetListItem, type MediaAssetListResponse } from "@/lib/media/owner-media-client";
+import {
+  isOwnerMediaItemBoundToAppointment,
+  mergeOwnerMediaPreviews,
+  type OwnerMediaBinding,
+  type OwnerMediaPreview,
+} from "@/lib/media/owner-media-durability";
 import { traceOwnerMediaStep } from "@/lib/media/owner-media-timing";
+import {
+  clearPendingOwnerStatusPhoto,
+  createPendingOwnerStatusPhoto,
+  isPendingDurableAssetReusable,
+  isPendingOwnerStatusPhotoExactBinding,
+  markPendingOwnerStatusPhotoDurable,
+  markPendingOwnerStatusPhotoUploadStarted,
+  pendingOwnerStatusPhotoToFile,
+  readPendingOwnerStatusPhoto,
+  readPendingOwnerStatusPhotos,
+  writePendingOwnerStatusPhoto,
+  type PendingOwnerStatusPhoto,
+  type PendingOwnerStatusPhotoBinding,
+} from "@/lib/media/owner-pending-status-photo";
 import { createOwnerMobileBackgroundRefreshGate } from "@/lib/owner-mobile-background-refresh";
 import { DEFAULT_REVISIT_REMINDER_DAYS } from "@/lib/notification-settings";
 import { canUseExternalCameraApps, captureWithAndroidCameraApp } from "@/lib/media/external-camera";
@@ -188,10 +208,7 @@ export type OwnerMobileLaunchPhotoStatusAction = {
   statusAction: Extract<AppointmentStatus, "in_progress" | "completed">;
   autoOpenCamera?: boolean;
 };
-type AppointmentMediaPreview = {
-  item: MediaAssetListItem;
-  signedUrl: string;
-};
+type AppointmentMediaPreview = OwnerMediaPreview;
 type SignedMediaUrlResponse = {
   signedUrl: string;
   expiresInSeconds: number;
@@ -199,6 +216,50 @@ type SignedMediaUrlResponse = {
 type SignedMediaUrlsResponse = {
   items: Array<SignedMediaUrlResponse & { mediaAssetId?: string }>;
 };
+
+function createMobilePhotoStatusAction(
+  appointmentId: string,
+  status: Extract<AppointmentStatus, "in_progress" | "completed">,
+  autoOpenCamera = false,
+  allowSkip = true,
+): MobilePhotoStatusAction {
+  return {
+    appointmentId,
+    nextStatus: status,
+    mediaKind: status === "in_progress" ? "grooming_before" : "grooming_after",
+    title: status === "in_progress" ? "미용 전 사진" : "미용 완료 사진",
+    description:
+      status === "in_progress"
+        ? "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요."
+        : "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
+    buttonLabel: status === "in_progress" ? "사진 찍고 미용 시작" : "사진 찍고 미용 완료",
+    skipLabel: status === "in_progress" ? "사진 없이 미용 시작" : "사진 없이 미용 완료",
+    autoOpenCamera,
+    allowSkip,
+  };
+}
+
+function resolvePendingMobilePhotoBinding(
+  data: BootstrapPayload,
+  action: MobilePhotoStatusAction,
+): PendingOwnerStatusPhotoBinding | null {
+  const appointment = data.appointments.find((item) => item.id === action.appointmentId);
+  const expectedMediaKind = action.nextStatus === "in_progress" ? "grooming_before" : "grooming_after";
+  if (
+    !appointment ||
+    appointment.shop_id !== data.shop.id ||
+    action.mediaKind !== expectedMediaKind
+  ) return null;
+  return {
+    shopId: data.shop.id,
+    appointmentId: appointment.id,
+    guardianId: appointment.guardian_id,
+    petId: appointment.pet_id,
+    mediaKind: action.mediaKind,
+    nextStatus: action.nextStatus,
+    allowSkip: action.allowSkip !== false,
+  };
+}
 
 const compactWeekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, string> = {
@@ -403,6 +464,8 @@ export default function OwnerApp({
   const [mobileGroomingStartAction, setMobileGroomingStartAction] = useState<MobileGroomingStartAction | null>(null);
   const [mobilePhotoUploading, setMobilePhotoUploading] = useState(false);
   const [mobilePhotoPreviewFile, setMobilePhotoPreviewFile] = useState<File | null>(null);
+  const [pendingMobilePhoto, setPendingMobilePhoto] = useState<PendingOwnerStatusPhoto | null>(null);
+  const [mobilePhotoRecovered, setMobilePhotoRecovered] = useState(false);
   const [mobilePhotoPreparing, setMobilePhotoPreparing] = useState(false);
   const [careReportAppointmentId, setCareReportAppointmentId] = useState<string | null>(null);
   const [careReportInitialData, setCareReportInitialData] = useState<OwnerCareReportInitialData | null>(null);
@@ -440,6 +503,9 @@ export default function OwnerApp({
   const bookingLinkCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const guardianMemoTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const launchedPhotoStatusActionRef = useRef<string | null>(null);
+  const pendingPhotoRestoreShopRef = useRef<string | null>(null);
+  const pendingPhotoActionRequestRef = useRef(0);
+  const mobilePhotoUploadInFlightRef = useRef(false);
   const pushNoticeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newCustomerSaveInFlightRef = useRef(false);
   const refreshRequestIdRef = useRef(0);
@@ -512,7 +578,10 @@ export default function OwnerApp({
     }
     if (mobilePhotoStatusAction) {
       if (mobilePhotoUploading || mobilePhotoPreparing || saving) return;
+      pendingPhotoActionRequestRef.current += 1;
       setMobilePhotoPreviewFile(null);
+      setPendingMobilePhoto(null);
+      setMobilePhotoRecovered(false);
       setMobilePhotoStatusAction(null);
       clearRootBackExitNotice();
       return;
@@ -805,20 +874,49 @@ export default function OwnerApp({
     setTodayDate(appointment.appointment_date);
     setHomeReservationDate(appointment.appointment_date);
     setSelectedDate(appointment.appointment_date);
-    setMobilePhotoStatusAction({
-      appointmentId: appointment.id,
-      nextStatus: launchPhotoStatusAction.statusAction,
-      mediaKind: launchPhotoStatusAction.statusAction === "in_progress" ? "grooming_before" : "grooming_after",
-      title: launchPhotoStatusAction.statusAction === "in_progress" ? "미용 전 사진" : "미용 완료 사진",
-      description:
-        launchPhotoStatusAction.statusAction === "in_progress"
-          ? "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요."
-          : "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
-      buttonLabel: launchPhotoStatusAction.statusAction === "in_progress" ? "사진 찍고 미용 시작" : "사진 찍고 미용 완료",
-      skipLabel: launchPhotoStatusAction.statusAction === "in_progress" ? "사진 없이 미용 시작" : "사진 없이 미용 완료",
-      autoOpenCamera: launchPhotoStatusAction.autoOpenCamera ?? true,
-    });
+    void openMobilePhotoStatusAction(
+      appointment.id,
+      launchPhotoStatusAction.statusAction,
+      launchPhotoStatusAction.autoOpenCamera ?? true,
+    );
+  // The imperative opener reads the same appointment snapshot listed here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.appointments, data.shop.id, launchPhotoStatusAction]);
+
+  useEffect(() => {
+    if (isOwnerDemo || launchPhotoStatusAction || pendingPhotoRestoreShopRef.current === data.shop.id) return;
+    pendingPhotoRestoreShopRef.current = data.shop.id;
+    let active = true;
+    void readPendingOwnerStatusPhotos(data.shop.id).then((pendingItems) => {
+      if (!active) return;
+      for (const pending of pendingItems) {
+        const appointment = data.appointments.find((item) => item.id === pending.appointmentId);
+        if (!appointment) continue;
+        const action = createMobilePhotoStatusAction(
+          appointment.id,
+          pending.nextStatus,
+          false,
+          pending.allowSkip,
+        );
+        const binding = resolvePendingMobilePhotoBinding(data, action);
+        if (!binding || !isPendingOwnerStatusPhotoExactBinding(pending, binding)) continue;
+        try {
+          const file = pendingOwnerStatusPhotoToFile(pending);
+          setModal(null);
+          setMobilePhotoStatusAction(action);
+          setPendingMobilePhoto(pending);
+          setMobilePhotoPreviewFile(file);
+          setMobilePhotoRecovered(true);
+          break;
+        } catch {
+          // A corrupt local record is ignored and never attached to another booking.
+        }
+      }
+    }).catch(() => {
+      // IndexedDB can be unavailable in private or restricted browsing contexts.
+    });
+    return () => { active = false; };
+  }, [data, isOwnerDemo, launchPhotoStatusAction]);
 
   useEffect(() => {
     if (!pendingShopProfileEditId || data.shop.id !== pendingShopProfileEditId) return;
@@ -1619,21 +1717,64 @@ export default function OwnerApp({
     autoOpenCamera = false,
     allowSkip = true,
   ) {
+    const action = createMobilePhotoStatusAction(appointmentId, status, autoOpenCamera, allowSkip);
+    const binding = resolvePendingMobilePhotoBinding(data, action);
+    if (!binding) {
+      setError("사진을 연결할 예약 정보를 다시 확인해 주세요.");
+      return;
+    }
+    const requestId = pendingPhotoActionRequestRef.current + 1;
+    pendingPhotoActionRequestRef.current = requestId;
     setMobilePhotoPreviewFile(null);
-    setMobilePhotoStatusAction({
-      appointmentId,
-      nextStatus: status,
-      mediaKind: status === "in_progress" ? "grooming_before" : "grooming_after",
-      title: status === "in_progress" ? "미용 전 사진" : "미용 완료 사진",
-      description:
-        status === "in_progress"
-          ? "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요."
-          : "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
-      buttonLabel: status === "in_progress" ? "사진 찍고 미용 시작" : "사진 찍고 미용 완료",
-      skipLabel: status === "in_progress" ? "사진 없이 미용 시작" : "사진 없이 미용 완료",
-      autoOpenCamera,
-      allowSkip,
+    setPendingMobilePhoto(null);
+    setMobilePhotoRecovered(false);
+    setMobilePhotoStatusAction(action);
+    void readPendingOwnerStatusPhoto(binding).then((pending) => {
+      if (!pending || pendingPhotoActionRequestRef.current !== requestId) return;
+      setPendingMobilePhoto(pending);
+      setMobilePhotoPreviewFile(pendingOwnerStatusPhotoToFile(pending));
+      setMobilePhotoRecovered(true);
+    }).catch(() => {
+      // The capture flow still works while the visible page remains open.
     });
+  }
+
+  async function stageMobilePhotoFile(file: File) {
+    const action = mobilePhotoStatusAction;
+    if (!action) return;
+    const binding = resolvePendingMobilePhotoBinding(data, action);
+    if (!binding) {
+      setError("사진과 예약의 연결 정보를 다시 확인해 주세요.");
+      return;
+    }
+    const pending = createPendingOwnerStatusPhoto(binding, file);
+    setMobilePhotoPreviewFile(file);
+    setPendingMobilePhoto(pending);
+    setMobilePhotoRecovered(false);
+    try {
+      await writePendingOwnerStatusPhoto(pending);
+    } catch {
+      setError("선택한 사진을 기기에 임시 보관하지 못했습니다. 이 화면을 닫거나 앱을 업데이트하기 전에 등록을 완료해 주세요.");
+    }
+  }
+
+  async function selectMobilePhotoFile(file: File) {
+    setMobilePhotoPreparing(true);
+    setError(null);
+    try {
+      await stageMobilePhotoFile(file);
+    } finally {
+      setMobilePhotoPreparing(false);
+    }
+  }
+
+  async function clearStagedMobilePhoto(action: MobilePhotoStatusAction) {
+    pendingPhotoActionRequestRef.current += 1;
+    const binding = resolvePendingMobilePhotoBinding(data, action);
+    if (binding) await clearPendingOwnerStatusPhoto(binding);
+    setMobilePhotoPreviewFile(null);
+    setPendingMobilePhoto(null);
+    setMobilePhotoRecovered(false);
   }
 
   function requestMobileAppointmentStatusChange(appointmentId: string, status: AppointmentStatus) {
@@ -1785,35 +1926,88 @@ export default function OwnerApp({
       return;
     }
 
+    const action = mobilePhotoStatusAction?.appointmentId === appointmentId
+      ? mobilePhotoStatusAction
+      : createMobilePhotoStatusAction(appointmentId, nextStatus, false, false);
+    const binding = resolvePendingMobilePhotoBinding(data, action);
+    if (!binding || binding.mediaKind !== mediaKind || binding.nextStatus !== nextStatus) {
+      setError("사진과 예약의 고객·반려동물 정보가 일치하지 않습니다.");
+      return;
+    }
+
+    if (mobilePhotoUploadInFlightRef.current) return;
+    mobilePhotoUploadInFlightRef.current = true;
     setMobilePhotoUploading(true);
     setError(null);
     try {
-      const uploaded = await createOwnerMediaAssetFromFile(
-        {
-          shopId: data.shop.id,
-          guardianId: appointment.guardian_id,
-          petId: appointment.pet_id,
-          appointmentId: appointment.id,
-          groomingRecordId: null,
-        },
-        mediaKind,
-        file,
-        { waitForProviderReadyVariant: false },
-      );
+      let pending = pendingMobilePhoto && isPendingOwnerStatusPhotoExactBinding(pendingMobilePhoto, binding)
+        ? pendingMobilePhoto
+        : createPendingOwnerStatusPhoto(binding, file);
+      if (!pendingMobilePhoto || pending !== pendingMobilePhoto) {
+        setPendingMobilePhoto(pending);
+        await writePendingOwnerStatusPhoto(pending);
+      }
 
-      const committed = await traceOwnerMediaStep("appointment-status-commit", () =>
-        updateAppointment(appointment.id, {
-          status: nextStatus,
-          mediaAssetIds: [uploaded.mediaAsset.id],
-        }, { rethrow: true }),
-      );
+      let durableMediaAssetId: string | null = null;
+      if (pending.uploadStarted || pending.durableMediaAssetId) {
+        const query = new URLSearchParams({
+          shopId: binding.shopId,
+          appointmentId: binding.appointmentId,
+          guardianId: binding.guardianId,
+          petId: binding.petId,
+          includeVariants: "false",
+          limit: "50",
+        });
+        const existing = await fetchJson<MediaAssetListResponse>(`/api/owner/media/assets?${query.toString()}`);
+        durableMediaAssetId = existing.items.find((item) => isPendingDurableAssetReusable(pending, item.mediaAsset))?.mediaAsset.id ?? null;
+        if (pending.durableMediaAssetId && !durableMediaAssetId) {
+          throw new Error("이미 저장한 사진의 예약 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+      }
+
+      if (!durableMediaAssetId) {
+        const uploadStartedPending = { ...pending, uploadStarted: true };
+        pending = await markPendingOwnerStatusPhotoUploadStarted(pending).catch(() => uploadStartedPending);
+        setPendingMobilePhoto(pending);
+        const uploaded = await createOwnerMediaAssetFromFile(
+          {
+            shopId: data.shop.id,
+            guardianId: appointment.guardian_id,
+            petId: appointment.pet_id,
+            appointmentId: appointment.id,
+            groomingRecordId: null,
+            metadata: { owner_pending_upload_id: pending.uploadAttemptId },
+          },
+          mediaKind,
+          file,
+          { waitForProviderReadyVariant: false },
+        );
+        durableMediaAssetId = uploaded.mediaAsset.id;
+        const durablePending = { ...pending, durableMediaAssetId };
+        setPendingMobilePhoto(durablePending);
+        pending = await markPendingOwnerStatusPhotoDurable(pending, durableMediaAssetId).catch(() => durablePending);
+        setPendingMobilePhoto(pending);
+      }
+
+      const committed = appointment.status === nextStatus
+        ? true
+        : await traceOwnerMediaStep("appointment-status-commit", () =>
+            updateAppointment(appointment.id, {
+              status: nextStatus,
+              mediaAssetIds: [durableMediaAssetId!],
+            }, { rethrow: true }),
+          );
       if (!committed) return;
+      await clearPendingOwnerStatusPhoto(binding).catch(() => undefined);
       setMobilePhotoPreviewFile(null);
+      setPendingMobilePhoto(null);
+      setMobilePhotoRecovered(false);
       setMobilePhotoStatusAction(null);
       if (nextStatus === "completed") void openCareReport(appointment.id);
     } catch (uploadError) {
       await handleRequestError(uploadError, "사진 업로드 또는 상태 변경에 실패했습니다.");
     } finally {
+      mobilePhotoUploadInFlightRef.current = false;
       setMobilePhotoUploading(false);
     }
   }
@@ -1833,7 +2027,7 @@ export default function OwnerApp({
     setError(null);
     try {
       const photo = await captureWithAndroidCameraApp(mode);
-      setMobilePhotoPreviewFile(photo);
+      await stageMobilePhotoFile(photo);
     } catch (captureError) {
       if (captureError instanceof Error && captureError.message === "CAMERA_CANCELLED") return;
       await handleRequestError(captureError, "카메라를 열지 못했습니다. 다른 카메라 앱이나 사진 불러오기를 이용해 주세요.");
@@ -3266,23 +3460,39 @@ export default function OwnerApp({
           busy={mobilePhotoUploading || mobilePhotoPreparing || saving}
           canUseCameraApps={canUseExternalCameraApps()}
           previewFile={mobilePhotoPreviewFile}
+          recoveredPreview={mobilePhotoRecovered}
           allowSkip={mobilePhotoStatusAction.allowSkip !== false}
           onClose={() => {
             if (!mobilePhotoUploading && !mobilePhotoPreparing) {
+              pendingPhotoActionRequestRef.current += 1;
               setMobilePhotoPreviewFile(null);
+              setPendingMobilePhoto(null);
+              setMobilePhotoRecovered(false);
               setMobilePhotoStatusAction(null);
             }
           }}
           onSkip={() => {
             const action = mobilePhotoStatusAction;
             if (!action) return;
-            setMobilePhotoPreviewFile(null);
-            setMobilePhotoStatusAction(null);
-            if (action.nextStatus) void updateAppointment(action.appointmentId, { status: action.nextStatus });
+            void clearStagedMobilePhoto(action)
+              .catch(() => undefined)
+              .finally(() => {
+                setMobilePhotoPreviewFile(null);
+                setPendingMobilePhoto(null);
+                setMobilePhotoRecovered(false);
+                setMobilePhotoStatusAction(null);
+                void updateAppointment(action.appointmentId, { status: action.nextStatus });
+              });
           }}
-          onSelectFile={setMobilePhotoPreviewFile}
+          onSelectFile={(file) => void selectMobilePhotoFile(file)}
           onCapture={(mode) => void captureMobilePhoto(mode)}
-          onClearPreview={() => setMobilePhotoPreviewFile(null)}
+          onClearPreview={() => {
+            const action = mobilePhotoStatusAction;
+            if (!action) return;
+            void clearStagedMobilePhoto(action).catch(() => {
+              setError("임시 보관된 사진을 지우지 못했습니다. 다시 시도해 주세요.");
+            });
+          }}
           onConfirm={() => {
             if (mobilePhotoPreviewFile) void handleMobilePhotoStatusFile(mobilePhotoPreviewFile);
           }}
@@ -3805,21 +4015,32 @@ function AppointmentVisitWeightEditor({ shopId, appointmentId, disabled, transpo
 function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string; appointment: Appointment }) {
   const [items, setItems] = useState<AppointmentMediaPreview[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadAppointmentMedia() {
       setLoading(true);
+      setLoadError("");
       try {
+        const binding: OwnerMediaBinding = {
+          shopId,
+          appointmentId: appointment.id,
+          guardianId: appointment.guardian_id,
+          petId: appointment.pet_id,
+        };
         const query = new URLSearchParams({
           shopId,
           appointmentId: appointment.id,
+          guardianId: appointment.guardian_id,
+          petId: appointment.pet_id,
           includeVariants: "true",
           limit: "8",
         });
         const list = await fetchJson<{ items: MediaAssetListItem[] }>(`/api/owner/media/assets?${query.toString()}`);
         const visibleItems = list.items.filter((item) =>
+          isOwnerMediaItemBoundToAppointment(item, binding) &&
           ["grooming_before", "grooming_after", "grooming_result"].includes(item.mediaAsset.media_kind),
         );
         const signed = visibleItems.length > 0
@@ -3835,13 +4056,13 @@ function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string
         const signedUrlByAssetId = new Map(
           signed.items.flatMap((item) => item.mediaAssetId && item.signedUrl ? [[item.mediaAssetId, item.signedUrl] as const] : []),
         );
-        const previews = visibleItems.flatMap((item) => {
-          const signedUrl = signedUrlByAssetId.get(item.mediaAsset.id);
-          return signedUrl ? [{ item, signedUrl }] : [];
-        });
-        if (!cancelled) setItems(previews);
+        const previews = visibleItems.map((item) => ({
+          item,
+          signedUrl: signedUrlByAssetId.get(item.mediaAsset.id) ?? null,
+        }));
+        if (!cancelled) setItems((current) => mergeOwnerMediaPreviews(current, previews, binding));
       } catch {
-        if (!cancelled) setItems([]);
+        if (!cancelled) setLoadError("사진 기록 일부를 표시하지 못했습니다. 저장된 항목은 유지됩니다. 화면을 다시 열어 확인해 주세요.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -3851,7 +4072,7 @@ function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string
     return () => {
       cancelled = true;
     };
-  }, [appointment.id, shopId]);
+  }, [appointment.guardian_id, appointment.id, appointment.pet_id, shopId]);
 
   return (
     <section className="border-b border-[#e8edf3] px-1 py-3">
@@ -3865,29 +4086,39 @@ function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string
         </p>
       ) : (
         <div className="mt-3 grid grid-cols-2 gap-2">
-          {items.map(({ item, signedUrl }) => (
-            <a
-              key={item.mediaAsset.id}
-              href={signedUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="group min-h-11 overflow-hidden rounded-[12px] border border-[var(--border)] bg-[#f8fafc]"
-            >
+          {items.map(({ item, signedUrl }) => {
+            const content = <>
               <div className="aspect-[4/3] overflow-hidden bg-[#eef2f6]">
-                <img
-                  src={signedUrl}
-                  alt={getAppointmentMediaKindLabel(item.mediaAsset.media_kind)}
-                  className="h-full w-full object-cover transition group-active:scale-[0.99]"
-                />
+                {signedUrl ? (
+                  <img
+                    src={signedUrl}
+                    alt={getAppointmentMediaKindLabel(item.mediaAsset.media_kind)}
+                    className="h-full w-full object-cover transition group-active:scale-[0.99]"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center px-3 text-center text-[13px] font-medium leading-5 text-[#64748b]">
+                    사진 주소를 확인하지 못했어요
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between gap-2 px-2.5 py-2">
                 <span className="truncate text-[14px] font-medium leading-5 text-[var(--text)]">{getAppointmentMediaKindLabel(item.mediaAsset.media_kind)}</span>
                 <span className="shrink-0 text-[13px] font-normal leading-5 text-[var(--muted)]">{item.mediaAsset.status === "ready" ? "저장됨" : "처리 중"}</span>
               </div>
-            </a>
-          ))}
+            </>;
+            return signedUrl ? (
+              <a key={item.mediaAsset.id} href={signedUrl} target="_blank" rel="noreferrer" className="group min-h-11 overflow-hidden rounded-[12px] border border-[var(--border)] bg-[#f8fafc]">
+                {content}
+              </a>
+            ) : (
+              <div key={item.mediaAsset.id} className="min-h-11 overflow-hidden rounded-[12px] border border-[var(--border)] bg-[#f8fafc]">
+                {content}
+              </div>
+            );
+          })}
         </div>
       )}
+      {loadError ? <p role="alert" className="mt-2 text-[13px] font-medium leading-5 text-[#9a5e4e]">{loadError}</p> : null}
     </section>
   );
 }

@@ -18,6 +18,10 @@ test("development preview mounts the actual mobile appointment detail and shared
   assert.match(preview, /<AppointmentDetail/);
   assert.match(preview, /visitWeightTransport=\{transport\}/);
   assert.match(preview, /showMediaHistory=\{false\}/);
+  assert.match(preview, /<OwnerExternalPhotoSheet/);
+  assert.match(preview, /recoveredPreview/);
+  assert.match(preview, /writePendingOwnerStatusPhoto\(pending\)/);
+  assert.match(preview, /readPendingOwnerStatusPhoto\(pendingPhotoBinding\)/);
   assert.match(weightAdapter, /OwnerAppointmentVisitWeightTransport/);
   assert.match(weightAdapter, /ownerAppointmentVisitWeightTransport/);
   assert.doesNotMatch(preview, /function AppointmentDetail/);

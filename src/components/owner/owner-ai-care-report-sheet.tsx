@@ -9,6 +9,7 @@ import { OwnerCareReportGenerationStageError, runOwnerCareReportGeneration } fro
 import { startOwnerCareReportSpeechInput, type OwnerSpeechInputErrorCode, type OwnerSpeechInputController } from "@/lib/care-report/owner-speech-input";
 import { useCareReportKeyboardViewport } from "@/lib/care-report/use-care-report-keyboard-viewport";
 import { createOwnerMediaAssetFromFile, getOwnerMediaSignedUrl, type MediaAssetListItem } from "@/lib/media/owner-media-client";
+import { mergeBoundOwnerMediaItems, type OwnerMediaBinding } from "@/lib/media/owner-media-durability";
 import { DEFAULT_REVISIT_REMINDER_DAYS } from "@/lib/notification-settings";
 import { fetchOwnerAppointmentVisitWeight } from "@/lib/owner-appointment-visit-weight";
 import { addDate, currentDateInTimeZone } from "@/lib/utils";
@@ -106,11 +107,15 @@ export function createOwnerCareReportImmediateData({
 export async function prepareOwnerCareReportInitialData({
   shopId,
   appointmentId,
+  guardianId,
+  petId,
   publishedCareReport,
   developmentFixture,
 }: {
   shopId: string;
   appointmentId: string;
+  guardianId: string;
+  petId: string;
   publishedCareReport: CareReport | null;
   developmentFixture?: OwnerCareReportDevelopmentFixture;
 }): Promise<OwnerCareReportInitialData> {
@@ -134,7 +139,7 @@ export async function prepareOwnerCareReportInitialData({
     };
   }
 
-  const mediaQuery = new URLSearchParams({ shopId, appointmentId, includeVariants: "true", limit: "40" });
+  const mediaQuery = new URLSearchParams({ shopId, appointmentId, guardianId, petId, includeVariants: "true", limit: "40" });
   const draftQuery = new URLSearchParams({ shopId, appointmentId });
   const [mediaResult, draftResult, visitWeightResult] = await Promise.allSettled([
     fetchApiJsonWithAuth<{ items: MediaAssetListItem[] }>(`/api/owner/media/assets?${mediaQuery.toString()}`, { cache: "no-store" }),
@@ -145,7 +150,10 @@ export async function prepareOwnerCareReportInitialData({
   const media = mediaResult.status === "fulfilled" ? mediaResult.value : { items: [] };
   const draft = draftResult.status === "fulfilled" ? draftResult.value : { draft: null };
   const visitWeight = visitWeightResult.status === "fulfilled" ? visitWeightResult.value : { current: null };
-  const items = media.items.filter((item) => item.mediaAsset.media_kind === "grooming_before" || item.mediaAsset.media_kind === "grooming_after");
+  const binding: OwnerMediaBinding = { shopId, appointmentId, guardianId, petId };
+  const items = mergeBoundOwnerMediaItems([], media.items, binding).filter(
+    (item) => item.mediaAsset.media_kind === "grooming_before" || item.mediaAsset.media_kind === "grooming_after",
+  );
   const firstBefore = items.find((item) => item.mediaAsset.media_kind === "grooming_before")?.mediaAsset.id;
   const firstAfter = draft.draft?.afterMediaAssetId ?? items.find((item) => item.mediaAsset.media_kind === "grooming_after")?.mediaAsset.id;
   const selectedIds = recoveredDraft?.selectedIds ?? { grooming_before: firstBefore, grooming_after: firstAfter };
@@ -344,6 +352,8 @@ export default function OwnerAiCareReportSheet({
       const prepared = await prepareOwnerCareReportInitialData({
         shopId,
         appointmentId: appointment.id,
+        guardianId: appointment.guardian_id,
+        petId: appointment.pet_id,
         publishedCareReport,
         developmentFixture,
       });
@@ -367,7 +377,7 @@ export default function OwnerAiCareReportSheet({
   useEffect(() => {
     if (initialData) return;
     void load();
-  }, [appointment.id, developmentFixture, initialData, publishedCareReport, shopId]);
+  }, [appointment.guardian_id, appointment.id, appointment.pet_id, developmentFixture, initialData, publishedCareReport, shopId]);
 
   useEffect(() => {
     if (typeof performance === "undefined" || performance.getEntriesByName("petmanager:care-report:entry-start", "mark").length === 0) return;
@@ -391,12 +401,18 @@ export default function OwnerAiCareReportSheet({
     void prepareOwnerCareReportInitialData({
       shopId,
       appointmentId: appointment.id,
+      guardianId: appointment.guardian_id,
+      petId: appointment.pet_id,
       publishedCareReport,
     }).then((prepared) => {
       if (!active) return;
       setItems((current) => {
-        const currentIds = new Set(current.map((item) => item.mediaAsset.id));
-        return [...current, ...prepared.items.filter((item) => !currentIds.has(item.mediaAsset.id))];
+        return mergeBoundOwnerMediaItems(current, prepared.items, {
+          shopId,
+          appointmentId: appointment.id,
+          guardianId: appointment.guardian_id,
+          petId: appointment.pet_id,
+        });
       });
       setVisitWeightKg(prepared.visitWeightKg);
       if (!userInteractionRef.current) {
@@ -418,7 +434,7 @@ export default function OwnerAiCareReportSheet({
       if (active) setError((current) => current || "저장된 초안과 부가 정보를 불러오지 못했습니다. 입력은 계속할 수 있습니다.");
     });
     return () => { active = false; };
-  }, [appointment.id, developmentFixture, initialData, publishedCareReport, shopId]);
+  }, [appointment.guardian_id, appointment.id, appointment.pet_id, developmentFixture, initialData, publishedCareReport, shopId]);
 
   useEffect(() => {
     if (isPublished) {

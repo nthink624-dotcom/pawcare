@@ -11,6 +11,7 @@ import OwnerBookingNotificationWatcher from "@/components/owner/owner-booking-no
 import { OwnerNativeBillingNotice } from "@/components/owner/owner-native-billing-notice";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerCareReportLocalDrafts } from "@/lib/care-report/owner-care-report-local-draft";
+import { clearPendingOwnerStatusPhotos } from "@/lib/media/owner-pending-status-photo";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
@@ -313,6 +314,7 @@ export default function OwnerShell({
         await supabase.auth.signOut();
       }
     } finally {
+      await clearPendingOwnerStatusPhotos().catch(() => undefined);
       clearOwnerCareReportLocalDrafts();
       router.replace("/login" as never);
       router.refresh();

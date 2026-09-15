@@ -18,11 +18,13 @@ const pickerResult = nativeCamera.slice(resultStart, resultEnd);
 
 test("external app selection uses the system launcher picker without broad package discovery", () => {
   assert.ok(pickerStart >= 0 && pickerEnd > pickerStart);
-  assert.match(pickerMethod, /new Intent\(Intent\.ACTION_MAIN\)/);
-  assert.match(pickerMethod, /addCategory\(Intent\.CATEGORY_LAUNCHER\)/);
-  assert.match(pickerMethod, /new Intent\(Intent\.ACTION_PICK_ACTIVITY\)/);
-  assert.match(pickerMethod, /putExtra\(Intent\.EXTRA_INTENT, launcherIntent\)/);
-  assert.match(pickerMethod, /putExtra\(Intent\.EXTRA_TITLE, "다른 촬영 앱 선택"\)/);
+  assert.match(nativeCamera, /createExternalAppPickerIntent\(\)[\s\S]*new Intent\(Intent\.ACTION_MAIN\)/);
+  assert.match(nativeCamera, /createExternalAppPickerIntent\(\)[\s\S]*addCategory\(Intent\.CATEGORY_LAUNCHER\)/);
+  assert.match(nativeCamera, /createExternalAppPickerIntent\(\)[\s\S]*new Intent\(Intent\.ACTION_PICK_ACTIVITY\)/);
+  assert.match(nativeCamera, /createExternalAppPickerIntent\(\)[\s\S]*putExtra\(Intent\.EXTRA_INTENT, launcherIntent\)/);
+  assert.match(nativeCamera, /createExternalAppPickerIntent\(\)[\s\S]*putExtra\(Intent\.EXTRA_TITLE, "다른 촬영 앱 선택"\)/);
+  assert.match(pickerMethod, /createExternalAppPickerIntent\(\)/);
+  assert.match(pickerMethod, /resolveActivity\(getContext\(\)\.getPackageManager\(\)\) == null[\s\S]*EXTERNAL_APP_PICKER_UNAVAILABLE/);
   assert.doesNotMatch(nativeCamera, /CATEGORY_APP_CAMERA|QUERY_ALL_PACKAGES|getInstalledApplications|getInstalledPackages|setPackage\(/);
   assert.doesNotMatch(manifest, /QUERY_ALL_PACKAGES|<package\b/);
 });
@@ -48,6 +50,8 @@ test("picker cancellation and unsupported OEM paths fall back without guessing a
 
 test("external app return emphasizes explicit album selection with truthful copy", () => {
   assert.match(cameraBridge, /openExternalCameraAppPicker\(\): Promise<void>/);
+  assert.match(cameraBridge, /externalAppPickerAvailable: result\.externalAppPickerAvailable === true/);
+  assert.match(photoSheet, /canOpenExternalAppPicker =[\s\S]*externalAppPickerAvailable === true/);
   assert.match(photoSheet, /다른 촬영 앱 선택/);
   assert.match(photoSheet, /시스템 앱 선택기에서 촬영 앱을 골라 사진을 저장하세요/);
   assert.match(photoSheet, /이 경로는 촬영 결과를 바로 받을 수 없어 돌아온 뒤 앨범에서 선택해야 합니다/);

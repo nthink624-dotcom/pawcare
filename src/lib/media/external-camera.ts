@@ -8,7 +8,11 @@ type ExternalCameraPlugin = {
     mimeType?: string;
     fileName?: string;
   }>;
-  getCapabilities(): Promise<{ availableAppCount: number; canChoose: boolean }>;
+  getCapabilities(): Promise<{
+    availableAppCount: number;
+    canChoose: boolean;
+    externalAppPickerAvailable?: boolean;
+  }>;
   openExternalCameraAppPicker(): Promise<void>;
   release(options: { cacheFileName: string }): Promise<void>;
 };
@@ -22,11 +26,13 @@ export function canUseExternalCameraApps() {
 export type ExternalCameraCapabilities = {
   availableAppCount: number | null;
   canChoose: boolean | null;
+  externalAppPickerAvailable: boolean;
 };
 
 const UNKNOWN_EXTERNAL_CAMERA_CAPABILITIES: ExternalCameraCapabilities = {
   availableAppCount: null,
   canChoose: null,
+  externalAppPickerAvailable: false,
 };
 
 function cameraNow() {
@@ -52,13 +58,14 @@ async function traceCameraStep<T>(step: string, work: () => Promise<T>) {
 
 export async function getExternalCameraCapabilities(): Promise<ExternalCameraCapabilities> {
   if (!canUseExternalCameraApps()) {
-    return { availableAppCount: 0, canChoose: false };
+    return { availableAppCount: 0, canChoose: false, externalAppPickerAvailable: false };
   }
   try {
     const result = await ExternalCamera.getCapabilities();
     return {
       availableAppCount: Math.max(0, Math.trunc(result.availableAppCount)),
       canChoose: result.canChoose === true,
+      externalAppPickerAvailable: result.externalAppPickerAvailable === true,
     };
   } catch {
     // Older installed shells do not expose capability discovery. Keep the UI

@@ -79,8 +79,10 @@ export default function OwnerExternalPhotoSheet({
   const confirmLabel = action.buttonLabel.replace("사진 찍고", "사진 등록하고");
   const effectiveCameraCapabilities = canUseCameraApps
     ? cameraCapabilities
-    : { availableAppCount: 0, canChoose: false };
+    : { availableAppCount: 0, canChoose: false, externalAppPickerAvailable: false };
   const cameraUnavailable = effectiveCameraCapabilities?.availableAppCount === 0;
+  const canOpenExternalAppPicker =
+    canUseCameraApps && effectiveCameraCapabilities?.externalAppPickerAvailable === true;
   const cameraMode = effectiveCameraCapabilities?.canChoose === true ? "chooser" : "default";
   const cameraLabel = effectiveCameraCapabilities?.canChoose === true
     ? "기본 카메라 선택"
@@ -181,7 +183,7 @@ export default function OwnerExternalPhotoSheet({
             )}
 
             <div className="mt-2 grid gap-2">
-              {canUseCameraApps ? (
+              {canOpenExternalAppPicker ? (
                 <button
                   type="button"
                   disabled={busy || externalPickerBusy}
@@ -200,7 +202,7 @@ export default function OwnerExternalPhotoSheet({
                 <span className={`text-[14px] font-semibold ${externalAppFlowStarted ? "text-[#1b457c]" : "text-[#2c3b50]"}`}>{externalAppFlowStarted ? "촬영한 사진을 앨범에서 선택" : "앨범에서 선택"}</span>
               </label>
             </div>
-            {canUseCameraApps ? (
+            {canOpenExternalAppPicker ? (
               <p className="mt-2 text-[13px] font-normal leading-5 text-[#64748b]">
                 시스템 앱 선택기에서 촬영 앱을 골라 사진을 저장하세요. 이 경로는 촬영 결과를 바로 받을 수 없어 돌아온 뒤 앨범에서 선택해야 합니다.
               </p>

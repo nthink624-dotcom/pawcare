@@ -75,16 +75,17 @@ public class ExternalCameraPlugin extends Plugin {
         JSObject response = new JSObject();
         response.put("availableAppCount", handlers.size());
         response.put("canChoose", handlers.size() > 1);
+        response.put("externalAppPickerAvailable", canOpenExternalAppPicker());
         call.resolve(response);
     }
 
     @PluginMethod
     public void openExternalCameraAppPicker(PluginCall call) {
-        Intent launcherIntent = new Intent(Intent.ACTION_MAIN);
-        launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-        Intent pickerIntent = new Intent(Intent.ACTION_PICK_ACTIVITY);
-        pickerIntent.putExtra(Intent.EXTRA_INTENT, launcherIntent);
-        pickerIntent.putExtra(Intent.EXTRA_TITLE, "다른 촬영 앱 선택");
+        Intent pickerIntent = createExternalAppPickerIntent();
+        if (pickerIntent.resolveActivity(getContext().getPackageManager()) == null) {
+            call.reject("앱 선택기를 열 수 없습니다. 앨범에서 사진을 선택해 주세요.", EXTERNAL_APP_PICKER_UNAVAILABLE);
+            return;
+        }
         try {
             startActivityForResult(call, pickerIntent, "externalAppPickerResult");
         } catch (Exception error) {
@@ -250,6 +251,19 @@ public class ExternalCameraPlugin extends Plugin {
         intent.addFlags(OUTPUT_URI_PERMISSION_FLAGS);
         intent.setClipData(ClipData.newRawUri("petmanager-photo", outputUri));
         return intent;
+    }
+
+    private Intent createExternalAppPickerIntent() {
+        Intent launcherIntent = new Intent(Intent.ACTION_MAIN);
+        launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        Intent pickerIntent = new Intent(Intent.ACTION_PICK_ACTIVITY);
+        pickerIntent.putExtra(Intent.EXTRA_INTENT, launcherIntent);
+        pickerIntent.putExtra(Intent.EXTRA_TITLE, "다른 촬영 앱 선택");
+        return pickerIntent;
+    }
+
+    private boolean canOpenExternalAppPicker() {
+        return createExternalAppPickerIntent().resolveActivity(getContext().getPackageManager()) != null;
     }
 
     private void detachPendingOutput() {

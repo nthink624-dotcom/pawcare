@@ -7,6 +7,7 @@ import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerCareReportLocalDraft, readOwnerCareReportLocalDraft, writeOwnerCareReportLocalDraft } from "@/lib/care-report/owner-care-report-local-draft";
 import { OwnerCareReportGenerationStageError, runOwnerCareReportGeneration } from "@/lib/care-report/owner-care-report-generation";
 import { startOwnerCareReportSpeechInput, type OwnerSpeechInputErrorCode, type OwnerSpeechInputController } from "@/lib/care-report/owner-speech-input";
+import { useCareReportKeyboardViewport } from "@/lib/care-report/use-care-report-keyboard-viewport";
 import { createOwnerMediaAssetFromFile, getOwnerMediaSignedUrl, type MediaAssetListItem } from "@/lib/media/owner-media-client";
 import { DEFAULT_REVISIT_REMINDER_DAYS } from "@/lib/notification-settings";
 import { fetchOwnerAppointmentVisitWeight } from "@/lib/owner-appointment-visit-weight";
@@ -79,6 +80,29 @@ function reminderDaysBetween(today: string, target: string) {
   return clampReminderDays(difference);
 }
 
+export function createOwnerCareReportImmediateData({
+  shopId,
+  appointmentId,
+  publishedCareReport,
+}: {
+  shopId: string;
+  appointmentId: string;
+  publishedCareReport: CareReport | null;
+}): OwnerCareReportInitialData {
+  const recoveredDraft = publishedCareReport ? null : readOwnerCareReportLocalDraft(shopId, appointmentId);
+  return {
+    items: [],
+    selectedIds: recoveredDraft?.selectedIds ?? {},
+    signedUrl: "",
+    nextDate: recoveredDraft?.nextDate ?? null,
+    sourceText: recoveredDraft?.sourceText ?? "",
+    revisionText: recoveredDraft?.revisionText ?? "",
+    report: normalizeCareReport(recoveredDraft?.reportText ?? publishedCareReport),
+    visitWeightKg: null,
+    recoveredDraft,
+  };
+}
+
 export async function prepareOwnerCareReportInitialData({
   shopId,
   appointmentId,
@@ -90,7 +114,8 @@ export async function prepareOwnerCareReportInitialData({
   publishedCareReport: CareReport | null;
   developmentFixture?: OwnerCareReportDevelopmentFixture;
 }): Promise<OwnerCareReportInitialData> {
-  const recoveredDraft = publishedCareReport ? null : readOwnerCareReportLocalDraft(shopId, appointmentId);
+  const immediateData = createOwnerCareReportImmediateData({ shopId, appointmentId, publishedCareReport });
+  const recoveredDraft = immediateData.recoveredDraft;
   if (developmentFixture) {
     const draft = developmentFixture.draft ?? null;
     const items = developmentFixture.items ?? [];
@@ -172,6 +197,8 @@ export default function OwnerAiCareReportSheet({
   const voiceSessionRef = useRef(0);
   const lastVoiceTranscriptRef = useRef("");
   const generationInFlightRef = useRef(false);
+  const supplementalLoadStartedRef = useRef(false);
+  const userInteractionRef = useRef(false);
   const reportTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const exitDialogRef = useRef<HTMLElement | null>(null);
@@ -205,6 +232,10 @@ export default function OwnerAiCareReportSheet({
   const [showReminderSheet, setShowReminderSheet] = useState(false);
   const [pendingReminderMode, setPendingReminderMode] = useState<"default" | "custom">("default");
   const [pendingReminderDays, setPendingReminderDays] = useState(DEFAULT_REVISIT_REMINDER_DAYS);
+  const { focusTextInput, releaseTextInput, shouldHideFixedActions, viewportStyle } = useCareReportKeyboardViewport(
+    reportTextareaRef,
+    composerTextareaRef,
+  );
 
   const selectedService = useMemo(() => services.find((service) => service.id === appointment.service_id), [appointment.service_id, services]);
   const isPublished = Boolean(publishedCareReport);
@@ -218,6 +249,10 @@ export default function OwnerAiCareReportSheet({
   const defaultReminderDate = addDate(today, defaultReminderDays);
   const resolvedReminderDate = nextDate ?? defaultReminderDate;
   const reminderOptions = useMemo(() => [defaultReminderDays, 30, 45, 60, 90].filter((days, index, values) => values.indexOf(days) === index), [defaultReminderDays]);
+  function markEdited() {
+    userInteractionRef.current = true;
+    setHasEdited(true);
+  }
 
   useEffect(() => {
     const syncHeight = () => resizeTextarea(reportTextareaRef.current, 128, 288);
@@ -335,6 +370,57 @@ export default function OwnerAiCareReportSheet({
   }, [appointment.id, developmentFixture, initialData, publishedCareReport, shopId]);
 
   useEffect(() => {
+    if (typeof performance === "undefined" || performance.getEntriesByName("petmanager:care-report:entry-start", "mark").length === 0) return;
+    performance.clearMarks("petmanager:care-report:shell-rendered");
+    performance.mark("petmanager:care-report:shell-rendered");
+    performance.measure(
+      "petmanager:care-report:shell-open",
+      "petmanager:care-report:entry-start",
+      "petmanager:care-report:shell-rendered",
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!initialData || developmentFixture || supplementalLoadStartedRef.current) return;
+    supplementalLoadStartedRef.current = true;
+    let active = true;
+    performance.clearMarks("petmanager:care-report:supplemental-start");
+    performance.clearMarks("petmanager:care-report:supplemental-ready");
+    performance.clearMeasures("petmanager:care-report:supplemental-load");
+    performance.mark("petmanager:care-report:supplemental-start");
+    void prepareOwnerCareReportInitialData({
+      shopId,
+      appointmentId: appointment.id,
+      publishedCareReport,
+    }).then((prepared) => {
+      if (!active) return;
+      setItems((current) => {
+        const currentIds = new Set(current.map((item) => item.mediaAsset.id));
+        return [...current, ...prepared.items.filter((item) => !currentIds.has(item.mediaAsset.id))];
+      });
+      setVisitWeightKg(prepared.visitWeightKg);
+      if (!userInteractionRef.current) {
+        initialRecoveredDraftRef.current = prepared.recoveredDraft;
+        setSelectedIds(prepared.selectedIds);
+        setNextDate(prepared.nextDate);
+        setSourceText(prepared.sourceText);
+        setRevisionText(prepared.revisionText);
+        setReport(prepared.report);
+        setHasEdited(Boolean(prepared.recoveredDraft));
+      }
+      performance.mark("petmanager:care-report:supplemental-ready");
+      performance.measure(
+        "petmanager:care-report:supplemental-load",
+        "petmanager:care-report:supplemental-start",
+        "petmanager:care-report:supplemental-ready",
+      );
+    }).catch(() => {
+      if (active) setError((current) => current || "저장된 초안과 부가 정보를 불러오지 못했습니다. 입력은 계속할 수 있습니다.");
+    });
+    return () => { active = false; };
+  }, [appointment.id, developmentFixture, initialData, publishedCareReport, shopId]);
+
+  useEffect(() => {
     if (isPublished) {
       clearOwnerCareReportLocalDraft(shopId, appointment.id);
       return;
@@ -382,7 +468,7 @@ export default function OwnerAiCareReportSheet({
       const result = await createOwnerMediaAssetFromFile({ shopId, guardianId: appointment.guardian_id, petId: appointment.pet_id, appointmentId: appointment.id, groomingRecordId: null }, activeKind, file);
       setItems((current) => [{ mediaAsset: result.mediaAsset, variants: result.variant ? [result.variant] : [] }, ...current]);
       setSelectedIds((current) => ({ ...current, [activeKind]: result.mediaAsset.id }));
-      setHasEdited(true);
+      markEdited();
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "사진을 등록하지 못했습니다.");
     } finally { setAction(null); }
@@ -440,7 +526,7 @@ export default function OwnerAiCareReportSheet({
         preserve: (reportText) => {
           setReport({ reportText });
           setRevisionText("");
-          setHasEdited(true);
+          markEdited();
           writeOwnerCareReportLocalDraft(shopId, appointment.id, {
             sourceText,
             revisionText: "",
@@ -570,7 +656,7 @@ export default function OwnerAiCareReportSheet({
 
   function applyReminderSettings() {
     setNextDate(pendingReminderMode === "custom" ? addDate(today, pendingReminderDays) : null);
-    setHasEdited(true);
+    markEdited();
     dismissReminderSettings();
   }
 
@@ -605,7 +691,7 @@ export default function OwnerAiCareReportSheet({
           } else {
             setSourceText((current) => `${current}${current ? "\n" : ""}${transcript}`.slice(0, 4000));
           }
-          setHasEdited(true);
+          markEdited();
         },
         onError: (code) => {
           if (voiceSessionRef.current !== session || code === "CANCELLED") return;
@@ -648,16 +734,16 @@ export default function OwnerAiCareReportSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex justify-center bg-[#0b1b2c]/35" role="dialog" aria-modal="true" aria-label="AI 케어리포트 작성">
-      <section className="flex min-h-0 w-full max-w-[430px] flex-col overflow-hidden bg-white">
-        <header className="flex shrink-0 items-start justify-between border-b border-[#dce7f2] bg-white px-5 pb-3 pt-[calc(env(safe-area-inset-top)+12px)]">
-          <div className="min-w-0"><h1 className="text-[20px] font-semibold tracking-[-0.04em] text-[#14213a]">AI 케어리포트 작성</h1><p className="mt-1 truncate text-[14px] text-[#637890]">{pet.name} · {staffName || "담당 디자이너"}</p></div>
+    <div data-keyboard-active={shouldHideFixedActions ? "true" : "false"} className="fixed inset-x-0 z-[80] flex justify-center bg-[#0b1b2c]/35" style={viewportStyle} role="dialog" aria-modal="true" aria-label="AI 케어리포트 작성">
+      <section className="flex h-full min-h-0 w-full max-w-[430px] flex-col overflow-hidden bg-white">
+        <header className="flex shrink-0 items-start justify-between border-b border-[#e8edf3] bg-white px-4 pb-3 pt-[calc(env(safe-area-inset-top)+12px)]">
+          <div className="min-w-0"><h1 className="text-[20px] font-semibold tracking-[-0.015em] text-[#14213a]">AI 케어리포트 작성</h1><p className="mt-1 truncate text-[14px] font-normal leading-5 text-[#637890]">{pet.name} · {staffName || "담당 디자이너"}</p></div>
           <button type="button" onClick={requestClose} className="ml-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef4fa] text-[#58708a]" aria-label="닫기"><X className="h-5 w-5" /></button>
         </header>
 
-        <div data-testid="care-report-scroll-region" role="region" aria-label="케어리포트 내용" tabIndex={0} className="min-h-0 max-h-[calc(100dvh-180px)] flex-none overflow-y-auto px-5 pb-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">
-          <div data-testid="care-report-summary" className="border-b border-[#dce7f2]">
-          <section className="border-b border-[#dce7f2] py-3" aria-label="미용 사진">
+        <div data-testid="care-report-scroll-region" role="region" aria-label="케어리포트 내용" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">
+          <div data-testid="care-report-summary" className="divide-y divide-[#e8edf3]">
+          <section className="py-3" aria-label="미용 사진">
             <input id={cameraInputId} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
             <input id={albumInputId} type="file" accept="image/*" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
             <div className="flex min-h-11 items-center gap-2">
@@ -666,10 +752,10 @@ export default function OwnerAiCareReportSheet({
               <label htmlFor={cameraInputId} aria-label="미용 사진 촬영" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d7e4f2] text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]"><Camera className="h-4 w-4" aria-hidden="true" /></label>
               <label htmlFor={albumInputId} aria-label="미용 사진 선택" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d7e4f2] text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]"><ImagePlus className="h-4 w-4" aria-hidden="true" /></label>
             </div>
-            {kindItems.length > 1 ? <select aria-label="포함할 미용 사진 선택" value={selectedId} onChange={(event) => { setSelectedIds((current) => ({ ...current, [activeKind]: event.target.value })); setHasEdited(true); }} className="mt-2 h-11 w-full rounded-[10px] border border-[#d7e4f2] px-3 text-[14px] text-[#526b84]">{kindItems.map((item, index) => <option key={item.mediaAsset.id} value={item.mediaAsset.id}>미용 후 사진 {kindItems.length - index}</option>)}</select> : null}
+            {kindItems.length > 1 ? <select aria-label="포함할 미용 사진 선택" value={selectedId} onChange={(event) => { setSelectedIds((current) => ({ ...current, [activeKind]: event.target.value })); markEdited(); }} className="mt-2 h-11 w-full rounded-[10px] border border-[#d7e4f2] px-3 text-[14px] font-medium leading-5 text-[#526b84]">{kindItems.map((item, index) => <option key={item.mediaAsset.id} value={item.mediaAsset.id}>미용 후 사진 {kindItems.length - index}</option>)}</select> : null}
           </section>
 
-          <section className="flex min-w-0 flex-wrap items-end justify-between gap-3 border-b border-[#dce7f2] py-3" aria-label="예약 정보">
+          <section className="flex min-w-0 flex-wrap items-end justify-between gap-3 py-3" aria-label="예약 정보">
             <div className="min-w-0"><p className="text-[13px] leading-5 text-[#64748b]">예약 서비스</p><p className="truncate text-[16px] font-medium leading-6 text-[#20344c]">{selectedService?.name ?? "서비스 확인 필요"}</p></div>
             <div><p className="text-[13px] leading-5 text-[#64748b]">오늘 몸무게</p><p className="text-[16px] font-medium leading-6 tabular-nums text-[#20344c]">{visitWeightKg === null ? "미입력" : `${visitWeightKg}kg`}</p></div>
             <button type="button" onClick={onReturnToDetail} className="min-h-11 shrink-0 rounded-[10px] border border-[#2f6fd6] bg-white px-3 text-[16px] font-medium leading-6 text-[#2f6fd6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">예약 정보 수정</button>
@@ -680,11 +766,11 @@ export default function OwnerAiCareReportSheet({
           </button>
           </div>
 
-          {report ? <section data-testid="care-report-draft" className="space-y-2 pt-4"><h2 className="text-[16px] font-semibold leading-6 text-[#101a31]">케어리포트 초안</h2><textarea ref={reportTextareaRef} aria-label="케어리포트 초안" disabled={isPublished} value={report.reportText} onChange={(event) => { setReport({ reportText: event.target.value.slice(0, 4000) }); setHasEdited(true); }} maxLength={4000} wrap="soft" className="min-h-[128px] max-h-72 w-full resize-none overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-[14px] border border-[#d7e4f2] bg-white px-3 py-3 text-[16px] font-normal leading-6 text-[#263b53] [overflow-wrap:anywhere] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#f8fbfe] disabled:opacity-70" /></section> : null}
-          {!isPublished ? <section data-testid="care-report-composer" className="space-y-2 pt-4">
+          {report ? <section data-testid="care-report-draft" className="space-y-2 pt-3"><h2 className="text-[16px] font-semibold leading-6 text-[#101a31]">케어리포트 초안</h2><textarea ref={reportTextareaRef} aria-label="케어리포트 초안" disabled={isPublished} value={report.reportText} onFocus={(event) => focusTextInput(event.currentTarget)} onBlur={releaseTextInput} onChange={(event) => { setReport({ reportText: event.target.value.slice(0, 4000) }); markEdited(); }} maxLength={4000} wrap="soft" className="min-h-[128px] max-h-72 w-full resize-none overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-[14px] border border-[#d7e4f2] bg-white px-3 py-3 text-[16px] font-normal leading-6 text-[#263b53] [overflow-wrap:anywhere] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#f8fbfe] disabled:opacity-70" /></section> : null}
+          {!isPublished ? <section data-testid="care-report-composer" className="space-y-2 pb-3 pt-3">
             <h2 className="text-[16px] font-semibold leading-6 text-[#101a31]">{report ? "수정 요청" : "케어리포트 내용"}</h2>
             <div className="overflow-hidden rounded-[14px] border border-[#d7e4f2] bg-white focus-within:border-[#76a8df]">
-              <textarea ref={composerTextareaRef} disabled={isPublished} value={composerText} onChange={(event) => { if (report) setRevisionText(event.target.value.slice(0, 1000)); else setSourceText(event.target.value.slice(0, 4000)); setHasEdited(true); }} aria-label={report ? "수정 요청 입력" : "케어리포트 내용 입력"} placeholder={report ? "수정할 부분을 적어 주세요" : "오늘 미용 내용을 적어 주세요"} wrap="soft" className="min-h-[84px] max-h-36 w-full resize-none overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-transparent px-3 pt-3 text-[16px] font-normal leading-6 text-[#263b53] [overflow-wrap:anywhere] outline-none disabled:opacity-50" />
+              <textarea ref={composerTextareaRef} disabled={isPublished} value={composerText} onFocus={(event) => focusTextInput(event.currentTarget)} onBlur={releaseTextInput} onChange={(event) => { if (report) setRevisionText(event.target.value.slice(0, 1000)); else setSourceText(event.target.value.slice(0, 4000)); markEdited(); }} aria-label={report ? "수정 요청 입력" : "케어리포트 내용 입력"} placeholder={report ? "수정할 부분을 적어 주세요" : "오늘 미용 내용을 적어 주세요"} wrap="soft" className="min-h-[84px] max-h-36 w-full resize-none overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-transparent px-3 pt-3 text-[16px] font-normal leading-6 text-[#263b53] [overflow-wrap:anywhere] outline-none disabled:opacity-50" />
               <div className="flex min-h-12 items-center justify-end gap-0 border-t border-[#edf2f7] px-1.5 py-0.5">
                 <button type="button" onClick={() => void toggleVoice()} disabled={isPublished || action !== null} aria-label={recording ? "음성 입력 중지" : "음성 입력 시작"} aria-pressed={recording} className="flex h-11 w-11 items-center justify-center rounded-full bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"><span className={`flex h-[30px] w-[30px] items-center justify-center rounded-full border ${recording ? "border-[#f0b8bf] bg-[#fff7f8] text-[#a04455]" : "border-[#d7e4f2] bg-white text-[#52708c]"}`}>{recording ? <Pause className="h-3.5 w-3.5" aria-hidden="true" /> : <Mic className="h-3.5 w-3.5" aria-hidden="true" />}</span></button>
                 <button type="button" onClick={() => void generate()} disabled={isPublished || action !== null || !hasComposerInput} aria-label="케어리포트 만들기" className="flex h-11 w-11 items-center justify-center rounded-full bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-40"><span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#111A30] text-white"><ArrowUp className="h-4 w-4" aria-hidden="true" /></span></button>
@@ -694,7 +780,7 @@ export default function OwnerAiCareReportSheet({
           </section> : null}
           {error ? <p className="mt-3 rounded-[10px] border border-[#f0c4c8] bg-[#fff8f8] px-3 py-2 text-[14px] leading-5 text-[#a04455]">{error}</p> : null}
         </div>
-        <footer className={`grid shrink-0 gap-2 border-t border-[#d7e4f2] bg-white px-5 pt-3 ${isPublished ? "grid-cols-1" : "grid-cols-2"}`} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + env(keyboard-inset-height, 0px) + 12px)" }}>{isPublished ? <button type="button" onClick={onClose} className="flex min-h-12 items-center justify-center rounded-[14px] bg-[#2f6fd6] px-2 text-[16px] font-semibold leading-6 text-white">닫기</button> : <><button type="button" onClick={() => setShowPublishConfirm(true)} disabled={!report || action !== null} className="flex min-h-12 items-center justify-center gap-1.5 rounded-[14px] bg-[#2f6fd6] px-2 text-[16px] font-semibold leading-6 text-white disabled:opacity-40"><Send className="h-4 w-4 shrink-0" />리포트 보내기</button><button type="button" onClick={() => void saveDraft()} disabled={action !== null} className="flex min-h-12 items-center justify-center gap-1.5 rounded-[14px] border border-[#cbddec] px-2 text-[16px] font-semibold leading-6 text-[#4d6d89] disabled:opacity-50"><Check className="h-4 w-4 shrink-0" />{action === 'save' ? '저장 중…' : '임시저장'}</button></>}</footer>
+        {!shouldHideFixedActions ? <footer data-testid="care-report-fixed-actions" className={`grid shrink-0 gap-2 border-t border-[#e8edf3] bg-white px-4 pt-3 ${isPublished ? "grid-cols-1" : "grid-cols-2"}`} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>{isPublished ? <button type="button" onClick={onClose} className="flex min-h-12 items-center justify-center rounded-[14px] bg-[#2f6fd6] px-2 text-[16px] font-medium leading-6 text-white">닫기</button> : <><button type="button" onClick={() => setShowPublishConfirm(true)} disabled={!report || action !== null} className="flex min-h-12 items-center justify-center gap-1.5 rounded-[14px] bg-[#2f6fd6] px-2 text-[16px] font-medium leading-6 text-white disabled:opacity-40"><Send className="h-4 w-4 shrink-0" />리포트 보내기</button><button type="button" onClick={() => void saveDraft()} disabled={action !== null} className="flex min-h-12 items-center justify-center gap-1.5 rounded-[14px] border border-[#cbddec] px-2 text-[16px] font-medium leading-6 text-[#4d6d89] disabled:opacity-50"><Check className="h-4 w-4 shrink-0" />{action === 'save' ? '저장 중…' : '임시저장'}</button></>}</footer> : null}
       </section>
       {showReminderSheet ? <div className="fixed inset-0 z-[82] flex items-end justify-center bg-[#0b1b2c]/35" onMouseDown={(event) => { if (event.target === event.currentTarget) dismissReminderSettings(); }}><section role="dialog" aria-modal="true" aria-labelledby="care-report-reminder-title" className="w-full max-w-[430px] rounded-t-[18px] border border-[#dce7f2] bg-white px-5 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-5">
         <div className="flex min-h-11 items-center gap-2">

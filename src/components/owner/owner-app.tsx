@@ -32,7 +32,7 @@ import OwnerBookingDatePicker from "@/components/owner/owner-booking-date-picker
 import OwnerBookingDaySchedule from "@/components/owner/owner-booking-day-schedule";
 import OwnerExternalPhotoSheet from "@/components/owner/owner-external-photo-sheet";
 import OwnerHomeDateNavigator from "@/components/owner/owner-home-date-navigator";
-import OwnerAiCareReportSheet, { normalizeCareReport, prepareOwnerCareReportInitialData, type OwnerCareReportInitialData } from "@/components/owner/owner-ai-care-report-sheet";
+import OwnerAiCareReportSheet, { createOwnerCareReportImmediateData, normalizeCareReport, type OwnerCareReportInitialData } from "@/components/owner/owner-ai-care-report-sheet";
 import { readOwnerCareReportLocalDraft } from "@/lib/care-report/owner-care-report-local-draft";
 import OwnerContextActionMenu from "@/components/owner/owner-context-action-menu";
 import OwnerMobileGroomingStartSheet from "@/components/owner/owner-mobile-grooming-start-sheet";
@@ -408,7 +408,7 @@ export default function OwnerApp({
   const [careReportInitialData, setCareReportInitialData] = useState<OwnerCareReportInitialData | null>(null);
   const [careReportLoadingAppointmentId, setCareReportLoadingAppointmentId] = useState<string | null>(null);
   const [careReportEntryError, setCareReportEntryError] = useState<{ appointmentId: string; message: string } | null>(null);
-  const careReportOpenInFlightRef = useRef<Promise<void> | null>(null);
+  const careReportOpenInFlightRef = useRef(false);
   const [publishedCareReportFollowupKeys, setPublishedCareReportFollowupKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -1695,7 +1695,7 @@ export default function OwnerApp({
     void updateAppointmentStatusWithMobilePhoto(appointmentId, "in_progress", "grooming_before", file);
   }
 
-  async function openCareReport(appointmentId: string) {
+  function openCareReport(appointmentId: string) {
     if (isOwnerDemo || careReportOpenInFlightRef.current) return;
     const appointment = data.appointments.find((item) => item.id === appointmentId);
     if (!appointment) {
@@ -1703,35 +1703,31 @@ export default function OwnerApp({
       return;
     }
     const publishedCareReport = normalizeCareReport(data.groomingRecords.find((record) => record.appointment_id === appointment.id)?.care_report_data);
+    careReportOpenInFlightRef.current = true;
     setCareReportLoadingAppointmentId(appointmentId);
     setCareReportEntryError(null);
-    const openPromise = (async () => {
-      try {
-        const prepared = await withOwnerMobileTimeout(
-          () => prepareOwnerCareReportInitialData({
-            shopId: data.shop.id,
-            appointmentId,
-            publishedCareReport,
-          }),
-          15_000,
-          "케어리포트 초안을 불러오는 데 시간이 오래 걸리고 있습니다. 다시 시도해 주세요.",
-        );
-        setCareReportInitialData(prepared);
-        setModal((current) => current?.type === "appointment" && current.appointment.id === appointmentId ? null : current);
-        setCareReportAppointmentId(appointmentId);
-      } catch (loadError) {
-        setCareReportEntryError({
-          appointmentId,
-          message: loadError instanceof Error ? loadError.message : "케어리포트를 불러오지 못했습니다.",
-        });
-      }
-    })();
-    careReportOpenInFlightRef.current = openPromise;
     try {
-      await openPromise;
+      if (typeof performance !== "undefined") {
+        performance.clearMarks("petmanager:care-report:entry-start");
+        performance.clearMarks("petmanager:care-report:shell-rendered");
+        performance.clearMeasures("petmanager:care-report:shell-open");
+        performance.mark("petmanager:care-report:entry-start");
+      }
+      const immediateData = createOwnerCareReportImmediateData({
+        shopId: data.shop.id,
+        appointmentId,
+        publishedCareReport,
+      });
+      setCareReportInitialData(immediateData);
+      setModal((current) => current?.type === "appointment" && current.appointment.id === appointmentId ? null : current);
+      setCareReportAppointmentId(appointmentId);
+    } catch {
+      setCareReportEntryError({ appointmentId, message: "케어리포트를 열지 못했습니다. 다시 시도해 주세요." });
     } finally {
-      if (careReportOpenInFlightRef.current === openPromise) careReportOpenInFlightRef.current = null;
-      setCareReportLoadingAppointmentId((current) => current === appointmentId ? null : current);
+      queueMicrotask(() => {
+        careReportOpenInFlightRef.current = false;
+        setCareReportLoadingAppointmentId((current) => current === appointmentId ? null : current);
+      });
     }
   }
 

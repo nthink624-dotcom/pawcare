@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [startSheet, careReport, ownerApp, speechBridge, manifest, nativePlugin, mainActivity, localDraftStore, ownerShell, notificationSettings, careReportPreview] = await Promise.all([
+const [startSheet, careReport, keyboardViewport, ownerApp, speechBridge, manifest, nativePlugin, mainActivity, localDraftStore, ownerShell, notificationSettings, careReportPreview] = await Promise.all([
   readFile(new URL("../src/components/owner/owner-mobile-grooming-start-sheet.tsx", import.meta.url), "utf8"),
   readFile(new URL("../src/components/owner/owner-ai-care-report-sheet.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../src/lib/care-report/use-care-report-keyboard-viewport.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/components/owner/owner-app.tsx", import.meta.url), "utf8"),
   readFile(new URL("../src/lib/care-report/owner-speech-input.ts", import.meta.url), "utf8"),
   readFile(new URL("../android/app/src/main/AndroidManifest.xml", import.meta.url), "utf8"),
@@ -75,13 +76,13 @@ test("care-report editor preserves the compact composer and uses one editable re
   const composerSurface = careReport.slice(composerStart, careReport.indexOf("</section>", composerStart));
   const generationFlow = careReport.slice(careReport.indexOf("async function generate"), careReport.indexOf("function requestClose"));
   assert.match(careReport, /max-w-\[430px\] flex-col overflow-hidden bg-white/);
-  assert.match(careReport, /role="region" aria-label="케어리포트 내용" tabIndex=\{0\} className="min-h-0 max-h-\[calc\(100dvh-180px\)\] flex-none overflow-y-auto px-5 pb-4 \[scrollbar-width:none\] \[-ms-overflow-style:none\] \[&::-webkit-scrollbar\]:hidden/);
-  assert.match(careReport, /border-b border-\[#dce7f2\] py-3/);
+  assert.match(careReport, /role="region" aria-label="케어리포트 내용" tabIndex=\{0\} className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 \[scrollbar-width:none\] \[-ms-overflow-style:none\] \[&::-webkit-scrollbar\]:hidden/);
+  assert.match(careReport, /data-testid="care-report-summary" className="divide-y divide-\[#e8edf3\]"/);
   assert.ok(scrollRegionStart < composerStart);
-  assert.match(careReport.slice(scrollRegionStart, composerStart), /data-testid="care-report-summary" className="border-b border-\[#dce7f2\]"/);
+  assert.doesNotMatch(careReport.slice(scrollRegionStart, composerStart), /border-b border-\[#dce7f2\]/);
   assert.ok(composerStart < careReport.indexOf("<footer"));
   assert.doesNotMatch(editorSurface, /케어리포트 내용 입력|수정 요청 입력/);
-  assert.match(composerSurface, /className="space-y-2 pt-4"/);
+  assert.match(composerSurface, /className="space-y-2 pb-3 pt-3"/);
   assert.match(composerSurface, /text-\[16px\] font-semibold leading-6 text-\[#101a31\][^>]*>\{report \? "수정 요청" : "케어리포트 내용"\}/);
   assert.match(composerSurface, /overflow-hidden rounded-\[14px\] border border-\[#d7e4f2\]/);
   assert.match(composerSurface, /<textarea ref=\{composerTextareaRef\}/);
@@ -91,7 +92,7 @@ test("care-report editor preserves the compact composer and uses one editable re
   assert.match(composerSurface, /min-h-12 items-center justify-end gap-0 border-t/);
   assert.equal([...composerSurface.matchAll(/h-11 w-11/g)].length, 2);
   assert.equal([...composerSurface.matchAll(/h-\[30px\] w-\[30px\]/g)].length, 2);
-  assert.match(careReport, /data-testid="care-report-draft" className="space-y-2 pt-4"><h2 className="text-\[16px\] font-semibold leading-6 text-\[#101a31\]">케어리포트 초안<\/h2>/);
+  assert.match(careReport, /data-testid="care-report-draft" className="space-y-2 pt-3"><h2 className="text-\[16px\] font-semibold leading-6 text-\[#101a31\]">케어리포트 초안<\/h2>/);
   assert.match(careReport, /<textarea ref=\{reportTextareaRef\} aria-label="케어리포트 초안"/);
   assert.match(careReport, /className="min-h-\[128px\] max-h-72 w-full resize-none overflow-y-auto/);
   assert.match(careReport, /function resizeTextarea\([^)]*\)[\s\S]*element\.style\.height = "auto"[\s\S]*element\.scrollHeight > maxHeight \? "auto" : "hidden"/);
@@ -146,14 +147,21 @@ test("care-report editor preserves the compact composer and uses one editable re
   assert.match(careReport, /JSON\.stringify\(\{ shopId, appointmentId: appointment\.id, reportText: report\.reportText, photoConsent, action: "save_draft" \}\)/);
   assert.match(careReport, /JSON\.stringify\(\{ shopId, appointmentId: appointment\.id, reportText: report\.reportText, photoConsent, action: "publish" \}\)/);
   assert.match(careReport, /\{!isPublished \? <section data-testid="care-report-composer"/);
-  assert.match(careReport, /<\/section> : null\}\r?\n          \{error[\s\S]*<\/div>\r?\n        <footer/);
-  assert.match(careReport, /<footer className=\{`grid shrink-0 gap-2 border-t border-\[#d7e4f2\] bg-white px-5 pt-3/);
+  assert.match(careReport, /<\/section> : null\}\r?\n          \{error[\s\S]*<\/div>\r?\n        \{!shouldHideFixedActions \? <footer/);
+  assert.match(careReport, /!shouldHideFixedActions \? <footer data-testid="care-report-fixed-actions"/);
+  assert.match(careReport, /paddingBottom: "calc\(env\(safe-area-inset-bottom\) \+ 12px\)"/);
+  assert.doesNotMatch(careReport, /keyboard-inset-height/);
 });
 
-test("care-report entry preloads its draft once while noncritical media enrichment degrades safely", () => {
+test("care-report entry opens from the appointment-local draft and hydrates supplemental data once", () => {
+  const immediateFlow = careReport.slice(careReport.indexOf("export function createOwnerCareReportImmediateData"), careReport.indexOf("export async function prepareOwnerCareReportInitialData"));
   const prepareFlow = careReport.slice(careReport.indexOf("export async function prepareOwnerCareReportInitialData"), careReport.indexOf("export default function OwnerAiCareReportSheet"));
-  const openFlow = ownerApp.slice(ownerApp.indexOf("async function openCareReport"), ownerApp.indexOf("function closeCareReport"));
+  const openFlow = ownerApp.slice(ownerApp.indexOf("function openCareReport"), ownerApp.indexOf("function closeCareReport"));
   const loadingGate = careReport.slice(careReport.indexOf("if (loading)"), careReport.indexOf("if (initialLoadError)"));
+  assert.match(immediateFlow, /readOwnerCareReportLocalDraft\(shopId, appointmentId\)/);
+  assert.match(immediateFlow, /sourceText: recoveredDraft\?\.sourceText \?\? ""/);
+  assert.match(immediateFlow, /report: normalizeCareReport\(recoveredDraft\?\.reportText \?\? publishedCareReport\)/);
+  assert.doesNotMatch(immediateFlow, /fetchApiJsonWithAuth|fetchOwnerAppointmentVisitWeight|await /);
   assert.match(prepareFlow, /Promise\.allSettled\(\[/);
   assert.match(prepareFlow, /\/api\/owner\/media\/assets/);
   assert.match(prepareFlow, /\/api\/owner\/grooming-record-drafts/);
@@ -164,7 +172,9 @@ test("care-report entry preloads its draft once while noncritical media enrichme
   assert.doesNotMatch(prepareFlow, /await getOwnerMediaSignedUrl/);
   assert.match(openFlow, /if \(isOwnerDemo \|\| careReportOpenInFlightRef\.current\) return/);
   assert.match(openFlow, /setCareReportLoadingAppointmentId\(appointmentId\)/);
-  assert.ok(openFlow.indexOf("await prepareOwnerCareReportInitialData") < openFlow.indexOf("setCareReportAppointmentId(appointmentId)"));
+  assert.match(openFlow, /createOwnerCareReportImmediateData/);
+  assert.doesNotMatch(openFlow, /await |prepareOwnerCareReportInitialData|withOwnerMobileTimeout/);
+  assert.ok(openFlow.indexOf("setCareReportInitialData(immediateData)") < openFlow.indexOf("setCareReportAppointmentId(appointmentId)"));
   assert.match(ownerApp, /careReportAppointmentId && careReportInitialData/);
   assert.match(ownerApp, /aria-busy=\{careReportLoading\}/);
   assert.match(ownerApp, /disabled=\{careReportLoading\}/);
@@ -174,6 +184,23 @@ test("care-report entry preloads its draft once while noncritical media enrichme
   assert.match(ownerApp, /role="alertdialog"[^>]*aria-label="케어리포트 불러오기 실패"/);
   assert.match(ownerApp, />닫기<\/button>.*>다시 시도<\/button>/s);
   assert.match(ownerApp, /const appointmentId = careReportEntryError\.appointmentId; setCareReportEntryError\(null\); void openCareReport\(appointmentId\)/);
+});
+
+test("focused care-report text inputs remove fixed actions until the visual keyboard closes", () => {
+  assert.match(careReport, /data-keyboard-active=\{shouldHideFixedActions \? "true" : "false"\}/);
+  assert.equal((careReport.match(/onFocus=\{\(event\) => focusTextInput\(event\.currentTarget\)\}/g) ?? []).length, 2);
+  assert.equal((careReport.match(/onBlur=\{releaseTextInput\}/g) ?? []).length, 2);
+  assert.match(careReport, /!shouldHideFixedActions \? <footer data-testid="care-report-fixed-actions"/);
+  assert.match(keyboardViewport, /window\.visualViewport/);
+  assert.match(keyboardViewport, /viewport\?\.addEventListener\("resize", syncViewport\)/);
+  assert.match(keyboardViewport, /viewport\?\.addEventListener\("scroll", syncViewport\)/);
+  assert.match(keyboardViewport, /fullViewportHeightRef\.current - availableHeight > 80/);
+  assert.match(keyboardViewport, /setKeyboardDismissPending\(true\)/);
+  assert.match(keyboardViewport, /function keepFocusedSectionVisible\(element: HTMLTextAreaElement\)/);
+  assert.match(keyboardViewport, /sectionBounds\.bottom - scrollBounds\.bottom \+ 12/);
+  assert.match(keyboardViewport, /scrollRegion\.scrollTop \+= bottomOverflow/);
+  assert.match(keyboardViewport, /height: "100dvh"/);
+  assert.doesNotMatch(keyboardViewport, /position:\s*"fixed"|paddingBottom/);
 });
 
 test("revisit reminder offers relative periods and persists one resolved date", () => {

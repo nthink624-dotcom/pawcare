@@ -98,7 +98,7 @@ test("today uses the canonical sheet path, exact CTA, no draft visibility gate, 
   assert.match(ownerAppSource, /\}케어리포트 이어서 작성<\/button>/);
   assert.match(ownerAppSource, /onResumeCareReport=\{\(\) => onResumeCareReport\(appointment\.id\)\}/);
   assert.match(ownerAppSource, /onResumeCareReport=\{\(appointmentId\) => void openCareReport\(appointmentId\)\}/);
-  assert.match(ownerAppSource, /prepareOwnerCareReportInitialData\(\{[\s\S]*appointmentId,[\s\S]*publishedCareReport,[\s\S]*\}\)/);
+  assert.match(ownerAppSource, /createOwnerCareReportImmediateData\(\{[\s\S]*appointmentId,[\s\S]*publishedCareReport,[\s\S]*\}\)/);
   assert.match(ownerAppSource, /setPublishedCareReportFollowupKeys\(\(previous\) => new Set\(previous\)\.add\(ownerTodayCareReportFollowupKey\(appointment\)\)\)/);
   assert.match(ownerAppSource, /void refresh\(\)/);
   const ctaStart = ownerAppSource.indexOf('<button type="button" onClick={onResumeCareReport}');

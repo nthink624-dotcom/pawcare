@@ -5,6 +5,7 @@ import test from "node:test";
 
 const source = await readFile(new URL("../src/lib/care-report/owner-care-report-generation.ts", import.meta.url), "utf8");
 const ownerAppSource = await readFile(new URL("../src/components/owner/owner-app.tsx", import.meta.url), "utf8");
+const sheetSource = await readFile(new URL("../src/components/owner/owner-ai-care-report-sheet.tsx", import.meta.url), "utf8");
 const javascript = stripTypeScriptTypes(source, { mode: "transform" });
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`;
 const { OwnerCareReportGenerationStageError, runOwnerCareReportGeneration } = await import(moduleUrl);
@@ -85,12 +86,24 @@ test("refresh initialization can recover the canonical reportText shape", () => 
   assert.match(sheetSource, /requireReportText\(draft\)/);
 });
 
-test("care-report entry loading is bounded and retains the existing retry flow", () => {
-  const openStart = ownerAppSource.indexOf("async function openCareReport");
+test("care-report entry renders its local shell before supplemental network hydration", () => {
+  const openStart = ownerAppSource.indexOf("function openCareReport");
   const openEnd = ownerAppSource.indexOf("function closeCareReport", openStart);
   const openFlow = ownerAppSource.slice(openStart, openEnd);
-  assert.match(openFlow, /withOwnerMobileTimeout\(/);
-  assert.match(openFlow, /prepareOwnerCareReportInitialData/);
-  assert.match(openFlow, /15_000/);
-  assert.match(openFlow, /setCareReportEntryError/);
+  const hydrationStart = sheetSource.indexOf("if (!initialData || developmentFixture || supplementalLoadStartedRef.current) return;");
+  const hydrationEnd = sheetSource.indexOf("if (isPublished)", hydrationStart);
+  const hydrationFlow = sheetSource.slice(hydrationStart, hydrationEnd);
+  assert.match(openFlow, /createOwnerCareReportImmediateData/);
+  assert.match(openFlow, /setCareReportInitialData\(immediateData\)/);
+  assert.match(openFlow, /setCareReportAppointmentId\(appointmentId\)/);
+  assert.doesNotMatch(openFlow, /await |prepareOwnerCareReportInitialData|withOwnerMobileTimeout|15_000/);
+  assert.ok(openFlow.indexOf("setCareReportInitialData(immediateData)") < openFlow.indexOf("setCareReportAppointmentId(appointmentId)"));
+  assert.match(openFlow, /petmanager:care-report:entry-start/);
+  assert.match(sheetSource, /performance\.measure\([\s\S]*"petmanager:care-report:shell-open"[\s\S]*"petmanager:care-report:shell-rendered"/);
+  assert.ok(hydrationStart > 0 && hydrationEnd > hydrationStart);
+  assert.match(hydrationFlow, /supplementalLoadStartedRef\.current = true/);
+  assert.equal((hydrationFlow.match(/prepareOwnerCareReportInitialData\(/g) ?? []).length, 1);
+  assert.match(hydrationFlow, /setItems\(\(current\) => \{[\s\S]*currentIds[\s\S]*prepared\.items\.filter/);
+  assert.match(hydrationFlow, /if \(!userInteractionRef\.current\)/);
+  assert.match(hydrationFlow, /입력은 계속할 수 있습니다/);
 });

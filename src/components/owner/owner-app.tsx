@@ -43,7 +43,9 @@ import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { StatusBadge as AppStatusBadge } from "@/components/ui/status-badge";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { createOwnerStatusMutationGate } from "@/lib/appointments/owner-status-mutation-gate";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
+import { withOwnerMobileTimeout } from "@/lib/owner-mobile-startup";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
@@ -89,7 +91,7 @@ import type { Appointment, AppointmentStatus, BootstrapPayload, BootstrapStaffMe
 
 type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
-type SettingsEntryScreen = "shop" | "closures" | "notifications" | "appNotifications" | "staff" | "support" | "legal" | "account" | null;
+type SettingsEntryScreen = "shop" | "closures" | "notifications" | "appNotifications" | "appPermissions" | "staff" | "support" | "legal" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
 type MobileAppRole = "owner" | "staff";
 type HomeStaffFilterKey = "all" | "unassigned" | string;
@@ -202,6 +204,7 @@ const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, stri
   closures: "영업·예약 시간",
   notifications: "고객 알림톡",
   appNotifications: "내 앱 알림",
+  appPermissions: "앱 권한",
   staff: "직원 관리",
   support: "1:1 문의",
   legal: "약관 및 정책",
@@ -440,6 +443,7 @@ export default function OwnerApp({
   const refreshRequestIdRef = useRef(0);
   const lastAppliedRefreshRequestIdRef = useRef(0);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const statusMutationGateRef = useRef(createOwnerStatusMutationGate());
   const activeTabBackStackRef = useRef<TabKey[]>([]);
   const previousActiveTabRef = useRef<TabKey>(activeTab);
   const restoringBackTabRef = useRef(false);
@@ -1557,13 +1561,52 @@ export default function OwnerApp({
         ),
       }));
       setModal(null);
-      return;
+      return true;
+    }
+
+    if ("status" in payload && !("mode" in payload)) {
+      const outcome = await statusMutationGateRef.current.run(async () => {
+        setSaving(true);
+        setError(null);
+        try {
+          const updated = await withOwnerMobileTimeout(
+            (signal) =>
+              fetchJson<Appointment>("/api/appointments", {
+                method: "PATCH",
+                body: JSON.stringify({ appointmentId, ...payload }),
+                signal,
+              }),
+            15_000,
+            "상태 변경 응답이 지연되고 있습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.",
+          );
+          if (!updated || updated.id !== appointmentId || updated.status !== payload.status) {
+            throw new Error("상태 변경 결과를 확인하지 못했습니다. 다시 불러와 확인해 주세요.");
+          }
+          setData((previous) => ({
+            ...previous,
+            appointments: previous.appointments.map((appointment) =>
+              appointment.id === appointmentId ? updated : appointment,
+            ),
+          }));
+          setModal(null);
+          void refreshSilently();
+          return true;
+        } catch (mutationError) {
+          await handleRequestError(mutationError, "예약 상태 변경에 실패했습니다.");
+          if (options?.rethrow) throw mutationError;
+          return false;
+        } finally {
+          setSaving(false);
+        }
+      });
+      return outcome.accepted ? outcome.value : false;
     }
 
     await mutate("/api/appointments", {
       method: "PATCH",
       body: JSON.stringify({ appointmentId, ...payload }),
     }, options);
+    return true;
   }
 
   function openMobilePhotoStatusAction(
@@ -1660,16 +1703,23 @@ export default function OwnerApp({
     setCareReportEntryError(null);
     const openPromise = (async () => {
       try {
-        const prepared = await prepareOwnerCareReportInitialData({
-          shopId: data.shop.id,
-          appointmentId,
-          publishedCareReport,
-        });
+        const prepared = await withOwnerMobileTimeout(
+          () => prepareOwnerCareReportInitialData({
+            shopId: data.shop.id,
+            appointmentId,
+            publishedCareReport,
+          }),
+          15_000,
+          "케어리포트 초안을 불러오는 데 시간이 오래 걸리고 있습니다. 다시 시도해 주세요.",
+        );
         setCareReportInitialData(prepared);
         setModal((current) => current?.type === "appointment" && current.appointment.id === appointmentId ? null : current);
         setCareReportAppointmentId(appointmentId);
-      } catch {
-        setCareReportEntryError({ appointmentId, message: "케어리포트를 불러오지 못했습니다." });
+      } catch (loadError) {
+        setCareReportEntryError({
+          appointmentId,
+          message: loadError instanceof Error ? loadError.message : "케어리포트를 불러오지 못했습니다.",
+        });
       }
     })();
     careReportOpenInFlightRef.current = openPromise;
@@ -1690,8 +1740,8 @@ export default function OwnerApp({
     if (mode === "without-photo") {
       // A photo remains optional. The care-report editor can add one after completion.
       try {
-        await updateAppointment(appointmentId, { status: "completed" }, { rethrow: true });
-        await openCareReport(appointmentId);
+        const committed = await updateAppointment(appointmentId, { status: "completed" }, { rethrow: true });
+        if (committed) void openCareReport(appointmentId);
       } catch {
         // updateAppointment already shows the actionable request error.
       }
@@ -1750,13 +1800,14 @@ export default function OwnerApp({
         file,
       );
 
-      await updateAppointment(appointment.id, {
+      const committed = await updateAppointment(appointment.id, {
         status: nextStatus,
         mediaAssetIds: [uploaded.mediaAsset.id],
       }, { rethrow: true });
+      if (!committed) return;
       setMobilePhotoPreviewFile(null);
       setMobilePhotoStatusAction(null);
-      if (nextStatus === "completed") await openCareReport(appointment.id);
+      if (nextStatus === "completed") void openCareReport(appointment.id);
     } catch (uploadError) {
       await handleRequestError(uploadError, "사진 업로드 또는 상태 변경에 실패했습니다.");
     } finally {
@@ -5671,13 +5722,13 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, petDisplayPhot
                     onClick={onStartCamera ?? (() => onStatusChange("in_progress"))}
                     disabled={saving}
                   >
-                    사진 찍고 시작
+                    {saving ? "시작하는 중…" : "사진 찍고 시작"}
                   </button>
-                  <ActionButton className="!min-h-11 !rounded-[10px] !px-3 !text-[16px]" variant="ghost" onClick={onStartWithoutPhoto ?? (() => onStatusChange("in_progress"))} disabled={saving}>바로 시작</ActionButton>
+                  <ActionButton className="!min-h-11 !rounded-[10px] !px-3 !text-[16px]" variant="ghost" onClick={onStartWithoutPhoto ?? (() => onStatusChange("in_progress"))} disabled={saving}>{saving ? "시작하는 중…" : "바로 시작"}</ActionButton>
                 </div>
               )}
-              {appointment.status === "in_progress" && <ActionButton className="w-full !min-h-11 !rounded-[10px] !px-5 !text-[16px]" onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}
-              {appointment.status === "almost_done" && <ActionButton className="w-full !min-h-11 !rounded-[10px] !px-5 !text-[16px]" onClick={onCompleteWithoutPhoto ?? (() => onStatusChange("completed"))} variant="complete" disabled={saving}>미용 완료</ActionButton>}
+              {appointment.status === "in_progress" && <ActionButton className="w-full !min-h-11 !rounded-[10px] !px-5 !text-[16px]" onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{saving ? "변경하는 중…" : ownerHomeCopy.pickupReady}</ActionButton>}
+              {appointment.status === "almost_done" && <ActionButton className="w-full !min-h-11 !rounded-[10px] !px-5 !text-[16px]" onClick={onCompleteWithoutPhoto ?? (() => onStatusChange("completed"))} variant="complete" disabled={saving}>{saving ? "완료하는 중…" : "미용 완료"}</ActionButton>}
               {rollbackStatus && rollbackLabel && <ActionButton className="w-full !min-h-11 !rounded-[10px] !px-5 !text-[16px]" onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}
             </div>
             {appointment.status === "completed" && <div className="w-full rounded-[10px] border border-[#dce4ef] bg-[#f8fafc] px-4 py-2 text-center text-sm font-medium text-[var(--accent)]">{ownerHomeCopy.completedNotice}</div>}

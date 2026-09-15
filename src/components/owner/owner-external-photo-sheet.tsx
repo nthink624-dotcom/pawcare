@@ -132,8 +132,7 @@ export default function OwnerExternalPhotoSheet({
               </label>
             )}
 
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {canUseCameraApps && <button type="button" disabled={busy} onClick={() => onCapture("default")} className="flex min-h-[56px] items-center gap-2.5 rounded-[16px] border border-[#e0e6ef] bg-white px-3 text-left disabled:opacity-50"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#f0edfb] text-[#6751aa]"><Camera className="h-[18px] w-[18px]" /></span><span className="text-[14px] font-semibold text-[#3b3157]">기본 카메라</span></button>}
+            <div className="mt-2 grid gap-2">
               <label htmlFor={libraryInputId} className={`flex min-h-[56px] items-center gap-2.5 rounded-[16px] border border-[#e0e6ef] bg-white px-3 text-left ${busy ? "pointer-events-none opacity-50" : "active:scale-[0.99]"}`}><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#edf1f5] text-[#526276]"><ImagePlus className="h-[18px] w-[18px]" /></span><span className="text-[14px] font-semibold text-[#2c3b50]">앨범에서 선택</span></label>
             </div>
 

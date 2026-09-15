@@ -1,5 +1,6 @@
 package kr.petmanager.owner;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
@@ -7,16 +8,20 @@ import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.provider.MediaStore;
 import android.util.Base64;
+import android.os.Bundle;
 
 import androidx.core.content.FileProvider;
 
 import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -25,10 +30,18 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 
-@CapacitorPlugin(name = "ExternalCamera")
+@CapacitorPlugin(
+    name = "ExternalCamera",
+    permissions = { @Permission(alias = "camera", strings = { Manifest.permission.CAMERA }) }
+)
 public class ExternalCameraPlugin extends Plugin {
     private static final String CACHE_DIRECTORY = "external-camera";
     private static final String FILE_PREFIX = "petmanager-";
+    private static final long STALE_OUTPUT_MAX_AGE_MS = 24L * 60L * 60L * 1000L;
+    private static final String STATE_PENDING_FILE_NAME = "pendingOutputFileName";
+    private static final String CAMERA_PERMISSION_DENIED = "CAMERA_PERMISSION_DENIED";
+    private static final String CAMERA_UNAVAILABLE = "CAMERA_UNAVAILABLE";
+    private static final String CAMERA_LAUNCH_FAILED = "CAMERA_LAUNCH_FAILED";
     private Uri pendingOutputUri;
     private File pendingOutputFile;
 
@@ -52,7 +65,33 @@ public class ExternalCameraPlugin extends Plugin {
 
     @PluginMethod
     public void capture(PluginCall call) {
+        if (getPermissionState("camera") != PermissionState.GRANTED) {
+            requestPermissionForAlias("camera", call, "cameraPermissionCallback");
+            return;
+        }
+        launchCamera(call);
+    }
+
+    @PermissionCallback
+    private void cameraPermissionCallback(PluginCall call) {
+        if (getPermissionState("camera") != PermissionState.GRANTED) {
+            clearPendingOutput();
+            call.reject("카메라 권한을 허용해야 촬영할 수 있습니다.", CAMERA_PERMISSION_DENIED);
+            return;
+        }
+        launchCamera(call);
+    }
+
+    private void launchCamera(PluginCall call) {
         try {
+            Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            List<ResolveInfo> handlers = getContext().getPackageManager().queryIntentActivities(cameraIntent, 0);
+            if (handlers.isEmpty()) {
+                clearPendingOutput();
+                call.reject("사용할 수 있는 카메라 앱이 없습니다.", CAMERA_UNAVAILABLE);
+                return;
+            }
+
             File directory = new File(getContext().getCacheDir(), CACHE_DIRECTORY);
             if (!directory.exists() && !directory.mkdirs()) {
                 call.reject("촬영용 임시 폴더를 만들 수 없습니다.");
@@ -61,19 +100,36 @@ public class ExternalCameraPlugin extends Plugin {
             pendingOutputFile = File.createTempFile(FILE_PREFIX, ".jpg", directory);
             pendingOutputUri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", pendingOutputFile);
 
-            Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, pendingOutputUri);
             cameraIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
             cameraIntent.setClipData(ClipData.newRawUri("petmanager-photo", pendingOutputUri));
-            grantOutputUriToCameraApps(cameraIntent);
+            grantOutputUriToCameraApps(handlers);
             Intent launchIntent = call.getBoolean("chooser", false)
                 ? Intent.createChooser(cameraIntent, "카메라 앱 선택")
                 : cameraIntent;
             startActivityForResult(call, launchIntent, "externalCameraResult");
         } catch (Exception error) {
             clearPendingOutput();
-            call.reject("카메라 앱을 열 수 없습니다.", error);
+            call.reject("카메라 앱을 열 수 없습니다.", CAMERA_LAUNCH_FAILED, error);
         }
+    }
+
+    @Override
+    protected Bundle saveInstanceState() {
+        Bundle state = super.saveInstanceState();
+        if (state == null) state = new Bundle();
+        if (pendingOutputFile != null) state.putString(STATE_PENDING_FILE_NAME, pendingOutputFile.getName());
+        return state;
+    }
+
+    @Override
+    protected void restoreState(Bundle state) {
+        String fileName = state == null ? null : state.getString(STATE_PENDING_FILE_NAME);
+        if (fileName == null || fileName.contains("/") || fileName.contains("\\") || !fileName.startsWith(FILE_PREFIX)) return;
+        File restoredFile = new File(new File(getContext().getCacheDir(), CACHE_DIRECTORY), fileName);
+        if (!restoredFile.exists()) return;
+        pendingOutputFile = restoredFile;
+        pendingOutputUri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", restoredFile);
     }
 
     @ActivityCallback
@@ -142,9 +198,8 @@ public class ExternalCameraPlugin extends Plugin {
         pendingOutputUri = null;
     }
 
-    private void grantOutputUriToCameraApps(Intent cameraIntent) {
+    private void grantOutputUriToCameraApps(List<ResolveInfo> handlers) {
         if (pendingOutputUri == null) return;
-        List<ResolveInfo> handlers = getContext().getPackageManager().queryIntentActivities(cameraIntent, 0);
         for (ResolveInfo handler : handlers) {
             if (handler.activityInfo == null || handler.activityInfo.packageName == null) continue;
             getContext().grantUriPermission(
@@ -159,8 +214,9 @@ public class ExternalCameraPlugin extends Plugin {
         File directory = new File(getContext().getCacheDir(), CACHE_DIRECTORY);
         File[] files = directory.listFiles((dir, name) -> name.startsWith(FILE_PREFIX));
         if (files == null) return;
+        long staleBefore = System.currentTimeMillis() - STALE_OUTPUT_MAX_AGE_MS;
         for (File file : files) {
-            if (!file.equals(pendingOutputFile)) file.delete();
+            if (!file.equals(pendingOutputFile) && file.lastModified() < staleBefore) file.delete();
         }
     }
 }

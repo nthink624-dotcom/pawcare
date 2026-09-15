@@ -62,7 +62,8 @@ test("double effect shares access recovery and only the latest run bootstraps on
 test("owner redirect is canonical, non-nesting, and single-navigation", () => {
   assert.match(ownerPageSource, /const requestedOwnerMobilePath = "\/owner\/mobile"/);
   assert.doesNotMatch(ownerPageSource, /window\.location\.pathname.*window\.location\.search/);
-  assert.match(ownerPageSource, /ownerAccessGateRef\.current\.begin\(getOwnerAccessContext\)/);
+  assert.match(ownerPageSource, /ownerAccessGateRef\.current\.begin\(\(\) =>/);
+  assert.match(ownerPageSource, /withOwnerMobileTimeout\(\(\) => getOwnerAccessContext\(\), 12_000\)/);
   assert.match(ownerPageSource, /!active \|\| !ownerAccessGateRef\.current\.isLatest/);
   assert.doesNotMatch(ownerPageSource, /router\.replace\(`\/login\?next=.*\n\s*router\.refresh\(\)/);
   assert.equal((loginFormSource.match(/router\.replace\("\/owner\/mobile"/g) ?? []).length, 1);

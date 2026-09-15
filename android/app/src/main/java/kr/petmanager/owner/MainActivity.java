@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ExternalCameraPlugin.class);
         registerPlugin(OwnerNotificationSettingsPlugin.class);
+        registerPlugin(OwnerAppPermissionsPlugin.class);
         registerPlugin(OwnerSpeechRecognitionPlugin.class);
         registerPlugin(OwnerBackNavigationPlugin.class);
         super.onCreate(savedInstanceState);

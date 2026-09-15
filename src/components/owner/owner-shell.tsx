@@ -239,13 +239,17 @@ export default function OwnerShell({
 
   useEffect(() => {
     if (appRole !== "owner") return;
-    void syncOwnerPushNotifications({
-      shopId: initialData.shop.id,
-      staffMemberId: null,
-      appRole,
-    }).catch(() => {
-      // The settings screen presents a safe retry message when registration is unavailable.
-    });
+    const timer = window.setTimeout(() => {
+      void syncOwnerPushNotifications({
+        shopId: initialData.shop.id,
+        staffMemberId: null,
+        appRole,
+      }).catch(() => {
+        // The settings screen presents a safe retry message when registration is unavailable.
+      });
+    }, 1_000);
+
+    return () => window.clearTimeout(timer);
   }, [appRole, currentStaffId, initialData.shop.id]);
 
   useEffect(() => {
@@ -283,7 +287,6 @@ export default function OwnerShell({
       }
     };
 
-    void refreshSummary();
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 

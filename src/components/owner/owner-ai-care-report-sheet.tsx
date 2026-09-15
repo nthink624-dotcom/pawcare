@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerCareReportLocalDraft, readOwnerCareReportLocalDraft, writeOwnerCareReportLocalDraft } from "@/lib/care-report/owner-care-report-local-draft";
+import { OwnerCareReportGenerationStageError, runOwnerCareReportGeneration } from "@/lib/care-report/owner-care-report-generation";
 import { startOwnerCareReportSpeechInput, type OwnerSpeechInputErrorCode, type OwnerSpeechInputController } from "@/lib/care-report/owner-speech-input";
 import { createOwnerMediaAssetFromFile, getOwnerMediaSignedUrl, type MediaAssetListItem } from "@/lib/media/owner-media-client";
 import { DEFAULT_REVISIT_REMINDER_DAYS } from "@/lib/notification-settings";
@@ -110,28 +111,23 @@ export async function prepareOwnerCareReportInitialData({
 
   const mediaQuery = new URLSearchParams({ shopId, appointmentId, includeVariants: "true", limit: "40" });
   const draftQuery = new URLSearchParams({ shopId, appointmentId });
-  const [media, draft, visitWeight] = await Promise.all([
+  const [mediaResult, draftResult, visitWeightResult] = await Promise.allSettled([
     fetchApiJsonWithAuth<{ items: MediaAssetListItem[] }>(`/api/owner/media/assets?${mediaQuery.toString()}`, { cache: "no-store" }),
     fetchApiJsonWithAuth<DraftResponse>(`/api/owner/grooming-record-drafts?${draftQuery.toString()}`, { cache: "no-store" }),
     fetchOwnerAppointmentVisitWeight(shopId, appointmentId),
   ]);
+  if (draftResult.status === "rejected" && !recoveredDraft && !publishedCareReport) throw draftResult.reason;
+  const media = mediaResult.status === "fulfilled" ? mediaResult.value : { items: [] };
+  const draft = draftResult.status === "fulfilled" ? draftResult.value : { draft: null };
+  const visitWeight = visitWeightResult.status === "fulfilled" ? visitWeightResult.value : { current: null };
   const items = media.items.filter((item) => item.mediaAsset.media_kind === "grooming_before" || item.mediaAsset.media_kind === "grooming_after");
   const firstBefore = items.find((item) => item.mediaAsset.media_kind === "grooming_before")?.mediaAsset.id;
   const firstAfter = draft.draft?.afterMediaAssetId ?? items.find((item) => item.mediaAsset.media_kind === "grooming_after")?.mediaAsset.id;
   const selectedIds = recoveredDraft?.selectedIds ?? { grooming_before: firstBefore, grooming_after: firstAfter };
-  const selectedItem = items.find((item) => item.mediaAsset.id === selectedIds.grooming_after) ?? null;
-  let signedUrl = "";
-  if (selectedItem) {
-    try {
-      signedUrl = await getOwnerMediaSignedUrl(shopId, selectedItem.mediaAsset.id, "provider_ready");
-    } catch {
-      signedUrl = "";
-    }
-  }
   return {
     items,
     selectedIds,
-    signedUrl,
+    signedUrl: "",
     nextDate: recoveredDraft?.nextDate ?? draft.draft?.nextRecommendedVisitDate ?? null,
     sourceText: recoveredDraft?.sourceText ?? "",
     revisionText: recoveredDraft?.revisionText ?? "",
@@ -433,17 +429,47 @@ export default function OwnerAiCareReportSheet({
     setAction("generate");
     setError("");
     try {
-      const result = await fetchApiJsonWithAuth<{ reportText: string }>("/api/owner/care-reports", {
-        method: "POST",
-        body: JSON.stringify(report
-          ? { shopId, appointmentId: appointment.id, sourceText: "", currentReportText: report.reportText, revisionRequest: revisionText, photoConsent }
-          : { shopId, appointmentId: appointment.id, sourceText: input, photoConsent }),
+      const result = await runOwnerCareReportGeneration({
+        generate: (signal) => fetchApiJsonWithAuth<{ reportText: string }>("/api/owner/care-reports", {
+          method: "POST",
+          signal,
+          body: JSON.stringify(report
+            ? { shopId, appointmentId: appointment.id, sourceText: "", currentReportText: report.reportText, revisionRequest: revisionText, photoConsent }
+            : { shopId, appointmentId: appointment.id, sourceText: input, photoConsent }),
+        }),
+        preserve: (reportText) => {
+          setReport({ reportText });
+          setRevisionText("");
+          setHasEdited(true);
+          writeOwnerCareReportLocalDraft(shopId, appointment.id, {
+            sourceText,
+            revisionText: "",
+            reportText,
+            photoConsent,
+            weight: visitWeightKg === null ? "" : String(visitWeightKg),
+            nextDate,
+            selectedIds,
+          });
+        },
+        save: (reportText, signal) => fetchApiJsonWithAuth<{ reportText: string }>("/api/owner/care-reports", {
+          method: "PATCH",
+          signal,
+          body: JSON.stringify({ shopId, appointmentId: appointment.id, reportText, photoConsent, action: "save_draft" }),
+        }),
+        readback: (signal) => fetchApiJsonWithAuth<DraftResponse>(
+          `/api/owner/grooming-record-drafts?${new URLSearchParams({ shopId, appointmentId: appointment.id }).toString()}`,
+          { cache: "no-store", signal },
+        ),
       });
       setReport({ reportText: result.reportText });
-      setRevisionText("");
-      setHasEdited(true);
     } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : "AI 케어리포트를 만들지 못했습니다.");
+      if (generationError instanceof OwnerCareReportGenerationStageError && generationError.preservedReportText) {
+        setError(generationError.stage === "save"
+          ? "AI 초안은 이 기기에 보관했지만 서버에 저장하지 못했습니다. 임시저장을 다시 시도해 주세요."
+          : "AI 초안은 보관했지만 서버 저장 결과 확인이 지연되고 있습니다. 다시 불러와 확인해 주세요.");
+      } else {
+        setError(generationError instanceof Error ? generationError.message : "AI 케어리포트를 만들지 못했습니다.");
+      }
     } finally {
       generationInFlightRef.current = false;
       setAction(null);

@@ -150,15 +150,18 @@ test("care-report editor preserves the compact composer and uses one editable re
   assert.match(careReport, /<footer className=\{`grid shrink-0 gap-2 border-t border-\[#d7e4f2\] bg-white px-5 pt-3/);
 });
 
-test("care-report entry preloads once and never exposes a half-ready editor", () => {
+test("care-report entry preloads its draft once while noncritical media enrichment degrades safely", () => {
   const prepareFlow = careReport.slice(careReport.indexOf("export async function prepareOwnerCareReportInitialData"), careReport.indexOf("export default function OwnerAiCareReportSheet"));
   const openFlow = ownerApp.slice(ownerApp.indexOf("async function openCareReport"), ownerApp.indexOf("function closeCareReport"));
   const loadingGate = careReport.slice(careReport.indexOf("if (loading)"), careReport.indexOf("if (initialLoadError)"));
-  assert.match(prepareFlow, /Promise\.all\(\[/);
+  assert.match(prepareFlow, /Promise\.allSettled\(\[/);
   assert.match(prepareFlow, /\/api\/owner\/media\/assets/);
   assert.match(prepareFlow, /\/api\/owner\/grooming-record-drafts/);
   assert.match(prepareFlow, /fetchOwnerAppointmentVisitWeight/);
-  assert.match(prepareFlow, /getOwnerMediaSignedUrl/);
+  assert.match(prepareFlow, /draftResult\.status === "rejected" && !recoveredDraft && !publishedCareReport/);
+  assert.match(prepareFlow, /mediaResult\.status === "fulfilled" \? mediaResult\.value : \{ items: \[\] \}/);
+  assert.match(prepareFlow, /signedUrl: ""/);
+  assert.doesNotMatch(prepareFlow, /await getOwnerMediaSignedUrl/);
   assert.match(openFlow, /if \(isOwnerDemo \|\| careReportOpenInFlightRef\.current\) return/);
   assert.match(openFlow, /setCareReportLoadingAppointmentId\(appointmentId\)/);
   assert.ok(openFlow.indexOf("await prepareOwnerCareReportInitialData") < openFlow.indexOf("setCareReportAppointmentId(appointmentId)"));

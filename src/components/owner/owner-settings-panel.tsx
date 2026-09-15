@@ -1,10 +1,11 @@
 ﻿"use client";
 
-import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, Phone, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, Phone, Plus, ShieldCheck, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import OwnerAppNotificationSettings from "@/components/owner/owner-app-notification-settings";
+import OwnerAppPermissionsSettings from "@/components/owner/owner-app-permissions-settings";
 import OwnerAccountDeletionPanel from "@/components/owner/owner-account-deletion-panel";
 import OwnerSettingsOverview, { type OwnerSettingsOverviewGroup } from "@/components/owner/owner-settings-overview";
 import OwnerSupportPanel from "@/components/owner/owner-support-panel";
@@ -60,7 +61,7 @@ type SaveFeedback = {
   description?: string;
 };
 
-type SettingsScreen = "shop" | "closures" | "notifications" | "appNotifications" | "staff" | "support" | "legal" | "account" | null;
+type SettingsScreen = "shop" | "closures" | "notifications" | "appNotifications" | "appPermissions" | "staff" | "support" | "legal" | "account" | null;
 type StaffProfileDraft = {
   name: string;
   displayName: string;
@@ -1408,6 +1409,7 @@ export default function OwnerSettingsPanel({
       onBack={() => updateActiveScreen(null)}
     />
   );
+  const appPermissionsSection = <OwnerAppPermissionsSettings />;
 
   const priceGuideSection = (
     <MobileAiPriceGuideFixture
@@ -1431,6 +1433,7 @@ export default function OwnerSettingsPanel({
     closures: { title: "영업·예약 시간", content: closuresSection },
     notifications: { title: "고객 알림톡", content: notificationsSection },
     appNotifications: { title: "내 앱 알림", content: appNotificationsSection },
+    appPermissions: { title: "앱 권한", content: appPermissionsSection },
     staff: { title: "직원 관리", content: staffSection },
     support: { title: "1:1 문의", content: supportSection },
     legal: { title: "약관 및 정책", content: legalSection },
@@ -1569,6 +1572,7 @@ export default function OwnerSettingsPanel({
       items: [
         { key: "notifications", icon: Bell, title: "고객 알림톡", onClick: () => updateActiveScreen("notifications") },
         { key: "appNotifications", icon: BellRing, title: "내 앱 알림", onClick: () => updateActiveScreen("appNotifications") },
+        { key: "appPermissions", icon: ShieldCheck, title: "앱 권한", onClick: () => updateActiveScreen("appPermissions") },
         { key: "feedback", icon: MessageSquarePlus, title: "문의·도움", triggerRef: feedbackTriggerRef, testerEmphasis: isTesterFeedback, onClick: onOpenFeedback ?? (() => updateActiveScreen("support")) },
       ],
     },

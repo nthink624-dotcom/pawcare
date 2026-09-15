@@ -21,6 +21,11 @@ import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navig
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
+import {
+  loadOwnerMobileCriticalData,
+  traceOwnerMobileStartupStep,
+  withOwnerMobileTimeout,
+} from "@/lib/owner-mobile-startup";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
@@ -102,7 +107,35 @@ function isOwnerAuthRecoveryError(message: string) {
   );
 }
 
-function OwnerMobileLoadingScreen({ message }: { message: string }) {
+function OwnerMobileLoadingScreen({
+  message,
+  failed = false,
+  onRetry,
+}: {
+  message: string;
+  failed?: boolean;
+  onRetry?: () => void;
+}) {
+  if (failed) {
+    return (
+      <div className="owner-font mx-auto flex min-h-screen w-full max-w-[430px] items-center bg-[#f7f8fa] px-5 py-8">
+        <div className="w-full rounded-[12px] border border-[#e1e6eb] bg-white px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]" role="alert">
+          <h1 className="text-[18px] font-semibold leading-[26px] tracking-[-0.03em] text-[#1f2937]">
+            화면을 불러오지 못했습니다
+          </h1>
+          <p className="mt-2 text-[14px] leading-[21px] tracking-[-0.02em] text-[#607080]">{message}</p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-5 flex h-12 w-full items-center justify-center rounded-[10px] bg-[#1f5b51] px-4 text-[16px] font-semibold text-white"
+          >
+            다시 시도하기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f7f8fa] px-4 pt-4">
       <div className="animate-pulse rounded-[12px] border border-[#edf1f5] bg-white px-4 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
@@ -165,6 +198,8 @@ export default function OwnerMobilePage() {
     currentStaffId: null,
   });
   const [message, setMessage] = useState("모바일 오너 화면을 불러오는 중입니다.");
+  const [entryFailed, setEntryFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const ownerAccessGateRef = useRef(createLatestOwnerAccessGate<OwnerMobileAccessContext | null>());
 
   function loadOwnerMobileDemoFallback() {
@@ -182,6 +217,7 @@ export default function OwnerMobilePage() {
     setSubscriptionSummary(null);
     setUserEmail(null);
     setMobileRoleContext({ appRole: "owner", currentStaffId: null });
+    setEntryFailed(false);
   }
 
   async function getOwnerAccessContext(): Promise<OwnerMobileAccessContext | null> {
@@ -266,6 +302,9 @@ export default function OwnerMobilePage() {
     let active = true;
 
     async function load() {
+      setEntryFailed(false);
+      setMessage("모바일 오너 화면을 불러오는 중입니다.");
+
       if (!hasSupabaseBrowserEnv() || !supabase) {
         if (active && shouldUseLocalMobilePreview()) {
           loadOwnerMobileDemoFallback();
@@ -275,8 +314,20 @@ export default function OwnerMobilePage() {
         return;
       }
 
-      const ownerAccessRun = ownerAccessGateRef.current.begin(getOwnerAccessContext);
-      const ownerAccess = await ownerAccessRun.access;
+      const ownerAccessRun = ownerAccessGateRef.current.begin(() =>
+        traceOwnerMobileStartupStep("auth", () =>
+          withOwnerMobileTimeout(() => getOwnerAccessContext(), 12_000),
+        ),
+      );
+      let ownerAccess: OwnerMobileAccessContext | null;
+      try {
+        ownerAccess = await ownerAccessRun.access;
+      } catch (error) {
+        if (!active || !ownerAccessGateRef.current.isLatest(ownerAccessRun.runId)) return;
+        setMessage(error instanceof Error ? error.message : "로그인 상태를 확인하지 못했습니다.");
+        setEntryFailed(true);
+        return;
+      }
       if (!active || !ownerAccessGateRef.current.isLatest(ownerAccessRun.runId)) return;
 
       if (!ownerAccess?.accessToken) {
@@ -292,43 +343,66 @@ export default function OwnerMobilePage() {
       setMobileRoleContext(resolveMobileAppRoleContext(ownerAccess.session));
 
       if (ownerAccess.session?.user.user_metadata?.account_suspended === true) {
-        if (active) setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
+        if (active) {
+          setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
+          setEntryFailed(true);
+        }
         return;
       }
 
       try {
-        const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops");
         const storedShopId =
           typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE) : null;
-        const resolvedShopId =
-          (storedShopId && shops.some((shop) => shop.id === storedShopId) ? storedShopId : shops[0]?.id) ?? null;
-
-        if (!resolvedShopId) throw new Error("소유한 매장이 없습니다.");
+        const criticalData = await traceOwnerMobileStartupStep("critical-data", () =>
+          withOwnerMobileTimeout(
+            (signal) =>
+              loadOwnerMobileCriticalData({
+                signal,
+                loadShops: (requestSignal) =>
+                  fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops", {
+                    cache: "no-store",
+                    signal: requestSignal,
+                  }),
+                loadSubscription: (requestSignal) =>
+                  fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
+                    cache: "no-store",
+                    signal: requestSignal,
+                  }),
+                loadBootstrap: (shopId, requestSignal) =>
+                  fetchApiJsonWithAuth<BootstrapPayload>(
+                    `/api/bootstrap?shopId=${encodeURIComponent(shopId)}`,
+                    { cache: "no-store", signal: requestSignal },
+                  ),
+                resolveShopId: (shops) =>
+                  (storedShopId && shops.some((shop) => shop.id === storedShopId)
+                    ? storedShopId
+                    : shops[0]?.id) ?? null,
+              }),
+            15_000,
+          ),
+        );
 
         if (typeof window !== "undefined") {
-          window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
+          window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, criticalData.shopId);
         }
 
-        const [subscription, bootstrap] = await Promise.all([
-          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
-          fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`, {
-            cache: "no-store",
-          }),
-        ]);
-
         const isAndroidApp = Capacitor.getPlatform() === "android";
-        if (!isAndroidApp && shouldBlockOwnerAccessBySubscription(subscription)) {
-          router.replace(`/owner/billing?compare=1&plan=${encodeURIComponent(subscription.autoRenewPlanCode)}` as never);
+        if (!isAndroidApp && shouldBlockOwnerAccessBySubscription(criticalData.subscription)) {
+          router.replace(`/owner/billing?compare=1&plan=${encodeURIComponent(criticalData.subscription.autoRenewPlanCode)}` as never);
           router.refresh();
           return;
         }
-        writeOwnerBillingSummaryCache(subscription);
+        writeOwnerBillingSummaryCache(criticalData.subscription);
 
         if (!active) return;
-        setOwnedShops(shops);
-        setSelectedShopId(resolvedShopId);
-        setData(assertOwnerBootstrapPayload(bootstrap, resolvedShopId, { allowMock: shouldUseLocalMobilePreview() }));
-        setSubscriptionSummary(subscription);
+        setOwnedShops(criticalData.shops);
+        setSelectedShopId(criticalData.shopId);
+        setData(
+          assertOwnerBootstrapPayload(criticalData.bootstrap, criticalData.shopId, {
+            allowMock: shouldUseLocalMobilePreview(),
+          }),
+        );
+        setSubscriptionSummary(criticalData.subscription);
       } catch (error) {
         if (!active) return;
         const nextMessage = error instanceof Error ? error.message : "모바일 오너 화면을 불러오지 못했습니다.";
@@ -353,6 +427,7 @@ export default function OwnerMobilePage() {
         }
 
         setMessage(nextMessage);
+        setEntryFailed(true);
       }
     }
 
@@ -361,7 +436,7 @@ export default function OwnerMobilePage() {
     return () => {
       active = false;
     };
-  }, [router, supabase]);
+  }, [loadAttempt, router, supabase]);
 
   async function handleSwitchShop(shopId: string) {
     if (!shopId || shopId === selectedShopId) return;
@@ -379,7 +454,13 @@ export default function OwnerMobilePage() {
   }
 
   if (!data) {
-    return <OwnerMobileLoadingScreen message={message} />;
+    return (
+      <OwnerMobileLoadingScreen
+        message={message}
+        failed={entryFailed}
+        onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+      />
+    );
   }
 
   return (

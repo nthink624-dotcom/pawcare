@@ -1,4 +1,5 @@
 ﻿import { env } from "@/lib/env";
+import { readOwnerAuthTokenCache, writeOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 
@@ -80,6 +81,11 @@ export async function getPublicBootstrap(shopId?: string) {
 }
 
 export async function getAccessTokenWithRecovery() {
+  const cachedAccessToken = readOwnerAuthTokenCache();
+  if (cachedAccessToken) {
+    return cachedAccessToken;
+  }
+
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
     throw new Error("Supabase 연결을 확인할 수 없습니다.");
@@ -87,11 +93,19 @@ export async function getAccessTokenWithRecovery() {
 
   const initialSession = await supabase.auth.getSession();
   if (initialSession.data.session?.access_token) {
+    writeOwnerAuthTokenCache(
+      initialSession.data.session.access_token,
+      initialSession.data.session.refresh_token,
+    );
     return initialSession.data.session.access_token;
   }
 
   const refreshedSession = await supabase.auth.refreshSession();
   if (refreshedSession.data.session?.access_token) {
+    writeOwnerAuthTokenCache(
+      refreshedSession.data.session.access_token,
+      refreshedSession.data.session.refresh_token,
+    );
     return refreshedSession.data.session.access_token;
   }
 
@@ -99,6 +113,10 @@ export async function getAccessTokenWithRecovery() {
   if (userResult.data.user) {
     const recoveredSession = await supabase.auth.getSession();
     if (recoveredSession.data.session?.access_token) {
+      writeOwnerAuthTokenCache(
+        recoveredSession.data.session.access_token,
+        recoveredSession.data.session.refresh_token,
+      );
       return recoveredSession.data.session.access_token;
     }
   }

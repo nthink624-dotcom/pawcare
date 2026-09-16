@@ -1,62 +1,123 @@
 "use client";
 
-import { Camera, ChevronRight, Play, X } from "lucide-react";
+import { X } from "lucide-react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 
+type Phase = "start" | "completion";
 type Stage = "early-confirm" | "choices";
 
+const FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "[href]",
+  "input:not([disabled]):not([tabindex='-1'])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
 export default function OwnerMobileGroomingStartSheet({
+  phase,
   stage,
   busy,
   onClose,
   onConfirmEarly,
-  onPhotoStart,
-  onStartWithoutPhoto,
+  onPhotoAction,
+  onDirectAction,
 }: {
+  phase: Phase;
   stage: Stage;
   busy: boolean;
   onClose: () => void;
   onConfirmEarly: () => void;
-  onPhotoStart: () => void;
-  onStartWithoutPhoto: () => void;
+  onPhotoAction: () => void;
+  onDirectAction: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const initialFocusRef = useRef<HTMLButtonElement | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const isEarlyConfirm = stage === "early-confirm";
+  const isCompletion = phase === "completion";
+  const actionColor = isCompletion ? "#5B3A8C" : "#286bd1";
+  const title = isEarlyConfirm
+    ? "예약 시간 전입니다. 시작할까요?"
+    : isCompletion
+      ? "미용을 완료할까요?"
+      : "미용을 시작할까요?";
+
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => returnFocusRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    initialFocusRef.current?.focus();
+  }, [stage]);
+
+  function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      if (!busy) {
+        event.preventDefault();
+        onClose();
+      }
+      return;
+    }
+    if (event.key !== "Tab" || !dialogRef.current) return;
+
+    const focusableElements = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    if (focusableElements.length === 0) {
+      event.preventDefault();
+      dialogRef.current.focus();
+      return;
+    }
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+    const activeElement = document.activeElement;
+    if (event.shiftKey && (activeElement === firstElement || !dialogRef.current.contains(activeElement))) {
+      event.preventDefault();
+      lastElement.focus();
+    } else if (!event.shiftKey && (activeElement === lastElement || !dialogRef.current.contains(activeElement))) {
+      event.preventDefault();
+      firstElement.focus();
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end bg-[#0d1726]/45 px-3 pt-12" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[#0d1726]/45 pt-12" onClick={onClose}>
       <section
-        aria-label={isEarlyConfirm ? "이른 미용 시작 확인" : "미용 시작 방법 선택"}
-        className="w-full overflow-hidden rounded-t-[28px] bg-[#fbfcfe] shadow-[0_-18px_48px_rgba(15,23,42,0.28)]"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={isEarlyConfirm ? "이른 미용 시작 확인" : isCompletion ? "미용 완료 방법 선택" : "미용 시작 방법 선택"}
+        tabIndex={-1}
+        className="w-full max-w-[430px] overflow-hidden rounded-t-[28px] bg-[#fbfcfe] shadow-[0_-18px_48px_rgba(15,23,42,0.28)]"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={handleDialogKeyDown}
       >
         <div className="mx-auto mt-2.5 h-1 w-9 rounded-full bg-[#d6deea]" />
-        <header className="flex items-start justify-between px-5 pb-4 pt-4">
-          <div>
-            <p className="text-[12px] font-semibold tracking-[0.08em] text-[#4e82cf]">
-              {isEarlyConfirm ? "예약 시간 전" : "미용 시작"}
-            </p>
-            <h2 className="mt-1 text-[20px] font-semibold tracking-[-0.04em] text-[#14213a]">
-              {isEarlyConfirm ? "예약 시간 전입니다. 시작할까요?" : "어떻게 시작할까요?"}
-            </h2>
-            {!isEarlyConfirm ? <p className="mt-1 text-[13px] leading-5 text-[#64748b]">미용 전 사진은 선택 사항이에요.</p> : null}
-          </div>
+        <header className="flex items-start justify-between gap-3 px-5 pb-4 pt-4">
+          <h2 className="min-w-0 pt-2 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#14213a] [overflow-wrap:anywhere]">
+            {title}
+          </h2>
           <button
+            ref={initialFocusRef}
             type="button"
             aria-label="닫기"
             disabled={busy}
             onClick={onClose}
-            className="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eef2f7] text-[#526276] disabled:opacity-50"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef2f7] text-[#526276] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:opacity-50"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </header>
 
         {isEarlyConfirm ? (
-          <div className="grid grid-cols-2 gap-2 px-5 pb-5">
+          <div className="grid grid-cols-2 gap-2 px-5 pb-[calc(env(safe-area-inset-bottom)+20px)]">
             <button
               type="button"
               disabled={busy}
               onClick={onClose}
-              className="h-[52px] rounded-[14px] border border-[#d7e0eb] bg-white text-[14px] font-semibold text-[#526276] disabled:opacity-50"
+              className="h-[52px] rounded-[14px] border border-[#d7e0eb] bg-white px-3 text-[16px] font-medium leading-6 text-[#526276] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:opacity-50"
             >
               아니요
             </button>
@@ -64,31 +125,30 @@ export default function OwnerMobileGroomingStartSheet({
               type="button"
               disabled={busy}
               onClick={onConfirmEarly}
-              className="h-[52px] rounded-[14px] bg-[#286bd1] text-[14px] font-semibold text-white shadow-[0_7px_15px_rgba(40,107,209,0.25)] disabled:opacity-55"
+              className="h-[52px] rounded-[14px] bg-[#286bd1] px-3 text-[16px] font-medium leading-6 text-white outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:opacity-55"
             >
               예, 시작할게요
             </button>
           </div>
         ) : (
-          <div className="space-y-2 px-5 pb-5">
+          <div className="space-y-2 px-5 pb-[calc(env(safe-area-inset-bottom)+20px)]">
             <button
               type="button"
               disabled={busy}
-              onClick={onPhotoStart}
-              className="group flex min-h-[72px] w-full items-center gap-3 rounded-[18px] border border-[#a9c8f4] bg-[#eaf3ff] px-4 text-left shadow-[0_8px_18px_rgba(62,125,210,0.12)] disabled:opacity-55"
+              onClick={onPhotoAction}
+              className="h-[52px] w-full rounded-[14px] px-4 text-[16px] font-medium leading-6 text-white outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:opacity-55"
+              style={{ backgroundColor: actionColor }}
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#286bd1] text-white"><Camera className="h-5 w-5" /></span>
-              <span className="min-w-0 flex-1"><span className="block text-[16px] font-semibold tracking-[-0.03em] text-[#1b457c]">사진 촬영 후 시작</span><span className="mt-0.5 block text-[12px] text-[#5b7da8]">촬영 후 미리보기에서 등록을 확정해요</span></span>
-              <ChevronRight className="h-5 w-5 shrink-0 text-[#6b94c8]" />
+              {isCompletion ? "촬영 후 완료" : "촬영 후 시작"}
             </button>
             <button
               type="button"
               disabled={busy}
-              onClick={onStartWithoutPhoto}
-              className="flex min-h-[62px] w-full items-center gap-3 rounded-[18px] border border-[#e0e6ef] bg-white px-4 text-left disabled:opacity-55"
+              onClick={onDirectAction}
+              className="h-[52px] w-full rounded-[14px] border bg-white px-4 text-[16px] font-medium leading-6 outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:opacity-55"
+              style={{ borderColor: actionColor, color: actionColor }}
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#edf1f5] text-[#526276]"><Play className="ml-0.5 h-4 w-4 fill-current" /></span>
-              <span><span className="block text-[16px] font-semibold tracking-[-0.03em] text-[#2c3b50]">사진 없이 바로 시작</span><span className="mt-0.5 block text-[12px] text-[#748196]">사진을 남기지 않고 바로 진행해요</span></span>
+              {isCompletion ? "바로 완료" : "바로 시작"}
             </button>
           </div>
         )}

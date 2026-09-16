@@ -8,7 +8,7 @@ import { clearOwnerCareReportLocalDraft, readOwnerCareReportLocalDraft, writeOwn
 import { OwnerCareReportGenerationStageError, runOwnerCareReportGeneration } from "@/lib/care-report/owner-care-report-generation";
 import { startOwnerCareReportSpeechInput, type OwnerSpeechInputErrorCode, type OwnerSpeechInputController } from "@/lib/care-report/owner-speech-input";
 import { useCareReportKeyboardViewport } from "@/lib/care-report/use-care-report-keyboard-viewport";
-import { createOwnerMediaAssetFromFile, getOwnerMediaSignedUrl, type MediaAssetListItem } from "@/lib/media/owner-media-client";
+import { createOwnerMediaAssetFromFile, type MediaAssetListItem } from "@/lib/media/owner-media-client";
 import { mergeBoundOwnerMediaItems, type OwnerMediaBinding } from "@/lib/media/owner-media-durability";
 import { DEFAULT_REVISIT_REMINDER_DAYS } from "@/lib/notification-settings";
 import { fetchOwnerAppointmentVisitWeight } from "@/lib/owner-appointment-visit-weight";
@@ -17,6 +17,11 @@ import type { Appointment, MediaKind, Pet, Service } from "@/types/domain";
 
 export type CareReport = {
   reportText: string;
+};
+
+type CareReportPhotoKind = Extract<MediaKind, "grooming_before" | "grooming_after">;
+type SignedMediaUrlsResponse = {
+  items: Array<{ mediaAssetId?: string; signedUrl: string }>;
 };
 
 type DraftResponse = {
@@ -37,8 +42,8 @@ export type OwnerCareReportDevelopmentFixture = {
 
 export type OwnerCareReportInitialData = {
   items: MediaAssetListItem[];
-  selectedIds: Partial<Record<"grooming_before" | "grooming_after", string>>;
-  signedUrl: string;
+  selectedIds: Partial<Record<CareReportPhotoKind, string>>;
+  signedUrls: Partial<Record<CareReportPhotoKind, string>>;
   nextDate: string | null;
   sourceText: string;
   revisionText: string;
@@ -94,7 +99,7 @@ export function createOwnerCareReportImmediateData({
   return {
     items: [],
     selectedIds: recoveredDraft?.selectedIds ?? {},
-    signedUrl: "",
+    signedUrls: {},
     nextDate: recoveredDraft?.nextDate ?? null,
     sourceText: recoveredDraft?.sourceText ?? "",
     revisionText: recoveredDraft?.revisionText ?? "",
@@ -128,8 +133,12 @@ export async function prepareOwnerCareReportInitialData({
     const firstAfter = draft?.afterMediaAssetId ?? items.find((item) => item.mediaAsset.media_kind === "grooming_after")?.mediaAsset.id;
     return {
       items,
-      selectedIds: recoveredDraft?.selectedIds ?? { grooming_before: firstBefore, grooming_after: firstAfter },
-      signedUrl: "",
+      selectedIds: {
+        grooming_before: firstBefore,
+        grooming_after: firstAfter,
+        ...recoveredDraft?.selectedIds,
+      },
+      signedUrls: {},
       nextDate: recoveredDraft?.nextDate ?? draft?.nextRecommendedVisitDate ?? null,
       sourceText: recoveredDraft?.sourceText ?? "",
       revisionText: recoveredDraft?.revisionText ?? "",
@@ -156,11 +165,15 @@ export async function prepareOwnerCareReportInitialData({
   );
   const firstBefore = items.find((item) => item.mediaAsset.media_kind === "grooming_before")?.mediaAsset.id;
   const firstAfter = draft.draft?.afterMediaAssetId ?? items.find((item) => item.mediaAsset.media_kind === "grooming_after")?.mediaAsset.id;
-  const selectedIds = recoveredDraft?.selectedIds ?? { grooming_before: firstBefore, grooming_after: firstAfter };
+  const selectedIds = {
+    grooming_before: firstBefore,
+    grooming_after: firstAfter,
+    ...recoveredDraft?.selectedIds,
+  };
   return {
     items,
     selectedIds,
-    signedUrl: "",
+    signedUrls: {},
     nextDate: recoveredDraft?.nextDate ?? draft.draft?.nextRecommendedVisitDate ?? null,
     sourceText: recoveredDraft?.sourceText ?? "",
     revisionText: recoveredDraft?.revisionText ?? "",
@@ -216,10 +229,9 @@ export default function OwnerAiCareReportSheet({
   const exitAfterHistoryRef = useRef<"dismiss" | "close" | null>(null);
   const reminderHistoryActiveRef = useRef(false);
   const initialRecoveredDraftRef = useRef(initialData?.recoveredDraft ?? null);
-  const activeKind: Extract<MediaKind, "grooming_before" | "grooming_after"> = "grooming_after";
   const [items, setItems] = useState<MediaAssetListItem[]>(initialData?.items ?? []);
-  const [selectedIds, setSelectedIds] = useState<Partial<Record<"grooming_before" | "grooming_after", string>>>(initialData?.selectedIds ?? {});
-  const [signedUrl, setSignedUrl] = useState(initialData?.signedUrl ?? "");
+  const [selectedIds, setSelectedIds] = useState<Partial<Record<CareReportPhotoKind, string>>>(initialData?.selectedIds ?? {});
+  const [signedUrls, setSignedUrls] = useState<Partial<Record<CareReportPhotoKind, string>>>(initialData?.signedUrls ?? {});
   // Care-report photos are included when a suitable grooming-after asset exists.
   // Missing photos never block drafting, generation, saving, or publishing.
   const photoConsent = true;
@@ -247,9 +259,17 @@ export default function OwnerAiCareReportSheet({
 
   const selectedService = useMemo(() => services.find((service) => service.id === appointment.service_id), [appointment.service_id, services]);
   const isPublished = Boolean(publishedCareReport);
-  const selectedId = selectedIds[activeKind] ?? "";
-  const selectedItem = items.find((item) => item.mediaAsset.id === selectedId) ?? null;
-  const kindItems = items.filter((item) => item.mediaAsset.media_kind === activeKind && item.mediaAsset.status === "ready");
+  const selectedBeforeItem = useMemo(() => items.find((item) =>
+    item.mediaAsset.id === selectedIds.grooming_before &&
+    item.mediaAsset.media_kind === "grooming_before" &&
+    item.mediaAsset.status === "ready",
+  ) ?? null, [items, selectedIds.grooming_before]);
+  const selectedAfterItem = useMemo(() => items.find((item) =>
+    item.mediaAsset.id === selectedIds.grooming_after &&
+    item.mediaAsset.media_kind === "grooming_after" &&
+    item.mediaAsset.status === "ready",
+  ) ?? null, [items, selectedIds.grooming_after]);
+  const afterItems = items.filter((item) => item.mediaAsset.media_kind === "grooming_after" && item.mediaAsset.status === "ready");
   const composerText = report ? revisionText : sourceText;
   const hasComposerInput = Boolean(composerText.trim());
   const defaultReminderDays = clampReminderDays(revisitReminderDefaultDays);
@@ -360,7 +380,7 @@ export default function OwnerAiCareReportSheet({
       initialRecoveredDraftRef.current = prepared.recoveredDraft;
       setItems(prepared.items);
       setSelectedIds(prepared.selectedIds);
-      setSignedUrl(prepared.signedUrl);
+      setSignedUrls(prepared.signedUrls);
       setNextDate(prepared.nextDate);
       setSourceText(prepared.sourceText);
       setRevisionText(prepared.revisionText);
@@ -461,17 +481,35 @@ export default function OwnerAiCareReportSheet({
 
   useEffect(() => {
     let active = true;
-    if (developmentFixture) { setSignedUrl(""); return; }
-    if (!selectedItem) { setSignedUrl(""); return; }
-    if (initialData?.selectedIds.grooming_after === selectedItem.mediaAsset.id && initialData.signedUrl) {
-      setSignedUrl(initialData.signedUrl);
-      return;
+    const selections: Array<{ kind: CareReportPhotoKind; mediaAssetId: string }> = [];
+    if (selectedBeforeItem) selections.push({ kind: "grooming_before", mediaAssetId: selectedBeforeItem.mediaAsset.id });
+    if (selectedAfterItem) selections.push({ kind: "grooming_after", mediaAssetId: selectedAfterItem.mediaAsset.id });
+    if (developmentFixture || selections.length === 0) {
+      setSignedUrls({});
+      return () => { active = false; };
     }
-    void getOwnerMediaSignedUrl(shopId, selectedItem.mediaAsset.id, "provider_ready")
-      .then((result) => { if (active) setSignedUrl(result); })
-      .catch(() => { if (active) setSignedUrl(""); });
+    void fetchApiJsonWithAuth<SignedMediaUrlsResponse>("/api/owner/media/signed-urls", {
+      method: "POST",
+      body: JSON.stringify({
+        shopId,
+        items: selections.map(({ mediaAssetId }) => ({ mediaAssetId, variant: "provider_ready" })),
+      }),
+    }).then((result) => {
+      if (!active) return;
+      const signedUrlByAssetId = new Map(
+        result.items.flatMap((item) => item.mediaAssetId && item.signedUrl ? [[item.mediaAssetId, item.signedUrl] as const] : []),
+      );
+      setSignedUrls(Object.fromEntries(
+        selections.flatMap(({ kind, mediaAssetId }) => {
+          const signedUrl = signedUrlByAssetId.get(mediaAssetId);
+          return signedUrl ? [[kind, signedUrl] as const] : [];
+        }),
+      ));
+    }).catch(() => {
+      if (active) setSignedUrls({});
+    });
     return () => { active = false; };
-  }, [developmentFixture, selectedItem, shopId]);
+  }, [developmentFixture, selectedAfterItem, selectedBeforeItem, shopId]);
 
   async function upload(file: File) {
     if (developmentFixture) {
@@ -481,9 +519,9 @@ export default function OwnerAiCareReportSheet({
     setAction("upload");
     setError("");
     try {
-      const result = await createOwnerMediaAssetFromFile({ shopId, guardianId: appointment.guardian_id, petId: appointment.pet_id, appointmentId: appointment.id, groomingRecordId: null }, activeKind, file);
+      const result = await createOwnerMediaAssetFromFile({ shopId, guardianId: appointment.guardian_id, petId: appointment.pet_id, appointmentId: appointment.id, groomingRecordId: null }, "grooming_after", file);
       setItems((current) => [{ mediaAsset: result.mediaAsset, variants: result.variant ? [result.variant] : [] }, ...current]);
-      setSelectedIds((current) => ({ ...current, [activeKind]: result.mediaAsset.id }));
+      setSelectedIds((current) => ({ ...current, grooming_after: result.mediaAsset.id }));
       markEdited();
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "사진을 등록하지 못했습니다.");
@@ -762,13 +800,33 @@ export default function OwnerAiCareReportSheet({
           <section className="py-3" aria-label="미용 사진">
             <input id={cameraInputId} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
             <input id={albumInputId} type="file" accept="image/*" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
-            <div className="flex min-h-11 items-center gap-2">
-              {selectedItem && signedUrl ? <img src={signedUrl} alt="포함할 미용 사진" className="h-11 w-11 rounded-[10px] border border-[#d7e4f2] object-cover" /> : <span className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-dashed border-[#cbd8e5] text-[#71859a]"><ImagePlus className="h-4 w-4" aria-hidden="true" /><span className="sr-only">포함할 미용 사진 없음</span></span>}
-              <p className="min-w-0 flex-1 truncate text-[14px] text-[#64748b]">{selectedItem ? "미용 사진 포함" : "사진 없음"}</p>
-              <label htmlFor={cameraInputId} aria-label="미용 사진 촬영" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d7e4f2] text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]"><Camera className="h-4 w-4" aria-hidden="true" /></label>
-              <label htmlFor={albumInputId} aria-label="미용 사진 선택" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d7e4f2] text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]"><ImagePlus className="h-4 w-4" aria-hidden="true" /></label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { kind: "grooming_before" as const, label: "미용 전", item: selectedBeforeItem },
+                { kind: "grooming_after" as const, label: "미용 후", item: selectedAfterItem },
+              ]).map(({ kind, label, item }) => (
+                <div key={kind} className="min-w-0 rounded-[12px] border border-[#d7e4f2] bg-white p-2.5">
+                  <p className="text-[14px] font-medium leading-5 text-[#263b53]">{label}</p>
+                  <div className="mt-2 flex min-h-11 min-w-0 items-center gap-2">
+                    {item && signedUrls[kind] ? (
+                      <img src={signedUrls[kind]} alt={`${label} 사진`} className="h-11 w-11 shrink-0 rounded-[10px] border border-[#d7e4f2] object-cover" />
+                    ) : (
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-dashed border-[#cbd8e5] text-[#71859a]">
+                        <ImagePlus className="h-4 w-4" aria-hidden="true" />
+                        <span className="sr-only">{label} 사진 없음</span>
+                      </span>
+                    )}
+                    <p className="min-w-0 text-[13px] font-normal leading-5 text-[#64748b]">{item ? "사진 있음" : "사진 없음"}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-            {kindItems.length > 1 ? <select aria-label="포함할 미용 사진 선택" value={selectedId} onChange={(event) => { setSelectedIds((current) => ({ ...current, [activeKind]: event.target.value })); markEdited(); }} className="mt-2 h-11 w-full rounded-[10px] border border-[#d7e4f2] px-3 text-[14px] font-medium leading-5 text-[#526b84]">{kindItems.map((item, index) => <option key={item.mediaAsset.id} value={item.mediaAsset.id}>미용 후 사진 {kindItems.length - index}</option>)}</select> : null}
+            <div className="mt-2 flex min-h-11 items-center justify-between gap-2">
+              <p className="min-w-0 flex-1 text-[13px] font-normal leading-5 text-[#64748b]">미용 후 사진 추가</p>
+              <label htmlFor={cameraInputId} aria-label="미용 후 사진 촬영" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d7e4f2] text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]"><Camera className="h-4 w-4" aria-hidden="true" /></label>
+              <label htmlFor={albumInputId} aria-label="미용 후 사진 선택" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d7e4f2] text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]"><ImagePlus className="h-4 w-4" aria-hidden="true" /></label>
+            </div>
+            {afterItems.length > 1 ? <select aria-label="포함할 미용 후 사진 선택" value={selectedIds.grooming_after ?? ""} onChange={(event) => { setSelectedIds((current) => ({ ...current, grooming_after: event.target.value })); markEdited(); }} className="mt-2 h-11 w-full rounded-[10px] border border-[#d7e4f2] px-3 text-[14px] font-medium leading-5 text-[#526b84]">{afterItems.map((item, index) => <option key={item.mediaAsset.id} value={item.mediaAsset.id}>미용 후 사진 {afterItems.length - index}</option>)}</select> : null}
           </section>
 
           <section className="flex min-w-0 flex-wrap items-end justify-between gap-3 py-3" aria-label="예약 정보">

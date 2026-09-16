@@ -22,7 +22,8 @@ test("care-report dev preview is unreachable in Production and mounts the real s
 test("development fixture blocks every remote care-report path but keeps local draft recovery", () => {
   assert.match(sheet, /export type OwnerCareReportDevelopmentFixture/);
   assert.match(sheet, /if \(developmentFixture\) \{[\s\S]*return \{[\s\S]*visitWeightKg: developmentFixture\.visitWeightKg \?\? null,[\s\S]*\};\s*\}\s*const mediaQuery/);
-  assert.match(sheet, /if \(developmentFixture\) \{ setSignedUrl\(""\); return; \}/);
+  assert.match(sheet, /if \(developmentFixture \|\| selections\.length === 0\) \{[\s\S]*setSignedUrls\(\{\}\);[\s\S]*return \(\) => \{ active = false; \};[\s\S]*\}/);
+  assert.ok(sheet.indexOf("if (developmentFixture || selections.length === 0)") < sheet.indexOf('fetchApiJsonWithAuth<SignedMediaUrlsResponse>("/api/owner/media/signed-urls"'));
   assert.match(sheet, /개발 미리보기에서는 사진을 추가할 수 없습니다/);
   assert.match(sheet, /개발 미리보기에서는 서버 저장을 실행하지 않습니다/);
   assert.match(sheet, /개발 미리보기에서는 케어리포트를 만들지 않습니다/);

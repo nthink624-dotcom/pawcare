@@ -195,6 +195,7 @@ type ModalState =
   | null;
 type MobilePhotoStatusAction = {
   appointmentId: string;
+  phase: "start" | "completion";
   nextStatus: Extract<AppointmentStatus, "in_progress" | "completed">;
   mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
   title: string;
@@ -206,7 +207,9 @@ type MobilePhotoStatusAction = {
 };
 type MobileGroomingStartAction = {
   appointmentId: string;
+  phase: "start" | "completion";
   stage: "early-confirm" | "choices";
+  requiresEarlyConfirmation?: boolean;
   requestedMode?: "photo" | "without-photo";
 };
 export type OwnerMobileLaunchPhotoStatusAction = {
@@ -231,15 +234,16 @@ function createMobilePhotoStatusAction(
 ): MobilePhotoStatusAction {
   return {
     appointmentId,
+    phase: status === "in_progress" ? "start" : "completion",
     nextStatus: status,
     mediaKind: status === "in_progress" ? "grooming_before" : "grooming_after",
-    title: status === "in_progress" ? "미용 전 사진" : "미용 완료 사진",
+    title: status === "in_progress" ? "미용 전 사진" : "미용 후 사진",
     description:
       status === "in_progress"
         ? "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요."
         : "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
-    buttonLabel: status === "in_progress" ? "사진 찍고 미용 시작" : "사진 찍고 미용 완료",
-    skipLabel: status === "in_progress" ? "사진 없이 미용 시작" : "사진 없이 미용 완료",
+    buttonLabel: status === "in_progress" ? "촬영 후 시작" : "촬영 후 완료",
+    skipLabel: status === "in_progress" ? "바로 시작" : "바로 완료",
     autoOpenCamera,
     allowSkip,
   };
@@ -1821,7 +1825,7 @@ export default function OwnerApp({
 
   function requestMobileAppointmentStatusChange(appointmentId: string, status: AppointmentStatus) {
     if (status === "completed") {
-      void completeMobileAppointment(appointmentId, "without-photo");
+      requestMobileGroomingCompletion(appointmentId);
       return;
     }
 
@@ -1833,7 +1837,7 @@ export default function OwnerApp({
     void updateAppointment(appointmentId, { status });
   }
 
-  function requestMobileGroomingStart(appointmentId: string, requestedMode?: "photo" | "without-photo") {
+  function requestMobileGroomingStart(appointmentId: string) {
     const appointment = data.appointments.find((item) => item.id === appointmentId);
     if (!appointment) {
       setError("미용을 시작할 예약 정보를 찾지 못했습니다.");
@@ -1847,27 +1851,20 @@ export default function OwnerApp({
       currentMinutes: currentMinutesInTimeZone(),
     });
 
-    // The late-start flow is intentionally unchanged until its UX policy is decided.
-    if (timing === "late" && !requestedMode) {
-      openMobilePhotoStatusAction(appointmentId, "in_progress");
-      return;
-    }
-
-    if (timing !== "early" && requestedMode === "photo") {
-      openMobilePhotoStatusAction(appointmentId, "in_progress", false, false);
-      return;
-    }
-
-    if (timing !== "early" && requestedMode === "without-photo") {
-      startMobileAppointmentWithoutPhoto(appointmentId);
-      return;
-    }
-
     setMobileGroomingStartAction({
       appointmentId,
-      stage: timing === "early" ? "early-confirm" : "choices",
-      requestedMode,
+      phase: "start",
+      stage: "choices",
+      requiresEarlyConfirmation: timing === "early",
     });
+  }
+
+  function requestMobileGroomingCompletion(appointmentId: string) {
+    if (!data.appointments.some((appointment) => appointment.id === appointmentId)) {
+      setError("미용을 완료할 예약 정보를 찾지 못했습니다.");
+      return;
+    }
+    setMobileGroomingStartAction({ appointmentId, phase: "completion", stage: "choices" });
   }
 
   function startMobileAppointmentWithoutPhoto(appointmentId: string) {
@@ -2762,14 +2759,14 @@ export default function OwnerApp({
                     onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })}
                     onResumeCareReport={(appointmentId) => void openCareReport(appointmentId)}
                     onStatusChange={requestMobileAppointmentStatusChange}
-                    onStartWithoutPhoto={(appointmentId) => requestMobileGroomingStart(appointmentId, "without-photo")}
+                    onStartWithoutPhoto={(appointmentId) => requestMobileGroomingStart(appointmentId)}
                     onCompleteWithoutPhoto={(appointmentId) => completeMobileAppointment(appointmentId, "without-photo")}
                     onOpenPhotoStatusAction={(appointmentId, status) => {
                       if (status === "in_progress") {
-                        requestMobileGroomingStart(appointmentId, "photo");
+                        requestMobileGroomingStart(appointmentId);
                         return;
                       }
-                      completeMobileAppointment(appointmentId, "without-photo");
+                      requestMobileGroomingCompletion(appointmentId);
                     }}
                   />
                 </div>
@@ -2801,8 +2798,7 @@ export default function OwnerApp({
       staffScheduleOverrides={data.staffScheduleOverrides ?? []}
       isShopClosed={isBookingDayClosed}
       onSelectStaff={setBookingStaffFilter}
-      onChangeDate={(direction) => {
-        const date = addDate(selectedVisitDate, direction === "previous" ? -1 : 1);
+      onSelectDate={(date) => {
         setVisitSelectionMode("single");
         setVisitRange(null);
         setVisitDateFilter(date);
@@ -3469,6 +3465,7 @@ export default function OwnerApp({
       }} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={filteredHomeConfirmedAppointmentsForStat} overdueRows={revisitRows.filter((item) => item.status === "overdue")} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} petDisplayPhotos={data.petDisplayPhotos ?? []} saving={saving} onUpdate={updateAppointmentWithMobilePhotoGuard} onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })} onClose={() => setModal(null)} /></Overlay> : null}</div>}
       {mobileGroomingStartAction ? (
         <OwnerMobileGroomingStartSheet
+          phase={mobileGroomingStartAction.phase}
           stage={mobileGroomingStartAction.stage}
           busy={saving || mobilePhotoUploading || mobilePhotoPreparing}
           onClose={() => setMobileGroomingStartAction(null)}
@@ -3485,13 +3482,31 @@ export default function OwnerApp({
             }
             startMobileAppointmentWithoutPhoto(action.appointmentId);
           }}
-          onPhotoStart={() => {
+          onPhotoAction={() => {
             const action = mobileGroomingStartAction;
+            if (action.phase === "start" && action.requiresEarlyConfirmation) {
+              setMobileGroomingStartAction({ ...action, stage: "early-confirm", requestedMode: "photo" });
+              return;
+            }
             setMobileGroomingStartAction(null);
-            openMobilePhotoStatusAction(action.appointmentId, "in_progress", false, false);
+            openMobilePhotoStatusAction(
+              action.appointmentId,
+              action.phase === "completion" ? "completed" : "in_progress",
+              false,
+              false,
+            );
           }}
-          onStartWithoutPhoto={() => {
+          onDirectAction={() => {
             const action = mobileGroomingStartAction;
+            if (action.phase === "completion") {
+              setMobileGroomingStartAction(null);
+              void completeMobileAppointment(action.appointmentId, "without-photo");
+              return;
+            }
+            if (action.requiresEarlyConfirmation) {
+              setMobileGroomingStartAction({ ...action, stage: "early-confirm", requestedMode: "without-photo" });
+              return;
+            }
             setMobileGroomingStartAction(null);
             startMobileAppointmentWithoutPhoto(action.appointmentId);
           }}
@@ -4833,7 +4848,7 @@ function NewCustomerForm({ shopId, saving, onClose, onSave }: { shopId: string; 
             <label className="block">
               <span className="mb-1.5 block text-[14px] font-medium leading-5 text-[#475569]">보호자 이름</span>
               <input
-                className="min-h-11 w-full rounded-[10px] border border-[#dbe5f1] bg-white px-3 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[#b0b7bf] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+                className="box-border min-h-11 w-full rounded-[10px] border border-[#dbe5f1] bg-white px-3 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[#b0b7bf] focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]"
                 value={guardianName}
                 onChange={(event) => setGuardianName(event.target.value)}
               />
@@ -4841,7 +4856,7 @@ function NewCustomerForm({ shopId, saving, onClose, onSave }: { shopId: string; 
             <label className="block">
               <span className="mb-1.5 block text-[14px] font-medium leading-5 text-[#475569]">연락처</span>
               <input
-                className="min-h-11 w-full rounded-[10px] border border-[#dbe5f1] bg-white px-3 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[#b0b7bf] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+                className="box-border min-h-11 w-full rounded-[10px] border border-[#dbe5f1] bg-white px-3 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[#b0b7bf] focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
               />
@@ -4849,7 +4864,7 @@ function NewCustomerForm({ shopId, saving, onClose, onSave }: { shopId: string; 
             <label className="block">
               <span className="mb-1.5 block text-[14px] font-medium leading-5 text-[#475569]">고객 메모</span>
               <input
-                className="min-h-11 w-full rounded-[10px] border border-[#dbe5f1] bg-white px-3 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[#b0b7bf] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+                className="box-border min-h-11 w-full rounded-[10px] border border-[#dbe5f1] bg-white px-3 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[#b0b7bf] focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]"
                 value={memo}
                 onChange={(event) => setMemo(event.target.value)}
                 placeholder="선택 입력"
@@ -5761,7 +5776,7 @@ function TodayConfirmedContent({ currentAppointments, careReportFollowupAppointm
               <div key={`current-${group.time}`} className="space-y-2">
                 <div className="space-y-2">
                   {group.items.map((appointment) => (
-                    <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} petDisplayPhoto={resolvePetDisplayPhoto(appointment)} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} onStartWithoutPhoto={() => onStartWithoutPhoto(appointment.id)} onStartCamera={() => onOpenPhotoStatusAction(appointment.id, "in_progress")} onCompleteWithoutPhoto={() => onCompleteWithoutPhoto(appointment.id)} allowSwipeCancel />
+                    <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} petDisplayPhoto={resolvePetDisplayPhoto(appointment)} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} onStartWithoutPhoto={() => onStartWithoutPhoto(appointment.id)} onStartCamera={() => onOpenPhotoStatusAction(appointment.id, "in_progress")} onCompleteWithoutPhoto={() => onCompleteWithoutPhoto(appointment.id)} onCompleteWithPhoto={() => onOpenPhotoStatusAction(appointment.id, "completed")} allowSwipeCancel />
                   ))}
                 </div>
               </div>
@@ -6005,7 +6020,7 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, petDisplayPhot
                 </div>
               )}
               {appointment.status === "in_progress" && <ActionButton className="w-full !min-h-11 !rounded-[10px] !px-5 !text-[16px]" onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{saving ? "변경하는 중…" : ownerHomeCopy.pickupReady}</ActionButton>}
-              {appointment.status === "almost_done" && <ActionButton className="w-full !min-h-11 !rounded-[10px] !px-5 !text-[16px]" onClick={onCompleteWithoutPhoto ?? (() => onStatusChange("completed"))} variant="complete" disabled={saving}>{saving ? "완료하는 중…" : "미용 완료"}</ActionButton>}
+              {appointment.status === "almost_done" && <ActionButton className="w-full !min-h-11 !rounded-[10px] !px-5 !text-[16px]" onClick={onCompleteWithPhoto ?? onCompleteWithoutPhoto ?? (() => onStatusChange("completed"))} variant="complete" disabled={saving}>{saving ? "완료하는 중…" : "미용 완료"}</ActionButton>}
               {rollbackStatus && rollbackLabel && <ActionButton className="w-full !min-h-11 !rounded-[10px] !px-5 !text-[16px]" onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}
             </div>
             {appointment.status === "completed" && <div className="w-full rounded-[10px] border border-[#dce4ef] bg-[#f8fafc] px-4 py-2 text-center text-sm font-medium text-[var(--accent)]">{ownerHomeCopy.completedNotice}</div>}

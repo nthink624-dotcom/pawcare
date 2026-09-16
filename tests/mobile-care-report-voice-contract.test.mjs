@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [startSheet, careReport, keyboardViewport, ownerApp, speechBridge, manifest, nativePlugin, mainActivity, localDraftStore, ownerShell, notificationSettings, careReportPreview] = await Promise.all([
+const [startSheet, photoSheet, careReport, keyboardViewport, ownerApp, speechBridge, manifest, nativePlugin, mainActivity, localDraftStore, ownerShell, notificationSettings, careReportPreview] = await Promise.all([
   readFile(new URL("../src/components/owner/owner-mobile-grooming-start-sheet.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../src/components/owner/owner-external-photo-sheet.tsx", import.meta.url), "utf8"),
   readFile(new URL("../src/components/owner/owner-ai-care-report-sheet.tsx", import.meta.url), "utf8"),
   readFile(new URL("../src/lib/care-report/use-care-report-keyboard-viewport.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/components/owner/owner-app.tsx", import.meta.url), "utf8"),
@@ -17,12 +18,41 @@ const [startSheet, careReport, keyboardViewport, ownerApp, speechBridge, manifes
   readFile(new URL("../src/components/owner/owner-care-report-dev-preview.tsx", import.meta.url), "utf8"),
 ]);
 
-test("grooming start copy keeps choices but removes the redundant mutation sentence", () => {
+test("grooming action sheet shares exact start and completion choices", () => {
   assert.doesNotMatch(startSheet, /시작하면 예약 상태가 진행 중으로 변경됩니다/);
-  assert.match(startSheet, /사진 촬영 후 시작/);
-  assert.match(startSheet, /사진 없이 바로 시작/);
-  assert.match(startSheet, /onPhotoStart/);
-  assert.match(startSheet, /onStartWithoutPhoto/);
+  assert.match(startSheet, /phase: Phase/);
+  assert.match(startSheet, /"촬영 후 완료" : "촬영 후 시작"/);
+  assert.match(startSheet, /"바로 완료" : "바로 시작"/);
+  assert.match(startSheet, /isCompletion \? "#5B3A8C" : "#286bd1"/);
+  assert.equal((startSheet.match(/h-\[52px\]/g) ?? []).length, 4);
+  assert.match(startSheet, /text-\[16px\] font-medium leading-6/);
+  assert.match(startSheet, /onPhotoAction/);
+  assert.match(startSheet, /onDirectAction/);
+  assert.match(ownerApp, /onCompleteWithPhoto=\{\(\) => onOpenPhotoStatusAction\(appointment\.id, "completed"\)\}/);
+  assert.match(ownerApp, /onClick=\{onCompleteWithPhoto \?\? onCompleteWithoutPhoto/);
+});
+
+test("grooming chooser and capture source sheets move, trap, and restore keyboard focus", () => {
+  for (const sheet of [startSheet, photoSheet]) {
+    assert.match(sheet, /role="dialog"/);
+    assert.match(sheet, /aria-modal="true"/);
+    assert.match(sheet, /tabIndex=\{-1\}/);
+    assert.match(sheet, /returnFocusRef\.current = document\.activeElement instanceof HTMLElement/);
+    assert.match(sheet, /initialFocusRef\.current\?\.focus\(\)/);
+    assert.match(sheet, /return \(\) => returnFocusRef\.current\?\.focus\(\)/);
+    assert.match(sheet, /event\.key === "Escape"/);
+    assert.match(sheet, /event\.key !== "Tab"/);
+    assert.match(sheet, /event\.shiftKey/);
+    assert.match(sheet, /lastElement\.focus\(\)/);
+    assert.match(sheet, /firstElement\.focus\(\)/);
+    assert.match(sheet, /onKeyDown=\{handleDialogKeyDown\}/);
+  }
+  const hiddenInputs = photoSheet.match(/<input ref=\{(?:libraryInputRef|fallbackCameraInputRef)\}[^>]+>/g) ?? [];
+  assert.equal(hiddenInputs.length, 2);
+  for (const input of hiddenInputs) {
+    assert.match(input, /tabIndex=\{-1\}/);
+    assert.match(input, /aria-hidden="true"/);
+  }
 });
 
 test("Android speech bridge requests microphone permission and exposes no audio payload", () => {
@@ -108,11 +138,12 @@ test("care-report editor preserves the compact composer and uses one editable re
   assert.match(ownerApp, /onReturnToDetail=\{\(\) => \{ closeCareReport\(\); setModal\(\{ type: "appointment", appointment \}\); void refresh\(\); \}\}/);
   assert.match(careReport, /const photoConsent = true;/);
   assert.doesNotMatch(careReport, /setPhotoConsent/);
-  assert.match(careReport, /aria-label="미용 사진 촬영"/);
-  assert.match(careReport, /aria-label="미용 사진 선택"/);
-  assert.doesNotMatch(careReport, /<span[^>]+aria-label="포함할 미용 사진 없음"/);
-  assert.match(careReport, /<span className="sr-only">포함할 미용 사진 없음<\/span>/);
-  assert.match(careReport, /미용 사진 포함.*사진 없음/s);
+  assert.match(careReport, /label: "미용 전", item: selectedBeforeItem/);
+  assert.match(careReport, /label: "미용 후", item: selectedAfterItem/);
+  assert.match(careReport, /aria-label="미용 후 사진 촬영"/);
+  assert.match(careReport, /aria-label="미용 후 사진 선택"/);
+  assert.match(careReport, /<span className="sr-only">\{label\} 사진 없음<\/span>/);
+  assert.match(careReport, /item \? "사진 있음" : "사진 없음"/);
   assert.match(careReport, /aria-label="예약 정보".*오늘 몸무게.*예약 정보 수정/s);
   const revisitStart = careReport.indexOf('<button data-testid="care-report-revisit-row"');
   const revisitSurface = careReport.slice(revisitStart, careReport.indexOf("</button>", revisitStart));
@@ -168,8 +199,11 @@ test("care-report entry opens from the appointment-local draft and hydrates supp
   assert.match(prepareFlow, /fetchOwnerAppointmentVisitWeight/);
   assert.match(prepareFlow, /draftResult\.status === "rejected" && !recoveredDraft && !publishedCareReport/);
   assert.match(prepareFlow, /mediaResult\.status === "fulfilled" \? mediaResult\.value : \{ items: \[\] \}/);
-  assert.match(prepareFlow, /signedUrl: ""/);
+  assert.match(prepareFlow, /signedUrls: \{\}/);
   assert.doesNotMatch(prepareFlow, /await getOwnerMediaSignedUrl/);
+  assert.match(careReport, /fetchApiJsonWithAuth<SignedMediaUrlsResponse>\("\/api\/owner\/media\/signed-urls"/);
+  assert.match(careReport, /items: selections\.map\(\(\{ mediaAssetId \}\) => \(\{ mediaAssetId, variant: "provider_ready" \}\)\)/);
+  assert.doesNotMatch(careReport, /getOwnerMediaSignedUrl/);
   assert.match(openFlow, /if \(isOwnerDemo \|\| careReportOpenInFlightRef\.current\) return/);
   assert.match(openFlow, /setCareReportLoadingAppointmentId\(appointmentId\)/);
   assert.match(openFlow, /createOwnerCareReportImmediateData/);

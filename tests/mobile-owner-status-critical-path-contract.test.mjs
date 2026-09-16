@@ -51,6 +51,31 @@ test("completion opens care-report preparation without delaying committed status
   assert.match(source, /if \(nextStatus === "completed"\) void openCareReport\(appointment\.id\)/);
 });
 
+test("every public start callback and completion enter the shared chooser before any direct status mutation", () => {
+  const startFlow = source.slice(
+    source.indexOf("function requestMobileGroomingStart"),
+    source.indexOf("function requestMobileGroomingCompletion"),
+  );
+  const completionFlow = source.slice(
+    source.indexOf("function requestMobileGroomingCompletion"),
+    source.indexOf("function startMobileAppointmentWithoutPhoto"),
+  );
+  const publicStartWiring = source.slice(
+    source.indexOf("<TodayConfirmedContent"),
+    source.indexOf("<OwnerBookingDatePicker", source.indexOf("<TodayConfirmedContent")),
+  );
+  assert.match(startFlow, /function requestMobileGroomingStart\(appointmentId: string\)/);
+  assert.match(startFlow, /phase: "start"[\s\S]*stage: "choices"[\s\S]*requiresEarlyConfirmation: timing === "early"/);
+  assert.doesNotMatch(startFlow, /openMobilePhotoStatusAction|startMobileAppointmentWithoutPhoto/);
+  assert.match(publicStartWiring, /onStartWithoutPhoto=\{\(appointmentId\) => requestMobileGroomingStart\(appointmentId\)\}/);
+  assert.match(publicStartWiring, /status === "in_progress"[\s\S]*requestMobileGroomingStart\(appointmentId\)/);
+  assert.doesNotMatch(publicStartWiring, /requestMobileGroomingStart\(appointmentId,\s*"(?:photo|without-photo)"\)/);
+  assert.match(source, /requiresEarlyConfirmation[\s\S]*stage: "early-confirm", requestedMode: "photo"/);
+  assert.match(source, /requiresEarlyConfirmation[\s\S]*stage: "early-confirm", requestedMode: "without-photo"/);
+  assert.match(completionFlow, /phase: "completion", stage: "choices"/);
+  assert.match(source, /status === "completed"[\s\S]*requestMobileGroomingCompletion\(appointmentId\)/);
+});
+
 test("all three visible transition buttons expose a progress label while locked", () => {
   assert.match(source, /saving \? "시작하는 중…"/);
   assert.match(source, /saving \? "변경하는 중…"/);

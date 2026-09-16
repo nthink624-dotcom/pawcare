@@ -3,7 +3,6 @@ package kr.petmanager.owner;
 import android.Manifest;
 import android.app.Activity;
 import android.content.ClipData;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -42,8 +41,6 @@ public class ExternalCameraPlugin extends Plugin {
     private static final String CAMERA_PERMISSION_DENIED = "CAMERA_PERMISSION_DENIED";
     private static final String CAMERA_UNAVAILABLE = "CAMERA_UNAVAILABLE";
     private static final String CAMERA_LAUNCH_FAILED = "CAMERA_LAUNCH_FAILED";
-    private static final String EXTERNAL_APP_PICKER_CANCELLED = "EXTERNAL_APP_PICKER_CANCELLED";
-    private static final String EXTERNAL_APP_PICKER_UNAVAILABLE = "EXTERNAL_APP_PICKER_UNAVAILABLE";
     private static final int OUTPUT_URI_PERMISSION_FLAGS =
         Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION;
     private Uri pendingOutputUri;
@@ -75,22 +72,7 @@ public class ExternalCameraPlugin extends Plugin {
         JSObject response = new JSObject();
         response.put("availableAppCount", handlers.size());
         response.put("canChoose", handlers.size() > 1);
-        response.put("externalAppPickerAvailable", canOpenExternalAppPicker());
         call.resolve(response);
-    }
-
-    @PluginMethod
-    public void openExternalCameraAppPicker(PluginCall call) {
-        Intent pickerIntent = createExternalAppPickerIntent();
-        if (pickerIntent.resolveActivity(getContext().getPackageManager()) == null) {
-            call.reject("앱 선택기를 열 수 없습니다. 앨범에서 사진을 선택해 주세요.", EXTERNAL_APP_PICKER_UNAVAILABLE);
-            return;
-        }
-        try {
-            startActivityForResult(call, pickerIntent, "externalAppPickerResult");
-        } catch (Exception error) {
-            call.reject("앱 선택기를 열 수 없습니다. 앨범에서 사진을 선택해 주세요.", EXTERNAL_APP_PICKER_UNAVAILABLE, error);
-        }
     }
 
     @PluginMethod
@@ -204,27 +186,6 @@ public class ExternalCameraPlugin extends Plugin {
         }
     }
 
-    @ActivityCallback
-    private void externalAppPickerResult(PluginCall call, ActivityResult result) {
-        if (result.getResultCode() != Activity.RESULT_OK) {
-            call.reject(EXTERNAL_APP_PICKER_CANCELLED);
-            return;
-        }
-        Intent selectedIntent = result.getData();
-        ComponentName selectedComponent = selectedIntent == null ? null : selectedIntent.getComponent();
-        if (selectedComponent == null) {
-            call.reject("선택한 앱을 열 수 없습니다. 앨범에서 사진을 선택해 주세요.", EXTERNAL_APP_PICKER_UNAVAILABLE);
-            return;
-        }
-        try {
-            Intent launchIntent = Intent.makeMainActivity(selectedComponent);
-            getActivity().startActivity(launchIntent);
-            call.resolve();
-        } catch (Exception error) {
-            call.reject("선택한 앱을 열 수 없습니다. 앨범에서 사진을 선택해 주세요.", EXTERNAL_APP_PICKER_UNAVAILABLE, error);
-        }
-    }
-
     private void copyResultToPendingFile(Uri uri, File destination) throws Exception {
         InputStream stream = getContext().getContentResolver().openInputStream(uri);
         if (stream == null) return;
@@ -251,19 +212,6 @@ public class ExternalCameraPlugin extends Plugin {
         intent.addFlags(OUTPUT_URI_PERMISSION_FLAGS);
         intent.setClipData(ClipData.newRawUri("petmanager-photo", outputUri));
         return intent;
-    }
-
-    private Intent createExternalAppPickerIntent() {
-        Intent launcherIntent = new Intent(Intent.ACTION_MAIN);
-        launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-        Intent pickerIntent = new Intent(Intent.ACTION_PICK_ACTIVITY);
-        pickerIntent.putExtra(Intent.EXTRA_INTENT, launcherIntent);
-        pickerIntent.putExtra(Intent.EXTRA_TITLE, "다른 촬영 앱 선택");
-        return pickerIntent;
-    }
-
-    private boolean canOpenExternalAppPicker() {
-        return createExternalAppPickerIntent().resolveActivity(getContext().getPackageManager()) != null;
     }
 
     private void detachPendingOutput() {

@@ -23,16 +23,17 @@ test("manifest declares camera, microphone, Android 13 notifications, and camera
 test("system camera asks contextually, checks availability, and keeps direct capture output", () => {
   assert.match(camera, /requestPermissionForAlias\("camera"/);
   assert.match(camera, /handlers\.isEmpty\(\)[\s\S]*CAMERA_UNAVAILABLE/);
-  assert.match(camera, /getCapabilities\(PluginCall call\)[\s\S]*availableAppCount[\s\S]*canChoose[\s\S]*externalAppPickerAvailable/);
+  assert.match(camera, /getCapabilities\(PluginCall call\)[\s\S]*availableAppCount[\s\S]*canChoose/);
+  assert.doesNotMatch(camera, /externalAppPickerAvailable|ACTION_PICK_ACTIVITY|CATEGORY_LAUNCHER/);
   assert.match(camera, /call\.getBoolean\("chooser", false\) && handlers\.size\(\) > 1/);
   assert.match(camera, /Intent\.createChooser\(cameraIntent, "카메라 앱 선택"\)/);
   assert.match(camera, /MediaStore\.EXTRA_OUTPUT/);
   assert.match(camera, /setClipData\(ClipData\.newRawUri/);
   assert.doesNotMatch(camera, /setPackage\(/);
   assert.match(photoUi, /getExternalCameraCapabilities/);
-  assert.match(photoUi, /cameraMode = effectiveCameraCapabilities\?\.canChoose === true \? "chooser" : "default"/);
-  assert.match(photoUi, /onCapture\(cameraMode\)/);
-  assert.match(photoUi, /기본 카메라 선택/);
+  assert.match(photoUi, /onCapture\("chooser"\)/);
+  assert.match(photoUi, /onCapture\("default"\)/);
+  assert.match(photoUi, /다른 카메라 앱으로 촬영/);
   assert.match(photoUi, /기본 카메라로 촬영/);
 });
 

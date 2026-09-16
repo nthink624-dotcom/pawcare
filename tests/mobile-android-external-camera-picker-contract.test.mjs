@@ -9,61 +9,45 @@ const [manifest, nativeCamera, cameraBridge, photoSheet] = await Promise.all([
   readFile(new URL("../src/components/owner/owner-external-photo-sheet.tsx", import.meta.url), "utf8"),
 ]);
 
-const pickerStart = nativeCamera.indexOf("public void openExternalCameraAppPicker");
-const pickerEnd = nativeCamera.indexOf("@PluginMethod\n    public void release", pickerStart);
-const pickerMethod = nativeCamera.slice(pickerStart, pickerEnd);
-const resultStart = nativeCamera.indexOf("private void externalAppPickerResult");
-const resultEnd = nativeCamera.indexOf("private void copyResultToPendingFile", resultStart);
-const pickerResult = nativeCamera.slice(resultStart, resultEnd);
+test("external camera selection uses the result-bearing image capture contract only", () => {
+  assert.match(nativeCamera, /new Intent\(MediaStore\.ACTION_IMAGE_CAPTURE\)/);
+  assert.match(nativeCamera, /putExtra\(MediaStore\.EXTRA_OUTPUT, outputUri\)/);
+  assert.match(nativeCamera, /Intent\.createChooser\(cameraIntent, "카메라 앱 선택"\)/);
+  assert.match(nativeCamera, /startActivityForResult\(call, launchIntent, "externalCameraResult"\)/);
+  assert.doesNotMatch(nativeCamera, /openExternalCameraAppPicker|externalAppPickerResult|ACTION_PICK_ACTIVITY|ACTION_MAIN|CATEGORY_LAUNCHER|ComponentName|makeMainActivity/);
+  assert.doesNotMatch(cameraBridge, /openExternalCameraAppPicker|externalAppPickerAvailable/);
+});
 
-test("external app selection uses the system launcher picker without broad package discovery", () => {
-  assert.ok(pickerStart >= 0 && pickerEnd > pickerStart);
-  assert.match(nativeCamera, /createExternalAppPickerIntent\(\)[\s\S]*new Intent\(Intent\.ACTION_MAIN\)/);
-  assert.match(nativeCamera, /createExternalAppPickerIntent\(\)[\s\S]*addCategory\(Intent\.CATEGORY_LAUNCHER\)/);
-  assert.match(nativeCamera, /createExternalAppPickerIntent\(\)[\s\S]*new Intent\(Intent\.ACTION_PICK_ACTIVITY\)/);
-  assert.match(nativeCamera, /createExternalAppPickerIntent\(\)[\s\S]*putExtra\(Intent\.EXTRA_INTENT, launcherIntent\)/);
-  assert.match(nativeCamera, /createExternalAppPickerIntent\(\)[\s\S]*putExtra\(Intent\.EXTRA_TITLE, "다른 촬영 앱 선택"\)/);
-  assert.match(pickerMethod, /createExternalAppPickerIntent\(\)/);
-  assert.match(pickerMethod, /resolveActivity\(getContext\(\)\.getPackageManager\(\)\) == null[\s\S]*EXTERNAL_APP_PICKER_UNAVAILABLE/);
-  assert.doesNotMatch(nativeCamera, /CATEGORY_APP_CAMERA|QUERY_ALL_PACKAGES|getInstalledApplications|getInstalledPackages|setPackage\(/);
+test("capture output grants are scoped to compatible handlers and always revoked", () => {
+  assert.match(nativeCamera, /queryIntentActivities\(cameraIntent, PackageManager\.MATCH_DEFAULT_ONLY\)/);
+  assert.match(nativeCamera, /grantOutputUriToCameraApps\(handlers\)/);
+  assert.match(nativeCamera, /grantUriPermission\(packageName, pendingOutputUri, OUTPUT_URI_PERMISSION_FLAGS\)/);
+  assert.match(nativeCamera, /finally \{[\s\S]*detachPendingOutput\(\)[\s\S]*clearPendingOutput\(\)/);
+  assert.match(nativeCamera, /revokeUriPermission\([\s\S]*OUTPUT_URI_PERMISSION_FLAGS/);
+  assert.doesNotMatch(nativeCamera, /QUERY_ALL_PACKAGES|getInstalledApplications|getInstalledPackages|setPackage\(/);
   assert.doesNotMatch(manifest, /QUERY_ALL_PACKAGES|<package\b/);
 });
 
-test("only the component returned by the system picker is launched for the current flow", () => {
-  assert.ok(resultStart >= 0 && resultEnd > resultStart);
-  assert.match(pickerResult, /ComponentName selectedComponent = selectedIntent == null \? null : selectedIntent\.getComponent\(\)/);
-  assert.match(pickerResult, /Intent\.makeMainActivity\(selectedComponent\)/);
-  assert.match(pickerResult, /getActivity\(\)\.startActivity\(launchIntent\)/);
-  assert.doesNotMatch(pickerResult, /SharedPreferences|putString|console|Log\.|fetch\(|http|server/);
-  assert.doesNotMatch(nativeCamera, /private (?:static )?ComponentName/);
-});
-
-test("picker cancellation and unsupported OEM paths fall back without guessing a photo", () => {
-  assert.match(pickerMethod, /catch \(Exception error\)[\s\S]*EXTERNAL_APP_PICKER_UNAVAILABLE/);
-  assert.match(pickerResult, /result\.getResultCode\(\) != Activity\.RESULT_OK[\s\S]*EXTERNAL_APP_PICKER_CANCELLED/);
-  assert.match(pickerResult, /selectedComponent == null[\s\S]*앨범에서 사진을 선택해 주세요/);
-  assert.match(photoSheet, /EXTERNAL_APP_PICKER_CANCELLED[\s\S]*setExternalAppFlowStarted\(false\)/);
-  assert.match(photoSheet, /앱 선택기를 열 수 없습니다\. 아래에서 앨범 사진을 선택해 주세요/);
+test("capture cancellation and empty results fail without guessing a gallery photo", () => {
+  assert.match(nativeCamera, /result\.getResultCode\(\) != Activity\.RESULT_OK[\s\S]*CAMERA_CANCELLED/);
+  assert.match(nativeCamera, /pendingOutputFile\.length\(\) == 0 && result\.getData\(\) != null[\s\S]*copyResultToPendingFile/);
+  assert.match(nativeCamera, /pendingOutputFile\.length\(\) == 0[\s\S]*촬영한 사진을 읽을 수 없습니다/);
   assert.doesNotMatch(nativeCamera, /MediaStore\.Images|DATE_ADDED|DATE_TAKEN|LATEST|latest/i);
-  assert.doesNotMatch(photoSheet, /최근 사진|최신 사진|자동 선택/);
 });
 
-test("external app return emphasizes explicit album selection with truthful copy", () => {
-  assert.match(cameraBridge, /openExternalCameraAppPicker\(\): Promise<void>/);
-  assert.match(cameraBridge, /externalAppPickerAvailable: result\.externalAppPickerAvailable === true/);
-  assert.match(photoSheet, /canOpenExternalAppPicker =[\s\S]*externalAppPickerAvailable === true/);
-  assert.match(photoSheet, /다른 촬영 앱 선택/);
-  assert.match(photoSheet, /시스템 앱 선택기에서 촬영 앱을 골라 사진을 저장하세요/);
-  assert.match(photoSheet, /이 경로는 촬영 결과를 바로 받을 수 없어 돌아온 뒤 앨범에서 선택해야 합니다/);
-  assert.match(photoSheet, /externalAppFlowStarted \? "촬영한 사진을 앨범에서 선택" : "앨범에서 선택"/);
-  assert.match(photoSheet, /externalAppFlowStarted \? "border-\[#7aa7e8\] bg-\[#f0f6ff\]/);
+test("photo source sheet exposes two capture modes and one icon-only album action", () => {
+  assert.match(photoSheet, /다른 카메라 앱으로 촬영/);
+  assert.match(photoSheet, /onClick=\{\(\) => onCapture\("chooser"\)\}/);
+  assert.match(photoSheet, /기본 카메라로 촬영/);
+  assert.match(photoSheet, /canUseCameraApps \? onCapture\("default"\)/);
+  assert.match(photoSheet, /aria-label="앨범에서 선택"/);
+  assert.match(photoSheet, /<Images className="h-5 w-5" aria-hidden="true" \/>/);
+  assert.doesNotMatch(photoSheet, /STEP|다른 촬영 앱 선택|시스템 앱 선택기에서 촬영 앱을 골라|촬영 결과를 바로 받을 수 없어/);
 });
 
-test("direct system camera keeps FileProvider output and temporary URI grants", () => {
-  assert.match(nativeCamera, /new Intent\(MediaStore\.ACTION_IMAGE_CAPTURE\)/);
-  assert.match(nativeCamera, /putExtra\(MediaStore\.EXTRA_OUTPUT, outputUri\)/);
-  assert.match(nativeCamera, /setClipData\(ClipData\.newRawUri\("petmanager-photo", outputUri\)\)/);
-  assert.match(nativeCamera, /FLAG_GRANT_WRITE_URI_PERMISSION \| Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
-  assert.match(nativeCamera, /Intent\.createChooser\(cameraIntent, "카메라 앱 선택"\)/);
-  assert.match(nativeCamera, /chooserIntent\.setClipData\(cameraIntent\.getClipData\(\)\)/);
+test("manifest visibility remains limited to image capture and FileProvider", () => {
+  assert.match(manifest, /<queries>[\s\S]*android\.media\.action\.IMAGE_CAPTURE[\s\S]*<\/queries>/);
+  assert.match(manifest, /androidx\.core\.content\.FileProvider/);
+  assert.match(manifest, /android:grantUriPermissions="true"/);
+  assert.doesNotMatch(manifest, /QUERY_ALL_PACKAGES|<package\b/);
 });

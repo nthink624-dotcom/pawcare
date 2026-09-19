@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth/atomic-signup-contract";
 import {
   hashIdentityStableValue,
+  buildOwnerMarketingBenefitShopIdentity,
   buildOwnerTrialPhoneIdentityKeys,
 } from "@/lib/auth/owner-identity";
 import {
@@ -19,7 +20,10 @@ import {
   normalizeOwnerPhoneNumber,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
-import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
+import {
+  OWNER_MARKETING_CONSENT_DOCUMENT_VERSION,
+  OWNER_SIGNUP_TERMS_VERSION,
+} from "@/lib/auth/owner-signup-terms";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
@@ -146,12 +150,19 @@ export async function POST(request: NextRequest) {
     const ciHash = verifiedIdentity.ci ? hashIdentityStableValue(verifiedIdentity.ci) : null;
     const diHash = verifiedIdentity.di ? hashIdentityStableValue(verifiedIdentity.di) : null;
     const trialIdentity = buildOwnerTrialPhoneIdentityKeys(verifiedIdentity.phone_number);
+    const marketingBenefitShopIdentity = buildOwnerMarketingBenefitShopIdentity({
+      verifiedPhoneNumber: verifiedIdentity.phone_number,
+      shopName: payload.shopName,
+      shopPhone: payload.shopPhone,
+      shopAddress: payload.shopAddress,
+    });
 
     const shopId = `shop-${randomUUID().slice(0, 8)}`;
     const now = nowIso();
     const agreementPayload = {
       agreed_at: now,
       terms_version: OWNER_SIGNUP_TERMS_VERSION,
+      marketing_consent_document_version: OWNER_MARKETING_CONSENT_DOCUMENT_VERSION,
       agreements: payload.agreements,
     };
     const normalizedServices = buildSignupServiceRpcPayload(payload, shopId);
@@ -172,7 +183,7 @@ export async function POST(request: NextRequest) {
             authUserId?: string | null;
             shopId?: string | null;
             trialEligible?: boolean | null;
-            trialDays?: 0 | 14 | null;
+            trialDays?: 0 | 14 | 44 | null;
             billingRequired?: boolean | null;
           } | null;
           return {
@@ -217,7 +228,7 @@ export async function POST(request: NextRequest) {
           if (result.error) throw new Error(result.error.message);
         },
         writeAtomicSignup: async (authUserId) => {
-          const result = await supabase.rpc("complete_owner_signup_v5", {
+          const result = await supabase.rpc("complete_owner_signup_v6", {
             p_signup_request_id: payload.signupRequestId,
             p_payload_hash: payloadHash,
             p_auth_user_id: authUserId,
@@ -252,18 +263,23 @@ export async function POST(request: NextRequest) {
             p_identity_token_id: verifiedIdentity.tokenId,
             p_trial_identity_keys: trialIdentity.keys,
             p_trial_identity_current_version: trialIdentity.currentVersion,
+            p_marketing_consent: payload.agreements.marketing,
+            p_marketing_consent_document_version: OWNER_MARKETING_CONSENT_DOCUMENT_VERSION,
+            p_marketing_consent_recorded_at: now,
+            p_shop_identity_key_version: marketingBenefitShopIdentity.keyVersion,
+            p_shop_identity_key: marketingBenefitShopIdentity.shopIdentityKey,
           });
           if (result.error) throw new Error(result.error.message);
           const value = result.data as {
             shopId?: string;
             reused?: boolean;
             trialEligible?: boolean;
-            trialDays?: 0 | 14;
+            trialDays?: 0 | 14 | 44;
             billingRequired?: boolean;
           } | null;
           if (
             typeof value?.trialEligible !== "boolean" ||
-            (value.trialDays !== 0 && value.trialDays !== 14) ||
+            (value.trialDays !== 0 && value.trialDays !== 14 && value.trialDays !== 44) ||
             typeof value.billingRequired !== "boolean"
           ) {
             throw new Error("PM_SIGNUP_TRIAL_RESULT_MISSING");
@@ -336,7 +352,9 @@ export async function POST(request: NextRequest) {
       nextAction: orchestration.billingRequired ? "billing" : "initial_setup",
       message: orchestration.billingRequired
         ? "이 번호로 무료 체험을 이미 사용했습니다. 계속 이용하려면 결제를 진행해 주세요."
-        : "회원가입이 완료됐어요. 14일 무료 체험이 시작됐어요.",
+        : orchestration.trialDays === 44
+          ? "회원가입이 완료됐어요. 마케팅 수신 동의 30일이 추가되어 총 44일 무료 체험이 시작됐어요."
+          : "회원가입이 완료됐어요. 14일 무료 체험이 시작됐어요.",
     });
   } catch (error) {
     if (error instanceof SignupJsonBodyError) {

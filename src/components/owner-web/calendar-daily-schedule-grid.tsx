@@ -303,6 +303,7 @@ function hasStaffBookingConflict(bookings: DailyBooking[], bookingId: string, ne
 }
 
 export function DailyScheduleGrid({
+  shopId,
   bookings,
   staff,
   visibleStaff,
@@ -320,6 +321,7 @@ export function DailyScheduleGrid({
   onMoveBooking,
   onResizeBooking,
 }: {
+  shopId: string;
   bookings: DailyBooking[];
   staff: StaffFilter;
   visibleStaff: OwnerWebStaffColumn[];
@@ -397,23 +399,31 @@ export function DailyScheduleGrid({
   function renderScheduleLines(prefix: string, selected = false) {
     return scheduleDisplayLayout.segments.flatMap((segment) => {
       const segmentCount = Math.round((segment.end - segment.start) * 4);
-      return Array.from({ length: segmentCount + 1 }).map((_, index) => (
-        <div
-          key={`${prefix}-line-${segment.key}-${index}`}
-          data-schedule-time-grid-line={selected ? "selected" : "default"}
-          className={cn(
-            "absolute left-0 right-0 border-t",
-            index % 4 === 0
-              ? selected
-                ? "border-[#d6e0ea]"
-                : "border-[#dfe8f2]"
-              : selected
-                ? "border-[#e8eef5]"
-                : "border-[#eef4f9]",
-          )}
-          style={{ top: segment.top + index * quarterSlotHeight }}
-        />
-      ));
+      return Array.from({ length: segmentCount + 1 }).map((_, index) => {
+        const lineInterval = index % 4 === 0 ? "hour" : index % 2 === 0 ? "half-hour" : "quarter-hour";
+        return (
+          <div
+            key={`${prefix}-line-${segment.key}-${index}`}
+            data-schedule-time-grid-line={selected ? "selected" : "default"}
+            data-schedule-time-grid-interval={lineInterval}
+            className={cn(
+              "absolute left-0 right-0 border-t",
+              lineInterval === "hour"
+                ? selected
+                  ? "border-[#d6e0ea]"
+                  : "border-[#dfe8f2]"
+                : lineInterval === "half-hour"
+                  ? selected
+                    ? "border-[#dfe8f2]"
+                    : "border-[#e8eef5]"
+                  : selected
+                    ? "border-[#e8eef5]/50"
+                    : "border-[#eef4f9]/50",
+            )}
+            style={{ top: segment.top + index * quarterSlotHeight }}
+          />
+        );
+      });
     });
   }
 
@@ -665,9 +675,13 @@ export function DailyScheduleGrid({
                   key={laneColumn.key}
                   name={laneColumn.name}
                   staffKey={primaryStaff?.key ?? laneColumn.key}
+                  avatarIdentity={`${shopId}:${primaryStaff?.key ?? laneColumn.key}`}
                   chipColorIndex={primaryStaff?.chipColorIndex}
                   profileImageUrl={primaryStaff?.profileImageUrl}
+                  profileImageUrls={primaryStaff?.profileImageUrls}
                   profileImageAssetId={primaryStaff?.profileImageAssetIds?.[0]}
+                  profileImageAssetIds={primaryStaff?.profileImageAssetIds}
+                  profileImageFallbackKey={primaryStaff?.profileImageFallbackKey}
                   startLabel={primaryStaff ? formatHourLabel(primaryStaff.start) : undefined}
                   endLabel={primaryStaff ? formatHourLabel(primaryStaff.end) : undefined}
                   bookingCount={laneBookings.length}
@@ -717,8 +731,8 @@ export function DailyScheduleGrid({
               {scheduleLaneColumns.length === 0 ? (
                 <section className="flex min-h-[360px] flex-1 items-center justify-center rounded-b-[8px] bg-white">
                   <div className="rounded-[8px] border border-dashed border-[#cbd5e1] bg-white px-5 py-4 text-center">
-                    <p className="text-[14px] font-medium text-[#111827]">오늘 근무자가 없습니다.</p>
-                    <p className="mt-1 text-[13px] text-[#64748b]">근무표를 확인하거나 직원을 추가해 주세요.</p>
+                    <p className="text-[14px] font-medium leading-5 text-[#111827]">오늘 근무자가 없습니다.</p>
+                    <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">근무표를 확인하거나 직원을 추가해 주세요.</p>
                   </div>
                 </section>
               ) : null}
@@ -743,7 +757,7 @@ export function DailyScheduleGrid({
                     onDragOver={handleColumnDragOver}
                     onDrop={(event) => handleColumnDrop(event, laneColumn)}
                     className={cn(
-                      "min-w-[240px] cursor-pointer border border-l-0 border-t-0 border-[#dfe8f2] bg-white p-0 transition",
+                      "min-w-[240px] cursor-pointer border border-l-0 border-t-0 border-[#e8eef5] bg-white p-0 transition",
                       selectedLane && "border-[#d6e0ea] bg-white",
                       draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
                     )}
@@ -782,7 +796,7 @@ export function DailyScheduleGrid({
                         />
                       ))}
                       {laneBookings.length === 0 ? (
-                        <p className="absolute left-[5%] top-5 z-10 text-[12px] text-[#a0acb9]">예약 없음</p>
+                        <p className="absolute left-[5%] top-5 z-10 text-[12px] font-medium leading-[18px] text-[#a0acb9]">예약 없음</p>
                       ) : (
                         laneBookings.map((booking) => {
                           const bookingStaff = scheduleStaff.find((staffMember) => staffMember.key === booking.staffKey);
@@ -825,7 +839,7 @@ export function DailyScheduleGrid({
                                   onSelectStaff(booking.staffKey || firstStaffKey);
                                 }}
                                 className={cn(
-                                  "absolute z-20 box-border flex min-h-11 items-center justify-start overflow-hidden rounded-[9px] px-2.5 py-1.5 text-left text-[12px] font-medium leading-[14px] text-[#334155]",
+                                  "absolute z-20 box-border flex min-h-11 items-center justify-start overflow-hidden rounded-[9px] px-2.5 py-1.5 text-left text-[12px] font-medium leading-[18px] text-[#334155]",
                                   getBookingCardToneClass(cardTone),
                                   selected && "!border-[#bcd5fa] ring-1 ring-[#bcd5fa]",
                                 )}
@@ -848,8 +862,8 @@ export function DailyScheduleGrid({
                                     <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: bookingIdentityTone.color }} />
                                   </span>
                                   <span className="flex min-w-0 flex-col">
-                                  <span className="text-[10px] leading-[12px] text-[#64748b]">예약</span>
-                                  <span className="leading-[14px]">{booking.scheduledTimeLabel ?? timeLabel}</span>
+                                  <span className="text-[12px] leading-[18px] text-[#64748b]">예약</span>
+                                  <span className="leading-[18px]">{booking.scheduledTimeLabel ?? timeLabel}</span>
                                   </span>
                                 </span>
                               </button>
@@ -897,12 +911,12 @@ export function DailyScheduleGrid({
                                   className={cn(
                                     "grid w-full min-w-0 content-start items-center gap-x-1.5",
                                     microCard ? "grid-cols-[minmax(0,1fr)_max-content]" : "grid-cols-[minmax(0,1fr)_auto]",
-                                    microCard ? "grid-rows-[16px]" : showRequestNote ? "grid-rows-[18px_17px_18px] gap-y-0.5" : "grid-rows-[18px_17px] gap-y-0.5",
+                                    microCard ? "grid-rows-[20px]" : showRequestNote ? "grid-rows-[20px_18px_18px] gap-y-0.5" : "grid-rows-[20px_18px] gap-y-0.5",
                                   )}
                                 >
                                   <p
                                     className={cn(
-                                      "min-w-0 truncate text-[14px] font-semibold leading-[18px]",
+                                      "min-w-0 truncate text-[14px] font-medium leading-5",
                                       timedStatus === "완료" ? "text-[#64748b]" : "text-[#263445]",
                                     )}
                                   >
@@ -919,23 +933,23 @@ export function DailyScheduleGrid({
                                     {microCard ? booking.service : displayTimeLabel}
                                   </span>
                                   {!microCard ? (
-                                    <div className="col-span-2 flex min-w-0 items-center gap-2 leading-[17px]">
+                                    <div className="col-span-2 flex min-w-0 items-center gap-2 leading-[18px]">
                                       <span
                                         className={cn(
-                                          "shrink-0 text-[11px] font-medium leading-[17px]",
+                                          "shrink-0 text-[12px] font-medium leading-[18px]",
                                           statusPillClass,
                                         )}
                                       >
                                         {statusLabel}
                                       </span>
                                       {pendingOverlapLabel ? (
-                                        <span className="shrink-0 text-[11px] font-medium leading-[17px] text-[#a46710]">
+                                        <span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#a46710]">
                                           {pendingOverlapLabel}
                                         </span>
                                       ) : null}
                                       <span
                                         data-booking-staff-identity={booking.staffKey}
-                                        className="inline-flex min-w-0 shrink items-center gap-1 rounded-[6px] border px-1.5 text-[11px] font-medium leading-[17px]"
+                                        className="inline-flex min-w-0 shrink items-center gap-1 rounded-[6px] border px-1.5 text-[12px] font-medium leading-[18px]"
                                         style={{
                                           backgroundColor: bookingIdentityTone.background,
                                           borderColor: bookingIdentityTone.border,
@@ -950,7 +964,7 @@ export function DailyScheduleGrid({
                                         />
                                         <span className="truncate">{bookingStaff?.name ?? "직원"}</span>
                                       </span>
-                                      <p className="min-w-0 truncate text-[12px] leading-[17px] text-[#56687b]">
+                                      <p className="min-w-0 truncate text-[12px] font-medium leading-[18px] text-[#56687b]">
                                         {booking.service}
                                       </p>
                                     </div>

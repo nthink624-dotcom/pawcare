@@ -29,20 +29,20 @@ function hours(value: number) {
 
 function MetricCard({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-[10px] border border-[#e5e9ef] bg-white px-4 py-3">
-      <p className="text-[12px] font-medium text-[#7b8798]">{label}</p>
-      <p className="mt-1 text-[22px] font-bold tracking-[-0.03em] text-[#111827]">{value}</p>
-      <p className="mt-0.5 text-[12px] text-[#94a3b8]">{sub}</p>
+    <div className="min-w-0 bg-white px-4 py-4">
+      <p className="text-[12px] font-medium leading-[18px] text-[#64748b]">{label}</p>
+      <p className="mt-1 text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827]">{value}</p>
+      <p className="mt-0.5 text-[13px] font-normal leading-5 text-[#64748b]">{sub}</p>
     </div>
   );
 }
 
 function EmptyState() {
   return (
-    <div className="flex min-h-[360px] flex-col items-center justify-center rounded-[10px] border border-dashed border-[#d8dee8] bg-white text-center">
+    <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
       <Clock3 className="h-8 w-8 text-[#9aa7b8]" strokeWidth={1.6} />
-      <p className="mt-3 text-[16px] font-semibold text-[#172033]">분석할 완료 기록이 아직 없습니다.</p>
-      <p className="mt-1 text-[13px] leading-5 text-[#64748b]">미용 시작·완료 시간을 기록하면 시간당 매출과 가격 조정 구간이 자동으로 쌓입니다.</p>
+      <p className="mt-3 text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#172033]">분석할 완료 기록이 아직 없습니다.</p>
+      <p className="mt-1 text-[14px] font-normal leading-5 text-[#64748b]">미용 시작·완료 시간을 기록하면 시간당 매출과 가격 조정 구간이 자동으로 쌓입니다.</p>
     </div>
   );
 }
@@ -77,14 +77,13 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
 
   return (
     <div className="h-full min-h-0 min-w-0 overflow-auto">
-      <div className="flex min-w-0 flex-col gap-3">
-        <header className="flex min-w-0 flex-col items-stretch justify-between gap-3 rounded-[10px] border border-[#e2e7ee] bg-white px-3 py-3 sm:flex-row sm:items-center sm:px-4">
+      <div data-profitability-main-surface className="min-w-0 overflow-hidden rounded-[14px] border border-[#e8edf3] bg-white">
+        <header className="flex min-w-0 flex-col items-stretch justify-between gap-3 border-b border-[#e8edf3] px-3 py-3 sm:flex-row sm:items-center sm:px-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-[#1f6f5f]" strokeWidth={1.9} />
-              <h1 className="text-[18px] font-bold tracking-[-0.02em] text-[#111827]">시간당 수익 분석</h1>
+              <h1 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">시간당 수익 분석</h1>
             </div>
-            <p className="mt-1 text-[12px] text-[#718096]">실제 미용시간과 받은 금액을 연결해 지연 구간과 가격 조정 후보를 찾습니다.</p>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
             <div className="flex min-w-0 flex-1 flex-wrap rounded-[8px] border border-[#dfe5ec] bg-[#f8fafc] p-0.5 sm:flex-none">
@@ -98,7 +97,7 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
                     setRange(option.value);
                   }}
                   className={cn(
-                    "min-h-11 min-w-[88px] flex-1 rounded-[7px] px-3 text-[14px] font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] sm:flex-none",
+                    "min-h-11 min-w-[88px] flex-1 rounded-[7px] px-3 text-[14px] font-medium leading-5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] sm:flex-none",
                     range === option.value ? "bg-white text-[#111827] shadow-sm" : "text-[#718096] hover:text-[#334155]",
                   )}
                 >
@@ -123,16 +122,16 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
         </header>
 
         {error ? (
-          <div className="rounded-[10px] border border-[#efd9d9] bg-white px-4 py-3 text-[13px] font-medium text-[#9f3a48]">{error}</div>
+          <div data-profitability-state="error" className="border-b border-[#e8edf3] bg-[#fffafa] px-4 py-3 text-[13px] font-medium leading-5 text-[#9f3a48]">{error}</div>
         ) : null}
 
         {loading && !payload ? (
-          <div className="flex min-h-[420px] items-center justify-center rounded-[10px] border border-[#e5e9ef] bg-white text-[13px] text-[#64748b]">분석 데이터를 계산하고 있습니다.</div>
+          <div data-profitability-state="loading" className="flex min-h-[240px] items-center justify-center px-4 py-12 text-[14px] font-normal leading-5 text-[#64748b]">분석 데이터를 계산하고 있습니다.</div>
         ) : payload && payload.summary.completedCount === 0 ? (
           <EmptyState />
         ) : payload ? (
           <>
-            <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <section data-profitability-kpi-strip className="grid grid-cols-1 gap-px border-b border-[#e8edf3] bg-[#e8edf3] sm:grid-cols-2 xl:grid-cols-5">
               <MetricCard label="실수령 매출" value={won(payload.summary.netRevenue)} sub={`할인 전 ${won(payload.summary.grossRevenue)}`} />
               <MetricCard label="시간당 매출" value={won(payload.summary.hourlyRevenue)} sub={`실제 작업 ${hours(payload.summary.actualWorkMinutes)}`} />
               <MetricCard label="평균 예상 차이" value={minutes(payload.summary.averageDelayMinutes)} sub="실제시간 - 예상시간" />
@@ -140,74 +139,41 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
               <MetricCard label="할인 영향" value={`-${won(payload.summary.discountAmount)}`} sub="할인 전후 수익에 반영" />
             </section>
 
-            <section className="grid gap-3 xl:grid-cols-[1.25fr_1fr]">
-              <div className="rounded-[10px] border border-[#e2e7ee] bg-white p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-[15px] font-bold text-[#172033]">지금 확인할 내용</h2>
-                  <span className="text-[11px] font-medium text-[#94a3b8]">최소 {payload.dataQuality.minimumRecommendationSampleSize}건 기준</span>
-                </div>
-                <div className="space-y-2">
-                  {payload.insights.map((insight) => (
-                    <div key={insight.id} className="rounded-[9px] border border-[#e7ebf0] px-3.5 py-3">
-                      <div className="flex items-start gap-2.5">
-                        {insight.tone === "warning" ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#b7791f]" /> : <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-[#2f7d6d]" />}
-                        <div>
-                          <p className="text-[13px] font-bold leading-5 text-[#1f2937]">{insight.title}</p>
-                          <p className="mt-0.5 text-[12px] leading-5 text-[#64748b]">{insight.description}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <section data-profitability-section="insights" className="border-b border-[#e8edf3] px-4 py-5">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#172033]">지금 확인할 내용</h2>
+                <span className="text-[12px] font-medium leading-[18px] text-[#64748b]">최소 {payload.dataQuality.minimumRecommendationSampleSize}건 기준</span>
               </div>
-
-              <div className="rounded-[10px] border border-[#e2e7ee] bg-white p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <Users className="h-4 w-4 text-[#607080]" />
-                  <h2 className="text-[15px] font-bold text-[#172033]">직원별 실제시간과 매출</h2>
-                </div>
-                <div className="min-w-0 max-w-full overflow-x-auto rounded-[8px] border border-[#e7ebf0]" style={{ contain: "inline-size" }}>
-                  <table className="min-w-[520px] w-full table-fixed text-left">
-                    <thead className="bg-[#fafbfc] text-[11px] font-semibold text-[#718096]">
-                      <tr><th className="px-3 py-2">담당</th><th className="px-3 py-2 text-right">작업시간</th><th className="px-3 py-2 text-right">매출</th><th className="px-3 py-2 text-right">시간당</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#eef1f4] text-[12px]">
-                      {payload.staff.map((staff) => (
-                        <tr key={staff.staffId ?? "unassigned"}>
-                          <td className="px-3 py-2.5 font-semibold text-[#253044]">{staff.staffName}<span className="ml-1 font-normal text-[#94a3b8]">{staff.completedCount}건</span></td>
-                          <td className="px-3 py-2.5 text-right text-[#526174]">{hours(staff.actualWorkMinutes)}</td>
-                          <td className="px-3 py-2.5 text-right font-semibold text-[#253044]">{won(staff.netRevenue)}</td>
-                          <td className="px-3 py-2.5 text-right text-[#526174]">{won(staff.hourlyRevenue)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <div className="divide-y divide-[#e8edf3]">
+                {payload.insights.map((insight) => (
+                  <div key={insight.id} className="flex items-start gap-2.5 py-3 first:pt-1 last:pb-0">
+                    {insight.tone === "warning" ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#b7791f]" /> : <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-[#2f7d6d]" />}
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-medium leading-5 text-[#1f2937]">{insight.title}</p>
+                      <p className="mt-0.5 text-[13px] font-normal leading-5 text-[#64748b]">{insight.description}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
 
-            <section className="rounded-[10px] border border-[#e2e7ee] bg-white p-4">
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-                <div><h2 className="text-[15px] font-bold text-[#172033]">서비스별 수익성과 지연</h2><p className="mt-0.5 text-[11px] text-[#94a3b8]">시간당 매출이 낮은 순서입니다.</p></div>
-                <span className="text-[11px] text-[#94a3b8]">분석 기간 {payload.from} ~ {payload.to}</span>
+            <section data-profitability-section="staff" className="border-b border-[#e8edf3] px-4 py-5">
+              <div className="mb-3 flex items-center gap-2">
+                <Users className="h-4 w-4 text-[#607080]" />
+                <h2 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#172033]">직원별 실제시간과 매출</h2>
               </div>
-              <div className="min-w-0 max-w-full overflow-x-auto rounded-[8px] border border-[#e7ebf0]" style={{ contain: "inline-size" }}>
-                <table className="min-w-[900px] w-full text-left">
-                  <thead className="bg-[#fafbfc] text-[11px] font-semibold text-[#718096]">
-                    <tr><th className="px-3 py-2">서비스</th><th className="px-3 py-2 text-right">완료</th><th className="px-3 py-2 text-right">예상</th><th className="px-3 py-2 text-right">실제</th><th className="px-3 py-2 text-right">차이</th><th className="px-3 py-2 text-right">지연 비율</th><th className="px-3 py-2 text-right">실수령 매출</th><th className="px-3 py-2 text-right">시간당</th><th className="px-3 py-2 text-right">기준 대비</th></tr>
+              <div className="min-w-0 max-w-full overflow-x-auto border-t border-[#e8edf3]" style={{ contain: "inline-size" }}>
+                <table className="min-w-[520px] w-full table-fixed text-left">
+                  <thead className="bg-[#fafbfc] text-[14px] font-medium leading-5 text-[#526174]">
+                    <tr><th className="px-3 py-2 font-medium">담당</th><th className="px-3 py-2 text-right font-medium">작업시간</th><th className="px-3 py-2 text-right font-medium">매출</th><th className="px-3 py-2 text-right font-medium">시간당</th></tr>
                   </thead>
-                  <tbody className="divide-y divide-[#eef1f4] text-[12px]">
-                    {payload.services.map((service) => (
-                      <tr key={service.serviceId}>
-                        <td className="px-3 py-2.5 font-semibold text-[#253044]">{service.serviceName}</td>
-                        <td className="px-3 py-2.5 text-right text-[#526174]">{service.completedCount}건</td>
-                        <td className="px-3 py-2.5 text-right text-[#526174]">{service.averageExpectedMinutes ?? "-"}분</td>
-                        <td className="px-3 py-2.5 text-right text-[#526174]">{service.averageActualMinutes ?? "-"}분</td>
-                        <td className={cn("px-3 py-2.5 text-right font-semibold", (service.averageDelayMinutes ?? 0) >= 10 ? "text-[#a15c1b]" : "text-[#526174]")}>{minutes(service.averageDelayMinutes)}</td>
-                        <td className="px-3 py-2.5 text-right text-[#526174]">{service.delayedRate === null ? "-" : `${service.delayedRate}%`}</td>
-                        <td className="px-3 py-2.5 text-right font-semibold text-[#253044]">{won(service.netRevenue)}</td>
-                        <td className="px-3 py-2.5 text-right font-semibold text-[#253044]">{won(service.hourlyRevenue)}</td>
-                        <td className={cn("px-3 py-2.5 text-right font-semibold", (service.benchmarkGapPercent ?? 0) < -10 ? "text-[#a04455]" : "text-[#2f7d6d]")}>{service.benchmarkGapPercent === null ? "-" : `${service.benchmarkGapPercent > 0 ? "+" : ""}${service.benchmarkGapPercent}%`}</td>
+                  <tbody className="divide-y divide-[#eef1f4] text-[14px] font-normal leading-5 tabular-nums">
+                    {payload.staff.map((staff) => (
+                      <tr key={staff.staffId ?? "unassigned"}>
+                        <td className="px-3 py-2.5 font-medium text-[#253044]">{staff.staffName}<span className="ml-1 text-[13px] font-normal text-[#64748b]">{staff.completedCount}건</span></td>
+                        <td className="px-3 py-2.5 text-right text-[#526174]">{hours(staff.actualWorkMinutes)}</td>
+                        <td className="px-3 py-2.5 text-right font-medium text-[#253044]">{won(staff.netRevenue)}</td>
+                        <td className="px-3 py-2.5 text-right text-[#526174]">{won(staff.hourlyRevenue)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -215,16 +181,48 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
               </div>
             </section>
 
-            <section className="rounded-[10px] border border-[#e2e7ee] bg-white p-4">
-              <div className="mb-3"><h2 className="text-[15px] font-bold text-[#172033]">가격을 검토할 구간</h2><p className="mt-0.5 text-[11px] text-[#94a3b8]">평균 10분 이상 지연되고 시간당 매출이 매장 기준보다 10% 이상 낮은 품종·체중·서비스 조합입니다.</p></div>
+            <section data-profitability-section="services" className="border-b border-[#e8edf3] px-4 py-5">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                <h2 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#172033]">서비스별 수익성과 지연</h2>
+                <span className="text-[12px] font-medium leading-[18px] text-[#64748b]">분석 기간 {payload.from} ~ {payload.to}</span>
+              </div>
+              <div className="min-w-0 max-w-full overflow-x-auto border-t border-[#e8edf3]" style={{ contain: "inline-size" }}>
+                <table className="min-w-[900px] w-full text-left">
+                  <thead className="bg-[#fafbfc] text-[14px] font-medium leading-5 text-[#526174]">
+                    <tr><th className="px-3 py-2 font-medium">서비스</th><th className="px-3 py-2 text-right font-medium">완료</th><th className="px-3 py-2 text-right font-medium">예상</th><th className="px-3 py-2 text-right font-medium">실제</th><th className="px-3 py-2 text-right font-medium">차이</th><th className="px-3 py-2 text-right font-medium">지연 비율</th><th className="px-3 py-2 text-right font-medium">실수령 매출</th><th className="px-3 py-2 text-right font-medium">시간당</th><th className="px-3 py-2 text-right font-medium">기준 대비</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#eef1f4] text-[14px] font-normal leading-5 tabular-nums">
+                    {payload.services.map((service) => (
+                      <tr key={service.serviceId}>
+                        <td className="px-3 py-2.5 font-medium text-[#253044]">{service.serviceName}</td>
+                        <td className="px-3 py-2.5 text-right text-[#526174]">{service.completedCount}건</td>
+                        <td className="px-3 py-2.5 text-right text-[#526174]">{service.averageExpectedMinutes ?? "-"}분</td>
+                        <td className="px-3 py-2.5 text-right text-[#526174]">{service.averageActualMinutes ?? "-"}분</td>
+                        <td className={cn("px-3 py-2.5 text-right font-medium", (service.averageDelayMinutes ?? 0) >= 10 ? "text-[#a15c1b]" : "text-[#526174]")}>{minutes(service.averageDelayMinutes)}</td>
+                        <td className="px-3 py-2.5 text-right text-[#526174]">{service.delayedRate === null ? "-" : `${service.delayedRate}%`}</td>
+                        <td className="px-3 py-2.5 text-right font-medium text-[#253044]">{won(service.netRevenue)}</td>
+                        <td className="px-3 py-2.5 text-right font-medium text-[#253044]">{won(service.hourlyRevenue)}</td>
+                        <td className={cn("px-3 py-2.5 text-right font-medium", (service.benchmarkGapPercent ?? 0) < -10 ? "text-[#a04455]" : "text-[#2f7d6d]")}>{service.benchmarkGapPercent === null ? "-" : `${service.benchmarkGapPercent > 0 ? "+" : ""}${service.benchmarkGapPercent}%`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section data-profitability-section="recommendations" className="px-4 py-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#172033]">가격을 검토할 구간</h2>
+                <span className="text-[12px] font-medium leading-[18px] text-[#64748b]">선정 기준 · 평균 10분 이상 지연 · 시간당 매출 매장 기준 대비 -10% 이하</span>
+              </div>
               {payload.priceRecommendations.length === 0 ? (
-                <div className="rounded-[8px] border border-dashed border-[#dfe5ec] px-4 py-6 text-center text-[12px] text-[#718096]">아직 가격 조정을 권할 만큼 표본이 쌓이지 않았습니다.</div>
+                <div className="border-t border-[#e8edf3] px-2 py-6 text-center text-[14px] font-normal leading-5 text-[#64748b]">아직 가격 조정을 권할 만큼 표본이 쌓이지 않았습니다.</div>
               ) : (
-                <div className="grid gap-2 xl:grid-cols-2">
+                <div className="divide-y divide-[#e8edf3] border-t border-[#e8edf3]">
                   {payload.priceRecommendations.map((item) => (
-                    <div key={item.key} className="flex flex-col items-stretch justify-between gap-4 rounded-[8px] border border-[#e7ebf0] px-3.5 py-3 sm:flex-row sm:items-center">
-                      <div className="min-w-0"><p className="whitespace-normal break-words text-[13px] font-bold text-[#253044] sm:truncate">{item.segmentLabel}</p><p className="mt-1 text-[11px] text-[#718096]">표본 {item.sampleCount}건 · 평균 {item.averageDelayMinutes}분 지연 · 시간당 기준 대비 {item.benchmarkGapPercent}%</p></div>
-                      <div className="shrink-0 text-left sm:text-right"><p className="text-[11px] text-[#94a3b8]">현재 평균 → 권장</p><p className="mt-0.5 text-[13px] font-bold text-[#1f6f5f]">{won(item.currentAveragePrice)} → {won(item.recommendedPrice)}</p></div>
+                    <div key={item.key} className="flex flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center">
+                      <div className="min-w-0"><p className="whitespace-normal break-words text-[14px] font-medium leading-5 text-[#253044] [overflow-wrap:anywhere]">{item.segmentLabel}</p><p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">표본 {item.sampleCount}건 · 평균 {item.averageDelayMinutes}분 지연 · 시간당 기준 대비 {item.benchmarkGapPercent}%</p></div>
+                      <div className="shrink-0 text-left sm:text-right"><p className="text-[12px] font-medium leading-[18px] text-[#64748b]">현재 평균 → 권장</p><p className="mt-0.5 text-[14px] font-semibold leading-5 text-[#1f6f5f]">{won(item.currentAveragePrice)} → {won(item.recommendedPrice)}</p></div>
                     </div>
                   ))}
                 </div>

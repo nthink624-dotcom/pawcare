@@ -68,13 +68,13 @@ test("owner photo import provides file selection, preview, retry, and direct edi
   assert.doesNotMatch(photo, /여러 장이면 겹치는 부분이 있어도 자동으로 정리합니다/);
   assert.match(photo, /PriceGuideOnboardingChoice/);
   assert.match(choice, /요금표 등록/);
-  assert.match(choice, /min-h-24/);
+  assert.match(choice, /min-h-11/);
   assert.match(choice, /border-\[#cfd9e5\] bg-white/);
   assert.match(choice, /focus-visible:ring-2 focus-visible:ring-\[#2563eb\]/);
   assert.match(choice, /사진으로 등록/);
-  assert.match(choice, /기존 요금표 사진을 올려요\./);
   assert.match(choice, /직접 등록/);
-  assert.match(choice, /서비스와 요금을 직접 입력해요\./);
+  assert.match(choice, /onClick=\{\(\) => onSelect\(mode\)\}/);
+  assert.doesNotMatch(choice, /요금표 미등록|기존 요금표 사진을 올려요\.|서비스와 요금을 직접 입력해요\./);
   assert.doesNotMatch(choice, /AI/);
   assert.match(fixture, /schemaVersion:\s*2/);
   assert.match(fixture, /const weightCutoffs = \[2, 4, 6, 8\] as const/);

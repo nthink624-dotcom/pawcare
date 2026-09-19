@@ -730,7 +730,7 @@ function SettingValueControl({
           event.stopPropagation();
           onOpenAddressSearch();
         }}
-        className="flex min-h-10 w-full min-w-[360px] max-w-[620px] items-center justify-end gap-3 rounded-[8px] border border-transparent bg-transparent px-3 py-2 text-right text-[15px] font-medium text-[#111827] transition hover:border-[#dbe2ea] hover:bg-white focus:border-[#1f6b5b] focus:bg-white focus:outline-none"
+        className="flex min-h-11 w-full min-w-[360px] max-w-[620px] items-center justify-end gap-3 rounded-[8px] border border-transparent bg-transparent px-3 py-2 text-right text-[16px] font-medium leading-6 text-[#111827] transition hover:border-[#dbe2ea] hover:bg-white focus:border-[#1f6b5b] focus:bg-white focus:outline-none"
       >
         <span className="line-clamp-2 min-w-0 break-words">{String(row.value) || "주소 검색으로 매장 주소를 선택해 주세요"}</span>
         <span className="shrink-0 text-[13px] font-semibold text-[#1f6b5b]">주소 검색</span>
@@ -753,7 +753,7 @@ function SettingValueControl({
             type="time"
             value={open}
             onChange={(event) => updateTime({ open: event.target.value })}
-            className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#111827] outline-none transition focus:border-[#1f6b5b] focus:ring-2 focus:ring-[#1f6b5b]/10"
+            className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none transition focus:border-[#1f6b5b] focus:ring-2 focus:ring-[#1f6b5b]/10"
           />
         </label>
         <label className="min-w-[132px]">
@@ -762,7 +762,7 @@ function SettingValueControl({
             type="time"
             value={close}
             onChange={(event) => updateTime({ close: event.target.value })}
-            className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#111827] outline-none transition focus:border-[#1f6b5b] focus:ring-2 focus:ring-[#1f6b5b]/10"
+            className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none transition focus:border-[#1f6b5b] focus:ring-2 focus:ring-[#1f6b5b]/10"
           />
         </label>
       </div>
@@ -785,7 +785,7 @@ function SettingValueControl({
                 onChange(formatClosedDayValue(weekdayClosedOptions.filter((item) => nextDays.includes(item))));
               }}
               className={cn(
-                "inline-flex h-10 min-w-12 items-center justify-center rounded-[8px] border px-3 text-[14px] font-medium transition",
+                "inline-flex h-11 min-w-12 items-center justify-center rounded-[8px] border px-3 text-[14px] font-medium leading-5 transition",
                 active
                   ? "border-[#a04455] bg-[#fff7f8] text-[#8f2438]"
                   : "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]",
@@ -806,11 +806,11 @@ function SettingValueControl({
   if (row.control === "stepper") {
     const value = Number(row.value);
     return (
-      <div className="inline-flex h-10 items-center rounded-[8px] border border-[#dbe2ea] bg-white" onClick={(event) => event.stopPropagation()}>
+      <div className="inline-flex h-11 items-center rounded-[8px] border border-[#dbe2ea] bg-white" onClick={(event) => event.stopPropagation()}>
         <button
           type="button"
           onClick={() => onChange(Math.max(0, value - 1))}
-          className="h-full w-9 text-[18px] font-medium text-[#64748b] hover:bg-[#f8fafc]"
+          className="h-full w-11 text-[18px] font-medium text-[#64748b] hover:bg-[#f8fafc]"
         >
           -
         </button>
@@ -821,7 +821,7 @@ function SettingValueControl({
         <button
           type="button"
           onClick={() => onChange(value + 1)}
-          className="h-full w-9 text-[18px] font-medium text-[#64748b] hover:bg-[#f8fafc]"
+          className="h-full w-11 text-[18px] font-medium text-[#64748b] hover:bg-[#f8fafc]"
         >
           +
         </button>
@@ -837,12 +837,12 @@ function SettingValueControl({
         onChange={(event) => onChange(event.target.value)}
         onBlur={(event) => onCommit?.(event.target.value)}
         onClick={(event) => event.stopPropagation()}
-        className="h-10 w-full min-w-[280px] max-w-[520px] rounded-[8px] border border-transparent bg-transparent px-3 text-right text-[15px] font-medium text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-white focus:border-[#1f6b5b] focus:bg-white"
+        className="h-11 w-full min-w-[280px] max-w-[520px] rounded-[8px] border border-transparent bg-transparent px-3 text-right text-[16px] font-medium leading-6 text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-white focus:border-[#1f6b5b] focus:bg-white"
       />
     );
   }
 
-  return <p className="text-[15px] font-medium text-[#111827]">{String(row.value)}</p>;
+  return <p className="text-[16px] font-medium leading-6 text-[#111827]">{String(row.value)}</p>;
 }
 
 export default function SettingsManagementScreen({
@@ -1965,7 +1965,10 @@ export default function SettingsManagementScreen({
   }
 
   return (
-    <div className={initialSetupMode ? "min-h-0 overflow-visible" : "h-full min-h-0 overflow-y-auto"}>
+    <div
+      className={initialSetupMode ? "min-h-0 overflow-visible" : "h-full min-h-0 overflow-y-auto"}
+      data-settings-management-active-tab={activeTab}
+    >
       {saveCompleteVisible ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none" aria-live="polite">
           <div className="flex min-w-[252px] items-center justify-center gap-3 rounded-[12px] border border-[#dbe2ea] bg-white px-6 py-5 text-[18px] font-semibold text-[#111827] shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
@@ -1991,7 +1994,7 @@ export default function SettingsManagementScreen({
                     activeTab === tab.key ? "bg-[#f1f7f4] text-[#2f7866]" : "text-[#5f5851] hover:bg-[#fbfaf8]",
                   )}
                 >
-                  <span className="text-[15px] font-medium">{tab.label}</span>
+                  <span className="text-[16px] font-medium leading-6">{tab.label}</span>
                   <span className="text-[12px]">{activeTab === tab.key ? "선택됨" : ""}</span>
                 </button>
               ))}
@@ -2130,7 +2133,7 @@ export default function SettingsManagementScreen({
                     )}
                   >
                     <div className="min-w-0 px-1">
-                      <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#17211f]">{row.label}</p>
+                      <p className="text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#17211f]">{row.label}</p>
                     </div>
                     <div className="shrink-0 text-right">
                       <SettingValueControl

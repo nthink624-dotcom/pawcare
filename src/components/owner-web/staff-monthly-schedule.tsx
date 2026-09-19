@@ -42,7 +42,7 @@ export function StaffMonthlySchedule({
       <div className="flex h-full min-h-0 max-w-full flex-col overflow-hidden bg-white">
         <div className="min-h-0 max-w-full flex-1 overflow-hidden">
           <div className="flex h-full w-full min-w-[980px] flex-col">
-            <div className="grid min-w-0 shrink-0 grid-cols-7 border-l border-t border-[#e1e1dd] bg-[#f7f7f4] text-[14px] leading-none text-[#6f747a]">
+            <div className="grid min-w-0 shrink-0 grid-cols-7 border-l border-t border-[#e1e1dd] bg-[#f7f7f4] text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#6f747a]">
               {monthlyWeekdayColumns.map((day, index) => (
                 <div key={day.key} className={cn("flex h-[34px] items-center justify-center border-b border-r border-[#e1e1dd] pt-px", index === 0 && "border-l-0")}>
                   {day.label}
@@ -137,13 +137,13 @@ function MonthlyDayCell({
       <div className="mb-[3px] flex h-5 shrink-0 items-center justify-between gap-2">
         <span
           className={cn(
-            "inline-flex h-6 min-w-6 items-center justify-center rounded-[7px] px-1.5 text-[15px] font-normal",
+            "inline-flex h-6 min-w-6 items-center justify-center rounded-[7px] px-1.5 text-[14px] font-normal leading-5",
             day.isToday ? "bg-[#30312f] text-white" : day.isCurrentMonth ? "text-[#202124]" : "text-[#9a9a94]",
           )}
         >
           {day.dayNumber}
         </span>
-        {day.isToday ? <span className="text-[12px] text-[#6f747a]">오늘</span> : null}
+        {day.isToday ? <span className="text-[12px] font-medium leading-[18px] text-[#6f747a]">오늘</span> : null}
       </div>
       <div className="min-h-0 min-w-0 flex-1 space-y-[3px] overflow-y-auto overscroll-contain py-1 pr-1 [scrollbar-width:thin]">
         {workingCells.map(({ staffMember, cell }) => {
@@ -157,15 +157,15 @@ function MonthlyDayCell({
                 onOpenScheduleEditor(staffMember, day);
               }}
               className={cn(
-                "pm-wrap-indicator flex h-[21px] w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[6px] border bg-white px-[7px] text-left text-[12px] leading-none transition hover:bg-[#f7f7f4]",
+                "pm-wrap-indicator flex h-[21px] w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[6px] border bg-white px-[7px] text-left !text-[12px] !font-medium !leading-[18px] transition hover:bg-[#f7f7f4]",
                 getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
               )}
               style={{ "--pm-wrap-indicator-color": staffTone.selectedBackground } as CSSProperties}
             >
-              <span className="inline-flex min-w-0 items-center truncate font-normal leading-none" style={{ color: staffTone.text }}>
+              <span className="inline-flex min-w-0 items-center truncate text-[12px] font-medium leading-[18px]" style={{ color: staffTone.text }}>
                 {staffMember.name}
               </span>
-              <span className="inline-flex shrink-0 items-center font-normal leading-none tabular-nums text-[#6f747a]">{cell.label}</span>
+              <span className="inline-flex shrink-0 items-center text-[12px] font-medium leading-[18px] tabular-nums text-[#6f747a]">{cell.label}</span>
             </button>
           );
         })}
@@ -197,12 +197,12 @@ function MonthlyDayDetailModal({
     <StaffModal title={`${formatShortDate(day.date)} ${day.label}`} onClose={onClose}>
       <div className="mb-4 grid grid-cols-2 gap-2">
         <div className="rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2">
-          <p className="text-[13px] text-[#64748b]">근무</p>
-          <p className="mt-0.5 text-[18px] font-semibold text-[#111827]">{workingCount}명</p>
+          <p className="text-[13px] font-normal leading-5 text-[#64748b]">근무</p>
+          <p className="mt-0.5 text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">{workingCount}명</p>
         </div>
         <div className="rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2">
-          <p className="text-[13px] text-[#64748b]">휴무/연차</p>
-          <p className="mt-0.5 text-[18px] font-semibold text-[#111827]">{leaveCount}명</p>
+          <p className="text-[13px] font-normal leading-5 text-[#64748b]">휴무/연차</p>
+          <p className="mt-0.5 text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">{leaveCount}명</p>
         </div>
       </div>
       <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
@@ -240,13 +240,13 @@ function MonthlyDayDetailRow({
       <span className="flex min-w-0 items-center gap-2">
         <span className={getDotIndicatorClass(tone)} />
         <span className="min-w-0">
-          <span className="block truncate text-[16px] font-medium text-[#111827]" style={{ color: staffTone.text }}>
+          <span className="block truncate text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#111827]" style={{ color: staffTone.text }}>
             {staffMember.name}
           </span>
-          <span className="mt-0.5 block truncate text-[13px] text-[#64748b]">{staffMember.position || staffMember.role || "직원"}</span>
+          <span className="mt-0.5 block truncate text-[13px] font-normal leading-5 text-[#64748b]">{staffMember.position || staffMember.role || "직원"}</span>
         </span>
       </span>
-      <span className="shrink-0 rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[14px] text-[#334155]">{formatDailyCellStatus(cell)}</span>
+      <span className="shrink-0 rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] font-medium leading-[18px] text-[#334155]">{formatDailyCellStatus(cell)}</span>
     </button>
   );
 }

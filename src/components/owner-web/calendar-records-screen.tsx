@@ -854,7 +854,7 @@ export default function CalendarRecordsScreen({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="w-full bg-transparent text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
+            className="w-full bg-transparent text-[16px] font-normal leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8]"
               placeholder="반려동물명, 보호자명, 메모 검색"
             />
           </label>
@@ -863,7 +863,7 @@ export default function CalendarRecordsScreen({
               <select
                 value={staffFilter}
                 onChange={(event) => setStaffFilter(event.target.value)}
-                className="min-h-11 min-w-0 w-full appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[15px] font-normal text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20 sm:min-w-[132px] sm:w-auto"
+            className="min-h-11 min-w-0 w-full appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[16px] font-medium leading-6 text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20 sm:min-w-[132px] sm:w-auto"
               >
                 {staffOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -875,7 +875,7 @@ export default function CalendarRecordsScreen({
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as CalendarStatusFilter)}
-                className="min-h-11 min-w-0 w-full appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[15px] font-normal text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20 sm:min-w-[132px] sm:w-auto"
+            className="min-h-11 min-w-0 w-full appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[16px] font-medium leading-6 text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20 sm:min-w-[132px] sm:w-auto"
               >
                 {statusOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -939,30 +939,30 @@ export default function CalendarRecordsScreen({
                         className={cn(
                           "leading-5",
                           isToday
-                            ? "text-[15px] font-bold text-[#111827]"
+                            ? "text-[14px] font-medium text-[#111827]"
                             : active
-                              ? "text-[13px] font-bold text-[#111827]"
+                              ? "text-[14px] font-medium text-[#111827]"
                               : hasItems
-                                ? "text-[13px] font-medium text-[#111827]"
-                                : "text-[13px] font-medium text-[#111827]",
+                                ? "text-[14px] font-medium text-[#111827]"
+                                : "text-[14px] font-medium text-[#111827]",
                         )}
                       >
                         {Number(date.slice(-2))}
                       </span>
                       {reservationCount > 0 ? (
-                        <span className="pt-0.5 text-[11px] font-medium leading-4 text-[#64748b]">
+                        <span className="pt-0.5 text-[12px] font-medium leading-[18px] text-[#64748b]">
                           {reservationCount}건
                         </span>
                       ) : birthdayCount > 0 ? (
-                        <span className="pt-0.5 text-[11px] font-medium leading-4 text-[#b98121]">
+                        <span className="pt-0.5 text-[12px] font-medium leading-[18px] text-[#8c6e53]">
                           생일 {birthdayCount}
                         </span>
                       ) : workNotice.closed ? (
-                        <span className="rounded-full border border-[#dbe2ea] bg-white/85 px-2 py-0.5 text-[11px] font-normal text-[#64748b]">휴무</span>
+                        <span className="rounded-full border border-[#dbe2ea] bg-white/85 px-2 py-0.5 text-[12px] font-medium leading-[18px] text-[#64748b]">휴무</span>
                       ) : null}
                     </div>
                     {!workNotice.closed && workNotice.label !== "근무 가능" ? (
-                      <span className="line-clamp-1 text-[11px] font-normal leading-4 text-[#94a3b8]">{workNotice.label}</span>
+                      <span className="line-clamp-1 text-[12px] font-normal leading-[18px] text-[#64748b]">{workNotice.label}</span>
                     ) : null}
                     {visibleStatuses.length > 0 ? (
                       <div className="flex flex-wrap items-end gap-1">
@@ -970,7 +970,7 @@ export default function CalendarRecordsScreen({
                           <span
                             key={indicator.key}
                             className={cn(
-                              "inline-flex h-5 min-w-[42px] items-center justify-center rounded-full border px-2 text-[11px] font-medium leading-none",
+                              "inline-flex min-h-6 min-w-[42px] items-center justify-center rounded-full border px-2 text-[12px] font-medium leading-[18px]",
                               getCalendarStatusSummaryClass(indicator.tone),
                             )}
                             title={`${indicator.label} ${statusCounts[indicator.key]}건`}
@@ -979,14 +979,14 @@ export default function CalendarRecordsScreen({
                           </span>
                         ))}
                         {hiddenStatusCount > 0 ? (
-                          <span className="inline-flex h-5 min-w-[34px] items-center justify-center rounded-full border border-[#b9c3cf] bg-[#f8fafc] px-2 text-[11px] font-medium leading-none text-[#475569] shadow-[0_1px_3px_rgba(15,23,42,0.1)]">
+                          <span className="inline-flex min-h-6 min-w-[34px] items-center justify-center rounded-full border border-[#b9c3cf] bg-[#f8fafc] px-2 text-[12px] font-medium leading-[18px] text-[#475569] shadow-[0_1px_3px_rgba(15,23,42,0.1)]">
                             +{hiddenStatusCount}
                           </span>
                         ) : null}
                       </div>
                     ) : birthdayCount > 0 ? (
                       <div className="flex flex-wrap items-end gap-1">
-                        <span className="inline-flex h-5 min-w-[42px] items-center justify-center rounded-full border border-[#d6a34c] bg-[#fff2cf] px-2 text-[11px] font-medium leading-none text-[#7a4d0b] shadow-[0_1px_3px_rgba(185,129,33,0.16)]">
+                        <span className="inline-flex min-h-6 min-w-[42px] items-center justify-center rounded-full border border-[#d6a34c] bg-[#fff2cf] px-2 text-[12px] font-medium leading-[18px] text-[#7a4d0b] shadow-[0_1px_3px_rgba(185,129,33,0.16)]">
                           생일 {birthdayCount}
                         </span>
                       </div>
@@ -1047,7 +1047,7 @@ function GroomingDatePanel({
     <aside data-calendar-month-detail-panel="true" className="min-h-0 min-w-0 overflow-y-auto rounded-b-[14px] bg-white">
       <div className="px-4 py-4">
         <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <h3 className="text-[15px] font-normal text-[#334155]">{formatFullDate(date)}</h3>
+          <h3 className="text-[16px] font-normal leading-6 text-[#334155]">{formatFullDate(date)}</h3>
           <div className="flex shrink-0 items-center gap-2">
             {onAddReservation ? (
               <button
@@ -1156,16 +1156,16 @@ function DayItemSection({
               <button type="button" onClick={() => onSelectItem(item)} className="w-full px-3 py-2 text-left">
                 <div className="flex min-w-0 items-start justify-between gap-3 pl-1">
                   <div className="min-w-0">
-                    <p className="truncate text-[14px] font-semibold text-[#111827]">{item.pet} · {item.customer}</p>
+                    <p className="truncate text-[14px] font-medium leading-5 text-[#111827]">{item.pet} · {item.customer}</p>
                   </div>
-                  {item.time ? <span className={cn("shrink-0 text-[14px] font-normal tabular-nums", getTimeTone(item))}>{item.time}</span> : null}
+                  {item.time ? <span className={cn("shrink-0 text-[14px] font-normal leading-5 tabular-nums", getTimeTone(item))}>{item.time}</span> : null}
                 </div>
                 <div className="mt-1 flex min-w-0 items-end justify-between gap-3 pl-1">
-                  <p className="line-clamp-1 min-w-0 text-[12px] leading-4 text-[#64748b]">
+                  <p className="line-clamp-1 min-w-0 text-[12px] font-medium leading-[18px] text-[#64748b]">
                     {item.service}
                     {item.note ? ` · ${item.note}` : ""}
                   </p>
-                  <span className={cn("shrink-0 bg-white px-0 py-0 text-[14px] font-normal leading-5", getBadgeTone(item))}>
+                  <span className={cn("shrink-0 bg-white px-0 py-0 text-[12px] font-medium leading-[18px]", getBadgeTone(item))}>
                     {item.type === "record" ? "기록" : item.status}
                   </span>
                 </div>
@@ -1383,21 +1383,21 @@ function GroomingRecordSheet({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h3 className="truncate text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{item.pet}</h3>
+                <h3 className="break-keep text-[24px] font-semibold leading-8 tracking-[-0.03em] text-[#111827] [overflow-wrap:anywhere]">{item.pet}</h3>
                 {item.breed ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#d7eadf] bg-[#f2faf6] px-2 py-0.5 text-[15px] text-[#2f7866]">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#d7eadf] bg-[#f2faf6] px-2 py-0.5 text-[14px] font-medium leading-5 text-[#2f7866]">
                     <PawPrint className="h-3.5 w-3.5" />
                     {item.breed}
                   </span>
                 ) : null}
               </div>
-              <p className="mt-1 text-[16px] text-[#334155]">{item.customer}</p>
-              <p className="mt-0.5 text-[15px] text-[#64748b]">{formatRecordPhone(item.phone)}</p>
+              <p className="mt-1 text-[16px] font-normal leading-6 text-[#334155]">{item.customer}</p>
+              <p className="mt-0.5 text-[14px] font-normal leading-5 text-[#64748b]">{formatRecordPhone(item.phone)}</p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
               aria-label="닫기"
             >
               <X className="h-5 w-5" />
@@ -1409,12 +1409,12 @@ function GroomingRecordSheet({
           <section className={cn("rounded-[8px] border bg-white px-3 py-2.5", getWrapIndicatorClass(getStatusAccent(item)))}>
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[15px] leading-5 text-[#64748b]">서비스</p>
-                <p className="truncate text-[20px] font-semibold tracking-[-0.03em] text-[#111827]">{item.service}</p>
+                <p className="text-[14px] font-normal leading-5 text-[#64748b]">서비스</p>
+                <p className="break-keep text-[24px] font-semibold leading-8 tracking-[-0.03em] text-[#111827] [overflow-wrap:anywhere]">{item.service}</p>
               </div>
               <span
                 className={cn(
-                  "shrink-0 rounded-full border px-2 py-0.5 text-[12px]",
+                  "shrink-0 rounded-full border px-2 py-0.5 text-[12px] font-medium leading-[18px]",
                   isUnassignedStaff ? "border-[#f0c27a] bg-[#fffaf0] text-[#9a5b12]" : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
                 )}
               >
@@ -1430,7 +1430,7 @@ function GroomingRecordSheet({
 
           {item.next ? (
             <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
-              <p className="text-[15px] text-[#64748b]">다음 체크</p>
+              <p className="text-[14px] font-medium leading-5 text-[#64748b]">다음 체크</p>
               <p className="mt-2 text-[16px] leading-6 text-[#111827]">{item.next}</p>
             </section>
           ) : null}
@@ -1455,8 +1455,8 @@ function GroomingRecordSheet({
 function RecordMeta({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-[15px] text-[#64748b]">{label}</p>
-      <p className="mt-1 truncate text-[16px] text-[#111827]">{value}</p>
+      <p className="text-[14px] font-medium leading-5 text-[#64748b]">{label}</p>
+      <p className="mt-1 truncate text-[16px] font-normal leading-6 text-[#111827]">{value}</p>
     </div>
   );
 }
@@ -1470,8 +1470,8 @@ function RecordMemoCard({ title, value, empty = false, highlighted = false }: { 
         highlighted ? "border-[#dbe2ea] bg-[#f8fafc]" : "border-[#dbe2ea] bg-white",
       )}
     >
-      <p className="text-[15px] text-[#64748b]">{title}</p>
-      <p className={cn("whitespace-pre-wrap", empty ? "mt-1 text-[15px] leading-5 text-[#64748b]" : "mt-2 text-[16px] leading-6 text-[#111827]")}>{value}</p>
+      <p className="text-[14px] font-medium leading-5 text-[#64748b]">{title}</p>
+      <p className={cn("whitespace-pre-wrap", empty ? "mt-1 text-[14px] font-normal leading-5 text-[#64748b]" : "mt-2 text-[16px] font-normal leading-6 text-[#111827]")}>{value}</p>
     </section>
   );
 }
@@ -1651,7 +1651,7 @@ function RecordHistoryCard({
         aria-expanded={open}
       >
         <span className={cn("h-2 w-2 rounded-full", statusIndicatorBgClass[getStatusAccent(item)])} aria-hidden="true" />
-        <span className="text-[15px] text-[#334155]">기록 히스토리</span>
+            <span className="text-[14px] font-medium leading-5 text-[#334155]">기록 히스토리</span>
         {lastItem ? <span className="ml-auto truncate text-right text-[12px] text-[#64748b]">{lastItem.title} · {lastItem.time}</span> : null}
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#94a3b8] transition", open && "rotate-180")} />
       </button>
@@ -1664,7 +1664,7 @@ function RecordHistoryCard({
                 <span className={cn("relative z-10 mt-2 h-2 w-2 rounded-full", historyItem.dotClassName)} aria-hidden="true" />
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <p className="truncate text-[15px] text-[#111827]">{historyItem.title}</p>
+                    <p className="truncate text-[14px] font-medium leading-5 text-[#111827]">{historyItem.title}</p>
                     <span className={cn("ml-auto shrink-0 text-[12px] tabular-nums", historyItem.hasTime ? "text-[#64748b]" : "text-[#94a3b8]")}>
                       {historyItem.time}
                     </span>
@@ -1677,7 +1677,7 @@ function RecordHistoryCard({
 
           {sortedChangeEvents.length > 0 ? (
             <div className="mt-3 border-t border-[#edf2f7] pt-3">
-              <p className="text-[15px] text-[#334155]">변경/취소 이력</p>
+            <p className="text-[14px] font-medium leading-5 text-[#334155]">변경/취소 이력</p>
               <div className="mt-2 space-y-2">
                 {sortedChangeEvents.map((event) => {
                   const changes = buildAppointmentHistoryChanges(event, services, staffMembers);

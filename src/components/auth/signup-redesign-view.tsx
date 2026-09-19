@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { Check, ChevronLeft } from "lucide-react";
 
 import {
@@ -266,7 +267,9 @@ export default function SignupRedesignView({
   }
 
   if (stage === "terms") {
-    const allTermsAgreed = ownerSignupTerms.every((term) => agreements[term.id]);
+    const requiredTerms = ownerSignupTerms.filter((term) => term.required);
+    const optionalTerms = ownerSignupTerms.filter((term) => !term.required);
+    const allRequiredTermsAgreed = requiredTerms.every((term) => agreements[term.id]);
 
     return (
       <SignupShell title="약관 동의" onBack={onBack}>
@@ -276,16 +279,16 @@ export default function SignupRedesignView({
               <input
                 id="all-terms"
                 type="checkbox"
-                checked={allTermsAgreed}
+                checked={allRequiredTermsAgreed}
                 onChange={(event) => {
-                  ownerSignupTerms.forEach((term) => onChangeAgreement(term.id, event.target.checked));
+                  requiredTerms.forEach((term) => onChangeAgreement(term.id, event.target.checked));
                 }}
                 className="h-4 w-4 shrink-0 rounded border-[#c7d3e7] accent-[#111a30]"
               />
-              <span>전체 동의</span>
+              <span>필수 약관 전체 동의</span>
             </label>
           </div>
-          {ownerSignupTerms.map((term) => (
+          {requiredTerms.map((term) => (
             <div key={term.id} className="flex min-h-11 items-stretch gap-1 border-b border-[#edf2fa] px-4 last:border-b-0">
               <label htmlFor={term.id} className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 py-1 break-keep text-[14px] font-normal leading-5 text-[#334155] [overflow-wrap:anywhere]">
                 <input
@@ -296,19 +299,56 @@ export default function SignupRedesignView({
                   className="h-4 w-4 shrink-0 rounded border-[#c7d3e7] accent-[#111a30]"
                 />
                 <span className="min-w-0">
-                  {term.required ? "[필수] " : "[선택] "}
-                  {term.title}
+                  [필수] {term.title}
                 </span>
               </label>
               <Link
                 href={termLinkById[term.id] as never}
-                target={term.id === "marketing" ? "_blank" : undefined}
-                rel={term.id === "marketing" ? "noopener noreferrer" : undefined}
-                aria-label={`${term.title} 보기${term.id === "marketing" ? " (새 창)" : ""}`}
+                aria-label={`${term.title} 보기`}
                 className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center self-center rounded-[8px] text-[13px] font-medium leading-5 text-[#64748b] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
               >
                 보기
               </Link>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-[14px] border border-[#e2eaf6] bg-white px-4 py-3">
+          {optionalTerms.map((term) => (
+            <div key={term.id}>
+              <div className="flex min-h-11 items-stretch gap-1">
+                <label htmlFor={term.id} className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 break-keep text-[14px] font-normal leading-5 text-[#334155]">
+                  <input
+                    id={term.id}
+                    type="checkbox"
+                    checked={agreements[term.id]}
+                    onChange={(event) => onChangeAgreement(term.id, event.target.checked)}
+                    className="h-4 w-4 shrink-0 rounded border-[#c7d3e7] accent-[#111a30]"
+                  />
+                  <span>[선택] {term.title}</span>
+                </label>
+                <Link
+                  href={termLinkById[term.id] as never}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${term.title} 보기 (새 창)`}
+                  className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-[8px] text-[13px] font-medium leading-5 text-[#64748b] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+                >
+                  보기
+                </Link>
+              </div>
+              {term.id === "marketing" ? (
+                <div className="border-t border-[#edf2fa] pt-3 text-[13px] font-normal leading-5 text-[#475569]">
+                  <p>마케팅 수신 동의 시 30일 추가 · 미동의해도 가입과 기본 14일 체험은 동일합니다.</p>
+                  <Link
+                    href={"/marketing-benefit-terms" as Route}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex min-h-11 items-center font-medium text-[#335a50] underline underline-offset-2"
+                  >
+                    30일 추가 체험 조건 보기
+                  </Link>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

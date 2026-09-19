@@ -257,14 +257,14 @@ export default function CustomerBookingPageManagementScreen({
         <WebSurface className="p-5">
           <div className="flex items-start justify-between gap-4 border-b border-[#edf1f5] pb-4">
             <div className="min-w-0">
-              <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[#111827]">예약 페이지 관리</h1>
+              <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827]">예약 페이지 관리</h1>
               <p className="mt-1 text-[16px] text-[#64748b]">고객에게 보이는 예약페이지 정보를 관리합니다.</p>
             </div>
             <button
               type="button"
               onClick={() => void saveShop()}
               disabled={savingShop}
-              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[8px] bg-[#2f7866] px-4 text-[15px] font-medium text-white disabled:bg-[#94a3b8]"
+              className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-medium leading-6 text-white disabled:bg-[#94a3b8]"
             >
               <Save className="h-4 w-4" />
               {savingShop ? "저장 중" : "저장"}
@@ -294,7 +294,7 @@ export default function CustomerBookingPageManagementScreen({
                   type="button"
                   onClick={() => document.getElementById("customer-booking-hero-image-input")?.click()}
                   disabled={uploadingHeroImage}
-                  className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#2f7866] px-3 text-[15px] font-medium text-white disabled:bg-[#94a3b8]"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-[8px] bg-[#2f7866] px-3 text-[16px] font-medium leading-6 text-white disabled:bg-[#94a3b8]"
                 >
                   <ImagePlus className="h-4 w-4" />
                   {uploadingHeroImage ? "업로드 중" : hasCustomHeroImage ? "사진 변경" : "사진 업로드"}
@@ -304,7 +304,7 @@ export default function CustomerBookingPageManagementScreen({
                     type="button"
                     onClick={() => void removeHeroImage()}
                     disabled={uploadingHeroImage}
-                    className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-medium text-[#64748b] disabled:opacity-45"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#64748b] disabled:opacity-45"
                   >
                     <Trash2 className="h-4 w-4" />
                     삭제
@@ -361,7 +361,7 @@ export default function CustomerBookingPageManagementScreen({
           <p className="mt-3 text-[14px] text-[#64748b]">영업시간 수정은 기존 운영 시간 데이터와 동일하게 반영됩니다.</p>
         </WebSurface>
 
-        {message ? <p className="text-[15px] font-medium text-[#2f7866]">{message}</p> : null}
+        {message ? <p className="text-[14px] font-medium leading-5 text-[#2f7866]">{message}</p> : null}
       </div>
 
       <WebSurface className="sticky top-[72px] flex h-[calc(100vh-96px)] flex-col overflow-hidden p-3">

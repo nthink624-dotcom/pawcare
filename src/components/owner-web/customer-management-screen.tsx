@@ -494,20 +494,27 @@ export default function CustomerManagementScreen({
   const [reservationSaving, setReservationSaving] = useState(false);
   const [reservationError, setReservationError] = useState("");
   const [query, setQuery] = useState("");
+  const [receivedInitialData, setReceivedInitialData] = useState(initialData);
   const skippedInitialBootstrapSyncRef = useRef(false);
+  const onDataChangeRef = useRef(onDataChange);
+
+  if (receivedInitialData !== initialData) {
+    setReceivedInitialData(initialData);
+    setBootstrapData(initialData);
+  }
+
+  useEffect(() => {
+    onDataChangeRef.current = onDataChange;
+  }, [onDataChange]);
 
   useEffect(() => {
     if (!skippedInitialBootstrapSyncRef.current) {
       skippedInitialBootstrapSyncRef.current = true;
       return;
     }
-    onDataChange?.(bootstrapData);
-  }, [bootstrapData, onDataChange]);
+    onDataChangeRef.current?.(bootstrapData);
+  }, [bootstrapData]);
   const [sort, setSort] = useState<CustomerSort>("recentDesc");
-
-  useEffect(() => {
-    setBootstrapData(initialData);
-  }, [initialData]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1383,7 +1390,7 @@ export default function CustomerManagementScreen({
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                className="w-full bg-transparent text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
+                className="w-full bg-transparent text-[16px] font-normal leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8]"
                 placeholder="보호자명, 연락처, 반려동물 이름 검색"
               />
             </label>
@@ -1550,12 +1557,12 @@ function CustomerReservationModal({
             <p className="truncate text-[16px] text-[#64748b]">
               {guardian ? `${guardian.name} 보호자 · ${formatPhoneNumber(guardian.phone)}` : "고객 예약"}
             </p>
-            <h3 className="mt-1 flex items-center gap-2 text-[22px] font-semibold text-[#111827]">
+            <h3 className="mt-1 flex items-center gap-2 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">
               <CalendarPlus className="h-5 w-5 text-[#2f7866]" />
               예약 추가
             </h3>
           </div>
-          <button type="button" onClick={onClose} className="h-8 rounded-[7px] border border-[#dbe2ea] px-3 text-[16px] text-[#475569] hover:bg-[#f8fafc]">
+          <button type="button" onClick={onClose} className="h-11 rounded-[7px] border border-[#dbe2ea] px-3 text-[16px] font-medium leading-6 text-[#475569] hover:bg-[#f8fafc]">
             닫기
           </button>
         </div>

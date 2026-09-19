@@ -6,11 +6,11 @@ import { requireOwnerBillingSession } from "@/server/owner-billing-session";
 
 const bodySchema = z.object({
   paymentId: z.string().min(1),
-});
+}).strict();
 
 export async function POST(request: NextRequest) {
   try {
-    const { identity, shopId } = await requireOwnerBillingSession(request);
+    const { identity, shopId } = await requireOwnerBillingSession(request, request.nextUrl.searchParams.get("shopId"));
     const body = bodySchema.parse(await request.json());
     const summary = await syncOwnerSubscriptionFromPayment(body.paymentId, {
       userId: identity.id,

@@ -68,7 +68,7 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={() => onDateChange(currentDateInTimeZone())}
-            className="inline-flex h-8 min-w-[158px] items-center justify-center rounded-[7px] px-3 text-[16px] font-semibold tracking-[-0.015em] text-[#172033] transition hover:bg-white"
+            className="inline-flex h-11 min-w-[158px] items-center justify-center rounded-[7px] px-3 text-[16px] font-semibold tracking-[-0.015em] text-[#172033] transition hover:bg-white"
           >
             {formatSchedulePickerRelativeLabel(selectedDate, shop)}
           </button>

@@ -68,11 +68,6 @@ function extractProviderMessageId(responseBody: unknown) {
   return null;
 }
 
-function getPhoneTail(value: string | null | undefined) {
-  const normalized = (value ?? "").replace(/\D/g, "");
-  return normalized ? normalized.slice(-4) : null;
-}
-
 function getRelayUrlParts(relayUrl: string | null | undefined) {
   if (!relayUrl) {
     return {
@@ -92,18 +87,6 @@ function getRelayUrlParts(relayUrl: string | null | undefined) {
       relayUrlHost: null,
       relayUrlPathname: null,
     };
-  }
-}
-
-function getBodyPreview(body: unknown) {
-  if (typeof body === "string") {
-    return body.slice(0, 500);
-  }
-
-  try {
-    return JSON.stringify(body).slice(0, 500);
-  } catch {
-    return "[unserializable]";
   }
 }
 
@@ -147,12 +130,11 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
   const mediaAttachments = normalizeMediaAttachments(input.mediaAttachments);
   const buttons = normalizeButtons(input.buttons);
 
-  console.log("[alimtalk-provider] env check", {
-    hasRelayUrl,
-    hasRelaySecret,
+  console.log("[alimtalk-provider] relay configuration checked", {
+    eventCode: "ALIMTALK_RELAY_CONFIGURATION_CHECKED",
+    configured: hasRelayUrl && hasRelaySecret,
     relayUrlHost,
     relayUrlPathname,
-    mediaAttachmentCount: mediaAttachments.length,
   });
 
   if (serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret) {
@@ -165,11 +147,10 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
       );
     }
 
-    console.log("[alimtalk-provider] relay fetch start", {
+    console.log("[alimtalk-provider] relay request started", {
+      eventCode: "ALIMTALK_RELAY_REQUEST_STARTED",
       relayUrlHost,
-      templateAlias: input.templateAlias ?? null,
-      templateKey: relayTemplateKey,
-      phoneTail: getPhoneTail(input.to),
+      relayUrlPathname,
     });
 
     try {
@@ -200,10 +181,12 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
       const relayContentType = relayResponse.headers.get("content-type") ?? "";
       const relayBody = relayContentType.includes("application/json") ? await relayResponse.json() : await relayResponse.text();
 
-      console.log("[alimtalk-provider] relay fetch response", {
+      console.log("[alimtalk-provider] relay response received", {
+        eventCode: "ALIMTALK_RELAY_RESPONSE_RECEIVED",
+        relayUrlHost,
+        relayUrlPathname,
         status: relayResponse.status,
         ok: relayResponse.ok,
-        bodyPreview: getBodyPreview(relayBody),
       });
 
       if (!relayResponse.ok) {
@@ -229,9 +212,10 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
         responseBody: relayBody,
       };
     } catch (error) {
-      console.error("[alimtalk-provider] relay fetch error", {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack ?? null : null,
+      console.error("[alimtalk-provider] relay request failed", {
+        eventCode: "ALIMTALK_RELAY_REQUEST_FAILED",
+        relayUrlHost,
+        relayUrlPathname,
       });
       throw error;
     }

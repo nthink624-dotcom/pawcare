@@ -1,10 +1,11 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import fs from "node:fs";
 
 import dotenv from "dotenv";
 
-import express from "express";
+import express, { type ErrorRequestHandler, type Response as ExpressResponse } from "express";
 import { z } from "zod";
 
 import { requireHttpsTransportUrl } from "./https-transport-url.js";
@@ -12,6 +13,40 @@ import { requireHttpsTransportUrl } from "./https-transport-url.js";
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDirPath = path.dirname(currentFilePath);
 const relayEnvFilePath = path.resolve(process.cwd(), ".env");
+
+const SSODAA_ORIGIN = "https://apis.ssodaa.com";
+const SSODAA_SEND_PATH = "/kakao/send/alimtalk";
+const SSODAA_SENT_LIST_PATH = "/kakao/alimtalk/sent/list";
+const APPROVED_SSODAA_PATHS = new Set([
+  SSODAA_SEND_PATH,
+  SSODAA_SENT_LIST_PATH,
+  "/kakao/template/detail",
+  "/kakao/template/codeCheck",
+  "/kakao/template/add",
+  "/kakao/template/request",
+  "/kakao/template/category/all",
+  "/kakao/template/list",
+]);
+const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
+
+function readBoundedMilliseconds(name: string, fallback: number, minimum: number, maximum: number) {
+  const parsed = Number(process.env[name]);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, Math.trunc(parsed)));
+}
+
+const PROVIDER_FETCH_TIMEOUT_MS = readBoundedMilliseconds(
+  "RELAY_PROVIDER_TIMEOUT_MS",
+  8_000,
+  100,
+  15_000,
+);
+const SEND_REQUEST_TIMEOUT_MS = readBoundedMilliseconds(
+  "RELAY_SEND_TIMEOUT_MS",
+  45_000,
+  1_000,
+  50_000,
+);
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 dotenv.config({ path: path.resolve(currentDirPath, "../.env"), override: false });
@@ -68,20 +103,38 @@ const relayEnvKeys = [
 
 type RelayEnvKey = (typeof relayEnvKeys)[number];
 
-function requireRelayTransportUrl(value: string, name: string) {
-  return requireHttpsTransportUrl(value, name, {
-    allowLoopbackInDevelopment: true,
-    runtimeEnvironment:
-      process.env.NODE_ENV ??
-      (process.env.npm_lifecycle_event === "dev" ? "development" : "production"),
+function requireApprovedSsodaaUrl(value: string, name: string, expectedPath?: string) {
+  const normalized = requireHttpsTransportUrl(value, name, {
+    allowLoopbackInDevelopment: false,
+    runtimeEnvironment: process.env.NODE_ENV,
   });
+  const parsed = new URL(normalized);
+  const isApprovedPath = APPROVED_SSODAA_PATHS.has(parsed.pathname);
+
+  if (
+    parsed.origin !== SSODAA_ORIGIN ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    !isApprovedPath ||
+    (expectedPath !== undefined && parsed.pathname !== expectedPath)
+  ) {
+    throw new Error(`${name}: approved Ssodaa endpoint is required.`);
+  }
+
+  return `${SSODAA_ORIGIN}${parsed.pathname}`;
 }
 
 function validateRelayTransportConfig(config: RelayConfig): RelayConfig {
   return {
     ...config,
-    ssodaaApiUrl: requireRelayTransportUrl(config.ssodaaApiUrl, "SSODAA_API_URL"),
-    ssodaaSentListUrl: requireRelayTransportUrl(config.ssodaaSentListUrl, "SSODAA_SENT_LIST_URL"),
+    ssodaaApiUrl: requireApprovedSsodaaUrl(config.ssodaaApiUrl, "SSODAA_API_URL", SSODAA_SEND_PATH),
+    ssodaaSentListUrl: requireApprovedSsodaaUrl(
+      config.ssodaaSentListUrl,
+      "SSODAA_SENT_LIST_URL",
+      SSODAA_SENT_LIST_PATH,
+    ),
   };
 }
 
@@ -89,8 +142,8 @@ function loadRelayConfig(): RelayConfig {
   return {
     port: Number(process.env.PORT || 4010),
     relaySecret: process.env.RELAY_SECRET || "",
-    ssodaaApiUrl: process.env.SSODAA_API_URL || "https://apis.ssodaa.com/kakao/send/alimtalk",
-    ssodaaSentListUrl: process.env.SSODAA_SENT_LIST_URL || "https://apis.ssodaa.com/kakao/alimtalk/sent/list",
+    ssodaaApiUrl: process.env.SSODAA_API_URL || `${SSODAA_ORIGIN}${SSODAA_SEND_PATH}`,
+    ssodaaSentListUrl: process.env.SSODAA_SENT_LIST_URL || `${SSODAA_ORIGIN}${SSODAA_SENT_LIST_PATH}`,
     ssodaaApiKey: process.env.SSODAA_API_KEY || "",
     ssodaaTokenKey: process.env.SSODAA_TOKEN_KEY || "",
     ssodaaSenderKey: process.env.SSODAA_SENDER_KEY || "",
@@ -205,31 +258,6 @@ function applyRelayConfig(config: ReturnType<typeof getRelayConfigPayload>) {
   env = validateRelayTransportConfig(loadRelayConfig());
 }
 
-const requestSchema = z.object({
-  to: z.string().min(8),
-  message: z.string().min(1),
-  templateAlias: z.string().min(1).optional().nullable(),
-  templateKey: z.string().min(1).optional().nullable(),
-  templateType: z.string().optional().nullable(),
-  recipientName: z.string().optional().nullable(),
-  metadata: z
-    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
-    .optional()
-    .nullable(),
-  buttons: z
-    .array(
-      z.object({
-        type: z.literal("WL"),
-        name: z.string().trim().min(1).max(14),
-        linkMobile: z.string().trim().min(1).max(500),
-        linkPc: z.string().trim().max(500).optional().nullable(),
-      }),
-    )
-    .max(5)
-    .optional()
-    .nullable(),
-});
-
 const templateCodeSchema = z
   .string()
   .trim()
@@ -237,9 +265,79 @@ const templateCodeSchema = z
   .max(30)
   .regex(/^[A-Za-z0-9_-]+$/, "templateCode must contain only letters, numbers, underscore, or hyphen.");
 
-const templateCodeCheckSchema = z.object({
-  templateCode: templateCodeSchema,
-});
+const phoneSchema = z
+  .string()
+  .trim()
+  .min(8)
+  .max(30)
+  .regex(/^[0-9+()\s-]+$/)
+  .transform((value) => value.replace(/\D/g, ""))
+  .refine((value) => value.length >= 8 && value.length <= 15);
+
+const httpsUrlSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2_048)
+  .url()
+  .refine((value) => new URL(value).protocol === "https:");
+
+const metadataValueSchema = z.union([
+  z.string().max(500),
+  z.number().finite(),
+  z.boolean(),
+  z.null(),
+]);
+const metadataSchema = z
+  .record(z.string().trim().min(1).max(64), metadataValueSchema)
+  .refine((value) => Object.keys(value).length <= 30);
+
+const mediaAttachmentSchema = z
+  .object({
+    attachmentId: z.string().trim().max(200).optional().nullable(),
+    mediaAssetId: z.string().trim().max(200).optional().nullable(),
+    role: z.string().trim().max(50).optional().nullable(),
+    url: httpsUrlSchema,
+    contentType: z.string().trim().max(100).optional().nullable(),
+    byteSize: z.number().int().nonnegative().max(100_000_000).optional().nullable(),
+    variantKey: z.string().trim().max(100).optional().nullable(),
+    expiresInSeconds: z.number().int().nonnegative().max(604_800).optional().nullable(),
+    metadata: metadataSchema.optional().nullable(),
+  })
+  .strict();
+
+const buttonSchema = z
+  .object({
+    type: z.literal("WL"),
+    name: z.string().trim().min(1).max(14),
+    linkMobile: httpsUrlSchema,
+    linkPc: httpsUrlSchema.optional().nullable(),
+  })
+  .strict();
+
+const requestSchema = z
+  .object({
+    to: phoneSchema,
+    message: z.string().trim().min(1).max(2_000),
+    templateAlias: z.string().trim().min(1).max(64).regex(/^[a-z0-9_]+$/).optional().nullable(),
+    templateKey: templateCodeSchema.optional().nullable(),
+    templateType: z.string().trim().min(1).max(30).optional().nullable(),
+    senderChannelMode: z.enum(["petmanager", "shop_channel"]).optional(),
+    senderProfileKey: z.string().trim().max(200).optional().nullable(),
+    senderChannelName: z.string().trim().max(100).optional().nullable(),
+    senderChannelUrl: httpsUrlSchema.optional().nullable(),
+    recipientName: z.string().trim().max(100).optional().nullable(),
+    metadata: metadataSchema.optional().nullable(),
+    mediaAttachments: z.array(mediaAttachmentSchema).max(10).optional().nullable(),
+    buttons: z.array(buttonSchema).max(5).optional().nullable(),
+  })
+  .strict();
+
+const templateCodeCheckSchema = z
+  .object({
+    templateCode: templateCodeSchema,
+  })
+  .strict();
 
 const relayTemplateConfigKeys = [
   "templateBookingReceived",
@@ -259,76 +357,84 @@ const relayTemplateConfigKeys = [
   "templateBirthdayGreeting",
 ] as const;
 
-const templateButtonSchema = z.object({
-  buttonType: z.literal("WL").default("WL"),
-  buttonName: z.string().trim().min(1).max(14),
-  linkMobile: z.string().trim().min(1).max(500),
-  linkPc: z.string().trim().max(500).optional().nullable(),
-});
+const templateButtonSchema = z
+  .object({
+    buttonType: z.literal("WL").default("WL"),
+    buttonName: z.string().trim().min(1).max(14),
+    linkMobile: httpsUrlSchema,
+    linkPc: httpsUrlSchema.optional().nullable(),
+  })
+  .strict();
 
-const templateRegisterSchema = z.object({
-  templateCode: templateCodeSchema,
-  templateName: z.string().trim().min(1).max(100),
-  templateContent: z.string().trim().min(1).max(1000),
-  categoryCode: z.string().trim().min(1),
-  templateMessageType: z.enum(["BA", "EX", "AD", "MI"]).default("BA"),
-  templateEmphasizeType: z.enum(["NONE", "TEXT", "IMAGE", "ITEM_LIST"]).default("NONE"),
-  templateExtra: z.string().trim().optional().nullable(),
-  templateAd: z.string().trim().optional().nullable(),
-  templateTitle: z.string().trim().optional().nullable(),
-  templateSubtitle: z.string().trim().optional().nullable(),
-  comment: z.string().trim().max(500).optional().nullable(),
-  requestReview: z.boolean().default(false),
-  templateConfigKey: z.enum(relayTemplateConfigKeys).optional().nullable(),
-  templateButtons: z.array(templateButtonSchema).max(5).optional().nullable(),
-});
+const templateRegisterSchema = z
+  .object({
+    templateCode: templateCodeSchema,
+    templateName: z.string().trim().min(1).max(100),
+    templateContent: z.string().trim().min(1).max(1_000),
+    categoryCode: z.string().trim().min(1).max(100),
+    templateMessageType: z.enum(["BA", "EX", "AD", "MI"]).default("BA"),
+    templateEmphasizeType: z.enum(["NONE", "TEXT", "IMAGE", "ITEM_LIST"]).default("NONE"),
+    templateExtra: z.string().trim().max(1_000).optional().nullable(),
+    templateAd: z.string().trim().max(1_000).optional().nullable(),
+    templateTitle: z.string().trim().max(200).optional().nullable(),
+    templateSubtitle: z.string().trim().max(200).optional().nullable(),
+    comment: z.string().trim().max(500).optional().nullable(),
+    requestReview: z.boolean().default(false),
+    templateConfigKey: z.enum(relayTemplateConfigKeys).optional().nullable(),
+    templateButtons: z.array(templateButtonSchema).max(5).optional().nullable(),
+  })
+  .strict();
 
-const relayTransportUrlSchema = (name: string) =>
+const relayTransportUrlSchema = (name: string, expectedPath: string) =>
   z
     .string()
     .url()
     .refine(
       (value) => {
         try {
-          requireRelayTransportUrl(value, name);
+          requireApprovedSsodaaUrl(value, name, expectedPath);
           return true;
         } catch {
           return false;
         }
       },
-      { message: `${name}: HTTPS transport is required.` },
+      { message: `${name}: approved Ssodaa endpoint is required.` },
     );
 
-const adminConfigSchema = z.object({
-  relaySecret: z.string(),
-  ssodaaApiUrl: relayTransportUrlSchema("SSODAA_API_URL"),
-  ssodaaSentListUrl: relayTransportUrlSchema("SSODAA_SENT_LIST_URL"),
-  ssodaaApiKey: z.string(),
-  ssodaaTokenKey: z.string(),
-  ssodaaSenderKey: z.string(),
-  templateBookingReceived: z.string(),
-  templateBookingConfirmed: z.string(),
-  templateBookingRejected: z.string(),
-  templateBookingCancelled: z.string(),
-  templateBookingTimeProposed: z.string(),
-  templateBookingRescheduledConfirmed: z.string(),
-  templateBookingManageLinkRequested: z.string(),
-  templateAppointmentReminder10m: z.string(),
-  templateVisitScheduleNotice: z.string(),
-  templateVisitReminderNotice: z.string(),
-  templateGroomingStarted: z.string(),
-  templateGroomingAlmostDone: z.string(),
-  templateGroomingCompleted: z.string(),
-  templateRevisitNotice: z.string(),
-  templateBirthdayGreeting: z.string(),
-});
+const adminConfigSchema = z
+  .object({
+    relaySecret: z.string().max(2_048),
+    ssodaaApiUrl: relayTransportUrlSchema("SSODAA_API_URL", SSODAA_SEND_PATH),
+    ssodaaSentListUrl: relayTransportUrlSchema("SSODAA_SENT_LIST_URL", SSODAA_SENT_LIST_PATH),
+    ssodaaApiKey: z.string().max(2_048),
+    ssodaaTokenKey: z.string().max(2_048),
+    ssodaaSenderKey: z.string().max(2_048),
+    templateBookingReceived: z.string().max(100),
+    templateBookingConfirmed: z.string().max(100),
+    templateBookingRejected: z.string().max(100),
+    templateBookingCancelled: z.string().max(100),
+    templateBookingTimeProposed: z.string().max(100),
+    templateBookingRescheduledConfirmed: z.string().max(100),
+    templateBookingManageLinkRequested: z.string().max(100),
+    templateAppointmentReminder10m: z.string().max(100),
+    templateVisitScheduleNotice: z.string().max(100),
+    templateVisitReminderNotice: z.string().max(100),
+    templateGroomingStarted: z.string().max(100),
+    templateGroomingAlmostDone: z.string().max(100),
+    templateGroomingCompleted: z.string().max(100),
+    templateRevisitNotice: z.string().max(100),
+    templateBirthdayGreeting: z.string().max(100),
+  })
+  .strict();
 
-const sentListLookupSchema = z.object({
-  destPhone: z.string().min(8),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-  message: z.string().optional().nullable(),
-  providerMessageId: z.string().optional().nullable(),
-});
+const sentListLookupSchema = z
+  .object({
+    destPhone: phoneSchema,
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+    message: z.string().trim().max(2_000).optional().nullable(),
+    providerMessageId: z.string().trim().max(200).optional().nullable(),
+  })
+  .strict();
 
 const templateAliases = [
   "booking_received",
@@ -388,6 +494,113 @@ function coerceJsonLikeBody(value: unknown) {
     return JSON.parse(trimmed);
   } catch {
     return value;
+  }
+}
+
+class RelayHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly publicMessage: string,
+  ) {
+    super(publicMessage);
+    this.name = "RelayHttpError";
+  }
+}
+
+function providerTimeoutError() {
+  return new RelayHttpError(504, "공급자 응답 시간이 초과되었습니다.");
+}
+
+function respondWithRouteError(
+  response: ExpressResponse,
+  error: unknown,
+  fallbackMessage: string,
+) {
+  if (error instanceof RelayHttpError) {
+    return response.status(error.status).json({ ok: false, message: error.publicMessage });
+  }
+
+  if (error instanceof z.ZodError) {
+    return response.status(400).json({ ok: false, message: "요청 형식이 올바르지 않습니다." });
+  }
+
+  return response.status(500).json({ ok: false, message: fallbackMessage });
+}
+
+async function readProviderResponseBody(response: globalThis.Response) {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_PROVIDER_RESPONSE_BYTES) {
+    throw new RelayHttpError(502, "공급자 응답을 처리할 수 없습니다.");
+  }
+
+  if (!response.body) return null;
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+
+    totalBytes += value.byteLength;
+    if (totalBytes > MAX_PROVIDER_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new RelayHttpError(502, "공급자 응답을 처리할 수 없습니다.");
+    }
+    chunks.push(value);
+  }
+
+  const bodyText = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8");
+  return coerceJsonLikeBody(bodyText);
+}
+
+async function fetchProvider(
+  url: string,
+  init: RequestInit,
+  options: { deadlineAt?: number } = {},
+) {
+  const approvedUrl = requireApprovedSsodaaUrl(url, "SSODAA provider URL");
+  const remainingMs = options.deadlineAt
+    ? Math.min(PROVIDER_FETCH_TIMEOUT_MS, options.deadlineAt - Date.now())
+    : PROVIDER_FETCH_TIMEOUT_MS;
+
+  if (remainingMs <= 0) throw providerTimeoutError();
+
+  const controller = new AbortController();
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeoutHandle = setTimeout(() => {
+      controller.abort();
+      reject(providerTimeoutError());
+    }, remainingMs);
+  });
+
+  const requestPromise = (async () => {
+    const providerResponse = await fetch(approvedUrl, {
+      ...init,
+      redirect: "error",
+      signal: controller.signal,
+    });
+    const body = await readProviderResponseBody(providerResponse);
+    return {
+      ok: providerResponse.ok,
+      status: providerResponse.status,
+      body,
+    };
+  })();
+
+  try {
+    return await Promise.race([requestPromise, timeoutPromise]);
+  } catch (error) {
+    if (error instanceof RelayHttpError) throw error;
+    if (controller.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+      throw providerTimeoutError();
+    }
+    throw new RelayHttpError(502, "공급자 요청에 실패했습니다.");
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 }
 
@@ -724,12 +937,20 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function sleepWithinDeadline(ms: number, deadlineAt: number) {
+  if (deadlineAt - Date.now() <= ms) throw providerTimeoutError();
+  await sleep(ms);
+}
+
 function normalizePhone(value: string | null | undefined) {
   return (value ?? "").replace(/\D/g, "");
 }
 
-async function fetchSentList(params: { destPhone: string; date: string }) {
-  const providerResponse = await fetch(env.ssodaaSentListUrl, {
+async function fetchSentList(
+  params: { destPhone: string; date: string },
+  deadlineAt?: number,
+) {
+  return fetchProvider(env.ssodaaSentListUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -744,24 +965,12 @@ async function fetchSentList(params: { destPhone: string; date: string }) {
       page: 1,
       limit: 100,
     }),
-  });
-
-  const contentType = providerResponse.headers.get("content-type") ?? "";
-  const responseBody = contentType.includes("application/json")
-    ? await providerResponse.json()
-    : await providerResponse.text();
-  const parsedResponseBody = coerceJsonLikeBody(responseBody);
-
-  return {
-    ok: providerResponse.ok,
-    status: providerResponse.status,
-    body: parsedResponseBody,
-  };
+  }, { deadlineAt });
 }
 
 async function fetchSsodaaTemplateDetail(templateCode: string) {
-  const templateDetailUrl = new URL("/kakao/template/detail", env.ssodaaApiUrl).toString();
-  const providerResponse = await fetch(templateDetailUrl, {
+  const templateDetailUrl = getSsodaaApiUrl("/kakao/template/detail");
+  const providerResponse = await fetchProvider(templateDetailUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -773,15 +982,10 @@ async function fetchSsodaaTemplateDetail(templateCode: string) {
       templateCode,
     }),
   });
-
-  const contentType = providerResponse.headers.get("content-type") ?? "";
-  const responseBody = contentType.includes("application/json")
-    ? await providerResponse.json()
-    : await providerResponse.text();
-  const parsedResponseBody = coerceJsonLikeBody(responseBody);
+  const parsedResponseBody = providerResponse.body;
 
   if (!providerResponse.ok) {
-    throw new Error("쏘다 템플릿 상세 조회에 실패했습니다.");
+    throw new RelayHttpError(502, "쏘다 템플릿 상세 조회에 실패했습니다.");
   }
 
   const providerCode =
@@ -790,14 +994,7 @@ async function fetchSsodaaTemplateDetail(templateCode: string) {
       : "";
 
   if (providerCode && providerCode !== "200") {
-    const message =
-      typeof parsedResponseBody === "object" &&
-      parsedResponseBody !== null &&
-      "error" in parsedResponseBody &&
-      typeof (parsedResponseBody as { error?: unknown }).error === "string"
-        ? ((parsedResponseBody as { error: string }).error || "쏘다 템플릿 상세 조회가 거절되었습니다.")
-        : "쏘다 템플릿 상세 조회가 거절되었습니다.";
-    throw new Error(message);
+    throw new RelayHttpError(502, "쏘다 템플릿 상세 조회가 거절되었습니다.");
   }
 
   const detailRecord = findTemplateRecord(parsedResponseBody, templateCode) ?? getResponseContentRecord(parsedResponseBody);
@@ -805,11 +1002,14 @@ async function fetchSsodaaTemplateDetail(templateCode: string) {
 }
 
 function getSsodaaApiUrl(pathname: string) {
-  return new URL(pathname, env.ssodaaApiUrl).toString();
+  if (!APPROVED_SSODAA_PATHS.has(pathname)) {
+    throw new RelayHttpError(500, "허용되지 않은 공급자 경로입니다.");
+  }
+  return requireApprovedSsodaaUrl(`${SSODAA_ORIGIN}${pathname}`, "SSODAA provider URL", pathname);
 }
 
 async function postSsodaaJson(pathname: string, payload: Record<string, unknown>) {
-  const providerResponse = await fetch(getSsodaaApiUrl(pathname), {
+  const providerResponse = await fetchProvider(getSsodaaApiUrl(pathname), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -820,37 +1020,16 @@ async function postSsodaaJson(pathname: string, payload: Record<string, unknown>
       ...payload,
     }),
   });
-
-  const contentType = providerResponse.headers.get("content-type") ?? "";
-  const rawResponseBody = contentType.includes("application/json")
-    ? await providerResponse.json()
-    : await providerResponse.text();
-  const responseBody = coerceJsonLikeBody(rawResponseBody);
+  const responseBody = providerResponse.body;
 
   if (!providerResponse.ok) {
-    const message =
-      typeof responseBody === "string"
-        ? responseBody
-        : (responseBody as { message?: string; error?: string } | null)?.message ||
-          (responseBody as { message?: string; error?: string } | null)?.error ||
-          "쏘다 API 요청에 실패했습니다.";
-    const error = new Error(message);
-    (error as Error & { status?: number; providerResponse?: unknown }).status = providerResponse.status;
-    (error as Error & { status?: number; providerResponse?: unknown }).providerResponse = responseBody;
-    throw error;
+    throw new RelayHttpError(502, "쏘다 API 요청에 실패했습니다.");
   }
 
   if (typeof responseBody === "object" && responseBody !== null) {
     const providerCode = (responseBody as { code?: string | number }).code;
     if (providerCode !== undefined && String(providerCode) !== "200") {
-      const message =
-        (responseBody as { message?: string; error?: string } | null)?.message ||
-        (responseBody as { message?: string; error?: string } | null)?.error ||
-        "쏘다 API가 요청을 거절했습니다.";
-      const error = new Error(message);
-      (error as Error & { status?: number; providerResponse?: unknown }).status = 502;
-      (error as Error & { status?: number; providerResponse?: unknown }).providerResponse = responseBody;
-      throw error;
+      throw new RelayHttpError(502, "쏘다 API가 요청을 거절했습니다.");
     }
   }
 
@@ -1001,9 +1180,7 @@ async function buildSsodaaTemplateCatalog() {
   try {
     listRecords = await fetchSsodaaTemplateList();
   } catch (error) {
-    console.warn("[relay] Ssodaa template list fetch failed", {
-      message: error instanceof Error ? error.message : String(error),
-    });
+    console.warn("[relay] Ssodaa template list fetch failed");
   }
 
   const allTemplatesFromList = listRecords
@@ -1091,18 +1268,19 @@ async function pollFinalDeliveryStatus(params: {
   providerMessageId: string | null;
   destPhone: string;
   message: string;
+  deadlineAt: number;
 }) {
   const date = getDateStringInSeoul();
 
   for (let attempt = 0; attempt < 6; attempt += 1) {
     if (attempt > 0) {
-      await sleep(1500);
+      await sleepWithinDeadline(1_500, params.deadlineAt);
     }
 
     const sentListResponse = await fetchSentList({
       destPhone: params.destPhone,
       date,
-    });
+    }, params.deadlineAt);
 
     if (!sentListResponse.ok) {
       return {
@@ -1274,37 +1452,70 @@ function getTemplateDebugMap() {
   return templates;
 }
 
+function isVercelRuntime() {
+  return process.env.VERCEL === "1";
+}
+
+function isProviderConfigured() {
+  return Boolean(env.ssodaaApiKey && env.ssodaaTokenKey && env.ssodaaSenderKey);
+}
+
+function getTemplateConfigurationStatus() {
+  return Object.fromEntries(
+    Object.entries(getTemplateDebugMap()).map(([alias, state]) => [
+      alias,
+      { configured: state.configured },
+    ]),
+  );
+}
+
 function requireRelaySecret(secret: string | null) {
-  if (!env.relaySecret || secret !== env.relaySecret) {
-    const error = new Error("릴레이 서버 인증에 실패했습니다.");
-    (error as Error & { status?: number }).status = 401;
-    throw error;
+  if (!env.relaySecret || !secret) {
+    throw new RelayHttpError(401, "릴레이 서버 인증에 실패했습니다.");
+  }
+
+  const expectedDigest = createHash("sha256").update(env.relaySecret).digest();
+  const receivedDigest = createHash("sha256").update(secret).digest();
+  if (!timingSafeEqual(expectedDigest, receivedDigest)) {
+    throw new RelayHttpError(401, "릴레이 서버 인증에 실패했습니다.");
   }
 }
 
 function ensureProviderConfig() {
-  if (!env.ssodaaApiKey || !env.ssodaaTokenKey || !env.ssodaaSenderKey) {
-    const error = new Error("쏘다 알림톡 설정값이 아직 모두 입력되지 않았습니다.");
-    (error as Error & { status?: number }).status = 500;
-    throw error;
+  if (!isProviderConfigured()) {
+    throw new RelayHttpError(503, "쏘다 알림톡 설정값이 아직 모두 입력되지 않았습니다.");
   }
 }
 
+function sanitizeTemplateDetail(detail: SsodaaTemplateDetail | null) {
+  if (!detail) return null;
+  return {
+    templateCode: detail.templateCode,
+    templateName: detail.templateName,
+    templateContent: detail.templateContent,
+    inspectionStatus: detail.inspectionStatus,
+    serviceStatus: detail.serviceStatus,
+    buttons: detail.buttons,
+  };
+}
+
 const app = express();
-app.use(express.json({ limit: "1mb" }));
+app.disable("x-powered-by");
+app.use((request, response, next) => {
+  response.setHeader("Cache-Control", "no-store");
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  if (request.headers.origin) {
+    return response.status(403).json({ ok: false, message: "브라우저 Origin 요청은 허용되지 않습니다." });
+  }
+  next();
+});
+app.use(express.json({ limit: "64kb", strict: true }));
 
 app.get("/health", (_request, response) => {
-  response.json({
+  response.status(200).json({
     ok: true,
     provider: "ssodaa",
-    configured: Boolean(env.ssodaaApiKey && env.ssodaaTokenKey && env.ssodaaSenderKey),
-    checks: {
-      relaySecret: env.relaySecret.length,
-      apiKey: env.ssodaaApiKey.length,
-      tokenKey: env.ssodaaTokenKey.length,
-      senderKey: env.ssodaaSenderKey.length,
-      cwd: process.cwd(),
-    },
+    configured: isProviderConfigured(),
   });
 });
 
@@ -1313,32 +1524,35 @@ app.get("/admin/config", (request, response) => {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     response.json({
       ok: true,
-      config: getRelayConfigPayload(),
-      templates: getTemplateDebugMap(),
+      provider: "ssodaa",
+      configured: isProviderConfigured(),
+      source: "environment",
+      templates: getTemplateConfigurationStatus(),
     });
   } catch (error) {
-    const status = (error as Error & { status?: number }).status ?? 500;
-    const message = error instanceof Error ? error.message : "Relay admin config fetch failed.";
-    response.status(status).json({ ok: false, message });
+    respondWithRouteError(response, error, "릴레이 설정 상태를 확인하지 못했습니다.");
   }
 });
 
 app.put("/admin/config", (request, response) => {
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    if (isVercelRuntime()) {
+      throw new RelayHttpError(405, "Vercel에서는 환경변수로만 릴레이 설정을 변경할 수 있습니다.");
+    }
+
     const nextConfig = adminConfigSchema.parse(request.body);
     persistRelayConfig(nextConfig);
     applyRelayConfig(nextConfig);
-
     response.json({
       ok: true,
-      config: getRelayConfigPayload(),
-      templates: getTemplateDebugMap(),
+      provider: "ssodaa",
+      configured: isProviderConfigured(),
+      source: "local-file",
+      templates: getTemplateConfigurationStatus(),
     });
   } catch (error) {
-    const status = (error as Error & { status?: number }).status ?? 500;
-    const message = error instanceof Error ? error.message : "Relay admin config update failed.";
-    response.status(status).json({ ok: false, message });
+    respondWithRouteError(response, error, "릴레이 설정을 변경하지 못했습니다.");
   }
 });
 
@@ -1346,21 +1560,14 @@ app.get("/debug/templates", (request, response) => {
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
-
     response.json({
       ok: true,
       provider: "ssodaa",
-      configured: Boolean(env.ssodaaApiKey && env.ssodaaTokenKey && env.ssodaaSenderKey),
-      endpoints: {
-        apiUrlHost: new URL(env.ssodaaApiUrl).host,
-        sentListUrlHost: new URL(env.ssodaaSentListUrl).host,
-      },
-      templates: getTemplateDebugMap(),
+      configured: true,
+      templates: getTemplateConfigurationStatus(),
     });
   } catch (error) {
-    const status = (error as Error & { status?: number }).status ?? 500;
-    const message = error instanceof Error ? error.message : "Relay template debug failed.";
-    response.status(status).json({ ok: false, message });
+    respondWithRouteError(response, error, "릴레이 템플릿 상태를 확인하지 못했습니다.");
   }
 });
 
@@ -1368,17 +1575,19 @@ app.get("/admin/templates", async (request, response) => {
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
-
     const catalog = await buildSsodaaTemplateCatalog();
-
     response.json({
       ok: true,
-      ...catalog,
+      items: catalog.items.map((item) => ({
+        alias: item.alias,
+        configuredCode: item.configuredCode,
+        detail: sanitizeTemplateDetail(item.detail),
+        error: item.error ? "템플릿 상세를 불러오지 못했습니다." : null,
+      })),
+      allTemplates: catalog.allTemplates.map((item) => sanitizeTemplateDetail(item)),
     });
   } catch (error) {
-    const status = (error as Error & { status?: number }).status ?? 500;
-    const message = error instanceof Error ? error.message : "Relay template catalog fetch failed.";
-    response.status(status).json({ ok: false, message });
+    respondWithRouteError(response, error, "릴레이 템플릿 목록을 확인하지 못했습니다.");
   }
 });
 
@@ -1386,23 +1595,11 @@ app.post("/admin/templates/code-check", async (request, response) => {
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
-
     const payload = templateCodeCheckSchema.parse(request.body);
-    const providerResponse = await checkSsodaaTemplateCode(payload.templateCode);
-
-    response.json({
-      ok: true,
-      templateCode: payload.templateCode,
-      providerResponse,
-    });
+    await checkSsodaaTemplateCode(payload.templateCode);
+    response.json({ ok: true, checked: true });
   } catch (error) {
-    const status = (error as Error & { status?: number }).status ?? 500;
-    const message = error instanceof Error ? error.message : "Relay template code check failed.";
-    response.status(status).json({
-      ok: false,
-      message,
-      providerResponse: (error as Error & { providerResponse?: unknown }).providerResponse ?? null,
-    });
+    respondWithRouteError(response, error, "릴레이 템플릿 코드를 확인하지 못했습니다.");
   }
 });
 
@@ -1410,29 +1607,16 @@ app.post("/admin/templates/register", async (request, response) => {
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
-
     const payload = templateRegisterSchema.parse(request.body);
-    const addResponse = await addSsodaaTemplate(payload);
-    const reviewResponse = payload.requestReview ? await requestSsodaaTemplateReview(payload) : null;
+    await addSsodaaTemplate(payload);
+    if (payload.requestReview) await requestSsodaaTemplateReview(payload);
     response.json({
       ok: true,
-      templateCode: payload.templateCode,
       registered: true,
-      reviewRequested: Boolean(reviewResponse),
-      mappedConfigKey: null,
-      providerResponse: {
-        add: addResponse,
-        review: reviewResponse,
-      },
+      reviewRequested: payload.requestReview,
     });
   } catch (error) {
-    const status = (error as Error & { status?: number }).status ?? 500;
-    const message = error instanceof Error ? error.message : "Relay template registration failed.";
-    response.status(status).json({
-      ok: false,
-      message,
-      providerResponse: (error as Error & { providerResponse?: unknown }).providerResponse ?? null,
-    });
+    respondWithRouteError(response, error, "릴레이 템플릿 등록 요청에 실패했습니다.");
   }
 });
 
@@ -1440,62 +1624,28 @@ app.get("/admin/templates/categories", async (request, response) => {
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
-
     const result = await listSsodaaTemplateCategories();
-
-    response.json({
-      ok: true,
-      categories: result.categories,
-      providerResponse: result.providerResponse,
-    });
+    response.json({ ok: true, categories: result.categories });
   } catch (error) {
-    const status = (error as Error & { status?: number }).status ?? 500;
-    const message = error instanceof Error ? error.message : "Relay template category fetch failed.";
-    response.status(status).json({
-      ok: false,
-      message,
-      providerResponse: (error as Error & { providerResponse?: unknown }).providerResponse ?? null,
-    });
+    respondWithRouteError(response, error, "릴레이 템플릿 카테고리를 확인하지 못했습니다.");
   }
 });
 
 app.get("/admin/provider/diagnostics", async (request, response) => {
   const startedAt = Date.now();
-
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
-
     const result = await listSsodaaTemplateCategories();
-
     response.json({
       ok: true,
       provider: "ssodaa",
-      status: 200,
+      configured: true,
       latencyMs: Date.now() - startedAt,
-      endpoints: {
-        apiUrlHost: new URL(env.ssodaaApiUrl).host,
-        sentListUrlHost: new URL(env.ssodaaSentListUrl).host,
-      },
-      checks: {
-        apiKey: Boolean(env.ssodaaApiKey),
-        tokenKey: Boolean(env.ssodaaTokenKey),
-        senderKey: Boolean(env.ssodaaSenderKey),
-      },
       categoryCount: result.categories.length,
-      bodyPreview: JSON.stringify(result.providerResponse).slice(0, 800),
     });
   } catch (error) {
-    const status = (error as Error & { status?: number }).status ?? 500;
-    const message = error instanceof Error ? error.message : "쏘다 공급자 진단에 실패했습니다.";
-    response.status(status).json({
-      ok: false,
-      provider: "ssodaa",
-      status,
-      latencyMs: Date.now() - startedAt,
-      message,
-      providerResponse: (error as Error & { providerResponse?: unknown }).providerResponse ?? null,
-    });
+    respondWithRouteError(response, error, "쏘다 공급자 진단에 실패했습니다.");
   }
 });
 
@@ -1503,33 +1653,18 @@ app.post("/admin/sent-list", async (request, response) => {
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
-
     const payload = sentListLookupSchema.parse(request.body);
     const date = payload.date || getDateStringInSeoul();
-    const sentListResponse = await fetchSentList({
-      destPhone: normalizePhone(payload.destPhone),
-      date,
-    });
+    const sentListResponse = await fetchSentList({ destPhone: payload.destPhone, date });
 
     if (!sentListResponse.ok) {
-      return response.status(sentListResponse.status).json({
-        ok: false,
-        message: "쏘다 발송내역 조회에 실패했습니다.",
-        providerResponse: sentListResponse.body,
-      });
+      throw new RelayHttpError(502, "쏘다 발송내역 조회에 실패했습니다.");
     }
 
     if (typeof sentListResponse.body === "object" && sentListResponse.body !== null) {
       const providerCode = (sentListResponse.body as { code?: string | number }).code;
       if (providerCode !== undefined && String(providerCode) !== "200") {
-        return response.status(502).json({
-          ok: false,
-          message:
-            (sentListResponse.body as { error?: string; message?: string } | null)?.error ||
-            (sentListResponse.body as { error?: string; message?: string } | null)?.message ||
-            "쏘다 발송내역 조회가 공급자 단계에서 거절되었습니다.",
-          providerResponse: sentListResponse.body,
-        });
+        throw new RelayHttpError(502, "쏘다 발송내역 조회가 공급자 단계에서 거절되었습니다.");
       }
     }
 
@@ -1539,7 +1674,6 @@ app.post("/admin/sent-list", async (request, response) => {
       Array.isArray((sentListResponse.body as { result?: SsodaaSentListRow[] }).result)
         ? ((sentListResponse.body as { result?: SsodaaSentListRow[] }).result ?? [])
         : [];
-
     const matchedRow = selectFinalStatusRow(rows, {
       msgId: payload.providerMessageId ?? null,
       destPhone: payload.destPhone,
@@ -1552,41 +1686,24 @@ app.post("/admin/sent-list", async (request, response) => {
       date,
       found: Boolean(matchedRow),
       status: matchedRow?.status ?? null,
-      message: matchedRow?.error_msg || matchedRow?.failover_msg || null,
-      row: matchedRow ?? null,
-      totalRows: rows.length,
-      providerResponse: sentListResponse.body,
     });
   } catch (error) {
-    const status = (error as Error & { status?: number }).status ?? 500;
-    const message = error instanceof Error ? error.message : "쏘다 발송내역 조회 처리 중 오류가 발생했습니다.";
-    return response.status(status).json({
-      ok: false,
-      message,
-      providerResponse: (error as Error & { providerResponse?: unknown }).providerResponse ?? null,
-    });
+    respondWithRouteError(response, error, "쏘다 발송내역 조회 처리 중 오류가 발생했습니다.");
   }
 });
 
 app.post("/alimtalk/send", async (request, response) => {
+  const deadlineAt = Date.now() + SEND_REQUEST_TIMEOUT_MS;
+
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
-
     const payload = requestSchema.parse(request.body);
     const resolvedTemplateKey = payload.templateKey ?? resolveTemplateKey(payload.templateAlias);
 
     if (!resolvedTemplateKey) {
-      return response.status(400).json({
-        message: `Relay template mapping is missing for ${payload.templateAlias ?? "unknown"}.`,
-      });
+      throw new RelayHttpError(400, "릴레이 템플릿 연결이 필요합니다.");
     }
-
-    console.info("[relay] request", {
-      toLast4: payload.to.slice(-4),
-      templateAlias: payload.templateAlias ?? null,
-      templateKey: resolvedTemplateKey,
-    });
 
     const buttons =
       payload.buttons?.map((button) => ({
@@ -1596,127 +1713,101 @@ app.post("/alimtalk/send", async (request, response) => {
         url_pc: button.linkPc || button.linkMobile,
       })) ?? [];
 
-    const providerResponse = await fetch(env.ssodaaApiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": env.ssodaaApiKey,
+    const providerResponse = await fetchProvider(
+      env.ssodaaApiUrl,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": env.ssodaaApiKey,
+        },
+        body: JSON.stringify({
+          token_key: env.ssodaaTokenKey,
+          sender_key: env.ssodaaSenderKey,
+          template_code: resolvedTemplateKey,
+          template_type: payload.templateType ?? "alimtalk",
+          msg_body: payload.message,
+          dest_phone: payload.to,
+          dest_name: payload.recipientName ?? "",
+          metadata: payload.metadata ?? null,
+          ...(buttons.length ? { button: buttons } : {}),
+        }),
       },
-      body: JSON.stringify({
-        token_key: env.ssodaaTokenKey,
-        sender_key: env.ssodaaSenderKey,
-        template_code: resolvedTemplateKey,
-        template_type: payload.templateType ?? "alimtalk",
-        msg_body: payload.message,
-        dest_phone: payload.to,
-        dest_name: payload.recipientName ?? "",
-        metadata: payload.metadata ?? null,
-        ...(buttons.length ? { button: buttons } : {}),
-      }),
-    });
-
-    const contentType = providerResponse.headers.get("content-type") ?? "";
-    const rawResponseBody = contentType.includes("application/json")
-      ? await providerResponse.json()
-      : await providerResponse.text();
-    const responseBody = coerceJsonLikeBody(rawResponseBody);
+      { deadlineAt },
+    );
+    const responseBody = providerResponse.body;
 
     if (!providerResponse.ok) {
-      const errorMessage =
-        typeof responseBody === "string"
-          ? responseBody
-          : (responseBody as { message?: string; error?: string } | null)?.message ||
-            (responseBody as { message?: string; error?: string } | null)?.error ||
-            "쏘다 알림톡 발송에 실패했습니다.";
-
-      console.error("[relay] provider http error", {
-        status: providerResponse.status,
-        body: responseBody,
-      });
-
-      return response
-        .status(providerResponse.status)
-        .json({ message: errorMessage, providerResponse: responseBody });
+      throw new RelayHttpError(502, "쏘다 알림톡 발송에 실패했습니다.");
     }
 
     if (typeof responseBody === "object" && responseBody !== null) {
       const providerCode = (responseBody as { code?: string | number }).code;
       if (providerCode !== undefined && String(providerCode) !== "200") {
-        const errorMessage =
-          (responseBody as { message?: string; error?: string } | null)?.message ||
-          (responseBody as { message?: string; error?: string } | null)?.error ||
-          "쏘다 알림톡이 공급자 단계에서 거절되었습니다.";
-
-        console.error("[relay] provider body error", {
-          code: providerCode,
-          body: responseBody,
-        });
-
-        return response.status(502).json({
-          message: errorMessage,
-          providerResponse: responseBody,
-        });
+        throw new RelayHttpError(502, "쏘다 알림톡이 공급자 단계에서 거절되었습니다.");
       }
     }
 
     const providerMessageId = extractProviderMessageId(responseBody);
-
     const finalDelivery = await pollFinalDeliveryStatus({
       providerMessageId,
       destPhone: payload.to,
       message: payload.message,
-    });
-
-    console.info("[relay] provider delivery status", {
-      providerMessageId,
-      finalStatus: finalDelivery.row?.status ?? null,
-      finalError: finalDelivery.message,
-      found: finalDelivery.found,
+      deadlineAt,
     });
 
     if (finalDelivery.fatal) {
-      return response.status(502).json({
-        message: finalDelivery.message || "쏘다 최종 발송 단계에서 실패했습니다.",
-        providerMessageId,
-        providerResponse: responseBody,
-        deliveryLookup: finalDelivery.response,
-      });
+      throw new RelayHttpError(502, "쏘다 최종 발송 단계에서 실패했습니다.");
     }
-
-    if (!finalDelivery.found) {
-      console.warn("[relay] provider accepted but delivery lookup is not ready", {
-        providerMessageId,
-        deliveryError: finalDelivery.message,
-      });
-    }
-
-    console.info("[relay] provider accepted", {
-      providerMessageId,
-      body: responseBody,
-    });
 
     return response.json({
       ok: true,
       provider: "ssodaa",
-      templateKey: resolvedTemplateKey,
       providerMessageId,
-      providerResponse: responseBody,
       deliveryStatus: finalDelivery.row?.status ?? null,
-      deliveryError: finalDelivery.message,
       deliveryFound: finalDelivery.found,
     });
   } catch (error) {
-    const status = (error as Error & { status?: number }).status ?? 500;
-    const message = error instanceof Error ? error.message : "알림톡 발송 처리 중 오류가 발생했습니다.";
-    return response.status(status).json({ message });
+    return respondWithRouteError(response, error, "알림톡 발송 처리 중 오류가 발생했습니다.");
   }
 });
 
-const server = app.listen(env.port, "0.0.0.0", () => {
-  console.log(`PetManager Alimtalk Relay listening on port ${env.port}`);
-});
+const expressErrorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
+  const errorType =
+    typeof error === "object" && error !== null && "type" in error
+      ? String((error as { type?: unknown }).type ?? "")
+      : "";
+  if (errorType === "entity.too.large") {
+    response.status(413).json({ ok: false, message: "요청 본문이 너무 큽니다." });
+    return;
+  }
+  if (error instanceof SyntaxError) {
+    response.status(400).json({ ok: false, message: "JSON 요청 형식이 올바르지 않습니다." });
+    return;
+  }
+  respondWithRouteError(response, error, "릴레이 요청 처리 중 오류가 발생했습니다.");
+};
+app.use(expressErrorHandler);
 
-server.on("error", (error) => {
-  console.error("[relay] server listen failed", error);
-  process.exitCode = 1;
-});
+function isDirectExecution() {
+  const entryFile = process.argv[1];
+  if (!entryFile) return false;
+  return pathToFileURL(path.resolve(entryFile)).href === import.meta.url;
+}
+
+if (!isVercelRuntime() && isDirectExecution()) {
+  const server = app.listen(env.port, "127.0.0.1", () => {
+    console.log(`PetManager Alimtalk Relay listening on port ${env.port}`);
+  });
+
+  server.on("error", (error) => {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code ?? "UNKNOWN")
+        : "UNKNOWN";
+    console.error("[relay] local server listen failed", { code });
+    process.exitCode = 1;
+  });
+}
+
+export default app;

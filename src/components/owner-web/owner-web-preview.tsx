@@ -147,6 +147,11 @@ function shouldStartWithPriceGuideSetup(data: BootstrapPayload) {
 
 function getInitialOwnerWebScreen(data: BootstrapPayload): OwnerWebScreenKey {
   if (!getBootstrapOwnerInitialSetupReadiness(data).completed) return "operatingHours";
+  return shouldStartWithPriceGuideSetup(data) ? "services" : "schedule";
+}
+
+function getRequestedOwnerWebScreen(data: BootstrapPayload): OwnerWebScreenKey {
+  if (!getBootstrapOwnerInitialSetupReadiness(data).completed) return "operatingHours";
   if (typeof window === "undefined") return "schedule";
   const searchParams = new URLSearchParams(window.location.search);
   const screen = searchParams.get("screen") as OwnerWebScreenKey | null;
@@ -210,6 +215,7 @@ function renderScreen(
   onInitialSetupStaffNext: () => void,
   onInitialSetupPricingNext: () => void,
   uploadInitialSetupStaffPhoto?: StaffProfilePhotoUploader,
+  onServiceSettingsBack?: () => void,
 ) {
   const handleStaffScheduleOverridesChange = (staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"]) => {
     onDataChange({ ...initialData, staffScheduleOverrides });
@@ -251,6 +257,7 @@ function renderScreen(
           onShopChange={onShopChange}
           onPriceGuideSaveSuccess={(canonicalBootstrap) => onInitialSetupStepSaved("pricing", canonicalBootstrap)}
           onInitialSetupNext={onInitialSetupPricingNext}
+          onBackToSettings={onServiceSettingsBack}
         />
       );
     case "staff":
@@ -362,12 +369,8 @@ export default function OwnerWebPreview({
     if (!isDemoOwnerWebData(initialData)) {
       setLiveStaffMembers(initialData.staffMembers ?? []);
     }
-    if (getBootstrapOwnerInitialSetupReadiness(initialData).completed) {
-      setInitialSetupOpen(false);
-      setInitialSetupSyncError(null);
-    } else {
-      setActiveScreen((screen) => screen === "ownerProfile" || screen === "help" ? screen : "operatingHours");
-    }
+    // Background bootstrap refreshes update data, not the in-progress setup flow.
+    // Only an explicit successful setup save may close it (applyOwnerData).
   }, [initialData]);
 
   useEffect(() => {
@@ -376,7 +379,7 @@ export default function OwnerWebPreview({
     navigationInitializedShopIdRef.current = ownerData.shop.id;
     const requestedAfterSignup = new URLSearchParams(window.location.search).get("initialSetup") === "1";
     const visibility = resolveOwnerInitialSetupVisibility(initialSetupReadiness, requestedAfterSignup);
-    setActiveScreen(getInitialOwnerWebScreen(ownerData));
+    setActiveScreen(getRequestedOwnerWebScreen(ownerData));
     setInitialSetupOpen(false);
     if (visibility.nextStep) {
       setInitialSetupScreen(screenForInitialSetupStep(visibility.nextStep));
@@ -535,10 +538,6 @@ export default function OwnerWebPreview({
   }
 
   function handleScreenSelect(screen: OwnerWebScreenKey) {
-    if (initialSetupEligible && screen !== "operatingHours" && screen !== "staff" && screen !== "services" && screen !== "ownerProfile" && screen !== "help") {
-      setActiveScreen("operatingHours");
-      return;
-    }
     setActiveScreen(screen);
   }
 
@@ -640,7 +639,7 @@ export default function OwnerWebPreview({
   function closeInitialSetup() {
     setInitialSetupOpen(false);
     setInitialSetupSyncError(null);
-    setActiveScreen(getBootstrapOwnerInitialSetupReadiness(ownerDataRef.current).completed ? "schedule" : "operatingHours");
+    setActiveScreen("schedule");
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     url.searchParams.delete("initialSetup");
@@ -672,7 +671,7 @@ export default function OwnerWebPreview({
 
   function openSettingsTab(tab: SettingsTabKey) {
     const nextScreen = screenBySettingsTab[tab];
-    setActiveScreen(initialSetupEligible && nextScreen !== "ownerProfile" ? "operatingHours" : nextScreen);
+    setActiveScreen(nextScreen);
     setStoreMenuOpen(false);
     setAlimtalkCreditMenuOpen(false);
   }
@@ -775,15 +774,16 @@ export default function OwnerWebPreview({
       }}
       onOpenInitialSetup={openInitialSetup}
       showInitialSetupAction={initialSetupEligible}
+      remainingSetupLabels={([
+        ["hours", "영업시간"], ["staff", "담당자"], ["pricing", "서비스와 가격"],
+      ] as const).filter(([step]) => !initialSetupReadiness.steps[step]).map(([, label]) => label)}
       onLogout={handleLogout}
       loggingOut={loggingOut}
       isTester={ownerData.pilotCohort?.isPilotMember === true}
       feedbackFixtureMode={feedbackFixtureMode}
-      backgroundBlocked={initialSetupEligible && activeScreen !== "ownerProfile" && activeScreen !== "help"}
-      setupBlockingModalOpen={initialSetupEligible && !initialSetupOpen && activeScreen !== "ownerProfile" && activeScreen !== "help"}
     >
       <div className="h-full min-h-0 min-w-0">
-        <div className="h-full min-h-0 min-w-0">
+        <div className="h-full min-h-0 min-w-0" data-owner-screen-root={activeScreen}>
           {renderScreen(
             activeScreen,
             ownerData,
@@ -806,6 +806,7 @@ export default function OwnerWebPreview({
             handleInitialSetupStaffNext,
             handleInitialSetupPricingNext,
             uploadDemoInitialSetupStaffPhoto,
+            () => setActiveScreen("shopInfo"),
           )}
         </div>
       </div>

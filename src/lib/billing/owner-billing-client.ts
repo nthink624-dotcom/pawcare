@@ -1,13 +1,13 @@
-import { requestIssueBillingKey, requestPayment } from "@portone/browser-sdk/v2";
+import { requestIssueBillingKey } from "@portone/browser-sdk/v2";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { env } from "@/lib/env";
-import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import {
+  OWNER_SINGLE_MONTHLY_ORDER_NAME,
+  OWNER_SINGLE_MONTHLY_PLAN_CODE,
+} from "@/lib/billing/owner-plans";
 import { createPortoneId } from "@/lib/billing/portone-ids";
-import { isLoopbackTransportUrl, requireHttpsTransportUrl } from "@/lib/https-transport-url";
+import { env } from "@/lib/env";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
-import { kpnApprovedCardCompanies } from "@/lib/portone/cards";
 
 type BillingKeyIssueResponse = {
   code?: string;
@@ -26,10 +26,12 @@ type BillingKeyIssueResponse = {
   };
 };
 
-const DEFAULT_PUBLIC_NOTICE_ORIGIN = "https://www.petmanager.co.kr";
-
-function isLocalOrigin(value: string | null | undefined) {
-  return Boolean(value && isLoopbackTransportUrl(value));
+function subscriptionPath(path: string, shopId: string) {
+  const normalizedShopId = shopId.trim();
+  if (!normalizedShopId) {
+    throw new Error("결제를 관리할 매장을 다시 선택해 주세요.");
+  }
+  return `${path}?${new URLSearchParams({ shopId: normalizedShopId }).toString()}`;
 }
 
 function extractCardPrefix(value: string | null | undefined) {
@@ -53,173 +55,83 @@ function extractIssueId(result: BillingKeyIssueResponse) {
   return result.billingKeyInfo?.issueId || result.issueId || null;
 }
 
-function buildOwnerBillingReturnUrl(planCode: OwnerPlanCode) {
-  const url = new URL("/owner/billing", window.location.origin);
-  url.searchParams.set("billingReturn", "1");
-  url.searchParams.set("compare", "1");
-  url.searchParams.set("plan", planCode);
-  return requireHttpsTransportUrl(url.toString(), "PortOne return URL", {
-    allowLoopbackInDevelopment: true,
-  });
+export async function fetchOwnerSubscriptionSummary(shopId: string) {
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>(subscriptionPath("/api/subscription", shopId));
 }
 
-function buildSecurePortoneNoticeUrl(origin: string) {
-  const secureOrigin = requireHttpsTransportUrl(origin.replace(/\/$/, ""), "PortOne notice URL");
-  return `${secureOrigin}/api/webhooks/portone`;
-}
-
-function buildOwnerBillingNoticeUrl() {
-  const currentOrigin = window.location.origin.replace(/\/$/, "");
-  if (!isLocalOrigin(currentOrigin)) {
-    return buildSecurePortoneNoticeUrl(currentOrigin);
-  }
-
-  const configuredOrigin = env.siteUrl?.replace(/\/$/, "");
-  if (configuredOrigin && !isLocalOrigin(configuredOrigin)) {
-    return buildSecurePortoneNoticeUrl(configuredOrigin);
-  }
-
-  return buildSecurePortoneNoticeUrl(DEFAULT_PUBLIC_NOTICE_ORIGIN);
-}
-
-function buildOwnerBillingOfferPeriod(planCode: OwnerPlanCode) {
-  const plan = getOwnerPlanByCode(planCode);
-  if (!plan || plan.months <= 0) {
-    return undefined;
-  }
-
-  if (plan.months % 12 === 0) {
-    return { interval: `${plan.months / 12}y` };
-  }
-
-  return { interval: `${plan.months}m` };
-}
-
-export async function fetchOwnerSubscriptionSummary() {
-  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription");
-}
-
-export async function saveOwnerSubscriptionPreferences(payload: {
-  currentPlanCode?: OwnerPlanCode;
-}) {
-  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
+export async function saveOwnerSubscriptionPreferences(shopId: string) {
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>(subscriptionPath("/api/subscription", shopId), {
     method: "PATCH",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ currentPlanCode: OWNER_SINGLE_MONTHLY_PLAN_CODE }),
   });
 }
 
-export async function retryOwnerSubscriptionPayment() {
-  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/retry", {
+export async function retryOwnerSubscriptionPayment(shopId: string) {
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>(subscriptionPath("/api/subscription/retry", shopId), {
     method: "POST",
   });
 }
 
-export async function cancelOwnerSubscriptionRenewal() {
-  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/cancel", {
+export async function cancelOwnerSubscriptionRenewal(shopId: string) {
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>(subscriptionPath("/api/subscription/cancel", shopId), {
     method: "POST",
   });
 }
 
-export async function confirmOwnerSubscriptionPayment(paymentId: string) {
-  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/confirm-payment", {
-    method: "POST",
-    body: JSON.stringify({ paymentId }),
-  });
-}
-
-export async function requestOwnerOneTimePayment(params: {
-  customerId: string;
-  customerName: string;
-  phoneNumber?: string | null;
-  email?: string | null;
-  userId: string;
-  shopId: string;
-  planCode: OwnerPlanCode;
-  amount: number;
-  orderName: string;
-}) {
-  if (!env.portoneStoreId || !env.portonePaymentChannelKey) {
-    throw new Error("PortOne 일반결제 설정을 먼저 확인해 주세요.");
-  }
-
-  const paymentId = createPortoneId("opay");
-  const result = await requestPayment({
-    storeId: env.portoneStoreId,
-    channelKey: env.portonePaymentChannelKey,
-    paymentId,
-    orderName: params.orderName,
-    totalAmount: params.amount,
-    currency: "KRW",
-    payMethod: "CARD",
-    card: {
-      availableCards: kpnApprovedCardCompanies,
-    },
-    customer: {
-      customerId: params.customerId,
-      fullName: params.customerName,
-      phoneNumber: params.phoneNumber || undefined,
-      email: params.email || undefined,
-    },
-    redirectUrl: buildOwnerBillingReturnUrl(params.planCode),
-    customData: {
-      kind: "owner-subscription",
-      userId: params.userId,
-      shopId: params.shopId,
-      planCode: params.planCode,
-    },
-    noticeUrls: [buildOwnerBillingNoticeUrl()],
-  });
-
-  if (!result) {
-    throw new Error("결제창을 열지 못했습니다.");
-  }
-
-  if (result.code || result.message) {
-    throw new Error(result.message || "결제를 완료하지 못했습니다.");
-  }
-
-  if (!result.paymentId) {
-    throw new Error("결제 정보를 확인하지 못했습니다.");
-  }
-
-  return confirmOwnerSubscriptionPayment(result.paymentId);
+export async function confirmOwnerSubscriptionPayment(shopId: string, paymentId: string) {
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
+    subscriptionPath("/api/subscription/confirm-payment", shopId),
+    { method: "POST", body: JSON.stringify({ paymentId }) },
+  );
 }
 
 export async function registerOwnerBillingKey(params: {
+  shopId: string;
   billingKey: string;
   issueId?: string | null;
   paymentMethodLabel?: string | null;
-  planCode: OwnerPlanCode;
 }) {
-  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/payment-method", {
-    method: "POST",
-    body: JSON.stringify(params),
-  });
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
+    subscriptionPath("/api/subscription/payment-method", params.shopId),
+    {
+      method: "POST",
+      body: JSON.stringify({
+        billingKey: params.billingKey,
+        issueId: params.issueId,
+        paymentMethodLabel: params.paymentMethodLabel,
+        planCode: OWNER_SINGLE_MONTHLY_PLAN_CODE,
+      }),
+    },
+  );
 }
 
 export async function issueOwnerBillingKeyByApi(params: {
+  shopId: string;
   cardNumber: string;
   expiryYear: string;
   expiryMonth: string;
   birthOrBusinessRegistrationNumber: string;
   passwordTwoDigits: string;
-  planCode: OwnerPlanCode;
   customerName?: string | null;
   phoneNumber?: string | null;
   email?: string | null;
 }) {
-  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/payment-method/issue", {
-    method: "POST",
-    body: JSON.stringify(params),
-  });
+  const { shopId, ...paymentMethod } = params;
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
+    subscriptionPath("/api/subscription/payment-method/issue", shopId),
+    {
+      method: "POST",
+      body: JSON.stringify({ ...paymentMethod, planCode: OWNER_SINGLE_MONTHLY_PLAN_CODE }),
+    },
+  );
 }
 
 export async function issueOwnerBillingKey(params: {
+  shopId: string;
   customerId: string;
   customerName: string;
   phoneNumber?: string | null;
   email?: string | null;
-  planCode: OwnerPlanCode;
 }): Promise<OwnerSubscriptionSummary | null> {
   if (!env.portoneStoreId || !env.portoneBillingChannelKey) {
     throw new Error("PortOne 정기결제 설정을 먼저 확인해 주세요.");
@@ -231,38 +143,29 @@ export async function issueOwnerBillingKey(params: {
     channelKey: env.portoneBillingChannelKey,
     billingKeyMethod: "CARD",
     issueId,
-    issueName: `${PETMANAGER_SERVICE_NAME} 정기결제 카드 등록`,
+    issueName: `${OWNER_SINGLE_MONTHLY_ORDER_NAME} 결제수단 등록`,
     customer: {
       customerId: params.customerId,
       fullName: params.customerName,
       phoneNumber: params.phoneNumber || undefined,
       email: params.email || undefined,
     },
-    offerPeriod: buildOwnerBillingOfferPeriod(params.planCode),
+    offerPeriod: { interval: "1m" },
   });
 
-  if (!result && typeof window !== "undefined") {
-    // Successful redirect flows leave this page before the SDK resolves.
-    return null;
-  }
-
-  if (!result) {
-    throw new Error("결제수단 등록 창을 열지 못했습니다.");
-  }
-
+  if (!result && typeof window !== "undefined") return null;
+  if (!result) throw new Error("결제수단 등록 창을 열지 못했습니다.");
   if (result.code || result.message) {
     throw new Error(result.message || "결제수단을 등록하지 못했습니다.");
   }
 
   const billingKey = extractBillingKey(result);
-  if (!billingKey) {
-    throw new Error("빌링키를 확인하지 못했습니다.");
-  }
+  if (!billingKey) throw new Error("빌링키를 확인하지 못했습니다.");
 
   return registerOwnerBillingKey({
+    shopId: params.shopId,
     billingKey,
     issueId: extractIssueId(result),
     paymentMethodLabel: buildPaymentMethodLabel(result),
-    planCode: params.planCode,
   });
 }

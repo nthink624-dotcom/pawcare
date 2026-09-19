@@ -8,8 +8,6 @@ const BLOCKING_ACTION_SELECTOR = "[data-owner-setup-blocking-action]";
 export default function OwnerInitialSetupBlockingModal({
   open,
   onResume,
-  onFeedback,
-  onHelp,
 }: {
   open: boolean;
   onResume: () => void;
@@ -93,7 +91,7 @@ export default function OwnerInitialSetupBlockingModal({
           className="pointer-events-auto w-full max-w-[440px] rounded-[18px] border border-[#e8edf3] bg-white p-5 shadow-[0_24px_64px_rgba(15,23,42,0.20)] outline-none sm:p-6"
           data-testid="owner-initial-setup-blocking-dialog"
         >
-          <p className="inline-flex rounded-full border border-[#e4d7cb] bg-[#faf7f4] px-2.5 py-1 text-[12px] font-medium leading-[18px] text-[#8c6e53]">
+          <p className="inline-flex rounded-full border border-[#fecaca] bg-[#fef2f2] px-2.5 py-1 text-[12px] font-medium leading-[18px] text-[#b91c1c]">
             중요
           </p>
           <h2
@@ -108,30 +106,11 @@ export default function OwnerInitialSetupBlockingModal({
             type="button"
             onClick={onResume}
             data-owner-setup-blocking-action
-            className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium leading-6 text-white transition hover:bg-[#1d2942] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+            className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium leading-6 text-white transition hover:bg-[#1d2942] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
           >
             초기 설정 이어하기
           </button>
 
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-x-1 gap-y-0.5" aria-label="설정 도움">
-            <button
-              type="button"
-              onClick={onFeedback}
-              data-owner-setup-blocking-action
-              className="inline-flex min-h-11 items-center justify-center rounded-[8px] px-3 text-[13px] font-medium leading-5 text-[#475569] underline decoration-[#cbd5e1] underline-offset-4 hover:text-[#15213b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
-            >
-              함께 고쳐요
-            </button>
-            <span className="text-[#cbd5e1]" aria-hidden="true">·</span>
-            <button
-              type="button"
-              onClick={onHelp}
-              data-owner-setup-blocking-action
-              className="inline-flex min-h-11 items-center justify-center rounded-[8px] px-3 text-[13px] font-medium leading-5 text-[#475569] underline decoration-[#cbd5e1] underline-offset-4 hover:text-[#15213b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
-            >
-              도움 문의
-            </button>
-          </div>
         </div>
       </div>
     </div>,

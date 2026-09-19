@@ -46,14 +46,26 @@ test("F mobile completion and care-report routes accept authenticated 3100 prefl
 });
 
 test("completion replay is side-effect free and successful so unfinished care authoring can reopen", async () => {
-  const route = await read("src/app/api/appointments/route.ts");
-  const replayStart = route.indexOf('if (body?.status === "completed" && appointment.status === "completed")');
-  const mutationStart = route.indexOf("const result =", replayStart);
-  const replayBranch = route.slice(replayStart, mutationStart);
+  const [route, ownerMutations] = await Promise.all([
+    read("src/app/api/appointments/route.ts"),
+    read("src/server/owner-mutations.ts"),
+  ]);
+  const statusBranchStart = route.indexOf('if (typeof body?.status === "string")');
+  const detailBranchStart = route.indexOf("const bootstrap = await getBootstrap(owner.shopId);", statusBranchStart);
+  const statusBranch = route.slice(statusBranchStart, detailBranchStart);
+  const statusMutationStart = ownerMutations.indexOf("export async function updateAppointmentStatus");
+  const statusMutation = ownerMutations.slice(statusMutationStart);
 
-  assert.ok(replayStart >= 0 && mutationStart > replayStart);
-  assert.match(replayBranch, /ownerMobileCorsJson\(request, appointment, undefined, APPOINTMENTS_CORS\)/);
-  assert.doesNotMatch(replayBranch, /updateAppointmentStatus|deferNotifications/);
+  assert.ok(statusBranchStart >= 0 && detailBranchStart > statusBranchStart);
+  assert.match(statusBranch, /ownerAccess: owner/);
+  assert.match(statusBranch, /allowCompletedReplay: true/);
+  assert.doesNotMatch(statusBranch, /getBootstrap|appointmentBelongsToStaff/);
+  assert.equal(
+    statusMutation.match(/options\?\.allowCompletedReplay && payload\.status === "completed"/g)?.length,
+    2,
+  );
+  assert.match(statusMutation, /return appointment;/);
+  assert.match(statusMutation, /return currentAppointment;/);
   assert.match(route, /ownerMobileCorsPreflight\(request, APPOINTMENTS_CORS\)/);
   assert.doesNotMatch(route, /const message = error instanceof Error \? error\.message/);
 });

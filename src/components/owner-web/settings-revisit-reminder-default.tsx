@@ -43,8 +43,8 @@ export function SettingsRevisitReminderDefault({
             <CalendarClock className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-[16px] font-semibold text-[#172c46]">재예약 알림 기본 시점</p>
-            <p className="mt-1 text-[14px] leading-5 text-[#64748b]">
+            <p className="text-[18px] font-semibold leading-[26px] text-[#172c46]">재예약 알림 기본 시점</p>
+            <p className="mt-1 text-[14px] font-normal leading-5 text-[#64748b]">
               케어리포트를 작성할 때 이 날짜가 기본으로 들어갑니다.
             </p>
           </div>
@@ -57,7 +57,7 @@ export function SettingsRevisitReminderDefault({
         />
       </div>
       <label className="mt-3 flex min-h-14 items-center justify-between gap-3 rounded-[10px] border border-[#e5e7eb] bg-white px-3 py-1.5">
-        <span className="text-[15px] text-[#52677e]">미용 완료일 기준</span>
+        <span className="text-[16px] font-normal leading-6 text-[#52677e]">미용 완료일 기준</span>
         <span className="inline-flex items-center gap-2">
           <input
             type="number"
@@ -70,9 +70,9 @@ export function SettingsRevisitReminderDefault({
             onKeyDown={(event) => {
               if (event.key === "Enter") event.currentTarget.blur();
             }}
-            className="h-11 w-20 rounded-[8px] border border-[#cfdbe7] bg-white px-3 text-right text-[16px] font-semibold text-[#172c46] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#f3f6f9] disabled:text-[#94a3b8]"
+            className="h-11 w-20 rounded-[8px] border border-[#cfdbe7] bg-white px-3 text-right text-[16px] font-medium leading-6 text-[#172c46] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#f3f6f9] disabled:text-[#94a3b8]"
           />
-          <span className="text-[15px] text-[#52677e]">일 후</span>
+          <span className="text-[16px] font-normal leading-6 text-[#52677e]">일 후</span>
         </span>
       </label>
     </div>

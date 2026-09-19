@@ -5,15 +5,27 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import OwnerBillingScreen from "@/components/owner/owner-billing-screen";
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import { registerOwnerBillingKey } from "@/lib/billing/owner-billing-client";
+import {
+  fetchOwnerSubscriptionSummary,
+  registerOwnerBillingKey,
+} from "@/lib/billing/owner-billing-client";
 import {
   readOwnerBillingSummaryCache,
   writeOwnerBillingSummaryCache,
 } from "@/lib/billing/owner-billing-navigation";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
+import { CURRENT_OWNER_SHOP_STORAGE, readCurrentOwnerShopId } from "@/lib/owner-current-shop";
 
-function OwnerBillingPageContent() {
+type OwnedShopSummary = {
+  id: string;
+};
+
+function isSummaryForActiveShop(summary: OwnerSubscriptionSummary, shopId: string) {
+  return summary.shopId === shopId;
+}
+
+export function OwnerBillingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planParam = searchParams.get("plan");
@@ -26,26 +38,45 @@ function OwnerBillingPageContent() {
   const returnedIssueId = searchParams.get("issueId");
   const returnedBillingError = searchParams.get("message") || searchParams.get("code");
   const [summary, setSummary] = useState<OwnerSubscriptionSummary | null>(null);
+  const [activeShopId, setActiveShopId] = useState<string | null>(null);
+  const [freshSummaryShopId, setFreshSummaryShopId] = useState<string | null>(null);
   const [message, setMessage] = useState("구독 정보를 불러오는 중입니다.");
   const handledBillingKeyRef = useRef<string | null>(null);
+  const activeShopIdRef = useRef<string | null>(null);
+  const activeShopResolutionRef = useRef(0);
+
+  useEffect(() => {
+    activeShopIdRef.current = activeShopId;
+  }, [activeShopId]);
 
   useEffect(() => {
     let active = true;
 
-    async function load() {
-      const cachedSummary = readOwnerBillingSummaryCache();
-      if (cachedSummary && active) {
-        setSummary(cachedSummary);
-        setMessage("최신 구독 정보를 확인하는 중입니다.");
+    async function resolveActiveShop() {
+      const resolutionId = activeShopResolutionRef.current + 1;
+      activeShopResolutionRef.current = resolutionId;
+      setActiveShopId(null);
+      setFreshSummaryShopId(null);
+      setSummary(null);
+      const storedShopId = readCurrentOwnerShopId();
+      if (!storedShopId) {
+        if (active) setMessage("현재 매장을 확인한 뒤 결제를 관리할 수 있습니다.");
+        return;
       }
 
       try {
-        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
-          cache: "no-store",
-        });
-        if (active) {
-          writeOwnerBillingSummaryCache(nextSummary);
-          setSummary(nextSummary);
+        const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops", { cache: "no-store" });
+        if (!active || activeShopResolutionRef.current !== resolutionId) return;
+        if (!shops.some((shop) => shop.id === storedShopId)) {
+          setMessage("현재 매장의 결제 권한을 확인하지 못했습니다.");
+          return;
+        }
+
+        setActiveShopId(storedShopId);
+        const cachedSummary = readOwnerBillingSummaryCache();
+        if (cachedSummary && isSummaryForActiveShop(cachedSummary, storedShopId)) {
+          setSummary(cachedSummary);
+          setMessage("최신 구독 정보를 확인하는 중입니다.");
         }
       } catch (error) {
         if (!active) return;
@@ -62,24 +93,35 @@ function OwnerBillingPageContent() {
       }
     }
 
-    void load();
+    void resolveActiveShop();
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === CURRENT_OWNER_SHOP_STORAGE) {
+        void resolveActiveShop();
+      }
+    };
+    window.addEventListener("storage", handleStorage);
     return () => {
       active = false;
+      window.removeEventListener("storage", handleStorage);
     };
   }, [router]);
 
   useEffect(() => {
+    if (!activeShopId) return;
     let active = true;
 
     const refreshSummary = async () => {
       try {
-        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
-          cache: "no-store",
-        });
-        if (active) {
-          writeOwnerBillingSummaryCache(nextSummary);
-          setSummary(nextSummary);
+        const nextSummary = await fetchOwnerSubscriptionSummary(activeShopId);
+        if (!active || activeShopIdRef.current !== activeShopId) return;
+        if (!isSummaryForActiveShop(nextSummary, activeShopId)) {
+          setFreshSummaryShopId(null);
+          setMessage("현재 매장의 최신 구독 정보를 확인하지 못했습니다.");
+          return;
         }
+        writeOwnerBillingSummaryCache(nextSummary);
+        setSummary(nextSummary);
+        setFreshSummaryShopId(activeShopId);
       } catch {
         // Keep the latest visible summary when a background refresh misses.
       }
@@ -94,6 +136,7 @@ function OwnerBillingPageContent() {
       }
     };
 
+    void refreshSummary();
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
@@ -102,26 +145,38 @@ function OwnerBillingPageContent() {
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [activeShopId]);
 
   useEffect(() => {
-    if (!billingReturn || !returnedBillingKey || !preferredPlan) return;
+    if (
+      !billingReturn ||
+      !returnedBillingKey ||
+      !preferredPlan ||
+      !summary ||
+      !activeShopId ||
+      freshSummaryShopId !== activeShopId ||
+      !isSummaryForActiveShop(summary, activeShopId)
+    ) {
+      return;
+    }
     if (handledBillingKeyRef.current === returnedBillingKey) return;
 
     const billingKey = returnedBillingKey;
     const planCode = preferredPlan;
-    handledBillingKeyRef.current = billingKey;
+    const verifiedShopId = activeShopId;
     let active = true;
 
     async function finishBillingKeyRegistration() {
+      if (activeShopIdRef.current !== verifiedShopId) return;
+      handledBillingKeyRef.current = billingKey;
       setMessage("카드 등록 정보를 확인하고 있어요.");
 
       try {
         await registerOwnerBillingKey({
+          shopId: verifiedShopId,
           billingKey,
           issueId: returnedIssueId,
           paymentMethodLabel: "등록 카드",
-          planCode,
         });
         if (!active) return;
 
@@ -138,7 +193,16 @@ function OwnerBillingPageContent() {
     return () => {
       active = false;
     };
-  }, [billingReturn, preferredPlan, returnedBillingKey, returnedIssueId, router]);
+  }, [
+    activeShopId,
+    billingReturn,
+    freshSummaryShopId,
+    preferredPlan,
+    returnedBillingKey,
+    returnedIssueId,
+    router,
+    summary,
+  ]);
 
   if (!summary) {
     return (

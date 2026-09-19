@@ -15,7 +15,6 @@ import {
 import {
   cancelOwnerSubscriptionRenewal,
   issueOwnerBillingKeyByApi,
-  requestOwnerOneTimePayment,
   saveOwnerSubscriptionPreferences,
   retryOwnerSubscriptionPayment,
 } from "@/lib/billing/owner-billing-client";
@@ -246,7 +245,6 @@ export default function OwnerBillingScreen({
   const selectedMultiShopDiscount = selectedBillingAmount.multiShopDiscount;
   const selectedStaffLimitLabel = getOwnerPlanStaffLimitLabel(selectedPlan, selectedMultiShopDiscount.totalShopCount);
   const isFreePlan = selectedPlan.code === "free";
-  const usesOneTimePayment = selectedPlan.billingType === "one_time";
   const selectedPlanLabel = getOwnerPlanDisplayName(selectedPlan.code);
   const projectedServiceEndDate = formatProjectedServiceEndDate(summary, selectedPlan);
   const hasUsableRegisteredPaymentMethod = summary.paymentMethodExists && !summary.paymentMethodResetRequired;
@@ -261,30 +259,17 @@ export default function OwnerBillingScreen({
     : getCardNumberHint(summary.paymentMethodLabel)
       ? `${getCardNumberHint(summary.paymentMethodLabel)} 카드로 바로 결제를 진행합니다.`
       : "등록된 카드로 바로 결제를 진행합니다.";
-  const billingCycleLabel = usesOneTimePayment ? "1회 결제" : "매월 자동 결제";
-  const nextBillingDateLabel = usesOneTimePayment ? "없음" : formatDate(addMonthsIso(new Date().toISOString(), 1));
-  const consentLines = usesOneTimePayment
-    ? [
-        "선택한 플랜은 결제 1회로 이용이 시작됩니다.",
-        `등록한 카드는 ${PETMANAGER_SERVICE_NAME} 이용요금 결제수단으로 사용됩니다.`,
-        `카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, ${PETMANAGER_SERVICE_NAME}에는 저장되지 않습니다.`,
-      ]
-    : selectedPlan.code === OWNER_SINGLE_MONTHLY_PLAN_CODE
-      ? [
-          "선택한 요금제는 등록된 카드로 매월 29,000원이 자동 결제됩니다.",
-          "알림톡 발송 기능은 선택한 요금제의 이용 정책에 따라 제공됩니다.",
-          `카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, ${PETMANAGER_SERVICE_NAME}에는 저장되지 않습니다.`,
-        ]
-      : [
-        "선택한 요금제는 등록된 카드로 매월 자동 결제됩니다.",
-        "카드 등록이 완료되면 선택한 플랜 결제가 바로 진행됩니다.",
-        "알림톡 발송 기능은 선택한 요금제의 이용 정책에 따라 제공됩니다.",
-        `카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, ${PETMANAGER_SERVICE_NAME}에는 저장되지 않습니다.`,
-      ];
+  const billingCycleLabel = "매월 자동 결제";
+  const nextBillingDateLabel = formatDate(addMonthsIso(new Date().toISOString(), 1));
+  const consentLines = [
+    "선택한 요금제는 등록된 카드로 매월 29,000원이 자동 결제됩니다.",
+    "알림톡 발송 기능은 선택한 요금제의 이용 정책에 따라 제공됩니다.",
+    `카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, ${PETMANAGER_SERVICE_NAME}에는 저장되지 않습니다.`,
+  ];
   const agreementContinueLabel =
     registeringCard || retryingPayment || resumingRegisteredCardPayment
       ? "결제 진행 중..."
-      : hasUsableRegisteredPaymentMethod || usesOneTimePayment
+      : hasUsableRegisteredPaymentMethod
         ? "동의하고 결제하기"
         : "동의하고 카드 등록 후 결제하기";
   const paymentMethodOptions: PaymentMethodOption[] = hasUsableRegisteredPaymentMethod
@@ -297,23 +282,17 @@ export default function OwnerBillingScreen({
         {
           id: "new",
           title: "새 카드 등록",
-          description: usesOneTimePayment
-            ? "등록 후 바로 결제를 진행합니다."
-            : "등록 후 바로 해당 플랜 결제로 이어집니다.",
+          description: "등록 후 바로 해당 플랜 결제로 이어집니다.",
         },
       ]
     : [
         {
           id: "new",
           title: "새 카드 등록",
-          description: usesOneTimePayment
-            ? "등록 후 바로 결제를 진행합니다."
-            : "등록 후 바로 해당 플랜 결제로 이어집니다.",
+          description: "등록 후 바로 해당 플랜 결제로 이어집니다.",
         },
       ];
-  const paymentSheetAmountLabel = usesOneTimePayment
-    ? `총 ${won(selectedPlan.totalPrice)}`
-    : `월 ${won(selectedBillingAmount.monthlyTotalAmount)}`;
+  const paymentSheetAmountLabel = `월 ${won(selectedBillingAmount.monthlyTotalAmount)}`;
   const canCancelRenewal =
     summary.currentPlan.billingType === "subscription" &&
     summary.currentPlanCode !== "free" &&
@@ -360,7 +339,7 @@ export default function OwnerBillingScreen({
       clearPendingBillingRegistration();
       return;
     }
-    if (usesOneTimePayment || resumingRegisteredCardPayment || retryingPayment) {
+    if (resumingRegisteredCardPayment || retryingPayment) {
       return;
     }
     if (!summary.paymentMethodExists) {
@@ -375,16 +354,18 @@ export default function OwnerBillingScreen({
       setMessage("등록한 카드로 결제를 이어서 진행하고 있어요.");
 
       try {
+        let activeSummary = summary;
         if (pendingPlanCode !== summary.currentPlanCode) {
-          const savedSummary = await saveOwnerSubscriptionPreferences({ currentPlanCode: pendingPlanCode });
+          const savedSummary = await saveOwnerSubscriptionPreferences(summary.shopId);
           if (cancelled) return;
+          activeSummary = savedSummary;
           setSummary(savedSummary);
           setSelectedPlanCode(savedSummary.currentPlanCode);
         }
 
         clearPendingBillingRegistration();
 
-        const nextSummary = await retryOwnerSubscriptionPayment();
+        const nextSummary = await retryOwnerSubscriptionPayment(activeSummary.shopId);
         if (cancelled) return;
 
         setSummary(nextSummary);
@@ -411,7 +392,7 @@ export default function OwnerBillingScreen({
     return () => {
       cancelled = true;
     };
-  }, [resumingRegisteredCardPayment, retryingPayment, summary, usesOneTimePayment]);
+  }, [resumingRegisteredCardPayment, retryingPayment, summary]);
 
   function handleRegisterCard() {
     if (registeringCard || retryingPayment) return;
@@ -432,11 +413,11 @@ export default function OwnerBillingScreen({
       storePendingBillingRegistration(selectedPlanCode);
 
       const registeredSummary = await issueOwnerBillingKeyByApi({
+        shopId: summary.shopId,
         ...credentials,
         customerName: summary.ownerName || "매장 사장님",
         phoneNumber: summary.ownerPhoneNumber,
         email: summary.ownerEmail,
-        planCode: selectedPlanCode,
       });
 
       if (!registeredSummary) {
@@ -446,7 +427,7 @@ export default function OwnerBillingScreen({
       setSummary(registeredSummary);
       setSelectedPlanCode(registeredSummary.currentPlanCode);
 
-      const paidSummary = await retryOwnerSubscriptionPayment();
+      const paidSummary = await retryOwnerSubscriptionPayment(registeredSummary.shopId);
       setSummary(paidSummary);
       setSelectedPlanCode(paidSummary.currentPlanCode);
       clearPendingBillingRegistration();
@@ -471,7 +452,7 @@ export default function OwnerBillingScreen({
     setMessage(null);
     try {
       await persistSelectedPlanIfNeeded();
-      const nextSummary = await retryOwnerSubscriptionPayment();
+      const nextSummary = await retryOwnerSubscriptionPayment(summary.shopId);
       setSummary(nextSummary);
       setSelectedPlanCode(nextSummary.currentPlanCode);
       if (hasSuccessfulPayment(nextSummary)) {
@@ -487,51 +468,11 @@ export default function OwnerBillingScreen({
     }
   }
 
-  async function handleOneTimePayment() {
-    if (retryingPayment) return;
-
-    setRetryingPayment(true);
-    setMessage(null);
-
-    try {
-      const nextSummary = await requestOwnerOneTimePayment({
-        customerId: `owner_${summary.userId}`,
-        customerName: summary.ownerName || "매장 사장님",
-        phoneNumber: summary.ownerPhoneNumber,
-        email: summary.ownerEmail,
-        userId: summary.userId,
-        shopId: summary.shopId,
-        planCode: selectedPlanCode,
-        amount: selectedPlan.totalPrice,
-        orderName: `${PETMANAGER_SERVICE_NAME} ${selectedPlan.title} 결제`,
-      });
-
-      setSummary(nextSummary);
-      setSelectedPlanCode(nextSummary.currentPlanCode);
-      if (hasSuccessfulPayment(nextSummary)) {
-        setMessage(null);
-        router.replace(buildBillingSuccessUrl(nextSummary) as never);
-      } else {
-        setMessage("결제를 완료하지 못했습니다.");
-      }
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "결제를 완료하지 못했습니다.");
-    } finally {
-      setRetryingPayment(false);
-    }
-  }
-
   const primaryAction = isFreePlan
     ? {
         label: "체험 플랜 상태 확인",
         onClick: () => undefined,
         disabled: true,
-      }
-    : usesOneTimePayment
-    ? {
-        label: retryingPayment ? "처리 중..." : "결제하고 다시 이용하기",
-        onClick: handleOneTimePayment,
-        disabled: retryingPayment,
       }
     : hasUsableRegisteredPaymentMethod
     ? {
@@ -550,7 +491,7 @@ export default function OwnerBillingScreen({
       return summary;
     }
 
-    const savedSummary = await saveOwnerSubscriptionPreferences({ currentPlanCode: selectedPlanCode });
+    const savedSummary = await saveOwnerSubscriptionPreferences(summary.shopId);
     setSummary(savedSummary);
     return savedSummary;
   }
@@ -574,7 +515,7 @@ export default function OwnerBillingScreen({
       }
 
       setPaymentSheetOpen(false);
-      await (usesOneTimePayment ? handleOneTimePayment() : handleRegisterCard());
+      await handleRegisterCard();
     } catch {
       // Error messages are already handled in each payment action.
     }
@@ -598,7 +539,7 @@ export default function OwnerBillingScreen({
     setCancellingRenewal(true);
     setMessage(null);
     try {
-      const nextSummary = await cancelOwnerSubscriptionRenewal();
+      const nextSummary = await cancelOwnerSubscriptionRenewal(summary.shopId);
       setSummary(nextSummary);
       setSelectedPlanCode(nextSummary.currentPlanCode);
       setCancelRenewalDialogOpen(false);
@@ -753,7 +694,7 @@ export default function OwnerBillingScreen({
               }
               setMessage(null);
 
-              void (usesOneTimePayment ? handleOneTimePayment() : hasUsableRegisteredPaymentMethod ? handlePayNow() : handleRegisterCard());
+              void (hasUsableRegisteredPaymentMethod ? handlePayNow() : handleRegisterCard());
             }}
             onBack={() => setSelectionStep("plan")}
             loading={registeringCard || retryingPayment}
@@ -775,9 +716,7 @@ export default function OwnerBillingScreen({
                   ? "결제 진행 중..."
                   : selectedPaymentOption === "saved" && hasUsableRegisteredPaymentMethod
                     ? "선택한 수단으로 계속하기"
-                    : usesOneTimePayment
-                      ? "결제창 열기"
-                      : "선택한 수단으로 계속하기"
+                    : "선택한 수단으로 계속하기"
             }
             returnFocusRef={agreementContinueRef}
             onSelectOption={setSelectedPaymentOption}
@@ -857,8 +796,6 @@ export default function OwnerBillingScreen({
           <p className="mt-2 text-[13px] leading-5 text-[var(--mid)]">
             {isFreePlan
               ? "체험 플랜은 관리자 배정용 플랜입니다. 유료 결제로 전환하려면 플랜을 변경해 주세요."
-              : usesOneTimePayment
-              ? "선택한 플랜은 결제 후 바로 시작할 수 있습니다."
               : `${selectedStaffLimitLabel} 기준 요금제입니다.`}
           </p>
         </div>
@@ -873,8 +810,6 @@ export default function OwnerBillingScreen({
               <p className="mt-1 text-[13px] leading-5 text-[var(--mid)]">
                 {isFreePlan
                   ? "체험 플랜은 결제가 필요하지 않습니다."
-                  : usesOneTimePayment
-                  ? "선택한 플랜은 결제 후 바로 시작합니다."
                   : "카드 등록 후 매월 같은 요금제로 자동 결제됩니다."}
               </p>
             </div>

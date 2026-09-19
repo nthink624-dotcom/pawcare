@@ -79,17 +79,18 @@ export default function InitialSetupStaffManagementPanel({
   onPhotoRemove: () => void;
   onPhotoReset: () => void;
   onPhotoError: (message: string) => void;
-  onSave: () => void;
+  onSave: () => void | boolean | Promise<void | boolean>;
   onNext: () => void;
 }) {
   const persistedUrl = draft.profileImageUrl.trim();
   const isSaving = saveState === "saving";
+  const hasVisibleFeedback = Boolean(feedback) || saveState === "dirty" || saveState === "saved";
 
   return (
     <div className="min-w-0" data-testid="owner-initial-setup-staff">
       <OwnerInitialSetupSaveNextActions onSave={onSave} onNext={onNext} saving={isSaving} />
 
-      <div className="mb-4 min-h-5" aria-live="polite">
+      <div className={hasVisibleFeedback ? "mb-4" : "sr-only"} aria-live="polite">
         {feedback ? (
           <p
             role={saveState === "error" ? "alert" : "status"}
@@ -109,7 +110,7 @@ export default function InitialSetupStaffManagementPanel({
       <div className="grid min-w-0 overflow-hidden rounded-[14px] border border-[#dbe2ea] bg-white md:grid-cols-[220px_minmax(0,1fr)]">
         <section className="min-w-0 border-b border-[#dbe2ea] md:border-b-0 md:border-r" aria-label="직원 목록">
           <div className="flex min-h-11 items-center justify-between border-b border-[#edf2f7] px-4 py-2.5">
-            <h3 className="text-[14px] font-medium leading-5 text-[#15213b]">직원 목록</h3>
+            <h3 className="text-[18px] font-semibold leading-[26px] text-[#15213b]">직원 목록</h3>
             <span className="text-[13px] font-normal leading-5 text-[#64748b]">{staff.length}명</span>
           </div>
           {staff.length > 0 ? (

@@ -1,10 +1,16 @@
 {
   "name": "petmanager-alimtalk-relay",
+  "version": "0.0.0-private",
   "private": true,
   "type": "module",
+  "files": [
+    "src"
+  ],
   "scripts": {
+    "build": "npm run typecheck",
     "dev": "tsx src/server.ts",
     "start": "tsx src/server.ts",
+    "test": "tsx --test test/security.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

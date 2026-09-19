@@ -78,7 +78,7 @@ function StaffPhotoField({
     <div className="flex items-center justify-center gap-3">
       <label className={cn(
         "group relative flex shrink-0 cursor-pointer flex-col items-center justify-center border border-[#dbe2ea] bg-white text-center font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]/20",
-        compact ? "h-[104px] w-[96px] rounded-[12px] px-2 py-3 text-[14px]" : "h-[136px] w-[118px] rounded-[14px] px-3 py-4 text-[16px]",
+        compact ? "h-[104px] w-[96px] rounded-[12px] px-2 py-3 text-[14px] leading-5" : "h-[136px] w-[118px] rounded-[14px] px-3 py-4 text-[16px] leading-6",
         )}>
           <span className={cn("relative flex items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#475569]", compact ? "h-11 w-11" : "h-[54px] w-[54px]")}>
           <StableAvatar
@@ -95,8 +95,8 @@ function StaffPhotoField({
             </span>
           ) : null}
         </span>
-        <span className={cn("max-w-full truncate font-medium", compact ? "mt-2 text-[14px] leading-[18px]" : "mt-3 text-[16px] leading-[19px]")}>{title}</span>
-        {subtitle ? <span className="mt-1 max-w-full truncate text-[13px] leading-[15px] text-[#64748b]">{subtitle}</span> : null}
+        <span className={cn("max-w-full truncate font-medium", compact ? "mt-2 text-[14px] leading-5" : "mt-3 text-[16px] leading-6")}>{title}</span>
+        {subtitle ? <span className="mt-1 max-w-full truncate text-[13px] font-normal leading-5 text-[#64748b]">{subtitle}</span> : null}
         <span className={cn("pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/[0.025]", compact ? "rounded-[12px]" : "rounded-[14px]")} />
         <input
           type="file"
@@ -133,7 +133,7 @@ export function ScheduleTable({
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[1240px]">
-        <div className="grid grid-cols-[180px_repeat(7,minmax(150px,1fr))] border-b border-[#edf2f7] bg-[#f8fafc] text-[14px] text-[#64748b]">
+        <div className="grid grid-cols-[180px_repeat(7,minmax(150px,1fr))] border-b border-[#edf2f7] bg-[#f8fafc] text-[14px] font-medium leading-5 text-[#64748b]">
           <div className="px-5 py-3">이름</div>
           {weekDates.map((day) => (
             <div key={day.date} className="whitespace-nowrap px-3 py-3 text-center [word-break:keep-all]">
@@ -144,7 +144,7 @@ export function ScheduleTable({
         {staff.map((staffMember) => (
           <div key={staffMember.id} className="grid grid-cols-[180px_repeat(7,minmax(150px,1fr))] items-center border-b border-[#edf2f7] last:border-b-0">
             <button type="button" className="px-5 py-4 text-left">
-              <p className="text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
+              <p className="text-[16px] font-normal leading-6 text-[#111827]">{staffMember.name}</p>
             </button>
             {weekDates.map((day) => {
               const cell = applyScheduleToCell(staffMember, day.key, day.date, requests, overrides);
@@ -155,16 +155,16 @@ export function ScheduleTable({
                   type="button"
                   onClick={() => onOpenScheduleEditor(staffMember, day)}
                   className={cn(
-                    "relative mx-2 my-3 flex h-9 min-w-[130px] items-center justify-between gap-2 overflow-hidden rounded-[8px] border bg-white px-2.5 text-left text-[14px] font-medium leading-none whitespace-nowrap [word-break:keep-all] transition hover:bg-[#f8fafc]",
+                    "relative mx-2 my-3 flex h-11 min-w-[130px] items-center justify-between gap-2 overflow-hidden rounded-[8px] border bg-white px-2.5 text-left !text-[12px] !font-medium !leading-[18px] whitespace-nowrap [word-break:keep-all] transition hover:bg-[#f8fafc]",
                     getCellTone(cell.status),
                     getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
                   )}
                   style={{ "--pm-wrap-indicator-color": staffTone.selectedBackground } as CSSProperties}
                 >
-                  <span className="min-w-0 flex-1 truncate whitespace-nowrap font-normal [word-break:keep-all]" style={{ color: staffTone.text }}>
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap text-[12px] font-medium leading-[18px] [word-break:keep-all]" style={{ color: staffTone.text }}>
                     {staffMember.name}
                   </span>
-                  <span className="shrink-0 whitespace-nowrap font-normal tabular-nums text-[#64748b] [word-break:keep-all]">{cell.label}</span>
+                  <span className="shrink-0 whitespace-nowrap text-[12px] font-medium leading-[18px] tabular-nums text-[#64748b] [word-break:keep-all]">{cell.label}</span>
                 </button>
               );
             })}
@@ -246,7 +246,7 @@ export function StaffList({
 
   return (
     <div className="p-3 sm:p-4">
-      <div data-staff-list-grid className="grid gap-3 md:grid-cols-2">
+      <div data-staff-list-grid className="grid gap-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           {staff.map((staffMember) => {
             const active = selectedStaffId === staffMember.id;
             const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex);
@@ -445,7 +445,7 @@ export function StaffDetailActions({
   isSaving?: boolean;
 }) {
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-2 [&_button]:!text-[14px] [&_button]:!font-medium [&_button]:!leading-5">
       <div className="grid grid-cols-2 gap-2">
         <GhostButton label="취소" onClick={onReset} />
         <button
@@ -469,7 +469,7 @@ export function StaffDetailActions({
 export function Field({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="text-[16px] font-normal text-[#334155]">{label}</span>
+      <span className="text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#334155]">{label}</span>
       <div className="mt-1.5">{children}</div>
     </label>
   );
@@ -491,7 +491,7 @@ export function TextInput({ value, onChange, type = "text", placeholder }: { val
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#94a3b8] focus:bg-white"
+      className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 !text-[16px] !font-medium !leading-6 tracking-[-0.005em] text-[#111827] outline-none focus:border-[#94a3b8] focus:bg-white"
     />
   );
 }
@@ -503,7 +503,7 @@ export function TextAreaInput({ value, onChange, placeholder, compact = false }:
       onChange={(event) => onChange(event.target.value.slice(0, 80))}
       placeholder={placeholder}
       rows={2}
-        className={cn("w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none transition placeholder:text-[#9aa8bb] focus:border-[#94a3b8]", compact ? "min-h-[64px]" : "min-h-[72px]")}
+        className={cn("w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 !text-[16px] !font-medium !leading-6 tracking-[-0.005em] text-[#111827] outline-none transition placeholder:text-[#9aa8bb] focus:border-[#94a3b8]", compact ? "min-h-[64px]" : "min-h-[72px]")}
     />
   );
 }
@@ -529,7 +529,7 @@ export function WeekdayColorPicker({ value, onChange }: { value: string; onChang
               type="button"
               onClick={() => toggleDay(day.key)}
               className={cn(
-                "h-8 min-w-8 rounded-full border px-2 text-[16px] font-normal transition",
+                "h-11 min-w-11 rounded-full border px-2 !text-[16px] !font-medium !leading-6 transition",
                 selected ? "border-[#111827] bg-white text-[#111827]" : "border-[#d5dde6] bg-white text-[#64748b]",
               )}
               aria-pressed={selected}
@@ -564,8 +564,8 @@ export function TimeSelect({
       options={options}
       align={align}
       className={className}
-      buttonClassName={cn("h-9 bg-white px-2", buttonClassName)}
-      valueClassName="text-[16px] font-normal"
+      buttonClassName={cn("min-h-11 bg-white px-2", buttonClassName)}
+      valueClassName="!text-[16px] !font-medium !leading-6 tracking-[-0.005em]"
       menuClassName="max-h-[180px] overflow-y-auto overscroll-contain"
     />
   );
@@ -591,7 +591,7 @@ export function CompactInput({
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       aria-label={ariaLabel}
-      className="h-8 min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-2 text-right text-[16px] text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:bg-white"
+      className="h-11 min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-2 text-right !text-[16px] !font-medium !leading-6 tracking-[-0.005em] text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:bg-white"
     />
   );
 }
@@ -599,7 +599,7 @@ export function CompactInput({
 export function StaffInfoRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-h-11 items-center gap-3 border-b border-[#edf2f7] py-2 last:border-b-0">
-      <span className="shrink-0 text-[16px] text-[#64748b]">{label}</span>
+      <span className="shrink-0 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">{label}</span>
       <div className="ml-auto flex min-w-0 flex-1 justify-end">{children}</div>
     </div>
   );
@@ -608,8 +608,8 @@ export function StaffInfoRow({ label, children }: { label: string; children: Rea
 export function StaffMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
-      <p className="text-[16px] text-[#64748b]">{label}</p>
-      <p className="mt-0.5 text-[16px] font-normal text-[#111827]">{value}</p>
+      <p className="text-[14px] font-normal leading-5 text-[#64748b]">{label}</p>
+      <p className="mt-0.5 text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">{value}</p>
     </div>
   );
 }
@@ -635,7 +635,7 @@ export function StaffBoardTabs({
             type="button"
             onClick={() => onChange(tab.key)}
             className={cn(
-              "h-10 rounded-[8px] px-4 text-[16px] transition",
+              "h-11 rounded-[8px] px-4 !text-[14px] !font-medium !leading-5 tracking-[-0.005em] transition",
               activeTab === tab.key ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-sm" : "text-[#475569] hover:bg-[#f8fafc]",
             )}
           >
@@ -778,8 +778,8 @@ export function StaffScheduleEditModal({
       <div className="mt-5 overflow-hidden rounded-[8px] border border-[#e5eaf0] bg-[#fbfcfd]">
         <button type="button" onClick={onToggleDefaultSchedule} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
           <span className="min-w-0">
-            <span className="block text-[14px] font-normal text-[#334155]">고정 휴무 기준</span>
-            <span className="mt-0.5 block text-[13px] text-[#64748b]">매주 쉬는 요일은 필요할 때만 수정합니다.</span>
+            <span className="block text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#334155]">고정 휴무 기준</span>
+            <span className="mt-0.5 block text-[13px] font-normal leading-5 text-[#64748b]">매주 쉬는 요일은 필요할 때만 수정합니다.</span>
           </span>
           <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", defaultScheduleOpen && "rotate-180")} />
         </button>
@@ -789,7 +789,7 @@ export function StaffScheduleEditModal({
               <Field label="반복 휴무 요일">
                 <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onDraftChange((current) => (current ? { ...current, defaultDaysText } : current))} />
               </Field>
-              <div className="flex justify-end">
+              <div className="flex justify-end [&_button]:!text-[14px] [&_button]:!font-medium [&_button]:!leading-5">
                 <GhostButton label="기준 저장" onClick={onSaveDefaultSchedule} />
               </div>
             </div>
@@ -805,7 +805,7 @@ export function StaffScheduleEditModal({
         ) : null}
       </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-2">
+      <div className="mt-6 grid grid-cols-3 gap-2 [&_button]:!text-[14px] [&_button]:!font-medium [&_button]:!leading-5">
         <GhostButton label="기본값" onClick={onReset} />
         <GhostButton label="취소" onClick={onClose} />
         <PrimaryButton label="저장" onClick={onSave} />
@@ -840,8 +840,8 @@ export function StaffModal({ title, children, footer, onClose }: { title: string
         >
           <div className={footer ? "shrink-0 px-5 pt-5" : ""}>
             <div className="flex items-start justify-between gap-3">
-              <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
-              <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
+              <h3 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">{title}</h3>
+              <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
                 <X className="h-5 w-5" />
               </button>
             </div>

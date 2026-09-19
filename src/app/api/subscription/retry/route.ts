@@ -5,7 +5,7 @@ import { requireOwnerBillingSession } from "@/server/owner-billing-session";
 
 export async function POST(request: NextRequest) {
   try {
-    const { identity, shopId } = await requireOwnerBillingSession(request);
+    const { identity, shopId } = await requireOwnerBillingSession(request, request.nextUrl.searchParams.get("shopId"));
     const summary = await retryOwnerSubscriptionCharge(identity, shopId);
     return NextResponse.json(summary);
   } catch (error) {

@@ -47,6 +47,11 @@ test("accepted route cores bypass only their redundant inner wrapper", async () 
   assert.match(profitability, /min-h-11 min-w-\[88px\] flex-1[\s\S]*h-11 w-11/, "profitability range and refresh controls must remain 44px targets");
   assert.match(profitability, /overflow-x-auto rounded-\[8px\] border border-\[#e7ebf0\]/, "wide staff data must use intentional local scrolling");
   assert.match(profitability, /flex flex-col items-stretch justify-between[\s\S]*sm:flex-row sm:items-center/, "price recommendations must reflow rather than clip");
+  assert.doesNotMatch(profitability, /font-(?:bold|extrabold|black)|text-\[(?:10|11|15|17|19|21|22|23|25|26|27|29|30|31)px\]/, "profitability typography must stay on the approved Korean role scale and 400/500/600 weights");
+  assert.match(profitability, /text-\[20px\] font-semibold leading-7[\s\S]*시간당 수익 분석/, "profitability route title must use the section-heading role");
+  assert.match(profitability, /text-\[14px\] font-medium leading-5 text-\[#526174\][\s\S]*tabular-nums/, "profitability tables must retain readable labels and aligned numeric values");
+  assert.doesNotMatch(profitability, /실제 미용시간과 받은 금액을 연결해|시간당 매출이 낮은 순서입니다/, "profitability must not repeat service-introduction helper paragraphs");
+  assert.match(profitability, /선정 기준 · 평균 10분 이상 지연 · 시간당 매출 매장 기준 대비 -10% 이하/, "profitability must retain the compact recommendation threshold metadata");
 
   const shopInfoRoot = componentRoot(shopInfo, "ShopInfoSettingsPanel");
   assert.match(shopInfoRoot, /<div className="h-full min-h-0 min-w-0">[\s\S]*relative flex min-h-0 min-w-0 flex-col overflow-hidden/);

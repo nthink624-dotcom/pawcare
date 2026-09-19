@@ -52,15 +52,15 @@ export function NotificationTimingPopover({
     >
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-[13px] font-semibold leading-5 text-[#1e293b]">알림 시간</span>
-          <span className="text-[11px] leading-4 text-[#94a3b8]">1~240분</span>
+          <span className="text-[14px] font-medium leading-5 text-[#1e293b]">알림 시간</span>
+          <span className="text-[13px] font-normal leading-5 text-[#64748b]">1~240분</span>
         </div>
         <div
           onWheel={(event) => {
             event.preventDefault();
             adjustMinutes(event.deltaY < 0 ? 1 : -1);
           }}
-          className="grid grid-cols-[minmax(0,1fr)_34px] items-center gap-1 rounded-[12px] border border-[#dbe2ea] bg-[#f8fafc] p-1"
+          className="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-1 rounded-[12px] border border-[#dbe2ea] bg-[#f8fafc] p-1"
         >
           <div className="flex h-12 items-baseline justify-center gap-1 rounded-[10px] bg-white px-2">
             <input
@@ -78,16 +78,16 @@ export function NotificationTimingPopover({
                 }
               }}
               inputMode="numeric"
-              className="h-full w-14 border-0 bg-transparent text-right text-[22px] font-semibold leading-none text-[#0f172a] outline-none"
+              className="h-full w-16 border-0 bg-transparent text-right text-[24px] font-semibold leading-8 text-[#0f172a] outline-none"
               aria-label="알림 시간"
             />
-            <span className="shrink-0 text-[13px] font-medium text-[#64748b]">분 {suffix}</span>
+            <span className="shrink-0 text-[13px] font-normal leading-5 text-[#64748b]">분 {suffix}</span>
           </div>
-          <div className="grid h-12 grid-rows-2 gap-1">
+          <div className="grid min-h-[92px] grid-rows-2 gap-1">
             <button
               type="button"
               onClick={() => adjustMinutes(1)}
-              className="flex min-h-0 items-center justify-center rounded-[8px] bg-white text-[#64748b] transition hover:text-[#0f172a]"
+              className="flex min-h-11 items-center justify-center rounded-[8px] bg-white text-[#64748b] transition hover:text-[#0f172a]"
               aria-label="알림 시간 늘리기"
             >
               <ChevronUp className="h-4 w-4" />
@@ -95,7 +95,7 @@ export function NotificationTimingPopover({
             <button
               type="button"
               onClick={() => adjustMinutes(-1)}
-              className="flex min-h-0 items-center justify-center rounded-[8px] bg-white text-[#64748b] transition hover:text-[#0f172a]"
+              className="flex min-h-11 items-center justify-center rounded-[8px] bg-white text-[#64748b] transition hover:text-[#0f172a]"
               aria-label="알림 시간 줄이기"
             >
               <ChevronDown className="h-4 w-4" />
@@ -107,7 +107,7 @@ export function NotificationTimingPopover({
         type="button"
         disabled={!canSave || saving}
         onClick={() => onSave(minutes)}
-        className="h-9 rounded-[8px] bg-[#242424] text-[15px] text-white transition hover:bg-[#111111] disabled:cursor-not-allowed disabled:opacity-45"
+        className="min-h-11 rounded-[8px] bg-[#242424] text-[14px] font-medium leading-5 text-white transition hover:bg-[#111111] disabled:cursor-not-allowed disabled:opacity-45"
       >
         저장
       </button>

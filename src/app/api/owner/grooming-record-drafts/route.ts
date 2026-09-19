@@ -2,10 +2,10 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { normalizeStoredCareReport } from "@/lib/care-report-draft";
 import { OwnerApiError, requireOwnerShop, type OwnerShopContext } from "@/server/owner-api-auth";
 import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
-import { careReportObservationsSchema } from "@/types/care-report";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +19,6 @@ const draftInputSchema = z.object({
   internalNotes: z.string().max(4000).default(""),
   nextRecommendedVisitDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
   afterMediaAssetId: z.string().trim().min(1).nullable().default(null),
-  careReportObservations: careReportObservationsSchema.optional(),
-  careReportVoiceTranscript: z.string().trim().max(4000).optional(),
   careReportPhotoConsent: z.boolean().optional(),
 });
 
@@ -72,10 +70,7 @@ function serializeDraft(row: DraftRow | null) {
     internalNotes: row.internal_notes,
     nextRecommendedVisitDate: row.next_recommended_visit_date,
     afterMediaAssetId: row.after_media_asset_id,
-    careReportObservations: row.care_report_observations,
-    careReportVoiceTranscript: row.care_report_voice_transcript,
-    careReportAiDraft: row.care_report_ai_draft,
-    careReportGenerationId: row.care_report_generation_id,
+    reportText: normalizeStoredCareReport(row.care_report_ai_draft)?.reportText ?? null,
     careReportOwnerConfirmedAt: row.care_report_owner_confirmed_at,
     careReportPhotoConsent: row.care_report_photo_consent,
     updatedAt: row.updated_at,
@@ -211,8 +206,8 @@ export async function PUT(request: NextRequest) {
         internal_notes: input.internalNotes,
         next_recommended_visit_date: input.nextRecommendedVisitDate,
         after_media_asset_id: input.afterMediaAssetId,
-        care_report_observations: input.careReportObservations ?? previous?.care_report_observations ?? {},
-        care_report_voice_transcript: input.careReportVoiceTranscript ?? previous?.care_report_voice_transcript ?? "",
+        care_report_observations: previous?.care_report_observations ?? {},
+        care_report_voice_transcript: previous?.care_report_voice_transcript ?? "",
         care_report_ai_draft: previous?.care_report_ai_draft ?? null,
         care_report_generation_id: previous?.care_report_generation_id ?? null,
         care_report_owner_confirmed_at: previous?.care_report_owner_confirmed_at ?? null,
@@ -236,12 +231,6 @@ export async function PUT(request: NextRequest) {
           internal_notes: input.internalNotes,
           next_recommended_visit_date: input.nextRecommendedVisitDate,
           after_media_asset_id: input.afterMediaAssetId,
-          ...(input.careReportObservations === undefined
-            ? {}
-            : { care_report_observations: input.careReportObservations }),
-          ...(input.careReportVoiceTranscript === undefined
-            ? {}
-            : { care_report_voice_transcript: input.careReportVoiceTranscript }),
           ...(input.careReportPhotoConsent === undefined
             ? {}
             : { care_report_photo_consent: input.careReportPhotoConsent }),

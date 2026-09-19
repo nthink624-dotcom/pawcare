@@ -5,7 +5,7 @@ export type SignupRequestRecord = {
   authUserId: string | null;
   shopId: string | null;
   trialEligible: boolean | null;
-  trialDays: 0 | 14 | null;
+  trialDays: 0 | 14 | 44 | null;
   billingRequired: boolean | null;
 };
 
@@ -39,7 +39,7 @@ type AtomicSignupResult = {
   shopId: string;
   reused: boolean;
   trialEligible: boolean;
-  trialDays: 0 | 14;
+  trialDays: 0 | 14 | 44;
   billingRequired: boolean;
 };
 
@@ -82,7 +82,7 @@ export async function orchestrateDevelopmentSignup(input: {
   if (claim.action === "completed" && previous?.status === "completed" && previous.shopId) {
     if (
       typeof previous.trialEligible !== "boolean" ||
-      (previous.trialDays !== 0 && previous.trialDays !== 14) ||
+      (previous.trialDays !== 0 && previous.trialDays !== 14 && previous.trialDays !== 44) ||
       typeof previous.billingRequired !== "boolean"
     ) {
       throw new SignupFlowError(

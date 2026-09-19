@@ -617,6 +617,7 @@ export default function StaffManagementScreen({
       setInitialSetupSaveState("saved");
       setNotice("직원 정보를 저장했습니다.");
       onInitialSetupSessionDraftChange?.({ staffId: targetId, draft: savedDraft, photo: savedPhoto, saveState: "saved" });
+      return true;
     } catch (error) {
       setInitialSetupSaveState("error");
       const errorMessage = error instanceof Error ? error.message : "직원 정보를 저장하지 못했습니다.";
@@ -697,7 +698,7 @@ export default function StaffManagementScreen({
           setNotice(message);
           setInitialSetupSaveState(message ? "error" : "dirty");
         }}
-        onSave={() => void saveInitialSetupStaff()}
+        onSave={saveInitialSetupStaff}
         onNext={() => onInitialSetupNext?.()}
       />
     );
@@ -722,7 +723,7 @@ export default function StaffManagementScreen({
                 <button
                   type="button"
                   onClick={() => setMonthStart((current) => formatMonthShift(current, -1))}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                   aria-label="이전 달"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -730,14 +731,14 @@ export default function StaffManagementScreen({
                 <button
                   type="button"
                   onClick={() => setMonthStart(getMonthStart())}
-                  className="h-9 min-w-[72px] rounded-[8px] px-3 text-[18px] font-medium text-[#111827] hover:bg-[#f8fafc]"
+                  className="h-11 min-w-[72px] rounded-[8px] px-3 !text-[16px] !font-medium !leading-6 text-[#111827] hover:bg-[#f8fafc]"
                 >
                   {formatMonthLabel(monthStart).replace(/^\d{4}년\s*/, "")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMonthStart((current) => formatMonthShift(current, 1))}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                   aria-label="다음 달"
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -757,18 +758,18 @@ export default function StaffManagementScreen({
                     <button
                       type="button"
                       onClick={() => setWeekStart((current) => formatDateShift(current, -7))}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                       aria-label="이전 주"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => setWeekStart(getWeekStart())} className="h-8 px-3 text-[16px] font-medium text-[#111827]">
+                    <button type="button" onClick={() => setWeekStart(getWeekStart())} className="h-11 px-3 !text-[16px] !font-medium !leading-6 text-[#111827]">
                       {formatWeekLabel(weekStart)}
                     </button>
                     <button
                       type="button"
                       onClick={() => setWeekStart((current) => formatDateShift(current, 7))}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                       aria-label="다음 주"
                     >
                       <ChevronRight className="h-4 w-4" />
@@ -777,15 +778,15 @@ export default function StaffManagementScreen({
               ) : (
                 <>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-[16px] font-normal text-[#111827]">직원 목록</h2>
-                    <span className="inline-flex h-7 items-center rounded-full bg-[#f1f5f9] px-3 text-[16px] font-normal text-[#334155]">
+                    <h2 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">직원 목록</h2>
+                    <span className="inline-flex min-h-[18px] items-center rounded-full bg-[#f1f5f9] px-2.5 py-0.5 text-[12px] font-medium leading-[18px] text-[#334155]">
                       {staff.length}명
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setStaffDialogOpen(true)}
-                    className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
+                    className={cn(OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS, "!text-[14px] !font-medium !leading-5")}
                   >
                     <AssetIcon src="/icons/phosphor/UserPlus.svg" className="h-4 w-4" />
                     직원 추가
@@ -795,7 +796,7 @@ export default function StaffManagementScreen({
             </div>
             ) : null}
 
-            {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[16px] text-[#475569]">{notice}</div> : null}
+            {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[16px] font-normal leading-6 text-[#475569]">{notice}</div> : null}
 
             {boardTab === "schedule" ? (
               <ScheduleTable staff={staff} weekDates={weekDates} requests={requests} overrides={scheduleOverrides} onOpenScheduleEditor={openScheduleEditor} />
@@ -883,12 +884,12 @@ export default function StaffManagementScreen({
       {staffSaveFeedback ? (
         <StaffModal title={staffSaveFeedback.type === "success" ? "저장 완료" : "저장 실패"} onClose={() => setStaffSaveFeedback(null)}>
           <div className="space-y-5">
-            <p className={cn("text-[16px] leading-6", staffSaveFeedback.type === "success" ? "text-[#111827]" : "text-[#a04455]")}>{staffSaveFeedback.message}</p>
+            <p className={cn("text-[16px] font-normal leading-6", staffSaveFeedback.type === "success" ? "text-[#111827]" : "text-[#a04455]")}>{staffSaveFeedback.message}</p>
             <button
               type="button"
               onClick={() => setStaffSaveFeedback(null)}
               autoFocus={staffSaveFeedback.type === "success"}
-              className="inline-flex h-11 min-h-11 w-full items-center justify-center rounded-[8px] bg-[#111827] px-4 text-[16px] font-medium text-white hover:bg-[#1f2937] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+              className="inline-flex h-11 min-h-11 w-full items-center justify-center rounded-[8px] bg-[#111827] px-4 !text-[16px] !font-medium !leading-6 text-white hover:bg-[#1f2937] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
             >
               확인
             </button>

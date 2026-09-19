@@ -53,7 +53,7 @@ export function ScheduleDropdown({
 
   return (
     <div className="relative space-y-1.5">
-      <span className="text-[14px] text-[#64748b]">{label}</span>
+      <span className="text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
       <button
         type="button"
         onClick={() => {
@@ -61,20 +61,20 @@ export function ScheduleDropdown({
           if (open) setQuery("");
         }}
         className={cn(
-          "flex h-11 w-full items-center justify-between gap-3 rounded-[8px] border bg-white px-3 text-left text-[14px] outline-none transition",
+          "flex min-h-11 w-full items-center justify-between gap-3 rounded-[8px] border bg-white px-3 py-2 text-left text-[16px] font-medium leading-6 outline-none transition",
           open ? "border-[#b8c8d8] bg-[#fbfdff]" : "border-[#dbe2ea] hover:border-[#b8c8d8]",
           focusClassName,
         )}
       >
         <span className="min-w-0">
-          <span className={cn("block truncate", selected ? "text-[#111827]" : "text-[#94a3b8]")}>{selected?.label ?? placeholder}</span>
-          {showSelectedMeta && selected?.meta ? <span className="mt-0.5 block truncate text-[11px] text-[#64748b]">{selected.meta}</span> : null}
+          <span className={cn("block whitespace-normal break-words [overflow-wrap:anywhere]", selected ? "text-[#111827]" : "text-[#94a3b8]")}>{selected?.label ?? placeholder}</span>
+          {showSelectedMeta && selected?.meta ? <span className="mt-0.5 block whitespace-normal break-words text-[13px] font-normal leading-5 text-[#64748b] [overflow-wrap:anywhere]">{selected.meta}</span> : null}
         </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#64748b] transition", open && "rotate-180")} />
       </button>
 
       {open ? (
-        <div className="absolute left-0 right-0 top-[68px] z-[70] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.16)]">
+        <div className="absolute left-0 right-0 top-[calc(100%+0.375rem)] z-[70] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.16)]">
           {searchable ? (
             <div className="border-b border-[#edf2f7] p-2">
               <input
@@ -83,7 +83,7 @@ export function ScheduleDropdown({
                 onChange={(event) => setQuery(event.target.value)}
                 autoFocus
                 className={cn(
-                  "h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] outline-none transition placeholder:text-[#94a3b8] focus:border-[#b8c8d8]",
+                  "h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal leading-6 outline-none transition placeholder:text-[#94a3b8] focus:border-[#b8c8d8]",
                   focusClassName,
                 )}
                 placeholder={searchPlaceholder}
@@ -102,18 +102,18 @@ export function ScheduleDropdown({
                     setQuery("");
                   }}
                   className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-[7px] px-3 py-2.5 text-left transition",
+                    "flex min-h-11 w-full items-center justify-between gap-3 rounded-[7px] px-3 py-2.5 text-left transition",
                     option.value === value ? "bg-[#f8fafc] text-[#111827]" : "text-[#111827] hover:bg-[#f8fafc]",
                   )}
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-[14px]">{option.label}</span>
-                    {showOptionMeta && option.meta ? <span className="mt-0.5 block truncate text-[12px] text-[#64748b]">{option.meta}</span> : null}
+                    <span className="block whitespace-normal break-words text-[14px] font-medium leading-5 [overflow-wrap:anywhere]">{option.label}</span>
+                    {showOptionMeta && option.meta ? <span className="mt-0.5 block whitespace-normal break-words text-[12px] font-medium leading-[18px] text-[#64748b] [overflow-wrap:anywhere]">{option.meta}</span> : null}
                   </span>
                 </button>
               ))
             ) : (
-              <p className="px-3 py-6 text-center text-[13px] text-[#64748b]">검색 결과가 없습니다.</p>
+              <p className="px-3 py-6 text-center text-[13px] font-normal leading-5 text-[#64748b]">검색 결과가 없습니다.</p>
             )}
           </div>
         </div>

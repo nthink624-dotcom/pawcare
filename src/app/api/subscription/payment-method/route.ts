@@ -8,12 +8,12 @@ const bodySchema = z.object({
   billingKey: z.string().min(1),
   issueId: z.string().optional().nullable(),
   paymentMethodLabel: z.string().optional().nullable(),
-  planCode: z.enum(["single_monthly_v1", "monthly", "quarterly", "halfyearly", "yearly"]).optional(),
-});
+  planCode: z.literal("single_monthly_v1"),
+}).strict();
 
 export async function POST(request: NextRequest) {
   try {
-    const { identity, shopId } = await requireOwnerBillingSession(request);
+    const { identity, shopId } = await requireOwnerBillingSession(request, request.nextUrl.searchParams.get("shopId"));
     const payload = bodySchema.parse(await request.json());
 
     const summary = await registerOwnerBillingMethod(identity, shopId, {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const { identity, shopId } = await requireOwnerBillingSession(request);
+    const { identity, shopId } = await requireOwnerBillingSession(request, request.nextUrl.searchParams.get("shopId"));
     const summary = await getOwnerSubscriptionSummary(identity, shopId);
     return NextResponse.json(summary);
   } catch (error) {

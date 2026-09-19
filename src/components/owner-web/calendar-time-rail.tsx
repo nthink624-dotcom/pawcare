@@ -12,7 +12,7 @@ const calendarTimeRailTone = {
 export function CalendarTimeRailHeader() {
   return (
     <div
-      className="flex h-[68px] w-[68px] shrink-0 items-center justify-center border-r text-[11px] font-semibold tracking-[0.08em]"
+      className="flex h-[68px] w-[68px] shrink-0 items-center justify-center border-r text-[12px] font-medium leading-[18px]"
       style={{ backgroundColor: calendarTimeRailTone.background, borderColor: calendarTimeRailTone.border, color: calendarTimeRailTone.text }}
     >
       시간

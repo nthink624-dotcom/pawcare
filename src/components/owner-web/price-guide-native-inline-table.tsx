@@ -1,10 +1,11 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { BreedManagementDialog } from "@/components/owner-web/service-price-guide-group-dialogs";
 import PriceGuideNativeInlineExtras from "@/components/owner-web/price-guide-native-inline-extras";
+import PriceGuideServiceDurationControl from "@/components/owner-web/price-guide-service-duration-control";
 
 import {
   addDirectPriceGuideService,
@@ -25,11 +26,10 @@ import {
 } from "@/lib/price-guide-direct-matrix";
 import { priceGuideDisplayGroupLabel } from "@/lib/price-guide-structured-table";
 import {
-  applyConfirmedDurationToService,
   groupPriceGuideRowsByServiceDuration,
   isConfirmedPriceGuideDuration,
-  PRICE_GUIDE_DURATION_QUICK_OPTIONS,
 } from "@/lib/price-guide-duration-confirmation";
+import { applyWeightDurationUpdates } from "@/lib/price-guide-weight-duration-proposal";
 import {
   resolvePriceGuideV2Reviews,
   type PriceGuideV2,
@@ -197,6 +197,8 @@ export default function PriceGuideNativeInlineTable({
   focusFirstMissingDuration = false,
   visibleGroupIndex,
   extrasOnly = false,
+  headerSlot,
+  hideHeader = false,
 }: {
   document: PriceGuideV2;
   onChange: (next: PriceGuideV2) => void;
@@ -206,15 +208,19 @@ export default function PriceGuideNativeInlineTable({
   focusFirstMissingDuration?: boolean;
   visibleGroupIndex?: number;
   extrasOnly?: boolean;
+  /** Explicit opt-in: direct registration may integrate its back action with this table header. */
+  headerSlot?: ReactNode;
+  /** Explicit opt-in: direct registration controls duration from each service header instead of a pre-table panel. */
+  priceFirstDurationControls?: boolean;
+  /** Explicit opt-in: direct registration starts at the matrix without a duplicate page header. */
+  hideHeader?: boolean;
 }) {
   const [activeStructureField, setActiveStructureField] = useState<string | null>(null);
   const [dismissedIssueInputId, setDismissedIssueInputId] = useState<string | null>(null);
-  const [customDurations, setCustomDurations] = useState<Record<string, string>>({});
   const [breedDialogGroupIndex, setBreedDialogGroupIndex] = useState<number | null>(null);
   const groups = readDirectPriceGuideMatrix(guide);
   const preservedRows = readPreservedPriceGuideRows(guide);
   const durationGroups = groupPriceGuideRowsByServiceDuration(guide);
-  const unresolvedDurationGroups = durationGroups.filter((group) => group.unresolvedCount > 0);
   const issues = new Map(validationIssues.map((issue) => [issue.key, issue]));
   const firstIssueInputId = validationIssues[0]?.inputId;
   const forcedIssueInputId = dismissedIssueInputId === firstIssueInputId ? undefined : firstIssueInputId;
@@ -278,77 +284,25 @@ export default function PriceGuideNativeInlineTable({
         }
       }}
     >
-      <header className="border-b border-[#e2e8f0] pb-3">
-        <h2 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#172033]">{heading}</h2>
-      </header>
-      {firstMissingDurationInputId ? (
-        <section className="mt-4 border-b border-[#e2e8f0] pb-4" data-price-guide-average-time-notice="true">
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-            <h3 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#172033]">서비스별 예상시간</h3>
-            <p className="text-[16px] font-medium leading-6 text-[#52657a]" aria-live="polite">미정 {unresolvedDurationGroups.length}개</p>
-          </div>
-          <div className="mt-3 grid gap-2" data-price-guide-service-duration-groups="true">
-            {unresolvedDurationGroups.map((durationGroup) => {
-              const directValue = customDurations[durationGroup.key] ?? "";
-              const directMinutes = Number(directValue);
-              const quickOptions = Array.from(new Set([
-                ...durationGroup.confirmedDurations,
-                ...PRICE_GUIDE_DURATION_QUICK_OPTIONS,
-              ])).sort((left, right) => left - right);
-              const directInputId = `price-guide-service-duration-${durationGroup.rowIndexes[0]}`;
-              const applyDuration = (durationMinutes: number) => {
-                if (!isConfirmedPriceGuideDuration(durationMinutes)) return;
-                emit(
-                  applyConfirmedDurationToService(guide, durationGroup.serviceName, durationMinutes),
-                  durationGroup.rowIndexes,
-                  ["durationMinutes"],
-                );
-              };
-              return (
-                <div key={durationGroup.key} className="rounded-[8px] border border-[#dbe2ea] bg-white p-2.5" data-price-guide-service-duration={durationGroup.key}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="min-w-[120px] flex-1 text-[16px] font-medium leading-6 text-[#334155]">{durationGroup.serviceName}</p>
-                    {quickOptions.map((minutes) => (
-                      <button key={minutes} type="button" onClick={() => applyDuration(minutes)} className={actionClass}>
-                        {durationGroup.confirmedDurations.includes(minutes) ? `기존 ${minutes}분` : `${minutes}분`}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <label htmlFor={directInputId} className="text-[16px] font-medium leading-6 text-[#607080]">직접 입력</label>
-                    <input
-                      id={directInputId}
-                      type="number"
-                      min={15}
-                      max={480}
-                      step={1}
-                      inputMode="numeric"
-                      value={directValue}
-                      onChange={(event) => setCustomDurations((current) => ({ ...current, [durationGroup.key]: event.target.value }))}
-                      className={`${inputClass} w-28`}
-                      placeholder="15~480분"
-                    />
-                    <button type="button" disabled={!isConfirmedPriceGuideDuration(directMinutes)} onClick={() => applyDuration(directMinutes)} className={`${actionClass} disabled:cursor-not-allowed disabled:opacity-50`}>전체 체급에 적용</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <button type="button" onClick={() => setActiveStructureField(firstMissingDurationInputId)} className={`mt-3 ${actionClass}`}>첫 확인 항목으로 이동</button>
-        </section>
-      ) : null}
+      {hideHeader ? null : headerSlot ? (
+        <header className="pb-2">{headerSlot}</header>
+      ) : (
+        <header className="border-b border-[#e2e8f0] pb-3">
+          <h2 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#172033]">{heading}</h2>
+        </header>
+      )}
       {validationIssues.length > 0 ? (
         <p role="alert" className="mt-4 rounded-[10px] border border-[#ecd6d1] bg-[#fff7f5] px-4 py-3 text-[16px] font-medium leading-6 text-[#a04455]">{validationIssues[0].message}</p>
       ) : null}
 
-      <div className="mt-4 space-y-3">
+      <div className={hideHeader ? "mt-0 space-y-3" : "mt-4 space-y-3"}>
         {groups.map((group, groupIndex) => {
           if (extrasOnly || (visibleGroupIndex !== undefined && groupIndex !== visibleGroupIndex)) return null;
           const rowIndexes = groupRowIndexes(groupIndex);
           const groupName = priceGuideDisplayGroupLabel(group.sourceLabel.trim()) || `그룹 ${groupIndex + 1}`;
           const titleId = `price-guide-direct-group-${groupIndex}-sourceLabel`;
           const titleIssue = issues.get(`tableGroups:${groupIndex}.sourceLabel`);
-          const tableWidth = Math.max(760, 136 + group.serviceNames.length * 210 + 56);
+          const tableWidth = Math.max(760, 120 + group.serviceNames.length * 210);
           return (
             <section key={`group-${groupIndex}`} className="min-w-0 rounded-[12px] border border-[#dbe2ea] bg-white p-3" data-native-price-guide-group={groupIndex}>
               {renderedStructureField === titleId ? (
@@ -375,11 +329,16 @@ export default function PriceGuideNativeInlineTable({
               <div className="mt-2 max-h-[min(62dvh,680px)] max-w-full overflow-auto overscroll-contain rounded-[10px] border border-[#dbe2ea]" tabIndex={0} aria-label={`${groupName} 인라인 요금표, 좌우와 위아래로 이동할 수 있습니다`} data-price-guide-matrix-scroll="true">
                 <table className="border-collapse text-[16px] leading-6 text-[#334155]" style={{ minWidth: tableWidth }}>
                   <thead className="sticky top-0 z-30"><tr className="bg-[#f8fafc] text-left text-[16px] font-medium leading-6 text-[#64748b]">
-                    <th className="sticky left-0 top-0 z-40 w-[136px] border-b border-r border-[#dbe2ea] bg-[#f8fafc] px-3 py-3 !font-medium">몸무게</th>
+                    <th className="sticky left-0 top-0 z-40 w-[120px] border-b border-r border-[#dbe2ea] bg-[#f8fafc] px-2 py-3 !font-medium">몸무게</th>
                     {group.serviceNames.map((serviceName, serviceIndex) => {
                       const serviceRowIndex = directPriceGuideRowIndex(groups, groupIndex, 0, serviceIndex);
                       const serviceId = rowInputId(serviceRowIndex, "serviceName");
                       const serviceRowIndexes = group.weightBands.map((_, weightIndex) => directPriceGuideRowIndex(groups, groupIndex, weightIndex, serviceIndex));
+                      const durationGroup = durationGroups.find((candidate) => candidate.rowIndexes.includes(serviceRowIndex));
+                      const durationTargets = serviceRowIndexes.flatMap((rowIndex, weightIndex) => {
+                        const row = guide.rows[rowIndex];
+                        return row ? [{ rowIndex, minKg: row.minKg, maxKg: row.maxKg, durationMinutes: row.durationMinutes, label: group.weightBands[weightIndex]?.label }] : [];
+                      });
                       return <th key={`service-${serviceIndex}`} className="sticky top-0 z-30 min-w-[210px] border-b border-[#dbe2ea] bg-[#f8fafc] p-1.5 align-top !font-medium">
                         {renderedStructureField === serviceId ? (
                           <div className="flex min-w-[196px] items-start gap-1">
@@ -388,15 +347,22 @@ export default function PriceGuideNativeInlineTable({
                             {group.serviceNames.length > 1 ? <button type="button" onClick={() => { startStructureEdit(null); onChange(removeDirectPriceGuideService(guide, groupIndex, serviceIndex)); }} className={iconButtonClass} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 열 삭제`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button> : null}
                           </div>
                         ) : (
-                          <button id={serviceId} type="button" onClick={() => startStructureEdit(serviceId)} className={`${cellButtonClass} text-center !font-medium text-[#172033]`} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 이름 수정`}>{serviceName || <span className="text-[#7a8798]">서비스명 입력</span>}</button>
+                          <div className="flex min-w-0 items-center gap-1">
+                            <button id={serviceId} type="button" onClick={() => startStructureEdit(serviceId)} className="min-h-11 min-w-0 flex-1 rounded-[8px] px-2 text-center !text-[16px] !font-medium !leading-6 text-[#172033] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 이름 수정`}>{serviceName || <span className="text-[#7a8798]">서비스명 입력</span>}</button>
+                            {durationGroup ? <PriceGuideServiceDurationControl
+                              serviceName={durationGroup.serviceName}
+                              groupName={groupName}
+                              targets={durationTargets}
+                              onApply={(updates) => emit(
+                                applyWeightDurationUpdates(guide, updates),
+                                updates.map((update) => update.rowIndex),
+                                ["durationMinutes"],
+                              )}
+                            /> : null}
+                          </div>
                         )}
-                        <div className="grid grid-cols-[minmax(0,1fr)_88px] items-center gap-1.5 border-t border-[#e2e8f0] px-2.5 py-1 text-left text-[16px] font-medium leading-6 text-[#64748b]" aria-hidden="true" data-price-guide-service-subheaders="true">
-                          <span className="whitespace-nowrap">가격</span>
-                          <span className="whitespace-nowrap border-l border-[#e2e8f0] pl-2">예상시간</span>
-                        </div>
                       </th>;
                     })}
-                    <th className="w-[56px] border-b border-l border-[#dbe2ea] p-1.5 align-top !font-medium"><span className="sr-only">행 관리</span></th>
                   </tr></thead>
                   <tbody>{group.weightBands.map((weightBand, weightIndex) => {
                     const firstWeightRowIndex = directPriceGuideRowIndex(groups, groupIndex, weightIndex, 0);
@@ -406,7 +372,7 @@ export default function PriceGuideNativeInlineTable({
                     const maxWeightId = rowInputId(firstWeightRowIndex, "maxKg");
                     const weightEditing = [minWeightId, maxWeightId].includes(renderedStructureField ?? "");
                     return <tr key={`weight-${weightIndex}`} className="border-b border-[#edf2f7] last:border-b-0">
-                      <th className="sticky left-0 z-20 border-r border-[#dbe2ea] bg-[#fbfcfd] p-1 text-left align-top font-normal">
+                      <th className="sticky left-0 z-20 w-[120px] border-r border-[#dbe2ea] bg-[#fbfcfd] p-1 text-left align-top font-normal">
                         {weightEditing && photoReviewMode ? (
                           <div className="min-w-[122px]" data-price-guide-weight-edit={weightIndex}>
                             <label htmlFor={minWeightId} className="sr-only">몸무게 기준</label>
@@ -445,10 +411,13 @@ export default function PriceGuideNativeInlineTable({
                             <div className="col-span-2"><InlineError issue={weightIssue} /></div>
                           </div>
                         ) : (
-                          <button id={minWeightId} type="button" onClick={() => startStructureEdit(minWeightId)} className={cellButtonClass} data-price-guide-weight-limit={weightBand.maxKg ?? undefined}>
-                            {weightLabel}
-                            {weightBand.note ? <span className="mt-0.5 block text-[16px] font-normal leading-6 text-[#718096]">{weightBand.note}</span> : null}
-                          </button>
+                          <div className="flex min-w-0 items-start gap-1">
+                            <button id={minWeightId} type="button" onClick={() => startStructureEdit(minWeightId)} className={`${cellButtonClass} !w-auto min-w-0 flex-1 px-1.5`} data-price-guide-weight-limit={weightBand.maxKg ?? undefined}>
+                              {weightLabel}
+                              {weightBand.note ? <span className="mt-0.5 block text-[16px] font-normal leading-6 text-[#718096]">{weightBand.note}</span> : null}
+                            </button>
+                            {group.weightBands.length > 1 ? <button type="button" onClick={() => { if (!window.confirm(`${groupName} ${weightLabel} 체급을 삭제할까요?\n이 몸무게 구간의 모든 서비스 요금이 삭제됩니다.`)) return; startStructureEdit(null); onChange(removeDirectPriceGuideWeightBand(guide, groupIndex, weightIndex)); }} className={iconButtonClass} aria-label={`${groupName} ${weightLabel} 체급 삭제`} data-price-guide-weight-delete={weightIndex}><Trash2 className="h-4 w-4" aria-hidden="true" /></button> : null}
+                          </div>
                         )}
                       </th>
                       {group.serviceNames.map((_, serviceIndex) => {
@@ -485,11 +454,6 @@ export default function PriceGuideNativeInlineTable({
                           />
                         </td>;
                       })}
-                      <td className="border-l border-[#edf2f7] p-1 align-top">
-                        {group.weightBands.length > 1 ? (
-                          <button type="button" onClick={() => { startStructureEdit(null); onChange(removeDirectPriceGuideWeightBand(guide, groupIndex, weightIndex)); }} className={iconButtonClass} aria-label={`${groupName} ${weightLabel} 체급 삭제`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
-                        ) : null}
-                      </td>
                     </tr>;
                   })}</tbody>
                 </table>

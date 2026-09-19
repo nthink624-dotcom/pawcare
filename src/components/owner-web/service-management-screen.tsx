@@ -2,6 +2,7 @@
 
 import { Fragment, type HTMLAttributes, type ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft } from "lucide-react";
 import { serviceRows } from "@/components/owner-web/owner-web-data";
 import type { OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
@@ -231,7 +232,7 @@ function staffLabelToSelectionMode(staff: string): "all" | "unassigned" | "speci
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="text-[16px] font-semibold text-[#334155]">{label}</span>
+      <span className="text-[14px] font-medium leading-5 text-[#334155]">{label}</span>
       <div className="mt-2">{children}</div>
     </label>
   );
@@ -310,7 +311,7 @@ function VisibilityBadge({ visible }: { visible: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex h-7 min-w-[46px] items-center justify-center whitespace-nowrap rounded-[8px] px-2.5 text-[16px] font-semibold leading-none",
+        "inline-flex h-7 min-w-[46px] items-center justify-center whitespace-nowrap rounded-[8px] px-2.5 text-[12px] font-medium leading-[18px]",
         visible ? "bg-[#edf7f3] text-[#2f7866]" : "bg-[#f1f5f9] text-[#64748b]",
       )}
     >
@@ -337,6 +338,7 @@ export default function ServiceManagementScreen({
   onShopChange,
   onPriceGuideSaveSuccess,
   onInitialSetupNext,
+  onBackToSettings,
 }: {
   shopId: string;
   shop?: Shop;
@@ -351,6 +353,7 @@ export default function ServiceManagementScreen({
   onShopChange?: (shop: Shop) => void;
   onPriceGuideSaveSuccess?: (canonicalBootstrap?: BootstrapPayload) => void;
   onInitialSetupNext?: () => void;
+  onBackToSettings?: () => void;
 }) {
   const initialManagedServices = useMemo(
     () => normalizeBootstrapServices(initialServices),
@@ -370,7 +373,7 @@ export default function ServiceManagementScreen({
   const [formError, setFormError] = useState("");
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "pending" | "saved" | "needs-info">("saved");
   const [storageReady, setStorageReady] = useState(false);
-  const [initialSetupPriceGuideSaveAction, setInitialSetupPriceGuideSaveAction] = useState<(() => Promise<void>) | null>(null);
+  const [initialSetupPriceGuideSaveAction, setInitialSetupPriceGuideSaveAction] = useState<(() => Promise<void | boolean>) | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
   const lastSavedSignatureRef = useRef(getServiceFormSignature(initialServiceForm));
   const latestServiceFormSignatureRef = useRef(getServiceFormSignature(initialServiceForm));
@@ -382,9 +385,25 @@ export default function ServiceManagementScreen({
   const onlyStaffName = staffOptions.length === 1 ? staffOptions[0] : "";
   const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
   const canonicalPriceGuideDocument = services.find((service) => service.priceGuide.canonicalV2)?.priceGuide.canonicalV2 ?? null;
-  const registerInitialSetupPriceGuideSaveAction = useCallback((action: (() => Promise<void>) | null) => {
+  const registerInitialSetupPriceGuideSaveAction = useCallback((action: (() => Promise<void | boolean>) | null) => {
     setInitialSetupPriceGuideSaveAction(() => action);
   }, []);
+
+  const serviceSettingsHeader = onBackToSettings ? (
+    <header className="flex min-h-11 items-center gap-1.5" data-testid="service-settings-header">
+      <button
+        type="button"
+        onClick={onBackToSettings}
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+        aria-label="설정으로 돌아가기"
+      >
+        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+      </button>
+      <h1 className="min-w-0 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#15213b] [overflow-wrap:anywhere] [word-break:keep-all]">
+        서비스·요금 설정
+      </h1>
+    </header>
+  ) : null;
 
   useEffect(() => {
     if (!demoMode || !persistDemoState) {
@@ -818,6 +837,7 @@ export default function ServiceManagementScreen({
   if (priceGuideOnboarding) {
     const onboardingContent = (
       <div className="min-w-0" data-testid="owner-initial-setup-services">
+        {serviceSettingsHeader}
         {initialSetupPriceGuideSaveAction ? (
           <OwnerInitialSetupSaveNextActions
             onSave={() => initialSetupPriceGuideSaveAction()}
@@ -846,10 +866,8 @@ export default function ServiceManagementScreen({
 
   const content = (
     <div className="space-y-5">
+      {serviceSettingsHeader}
       <section className="space-y-5">
-        <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-[#111827]">요금표 관리</h2>
-        </div>
         {priceGuideWorkspace}
         {canonicalPriceGuideDocument ? (
           <ServiceDurationRecommendationPanel

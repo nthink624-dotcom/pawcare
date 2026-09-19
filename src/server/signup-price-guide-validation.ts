@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import { normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
-import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
+import {
+  OWNER_MARKETING_CONSENT_DOCUMENT_VERSION,
+  OWNER_SIGNUP_TERMS_VERSION,
+} from "@/lib/auth/owner-signup-terms";
 import {
   buildPriceGuideV2Compatibility,
   buildSignupServicePriceGuide,
@@ -28,12 +31,13 @@ const signupRequestSchema = z.object({
     privacy: z.boolean(),
     location: z.boolean(),
     marketing: z.boolean(),
-  }),
+  }).strict(),
   termsVersion: z.literal(OWNER_SIGNUP_TERMS_VERSION),
+  marketingConsentVersion: z.literal(OWNER_MARKETING_CONSENT_DOCUMENT_VERSION),
   signupRequestId: z.string().uuid(),
   priceGuideDocument: z.unknown().optional(),
   servicePrices: z.array(signupServicePriceSchema).max(80).optional(),
-});
+}).strict();
 
 export type SignupRequestPayload = Omit<z.infer<typeof signupRequestSchema>, "priceGuideDocument" | "servicePrices"> & {
   priceGuideDocument?: PriceGuideV2;

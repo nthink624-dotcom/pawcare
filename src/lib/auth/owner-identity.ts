@@ -106,6 +106,38 @@ export function hashOwnerTrialPhoneIdentity(value: string) {
   return identity.keys.find((item) => item.keyVersion === identity.currentVersion)!.identityKey;
 }
 
+export function buildOwnerMarketingBenefitShopIdentity(input: {
+  verifiedPhoneNumber: string;
+  shopName: string;
+  shopPhone: string;
+  shopAddress: string;
+}) {
+  const trialIdentity = buildOwnerTrialPhoneIdentityKeys(input.verifiedPhoneNumber);
+  const currentIdentity = trialIdentity.keys.find((item) => item.keyVersion === trialIdentity.currentVersion);
+  const secret =
+    trialIdentity.currentVersion === "v2"
+      ? serverEnv.ownerTrialIdentityHmacSecretV2
+      : serverEnv.ownerTrialIdentityHmacSecretV1;
+  if (!currentIdentity || !secret) {
+    throw new Error("마케팅 혜택 중복 방지 키 설정을 확인해 주세요.");
+  }
+
+  const normalizeText = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase("ko-KR");
+  const canonicalShopPhone = normalizeOwnerPhoneNumber(input.shopPhone);
+  const shopIdentityKey = createHmac("sha256", secret)
+    .update([
+      "owner-marketing-benefit-shop",
+      trialIdentity.currentVersion,
+      currentIdentity.identityKey,
+      canonicalShopPhone,
+      normalizeText(input.shopName),
+      normalizeText(input.shopAddress),
+    ].join("\0"))
+    .digest("hex");
+
+  return { keyVersion: trialIdentity.currentVersion, shopIdentityKey };
+}
+
 export function createIdentityVerificationCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }

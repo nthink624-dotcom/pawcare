@@ -51,6 +51,7 @@ test("daily schedule keeps staff identity, selection, and current-time colors in
   assert.match(header, /focus-visible:outline-none.*focus-visible:ring-2.*focus-visible:ring-\[#2563eb\]/);
   assert.match(grid, /selectedLane && "border-\[#d6e0ea\] bg-white"/);
   assert.match(grid, /data-schedule-time-grid-line=\{selected \? "selected" : "default"\}/);
+  assert.match(grid, /data-schedule-time-grid-interval=\{lineInterval\}/);
   assert.match(grid, /selected\s*\? "border-\[#d6e0ea\]"/);
   assert.match(grid, /backgroundColor: "#3b6fd8"/);
   assert.match(grid, /data-schedule-current-time-wash="true"/);
@@ -71,7 +72,8 @@ test("daily schedule keeps staff identity, selection, and current-time colors in
   assert.match(grid, /borderColor: bookingIdentityTone\.border/);
   assert.match(grid, /color: bookingIdentityTone\.text/);
   assert.match(grid, /inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-\[4px\] border/);
-  assert.match(grid, /rounded-\[6px\] border px-1\.5 text-\[11px\]/);
+  assert.match(grid, /rounded-\[6px\] border px-1\.5 text-\[12px\] font-medium leading-\[18px\]/);
+  assert.doesNotMatch(grid, /text-\[11px\]/);
   assert.match(staffManagement, /backgroundColor: tone\.background, borderColor: tone\.border/);
   assert.doesNotMatch(staffManagement, /backgroundColor: tone\.selectedBackground/);
   assert.match(grid, /borderLeftColor: statusIndicatorColor\[statusTone\]/);

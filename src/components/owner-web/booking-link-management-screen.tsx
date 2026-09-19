@@ -59,101 +59,102 @@ export default function BookingLinkManagementScreen({
 
   return (
     <div className="h-full min-h-0 min-w-0 overflow-y-auto text-[#0f172a]">
-      <main className="grid min-w-0 w-full gap-3">
-        <section className="min-w-0">
-          <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
-            <div className="flex min-w-0 w-full items-center gap-3 sm:w-auto">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#1f6b5b]">
-                <Link2 className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-[18px] font-semibold text-[#111827]">{shop.name}</p>
-                <p className="mt-1 text-[15px] font-normal text-[#64748b]">고객 예약 링크</p>
+      <main className="min-w-0 w-full">
+        <section
+          data-booking-link-main-surface
+          className="min-w-0 overflow-hidden rounded-[14px] border border-[#e8edf3] bg-white"
+        >
+          <header className="min-w-0 px-3 py-3 sm:px-4 sm:py-4">
+            <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
+              <div className="flex min-w-0 w-full items-center gap-3 sm:w-auto">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#1f6b5b]">
+                  <Link2 className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">{shop.name}</p>
+                  <p className="mt-1 text-[14px] font-normal leading-5 text-[#64748b]">고객 예약 링크</p>
+                </div>
+              </div>
+              <div className="flex w-full shrink-0 flex-col flex-wrap gap-2 sm:w-auto sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => void handleCopy(bookingUrl, "url")}
+                  className={`${OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
+                >
+                  <Copy className="h-4 w-4" />
+                  {copiedTarget === "url" ? "복사됨" : "링크 복사"}
+                </button>
+                <a
+                  href={bookingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`${OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  고객 화면 열기
+                </a>
               </div>
             </div>
-            <div className="flex w-full shrink-0 flex-col flex-wrap gap-2 sm:w-auto sm:flex-row">
-              <button
-                type="button"
-                onClick={() => void handleCopy(bookingUrl, "url")}
-                className={`${OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
-              >
-                <Copy className="h-4 w-4" />
-                {copiedTarget === "url" ? "복사됨" : "링크 복사"}
-              </button>
-              <a
-                href={bookingUrl}
-                target="_blank"
-                rel="noreferrer"
-                className={`${OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
-              >
-                <ExternalLink className="h-4 w-4" />
-                고객 화면 열기
-              </a>
+
+            <div className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2.5">
+              <p className="break-all font-mono text-[14px] font-normal leading-5 text-[#111827]">{bookingUrl}</p>
             </div>
-          </div>
+          </header>
 
-          <div className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2.5">
-            <p className="break-all font-mono text-[15px] font-normal leading-6 text-[#111827]">{bookingUrl}</p>
-          </div>
-
-          <div className="mt-4 border-t border-[#edf2f7] pt-4">
+          <section className="min-w-0 border-t border-[#e8edf3] px-3 py-4 sm:px-4 sm:py-5">
             <div className="flex items-center gap-2">
               <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 shrink-0 text-[#1f6b5b]" />
-              <p className="text-[16px] font-semibold text-[#111827]">예약 링크 노출 가이드</p>
+              <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">예약 링크 노출 가이드</p>
             </div>
 
-            <div className="mt-3 grid gap-4">
-              <section className="min-w-0 max-w-full rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] p-3">
-                <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
-                  <p className="text-[17px] font-semibold text-[#111827]">네이버</p>
-                  <button
-                    type="button"
-                    onClick={() => void handleCopy(bookingUrl, "naverUrl")}
-                    className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
-                  >
-                    <Copy className="h-4 w-4" />
-                    {copiedTarget === "naverUrl" ? "복사됨" : "예약 URL 복사"}
-                  </button>
-                </div>
+            <section data-booking-link-channel="naver" className="mt-4 min-w-0 border-t border-[#e8edf3] pt-4">
+              <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
+                <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">네이버</p>
+                <button
+                  type="button"
+                  onClick={() => void handleCopy(bookingUrl, "naverUrl")}
+                  className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
+                >
+                  <Copy className="h-4 w-4" />
+                  {copiedTarget === "naverUrl" ? "복사됨" : "예약 URL 복사"}
+                </button>
+              </div>
 
-                <div className="mt-3 grid gap-3 xl:grid-cols-[280px_minmax(0,1fr)]">
-                  <NaverPlacePreview
-                    shopName={shop.name}
-                    phone={shop.phone}
-                    address={shop.address}
-                    bookingUrl={bookingUrl}
-                  />
+              <div className="mt-4 grid min-w-0 gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+                <NaverPlacePreview
+                  shopName={shop.name}
+                  phone={shop.phone}
+                  address={shop.address}
+                  bookingUrl={bookingUrl}
+                />
 
-                  <div className="grid items-start gap-3 xl:grid-cols-2">
-                    <div className="rounded-[8px] border border-[#dbe2ea] bg-white p-3">
-                      <SmartPlaceScreenshotGuidePlaceholder bookingUrl={bookingUrl} />
-                    </div>
+                <div className="grid min-w-0 items-start gap-5 xl:grid-cols-2 xl:gap-0">
+                  <div className="min-w-0 xl:pr-4">
+                    <SmartPlaceScreenshotGuidePlaceholder bookingUrl={bookingUrl} />
+                  </div>
 
-                    <div className="rounded-[8px] border border-[#dbe2ea] bg-white p-3">
-                      <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-[#1f6b5b]" />
-                          <p className="text-[16px] font-semibold text-[#111827]">찾아오는길에 문구 넣는법</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleCopy(naverDirectionsText, "naverDirections")}
-                          className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
-                        >
-                          <Copy className="h-4 w-4" />
-                          {copiedTarget === "naverDirections" ? "복사됨" : "문구 복사"}
-                        </button>
+                  <div className="min-w-0 border-t border-[#e8edf3] pt-5 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
+                    <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-[#1f6b5b]" />
+                        <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">찾아오는길에 문구 넣는법</p>
                       </div>
-                      <NaverDirectionsGuide text={naverDirectionsText} />
+                      <button
+                        type="button"
+                        onClick={() => void handleCopy(naverDirectionsText, "naverDirections")}
+                        className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
+                      >
+                        <Copy className="h-4 w-4" />
+                        {copiedTarget === "naverDirections" ? "복사됨" : "문구 복사"}
+                      </button>
                     </div>
+                    <NaverDirectionsGuide text={naverDirectionsText} />
                   </div>
                 </div>
-              </section>
-
-            </div>
-          </div>
+              </div>
+            </section>
+          </section>
         </section>
-
       </main>
     </div>
   );
@@ -395,8 +396,8 @@ function SmartPlaceScreenshotGuidePlaceholder({ bookingUrl }: { bookingUrl: stri
 
   return (
     <section className="mt-3">
-      <p className="text-[16px] font-semibold text-[#111827]">간편 예약 링크 넣기</p>
-      <p className="mt-1 text-[16px] leading-6 text-[#64748b]">
+      <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">간편 예약 링크 넣기</p>
+      <p className="mt-1 text-[16px] font-normal leading-6 text-[#64748b]">
         스마트플레이스 &gt; 업체정보 &gt; 부가정보 &gt; 맨 아래 URL 등록
       </p>
 
@@ -407,8 +408,8 @@ function SmartPlaceScreenshotGuidePlaceholder({ bookingUrl }: { bookingUrl: stri
       </div>
 
       <div className="mt-4 rounded-[8px] border border-dashed border-[#dbe2ea] bg-[#f8fafc] px-3 py-3">
-        <p className="text-[13px] font-semibold text-[#334155]">붙여넣을 예약 링크</p>
-        <p className="mt-2 break-all font-mono text-[13px] leading-5 text-[#111827]">{bookingUrl}</p>
+        <p className="text-[14px] font-medium leading-5 text-[#334155]">붙여넣을 예약 링크</p>
+        <p className="mt-2 break-all font-mono text-[13px] font-normal leading-5 text-[#111827]">{bookingUrl}</p>
       </div>
     </section>
   );
@@ -467,15 +468,15 @@ function NaverDirectionsGuide({ text }: { text: string }) {
         }}
       />
 
-      <article className="overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
-        <div className="grid grid-cols-[30px_minmax(0,1fr)] gap-3 border-b border-[#111827] bg-[#111827] px-3 py-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-white/10 text-[16px] font-semibold text-white">
+      <article className="border-t border-[#e8edf3] pt-4">
+        <div className="grid grid-cols-[30px_minmax(0,1fr)] gap-3 pb-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#edf7f3] text-[12px] font-medium leading-[18px] text-[#1f6b5b]">
             6
           </span>
-          <p className="text-[16px] font-semibold leading-7 text-white">아래 문구를 붙여넣습니다.</p>
+          <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">아래 문구를 붙여넣습니다.</p>
         </div>
-        <div className="bg-[#f8fafc] px-3 py-3">
-          <p className="text-[16px] font-semibold leading-6 text-[#111827]">{text}</p>
+        <div className="border-l-2 border-[#1f6b5b] bg-[#f8fafc] px-3 py-3">
+          <p className="text-[16px] font-normal leading-6 text-[#111827]">{text}</p>
         </div>
       </article>
 
@@ -495,16 +496,16 @@ function NaverDirectionsGuide({ text }: { text: string }) {
 
 function SmartPlaceImageGuideCard({ index, step }: { index: number; step: SmartPlaceImageGuideStep }) {
   return (
-    <article className="overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
-      <div className="grid grid-cols-[30px_minmax(0,1fr)] gap-3 border-b border-[#111827] bg-[#111827] px-3 py-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-white/10 text-[16px] font-semibold text-white">
+    <article className="border-t border-[#e8edf3] pt-4 first:border-t-0 first:pt-0">
+      <div className="grid grid-cols-[30px_minmax(0,1fr)] gap-3 pb-3">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#edf7f3] text-[12px] font-medium leading-[18px] text-[#1f6b5b]">
           {index}
         </span>
         <div className="min-w-0">
-          <p className="text-[16px] font-semibold leading-7 text-white">{step.title}</p>
+          <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">{step.title}</p>
         </div>
       </div>
-      <div className="relative bg-white">
+      <div className="relative overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
         <img
           src={step.src}
           alt={step.alt}
@@ -819,7 +820,7 @@ function NaverGuideCard({ step, title, description, src, alt }: { step: string; 
     <div className="overflow-hidden rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd]">
       <div className="flex items-center justify-between border-b border-[#edf2f7] bg-white px-3 py-2">
         <span className="text-[12px] font-semibold text-[#1f6b5b]">실제 화면</span>
-        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#edf7f3] px-1.5 text-[11px] font-semibold text-[#1f6b5b]">
+        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#edf7f3] px-1.5 text-[12px] font-medium leading-[18px] text-[#1f6b5b]">
           {step}
         </span>
       </div>

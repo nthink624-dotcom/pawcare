@@ -10,12 +10,12 @@ import { requireOwnerBillingSession } from "@/server/owner-billing-session";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
 const patchSchema = z.object({
-  currentPlanCode: z.enum(["single_monthly_v1", "monthly", "quarterly", "halfyearly", "yearly"]).optional(),
-});
+  currentPlanCode: z.literal("single_monthly_v1").optional(),
+}).strict();
 
 export async function GET(request: NextRequest) {
   try {
-    const { identity, shopId } = await requireOwnerBillingSession(request);
+    const { identity, shopId } = await requireOwnerBillingSession(request, request.nextUrl.searchParams.get("shopId"));
     const summary = await getOwnerSubscriptionSummary(identity, shopId);
     return ownerMobileCorsJson(request, summary);
   } catch (error) {
@@ -33,7 +33,7 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { identity, shopId } = await requireOwnerBillingSession(request);
+    const { identity, shopId } = await requireOwnerBillingSession(request, request.nextUrl.searchParams.get("shopId"));
     const body = patchSchema.parse(await request.json());
     const summary = await updateOwnerSubscriptionPreferences(identity, shopId, body);
     return NextResponse.json(summary);

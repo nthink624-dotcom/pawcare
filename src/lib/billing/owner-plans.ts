@@ -1,6 +1,11 @@
 export const OWNER_SINGLE_MONTHLY_PLAN_CODE = "single_monthly_v1" as const;
-export const OWNER_SINGLE_MONTHLY_PRODUCT_VERSION = "2026-08-v1" as const;
+export const OWNER_SINGLE_MONTHLY_LEGACY_PRODUCT_VERSION = "2026-08-v1" as const;
+export const OWNER_SINGLE_MONTHLY_PRODUCT_VERSION = "2026-09-v1" as const;
 export const OWNER_SINGLE_MONTHLY_PRICE_KRW = 29000;
+export const OWNER_SINGLE_MONTHLY_CURRENCY = "KRW" as const;
+export const OWNER_SINGLE_MONTHLY_PRODUCT_NAME = "펫매니저 월 이용권" as const;
+export const OWNER_SINGLE_MONTHLY_ORDER_NAME = "펫매니저 월 이용권 정기결제" as const;
+export const OWNER_SINGLE_MONTHLY_VAT_INCLUDED = true as const;
 
 export type OwnerPlanCode =
   | "free"
@@ -11,6 +16,18 @@ export type OwnerPlanCode =
   | "yearly";
 
 export type OwnerPlanBillingType = "one_time" | "subscription";
+
+export function isCurrentOwnerPlanCode(code: string | null | undefined): code is typeof OWNER_SINGLE_MONTHLY_PLAN_CODE {
+  return code === OWNER_SINGLE_MONTHLY_PLAN_CODE;
+}
+
+export function isLegacyOwnerPlanCode(code: string | null | undefined) {
+  return code === "free" || code === "monthly" || code === "quarterly" || code === "halfyearly" || code === "yearly";
+}
+
+export function isReadableSingleMonthlyProductVersion(version: string | null | undefined) {
+  return version === OWNER_SINGLE_MONTHLY_LEGACY_PRODUCT_VERSION || version === OWNER_SINGLE_MONTHLY_PRODUCT_VERSION;
+}
 
 export type OwnerPlan = {
   code: OwnerPlanCode;
@@ -112,21 +129,20 @@ export function calculateOwnerBillingAmountBreakdown(
   totalShopCount: number,
 ): OwnerBillingAmountBreakdown {
   if (plan.code === OWNER_SINGLE_MONTHLY_PLAN_CODE) {
-    const normalizedTotalShopCount = Math.max(1, Math.floor(Number.isFinite(totalShopCount) ? totalShopCount : 1));
     return {
       planCode: plan.code,
       planName: plan.name,
       baseMonthlyAmount: plan.monthlyPrice,
       multiShopDiscount: {
-        totalShopCount: normalizedTotalShopCount,
+        totalShopCount: 1,
         perShopListMonthlyPrice: plan.monthlyPrice,
         discountRate: 0,
         discountPercent: 0,
         subtotalBeforeDiscount: plan.monthlyPrice,
         discountAmount: 0,
         finalMonthlyAmount: plan.monthlyPrice,
-        policyLabel: "계정당 단일 요금",
-        appliedLabel: "매장 수와 관계없이 가입 시 확정한 월 요금이 적용돼요.",
+        policyLabel: "매장 1곳당 이용권 1개",
+        appliedLabel: "현재 선택한 매장 1곳에만 적용됩니다.",
       },
       monthlyTotalAmount: plan.monthlyPrice,
     };
@@ -296,25 +312,24 @@ export const ownerPlans: OwnerPlan[] = [
     code: OWNER_SINGLE_MONTHLY_PLAN_CODE,
     productVersion: OWNER_SINGLE_MONTHLY_PRODUCT_VERSION,
     priceSnapshotCurrency: "KRW",
-    name: "펫매니저 월 정기 이용",
-    title: "월 정기 이용",
-    shortTitle: "월 정기 이용",
+    name: OWNER_SINGLE_MONTHLY_PRODUCT_NAME,
+    title: OWNER_SINGLE_MONTHLY_PRODUCT_NAME,
+    shortTitle: "월 이용권",
     months: 1,
     price: OWNER_SINGLE_MONTHLY_PRICE_KRW,
     totalPrice: OWNER_SINGLE_MONTHLY_PRICE_KRW,
     monthlyPrice: OWNER_SINGLE_MONTHLY_PRICE_KRW,
     monthlyEquivalent: OWNER_SINGLE_MONTHLY_PRICE_KRW,
     billingType: "subscription",
-    billingLabel: "월 정기결제",
+    billingLabel: "매월 자동 결제",
     totalLabel: "월 29,000원",
-    description: "예약·고객·직원·알림톡 운영 기능을 하나의 월 요금으로 이용합니다.",
+    description: "매장 1곳의 모든 운영 기능을 월 29,000원(부가세 포함)에 이용합니다.",
     discountPercent: 0,
-    badge: "단일 요금제",
-    staffLimitLabel: "직원 운영 포함",
+    staffLimitLabel: "직원 수에 따른 기능 차등 없음",
     alimtalkIncludedLabel: "알림톡 기능 포함",
     excessAlimtalkLabel: "별도 건수 충전 없음",
-    targetLabel: "신규 가입 매장",
-    highlights: ["월 29,000원", "알림톡 기능 포함", "추가 충전·월별 크레딧 리셋 없음"],
+    targetLabel: "매장 1곳당",
+    highlights: ["14일 무료 체험", "월 29,000원 · 부가세 포함", "체험 후 등록 카드로 매월 자동 결제"],
     featured: true,
     recommended: true,
   },

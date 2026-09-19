@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Camera, Info, LoaderCircle, Save, Scissors, Settings2, Store, Trash2, UserRound } from "lucide-react";
+import { Camera, ImageOff, Info, LoaderCircle, Save, Scissors, Settings2, Store, Trash2, UserRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type TouchEvent } from "react";
 
 import {
@@ -143,7 +143,7 @@ function PanelCard({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-5 min-w-0 rounded-[16px] border border-[#e1e4ea] bg-white shadow-[0_1px_2px_rgba(30,35,45,0.03)]">
+    <section id={id} data-shop-info-panel-surface className="scroll-mt-5 min-w-0 bg-white">
       {!hideHeader ? (
         <div className="flex items-start gap-3 px-5 pt-5">
           <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[10px] bg-[#2f6bd4]/10 text-[#2f6bd4]">
@@ -151,7 +151,7 @@ function PanelCard({
           </span>
           <div className="min-w-0 flex-1">
             <h3 className="text-[16px] font-semibold leading-6 tracking-[-0.02em] text-[#181b21]">{title}</h3>
-            {description ? <p className="mt-0.5 text-[13.5px] font-normal leading-5 text-[#969ba4]">{description}</p> : null}
+            {description ? <p className="mt-0.5 text-[13px] font-normal leading-5 text-[#969ba4]">{description}</p> : null}
           </div>
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
@@ -281,7 +281,7 @@ function OptionCard({
         )}
       />
       <span className="min-w-0">
-        <span className={cn("inline-flex min-w-0 items-center gap-1.5 font-normal text-[#111827]", compact ? "text-[15px] leading-5" : "text-[16px] leading-6")}>
+        <span className={cn("inline-flex min-w-0 items-center gap-1.5 text-[#111827]", compact ? "text-[14px] font-medium leading-5" : "text-[16px] font-normal leading-6")}>
           <span className="truncate">{title}</span>
           {helpText ? (
             <span className="group relative inline-flex h-6 w-4 shrink-0 items-center justify-center">
@@ -306,7 +306,7 @@ function OptionCard({
             </span>
           ) : null}
         </span>
-        {description ? <span className="mt-0.5 block text-[11px] leading-4 text-[#64748b]">{description}</span> : null}
+        {description ? <span className="mt-0.5 block text-[13px] font-normal leading-5 text-[#64748b]">{description}</span> : null}
       </span>
     </button>
   );
@@ -350,6 +350,7 @@ export default function ShopInfoSettingsPanel({
     return profileImages.filter(Boolean).slice(0, MAX_SHOP_PROFILE_IMAGES);
   }, [profileImages]);
   const [activeProfileImageIndex, setActiveProfileImageIndex] = useState(0);
+  const [failedProfileImageUrls, setFailedProfileImageUrls] = useState<string[]>([]);
   const [selectedProfileImageIndexes, setSelectedProfileImageIndexes] = useState<number[]>([]);
   const profileTouchStartXRef = useRef<number | null>(null);
   const profileDidSwipeRef = useRef(false);
@@ -360,6 +361,7 @@ export default function ShopInfoSettingsPanel({
   const [staffProfileFeedback, setStaffProfileFeedback] = useState("");
   const visibleProfileImageIndex = Math.min(activeProfileImageIndex, Math.max(carouselProfileImages.length - 1, 0));
   const activeProfileImage = carouselProfileImages[visibleProfileImageIndex] ?? "";
+  const activeProfileImageFailed = failedProfileImageUrls.includes(activeProfileImage);
   const selectedProfileImageIndexSet = useMemo(() => new Set(selectedProfileImageIndexes), [selectedProfileImageIndexes]);
   const hasProfileImages = carouselProfileImages.length > 0 && Boolean(carouselProfileImages[0]);
   const isProfileImageRestorePending = !hasProfileImages && (profileImagesLoading || shopProfileImageAssetCount > 0);
@@ -596,8 +598,11 @@ export default function ShopInfoSettingsPanel({
   }
 
   return (
-    <div className="h-full min-h-0 min-w-0">
-        <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden">
+    <div
+      className="h-full min-h-0 min-w-0 overflow-hidden rounded-[13px] bg-white"
+      data-shop-info-main-surface
+    >
+        <div className="relative flex h-full min-h-0 min-w-0 flex-col">
           <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:px-5">
             <div className="flex items-center justify-between gap-4">
               <div
@@ -617,7 +622,7 @@ export default function ShopInfoSettingsPanel({
                     onClick={() => changeActiveSection(tab.id)}
                     onKeyDown={(event) => handleSectionTabKeyDown(event, tab.id)}
                     className={cn(
-                      "inline-flex h-11 shrink-0 items-center rounded-full px-4 text-[15px] font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+                      "inline-flex h-11 shrink-0 items-center rounded-full px-4 text-[14px] font-medium leading-5 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
                       activeSectionId === tab.id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]",
                     )}
                   >
@@ -628,7 +633,11 @@ export default function ShopInfoSettingsPanel({
             </div>
           </div>
 
-          <div ref={settingsScrollRef} className="min-h-0 overflow-y-auto bg-white px-3 py-5 sm:pl-5 sm:pr-1 [scrollbar-width:thin]">
+          <div
+            ref={settingsScrollRef}
+            data-shop-info-scroll-region
+            className="min-h-0 flex-1 overflow-y-auto bg-white px-3 py-5 sm:pl-5 sm:pr-1 [scrollbar-width:thin]"
+          >
             <div className="min-w-0 w-full space-y-[18px] pb-24">
               <div id="shop-info-panel-basic" role="tabpanel" aria-labelledby="shop-info-tab-basic" hidden={activeSectionId !== "basic"}>
                 <PanelCard
@@ -638,7 +647,7 @@ export default function ShopInfoSettingsPanel({
                   hideHeader
                 >
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-[#181b21]">기본 정보</h3>
+                  <h3 className="text-[18px] font-semibold leading-[26px] tracking-[-0.02em] text-[#181b21]">기본 정보</h3>
                 </div>
                 {feedbackMessage ? (
                   <div className="mb-4 rounded-[10px] border border-[#f0c7ce] bg-[#fff7f8] px-3 py-2 text-[14px] leading-5 text-[#a04455]">
@@ -670,22 +679,27 @@ export default function ShopInfoSettingsPanel({
                         )}
                         aria-label="대표 매장 사진"
                       >
-                        {activeProfileImage ? (
+                        {activeProfileImage && !activeProfileImageFailed ? (
                           <>
                             <img
                               src={activeProfileImage}
                               alt="매장 사진"
-                              onError={onProfileImageLoadError}
+                              onError={() => {
+                                setFailedProfileImageUrls((current) =>
+                                  current.includes(activeProfileImage) ? current : [...current, activeProfileImage],
+                                );
+                                onProfileImageLoadError?.();
+                              }}
                               className="h-full w-full object-cover object-center"
                               style={{ objectPosition: "center center" }}
                             />
-                            <span className="absolute left-2 top-2 z-10 inline-flex h-7 items-center gap-1 rounded-[7px] bg-[#2f6bd4] px-2.5 text-[12px] font-semibold text-white shadow-[0_4px_10px_rgba(47,107,212,0.22)]">
+                            <span className="absolute left-2 top-2 z-10 inline-flex h-7 items-center gap-1 rounded-[7px] bg-[#2f6bd4] px-2.5 text-[12px] font-medium leading-[18px] text-white shadow-[0_4px_10px_rgba(47,107,212,0.22)]">
                               대표
                             </span>
                             {isProfileImageSelectionActive ? (
                               <span
                                 className={cn(
-                                  "absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-[8px] border text-[12px] font-semibold shadow-[0_4px_10px_rgba(15,23,42,0.12)]",
+                                  "absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-[8px] border text-[12px] font-medium leading-[18px] shadow-[0_4px_10px_rgba(15,23,42,0.12)]",
                                   selectedProfileImageIndexSet.has(visibleProfileImageIndex)
                                     ? "border-[#2f6bd4] bg-[#2f6bd4] text-white"
                                     : "border-white/90 bg-white/85 text-transparent",
@@ -696,16 +710,21 @@ export default function ShopInfoSettingsPanel({
                               </span>
                             ) : null}
                             {profileImagesProcessing ? (
-                              <span className="absolute inset-x-2 bottom-2 z-10 inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] bg-white/92 text-[12px] font-semibold text-[#475569] shadow-[0_4px_12px_rgba(15,23,42,0.14)] backdrop-blur-sm">
+                              <span className="absolute inset-x-2 bottom-2 z-10 inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] bg-white/92 text-[12px] font-medium leading-[18px] text-[#475569] shadow-[0_4px_12px_rgba(15,23,42,0.14)] backdrop-blur-sm">
                                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                                 사진 처리 중
                               </span>
                             ) : null}
                           </>
+                        ) : activeProfileImageFailed ? (
+                          <span className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-[#64748b]">
+                            <ImageOff className="h-8 w-8" aria-hidden="true" />
+                            <span className="text-[16px] font-normal leading-6">사진을 불러올 수 없습니다</span>
+                          </span>
                         ) : isProfileImageRestorePending ? (
                           <span className="flex h-full flex-col items-center justify-center gap-2">
                             <Camera className="h-8 w-8 animate-pulse text-[#9aa5b4]" />
-                            <span className="text-[15px] font-semibold text-[#64748b]">사진 불러오는 중</span>
+                            <span className="text-[16px] font-normal leading-6 text-[#64748b]">사진 불러오는 중</span>
                           </span>
                         ) : (
                           <span className="flex h-full flex-col items-center justify-center gap-2">
@@ -714,7 +733,7 @@ export default function ShopInfoSettingsPanel({
                             ) : (
                               <Camera className="h-8 w-8" />
                             )}
-                            <span className="text-[15px] font-semibold text-[#64748b]">
+                            <span className="text-[16px] font-normal leading-6 text-[#64748b]">
                               {profileImagesProcessing ? "사진 처리 중" : "사진 추가"}
                             </span>
                           </span>
@@ -740,6 +759,7 @@ export default function ShopInfoSettingsPanel({
                       <div className="h-full overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]">
                         <div className="grid min-w-0 grid-cols-4 content-start gap-2">
                           {carouselProfileImages.map((imageUrl, imageIndex) => {
+                            const imageFailed = failedProfileImageUrls.includes(imageUrl);
                             return (
                               <button
                                 key={`${imageUrl}-${imageIndex}`}
@@ -760,23 +780,34 @@ export default function ShopInfoSettingsPanel({
                                     ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]"
                                     : "border-[#e1e5ec] hover:border-[#9bb8f4]",
                                 )}
-                                aria-label={`${imageIndex + 1}번째 매장 사진 보기`}
+                                aria-label={imageFailed ? `${imageIndex + 1}번째 매장 사진을 불러올 수 없습니다` : `${imageIndex + 1}번째 매장 사진 보기`}
                               >
-                                <img
-                                  src={imageUrl}
-                                  alt=""
-                                  onError={onProfileImageLoadError}
-                                  className="h-full w-full object-cover object-center"
-                                />
-                                {imageIndex === 0 && !isProfileImageSelectionActive ? (
-                                  <span className="absolute left-1.5 top-1.5 rounded-[6px] bg-[#2f6bd4] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                {imageFailed ? (
+                                  <span className="flex h-full w-full items-center justify-center text-[#64748b]" aria-hidden="true">
+                                    <ImageOff className="h-4 w-4" />
+                                  </span>
+                                ) : (
+                                  <img
+                                    src={imageUrl}
+                                    alt={`${imageIndex + 1}번째 매장 사진`}
+                                    onError={() => {
+                                      setFailedProfileImageUrls((current) =>
+                                        current.includes(imageUrl) ? current : [...current, imageUrl],
+                                      );
+                                      onProfileImageLoadError?.();
+                                    }}
+                                    className="h-full w-full object-cover object-center"
+                                  />
+                                )}
+                                {imageIndex === 0 && !imageFailed && !isProfileImageSelectionActive ? (
+                                  <span className="absolute left-1.5 top-1.5 rounded-[6px] bg-[#2f6bd4] px-1.5 py-0.5 text-[12px] font-medium leading-[18px] text-white">
                                     대표
                                   </span>
                                 ) : null}
                                 {isProfileImageSelectionActive ? (
                                   <span
                                     className={cn(
-                                      "absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-[7px] border text-[11px] font-semibold shadow-[0_4px_10px_rgba(15,23,42,0.12)]",
+                                      "absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-[7px] border text-[12px] font-medium leading-[18px] shadow-[0_4px_10px_rgba(15,23,42,0.12)]",
                                       selectedProfileImageIndexSet.has(imageIndex)
                                         ? "border-[#2f6bd4] bg-[#2f6bd4] text-white"
                                         : "border-white/90 bg-white/85 text-transparent",
@@ -796,7 +827,7 @@ export default function ShopInfoSettingsPanel({
                               aria-hidden="true"
                             >
                               <Camera className="h-4 w-4 animate-pulse" />
-                              <span className="text-[12px] font-semibold">불러오는 중</span>
+                              <span className="text-[12px] font-medium leading-[18px]">불러오는 중</span>
                             </div>
                           ))}
                           {Array.from({ length: galleryAddSlotCount }).map((_, slotIndex) => (
@@ -809,7 +840,7 @@ export default function ShopInfoSettingsPanel({
                               aria-label="매장 사진 추가"
                             >
                               <Camera className="h-4 w-4" />
-                              <span className="text-[12px] font-semibold">사진 추가</span>
+                              <span className="text-[12px] font-medium leading-[18px]">사진 추가</span>
                             </button>
                           ))}
                         </div>
@@ -877,7 +908,7 @@ export default function ShopInfoSettingsPanel({
                         type="button"
                         onClick={onOpenAddressSearch}
                         disabled={!editable}
-                        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] border border-[#d8dce3] bg-white px-3 text-[16px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:text-[#969ba4]"
+                        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] border border-[#d8dce3] bg-white px-3 text-[16px] font-medium leading-6 text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:text-[#969ba4]"
                       >
                         검색
                       </button>
@@ -1009,7 +1040,7 @@ export default function ShopInfoSettingsPanel({
                     })}
                   </div>
                 ) : (
-                  <div className="rounded-[12px] border border-dashed border-[#cfd7e3] bg-[#f8fafc] px-4 py-8 text-center text-[15px] text-[#64748b]">
+                  <div className="rounded-[12px] border border-dashed border-[#cfd7e3] bg-[#f8fafc] px-4 py-8 text-center text-[16px] font-normal leading-6 text-[#64748b]">
                     등록된 직원이 없습니다.
                   </div>
                 )}

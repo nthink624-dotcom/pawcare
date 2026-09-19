@@ -19,13 +19,17 @@ export default function PriceGuideManualOnboarding({
   onSave,
   onSaveActionReady,
   manualMatrixMode = true,
+  onTemporarySave,
+  temporarySaveNotice,
 }: {
   initialDocument?: PriceGuideV2 | null;
   onBack: () => void;
   onSave: (document: PriceGuideV2) => Promise<boolean>;
-  onSaveActionReady?: (action: (() => Promise<void>) | null) => void;
+  onSaveActionReady?: (action: (() => Promise<void | boolean>) | null) => void;
   /** Direct entry opens the table canvas immediately; photo import starts with its clean table review. */
   manualMatrixMode?: boolean;
+  onTemporarySave?: (document: PriceGuideV2) => Promise<void>;
+  temporarySaveNotice?: string;
 }) {
   const [draft, setDraft] = useState<PriceGuideV2>(() => initialDocument ?? createEmptyManualPriceGuideDocument());
   const [validationAttempted, setValidationAttempted] = useState(false);
@@ -76,6 +80,7 @@ export default function PriceGuideManualOnboarding({
       }
       setValidationAttempted(false);
       if (!manualMatrixMode) setPhotoEditing(false);
+      return true;
     } catch {
       setSaveError("요금표를 저장하지 못했습니다. 입력 내용은 그대로 유지됩니다.");
     } finally {
@@ -95,14 +100,16 @@ export default function PriceGuideManualOnboarding({
 
   return (
     <section className="min-w-0 space-y-3" data-testid="price-guide-manual-onboarding">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-[14px] font-medium leading-5 text-[#526174] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        등록 방식으로 돌아가기
-      </button>
+      {!manualMatrixMode ? (
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-[14px] font-medium leading-5 text-[#526174] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          등록 방식으로 돌아가기
+        </button>
+      ) : null}
       {manualMatrixMode || photoEditing ? (
         <PriceGuideNativeInlineTable
           document={draft}
@@ -111,6 +118,8 @@ export default function PriceGuideManualOnboarding({
           heading={manualMatrixMode ? "요금표 직접 등록" : "요금표 수정"}
           photoReviewMode={!manualMatrixMode}
           focusFirstMissingDuration={focusFirstMissingDuration}
+          priceFirstDurationControls={manualMatrixMode}
+          hideHeader={manualMatrixMode}
         />
       ) : (
         <PriceGuideStructuredReviewTable
@@ -126,6 +135,9 @@ export default function PriceGuideManualOnboarding({
         />
       )}
       {saveError ? <p role="alert" className="text-[13px] font-medium leading-5 text-[#a04455]">{saveError}</p> : null}
+      {temporarySaveNotice && <p role="status" className="text-[16px] leading-6 text-[#526174]">{temporarySaveNotice}</p>}
+      <div className="flex flex-wrap gap-3">
+      {onTemporarySave && <button type="button" disabled={saving} onClick={() => void onTemporarySave(draft)} className="min-h-11 rounded-[10px] border border-[#cbd5e1] bg-white px-5 text-[16px] font-medium leading-6 disabled:opacity-50">임시 저장</button>}
       <button
         type="button"
         onClick={() => void saveDraft()}
@@ -135,6 +147,7 @@ export default function PriceGuideManualOnboarding({
         <Check className="h-4 w-4" aria-hidden="true" />
         {saving ? "저장 중" : "상세 요금표 저장"}
       </button>
+      </div>
     </section>
   );
 }

@@ -1,5 +1,5 @@
 export const OWNER_WEB_ACTION_BUTTON_BASE_CLASS =
-  "inline-flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] px-4 text-[14px] font-medium transition disabled:cursor-default disabled:opacity-60";
+  "inline-flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] px-4 text-[14px] font-medium leading-5 tracking-[-0.005em] transition disabled:cursor-default disabled:opacity-60";
 
 export const OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS = `${OWNER_WEB_ACTION_BUTTON_BASE_CLASS} bg-[#1677ff] text-white hover:bg-[#0e65d8]`;
 

@@ -7,6 +7,26 @@
 @source "../server";
 
 :root {
+  --font-ui-ko: var(--font-pretendard, "Pretendard Variable"), "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
+  --type-micro-size: 12px;
+  --type-micro-line: 18px;
+  --type-helper-size: 13px;
+  --type-helper-line: 20px;
+  --type-body-small-size: 14px;
+  --type-body-small-line: 20px;
+  --type-body-size: 16px;
+  --type-body-line: 24px;
+  --type-heading-small-size: 18px;
+  --type-heading-small-line: 26px;
+  --type-heading-medium-size: 20px;
+  --type-heading-medium-line: 28px;
+  --type-heading-large-size: 24px;
+  --type-heading-large-line: 32px;
+  --type-page-title-size: 28px;
+  --type-page-title-line: 36px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
   --background: #f1f3f7;
   --surface: #ffffff;
   --muted: #7c7a73;
@@ -57,6 +77,9 @@ html {
 body {
   background: #f1f3f7;
   color: var(--text);
+  font-family: var(--font-ui-ko);
+  font-synthesis: none;
+  font-weight: var(--weight-regular);
   min-height: 100%;
 }
 
@@ -114,15 +137,8 @@ button[class*="hover:bg-[#293548]"]:hover {
 }
 
 .owner-font {
-  font-family:
-    "Pretendard Variable",
-    "Pretendard",
-    "Apple SD Gothic Neo",
-    "Noto Sans KR",
-    "Malgun Gothic",
-    "Segoe UI",
-    system-ui,
-    sans-serif;
+  font-family: var(--font-ui-ko);
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -132,18 +148,31 @@ button[class*="hover:bg-[#293548]"]:hover {
 .owner-font input,
 .owner-font select,
 .owner-font textarea {
-  font: inherit;
+  font-family: inherit;
 }
 
-/* Compact tabs remain Label text after the owner-font inheritance reset. */
+/* Compact tabs use the shared Label role. */
 .pm-owner-web.owner-font .benefit-management-panel .benefit-management-tab {
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
 }
 
+/* Product UI never drops below the shared micro role. External brand mocks stay untouched. */
+.pm-owner-web [class~="text-[8px]"]:not([data-booking-link-channel="naver"] *):not([data-customer-phone-preview-frame] *),
+.pm-owner-web [class~="text-[9px]"]:not([data-booking-link-channel="naver"] *):not([data-customer-phone-preview-frame] *),
+.pm-owner-web [class~="text-[10px]"]:not([data-booking-link-channel="naver"] *):not([data-customer-phone-preview-frame] *),
+.pm-owner-web [class~="text-[11px]"]:not([data-booking-link-channel="naver"] *):not([data-customer-phone-preview-frame] *) {
+  font-size: var(--type-micro-size);
+  font-weight: var(--weight-medium);
+  line-height: var(--type-micro-line);
+}
+
 .pm-owner-web {
   --pm-ui-border: #e8edf3;
+  --pm-owner-main-surface-background: #ffffff;
+  --pm-owner-main-surface-border: var(--pm-ui-border);
+  --pm-owner-main-surface-radius: 14px;
   --acc: #1677ff;
   --acc-dk: #0e65d8;
   --acc-tint: #eff6ff;
@@ -177,6 +206,27 @@ button[class*="hover:bg-[#293548]"]:hover {
   --pm-scrollbar-thumb-hover: rgba(76, 94, 116, 0.68);
   --pm-scrollbar-track: transparent;
   word-break: keep-all;
+}
+
+/* 모든 오너 메뉴는 중첩 wrapper 없이 같은 외곽 surface 역할을 한 번만 사용한다. */
+.pm-owner-web .pm-owner-main-surface {
+  background: var(--pm-owner-main-surface-background);
+  border: 1px solid var(--pm-owner-main-surface-border);
+  border-radius: var(--pm-owner-main-surface-radius);
+  overflow: visible;
+}
+
+/* 기존 direct core의 자체 외곽선은 공용 surface와 겹치지 않게 내용 경계로만 남긴다. */
+.pm-owner-web .pm-owner-main-surface [data-schedule-board-root="true"],
+.pm-owner-web .pm-owner-main-surface [data-owner-screen-root="customers"] > div > section {
+  border-width: 0 !important;
+  border-radius: var(--pm-owner-main-surface-radius) !important;
+  box-shadow: none !important;
+}
+
+.pm-owner-web .pm-owner-main-surface [data-owner-screen-root="calendarRecords"] > div,
+.pm-owner-web .pm-owner-main-surface [data-owner-screen-root="calendarRecords"] > div > section {
+  border-radius: var(--pm-owner-main-surface-radius) !important;
 }
 
 /* 가입 직후 설정은 실제 폼과 가이드를 같은 작업면에 유지한다. */
@@ -738,7 +788,7 @@ button,
 input,
 select,
 textarea {
-  font: inherit;
+  font-family: inherit;
 }
 
 .pm-owner-web[data-sidebar="dark"] {

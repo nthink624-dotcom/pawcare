@@ -1,8 +1,21 @@
 ﻿import type { Metadata } from "next";
 
+import localFont from "next/font/local";
+
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 
 import "./globals.css";
+
+const pretendard = localFont({
+  src: "../assets/fonts/PretendardVariable.woff2",
+  display: "swap",
+  weight: "45 920",
+  style: "normal",
+  variable: "--font-pretendard",
+  fallback: ["Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Segoe UI", "Arial"],
+  adjustFontFallback: "Arial",
+  preload: true,
+});
 
 export const metadata: Metadata = {
   applicationName: PETMANAGER_SERVICE_NAME,
@@ -22,8 +35,8 @@ export const viewport: import("next").Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ko">
-      <body style={{ fontFamily: "'Noto Sans KR', system-ui, sans-serif" }}>{children}</body>
+    <html lang="ko" className={pretendard.variable}>
+      <body className={pretendard.className}>{children}</body>
     </html>
   );
 }

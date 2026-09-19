@@ -82,8 +82,8 @@ export default function CustomerManagementTable({
   if (rows.length === 0) {
     return (
       <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
-        <p className="text-[16px] font-medium text-[#111827]">조건에 맞는 고객이 없습니다.</p>
-        <p className="mt-1 text-[15px] text-[#64748b]">검색어를 줄이거나 고객을 추가해 주세요.</p>
+        <p className="text-[16px] font-medium leading-6 text-[#111827]">조건에 맞는 고객이 없습니다.</p>
+        <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">검색어를 줄이거나 고객을 추가해 주세요.</p>
       </div>
     );
   }
@@ -131,7 +131,7 @@ export default function CustomerManagementTable({
                 >
                   {deleteMode ? <td className="px-2"><SelectionControl checked={checked} onToggle={() => onToggleDelete(row.id)} /></td> : null}
                   <td className="truncate px-3 tabular-nums">{row.registeredAt}</td>
-                  <td className="truncate px-3 font-semibold text-[#17243c]">{row.name}</td>
+                  <td className="truncate px-3 font-medium text-[#17243c]">{row.name}</td>
                   <td className="truncate px-3 font-mono text-[#64748b]">{row.id}</td>
                   <td className="px-3">{getCustomerGrade(row)}</td>
                   <td className="truncate px-3">{row.shopName || "미등록"}</td>
@@ -156,18 +156,18 @@ export default function CustomerManagementTable({
                 {deleteMode ? <SelectionControl checked={checked} onToggle={() => onToggleDelete(row.id)} /> : <span className={cn("mt-2", row.noshowCount >= 2 ? getDotIndicatorClass("burgundy") : row.alertEnabled ? getDotIndicatorClass("teal") : getDotIndicatorClass("neutral"))} />}
                 <button type="button" onClick={() => onOpen(row.id)} className="min-h-11 min-w-0 flex-1 text-left">
                   <span className="flex items-center justify-between gap-3">
-                    <span className="truncate text-[15px] font-semibold text-[#17243c]">{row.name} · {getCustomerGrade(row)}</span>
+                    <span className="min-w-0 break-keep text-[14px] font-medium leading-5 text-[#17243c] [overflow-wrap:anywhere]">{row.name} · {getCustomerGrade(row)}</span>
                     <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" />
                   </span>
-                  <span className="mt-1 block truncate text-[14px] leading-5 text-[#475569]">{formatPhoneNumber(row.phone)} · {row.shopName || "미등록"}</span>
+                  <span className="mt-1 block truncate text-[14px] leading-5 font-normal text-[#475569]">{formatPhoneNumber(row.phone)} · {row.shopName || "미등록"}</span>
                 </button>
               </div>
               <dl className="mt-2 grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 border-t border-[#edf2f7] pt-2 text-[14px] leading-5">
-                <div className="min-w-0"><dt className="text-[#94a3b8]">등록일</dt><dd className="mt-0.5 break-words text-[#475569]">{row.registeredAt}</dd></div>
-                <div className="min-w-0"><dt className="text-[#94a3b8]">성별 · 나이</dt><dd className="mt-0.5 break-words text-[#475569]">미등록 · 미등록</dd></div>
-                <div className="min-w-0"><dt className="text-[#94a3b8]">관련 이력</dt><dd className="mt-0.5 break-words text-[#475569]">예약 {row.appointmentCount}회 · 미용 {row.groomingCount}회</dd></div>
-                <div className="col-span-2"><dt className="text-[#94a3b8]">연락·메모</dt><dd className="mt-0.5 line-clamp-2 text-[#475569]">{row.alertEnabled ? "알림 수신" : "알림 중지"} · {row.memo || "미등록"}</dd></div>
-                <div className="col-span-2"><dt className="text-[#94a3b8]">고객 ID</dt><dd className="mt-0.5 truncate font-mono text-[#64748b]">{row.id}</dd></div>
+                <div className="min-w-0"><dt className="font-medium text-[#64748b]">등록일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.registeredAt}</dd></div>
+                <div className="min-w-0"><dt className="font-medium text-[#64748b]">성별 · 나이</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">미등록 · 미등록</dd></div>
+                <div className="min-w-0"><dt className="font-medium text-[#64748b]">관련 이력</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">예약 {row.appointmentCount}회 · 미용 {row.groomingCount}회</dd></div>
+                <div className="col-span-2"><dt className="font-medium text-[#64748b]">연락·메모</dt><dd className="mt-0.5 break-keep font-normal text-[#475569] [overflow-wrap:anywhere]">{row.alertEnabled ? "알림 수신" : "알림 중지"} · {row.memo || "미등록"}</dd></div>
+                <div className="col-span-2"><dt className="font-medium text-[#64748b]">고객 ID</dt><dd className="mt-0.5 font-mono font-normal text-[#64748b] [overflow-wrap:anywhere]">{row.id}</dd></div>
               </dl>
             </article>
           );

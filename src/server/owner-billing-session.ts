@@ -10,7 +10,10 @@ type OwnerBillingSession = {
   shopId: string;
 };
 
-export async function requireOwnerBillingSession(request: NextRequest): Promise<OwnerBillingSession> {
+export async function requireOwnerBillingSession(
+  request: NextRequest,
+  requestedShopId: string | null | undefined,
+): Promise<OwnerBillingSession> {
   if (!hasSupabaseServerEnv()) {
     throw new OwnerBillingError("서버 결제 설정을 확인해 주세요.", 503);
   }
@@ -35,20 +38,24 @@ export async function requireOwnerBillingSession(request: NextRequest): Promise<
   }
 
   const user = userResult.data.user;
+  const shopId = requestedShopId?.trim() ?? "";
+  if (!shopId || shopId.length > 160) {
+    throw new OwnerBillingError("결제를 관리할 매장을 다시 선택해 주세요.", 400);
+  }
+
   const shopResult = await admin
     .from("shops")
     .select("id")
+    .eq("id", shopId)
     .eq("owner_user_id", user.id)
-    .order("created_at")
-    .limit(1)
     .maybeSingle();
 
   if (shopResult.error) {
     throw new OwnerBillingError(shopResult.error.message, 500);
   }
 
-  if (!shopResult.data?.id) {
-    throw new OwnerBillingError("연결된 매장 정보를 찾을 수 없습니다.", 403);
+  if (shopResult.data?.id !== shopId) {
+    throw new OwnerBillingError("이 매장의 결제를 관리할 권한이 없습니다.", 403);
   }
 
   return {
@@ -58,6 +65,6 @@ export async function requireOwnerBillingSession(request: NextRequest): Promise<
       created_at: user.created_at ?? null,
       user_metadata: user.user_metadata ?? null,
     },
-    shopId: shopResult.data.id,
+    shopId,
   };
 }

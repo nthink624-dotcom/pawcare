@@ -407,7 +407,7 @@ function TimeWheelColumn({
         onClick={() => move(-1)}
         className={cn(
           "w-full text-center font-normal text-[#a8b0bd] transition hover:text-[#64748b]",
-          compact ? "h-5 text-[13px] leading-5" : "h-6 text-[15px] leading-6",
+          compact ? "h-5 text-[13px] leading-5" : "h-6 text-[14px] leading-5",
         )}
       >
         {getLabel(previousValue)}
@@ -426,7 +426,7 @@ function TimeWheelColumn({
         onClick={() => move(1)}
         className={cn(
           "w-full text-center font-normal text-[#a8b0bd] transition hover:text-[#64748b]",
-          compact ? "h-5 text-[13px] leading-5" : "h-6 text-[15px] leading-6",
+          compact ? "h-5 text-[13px] leading-5" : "h-6 text-[14px] leading-5",
         )}
       >
         {getLabel(nextValue)}
@@ -659,12 +659,12 @@ export default function OperatingHoursSettings({
     notifySuccess = !initialSetupMode,
   ) {
     const nextShop = buildNextShop(nextDays, nextSettings, cycle, anchorDate);
-    if (!nextShop) return;
+    if (!nextShop) return false;
 
     onShopChange?.(nextShop);
     if (!persistToSupabase || nextShop.id === "demo-shop" || nextShop.id === "owner-demo") {
       if (notifySuccess) onSaveSuccess?.();
-      return;
+      return true;
     }
 
     try {
@@ -716,6 +716,7 @@ export default function OperatingHoursSettings({
       });
       onShopChange?.(savedShop);
       if (notifySuccess) onSaveSuccess?.();
+      return true;
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to save operating hours", error);
       setSaveError(error instanceof Error ? error.message : "운영시간 저장에 실패했습니다. 새로고침 후 다시 시도해 주세요.");
@@ -814,7 +815,7 @@ export default function OperatingHoursSettings({
     setIsCompletingInitialSetup(true);
     setSaveError("");
     try {
-      await persistShopOperatingHours(
+      return await persistShopOperatingHours(
         businessDays,
         bookingSettings,
         regularHolidayCycle,
@@ -921,7 +922,7 @@ export default function OperatingHoursSettings({
         <div className="overflow-hidden rounded-[12px] border border-[#e5e7eb] bg-white">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3">
             <div>
-              <p className="text-[15px] font-normal text-[#111827]">공통 적용</p>
+              <p className="text-[14px] font-medium leading-5 text-[#111827]">공통 적용</p>
               <p className="mt-0.5 text-[12px] font-normal text-[#94a3b8]">예외 요일만 따로 수정</p>
             </div>
             <div className="grid grid-cols-[88px_20px_88px_auto] items-center justify-end gap-2">
@@ -1068,21 +1069,21 @@ export default function OperatingHoursSettings({
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/20 px-4" role="dialog" aria-modal="true">
             <div className="w-full max-w-[360px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
               <p className="text-[18px] font-normal text-[#111827]">임시 휴무일 지정</p>
-              <p className="mt-3 text-[15px] leading-6 text-[#475569]">
+              <p className="mt-3 text-[16px] font-normal leading-6 text-[#475569]">
                 {pendingTemporaryHolidayDate}을 임시 휴무일로 지정할까요?
               </p>
               <div className="mt-5 grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setPendingTemporaryHolidayDate("")}
-                  className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-normal text-[#334155] hover:bg-[#f8fafc]"
+                  className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] font-medium leading-6 text-[#334155] hover:bg-[#f8fafc]"
                 >
                   닫기
                 </button>
                 <button
                   type="button"
                   onClick={() => addTemporaryHoliday(pendingTemporaryHolidayDate)}
-                  className="h-11 rounded-[8px] bg-[#2f7866] text-[15px] font-normal text-white hover:bg-[#286b5b]"
+                  className="h-11 rounded-[8px] bg-[#2f7866] text-[16px] font-medium leading-6 text-white hover:bg-[#286b5b]"
                 >
                   지정하기
                 </button>
@@ -1112,8 +1113,8 @@ export default function OperatingHoursSettings({
               type="button"
               onClick={() => setActiveTab(item.key)}
               className={cn(
-                "rounded-[8px] font-normal transition",
-                compact ? "min-h-11 px-3 text-[15px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" : "min-h-11 px-4 text-[16px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]",
+                "rounded-[8px] font-medium transition",
+                compact ? "min-h-11 px-3 text-[14px] leading-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" : "min-h-11 px-4 text-[16px] leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]",
                 activeTab === item.key
                   ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
                   : "text-[#64748b] hover:text-[#111827]",
@@ -1142,7 +1143,7 @@ export default function OperatingHoursSettings({
               >
                 <div>
                   <div className="group relative inline-flex items-center gap-1.5">
-                    <p className={cn("whitespace-nowrap font-normal text-[#111827] [word-break:keep-all]", compact ? "text-[15px]" : "text-[16px]")}>모든 요일 적용 시간</p>
+                    <p className={cn("whitespace-nowrap font-medium text-[#111827] [word-break:keep-all]", compact ? "text-[14px] leading-5" : "text-[16px] leading-6")}>모든 요일 적용 시간</p>
                     <button type="button" className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#334155]" aria-label="모든 요일 적용 시간 도움말">
                       <Info className="h-3.5 w-3.5" />
                     </button>
@@ -1168,10 +1169,10 @@ export default function OperatingHoursSettings({
                     className={cn(
                       "rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]",
                       initialSetupMode
-                        ? "col-span-3 min-h-11 w-full px-4 text-[16px] font-medium leading-6 sm:col-span-1 sm:h-10 sm:min-h-0 sm:w-auto sm:text-[15px] sm:font-normal"
+                        ? "col-span-3 min-h-11 w-full px-4 text-[16px] font-medium leading-6 sm:col-span-1 sm:h-10 sm:min-h-0 sm:w-auto"
                         : compact
                           ? "h-8 px-3 text-[14px]"
-                          : "col-span-3 min-h-11 w-full px-4 text-[15px] sm:col-span-1 sm:w-auto",
+                          : "col-span-3 min-h-11 w-full px-4 text-[16px] font-medium leading-6 sm:col-span-1 sm:w-auto",
                     )}
                   >
                     적용
@@ -1190,10 +1191,10 @@ export default function OperatingHoursSettings({
                         : "grid-cols-[110px_160px_minmax(400px,1fr)] gap-5 py-3.5",
                   )}
                 >
-                  <p className={cn("font-normal text-[#111827]", compact ? "text-[15px]" : "text-[16px]")}>{day.label}</p>
+                  <p className={cn("font-medium text-[#111827]", compact ? "text-[14px] leading-5" : "text-[16px] leading-6")}>{day.label}</p>
                   <div className={cn("flex items-center", compact ? "gap-1.5" : "gap-2")}>
                     <ToggleSwitch checked={day.enabled} onChange={() => updateBusinessDay(day.key, { enabled: !day.enabled })} label={`${day.label} 영업 여부`} compact={compact} />
-                    <span className={cn("font-normal", compact ? "text-[15px]" : "text-[16px]", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>
+                    <span className={cn("font-normal", compact ? "text-[14px] leading-5" : "text-[16px] leading-6", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>
                       {day.enabled ? "영업함" : "휴무일"}
                     </span>
                   </div>
@@ -1212,7 +1213,7 @@ export default function OperatingHoursSettings({
                         <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} compact={compact} />
                       </>
                     ) : (
-                      <p className={cn("col-span-3 whitespace-nowrap text-left font-normal text-[#64748b] [word-break:keep-all]", compact ? "text-[15px]" : "text-[16px]")}>
+                      <p className={cn("col-span-3 whitespace-nowrap text-left font-normal text-[#64748b] [word-break:keep-all]", compact ? "text-[14px] leading-5" : "text-[16px] leading-6")}>
                         예약을 받지 않습니다.
                       </p>
                     )}
@@ -1247,7 +1248,7 @@ export default function OperatingHoursSettings({
               </button>
             ) : null}
             <div className={cn("border-b border-[#edf2f7]", compact ? "pb-3" : "pb-4")}>
-              <p className={cn("text-[#111827]", initialSetupMode ? "text-[20px] font-semibold leading-7" : compact ? "text-[16px] font-normal" : "text-[18px] font-normal")}>{initialSetupMode ? "휴무일 추가" : "정기 휴무일"}</p>
+              <p className={cn("text-[#111827]", initialSetupMode ? "text-[20px] font-semibold leading-7" : compact ? "text-[18px] font-semibold leading-[26px]" : "text-[18px] font-semibold leading-[26px]")}>{initialSetupMode ? "휴무일 추가" : "정기 휴무일"}</p>
               <div className={cn("grid grid-cols-3 gap-1 rounded-[10px] border border-[#e4ebf2] bg-[#f8fafc] p-1", compact ? "mt-2" : "mt-4")}>
                 {extendedRegularHolidayCycleOptions.map((option) => (
                   <button
@@ -1255,8 +1256,8 @@ export default function OperatingHoursSettings({
                     type="button"
                     onClick={() => updateRegularHolidayCycle(option.value)}
                     className={cn(
-                      "rounded-[8px] font-normal transition",
-                      compact ? "h-8 text-[15px]" : "h-10 text-[16px]",
+                      "rounded-[8px] font-medium transition",
+                      compact ? "h-8 text-[14px] leading-5" : "h-10 text-[16px] leading-6",
                       regularHolidayCycle === option.value
                         ? "bg-white text-[#111827] shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
                         : "text-[#64748b] hover:bg-white/70 hover:text-[#111827]",
@@ -1275,8 +1276,8 @@ export default function OperatingHoursSettings({
                       type="button"
                       onClick={() => updateBusinessDay(day.key, { enabled: !businessDays.find((item) => item.key === day.key)?.enabled })}
                       className={cn(
-                        "rounded-[8px] border font-normal transition",
-                        compact ? "h-8 text-[15px]" : "h-10 text-[16px]",
+                        "rounded-[8px] border font-medium transition",
+                        compact ? "h-8 text-[14px] leading-5" : "h-10 text-[16px] leading-6",
                         active
                           ? "border-[#f0a8b4] bg-[#fff7f8] text-[#d43f57] shadow-[0_1px_4px_rgba(212,63,87,0.08)]"
                           : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#94a3b8] hover:bg-[#f8fafc]",
@@ -1296,22 +1297,22 @@ export default function OperatingHoursSettings({
           {!initialSetupMode && pendingTemporaryHolidayDate ? (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/20 px-4" role="dialog" aria-modal="true">
               <div className="w-full max-w-[360px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
-                <p className="text-[18px] font-normal text-[#111827]">임시 휴무일 지정</p>
-                <p className="mt-3 text-[15px] leading-6 text-[#475569]">
+                <p className="text-[18px] font-semibold leading-[26px] text-[#111827]">임시 휴무일 지정</p>
+                <p className="mt-3 text-[16px] font-normal leading-6 text-[#475569]">
                   {pendingTemporaryHolidayDate}을 임시 휴무일로 지정할까요?
                 </p>
                 <div className="mt-5 grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setPendingTemporaryHolidayDate("")}
-                    className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-normal text-[#334155] hover:bg-[#f8fafc]"
+                    className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] font-medium leading-6 text-[#334155] hover:bg-[#f8fafc]"
                   >
                     닫기
                   </button>
                   <button
                     type="button"
                     onClick={() => addTemporaryHoliday(pendingTemporaryHolidayDate)}
-                    className="h-11 rounded-[8px] bg-[#2f7866] text-[15px] font-normal text-white hover:bg-[#286b5b]"
+                    className="h-11 rounded-[8px] bg-[#2f7866] text-[16px] font-medium leading-6 text-white hover:bg-[#286b5b]"
                   >
                     지정하기
                   </button>

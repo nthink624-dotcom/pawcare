@@ -4,19 +4,20 @@ import test from "node:test";
 
 const source = (path) => readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 
-test("staff setup uses a non-overlapping two-row header and left-aligned three-step rail", async () => {
+test("staff setup uses a responsive one-row header and left-aligned three-step rail", async () => {
   const guide = await source("src/components/owner-web/owner-initial-setup-guide.tsx");
   assert.match(guide, /key: "staff", label: "직원 관리", railLabel: "직원 관리"/);
   assert.equal([...guide.matchAll(/\{ key: "(?:hours|staff|pricing)"/g)].length, 3);
   assert.match(guide, /items-center justify-start gap-2\.5[^\n]+text-left/);
   assert.match(guide, /data-testid="owner-initial-setup-title-row"/);
-  assert.match(guide, /className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-2"/);
-  assert.match(guide, /flex-\[1_1_160px\]/);
+  assert.match(guide, /className="flex min-w-0 flex-wrap items-center gap-2"/);
+  assert.match(guide, /flex-1 basis-\[160px\]/);
   assert.match(guide, /data-testid="owner-initial-setup-title-actions"/);
-  assert.match(guide, /max-w-full flex-\[0_1_auto\] flex-wrap/);
+  assert.match(guide, /w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-1/);
   assert.doesNotMatch(guide, /data-testid="owner-initial-setup-action-row"/);
   assert.match(guide, /data-testid="owner-initial-setup-header-actions"/);
-  assert.match(guide, /className="mt-3 flex min-h-11 min-w-0 justify-end empty:hidden"/);
+  assert.doesNotMatch(guide, /mt-3 flex min-h-11 min-w-0 justify-end empty:hidden/);
+  assert.match(guide, /나중에 하기[\s\S]*data-testid="owner-initial-setup-header-actions"[\s\S]*초기 설정 닫기/);
   assert.match(guide, /\{previousItem \? \([\s\S]*?onClick=\{\(\) => onNavigate\(previousItem\.screen\)\}[\s\S]*?aria-label="이전 단계로"[\s\S]*?\) : null\}/);
   assert.equal([...guide.matchAll(/whitespace-nowrap/g)].length >= 3, true);
   assert.match(guide, /id="owner-initial-setup-title"[\s\S]*?\[overflow-wrap:anywhere\][^"\n]*\[word-break:keep-all\]/);

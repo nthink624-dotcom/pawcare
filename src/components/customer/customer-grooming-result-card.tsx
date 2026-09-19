@@ -208,9 +208,9 @@ export function CustomerGroomingResultCard({
     { label: "미용 전", url: beforeUrl },
     { label: "미용 후", url: afterUrl },
   ];
-  const careSummary = confirmedCareReport?.oneLineSummary ?? getCareSummary(record, petName);
-  const treatmentSummary = confirmedCareReport?.treatmentSummary ?? record.style_notes;
-  const treatmentDetail = treatmentSummary.trim() || `${serviceName}을 완료했습니다.`;
+  const careSummary = confirmedCareReport?.reportText ?? getCareSummary(record, petName);
+  const groomingDetailText = record.style_notes;
+  const treatmentDetail = groomingDetailText.trim() || `${serviceName}을 완료했습니다.`;
   const showCareReportPhotos = record.care_report_photo_consent !== false;
 
   async function startRebooking() {
@@ -281,9 +281,8 @@ export function CustomerGroomingResultCard({
       </header>
 
       <div className="space-y-7 px-5 py-6">
-        <section>
-          <p className="text-[18px] font-medium tracking-[-0.02em] text-[#795f64]">디자이너의 한마디</p>
-          <div className="mt-2.5 rounded-[20px] bg-[#fde9e5] px-4 py-[18px]">
+        <section aria-label="케어리포트 본문">
+          <div className="rounded-[20px] bg-[#fde9e5] px-4 py-[18px]">
             <p className="whitespace-pre-wrap text-[16px] font-normal leading-[1.75] tracking-[-0.02em] text-[#433438]">{careSummary}</p>
           </div>
         </section>
@@ -366,9 +365,6 @@ export function CustomerGroomingResultCard({
             </div>
             <span className="shrink-0 rounded-full bg-[#fde9e7] px-3 py-1.5 text-[14px] font-medium text-[#d96570]">잊기 전에 예약</span>
           </div>
-          {confirmedCareReport.nextVisitGuide ? (
-            <p className="border-t border-[#f1e5e6] px-4 py-3 text-[16px] leading-6 text-[#806b70]">{confirmedCareReport.nextVisitGuide}</p>
-          ) : null}
           <div className="px-3 pb-3">
             <button
               type="button"

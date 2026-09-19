@@ -1,4 +1,4 @@
-﻿import { randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import { createHash } from "node:crypto";
 
@@ -17,7 +17,8 @@ import {
   normalizeGuardianNotificationSettings,
   normalizeShopNotificationSettings,
 } from "@/lib/notification-settings";
-import { hasBlockedWindowOverlap, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
+import { defaultReservationPolicySettings, hasBlockedWindowOverlap, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
+import { mergeTemporaryClosedDates, type TemporaryClosedDateChanges } from "@/lib/initial-setup-closed-dates";
 import { getStaffBookingLoads } from "@/lib/staff-booking-load";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -26,7 +27,8 @@ import { getBootstrap } from "@/server/bootstrap";
 import { readCurrentVisitWeightForCompletion } from "@/server/appointment-visit-weight";
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { dispatchNotification } from "@/server/notification-dispatch";
-import { OwnerApiError } from "@/server/owner-api-auth";
+import { OwnerApiError, type OwnerShopContext } from "@/server/owner-api-auth";
+import { appointmentBelongsToStaff } from "@/server/staff-privacy";
 import {
   assertShopIdentityChangeLimit,
   buildShopIdentityChanges,
@@ -527,6 +529,26 @@ type AppointmentMutationOptions = {
   };
 };
 
+type AppointmentStatusMutationOptions = AppointmentMutationOptions & {
+  ownerAccess?: Pick<OwnerShopContext, "shopId" | "role" | "staffId">;
+  allowCompletedReplay?: boolean;
+};
+
+function assertAppointmentStatusMutationAccess(
+  appointment: Appointment,
+  ownerAccess: AppointmentStatusMutationOptions["ownerAccess"],
+) {
+  if (!ownerAccess) return;
+  const missingStaffIdentity = ownerAccess.role === "staff" && !ownerAccess.staffId;
+  if (
+    appointment.shop_id !== ownerAccess.shopId ||
+    missingStaffIdentity ||
+    !appointmentBelongsToStaff(appointment, ownerAccess)
+  ) {
+    throw new OwnerApiError("예약을 찾을 수 없습니다.", 404);
+  }
+}
+
 async function runAppointmentNotificationTask(
   task: () => Promise<void>,
   options?: AppointmentMutationOptions,
@@ -873,8 +895,18 @@ function getServiceSavePayloadHash(input: {
     .digest("hex");
 }
 
-export async function updateInitialSetupShopSettings(input: unknown) {
+export async function updateInitialSetupShopSettings(input: unknown, options: { preserveTemporaryClosedDates?: boolean; temporaryClosedDateChanges?: TemporaryClosedDateChanges } = {}) {
   const payload = initialSetupShopSettingsSchema.parse(input);
+  if (payload.regularClosedCycle !== "weekly" && payload.regularClosedDays.some((day) => !payload.businessHours[String(day)]?.enabled)) {
+    throw new Error("주기적으로 쉬는 요일의 영업시간을 확인해 주세요.");
+  }
+  if (payload.regularClosedCycle === "biweekly" && payload.regularClosedDays.length) {
+    const anchor = payload.regularClosedAnchorDate ?? "";
+    const date = new Date(`${anchor}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== anchor) {
+      throw new Error("격주 휴무 기준일을 확인해 주세요.");
+    }
+  }
   const regularClosedAnchorDate = payload.regularClosedCycle === "biweekly" ? payload.regularClosedAnchorDate : null;
   const updatePayload = {
     booking_available_start_time: payload.bookingAvailableStartTime,
@@ -892,6 +924,14 @@ export async function updateInitialSetupShopSettings(input: unknown) {
     store.shop = {
       ...store.shop,
       ...updatePayload,
+      ...(options.preserveTemporaryClosedDates ? { temporary_closed_dates: store.shop.temporary_closed_dates } : {}),
+      ...(options.temporaryClosedDateChanges ? { temporary_closed_dates: mergeTemporaryClosedDates(store.shop.temporary_closed_dates, options.temporaryClosedDateChanges) } : {}),
+      reservation_policy_settings: {
+        ...defaultReservationPolicySettings,
+        ...store.shop.reservation_policy_settings,
+        regular_closed_cycle: payload.regularClosedCycle,
+        regular_closed_anchor_date: regularClosedAnchorDate,
+      },
       id: payload.shopId,
       business_hours: Object.fromEntries(
         Object.entries(payload.businessHours).map(([key, value]) => [Number(key), value]),
@@ -903,13 +943,28 @@ export async function updateInitialSetupShopSettings(input: unknown) {
 
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
-  const { data, error } = await supabase
+  const { data: current, error: readError } = await supabase
     .from("shops")
-    .update(updatePayload)
+    .select("reservation_policy_settings,updated_at,temporary_closed_dates")
     .eq("id", payload.shopId)
-    .select("*")
     .single();
+  if (readError || !current) throw new Error("현재 설정을 확인하지 못했습니다. 다시 시도해 주세요.");
+  const existingPolicy = current.reservation_policy_settings;
+  const query = supabase.from("shops").update({
+    ...updatePayload,
+    ...(options.preserveTemporaryClosedDates ? { temporary_closed_dates: current.temporary_closed_dates } : {}),
+    ...(options.temporaryClosedDateChanges ? { temporary_closed_dates: mergeTemporaryClosedDates(current.temporary_closed_dates ?? [], options.temporaryClosedDateChanges) } : {}),
+    reservation_policy_settings: {
+      ...(existingPolicy && typeof existingPolicy === "object" && !Array.isArray(existingPolicy) ? existingPolicy : {}),
+      regular_closed_cycle: payload.regularClosedCycle,
+      regular_closed_anchor_date: regularClosedAnchorDate,
+    },
+  }).eq("id", payload.shopId);
+  // Fail instead of overwriting settings changed after the read above.
+  const guardedQuery = current.updated_at == null ? query.is("updated_at", null) : query.eq("updated_at", current.updated_at);
+  const { data, error } = await guardedQuery.select("*").maybeSingle();
   if (error) throw new Error(error.message);
+  if (!data) throw new Error("설정이 다른 화면에서 변경되었습니다. 새로고침 후 다시 저장해 주세요.");
   return data as Shop;
 }
 
@@ -2357,7 +2412,7 @@ export async function createAppointment(input: unknown, options?: AppointmentMut
   return appointment;
 }
 
-export async function updateAppointmentStatus(input: unknown, options?: AppointmentMutationOptions) {
+export async function updateAppointmentStatus(input: unknown, options?: AppointmentStatusMutationOptions) {
   const payload = appointmentStatusSchema.parse(input);
   const rejectionReason = payload.status === "rejected" ? getRejectionReason(payload) : null;
   const statusMediaAssetIds = payload.mediaAssetIds ?? [];
@@ -2370,8 +2425,17 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
-    const appointment = store.appointments.find((item) => item.id === payload.appointmentId);
-    if (!appointment) throw new Error("예약을 찾을 수 없습니다.");
+    const appointment = store.appointments.find(
+      (item) => item.id === payload.appointmentId && (!options?.ownerAccess || item.shop_id === options.ownerAccess.shopId),
+    );
+    if (!appointment) {
+      if (options?.ownerAccess) throw new OwnerApiError("예약을 찾을 수 없습니다.", 404);
+      throw new Error("예약을 찾을 수 없습니다.");
+    }
+    assertAppointmentStatusMutationAccess(appointment, options?.ownerAccess);
+    if (options?.allowCompletedReplay && payload.status === "completed" && appointment.status === "completed") {
+      return appointment;
+    }
     const previousAppointment = { ...appointment };
 
     assertAppointmentStatusIsNotRepeated({
@@ -2548,14 +2612,26 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
-  const { data: currentAppointment, error: appointmentError } = await supabase
+  const appointmentQuery = supabase
     .from("appointments")
     .select("*")
-    .eq("id", payload.appointmentId)
-    .single();
+    .eq("id", payload.appointmentId);
+  const scopedAppointmentQuery = options?.ownerAccess
+    ? appointmentQuery.eq("shop_id", options.ownerAccess.shopId)
+    : appointmentQuery;
+  const { data: appointmentData, error: appointmentError } = await scopedAppointmentQuery.maybeSingle();
 
   if (appointmentError) throw new Error(appointmentError.message);
-  const previousAppointment = currentAppointment as Appointment;
+  if (!appointmentData) {
+    if (options?.ownerAccess) throw new OwnerApiError("예약을 찾을 수 없습니다.", 404);
+    throw new Error("예약을 찾을 수 없습니다.");
+  }
+  const currentAppointment = appointmentData as Appointment;
+  assertAppointmentStatusMutationAccess(currentAppointment, options?.ownerAccess);
+  if (options?.allowCompletedReplay && payload.status === "completed" && currentAppointment.status === "completed") {
+    return currentAppointment;
+  }
+  const previousAppointment = currentAppointment;
 
   assertAppointmentStatusIsNotRepeated({
     previousStatus: currentAppointment.status,

@@ -36,6 +36,8 @@ const setupItems: SetupChecklistItem[] = [
 ];
 
 const OwnerInitialSetupHeaderActionContext = createContext<HTMLElement | null>(null);
+type SetupSave = () => void | boolean | Promise<void | boolean>;
+const SetupSaveContext = createContext<React.RefObject<SetupSave | null> | null>(null);
 
 export function OwnerInitialSetupPrimaryAction({ children }: { children: ReactNode }) {
   const headerActionElement = useContext(OwnerInitialSetupHeaderActionContext);
@@ -48,11 +50,19 @@ export function OwnerInitialSetupSaveNextActions({
   saving = false,
   saveDisabled = false,
 }: {
-  onSave: () => void | Promise<void>;
+  onSave: SetupSave;
   onNext: () => void;
   saving?: boolean;
   saveDisabled?: boolean;
 }) {
+  const saveContextRef = useContext(SetupSaveContext);
+  const latestSave = useRef(onSave);
+  useEffect(() => { latestSave.current = onSave; }, [onSave]);
+  useEffect(() => {
+    if (!saveContextRef) return;
+    saveContextRef.current = () => { if (!saving && !saveDisabled) return latestSave.current(); };
+    return () => { saveContextRef.current = null; };
+  }, [saveContextRef, saving, saveDisabled]);
   return (
     <OwnerInitialSetupPrimaryAction>
       <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:w-auto">
@@ -118,7 +128,7 @@ function SetupChecklist({
               >
                 {complete ? <Check className="h-3.5 w-3.5" /> : null}
               </span>
-              <span className={`${OWNER_TYPOGRAPHY.meta} min-w-0 text-[#15213b] [overflow-wrap:anywhere]`}>
+              <span className="min-w-0 text-[16px] font-medium leading-6 text-[#15213b] [overflow-wrap:anywhere]">
                 {item.railLabel}
               </span>
             </button>
@@ -148,6 +158,18 @@ export default function OwnerInitialSetupGuide({
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const onCloseRef = useRef(onClose);
+  const saveActionRef = useRef<SetupSave | null>(null);
+  const [savingForLater, setSavingForLater] = useState(false);
+  const [laterError, setLaterError] = useState("");
+  async function saveAndLater() {
+    if (savingForLater) return;
+    if (!saveActionRef.current) { closeGuide(); return; }
+    setSavingForLater(true);
+    setLaterError("");
+    try { if (await saveActionRef.current() === true) closeGuide(); }
+    catch { setLaterError("저장하지 못했어요. 입력 내용을 확인하고 다시 시도해 주세요."); }
+    finally { setSavingForLater(false); }
+  }
   const readiness = getBootstrapOwnerInitialSetupReadiness(data);
   const confirmed = OWNER_INITIAL_SETUP_ORDER.filter((step) => readiness.steps[step]);
   const nextStep = readiness.nextStep;
@@ -174,7 +196,7 @@ export default function OwnerInitialSetupGuide({
   }, []);
 
   useEffect(() => {
-    if (!open || allComplete || !portalTarget) return;
+    if (!open || !portalTarget) return;
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousBodyOverflow = document.body.style.overflow;
     const previousDocumentOverflow = document.documentElement.style.overflow;
@@ -183,6 +205,7 @@ export default function OwnerInitialSetupGuide({
     const frame = window.requestAnimationFrame(() => dialogRef.current?.focus());
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest("[data-price-guide-service-duration-dialog]")) return;
       if (event.key === "Escape") {
         event.preventDefault();
         closeGuide();
@@ -216,9 +239,9 @@ export default function OwnerInitialSetupGuide({
       document.documentElement.style.overflow = previousDocumentOverflow;
       previouslyFocused?.focus();
     };
-  }, [allComplete, closeGuide, open, portalTarget]);
+  }, [closeGuide, open, portalTarget]);
 
-  if (!open || !portalTarget || allComplete) return null;
+  if (!open || !portalTarget) return null;
 
   return createPortal(
     <div className="pointer-events-none fixed inset-0 z-[90]" data-testid="owner-initial-setup-layer">
@@ -230,6 +253,7 @@ export default function OwnerInitialSetupGuide({
       />
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden p-[10px] sm:p-6">
         <OwnerInitialSetupHeaderActionContext.Provider value={headerActionElement}>
+        <SetupSaveContext.Provider value={saveActionRef}>
         <div
           ref={dialogRef}
           role="dialog"
@@ -239,13 +263,13 @@ export default function OwnerInitialSetupGuide({
           className="pointer-events-auto relative z-10 flex max-h-[calc(100dvh-20px)] w-full min-w-0 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.20)] outline-none sm:max-h-[calc(100dvh-48px)] sm:w-[min(960px,calc(100vw-48px))]"
           data-testid="owner-initial-setup-guide"
         >
-          <header className="shrink-0 border-b border-[#dbe2ea] bg-white px-4 py-4 sm:px-6 sm:py-5">
+          <header className="shrink-0 border-b border-[#dbe2ea] bg-white px-4 py-3 sm:px-6 sm:py-3.5">
             <div
-              className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-2"
+              className="flex min-w-0 flex-wrap items-center gap-2"
               data-testid="owner-initial-setup-title-row"
             >
               <div
-                className="flex min-w-0 flex-[1_1_160px] items-center gap-1"
+                className="flex min-w-0 flex-1 basis-[160px] items-center gap-1"
                 data-testid="owner-initial-setup-title-group"
               >
                 {previousItem ? (
@@ -266,16 +290,22 @@ export default function OwnerInitialSetupGuide({
                 </h2>
               </div>
               <div
-                className="flex min-w-0 max-w-full flex-[0_1_auto] flex-wrap items-center justify-end gap-1"
+                className="flex min-w-0 w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-1"
                 data-testid="owner-initial-setup-title-actions"
               >
                 <button
                   type="button"
-                  onClick={closeGuide}
-                  className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium leading-5 text-[#475569] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+                  onClick={() => void saveAndLater()}
+                  disabled={savingForLater}
+                  className={`inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 ${OWNER_TYPOGRAPHY.control} text-[#475569] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]`}
                 >
-                  나중에 하기
+                  {savingForLater ? "저장 중" : "저장하고 나중에"}
                 </button>
+                <div
+                  ref={setHeaderActionElement}
+                  className="flex min-w-0 flex-1 justify-end empty:hidden sm:flex-none"
+                  data-testid="owner-initial-setup-header-actions"
+                />
                 <button
                   type="button"
                   onClick={closeGuide}
@@ -285,12 +315,6 @@ export default function OwnerInitialSetupGuide({
                   <X className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
-            </div>
-            <div
-              ref={setHeaderActionElement}
-              className="mt-3 flex min-h-11 min-w-0 justify-end empty:hidden"
-              data-testid="owner-initial-setup-header-actions"
-            >
             </div>
           </header>
 
@@ -314,7 +338,7 @@ export default function OwnerInitialSetupGuide({
               />
             </aside>
             <div
-              className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb] sm:px-6 sm:py-6"
+              className={`no-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb] ${activeScreen === "services" ? "sm:px-3 sm:py-5" : "sm:px-6 sm:py-6"}`}
               data-testid="owner-initial-setup-body"
               role="region"
               aria-label={`${activeItem.label} 설정 내용`}
@@ -325,6 +349,8 @@ export default function OwnerInitialSetupGuide({
           </div>
 
         </div>
+        {laterError ? <p role="alert">{laterError}</p> : null}
+        </SetupSaveContext.Provider>
         </OwnerInitialSetupHeaderActionContext.Provider>
       </div>
     </div>,

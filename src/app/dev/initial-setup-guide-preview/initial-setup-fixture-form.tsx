@@ -126,8 +126,8 @@ const PRICE_GUIDE_FIXTURE_DOCUMENT: PriceGuideV2 = {
 
 function PricingFixtureForm({ onSaved, onNext }: { onSaved: (step: OwnerInitialSetupStepKey) => void; onNext: () => void }) {
   const [savedDocument, setSavedDocument] = useState<PriceGuideV2>(PRICE_GUIDE_FIXTURE_DOCUMENT);
-  const [saveAction, setSaveAction] = useState<(() => Promise<void>) | null>(null);
-  const registerSaveAction = useCallback((action: (() => Promise<void>) | null) => setSaveAction(() => action), []);
+  const [saveAction, setSaveAction] = useState<(() => Promise<void | boolean>) | null>(null);
+  const registerSaveAction = useCallback((action: (() => Promise<void | boolean>) | null) => setSaveAction(() => action), []);
 
   return (
     <div className="min-w-0" data-testid="initial-setup-price-guide-fixture">

@@ -1,6 +1,9 @@
 import {
   calculateOwnerBillingAmountBreakdown,
+  OWNER_SINGLE_MONTHLY_CURRENCY,
   OWNER_SINGLE_MONTHLY_PLAN_CODE,
+  OWNER_SINGLE_MONTHLY_PRICE_KRW,
+  OWNER_SINGLE_MONTHLY_PRODUCT_VERSION,
   ownerPlans,
   type OwnerBillingAmountBreakdown,
   type OwnerPlan,
@@ -53,6 +56,7 @@ export type OwnerSubscriptionSummary = {
   ownerName: string | null;
   ownerPhoneNumber: string | null;
   ownerEmail: string | null;
+  portoneCustomerId: string | null;
   billingAmount: OwnerBillingAmountBreakdown;
   productVersion: string | null;
   priceSnapshotAmount: number | null;
@@ -105,6 +109,7 @@ export function normalizeOwnerSubscriptionMetadata(
     ownerName?: string | null;
     ownerPhoneNumber?: string | null;
     ownerEmail?: string | null;
+    portoneCustomerId?: string | null;
     billingAmount?: OwnerBillingAmountBreakdown;
   },
 ) {
@@ -201,6 +206,7 @@ export function normalizeOwnerSubscriptionMetadata(
   const currentPlan = getPlanOrDefault(currentPlanCode);
   const autoRenewPlan = getPlanOrDefault(autoRenewPlanCode);
   const billingAmount = options?.billingAmount ?? calculateOwnerBillingAmountBreakdown(currentPlan, 1);
+  const usesCurrentSingleMonthlyPlan = currentPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE;
   return {
     userId: options?.userId ?? "",
     shopId: options?.shopId ?? "",
@@ -231,12 +237,25 @@ export function normalizeOwnerSubscriptionMetadata(
     ownerName: options?.ownerName ?? null,
     ownerPhoneNumber: options?.ownerPhoneNumber ?? null,
     ownerEmail: options?.ownerEmail ?? null,
+    portoneCustomerId: options?.portoneCustomerId ?? null,
     billingAmount,
-    productVersion: typeof metadata?.product_version === "string" ? metadata.product_version : null,
+    productVersion:
+      typeof metadata?.product_version === "string"
+        ? metadata.product_version
+        : usesCurrentSingleMonthlyPlan
+          ? OWNER_SINGLE_MONTHLY_PRODUCT_VERSION
+          : null,
     priceSnapshotAmount:
       typeof metadata?.price_snapshot_amount === "number" && Number.isInteger(metadata.price_snapshot_amount)
         ? metadata.price_snapshot_amount
-        : null,
-    priceSnapshotCurrency: metadata?.price_snapshot_currency === "KRW" ? "KRW" : null,
+        : usesCurrentSingleMonthlyPlan
+          ? OWNER_SINGLE_MONTHLY_PRICE_KRW
+          : null,
+    priceSnapshotCurrency:
+      metadata?.price_snapshot_currency === OWNER_SINGLE_MONTHLY_CURRENCY
+        ? OWNER_SINGLE_MONTHLY_CURRENCY
+        : usesCurrentSingleMonthlyPlan
+          ? OWNER_SINGLE_MONTHLY_CURRENCY
+          : null,
   } satisfies OwnerSubscriptionSummary;
 }

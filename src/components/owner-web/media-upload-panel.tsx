@@ -510,8 +510,8 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={previewUrl} alt={`${slot.label} 사진`} className="h-full w-full object-cover transition group-hover:scale-[1.03]" />
                   <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/55 to-transparent px-2 pb-2 pt-8">
-                    <span className="rounded-[5px] bg-white/95 px-2 py-1 text-[12px] font-semibold text-[#111827]">{slot.label}</span>
-                    <span className="rounded-[5px] bg-white/90 px-2 py-1 text-[11px] font-medium text-[#334155]">변경</span>
+                    <span className="rounded-[5px] bg-white/95 px-2 py-1 text-[12px] font-medium leading-[18px] text-[#111827]">{slot.label}</span>
+                    <span className="rounded-[5px] bg-white/90 px-2 py-1 text-[12px] font-medium leading-[18px] text-[#334155]">변경</span>
                   </span>
                 </>
               ) : (

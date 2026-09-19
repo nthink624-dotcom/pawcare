@@ -7,7 +7,7 @@ export default function MarketingConsentPage() {
 
   return (
     <LegalPageLayout
-      title="이벤트·혜택 정보 수신 동의"
+      title="마케팅 정보 수신 동의"
       subtitle={`${LEGAL_SERVICE_NAME}의 선택 마케팅 수신 동의 내용입니다. 운영 주체는 ${LEGAL_OPERATOR_NAME}입니다.`}
     >
       {marketingConsent ? <LegalSection title={marketingConsent.title} body={marketingConsent.content} /> : null}

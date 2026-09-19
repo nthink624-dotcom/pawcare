@@ -11,6 +11,7 @@ import {
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/utils";
 import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
+import { getServerManagedAccountSuspension } from "@/server/owner-api-auth";
 import { syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";
 
 type OwnerProfileRow = {
@@ -436,14 +437,12 @@ function buildMetadataFromRecord(record: SubscriptionRow) {
   } satisfies Record<string, unknown>;
 }
 
-function getSuspensionState(metadata: Record<string, unknown> | null | undefined) {
-  return {
-    suspended: metadata?.account_suspended === true,
-    suspensionReason:
-      typeof metadata?.account_suspension_reason === "string" && metadata.account_suspension_reason.trim()
-        ? metadata.account_suspension_reason
-        : null,
-  };
+function withoutLegacySuspensionMetadata(metadata: Record<string, unknown> | null | undefined) {
+  const sanitized = { ...(metadata ?? {}) };
+  delete sanitized.account_suspended;
+  delete sanitized.account_suspension_reason;
+  delete sanitized.account_suspended_at;
+  return sanitized;
 }
 
 function normalizeBillingEventStatus(value: string | null | undefined): BillingEventStatus {
@@ -747,7 +746,7 @@ async function readAdminOwners() {
             ownerEmail: authUser.email ?? null,
           });
 
-      const suspension = getSuspensionState(authUser.user_metadata);
+      const suspension = getServerManagedAccountSuspension(authUser.app_metadata);
 
       return {
         userId,
@@ -974,10 +973,11 @@ export async function PATCH(request: NextRequest) {
         : nextPlanCode;
     const nextLastPaymentStatus =
       body.lastPaymentStatus ?? existingRecord?.last_payment_status ?? previousOwner.lastPaymentStatus;
-    const nextSuspended = body.suspended ?? getSuspensionState(user.user_metadata).suspended;
+    const currentSuspension = getServerManagedAccountSuspension(user.app_metadata);
+    const nextSuspended = body.suspended ?? currentSuspension.suspended;
     const nextSuspensionReason =
       nextSuspended
-        ? body.suspensionReason?.trim() || getSuspensionState(user.user_metadata).suspensionReason || "운영자에 의해 일시 중지됨"
+        ? body.suspensionReason?.trim() || currentSuspension.suspensionReason || "운영자에 의해 일시 중지됨"
         : null;
     const nextCurrentPeriodStartedAt =
       nextStatus === "active"
@@ -1049,8 +1049,8 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const nextMetadata = {
-      ...(user.user_metadata ?? {}),
+    const nextUserMetadata = {
+      ...withoutLegacySuspensionMetadata(user.user_metadata),
       current_plan_code: nextPlanCode,
       featured_plan_code: nextFeaturedPlanCode,
       auto_renew_plan_code: nextAutoRenewPlanCode,
@@ -1063,13 +1063,17 @@ export async function PATCH(request: NextRequest) {
       current_period_ends_at: nextCurrentPeriodEndsAt,
       next_billing_at: nextCurrentPeriodEndsAt,
       last_payment_status: nextLastPaymentStatus,
+    } satisfies Record<string, unknown>;
+    const nextAppMetadata = {
+      ...(user.app_metadata ?? {}),
       account_suspended: nextSuspended,
       account_suspension_reason: nextSuspensionReason,
       account_suspended_at: nextSuspended ? nowIso() : null,
     } satisfies Record<string, unknown>;
 
     const authUpdateResult = await admin.auth.admin.updateUserById(body.userId, {
-      user_metadata: nextMetadata,
+      user_metadata: nextUserMetadata,
+      app_metadata: nextAppMetadata,
     });
     if (authUpdateResult.error) {
       throw new AdminApiError(authUpdateResult.error.message, 500);

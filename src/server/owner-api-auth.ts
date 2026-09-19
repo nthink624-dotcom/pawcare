@@ -14,10 +14,6 @@ export class OwnerApiError extends Error {
   }
 }
 
-function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
-  return metadata?.account_suspended === true;
-}
-
 export type OwnerShopRole = "owner" | "manager" | "staff";
 
 export type OwnerShopContext = {
@@ -36,8 +32,41 @@ type MembershipRow = {
 
 type ShopAccessRow = {
   id: string;
-  owner_user_id: string | null;
 };
+
+type StaffBindingRow = {
+  id: string;
+  shop_id: string;
+  is_active: boolean | null;
+  auth_user_id: string | null;
+};
+
+export type OwnerShopAccess = {
+  shopId: string;
+  role: OwnerShopRole;
+  isPrimary: boolean;
+  staffId: string | null;
+};
+
+export function getServerManagedAccountSuspension(
+  appMetadata: Record<string, unknown> | null | undefined,
+) {
+  return {
+    suspended: appMetadata?.account_suspended === true,
+    suspensionReason:
+      typeof appMetadata?.account_suspension_reason === "string" && appMetadata.account_suspension_reason.trim()
+        ? appMetadata.account_suspension_reason.trim()
+        : null,
+  };
+}
+
+export function assertServerManagedAccountActive(user: {
+  app_metadata?: Record<string, unknown> | null;
+}) {
+  if (getServerManagedAccountSuspension(user.app_metadata).suspended) {
+    throw new OwnerApiError("이 계정은 운영자에 의해 일시 중지되었습니다.", 403);
+  }
+}
 
 function isMissingMembershipsError(error: { code?: string; message?: string } | null | undefined) {
   const message = error?.message?.toLowerCase() ?? "";
@@ -59,17 +88,72 @@ function isMissingStaffAuthColumnError(error: { code?: string; message?: string 
   );
 }
 
-function readMetadataStaffId(metadata: Record<string, unknown> | null | undefined) {
-  const value =
-    metadata?.staff_member_id ??
-    metadata?.staffMemberId ??
-    metadata?.staff_id ??
-    metadata?.staffId;
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
 function isStaffRole(role: OwnerShopRole | string | null | undefined) {
   return role === "staff";
+}
+
+function rolePriority(role: OwnerShopRole) {
+  if (role === "owner") return 0;
+  if (role === "manager") return 1;
+  return 2;
+}
+
+export function resolveOwnerShopAccess(params: {
+  userId: string;
+  ownedShops: ShopAccessRow[];
+  memberships: MembershipRow[];
+  staffBindings: StaffBindingRow[];
+}) {
+  const staffBindingByShopId = new Map<string, string>();
+  for (const staff of params.staffBindings) {
+    if (staff.auth_user_id === params.userId && staff.is_active === true) {
+      staffBindingByShopId.set(staff.shop_id, staff.id);
+    }
+  }
+
+  const candidates: OwnerShopAccess[] = [
+    ...params.ownedShops.map((shop) => ({
+      shopId: shop.id,
+      role: "owner" as const,
+      isPrimary: false,
+      staffId: null,
+    })),
+    ...params.memberships.flatMap((membership): OwnerShopAccess[] => {
+      if (isStaffRole(membership.role)) {
+        const staffId = staffBindingByShopId.get(membership.shop_id);
+        return staffId
+          ? [{ shopId: membership.shop_id, role: "staff", isPrimary: membership.is_primary, staffId }]
+          : [];
+      }
+
+      return [
+        {
+          shopId: membership.shop_id,
+          role: membership.role,
+          isPrimary: membership.is_primary,
+          staffId: null,
+        },
+      ];
+    }),
+  ];
+
+  const accessByShopId = new Map<string, OwnerShopAccess>();
+  for (const access of candidates) {
+    const previous = accessByShopId.get(access.shopId);
+    if (
+      !previous ||
+      rolePriority(access.role) < rolePriority(previous.role) ||
+      (access.role === previous.role && access.isPrimary && !previous.isPrimary)
+    ) {
+      accessByShopId.set(access.shopId, access);
+    }
+  }
+
+  return Array.from(accessByShopId.values()).sort((first, second) => {
+    if (first.isPrimary !== second.isPrimary) return first.isPrimary ? -1 : 1;
+    if (first.role !== second.role) return rolePriority(first.role) - rolePriority(second.role);
+    return first.shopId.localeCompare(second.shopId);
+  });
 }
 
 export function isStaffOwnerContext(owner: Pick<OwnerShopContext, "role">) {
@@ -82,49 +166,60 @@ export function assertOwnerOrManager(owner: Pick<OwnerShopContext, "role">) {
   }
 }
 
-async function loadStaffIdForUser(params: {
-  userId: string;
-  shopId: string;
-  metadata: Record<string, unknown> | null | undefined;
-}) {
+export async function loadOwnerShopAccessForUser(userId: string) {
   const admin = getSupabaseAdmin();
   if (!admin) {
     throw new OwnerApiError("인증 설정을 확인해 주세요.", 503);
   }
 
-  const metadataStaffId = readMetadataStaffId(params.metadata);
-  if (metadataStaffId) {
-    const result = await admin
+  const [shopsResult, membershipResult] = await Promise.all([
+    admin.from("shops").select("id").eq("owner_user_id", userId).order("created_at"),
+    admin
+      .from("owner_shop_memberships")
+      .select("owner_user_id,shop_id,role,is_primary")
+      .eq("owner_user_id", userId)
+      .order("is_primary", { ascending: false }),
+  ]);
+
+  if (shopsResult.error) {
+    throw new OwnerApiError(shopsResult.error.message, 500);
+  }
+
+  if (membershipResult.error && !isMissingMembershipsError(membershipResult.error)) {
+    throw new OwnerApiError(membershipResult.error.message, 500);
+  }
+
+  const ownedShops = (shopsResult.data ?? []) as ShopAccessRow[];
+  const memberships = membershipResult.error ? [] : ((membershipResult.data ?? []) as MembershipRow[]);
+  const staffMembershipShopIds = Array.from(
+    new Set(memberships.filter((membership) => isStaffRole(membership.role)).map((membership) => membership.shop_id)),
+  );
+  let staffBindings: StaffBindingRow[] = [];
+
+  if (staffMembershipShopIds.length > 0) {
+    const staffResult = await admin
       .from("staff_members")
-      .select("id,shop_id,is_active")
-      .eq("id", metadataStaffId)
-      .eq("shop_id", params.shopId)
-      .maybeSingle();
+      .select("id,shop_id,is_active,auth_user_id")
+      .eq("auth_user_id", userId)
+      .eq("is_active", true)
+      .in("shop_id", staffMembershipShopIds);
 
-    if (result.error) {
-      throw new OwnerApiError(result.error.message, 500);
+    if (staffResult.error) {
+      if (isMissingStaffAuthColumnError(staffResult.error)) {
+        throw new OwnerApiError("직원 인증 연결 스키마를 확인해 주세요.", 503);
+      }
+      throw new OwnerApiError(staffResult.error.message, 500);
     }
-    if (result.data?.id && result.data.is_active !== false) {
-      return result.data.id as string;
-    }
+
+    staffBindings = (staffResult.data ?? []) as StaffBindingRow[];
   }
 
-  const result = await admin
-    .from("staff_members")
-    .select("id,shop_id,is_active,auth_user_id")
-    .eq("shop_id", params.shopId)
-    .eq("auth_user_id", params.userId)
-    .maybeSingle();
-
-  if (!result.error && result.data?.id && result.data.is_active !== false) {
-    return result.data.id as string;
-  }
-
-  if (result.error && !isMissingStaffAuthColumnError(result.error)) {
-    throw new OwnerApiError(result.error.message, 500);
-  }
-
-  throw new OwnerApiError("직원 계정과 직원 프로필이 연결되지 않았습니다.", 403);
+  return resolveOwnerShopAccess({
+    userId,
+    ownedShops,
+    memberships,
+    staffBindings,
+  });
 }
 
 export async function requireOwnerShop(request: NextRequest, requestedShopId?: string) {
@@ -157,70 +252,21 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
   }
 
   const user = userResult.data.user;
-  if (isSuspendedMetadata(user.user_metadata)) {
-    throw new OwnerApiError("이 계정은 운영자에 의해 일시 중지되었습니다.", 403);
-  }
+  // getUser(token) performs a network lookup, so app_metadata comes from the current Auth user record.
+  assertServerManagedAccountActive(user);
 
-  const [shopsResult, membershipResult] = await Promise.all([
-    admin
-      .from("shops")
-      .select("id,owner_user_id")
-      .eq("owner_user_id", user.id)
-      .order("created_at"),
-    admin
-      .from("owner_shop_memberships")
-      .select("owner_user_id,shop_id,role,is_primary")
-      .eq("owner_user_id", user.id)
-      .order("is_primary", { ascending: false }),
-  ]);
+  const accessibleShops = await loadOwnerShopAccessForUser(user.id);
+  const accessByShopId = new Map(accessibleShops.map((access) => [access.shopId, access]));
 
-  if (shopsResult.error) {
-    throw new OwnerApiError(shopsResult.error.message, 500);
-  }
-
-  if (membershipResult.error && !isMissingMembershipsError(membershipResult.error)) {
-    throw new OwnerApiError(membershipResult.error.message, 500);
-  }
-
-  const ownedShops = (shopsResult.data ?? []) as ShopAccessRow[];
-  const memberships = membershipResult.error ? [] : ((membershipResult.data ?? []) as MembershipRow[]);
-  const accessibleShops = [
-    ...ownedShops.map((shop) => ({
-      shopId: shop.id,
-      ownerUserId: shop.owner_user_id,
-      role: "owner" as OwnerShopRole,
-      isPrimary: false,
-    })),
-    ...memberships.map((membership) => ({
-      shopId: membership.shop_id,
-      ownerUserId: null as string | null,
-      role: membership.role,
-      isPrimary: membership.is_primary,
-    })),
-  ];
-
-  const uniqueAccessByShopId = new Map<string, (typeof accessibleShops)[number]>();
-  for (const access of accessibleShops) {
-    const previous = uniqueAccessByShopId.get(access.shopId);
-    if (!previous || previous.role === "staff" || access.role === "owner" || access.isPrimary) {
-      uniqueAccessByShopId.set(access.shopId, access);
-    }
-  }
-
-  if (uniqueAccessByShopId.size === 0) {
+  if (accessByShopId.size === 0) {
     throw new OwnerApiError("소유한 매장이 없습니다.", 403);
   }
 
-  if (requestedShopId && !uniqueAccessByShopId.has(requestedShopId)) {
+  if (requestedShopId && !accessByShopId.has(requestedShopId)) {
     throw new OwnerApiError("다른 매장 데이터에는 접근할 수 없습니다.", 403);
   }
 
-  const sortedAccess = Array.from(uniqueAccessByShopId.values()).sort((first, second) => {
-    if (first.isPrimary !== second.isPrimary) return first.isPrimary ? -1 : 1;
-    if (first.role !== second.role) return first.role === "owner" ? -1 : 1;
-    return first.shopId.localeCompare(second.shopId);
-  });
-  const resolvedAccess = requestedShopId ? uniqueAccessByShopId.get(requestedShopId) : sortedAccess[0];
+  const resolvedAccess = requestedShopId ? accessByShopId.get(requestedShopId) : accessibleShops[0];
   if (!resolvedAccess) {
     throw new OwnerApiError("매장 접근 권한을 확인하지 못했습니다.", 403);
   }
@@ -265,12 +311,6 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
     shopId: resolvedShopId,
     userId: user.id,
     role: resolvedAccess.role,
-    staffId: isStaffRole(resolvedAccess.role)
-      ? await loadStaffIdForUser({
-          userId: user.id,
-          shopId: resolvedShopId,
-          metadata: user.user_metadata ?? null,
-        })
-      : null,
+    staffId: resolvedAccess.staffId,
   } satisfies OwnerShopContext;
 }

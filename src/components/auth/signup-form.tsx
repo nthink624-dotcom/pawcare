@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth/atomic-signup-contract";
 import {
   OWNER_SIGNUP_TERMS_VERSION,
+  OWNER_MARKETING_CONSENT_DOCUMENT_VERSION,
   type OwnerSignupTermId,
 } from "@/lib/auth/owner-signup-terms";
 import {
@@ -412,6 +413,7 @@ export default function SignupForm({
           shopAddress: [fields.shopAddress.trim(), shopDetailAddress.trim()].filter(Boolean).join(" "),
           agreements,
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
+          marketingConsentVersion: OWNER_MARKETING_CONSENT_DOCUMENT_VERSION,
           signupRequestId,
         }),
       });

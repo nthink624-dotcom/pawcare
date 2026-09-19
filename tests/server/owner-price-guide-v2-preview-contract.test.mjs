@@ -165,6 +165,6 @@ test("the owner menu, screen, and embedded settings tab share the price-guide na
   ]);
 
   assert.match(ownerData, /\{ key: "services", label: "요금표 관리" \}/);
-  assert.match(serviceScreen, />요금표 관리<\/h2>/);
+  assert.match(serviceScreen, /<h1[\s\S]*?>\s*서비스·요금 설정\s*<\/h1>/);
   assert.match(settingsPanel, /\{ id: "menu", label: "요금표 관리"/);
 });

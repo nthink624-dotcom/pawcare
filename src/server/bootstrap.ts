@@ -1,6 +1,7 @@
 import { normalizeShopBookingSettings } from "@/lib/booking-slot-settings";
 import { normalizeBusinessHours } from "@/lib/business-hours";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+import { normalizeStoredCareReport } from "@/lib/care-report-draft";
 import { emptyOwnerPilotCohortProjection } from "@/lib/billing/owner-pilot-cohort";
 import { defaultOwnerStaffDays } from "@/lib/owner-default-setup";
 import {
@@ -78,6 +79,10 @@ function buildMockBootstrap(shopId?: string): BootstrapPayload {
     profileImageFallbackKey: isStaffProfileFallbackKey(staffMember.profileImageFallbackKey) ? staffMember.profileImageFallbackKey : null,
   }));
   store.appointments = store.appointments.map(normalizeAppointmentForBootstrap);
+  store.groomingRecords = store.groomingRecords.map((record) => ({
+    ...record,
+    care_report_data: normalizeStoredCareReport(record.care_report_data),
+  }));
   store.initialSetupReadiness = deriveOwnerInitialSetupReadiness({
     shop: store.shop,
     services: store.services,
@@ -616,9 +621,12 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     staffScheduleOverrides: ((staffScheduleOverridesRes.data ?? []) as StaffScheduleOverrideRow[]).map(normalizeStaffScheduleOverride),
     appointments,
     appointmentChangeEvents,
-    groomingRecords: ((recordsRes.data ?? []) as GroomingRecord[]).filter((record) =>
-      activeGuardianIds.has(record.guardian_id) && activePetIds.has(record.pet_id),
-    ),
+    groomingRecords: ((recordsRes.data ?? []) as GroomingRecord[])
+      .filter((record) => activeGuardianIds.has(record.guardian_id) && activePetIds.has(record.pet_id))
+      .map((record) => ({
+        ...record,
+        care_report_data: normalizeStoredCareReport(record.care_report_data),
+      })),
     petStaffNotes: ((petStaffNotesRes.data ?? []) as PetStaffNote[]).filter((note) =>
       activeGuardianIds.has(note.guardian_id) && (!note.pet_id || activePetIds.has(note.pet_id)),
     ),

@@ -79,7 +79,7 @@ test("save, exposure, and scheduling accept only owner-confirmed 15 to 480 minut
   assert.equal(getOwnerPriceGuideServiceProjection(invalid), null);
 });
 
-test("the shared editor exposes service-level quick confirmation without an automatic default", async () => {
+test("the shared editor exposes scoped weight-duration editing without an automatic default", async () => {
   const [table, validator, recommendations] = await Promise.all([
     readFile(new URL("../../src/components/owner-web/price-guide-native-inline-table.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../src/components/auth/signup-price-guide-editor.tsx", import.meta.url), "utf8"),
@@ -87,11 +87,10 @@ test("the shared editor exposes service-level quick confirmation without an auto
   ]);
 
   assert.match(table, /groupPriceGuideRowsByServiceDuration\(guide\)/);
-  assert.match(table, /PRICE_GUIDE_DURATION_QUICK_OPTIONS/);
-  assert.match(table, /기존 \$\{minutes\}분/);
-  assert.match(table, /전체 체급에 적용/);
-  assert.match(table, /첫 확인 항목으로 이동/);
-  assert.match(table, /적용하기 전에는 예약 시간에 사용하지 않습니다/);
+  assert.match(table, /PriceGuideServiceDurationControl/);
+  assert.match(table, /targets=\{durationTargets\}/);
+  assert.match(table, /applyWeightDurationUpdates\(guide, updates\)/);
+  assert.doesNotMatch(table, /전체 체급에 적용|PRICE_GUIDE_DURATION_QUICK_OPTIONS/);
   assert.doesNotMatch(table, /durationMinutes:\s*60/);
   assert.match(validator, /isConfirmedPriceGuideDuration\(row\.durationMinutes\)/);
   assert.match(validator, /소요 시간은 15~480분으로 확정해 주세요/);

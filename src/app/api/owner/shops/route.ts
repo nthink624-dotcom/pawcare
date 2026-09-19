@@ -8,7 +8,13 @@ import {
 } from "@/lib/notification-settings";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
-import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import {
+  assertOwnerOrManager,
+  assertServerManagedAccountActive,
+  loadOwnerShopAccessForUser,
+  OwnerApiError,
+  requireOwnerShop,
+} from "@/server/owner-api-auth";
 import { assertOwnerInitialSetupComplete, OWNER_INITIAL_SETUP_REQUIRED_MESSAGE } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import {
@@ -104,10 +110,6 @@ function toMobileNotificationSettingsReadback(settings: Partial<ShopNotification
   };
 }
 
-function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
-  return metadata?.account_suspended === true;
-}
-
 export async function GET(request: NextRequest) {
   try {
     if (!hasSupabaseServerEnv()) {
@@ -142,14 +144,20 @@ export async function GET(request: NextRequest) {
       throw new OwnerApiError("로그인이 필요합니다.", 401);
     }
 
-    if (isSuspendedMetadata(userResult.data.user.user_metadata)) {
-      throw new OwnerApiError("이 계정은 운영자에 의해 일시 중지되었습니다.", 403);
+    const user = userResult.data.user;
+    // getUser(token) performs a network lookup, so app_metadata is not read from a stale local JWT decode.
+    assertServerManagedAccountActive(user);
+
+    const accessibleShops = await loadOwnerShopAccessForUser(user.id);
+    if (accessibleShops.length === 0) {
+      throw new OwnerApiError("접근할 수 있는 매장이 없습니다.", 403);
     }
+    const accessibleShopIds = accessibleShops.map((access) => access.shopId);
 
     const shopsResult = await admin
       .from("shops")
       .select("id,name,address,customer_page_settings,created_at")
-      .eq("owner_user_id", userResult.data.user.id)
+      .in("id", accessibleShopIds)
       .order("created_at");
 
     if (shopsResult.error) {
@@ -163,7 +171,7 @@ export async function GET(request: NextRequest) {
         const fallbackResult = await admin
           .from("shops")
           .select("id,name,address,created_at")
-          .eq("owner_user_id", userResult.data.user.id)
+          .in("id", accessibleShopIds)
           .order("created_at");
 
         if (fallbackResult.error) {

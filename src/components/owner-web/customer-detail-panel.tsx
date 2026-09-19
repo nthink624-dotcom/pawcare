@@ -216,7 +216,7 @@ export default function CustomerDetailPanel({
       >
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#e1e7ef] bg-white px-4 py-2.5 sm:flex-nowrap sm:gap-4 sm:px-5">
           <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
-            <h2 className="break-keep [overflow-wrap:anywhere] text-[22px] font-semibold tracking-[-0.01em] text-[#111827] sm:truncate">
+            <h2 className="break-keep [overflow-wrap:anywhere] text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827] sm:truncate">
               {detail.guardian.name}
               {selectedPet ? ` · ${selectedPet.name}` : ""}
             </h2>
@@ -332,7 +332,7 @@ function SectionCard({ title, children, action }: { title: string; children: Rea
   return (
     <section className="rounded-[8px] border border-[#dbe2ea] bg-white">
       <div className="flex items-center justify-between gap-3 border-b border-[#edf2f7] px-3.5 py-2.5">
-        <h3 className="text-[16px] font-semibold text-[#111827]">{title}</h3>
+        <h3 className="text-[18px] font-semibold leading-[26px] text-[#111827]">{title}</h3>
         {action}
       </div>
       {children}
@@ -419,7 +419,7 @@ function SummaryCard({
 function SummaryField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="mb-1 text-[16px] leading-5 text-[#64748b]">{label}</p>
+      <p className="mb-1 text-[14px] font-medium leading-5 text-[#64748b]">{label}</p>
       {children}
     </div>
   );
@@ -472,7 +472,7 @@ function PetOverviewSection({
   return (
     <section className="relative rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-[16px] font-semibold text-[#111827]">반려동물 정보</h3>
+        <h3 className="text-[18px] font-semibold leading-[26px] text-[#111827]">반려동물 정보</h3>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <SmallButton label="반려동물 추가" onClick={onAddPet} />
           <SmallButton label="편집" onClick={onEditPet} />
@@ -481,7 +481,7 @@ function PetOverviewSection({
       </div>
 
       {hasMultiplePets ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {detail.pets.map((pet) => {
             const selected = pet.id === selectedPetId;
             return (
@@ -496,8 +496,8 @@ function PetOverviewSection({
               >
                 <PetAvatar name={pet.name} size="sm" />
                 <div className="min-w-0">
-                  <p className="truncate text-[16px] font-semibold leading-5 text-[#111827]">{pet.name}</p>
-                  <p className="mt-0.5 truncate text-[15px] leading-5 text-[#475569]">{buildPetSummary(pet)}</p>
+                  <p className="break-keep text-[16px] font-medium leading-6 text-[#111827] [overflow-wrap:anywhere]">{pet.name}</p>
+                  <p className="mt-0.5 break-keep text-[13px] font-normal leading-5 text-[#475569] [overflow-wrap:anywhere]">{buildPetSummary(pet)}</p>
                 </div>
                 {selected ? (
                   <span className="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2f7866] text-white">
@@ -515,19 +515,19 @@ function PetOverviewSection({
 
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="truncate text-[22px] font-semibold tracking-[-0.01em] text-[#111827]">{selectedPet.name}</p>
+             <p className="break-keep text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827] [overflow-wrap:anywhere]">{selectedPet.name}</p>
             {selectedPet.breed ? (
               <>
                 <span className="h-5 w-px shrink-0 bg-[#cbd5e1]" aria-hidden="true" />
-                <p className="truncate text-[18px] leading-6 text-[#475569]">{selectedPet.breed}</p>
+                <p className="break-keep text-[16px] font-normal leading-6 text-[#475569] [overflow-wrap:anywhere]">{selectedPet.breed}</p>
               </>
             ) : null}
           </div>
-          <div className="mt-4 grid grid-cols-[64px_minmax(0,1fr)] gap-x-2 gap-y-1 leading-6">
-            <span className="text-[17px] text-[#64748b]">몸무게</span>
-            <span className="truncate text-[17px] text-[#111827]">{weightLabel}</span>
-            <span className="text-[17px] text-[#64748b]">생년월일</span>
-            <span className="flex min-w-0 items-center gap-2 whitespace-nowrap text-[17px] text-[#111827]">
+          <div className="mt-4 grid grid-cols-[64px_minmax(0,1fr)] gap-x-2 gap-y-1">
+            <span className="text-[14px] font-medium leading-5 text-[#64748b]">몸무게</span>
+            <span className="text-[16px] font-normal leading-6 text-[#111827]">{weightLabel}</span>
+            <span className="text-[14px] font-medium leading-5 text-[#64748b]">생년월일</span>
+            <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-[16px] font-normal leading-6 text-[#111827]">
               <span>{birthdayLabel}</span>
               {fullAgeLabel ? (
                 <>
@@ -536,8 +536,8 @@ function PetOverviewSection({
                 </>
               ) : null}
             </span>
-            <span className="text-[16px] text-[#64748b]">중성화</span>
-            <span className="truncate text-[16px] text-[#111827]">미입력</span>
+            <span className="text-[14px] font-medium leading-5 text-[#64748b]">중성화</span>
+            <span className="text-[16px] font-normal leading-6 text-[#111827]">미입력</span>
           </div>
         </div>
 
@@ -568,7 +568,7 @@ function PetAvatar({ name, size, initial }: { name: string; size: "sm" | "lg"; i
     <div
       className={cn(
         "flex shrink-0 items-center justify-center rounded-full bg-[#eef7f4] text-[#2f7866]",
-        size === "lg" ? "h-[108px] w-[108px] text-[42px] font-semibold" : "h-11 w-11 text-[19px] font-semibold",
+        size === "lg" ? "h-[108px] w-[108px] text-[40px] font-semibold leading-[48px]" : "h-11 w-11 text-[20px] font-semibold leading-7",
       )}
     >
       {letter}
@@ -579,14 +579,14 @@ function PetAvatar({ name, size, initial }: { name: string; size: "sm" | "lg"; i
 function PetInfoMemo({ value, placeholder, onCommit }: { value: string; placeholder: string; onCommit: (value: string) => void | Promise<void> }) {
   return (
     <div className="min-w-0 pt-0.5">
-      <p className="mb-1 text-[15px] font-semibold leading-5 text-[#111827]">메모</p>
+      <p className="mb-1 text-[14px] font-medium leading-5 text-[#111827]">메모</p>
       <InlineEditableText
         value={value}
         placeholder={placeholder}
         ariaLabel="반려동물 메모 수정"
         multiline
-        className="min-h-[96px] w-full rounded-[8px] bg-[#fbfcfd] px-3 py-2 text-[15px] leading-6 text-[#334155]"
-        inputClassName="min-h-[96px] text-[15px]"
+        className="min-h-[96px] w-full rounded-[8px] bg-[#fbfcfd] px-3 py-2 text-[16px] font-normal leading-6 text-[#334155]"
+        inputClassName="min-h-[96px] text-[16px] font-normal leading-6"
         onCommit={onCommit}
       />
     </div>
@@ -632,8 +632,8 @@ function PetListCard({ detail, selectedPetId, onSelectPet, onAdd }: { detail: Cu
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eef7f4] text-[18px] font-semibold text-[#2f7866]">{pet.name.slice(0, 1)}</div>
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-baseline gap-3">
-                      <p className="shrink-0 truncate text-[16px] font-semibold leading-5 text-[#111827]">{pet.name}</p>
-                      <p className="min-w-0 truncate text-[16px] leading-5 text-[#64748b]">
+                      <p className="shrink-0 text-[16px] font-medium leading-6 text-[#111827]">{pet.name}</p>
+                      <p className="min-w-0 break-keep text-[14px] font-normal leading-5 text-[#64748b] [overflow-wrap:anywhere]">
                         {[pet.breed, typeof pet.weight === "number" ? `${pet.weight}kg` : "", pet.age ? `${pet.age}세` : ""].filter(Boolean).join(" · ") || "프로필 미입력"}
                       </p>
                     </div>
@@ -659,7 +659,7 @@ function BiteLevelSelector({ value, onChange }: { value: PetBiteLevel; onChange:
   return (
     <div className="w-full border-t border-[#edf2f7] pt-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[16px] font-normal text-[#111827]">입질 정도</p>
+        <p className="text-[14px] font-medium leading-5 text-[#111827]">입질 정도</p>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {petBiteLevelOptions.map((option) => {
@@ -670,7 +670,7 @@ function BiteLevelSelector({ value, onChange }: { value: PetBiteLevel; onChange:
               type="button"
               onClick={() => onChange(option.value)}
               className={cn(
-                "flex h-11 items-center justify-center rounded-[8px] border px-2 text-center text-[16px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+                "flex h-11 items-center justify-center rounded-[8px] border px-2 text-center text-[16px] font-medium leading-6 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
                 selected ? "border-[#2f7866] bg-[#f7fbf9] text-[#111827]" : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#b8c8d6]",
               )}
             >
@@ -801,18 +801,18 @@ function NotificationSettingsCard({
           <button
             type="button"
             onClick={onEdit}
-            className="flex w-full items-center justify-between gap-3 rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 text-left hover:border-[#b8c8d6]"
+             className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 text-left hover:border-[#b8c8d6]"
           >
             <span className="min-w-0">
-              <span className="block text-[16px] text-[#64748b]">보호자 알림</span>
-              <span className="mt-0.5 block truncate text-[16px] text-[#111827]">{enabled ? `${enabledCount}개 항목 수신 중` : "전체 알림 중지"}</span>
+              <span className="block text-[14px] font-medium leading-5 text-[#64748b]">보호자 알림</span>
+              <span className="mt-0.5 block break-keep text-[16px] font-normal leading-6 text-[#111827] [overflow-wrap:anywhere]">{enabled ? `${enabledCount}개 항목 수신 중` : "전체 알림 중지"}</span>
             </span>
             <ToggleState enabled={enabled} />
           </button>
 
           {notificationGroups.map((group) => (
             <div key={group.title} className="rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
-              <p className="text-[16px] text-[#64748b]">{group.title}</p>
+              <p className="text-[14px] font-medium leading-5 text-[#64748b]">{group.title}</p>
               <div className="mt-2 grid grid-cols-3 gap-1.5">
                 {group.items.map((item) => (
                   <NotificationSettingChip
@@ -839,7 +839,7 @@ function NotificationSettingChip({ label, enabled, onClick }: { label: string; e
       aria-pressed={enabled}
       onClick={onClick}
       className={cn(
-        "inline-flex h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-[8px] border px-2 text-[16px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+        "inline-flex h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-[8px] border px-2 text-[16px] font-medium leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
         enabled
           ? "border-[#cfe4dc] bg-[#f4faf7] text-[#2f7866] hover:border-[#9dc8ba]"
           : "border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8] hover:border-[#cbd5e1] hover:text-[#64748b]",
@@ -863,8 +863,8 @@ function CustomerQuickFacts({ detail }: { detail: CustomerDetailModel }) {
     <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[#edf2f7] pt-3">
       {items.map(([label, value]) => (
         <div key={label} className="min-w-0 rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] px-3 py-2">
-          <p className="text-[16px] leading-5 text-[#64748b]">{label}</p>
-          <p className="mt-1 truncate text-[16px] leading-5 text-[#111827]">{value}</p>
+          <p className="text-[14px] font-medium leading-5 text-[#64748b]">{label}</p>
+          <p className="mt-1 break-keep text-[16px] font-normal leading-6 text-[#111827] [overflow-wrap:anywhere]">{value}</p>
         </div>
       ))}
     </div>
@@ -892,7 +892,7 @@ function CustomerBenefitsCard({ detail }: { detail: CustomerDetailModel }) {
     <SectionCard
       title="적용 가능한 혜택"
       action={
-        <span className="rounded-full bg-[#eef7f4] px-2.5 py-1 text-[15px] font-normal leading-5 text-[#2f7866]">
+        <span className="rounded-full bg-[#eef7f4] px-2.5 py-1 text-[13px] font-medium leading-5 text-[#2f7866]">
           {visitType === "revisit" ? "재방문" : "첫 방문"}
         </span>
       }
@@ -903,12 +903,12 @@ function CustomerBenefitsCard({ detail }: { detail: CustomerDetailModel }) {
             <div key={item.id} className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2.5">
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-[16px] font-normal leading-6 text-[#111827]">{item.name}</p>
-                  <p className="mt-0.5 text-[15px] leading-5 text-[#64748b]">
+                  <p className="break-keep text-[16px] font-normal leading-6 text-[#111827] [overflow-wrap:anywhere]">{item.name}</p>
+                  <p className="mt-0.5 text-[13px] font-normal leading-5 text-[#64748b]">
                     {item.audienceLabel} · {item.targetLabel}
                   </p>
                 </div>
-                <span className="shrink-0 text-[16px] font-normal leading-6 text-[#2f7866]">{item.value}</span>
+                <span className="shrink-0 text-[16px] font-medium leading-6 text-[#2f7866]">{item.value}</span>
               </div>
             </div>
           ))}
@@ -968,8 +968,8 @@ function NotesCard({ notes, rawNotes, onCommit }: { notes: string[]; rawNotes: s
   return (
     <section className={cn("rounded-[8px] border bg-white", notes.length > 0 ? "border-[#e8c989]" : "border-[#dbe2ea]")}>
       <div className={cn("flex items-center justify-between gap-3 border-b px-3.5 py-2.5", notes.length > 0 ? "border-[#f0ddb4] bg-[#fffaf0]" : "border-[#edf2f7]")}>
-        <h3 className="text-[16px] font-semibold text-[#111827]">주의사항 / 미용 메모</h3>
-        <button type="button" onClick={() => setEditing(true)} className="text-[16px] text-[#2f7866] hover:underline">
+        <h3 className="text-[18px] font-semibold leading-[26px] text-[#111827]">주의사항 / 미용 메모</h3>
+        <button type="button" onClick={() => setEditing(true)} className="min-h-11 text-[16px] font-medium leading-6 text-[#2f7866] hover:underline">
           {notes.length > 0 ? `${notes.length}건` : "작성"}
         </button>
       </div>
@@ -1023,7 +1023,7 @@ function UpcomingAppointmentCard({ detail, onViewAll }: { detail: CustomerDetail
       <div className="px-3.5 py-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[18px] font-semibold text-[#111827]">{formatDateTime(appointment.appointment_date, appointment.appointment_time)}</p>
+            <p className="text-[18px] font-semibold leading-[26px] text-[#111827]">{formatDateTime(appointment.appointment_date, appointment.appointment_time)}</p>
             <p className="mt-1 text-[16px] text-[#334155]">{getServiceName(detail.servicesById, appointment.service_id)}</p>
           </div>
           <Badge className={meta.className}>{meta.label}</Badge>
@@ -1091,7 +1091,7 @@ function GroomingRecordsCard({
     <SectionCard title="미용 기록">
       {detail.recentGroomingRecords.length > 0 ? (
         <div className="overflow-hidden">
-          <div className="hidden grid-cols-[60px_64px_72px_minmax(64px,1fr)_minmax(64px,0.9fr)_112px_60px_64px] items-center border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-center text-[16px] font-medium leading-5 text-[#64748b] lg:grid xl:grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px]">
+          <div className="hidden grid-cols-[60px_64px_72px_minmax(64px,1fr)_minmax(64px,0.9fr)_112px_60px_64px] items-center border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-center text-[14px] font-medium leading-5 text-[#64748b] lg:grid xl:grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px]">
             <span>날짜</span>
             <span>반려동물</span>
             <span>서비스</span>
@@ -1110,7 +1110,7 @@ function GroomingRecordsCard({
               <button
                 type="button"
                 onClick={() => onOpenRecord(record.id)}
-                className="hidden min-h-[88px] w-full grid-cols-[60px_64px_72px_minmax(64px,1fr)_minmax(64px,0.9fr)_112px_60px_64px] items-center border-b border-[#edf2f7] px-4 py-3 text-center text-[16px] transition last:border-b-0 hover:bg-[#fbfcfd] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb] lg:grid xl:grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px]"
+                className="hidden min-h-[88px] w-full grid-cols-[60px_64px_72px_minmax(64px,1fr)_minmax(64px,0.9fr)_112px_60px_64px] items-center border-b border-[#edf2f7] px-4 py-3 text-center text-[14px] font-normal leading-5 transition last:border-b-0 hover:bg-[#fbfcfd] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb] lg:grid xl:grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px]"
               >
                 <span className="min-w-0 break-keep text-[#334155] [overflow-wrap:anywhere] xl:truncate">{formatDate(record.groomed_at)}</span>
                 <span className="min-w-0 break-keep text-[#334155] [overflow-wrap:anywhere] xl:truncate">{petName}</span>
@@ -1277,7 +1277,7 @@ function GroomingRecordDetailPanel({
         <header className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-4">
           <div className="min-w-0">
             <p className="text-[14px] text-[#607080]">{petName} · {serviceName}</p>
-            <h3 className="mt-1 text-[22px] font-semibold text-[#111827]">{formatDate(record.groomed_at)} 미용 기록</h3>
+            <h3 className="mt-1 break-keep text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827] [overflow-wrap:anywhere]">{formatDate(record.groomed_at)} 미용 기록</h3>
             <p className="mt-1 text-[14px] text-[#64748b]">전후 사진은 촬영 후 30일 동안 보관되는 자료입니다.</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]" aria-label="닫기">
@@ -1365,7 +1365,7 @@ function LongTextBlock({ title, value, emptyText }: { title: string; value: stri
   const content = value?.trim();
   return (
     <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-3">
-      <h4 className="text-[15px] font-medium text-[#111827]">{title}</h4>
+      <h4 className="text-[14px] font-medium leading-5 text-[#111827]">{title}</h4>
       {content ? (
         <p className="mt-2 whitespace-pre-wrap break-words text-[16px] leading-7 text-[#334155]">{content}</p>
       ) : (
@@ -1381,8 +1381,8 @@ function PhotoLightbox({ photo, onClose }: { photo: { preview: GroomingPhotoPrev
       <section className="max-h-full w-full max-w-[1080px] overflow-hidden rounded-[10px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.35)]" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-[#edf2f7] px-4 py-3">
           <div>
-            <h3 className="text-[18px] font-semibold text-[#111827]">{photo.label} 사진</h3>
-            <p className="text-[13px] text-[#64748b]">{formatPhotoRetention(photo.preview.asset)}</p>
+            <h3 className="text-[18px] font-semibold leading-[26px] text-[#111827]">{photo.label} 사진</h3>
+            <p className="text-[13px] font-normal leading-5 text-[#64748b]">{formatPhotoRetention(photo.preview.asset)}</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]" aria-label="닫기">
             <X className="h-4 w-4" />
@@ -1525,9 +1525,9 @@ function ActionPanel({
         <div className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-4">
           <div>
             <p className="text-[16px] text-[#64748b]">{detail.guardian.name}{selectedPet ? ` · ${selectedPet.name}` : ""}</p>
-            <h3 className="mt-1 text-[22px] font-semibold text-[#111827]">{titleMap[action]}</h3>
+            <h3 className="mt-1 break-keep text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827] [overflow-wrap:anywhere]">{titleMap[action]}</h3>
           </div>
-          <button type="button" onClick={onClose} className="h-11 rounded-[7px] border border-[#dbe2ea] px-3 text-[16px] text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">
+          <button type="button" onClick={onClose} className="h-11 rounded-[7px] border border-[#dbe2ea] px-3 text-[16px] font-medium leading-6 text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">
             닫기
           </button>
         </div>
@@ -1632,10 +1632,10 @@ function ActionPanel({
 function PanelNotice({ title, lines }: { title: string; lines: string[] }) {
   return (
     <div className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
-      <p className="text-[16px] font-semibold text-[#111827]">{title}</p>
+      <p className="text-[18px] font-semibold leading-[26px] text-[#111827]">{title}</p>
       <div className="mt-3 space-y-2">
         {(lines.length > 0 ? lines : ["표시할 내용이 없습니다."]).map((line) => (
-          <p key={line} className="text-[16px] leading-5 text-[#475569]">{line}</p>
+          <p key={line} className="break-keep text-[16px] font-normal leading-6 text-[#475569] [overflow-wrap:anywhere]">{line}</p>
         ))}
       </div>
     </div>
@@ -1657,20 +1657,20 @@ function FormField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[16px] text-[#64748b]">{label}</span>
+      <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
       {multiline ? (
         <textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="min-h-[96px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none focus:border-[#2f7866]"
+          className="min-h-[96px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[16px] font-medium leading-6 text-[#111827] outline-none focus:border-[#2f7866]"
         />
       ) : (
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+          className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
         />
       )}
     </label>
@@ -1696,11 +1696,11 @@ function SelectFormField({
 
   return (
     <label className="block">
-      <span className="mb-1 block text-[16px] text-[#64748b]">{label}</span>
+      <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
       <select
         value={value || selectOptions[0]?.value || ""}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full appearance-none rounded-[8px] border border-[#cfd8e3] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+        className="h-11 w-full appearance-none rounded-[8px] border border-[#cfd8e3] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] font-medium leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
       >
         {selectOptions.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1715,13 +1715,13 @@ function SelectFormField({
 function PetProfilePhotoField({ previewUrl, fileName, onChange }: { previewUrl: string; fileName: string; onChange: (file: File | null) => void }) {
   return (
     <div className="bg-transparent">
-      <p className="mb-2 text-[16px] text-[#64748b]">프로필 사진</p>
+      <p className="mb-2 text-[14px] font-medium leading-5 text-[#64748b]">프로필 사진</p>
       <div className="flex items-center gap-3">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white text-[#94a3b8]">
           {previewUrl ? <img src={previewUrl} alt="반려동물 프로필 미리보기" className="h-full w-full object-cover" /> : <ImagePlus className="h-7 w-7" />}
         </div>
         <div className="min-w-0 flex-1">
-          <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#334155] hover:bg-[#f8fafc] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]">
+          <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] font-medium leading-6 text-[#334155] hover:bg-[#f8fafc] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]">
             사진 선택
             <input
               type="file"
@@ -1734,11 +1734,11 @@ function PetProfilePhotoField({ previewUrl, fileName, onChange }: { previewUrl: 
             />
           </label>
           {fileName ? (
-            <button type="button" onClick={() => onChange(null)} className="ml-2 h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#64748b] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">
+            <button type="button" onClick={() => onChange(null)} className="ml-2 h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#64748b] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">
               삭제
             </button>
           ) : null}
-          <p className="mt-1 truncate text-[15px] text-[#64748b]">{fileName || "JPG, PNG, WebP 이미지를 등록할 수 있습니다."}</p>
+          <p className="mt-1 break-keep text-[13px] font-normal leading-5 text-[#64748b] [overflow-wrap:anywhere]">{fileName || "JPG, PNG, WebP 이미지를 등록할 수 있습니다."}</p>
         </div>
       </div>
     </div>
@@ -1748,11 +1748,11 @@ function PetProfilePhotoField({ previewUrl, fileName, onChange }: { previewUrl: 
 function BiteLevelFormField({ value, onChange }: { value: PetBiteLevel; onChange: (value: PetBiteLevel) => void }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[16px] text-[#64748b]">입질 정도</span>
+      <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">입질 정도</span>
       <select
         value={value}
         onChange={(event) => onChange(normalizePetBiteLevel(event.target.value))}
-        className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+        className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
       >
         {petBiteLevelOptions.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1871,11 +1871,11 @@ function InlineEditableText({
 function ActionPanelFooter({ saving, error, onSave }: { saving: boolean; error: string; onSave?: () => void }) {
   return (
     <div className="space-y-2 pt-1">
-      {error ? <p className={cn("text-[16px]", error === "저장됨" ? "text-[#1f6b5b]" : "text-[#a04455]")}>{error}</p> : null}
+      {error ? <p className={cn("break-keep text-[13px] font-medium leading-5 [overflow-wrap:anywhere]", error === "저장됨" ? "text-[#1f6b5b]" : "text-[#a04455]")}>{error}</p> : null}
       <button
         type={onSave ? "button" : "submit"}
         onClick={onSave}
-        className="h-11 w-full rounded-[8px] bg-[#15213b] px-4 text-[16px] font-medium text-white hover:bg-[#101a31] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#94a3b8]"
+        className="h-11 w-full rounded-[8px] bg-[#15213b] px-4 text-[16px] font-medium leading-6 text-white hover:bg-[#101a31] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#94a3b8]"
         disabled={saving}
       >
         {saving ? "저장 중" : "저장"}
@@ -1888,7 +1888,7 @@ function CustomerClassificationSelect({ label, value, options, onChange }: { lab
   return (
     <label className="block">
       <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] leading-6 text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]">
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </label>
@@ -1905,9 +1905,9 @@ function CustomerGradeBadge({ value }: { value: CustomerGradeOverride | null | u
 
 function InfoRow({ label, value, alignTop = false }: { label: string; value: React.ReactNode; alignTop?: boolean }) {
   return (
-    <div className={cn("grid grid-cols-[92px_minmax(0,1fr)] gap-3 text-[16px]", alignTop ? "items-start" : "items-center")}>
-      <span className="text-[#64748b]">{label}</span>
-      <span className="min-w-0 text-[#111827]">{value}</span>
+    <div className={cn("grid grid-cols-[92px_minmax(0,1fr)] gap-3", alignTop ? "items-start" : "items-center")}>
+      <span className="text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
+      <span className="min-w-0 text-[16px] font-normal leading-6 text-[#111827]">{value}</span>
     </div>
   );
 }
@@ -1945,27 +1945,27 @@ function formatPhotoRetention(asset: MediaAsset) {
 
 function InlinePetInfo({ label, value }: { label: string; value: string }) {
   return (
-    <span className="inline-flex min-w-0 items-center gap-2 text-[16px] leading-6">
-      <span className="text-[#64748b]">{label}</span>
-      <span className="min-w-0 truncate text-[#111827]">{value}</span>
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-2 text-[16px] font-normal leading-6">
+      <span className="text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
+      <span className="min-w-0 break-keep text-[#111827] [overflow-wrap:anywhere]">{value}</span>
     </span>
   );
 }
 
 function Badge({ children, className }: { children: React.ReactNode; className: string }) {
-  return <span className={cn("inline-flex h-7 shrink-0 items-center rounded-[6px] border px-2.5 text-[16px] font-medium", className)}>{children}</span>;
+  return <span className={cn("inline-flex min-h-6 shrink-0 items-center rounded-[6px] border px-2 text-[12px] font-medium leading-[18px]", className)}>{children}</span>;
 }
 
 function ToggleState({ enabled }: { enabled: boolean }) {
   return (
-    <span className={cn("inline-flex h-6 items-center rounded-[6px] px-2 text-[16px] font-medium", enabled ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#f1f5f9] text-[#94a3b8]")}>
+    <span className={cn("inline-flex h-6 items-center rounded-[6px] px-2 text-[12px] font-medium leading-[18px]", enabled ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#f1f5f9] text-[#94a3b8]")}>
       {enabled ? "ON" : "OFF"}
     </span>
   );
 }
 
 function SmallButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="h-11 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">{label}</button>;
+  return <button type="button" onClick={onClick} className="h-11 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-medium leading-6 text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">{label}</button>;
 }
 
 function EmptyState({ title, description, compact = false }: { title: string; description: string; compact?: boolean }) {
@@ -1974,8 +1974,8 @@ function EmptyState({ title, description, compact = false }: { title: string; de
       <div className={cn("flex items-center justify-center rounded-full bg-[#eef7f4] text-[#2f7866]", compact ? "h-8 w-8" : "h-10 w-10")}>
         <Sparkles className="h-4 w-4" />
       </div>
-      <p className={cn("text-[16px] font-medium text-[#111827]", compact ? "mt-2" : "mt-3")}>{title}</p>
-      <p className="mt-1 text-[16px] leading-5 text-[#64748b]">{description}</p>
+      <p className={cn("break-keep text-[16px] font-medium leading-6 text-[#111827] [overflow-wrap:anywhere]", compact ? "mt-2" : "mt-3")}>{title}</p>
+      <p className="mt-1 break-keep text-[16px] font-normal leading-6 text-[#64748b] [overflow-wrap:anywhere]">{description}</p>
     </div>
   );
 }

@@ -16,15 +16,15 @@ const bodySchema = z.object({
   expiryMonth: z.preprocess(digits, z.string().regex(/^(0[1-9]|1[0-2])$/)),
   birthOrBusinessRegistrationNumber: z.preprocess(digits, z.string().regex(/^(\d{6}|\d{10})$/)),
   passwordTwoDigits: z.preprocess(digits, z.string().regex(/^\d{2}$/)),
-  planCode: z.enum(["single_monthly_v1", "monthly", "quarterly", "halfyearly", "yearly"]),
+  planCode: z.literal("single_monthly_v1"),
   customerName: z.string().trim().min(1).max(100).optional(),
   phoneNumber: z.string().trim().max(30).optional(),
   email: z.string().trim().email().max(254).optional(),
-});
+}).strict();
 
 export async function POST(request: NextRequest) {
   try {
-    const { identity, shopId } = await requireOwnerBillingSession(request);
+    const { identity, shopId } = await requireOwnerBillingSession(request, request.nextUrl.searchParams.get("shopId"));
     const payload = bodySchema.parse(await request.json());
     const summary = await issueOwnerBillingKeyViaApi(identity, shopId, payload);
     return NextResponse.json(summary);

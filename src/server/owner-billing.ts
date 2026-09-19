@@ -3,12 +3,15 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 import { env } from "@/lib/env";
-import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import {
   calculateOwnerBillingAmountBreakdown,
   getOwnerPlanByCode,
+  isReadableSingleMonthlyProductVersion,
+  OWNER_SINGLE_MONTHLY_CURRENCY,
+  OWNER_SINGLE_MONTHLY_ORDER_NAME,
   OWNER_SINGLE_MONTHLY_PLAN_CODE,
   OWNER_SINGLE_MONTHLY_PRICE_KRW,
+  OWNER_SINGLE_MONTHLY_PRODUCT_NAME,
   OWNER_SINGLE_MONTHLY_PRODUCT_VERSION,
   type OwnerBillingAmountBreakdown,
   type OwnerPlan,
@@ -16,6 +19,7 @@ import {
 } from "@/lib/billing/owner-plans";
 import { createPortoneId } from "@/lib/billing/portone-ids";
 import {
+  addDaysIso,
   addMonthsIso,
   normalizeOwnerSubscriptionMetadata,
   type OwnerLastPaymentStatus,
@@ -111,6 +115,8 @@ type OwnerBillingContext = {
 
 type PortonePaymentShape = {
   status?: string;
+  orderName?: string;
+  currency?: string;
   amount?: { total?: number };
   totalAmount?: number;
   paidAmount?: number;
@@ -131,6 +137,8 @@ type PortonePaymentShape = {
 type PortonePaymentResponse = {
   payment?: PortonePaymentShape;
   status?: string;
+  orderName?: string;
+  currency?: string;
   amount?: { total?: number };
   totalAmount?: number;
   paidAmount?: number;
@@ -148,6 +156,10 @@ type PortonePaymentResponse = {
   } | null;
   message?: string;
 };
+
+export function createOwnerShopPortoneCustomerId(ownerUserId: string, shopId: string) {
+  return `owner_shop_${createHash("sha256").update(`${ownerUserId}:${shopId}`).digest("hex").slice(0, 32)}`;
+}
 
 type PortoneCancelResponse = {
   cancellation?: {
@@ -383,11 +395,15 @@ function buildBillingKeyStorageColumns(
   };
 }
 
-function buildPortoneCustomer(identity: BillingIdentity, profile: OwnerProfileRecord | null) {
+function buildPortoneCustomer(
+  identity: BillingIdentity,
+  profile: OwnerProfileRecord | null,
+  portoneCustomerId: string,
+) {
   const fullName = profile?.name ?? "매장 사장님";
 
   return {
-    id: `owner_${identity.id}`,
+    id: portoneCustomerId,
     name: {
       full: fullName,
     },
@@ -437,10 +453,12 @@ function extractPaymentShape(payload: PortonePaymentResponse) {
     payload.paidAmount ??
     0;
   const customData = payment.customData ?? payload.customData ?? null;
+  const orderName = payment.orderName ?? payload.orderName ?? null;
+  const currency = payment.currency ?? payload.currency ?? null;
   const paidAt = payment.paidAt ?? payload.paidAt ?? null;
   const failedAt = payment.failedAt ?? payload.failedAt ?? null;
 
-  return { status, amount, customData, paidAt, failedAt };
+  return { status, amount, currency, orderName, customData, paidAt, failedAt };
 }
 
 function parseCustomData(raw: string | null) {
@@ -727,18 +745,6 @@ async function recordBillingKeyReadFailure(params: {
   });
 }
 
-async function syncUserMetadata(identity: BillingIdentity, record: OwnerSubscriptionRecord) {
-  const admin = getSupabaseAdmin();
-  if (!admin) return;
-
-  await admin.auth.admin.updateUserById(identity.id, {
-    user_metadata: {
-      ...(identity.user_metadata ?? {}),
-      ...buildSubscriptionMetadata(record),
-    },
-  });
-}
-
 async function getOwnerProfile(userId: string) {
   const admin = getSupabaseAdmin();
   if (!admin) {
@@ -759,7 +765,18 @@ async function getOwnerProfile(userId: string) {
 }
 
 function buildDefaultRecord(identity: BillingIdentity, shopId: string): OwnerSubscriptionRecord {
-  const summary = normalizeOwnerSubscriptionMetadata(identity.user_metadata, identity.created_at ?? nowIso(), {
+  const createdAt = nowIso();
+  const summary = normalizeOwnerSubscriptionMetadata({
+    current_plan_code: OWNER_SINGLE_MONTHLY_PLAN_CODE,
+    featured_plan_code: OWNER_SINGLE_MONTHLY_PLAN_CODE,
+    auto_renew_plan_code: OWNER_SINGLE_MONTHLY_PLAN_CODE,
+    subscription_status: "trialing",
+    trial_started_at: createdAt,
+    trial_ends_at: addDaysIso(createdAt, 14),
+    product_version: OWNER_SINGLE_MONTHLY_PRODUCT_VERSION,
+    price_snapshot_amount: OWNER_SINGLE_MONTHLY_PRICE_KRW,
+    price_snapshot_currency: OWNER_SINGLE_MONTHLY_CURRENCY,
+  }, createdAt, {
     userId: identity.id,
     shopId,
     ownerEmail: identity.email ?? null,
@@ -785,19 +802,19 @@ function buildDefaultRecord(identity: BillingIdentity, shopId: string): OwnerSub
     billing_key_encrypted: null,
     billing_key_encryption_version: null,
     billing_issue_id: null,
-    portone_customer_id: `owner_${identity.id}`,
+    portone_customer_id: createOwnerShopPortoneCustomerId(identity.id, shopId),
     featured_plan_code: summary.featuredPlanCode,
     auto_renew_plan_code: summary.autoRenewPlanCode,
     product_version:
       summary.currentPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE ? OWNER_SINGLE_MONTHLY_PRODUCT_VERSION : null,
     price_snapshot_amount:
       summary.currentPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE ? OWNER_SINGLE_MONTHLY_PRICE_KRW : null,
-    price_snapshot_currency: summary.currentPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE ? "KRW" : null,
+    price_snapshot_currency: summary.currentPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE ? OWNER_SINGLE_MONTHLY_CURRENCY : null,
     current_period_started_at: summary.currentPeriodStartedAt,
     current_period_ends_at: summary.currentPeriodEndsAt,
     last_schedule_id: null,
-    created_at: identity.created_at ?? nowIso(),
-    updated_at: nowIso(),
+    created_at: createdAt,
+    updated_at: createdAt,
   };
 }
 
@@ -820,18 +837,16 @@ async function readOrCreateSubscription(identity: BillingIdentity, shopId: strin
   }
 
   const profile = await getOwnerProfile(identity.id);
-  const subscriptionResult = await admin.from(BILLING_TABLE).select("*").eq("user_id", identity.id).maybeSingle();
+  const subscriptionResult = await admin
+    .from(BILLING_TABLE)
+    .select("*")
+    .eq("user_id", identity.id)
+    .eq("shop_id", shopId)
+    .maybeSingle();
 
   if (subscriptionResult.error) {
     if (isMissingRelationError(subscriptionResult.error)) {
-      const fallbackSummary = normalizeOwnerSubscriptionMetadata(identity.user_metadata, identity.created_at ?? nowIso(), {
-        userId: identity.id,
-        shopId,
-        ownerName: profile?.name ?? null,
-        ownerPhoneNumber: profile?.phone_number ?? null,
-        ownerEmail: identity.email ?? null,
-      });
-      return { summary: fallbackSummary, record: null as OwnerSubscriptionRecord | null, profile, tableReady: false };
+      throw new OwnerBillingError("매장별 구독 스키마가 준비되지 않았습니다. 로컬 마이그레이션을 먼저 검토해 주세요.", 503);
     }
     throw new OwnerBillingError(subscriptionResult.error.message, 500);
   }
@@ -842,19 +857,11 @@ async function readOrCreateSubscription(identity: BillingIdentity, shopId: strin
     const insertResult = await admin.from(BILLING_TABLE).insert(baseRecord).select("*").single();
     if (insertResult.error) {
       if (isMissingRelationError(insertResult.error)) {
-        const fallbackSummary = normalizeOwnerSubscriptionMetadata(identity.user_metadata, identity.created_at ?? nowIso(), {
-          userId: identity.id,
-          shopId,
-          ownerName: profile?.name ?? null,
-          ownerPhoneNumber: profile?.phone_number ?? null,
-          ownerEmail: identity.email ?? null,
-        });
-        return { summary: fallbackSummary, record: null as OwnerSubscriptionRecord | null, profile, tableReady: false };
+        throw new OwnerBillingError("매장별 구독 스키마가 준비되지 않았습니다. 로컬 마이그레이션을 먼저 검토해 주세요.", 503);
       }
       throw new OwnerBillingError(insertResult.error.message, 500);
     }
     record = insertResult.data as OwnerSubscriptionRecord;
-    await syncUserMetadata(identity, record);
   }
 
   if (record.billing_key && !record.billing_key_encrypted && serverEnv.billingKeyEncryptionSecret && canWriteProtectedBillingData()) {
@@ -897,37 +904,6 @@ function isMissingOwnerShopMembershipsError(error: { code?: string; message?: st
   return error?.code === "42P01" || (haystack.includes("owner_shop_memberships") && haystack.includes("schema cache"));
 }
 
-async function countOwnerShops(ownerUserId: string) {
-  const admin = getSupabaseAdmin();
-  if (!admin) {
-    throw new OwnerBillingError("Supabase 관리자 설정을 확인해 주세요.", 503);
-  }
-
-  const membershipResult = await admin
-    .from("owner_shop_memberships")
-    .select("shop_id", { count: "exact", head: true })
-    .eq("owner_user_id", ownerUserId);
-
-  if (!membershipResult.error && typeof membershipResult.count === "number") {
-    return Math.max(1, membershipResult.count);
-  }
-
-  if (membershipResult.error && !isMissingOwnerShopMembershipsError(membershipResult.error)) {
-    throw new OwnerBillingError(membershipResult.error.message, 500);
-  }
-
-  const shopsResult = await admin
-    .from("shops")
-    .select("id", { count: "exact", head: true })
-    .eq("owner_user_id", ownerUserId);
-
-  if (shopsResult.error) {
-    throw new OwnerBillingError(shopsResult.error.message, 500);
-  }
-
-  return Math.max(1, shopsResult.count ?? 1);
-}
-
 function resolveBillingPlanContract(plan: OwnerPlan, record?: OwnerSubscriptionRecord): OwnerPlan {
   if (plan.code !== OWNER_SINGLE_MONTHLY_PLAN_CODE) {
     return plan;
@@ -938,9 +914,9 @@ function resolveBillingPlanContract(plan: OwnerPlan, record?: OwnerSubscriptionR
   }
 
   if (
-    record.product_version !== OWNER_SINGLE_MONTHLY_PRODUCT_VERSION ||
+    !isReadableSingleMonthlyProductVersion(record.product_version) ||
     record.price_snapshot_amount !== OWNER_SINGLE_MONTHLY_PRICE_KRW ||
-    record.price_snapshot_currency !== "KRW"
+    record.price_snapshot_currency !== OWNER_SINGLE_MONTHLY_CURRENCY
   ) {
     throw new OwnerBillingError("구독 요금 계약을 확인할 수 없어 결제를 진행할 수 없습니다.", 409);
   }
@@ -956,26 +932,79 @@ function resolveBillingPlanContract(plan: OwnerPlan, record?: OwnerSubscriptionR
   };
 }
 
+function assertCurrentSingleMonthlyRecord(record: OwnerSubscriptionRecord) {
+  if (
+    record.current_plan_code !== OWNER_SINGLE_MONTHLY_PLAN_CODE ||
+    record.featured_plan_code !== OWNER_SINGLE_MONTHLY_PLAN_CODE ||
+    record.auto_renew_plan_code !== OWNER_SINGLE_MONTHLY_PLAN_CODE ||
+    record.product_version !== OWNER_SINGLE_MONTHLY_PRODUCT_VERSION ||
+    record.price_snapshot_amount !== OWNER_SINGLE_MONTHLY_PRICE_KRW ||
+    record.price_snapshot_currency !== OWNER_SINGLE_MONTHLY_CURRENCY
+  ) {
+    throw new OwnerBillingError("현재 월 이용권 계약과 일치하지 않아 결제를 진행하지 않았습니다.", 409);
+  }
+}
+
+function buildCurrentSubscriptionCustomData(
+  identity: BillingIdentity,
+  record: OwnerSubscriptionRecord,
+  billingAmount: OwnerBillingAmountBreakdown,
+) {
+  assertCurrentSingleMonthlyRecord(record);
+  return {
+    kind: "owner-subscription",
+    userId: identity.id,
+    shopId: record.shop_id,
+    productName: OWNER_SINGLE_MONTHLY_PRODUCT_NAME,
+    orderName: OWNER_SINGLE_MONTHLY_ORDER_NAME,
+    planCode: OWNER_SINGLE_MONTHLY_PLAN_CODE,
+    productVersion: OWNER_SINGLE_MONTHLY_PRODUCT_VERSION,
+    priceSnapshotAmount: OWNER_SINGLE_MONTHLY_PRICE_KRW,
+    priceSnapshotCurrency: OWNER_SINGLE_MONTHLY_CURRENCY,
+    cycle: "1m",
+    billingAmount,
+  };
+}
+
+function assertCurrentSubscriptionPayment(
+  payment: ReturnType<typeof extractPaymentShape>,
+  identity: BillingIdentity,
+  record: OwnerSubscriptionRecord,
+) {
+  assertCurrentSingleMonthlyRecord(record);
+  const customData = parseCustomData(payment.customData);
+  if (
+    payment.orderName !== OWNER_SINGLE_MONTHLY_ORDER_NAME ||
+    payment.currency !== OWNER_SINGLE_MONTHLY_CURRENCY ||
+    payment.amount !== OWNER_SINGLE_MONTHLY_PRICE_KRW ||
+    !customData ||
+    customData.kind !== "owner-subscription" ||
+    customData.userId !== identity.id ||
+    customData.shopId !== record.shop_id ||
+    customData.productName !== OWNER_SINGLE_MONTHLY_PRODUCT_NAME ||
+    customData.orderName !== OWNER_SINGLE_MONTHLY_ORDER_NAME ||
+    customData.planCode !== OWNER_SINGLE_MONTHLY_PLAN_CODE ||
+    customData.productVersion !== OWNER_SINGLE_MONTHLY_PRODUCT_VERSION ||
+    customData.priceSnapshotAmount !== OWNER_SINGLE_MONTHLY_PRICE_KRW ||
+    customData.priceSnapshotCurrency !== OWNER_SINGLE_MONTHLY_CURRENCY
+  ) {
+    throw new OwnerBillingError("결제 상품·금액·통화·매장 계약이 일치하지 않아 반영하지 않았습니다.", 409);
+  }
+}
+
 function applyOwnerPlanContract(record: OwnerSubscriptionRecord, planCode: OwnerPlanCode): OwnerSubscriptionRecord {
-  if (planCode === OWNER_SINGLE_MONTHLY_PLAN_CODE) {
-    return {
-      ...record,
-      current_plan_code: planCode,
-      auto_renew_plan_code: planCode,
-      featured_plan_code: planCode,
-      product_version: OWNER_SINGLE_MONTHLY_PRODUCT_VERSION,
-      price_snapshot_amount: OWNER_SINGLE_MONTHLY_PRICE_KRW,
-      price_snapshot_currency: "KRW",
-    };
+  if (planCode !== OWNER_SINGLE_MONTHLY_PLAN_CODE) {
+    throw new OwnerBillingError("과거 플랜은 조회만 가능하며 신규 지정 또는 결제에 사용할 수 없습니다.", 409);
   }
 
   return {
     ...record,
     current_plan_code: planCode,
     auto_renew_plan_code: planCode,
-    product_version: null,
-    price_snapshot_amount: null,
-    price_snapshot_currency: null,
+    featured_plan_code: planCode,
+    product_version: OWNER_SINGLE_MONTHLY_PRODUCT_VERSION,
+    price_snapshot_amount: OWNER_SINGLE_MONTHLY_PRICE_KRW,
+    price_snapshot_currency: OWNER_SINGLE_MONTHLY_CURRENCY,
   };
 }
 
@@ -990,10 +1019,9 @@ async function buildOwnerBillingContext(
     throw new OwnerBillingError("유효한 플랜을 찾지 못했습니다.", 400);
   }
 
-  const shopCount = await countOwnerShops(identity.id);
   return {
-    shopCount,
-    billingAmount: calculateOwnerBillingAmountBreakdown(plan, shopCount),
+    shopCount: 1,
+    billingAmount: calculateOwnerBillingAmountBreakdown(plan, 1),
   } satisfies OwnerBillingContext;
 }
 
@@ -1011,7 +1039,11 @@ async function persistSubscriptionRecord(identity: BillingIdentity, record: Owne
 
   // `billing_key` is nullable in the migration because encrypted records must not retain plaintext.
   // The untyped Supabase client incorrectly narrows this dynamic-table payload to a non-null key.
-  const updateResult = await admin.from(BILLING_TABLE).upsert(nextRecord as never).select("*").single();
+  const updateResult = await admin
+    .from(BILLING_TABLE)
+    .upsert(nextRecord as never, { onConflict: "shop_id" })
+    .select("*")
+    .single();
   if (updateResult.error) {
     if (
       isMissingColumnError(updateResult.error, "billing_key_encrypted") ||
@@ -1028,13 +1060,16 @@ async function persistSubscriptionRecord(identity: BillingIdentity, record: Owne
         billing_key_encryption_version?: number | null;
       };
 
-      const fallbackResult = await admin.from(BILLING_TABLE).upsert(fallbackPayload).select("*").single();
+      const fallbackResult = await admin
+        .from(BILLING_TABLE)
+        .upsert(fallbackPayload, { onConflict: "shop_id" })
+        .select("*")
+        .single();
       if (fallbackResult.error) {
         throw new OwnerBillingError(fallbackResult.error.message, 500);
       }
 
       const savedFallback = fallbackResult.data as OwnerSubscriptionRecord;
-      await syncUserMetadata(identity, savedFallback);
       return savedFallback;
     }
 
@@ -1042,7 +1077,6 @@ async function persistSubscriptionRecord(identity: BillingIdentity, record: Owne
   }
 
   const saved = updateResult.data as OwnerSubscriptionRecord;
-  await syncUserMetadata(identity, saved);
   return saved;
 }
 
@@ -1089,6 +1123,7 @@ async function cancelScheduledPayment(record: OwnerSubscriptionRecord) {
 }
 
 async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerProfileRecord | null, record: OwnerSubscriptionRecord) {
+  assertCurrentSingleMonthlyRecord(record);
   const billingKeyState = readStoredBillingKeyState(record);
   const billingKey = billingKeyState.billingKey;
   if (!billingKey || !record.payment_method_exists || record.cancel_at_period_end || !env.portoneStoreId) {
@@ -1104,7 +1139,7 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
     return record;
   }
 
-  const plan = getOwnerPlanByCode(record.auto_renew_plan_code);
+  const plan = getOwnerPlanByCode(OWNER_SINGLE_MONTHLY_PLAN_CODE);
   if (!plan) return record;
   const billingContext = await buildOwnerBillingContext(identity, plan.code, record);
   const chargeAmount = getChargeAmountForBillingContext(billingContext);
@@ -1119,21 +1154,11 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
       storeId: env.portoneStoreId,
       payment: {
         billingKey,
-        orderName: `${PETMANAGER_SERVICE_NAME} ${plan.name} 정기결제`,
-        customer: buildPortoneCustomer(identity, profile),
+        orderName: OWNER_SINGLE_MONTHLY_ORDER_NAME,
+        customer: buildPortoneCustomer(identity, profile, record.portone_customer_id),
         amount: { total: chargeAmount },
-        currency: "KRW",
-        customData: JSON.stringify({
-          kind: "owner-subscription",
-          userId: identity.id,
-          shopId: record.shop_id,
-          planCode: plan.code,
-          productVersion: record.product_version ?? null,
-          priceSnapshotAmount: record.price_snapshot_amount ?? null,
-          priceSnapshotCurrency: record.price_snapshot_currency ?? null,
-          cycle: getBillingCycleForPlan(plan),
-          billingAmount: billingContext.billingAmount,
-        }),
+        currency: OWNER_SINGLE_MONTHLY_CURRENCY,
+        customData: JSON.stringify(buildCurrentSubscriptionCustomData(identity, record, billingContext.billingAmount)),
         noticeUrls: [buildOwnerBillingNoticeUrl()],
       },
       timeToPay,
@@ -1169,6 +1194,9 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
 }
 
 function applySuccessfulCharge(record: OwnerSubscriptionRecord, planCode: OwnerPlanCode, paidAt: string | null, paymentId: string) {
+  if (planCode !== OWNER_SINGLE_MONTHLY_PLAN_CODE) {
+    throw new OwnerBillingError("과거 플랜 결제는 새 이용권으로 반영할 수 없습니다.", 409);
+  }
   const plan = getOwnerPlanByCode(planCode);
   if (!plan) {
     throw new OwnerBillingError("유효한 플랜을 찾지 못했습니다.", 400);
@@ -1246,6 +1274,7 @@ async function buildOwnerSubscriptionSummary(
     ownerName: profile?.name ?? null,
     ownerPhoneNumber: profile?.phone_number ?? null,
     ownerEmail: identity.email ?? null,
+    portoneCustomerId: record.portone_customer_id,
     billingAmount: billingContext.billingAmount,
   });
 }
@@ -1403,42 +1432,7 @@ export async function getOwnerSubscriptionSummary(identity: BillingIdentity, sho
 }
 
 export async function getOwnerSubscriptionAccessStatus(identity: BillingIdentity, shopId: string) {
-  const admin = getSupabaseAdmin();
-  if (!admin) {
-    throw new OwnerBillingError("Supabase 관리자 설정을 확인해 주세요.", 503);
-  }
-
-  const subscriptionResult = await admin.from(BILLING_TABLE).select("*").eq("user_id", identity.id).maybeSingle();
-  if (subscriptionResult.error) {
-    if (isMissingRelationError(subscriptionResult.error)) {
-      return normalizeOwnerSubscriptionMetadata(identity.user_metadata, identity.created_at ?? nowIso(), {
-        userId: identity.id,
-        shopId,
-        ownerEmail: identity.email ?? null,
-      }).status;
-    }
-    throw new OwnerBillingError(subscriptionResult.error.message, 500);
-  }
-
-  const record = subscriptionResult.data as OwnerSubscriptionRecord | null;
-  if (!record) {
-    return normalizeOwnerSubscriptionMetadata(identity.user_metadata, identity.created_at ?? nowIso(), {
-      userId: identity.id,
-      shopId,
-      ownerEmail: identity.email ?? null,
-    }).status;
-  }
-
-  const reconciled = await reconcileOwnerSubscriptionRecordIfNeeded(identity, shopId, record);
-  if (reconciled) {
-    return reconciled.status;
-  }
-
-  return normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(record), record.created_at, {
-    userId: identity.id,
-    shopId,
-    ownerEmail: identity.email ?? null,
-  }).status;
+  return (await getOwnerSubscriptionSummary(identity, shopId)).status;
 }
 
 export async function updateOwnerSubscriptionPreferences(
@@ -1446,52 +1440,18 @@ export async function updateOwnerSubscriptionPreferences(
   shopId: string,
   patch: { currentPlanCode?: OwnerPlanCode },
 ) {
-  const { record, profile, tableReady, summary } = await readOrCreateSubscription(identity, shopId);
+  const { record, profile, tableReady } = await readOrCreateSubscription(identity, shopId);
 
   if (!tableReady || !record) {
-    const nextPlanCode = patch.currentPlanCode ?? summary.currentPlanCode;
-    const nextMetadata = {
-      ...(identity.user_metadata ?? {}),
-      current_plan_code: nextPlanCode,
-      auto_renew_plan_code: nextPlanCode,
-      featured_plan_code: nextPlanCode,
-      product_version:
-        nextPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE ? OWNER_SINGLE_MONTHLY_PRODUCT_VERSION : null,
-      price_snapshot_amount:
-        nextPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE ? OWNER_SINGLE_MONTHLY_PRICE_KRW : null,
-      price_snapshot_currency: nextPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE ? "KRW" : null,
-      auto_renew_enabled: false,
-      cancel_at_period_end: false,
-      subscription_status: summary.status,
-    };
-
-    const admin = getSupabaseAdmin();
-    if (!admin) {
-      throw new OwnerBillingError("Supabase 관리자 설정을 확인해 주세요.", 503);
-    }
-
-    const result = await admin.auth.admin.updateUserById(identity.id, {
-      user_metadata: nextMetadata,
-    });
-
-    if (result.error || !result.data.user) {
-      throw new OwnerBillingError(result.error?.message ?? "구독 정보를 저장하지 못했습니다.", 400);
-    }
-
-    const nextSummary = normalizeOwnerSubscriptionMetadata(nextMetadata, identity.created_at ?? nowIso(), {
-      userId: identity.id,
-      shopId,
-      ownerName: profile?.name ?? null,
-      ownerPhoneNumber: profile?.phone_number ?? null,
-      ownerEmail: identity.email ?? null,
-    });
-    return nextSummary;
+    throw new OwnerBillingError("매장별 구독 스키마가 준비되지 않았습니다.", 503);
+  }
+  if (patch.currentPlanCode && patch.currentPlanCode !== OWNER_SINGLE_MONTHLY_PLAN_CODE) {
+    throw new OwnerBillingError("과거 플랜은 조회만 가능하며 신규 지정할 수 없습니다.", 409);
   }
 
   let nextRecord: OwnerSubscriptionRecord = {
-    ...applyOwnerPlanContract(record, patch.currentPlanCode ?? record.current_plan_code),
+    ...applyOwnerPlanContract(record, OWNER_SINGLE_MONTHLY_PLAN_CODE),
     cancel_at_period_end: false,
-    featured_plan_code: record.featured_plan_code,
   };
 
   nextRecord.subscription_status = nextStatusForRecord(nextRecord);
@@ -1512,36 +1472,10 @@ export async function updateOwnerSubscriptionPreferences(
 }
 
 export async function cancelOwnerSubscriptionRenewal(identity: BillingIdentity, shopId: string) {
-  const { record, profile, tableReady, summary } = await readOrCreateSubscription(identity, shopId);
+  const { record, profile, tableReady } = await readOrCreateSubscription(identity, shopId);
 
   if (!tableReady || !record) {
-    const nextMetadata = {
-      ...(identity.user_metadata ?? {}),
-      cancel_at_period_end: true,
-      auto_renew_enabled: false,
-      subscription_status: summary.status === "active" ? "canceled" : summary.status,
-    };
-
-    const admin = getSupabaseAdmin();
-    if (!admin) {
-      throw new OwnerBillingError("Supabase 관리자 설정을 확인해 주세요.", 503);
-    }
-
-    const result = await admin.auth.admin.updateUserById(identity.id, {
-      user_metadata: nextMetadata,
-    });
-
-    if (result.error || !result.data.user) {
-      throw new OwnerBillingError(result.error?.message ?? "정기결제 취소를 저장하지 못했습니다.", 400);
-    }
-
-    return normalizeOwnerSubscriptionMetadata(nextMetadata, identity.created_at ?? nowIso(), {
-      userId: identity.id,
-      shopId,
-      ownerName: profile?.name ?? null,
-      ownerPhoneNumber: profile?.phone_number ?? null,
-      ownerEmail: identity.email ?? null,
-    });
+    throw new OwnerBillingError("매장별 구독 스키마가 준비되지 않았습니다.", 503);
   }
 
   if (record.current_plan_code === "free") {
@@ -1555,7 +1489,7 @@ export async function cancelOwnerSubscriptionRenewal(identity: BillingIdentity, 
   await cancelScheduledPayment(record);
 
   const nextRecord: OwnerSubscriptionRecord = {
-    ...record,
+    ...applyOwnerPlanContract(record, OWNER_SINGLE_MONTHLY_PLAN_CODE),
     cancel_at_period_end: true,
     subscription_status: record.subscription_status === "active" ? "canceled" : record.subscription_status,
     next_billing_at: null,
@@ -1597,6 +1531,9 @@ export async function registerOwnerBillingMethod(
   if (!tableReady || !record) {
     throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다. 마이그레이션을 먼저 적용해 주세요.", 503);
   }
+  if (payload.autoRenewPlanCode !== OWNER_SINGLE_MONTHLY_PLAN_CODE) {
+    throw new OwnerBillingError("결제수단은 현재 월 이용권에만 등록할 수 있습니다.", 409);
+  }
 
   const previousBillingKey = readStoredBillingKey(record);
   if (previousBillingKey && previousBillingKey !== payload.billingKey) {
@@ -1615,7 +1552,7 @@ export async function registerOwnerBillingMethod(
   );
 
   let nextRecord: OwnerSubscriptionRecord = {
-    ...applyOwnerPlanContract(record, payload.autoRenewPlanCode ?? record.auto_renew_plan_code),
+    ...applyOwnerPlanContract(record, OWNER_SINGLE_MONTHLY_PLAN_CODE),
     billing_key: payload.billingKey,
     billing_issue_id: payload.issueId ?? null,
     payment_method_exists: true,
@@ -1626,7 +1563,10 @@ export async function registerOwnerBillingMethod(
   nextRecord.last_schedule_id = null;
   nextRecord.subscription_status = nextStatusForRecord(nextRecord);
 
-  const saved = await persistSubscriptionRecord(identity, nextRecord);
+  let saved = await persistSubscriptionRecord(identity, nextRecord);
+  if (saved.subscription_status === "trialing" || saved.subscription_status === "trial_will_end") {
+    saved = await persistSubscriptionRecord(identity, await scheduleUpcomingCharge(identity, profile, saved));
+  }
   await recordBillingEvent({
     userId: identity.id,
     shopId,
@@ -1686,9 +1626,9 @@ export async function chargeOwnerRegisteredCard(
         storeId: env.portoneStoreId,
         billingKey,
         orderName: payload.orderName,
-        customer: buildPortoneCustomer(identity, profile),
+        customer: buildPortoneCustomer(identity, profile, record.portone_customer_id),
         amount: { total: payload.amount },
-        currency: "KRW",
+        currency: OWNER_SINGLE_MONTHLY_CURRENCY,
         customData: JSON.stringify(payload.customData),
         noticeUrls: [buildOwnerBillingNoticeUrl()],
       }),
@@ -1717,7 +1657,17 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다. 마이그레이션을 먼저 적용해 주세요.", 503);
   }
 
-  const reconciledSummary = await reconcileOwnerSubscriptionRecordIfNeeded(identity, shopId, record);
+  let currentRecord = record;
+  try {
+    assertCurrentSingleMonthlyRecord(currentRecord);
+  } catch {
+    currentRecord = await persistSubscriptionRecord(
+      identity,
+      applyOwnerPlanContract(currentRecord, OWNER_SINGLE_MONTHLY_PLAN_CODE),
+    );
+  }
+
+  const reconciledSummary = await reconcileOwnerSubscriptionRecordIfNeeded(identity, shopId, currentRecord);
   if (reconciledSummary) {
     const { record: refreshedRecord, profile: refreshedProfile } = await readOrCreateSubscription(identity, shopId);
     if (refreshedRecord && hasRecentSuccessfulCharge(refreshedRecord)) {
@@ -1725,31 +1675,31 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     }
   }
 
-  if (hasRecentSuccessfulCharge(record)) {
-    return await buildOwnerSubscriptionSummary(identity, shopId, record, profile);
+  if (hasRecentSuccessfulCharge(currentRecord)) {
+    return await buildOwnerSubscriptionSummary(identity, shopId, currentRecord, profile);
   }
 
-  const billingKeyState = readStoredBillingKeyState(record);
+  const billingKeyState = readStoredBillingKeyState(currentRecord);
   const billingKey = billingKeyState.billingKey;
-  if (!record.payment_method_exists) {
+  if (!currentRecord.payment_method_exists) {
     throw new OwnerBillingError("먼저 카드 결제수단을 등록해 주세요.", 400);
   }
   if (!billingKey) {
     await recordBillingKeyReadFailure({
       identity,
       shopId,
-      record,
+      record: currentRecord,
       source: "retry_charge",
       problemCode: billingKeyState.problemCode,
     });
     throw new OwnerBillingError("등록된 결제수단을 다시 확인할 수 없어 새 카드를 한 번만 다시 등록해 주세요.", 400);
   }
 
-  const plan = getOwnerPlanByCode(record.current_plan_code);
+  const plan = getOwnerPlanByCode(OWNER_SINGLE_MONTHLY_PLAN_CODE);
   if (!plan) {
     throw new OwnerBillingError("유효한 플랜을 찾지 못했습니다.", 400);
   }
-  const billingContext = await buildOwnerBillingContext(identity, plan.code, record);
+  const billingContext = await buildOwnerBillingContext(identity, plan.code, currentRecord);
   const chargeAmount = getChargeAmountForBillingContext(billingContext);
 
   const paymentId = createPortoneId("retry");
@@ -1758,31 +1708,22 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     body: JSON.stringify({
       storeId: env.portoneStoreId,
       billingKey,
-      orderName: `${PETMANAGER_SERVICE_NAME} ${plan.name} 정기결제`,
-      customer: buildPortoneCustomer(identity, profile),
+      orderName: OWNER_SINGLE_MONTHLY_ORDER_NAME,
+      customer: buildPortoneCustomer(identity, profile, currentRecord.portone_customer_id),
       amount: { total: chargeAmount },
-      currency: "KRW",
-      customData: JSON.stringify({
-        kind: "owner-subscription",
-        userId: identity.id,
-        shopId,
-        planCode: plan.code,
-        productVersion: record.product_version ?? null,
-        priceSnapshotAmount: record.price_snapshot_amount ?? null,
-        priceSnapshotCurrency: record.price_snapshot_currency ?? null,
-        cycle: getBillingCycleForPlan(plan),
-        billingAmount: billingContext.billingAmount,
-      }),
+      currency: OWNER_SINGLE_MONTHLY_CURRENCY,
+      customData: JSON.stringify(buildCurrentSubscriptionCustomData(identity, currentRecord, billingContext.billingAmount)),
       noticeUrls: [buildOwnerBillingNoticeUrl()],
     }),
   });
 
   const payment = extractPaymentShape(paymentResponse);
-  let nextRecord = record;
+  assertCurrentSubscriptionPayment(payment, identity, currentRecord);
+  let nextRecord = currentRecord;
   if (payment.status === "PAID") {
-    nextRecord = applySuccessfulCharge(record, plan.code, payment.paidAt, paymentId);
+    nextRecord = applySuccessfulCharge(currentRecord, plan.code, payment.paidAt, paymentId);
   } else {
-    nextRecord = applyFailedCharge(record, payment.failedAt, paymentId);
+    nextRecord = applyFailedCharge(currentRecord, payment.failedAt, paymentId);
   }
 
   const saved = await persistSubscriptionRecord(identity, nextRecord);
@@ -1842,6 +1783,9 @@ export async function syncOwnerSubscriptionFromPayment(
   if (!userId || !shopId || !planCode) {
     return null;
   }
+  if (planCode !== OWNER_SINGLE_MONTHLY_PLAN_CODE) {
+    return null;
+  }
 
   if (expectedContext?.userId && expectedContext.userId !== userId) {
     throw new OwnerBillingError("다른 계정의 결제 정보입니다.", 403);
@@ -1861,24 +1805,24 @@ export async function syncOwnerSubscriptionFromPayment(
     throw new OwnerBillingError("구독 사용자를 찾지 못했습니다.", 404);
   }
 
+  const shopResult = await admin
+    .from("shops")
+    .select("id")
+    .eq("id", shopId)
+    .eq("owner_user_id", userId)
+    .maybeSingle();
+  if (shopResult.error) {
+    throw new OwnerBillingError(shopResult.error.message, 500);
+  }
+  if (shopResult.data?.id !== shopId) {
+    throw new OwnerBillingError("결제의 매장·계정 귀속이 일치하지 않습니다.", 403);
+  }
+
   const { record, profile, tableReady } = await readOrCreateSubscription(userResult.data.user as BillingIdentity, shopId);
   if (!tableReady || !record) {
     return null;
   }
-
-  if (planCode === OWNER_SINGLE_MONTHLY_PLAN_CODE && payment.status === "PAID") {
-    const billingContext = await buildOwnerBillingContext(userResult.data.user as BillingIdentity, planCode, record);
-    const expectedAmount = getChargeAmountForBillingContext(billingContext);
-    if (
-      record.current_plan_code !== planCode ||
-      customData.productVersion !== record.product_version ||
-      customData.priceSnapshotAmount !== record.price_snapshot_amount ||
-      customData.priceSnapshotCurrency !== record.price_snapshot_currency ||
-      payment.amount !== expectedAmount
-    ) {
-      throw new OwnerBillingError("결제 요금 계약이 일치하지 않아 반영하지 않았습니다.", 409);
-    }
-  }
+  assertCurrentSubscriptionPayment(payment, userResult.data.user as BillingIdentity, record);
 
   let nextRecord = record;
   if (payment.status === "PAID") {

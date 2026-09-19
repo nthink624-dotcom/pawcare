@@ -1,7 +1,8 @@
-import type { OwnerPlanCode } from "@/lib/billing/owner-plans";
+import { OWNER_SINGLE_MONTHLY_PLAN_CODE, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import { serverEnv } from "@/lib/server-env";
 import {
   OwnerBillingError,
+  createOwnerShopPortoneCustomerId,
   registerOwnerBillingMethod,
   type BillingIdentity,
 } from "@/server/owner-billing";
@@ -57,6 +58,9 @@ export async function issueOwnerBillingKeyViaApi(
   if (!serverEnv.portoneApiSecret || !serverEnv.portoneBillingChannelKey) {
     throw new OwnerBillingError("PortOne 정기결제 서버 설정을 확인해 주세요.", 503);
   }
+  if (input.planCode !== OWNER_SINGLE_MONTHLY_PLAN_CODE) {
+    throw new OwnerBillingError("과거 플랜에는 새 결제수단을 등록할 수 없습니다.", 409);
+  }
 
   const response = await fetch("https://api.portone.io/billing-keys", {
     method: "POST",
@@ -68,7 +72,7 @@ export async function issueOwnerBillingKeyViaApi(
     body: JSON.stringify({
       channelKey: serverEnv.portoneBillingChannelKey,
       customer: {
-        id: `owner_${identity.id}`,
+        id: createOwnerShopPortoneCustomerId(identity.id, shopId),
         name: input.customerName ? { full: input.customerName } : undefined,
         phoneNumber: input.phoneNumber || undefined,
         email: input.email || undefined,

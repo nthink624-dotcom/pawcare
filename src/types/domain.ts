@@ -1,6 +1,6 @@
 ﻿export type ApprovalMode = "manual" | "auto";
 import type { OwnerPilotCohortProjection } from "@/lib/billing/owner-pilot-cohort";
-import type { CareReportDraft, CareReportObservations } from "@/types/care-report";
+import type { CareReportDraft } from "@/types/care-report";
 
 export type AppointmentStatus =
   | "pending"
@@ -368,7 +368,6 @@ export type GroomingRecord = {
   import_batch_id?: string | null;
   next_recommended_visit_date?: string | null;
   care_report_data?: CareReportDraft | null;
-  care_report_observations?: CareReportObservations;
   care_report_generation_id?: string | null;
   care_report_owner_confirmed_at?: string | null;
   care_report_sent_at?: string | null;

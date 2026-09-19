@@ -91,10 +91,10 @@ const ownerWebNavigationItems = ownerWebSidebarGroups
   .filter((item): item is Extract<OwnerWebNavigationItem, { key: OwnerWebScreenKey }> => !("href" in item));
 
 /**
- * Only these cores own their full shell footprint. Other owner surfaces keep
- * the existing neutral wrapper until their dedicated slice is accepted.
+ * These screens already own their inner spacing and scrolling. Every owner
+ * screen still receives the same shared outer surface below.
  */
-const ownerWebSinglePlaneCoreScreens = new Set<OwnerWebScreenKey>([
+const ownerWebFlushCoreScreens = new Set<OwnerWebScreenKey>([
   "schedule",
   "calendarRecords",
   "customers",
@@ -126,7 +126,7 @@ function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey
 }
 
 const OWNER_HEADER_UTILITY_BUTTON_CLASS =
-  "inline-flex h-11 items-center justify-center gap-1.5 rounded-[10px] border border-transparent bg-transparent px-3 text-[13px] font-semibold text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]";
+  "inline-flex h-11 items-center justify-center gap-1.5 rounded-[10px] border border-transparent bg-transparent px-3 text-[14px] font-medium leading-5 text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]";
 
 export default function OwnerWebAppShell({
   activeScreen,
@@ -150,6 +150,7 @@ export default function OwnerWebAppShell({
   onOpenHelp,
   onOpenInitialSetup,
   showInitialSetupAction = true,
+  remainingSetupLabels = [],
   onLogout,
   loggingOut,
   isTester = false,
@@ -180,6 +181,7 @@ export default function OwnerWebAppShell({
   onOpenHelp: () => void;
   onOpenInitialSetup: () => void;
   showInitialSetupAction?: boolean;
+  remainingSetupLabels?: string[];
   onLogout: () => void;
   loggingOut: boolean;
   isTester?: boolean;
@@ -190,7 +192,7 @@ export default function OwnerWebAppShell({
   children: ReactNode;
 }) {
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
-  const usesSinglePlaneCore = ownerWebSinglePlaneCoreScreens.has(activeScreen);
+  const usesFlushCore = ownerWebFlushCoreScreens.has(activeScreen);
 
   return (
     <>
@@ -210,7 +212,7 @@ export default function OwnerWebAppShell({
         <div className="flex items-center pb-4 pl-[34px] pr-5 pt-[22px]">
           <PetManagerBrand
             imageClassName="h-5 w-auto"
-            nameClassName="text-[15px] text-[#1f2937]"
+            nameClassName="text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#1f2937]"
           />
         </div>
 
@@ -218,16 +220,16 @@ export default function OwnerWebAppShell({
           <div className="space-y-5">
             {ownerWebSidebarGroups.map((group, groupIndex) => (
               <div key={group.label} className={cn(groupIndex > 0 && "border-t border-dashed border-[#e1e5ec] pt-5")}>
-                <p className="mb-2.5 px-1 text-[13px] font-medium tracking-[0.01em] text-[#8f98a6]">
+                <p className="mb-2.5 px-1 text-[16px] font-medium leading-6 text-[#8f98a6]">
                   {group.label}
                 </p>
                 <div className="space-y-1.5">
                   {group.items.map((screen) => {
                     const active = activeScreen === screen.key;
                     const itemClassName = cn(
-                      "relative flex h-11 w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[15px] font-medium text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
+                      "relative flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[18px] font-medium leading-[26px] tracking-[-0.01em] text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
                       active &&
-                        "bg-[#eff6ff] font-semibold text-[var(--acc)] shadow-none hover:bg-[#eff6ff] hover:text-[var(--acc)]",
+                        "bg-[#eff6ff] text-[var(--acc)] shadow-none hover:bg-[#eff6ff] hover:text-[var(--acc)]",
                     );
                     if (screen.key === "billing") {
                       return (
@@ -263,8 +265,8 @@ export default function OwnerWebAppShell({
             className="block rounded-[13px] border border-[#dbe2ea] bg-white px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:border-[#b8c7dc] hover:bg-[#f8fbff]"
           >
             <div className="flex items-center justify-between gap-3">
-              <p className="min-w-0 truncate text-[14px] font-semibold text-[#273142]">{currentPlanLabel}</p>
-              <span className="shrink-0 rounded-full bg-[#edf4ff] px-2.5 py-1 text-[12px] font-bold text-[#316fe8]">
+              <p className="min-w-0 truncate text-[14px] font-medium leading-5 text-[#273142]">{currentPlanLabel}</p>
+              <span className="shrink-0 rounded-full bg-[#edf4ff] px-2.5 py-1 text-[12px] font-medium leading-[18px] text-[#316fe8]">
                 이용 플랜
               </span>
             </div>
@@ -274,12 +276,12 @@ export default function OwnerWebAppShell({
 
       <main className="flex min-w-0 flex-1 flex-col">
         <header className={cn(
-          "hidden h-[60px] shrink-0 items-center gap-4 border-b border-[var(--line2)] bg-[var(--card)] px-[22px]",
+          "hidden min-h-[60px] shrink-0 items-center gap-4 border-b border-[var(--line2)] bg-[var(--card)] px-[22px]",
           setupMode ? "hidden" : "lg:flex",
         )}>
-          <label className="flex h-[38px] w-[300px] items-center gap-2 rounded-[10px] border border-transparent bg-[#eef1f5] px-3 text-[14px] text-[var(--mid)] transition focus-within:border-[var(--acc)] focus-within:bg-white focus-within:shadow-[0_0_0_3px_var(--acc-tint)]">
+          <label className="flex h-11 w-[300px] items-center gap-2 rounded-[10px] border border-transparent bg-[#eef1f5] px-3 text-[14px] font-normal leading-5 text-[var(--mid)] transition focus-within:border-[var(--acc)] focus-within:bg-white focus-within:shadow-[0_0_0_3px_var(--acc-tint)]">
             <Search className="h-4 w-4 shrink-0" strokeWidth={1.7} />
-            <input className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--mut)]" placeholder="검색" />
+            <input className="min-w-0 flex-1 bg-transparent text-[14px] font-normal leading-5 text-[var(--ink)] outline-none placeholder:text-[var(--mut)]" placeholder="검색" />
           </label>
 
           <div className="ml-auto flex items-center gap-2">
@@ -317,24 +319,24 @@ export default function OwnerWebAppShell({
               <button
                 type="button"
                 onClick={onStoreMenuToggle}
-                className="grid h-11 min-w-[178px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[10px] px-2.5 text-left transition hover:bg-[#eef1f5]"
+                className="grid min-h-11 min-w-[178px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[10px] px-2.5 py-0.5 text-left transition hover:bg-[#eef1f5]"
                 aria-expanded={storeMenuOpen}
               >
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[var(--acc-soft)] text-[12px] font-bold text-[var(--acc-dk)]">
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[var(--acc-soft)] text-[12px] font-medium leading-[18px] text-[var(--acc-dk)]">
                   {shopInitials}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-[13.5px] font-bold leading-[18px] text-[var(--ink)]">{shopDisplayName}</span>
-                  <span className="block truncate text-[11px] font-medium leading-[14px] text-[var(--mut)]">운영 계정</span>
+                  <span className="block whitespace-normal break-keep text-[14px] font-semibold leading-5 tracking-[-0.01em] text-[var(--ink)] [overflow-wrap:anywhere]">{shopDisplayName}</span>
+                  <span className="block truncate text-[12px] font-medium leading-[18px] text-[var(--mut)]">운영 계정</span>
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-[var(--mid)]" strokeWidth={1.6} />
               </button>
               {storeMenuOpen ? (
-                <div className="absolute right-0 top-12 z-50 w-full overflow-hidden rounded-[10px] border border-[var(--bd)] bg-white py-1 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
-                  <button type="button" onClick={onOpenProfile} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
+                <div className="absolute right-0 top-full z-50 mt-1 w-full overflow-hidden rounded-[10px] border border-[var(--bd)] bg-white py-1 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
+                  <button type="button" onClick={onOpenProfile} className="block min-h-11 w-full px-3 py-2.5 text-left text-[14px] font-medium leading-5 text-[var(--ink2)] hover:bg-[#eef1f5]">
                     프로필
                   </button>
-                  <button type="button" onClick={onOpenShop} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ink2)] hover:bg-[#eef1f5]">
+                  <button type="button" onClick={onOpenShop} className="block min-h-11 w-full px-3 py-2.5 text-left text-[14px] font-medium leading-5 text-[var(--ink2)] hover:bg-[#eef1f5]">
                     매장 정보
                   </button>
                   <div className="my-1 border-t border-[var(--line)]" />
@@ -342,7 +344,7 @@ export default function OwnerWebAppShell({
                     type="button"
                     onClick={onLogout}
                     disabled={loggingOut}
-                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-[#a04455] hover:bg-[#fff1f2] disabled:opacity-60"
+                    className="flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left text-[14px] font-medium leading-5 text-[#a04455] hover:bg-[#fff1f2] disabled:opacity-60"
                   >
                     <LogOut className="h-4 w-4" strokeWidth={1.6} />
                     {loggingOut ? "로그아웃 중..." : "로그아웃"}
@@ -360,7 +362,7 @@ export default function OwnerWebAppShell({
           <div className="shrink-0">
             <PetManagerBrand
               imageClassName="h-5 w-auto"
-              nameClassName="text-[15px] text-[#1f2937]"
+              nameClassName="text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#1f2937]"
             />
           </div>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
@@ -409,21 +411,30 @@ export default function OwnerWebAppShell({
           </div>
         </header>
 
+        {showInitialSetupAction && remainingSetupLabels.length > 0 ? (
+          <aside role="status" className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#c7ddff] bg-[#f0f7ff] px-4 py-3 text-[#174ea6]" data-testid="initial-setup-reminder">
+            <div className="min-w-0"><p className="text-[16px] font-semibold leading-6">아직 매장 운영 준비가 완료되지 않았어요</p><p className="text-[14px] leading-5">남은 설정: {remainingSetupLabels.join(" · ")}</p></div>
+            <button type="button" onClick={onOpenInitialSetup} className="min-h-11 shrink-0 rounded-[10px] bg-[#2563eb] px-4 text-[16px] font-medium text-white hover:bg-[#1d4ed8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">초기 설정 이어하기</button>
+          </aside>
+        ) : null}
         <section className="min-h-0 flex-1 overflow-hidden bg-[var(--bg)] p-3 sm:p-4">
-          {usesSinglePlaneCore ? (
-            <div className="h-full min-h-0 min-w-0">{children}</div>
-          ) : (
-            <div
-              className="h-full min-w-0 overflow-hidden rounded-[14px] border border-[var(--bd)] bg-white shadow-none"
-            >
-              <div className={cn(
-                "h-full min-h-0 overscroll-contain p-3 sm:p-4",
-                setupMode ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden",
-              )}>
-                {children}
-              </div>
+          <div
+            className="pm-owner-main-surface h-full min-h-0 min-w-0 shadow-none"
+            data-owner-main-surface="true"
+            data-owner-main-screen={activeScreen}
+            data-owner-main-surface-layout={usesFlushCore ? "flush" : "inset"}
+          >
+            <div className={cn(
+              "h-full min-h-0 overscroll-contain",
+              setupMode
+                ? "overflow-y-auto overflow-x-hidden p-3 sm:p-4"
+                : usesFlushCore
+                  ? "overflow-visible"
+                  : "overflow-hidden p-3 sm:p-4",
+            )}>
+              {children}
             </div>
-          )}
+          </div>
         </section>
       </main>
     </div>

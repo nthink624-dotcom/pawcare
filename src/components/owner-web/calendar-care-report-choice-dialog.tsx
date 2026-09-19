@@ -77,10 +77,10 @@ export function CalendarCareReportChoiceDialog({
             <ClipboardCheck className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <h3 id="care-report-choice-title" className="text-[20px] font-semibold tracking-[-0.035em] text-[#142033]">
+            <h3 id="care-report-choice-title" className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#142033]">
               미용 완료 기록을 남겨주세요
             </h3>
-            <p className="mt-1 text-[14px] text-[#6b7785]">
+            <p className="mt-1 text-[14px] font-normal leading-5 text-[#6b7785]">
               {petName} · {serviceName || "예약 서비스"}
             </p>
           </div>
@@ -92,7 +92,7 @@ export function CalendarCareReportChoiceDialog({
             type="button"
             onClick={onOpenReport}
             disabled={saving}
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[11px] bg-[#2f6fd6] text-[16px] font-semibold text-white transition hover:bg-[#245fbd] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[11px] bg-[#2f6fd6] text-[16px] font-medium leading-6 text-white transition hover:bg-[#245fbd] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
           >
             <Sparkles className="h-4.5 w-4.5" aria-hidden="true" />
             AI 케어리포트 작성하기
@@ -101,7 +101,7 @@ export function CalendarCareReportChoiceDialog({
             type="button"
             onClick={onPublishBasic}
             disabled={saving}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#d5dbe2] bg-white text-[15px] font-medium text-[#526171] transition hover:bg-[#f6f8fa] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#d5dbe2] bg-white text-[16px] font-medium leading-6 text-[#526171] transition hover:bg-[#f6f8fa] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
             기본 기록만 보내기
@@ -109,7 +109,7 @@ export function CalendarCareReportChoiceDialog({
         </div>
 
         {error ? (
-          <p className="mt-3 rounded-[9px] border border-[#f1b9c1] bg-[#fff8f8] px-3 py-2 text-[13px] leading-5 text-[#a04455]">
+          <p className="mt-3 rounded-[9px] border border-[#f1b9c1] bg-[#fff8f8] px-3 py-2 text-[13px] font-medium leading-5 text-[#a04455]">
             {error}
           </p>
         ) : null}

@@ -2179,8 +2179,8 @@ function BookingSidePanel({
               </div>
               <div className="min-w-0 flex-1 pt-0.5">
                 <p className="flex min-w-0 items-baseline gap-1.5 leading-6">
-                  <span className="min-w-0 truncate text-[19px] font-semibold text-[#0f172a]">{selectedBooking.pet}</span>
-                  <span className="shrink-0 truncate text-[14px] font-normal text-[#64748b]">{breedLabel}</span>
+                  <span className="min-w-0 truncate text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#0f172a]">{selectedBooking.pet}</span>
+                  <span className="shrink-0 truncate text-[14px] font-normal leading-5 text-[#64748b]">{breedLabel}</span>
                 </p>
                 <p className="mt-0.5 flex min-w-0 items-center gap-2 text-[14px] font-normal leading-5 text-[#334155]">
                   <span className="min-w-0 truncate">{selectedBooking.customer} 보호자</span>
@@ -2202,7 +2202,7 @@ function BookingSidePanel({
             <section className="mt-4 border-b border-[#eef0f2] pb-4">
               <div className="grid grid-cols-2 gap-2">
                 <label className="block min-w-0">
-                  <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">프로필 몸무게</span>
+                  <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">프로필 몸무게</span>
                   <span className="relative block">
                     <input
                       value={petProfileDraft.weight}
@@ -2210,7 +2210,7 @@ function BookingSidePanel({
                       onBlur={() => void savePetProfile()}
                       inputMode="decimal"
                       placeholder="kg"
-                      className="min-h-11 w-full rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-9 text-[15px] font-normal leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#aab2bc]"
+                      className="min-h-11 w-full rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-9 text-[16px] font-normal leading-6 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#aab2bc]"
                     />
                     {petProfileDraft.weight.trim() ? (
                       <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[14px] text-[#64748b]">kg</span>
@@ -2218,22 +2218,22 @@ function BookingSidePanel({
                   </span>
                 </label>
                 <label className="block min-w-0">
-                  <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">생일</span>
+                  <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">생일</span>
                   <input
                     type="date"
                     value={petProfileDraft.birthday}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, birthday: event.target.value }))}
                     onBlur={() => void savePetProfile()}
-                    className="min-h-11 w-full min-w-0 rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-2 text-[15px] font-normal leading-5 text-[#0f172a] outline-none focus:border-[#aab2bc] [color-scheme:light]"
+                    className="min-h-11 w-full min-w-0 rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-2 text-[16px] font-normal leading-6 text-[#0f172a] outline-none focus:border-[#aab2bc] [color-scheme:light]"
                   />
                 </label>
                 <label className="block min-w-0">
-                  <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">그룹</span>
+                  <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">그룹</span>
                   <select
                     value={petProfileDraft.pricingGroup}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, pricingGroup: event.target.value }))}
                     onBlur={() => void savePetProfile()}
-                    className="min-h-11 w-full min-w-0 appearance-none rounded-[7px] border border-[#e7e9ec] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#aab2bc]"
+                    className="min-h-11 w-full min-w-0 appearance-none rounded-[7px] border border-[#e7e9ec] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[16px] font-medium leading-6 text-[#0f172a] outline-none transition focus:border-[#aab2bc]"
                   >
                     {petGroupOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -2243,12 +2243,12 @@ function BookingSidePanel({
                   </select>
                 </label>
                 <label className="block min-w-0">
-                  <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">입질</span>
+                  <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">입질</span>
                   <select
                     value={petProfileDraft.biteLevel}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, biteLevel: normalizePetBiteLevel(event.target.value) }))}
                     onBlur={() => void savePetProfile()}
-                    className="min-h-11 w-full min-w-0 appearance-none rounded-[7px] border border-[#e7e9ec] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#aab2bc]"
+                    className="min-h-11 w-full min-w-0 appearance-none rounded-[7px] border border-[#e7e9ec] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[16px] font-medium leading-6 text-[#0f172a] outline-none transition focus:border-[#aab2bc]"
                   >
                     {(["none", "mild", "watch", "bite", "strong"] as PetBiteLevel[]).map((level) => (
                       <option key={level} value={level}>
@@ -2279,7 +2279,7 @@ function BookingSidePanel({
                         <span className="min-w-0 truncate text-[14px] font-medium leading-5 tracking-[-0.01em] text-[#334155]">
                           {coupon.name}
                         </span>
-                        <span className="shrink-0 text-right text-[15px] font-semibold leading-5 tracking-[-0.015em] text-[#1d4ed8] tabular-nums">
+                        <span className="shrink-0 text-right text-[16px] font-semibold leading-6 tracking-[-0.015em] text-[#1d4ed8] tabular-nums">
                           {coupon.amount ? `-${formatBenefitWon(coupon.amount)}` : coupon.valueLabel ?? "혜택"}
                         </span>
                       </div>
@@ -2391,7 +2391,7 @@ function BookingSidePanel({
                   recentVisitHistory.items.map((visit) => (
                     <div key={visit.id} className="grid grid-cols-[86px_minmax(0,1fr)] gap-4 border-b border-[#f0f2f4] py-3 last:border-b-0">
                       <span className="text-[14px] font-normal leading-5 tabular-nums text-[#64748b]">{visit.date}</span>
-                      <p className="min-w-0 truncate text-[15px] font-normal leading-5 text-[#0f172a]">{visit.service}</p>
+                      <p className="min-w-0 truncate text-[14px] font-normal leading-5 text-[#0f172a]">{visit.service}</p>
                     </div>
                   ))
                 ) : (
@@ -2407,7 +2407,7 @@ function BookingSidePanel({
             <button
               type="button"
               onClick={() => onOpenCareReport(selectedBooking)}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[#2f6fd6] px-3 text-[15px] font-semibold text-white transition hover:bg-[#255fc1]"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[#2f6fd6] px-3 text-[16px] font-medium leading-6 text-white transition hover:bg-[#255fc1]"
             >
               <Sparkles className="h-4 w-4 shrink-0" />
               {careReportWriting ? "케어리포트 작성 중" : "AI 케어리포트 작성·이어보기"}
@@ -2431,14 +2431,14 @@ function BookingSidePanel({
                     <button
                       type="button"
                       onClick={() => onChangeStatus(selectedBooking.id, "노쇼")}
-                      className="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+                      className="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium leading-5 text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
                     >
                       노쇼 처리
                     </button>
                     <button
                       type="button"
                       onClick={() => requestStatusChange(selectedBooking.id, "취소")}
-                      className="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+                      className="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium leading-5 text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
                     >
                       예약 취소
                     </button>
@@ -2448,7 +2448,7 @@ function BookingSidePanel({
                 <button
                   type="button"
                   onClick={() => onAcknowledgeChange(selectedBooking.id)}
-                  className="h-10 rounded-[8px] bg-[#2f6fd6] text-[15px] font-medium text-white transition hover:bg-[#255fc1]"
+                  className="min-h-11 rounded-[8px] bg-[#2f6fd6] text-[16px] font-medium leading-6 text-white transition hover:bg-[#255fc1]"
                 >
                   변경/취소 확인
                 </button>
@@ -2475,11 +2475,11 @@ function BookingSidePanel({
                   </button>
                 </div>
               ) : workflowCompleted ? (
-                <div className="flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] text-[15px] text-[#64748b]">
+                <div className="flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] text-[14px] font-normal leading-5 text-[#64748b]">
                   처리 완료
                 </div>
               ) : (
-                <div className="flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] text-[15px] text-[#94a3b8]">
+                <div className="flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] text-[14px] font-normal leading-5 text-[#94a3b8]">
                   처리할 상태 없음
                 </div>
               )}
@@ -2490,7 +2490,7 @@ function BookingSidePanel({
                     <button
                       type="button"
                       onClick={() => requestStatusChange(selectedBooking.id, "취소")}
-                      className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]"
+                      className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#475569] transition hover:bg-[#f8fafc]"
                     >
                       <X className="h-4 w-4 text-[#64748b]" />
                       예약 취소
@@ -2539,10 +2539,10 @@ function OwnerNoticeDialog({ title, message, onClose }: { title: string; message
         className="max-h-[calc(100vh-2rem)] w-full max-w-[420px] overflow-y-auto rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
-        <p className="mt-3 whitespace-pre-wrap text-[15px] leading-6 text-[#475569]">{message}</p>
+        <h3 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">{title}</h3>
+        <p className="mt-3 whitespace-pre-wrap text-[16px] font-normal leading-6 text-[#475569]">{message}</p>
         <div className="mt-5 flex justify-end">
-          <button type="button" onClick={onClose} className="h-10 rounded-[8px] bg-[#2f6fd6] px-5 text-[15px] font-medium text-white transition hover:bg-[#255fc1]">
+          <button type="button" onClick={onClose} className="min-h-11 rounded-[8px] bg-[#2f6fd6] px-5 text-[16px] font-medium leading-6 text-white transition hover:bg-[#255fc1]">
             확인
           </button>
         </div>
@@ -2572,17 +2572,17 @@ function OwnerConfirmDialog({
         className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
-        <p className="mt-3 text-[15px] leading-6 text-[#475569]">{message}</p>
+        <h3 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">{title}</h3>
+        <p className="mt-3 text-[16px] font-normal leading-6 text-[#475569]">{message}</p>
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-medium text-[#334155] transition hover:bg-[#f8fafc]">
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] font-medium leading-6 text-[#334155] transition hover:bg-[#f8fafc]">
             취소
           </button>
           <button
             type="button"
             onClick={onConfirm}
             className={cn(
-              "h-11 rounded-[8px] text-[15px] font-semibold text-white transition",
+              "h-11 rounded-[8px] text-[16px] font-medium leading-6 text-white transition",
               danger ? "bg-[#a04455] hover:bg-[#8f3547]" : "bg-[#2f6fd6] hover:bg-[#255fc1]",
             )}
           >
@@ -2709,7 +2709,7 @@ function DetailCard({ icon: Icon, title, children, className }: { icon: typeof U
     <section className={cn("rounded-[8px] border border-[#e2e8f0] bg-white p-4", className)}>
       <div className="mb-3 flex items-center gap-2">
         <Icon className="h-4 w-4 text-[#2f7866]" />
-        <h4 className="text-[15px] font-semibold text-[#111827]">{title}</h4>
+        <h4 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">{title}</h4>
       </div>
       {children}
     </section>
@@ -2720,15 +2720,15 @@ function GuardianInfoCard({ name, phone, onCopyPhone }: { name: string; phone: s
   return (
     <DetailCard icon={User} title="보호자 정보">
       <div className="grid grid-cols-[56px_minmax(0,1fr)_112px] items-center gap-x-3 gap-y-2">
-        <span className="text-[15px] leading-6 text-[#64748b]">보호자명</span>
-        <span className="min-w-0 text-right text-[16px] font-semibold text-[#111827]">{name}</span>
+        <span className="text-[14px] font-medium leading-5 text-[#64748b]">보호자명</span>
+        <span className="min-w-0 text-right text-[16px] font-normal leading-6 text-[#111827]">{name}</span>
         <span />
-        <span className="text-[15px] leading-6 text-[#64748b]">연락처</span>
-        <span className="min-w-0 text-right text-[16px] font-semibold leading-6 text-[#111827]">{phone}</span>
+        <span className="text-[14px] font-medium leading-5 text-[#64748b]">연락처</span>
+        <span className="min-w-0 text-right text-[16px] font-normal leading-6 text-[#111827]">{phone}</span>
         <button
           type="button"
           onClick={onCopyPhone}
-          className="inline-flex h-10 items-center justify-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc]"
+          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[14px] font-medium leading-5 text-[#334155] hover:bg-[#f8fafc]"
         >
           <Copy className="h-4 w-4 text-[#64748b]" />
           번호 복사
@@ -2846,7 +2846,7 @@ function TimeWheelInput({
           setOpen((current) => !current);
         }}
         className={cn(
-          "h-8 w-full rounded-[7px] border px-2.5 text-left text-[16px] tabular-nums text-[#64748b] outline-none transition",
+          "min-h-11 w-full rounded-[7px] border px-2.5 text-left text-[16px] font-medium leading-6 tabular-nums text-[#64748b] outline-none transition",
           active
             ? "border-[#2f7866] bg-white shadow-[0_0_0_2px_rgba(47,120,102,0.08)]"
             : "border-transparent bg-transparent hover:bg-[#f8fafc]",
@@ -3009,8 +3009,8 @@ function BookingDetailInfoRow({
   tabular?: boolean;
 }) {
   return (
-    <div className="grid min-w-0 grid-cols-[92px_minmax(0,1fr)] items-center gap-2 py-2 text-[15px] leading-5 first:pt-0 last:pb-0">
-      <span className="text-[#334155]">{label}</span>
+    <div className="grid min-w-0 grid-cols-[92px_minmax(0,1fr)] items-center gap-2 py-2 text-[14px] font-normal leading-5 first:pt-0 last:pb-0">
+      <span className="font-medium text-[#334155]">{label}</span>
       <span className={cn("min-w-0 truncate text-[#64748b]", tabular && "tabular-nums")}>{value}</span>
     </div>
   );
@@ -3103,10 +3103,10 @@ function MissedStartAlert({
               : "고객 방문 여부를 확인해 주세요."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={onStart} className="h-9 rounded-[8px] bg-[#334155] px-3 text-[13px] font-medium text-white hover:bg-[#1f2937]">
+            <button type="button" onClick={onStart} className="min-h-11 rounded-[8px] bg-[#334155] px-3 text-[14px] font-medium leading-5 text-white hover:bg-[#1f2937]">
               미용 시작하기
             </button>
-            <button type="button" onClick={() => setDismissed(true)} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155]">
+            <button type="button" onClick={() => setDismissed(true)} className="min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium leading-5 text-[#334155]">
               나중에
             </button>
           </div>
@@ -3144,16 +3144,16 @@ function PersistentBookingPanelHero({
     <div className="border-b border-[#edf2f7] pb-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", statusClass)}>
+          <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[12px] font-medium leading-[18px]", statusClass)}>
             {statusLabel}
           </span>
           <p className="mt-3 text-[20px] font-semibold leading-7 tracking-[-0.02em] text-[#111827]">
             오늘 {timeRange} <span className="text-[14px] font-normal text-[#64748b]">(예상)</span>
           </p>
-          <p className="mt-2 text-[17px] font-semibold leading-6 text-[#111827]">
+          <p className="mt-2 text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">
             {booking.pet} · {profile.breed} · {profile.weight}
           </p>
-          <p className="mt-1 text-[15px] font-medium text-[#334155]">{booking.service}</p>
+          <p className="mt-1 text-[14px] font-medium leading-5 text-[#334155]">{booking.service}</p>
         </div>
         <PetImageBlock pet={booking.pet} />
       </div>
@@ -3177,10 +3177,10 @@ function PersistentBookingPanelHero({
           {startEnabled ? "미용 시작하기" : finalActionLabel}
         </button>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => onChangeStatus(booking.id, "노쇼")} disabled={!startEnabled} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:text-[#cbd5e1]">
+          <button type="button" onClick={() => onChangeStatus(booking.id, "노쇼")} disabled={!startEnabled} className="min-h-11 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium leading-5 text-[#8f2438] hover:bg-[#fffafa] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:text-[#cbd5e1]">
             노쇼 처리
           </button>
-          <button type="button" onClick={() => onChangeStatus(booking.id, "취소")} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa]">
+          <button type="button" onClick={() => onChangeStatus(booking.id, "취소")} className="min-h-11 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium leading-5 text-[#8f2438] hover:bg-[#fffafa]">
             예약 취소
           </button>
         </div>
@@ -3219,7 +3219,7 @@ function ReservationDetailSheet({
             <p className="text-[13px] font-medium text-[#64748b]">예약 작업 패널</p>
             <h3 className="mt-0.5 text-[20px] font-semibold text-[#111827]">{booking.pet} · {booking.customer}</h3>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f1f5f9]" aria-label="닫기">
+          <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f1f5f9]" aria-label="닫기">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -3273,29 +3273,29 @@ function ConfirmedReservationDetail({
       <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", getReservationStatusPillClass(booking, selectedDate, currentHour))}>
+            <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[12px] font-medium leading-[18px]", getReservationStatusPillClass(booking, selectedDate, currentHour))}>
               {statusLabel}
             </span>
-            <p className="mt-3 text-[26px] font-semibold tracking-[-0.03em] text-[#111827]">{formatPanelDateLabel(selectedDate)} {timeRange}</p>
-            <p className="mt-2 text-[20px] font-semibold text-[#111827]">{booking.pet} · {profile.breed} · {profile.weight}</p>
-            <p className="mt-1 text-[16px] font-medium text-[#334155]">{booking.service}</p>
+            <p className="mt-3 text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827]">{formatPanelDateLabel(selectedDate)} {timeRange}</p>
+            <p className="mt-2 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">{booking.pet} · {profile.breed} · {profile.weight}</p>
+            <p className="mt-1 text-[14px] font-medium leading-5 text-[#334155]">{booking.service}</p>
           </div>
           <PetImageBlock pet={booking.pet} />
         </div>
 
         <div className="mt-5">
           {canStart ? (
-            <button type="button" onClick={() => onChangeStatus(booking.id, "진행 중")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[18px] font-semibold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
+            <button type="button" onClick={() => onChangeStatus(booking.id, "진행 중")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[16px] font-medium leading-6 text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
               <Play className="h-5 w-5" />
               미용 시작하기
             </button>
           ) : canComplete ? (
-            <button type="button" onClick={() => onChangeStatus(booking.id, "완료")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[18px] font-semibold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
+            <button type="button" onClick={() => onChangeStatus(booking.id, "완료")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[16px] font-medium leading-6 text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
               <Scissors className="h-5 w-5" />
               미용 완료하기
             </button>
           ) : canFinish ? (
-            <button type="button" onClick={() => onChangeStatus(booking.id, "완료")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[18px] font-semibold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
+            <button type="button" onClick={() => onChangeStatus(booking.id, "완료")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[16px] font-medium leading-6 text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
               <CheckCircle2 className="h-5 w-5" />
               완료 처리하기
             </button>
@@ -3308,8 +3308,8 @@ function ConfirmedReservationDetail({
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => onChangeStatus(booking.id, "노쇼")} disabled={!canStart} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium text-[#8f2438] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:text-[#cbd5e1]">노쇼 처리</button>
-          <button type="button" onClick={() => setCancelOpen(true)} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium text-[#8f2438]">예약 취소</button>
+          <button type="button" onClick={() => onChangeStatus(booking.id, "노쇼")} disabled={!canStart} className="min-h-11 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium leading-5 text-[#8f2438] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:text-[#cbd5e1]">노쇼 처리</button>
+          <button type="button" onClick={() => setCancelOpen(true)} className="min-h-11 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium leading-5 text-[#8f2438]">예약 취소</button>
         </div>
       </section>
 
@@ -3365,15 +3365,15 @@ function PendingReservationDetail({
       <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", badgeClass)}>
+            <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[12px] font-medium leading-[18px]", badgeClass)}>
               예약 예정
             </span>
-            <p className="mt-3 text-[15px] font-medium text-[#1f6b5b]">
+            <p className="mt-3 text-[13px] font-medium leading-5 text-[#1f6b5b]">
               고객 예약은 승인 대기 없이 바로 등록됩니다.
             </p>
-            <p className="mt-3 text-[26px] font-semibold tracking-[-0.03em] text-[#111827]">{formatPanelDateLabel(selectedDate)} {timeRange}</p>
-            <p className="mt-2 text-[20px] font-semibold text-[#111827]">{booking.pet} · {profile.breed} · {profile.weight}</p>
-            <p className="mt-1 text-[16px] font-medium text-[#334155]">{booking.service}</p>
+            <p className="mt-3 text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827]">{formatPanelDateLabel(selectedDate)} {timeRange}</p>
+            <p className="mt-2 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">{booking.pet} · {profile.breed} · {profile.weight}</p>
+            <p className="mt-1 text-[14px] font-medium leading-5 text-[#334155]">{booking.service}</p>
           </div>
           <PetImageBlock pet={booking.pet} />
         </div>
@@ -3460,7 +3460,7 @@ function ReservationInfoSections({
           placeholder="오너/직원만 보는 메모를 입력해 주세요."
           className="min-h-[74px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[14px] leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
         />
-        <button type="button" className="mt-2 h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[12px] font-medium text-[#334155]">메모 수정</button>
+        <button type="button" className="mt-2 min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium leading-5 text-[#334155]">메모 수정</button>
       </DetailCard>
 
       <DetailCard icon={History} title="방문 이력">
@@ -3496,13 +3496,13 @@ function CancelReservationDialog({
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/35 px-4" onClick={onClose}>
       <div className="w-full max-w-[460px] rounded-[12px] border border-[#ead6dc] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]" onClick={(event) => event.stopPropagation()}>
-        <h3 className="text-[22px] font-semibold text-[#111827]">예약을 취소하시겠어요?</h3>
-        <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
+        <h3 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827]">예약을 취소하시겠어요?</h3>
+        <p className="mt-2 text-[16px] font-normal leading-6 text-[#64748b]">
           고객에게 예약 취소 안내가 발송됩니다. 안내문에는 다른 시간 조율을 위해 예약 확인 링크를 다시 확인해 달라는 내용이 함께 포함됩니다.
         </p>
         <label className="mt-4 block space-y-1.5">
-          <span className="text-[13px] font-medium text-[#64748b]">취소 사유</span>
-          <select value={reason} onChange={(event) => setReason(event.target.value)} className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827]">
+          <span className="text-[14px] font-medium leading-5 text-[#64748b]">취소 사유</span>
+          <select value={reason} onChange={(event) => setReason(event.target.value)} className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal leading-6 text-[#111827]">
             <option>매장 일정상 어려움</option>
             <option>서비스 제공이 어려움</option>
             <option>고객 요청 취소</option>
@@ -3510,16 +3510,16 @@ function CancelReservationDialog({
           </select>
         </label>
         <label className="mt-3 block space-y-1.5">
-          <span className="text-[13px] font-medium text-[#64748b]">고객 안내 메시지</span>
-          <textarea value={message} onChange={(event) => setMessage(event.target.value)} className="min-h-[96px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[14px] leading-6 text-[#111827]" />
+          <span className="text-[14px] font-medium leading-5 text-[#64748b]">고객 안내 메시지</span>
+          <textarea value={message} onChange={(event) => setMessage(event.target.value)} className="min-h-[96px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[16px] font-normal leading-6 text-[#111827]" />
         </label>
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">닫기</button>
-          <button type="button" onClick={onConfirm} className="h-11 rounded-[8px] bg-[#a04455] text-[14px] font-semibold text-white">
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] font-medium leading-6 text-[#334155]">닫기</button>
+          <button type="button" onClick={onConfirm} className="h-11 rounded-[8px] bg-[#a04455] text-[16px] font-medium leading-6 text-white">
             취소 안내 보내기
           </button>
         </div>
-        <p className="mt-2 text-[12px] text-[#94a3b8]">선택 사유: {reason}</p>
+        <p className="mt-2 text-[12px] font-medium leading-[18px] text-[#94a3b8]">선택 사유: {reason}</p>
       </div>
     </div>
   );
@@ -3875,7 +3875,7 @@ function PhotoStatusDialog({
                           aria-selected={selected}
                           onClick={() => setActiveMediaKind(photoTab.kind)}
                           className={`${modalTypography.label} inline-flex min-h-11 min-w-11 items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3 py-2 [line-height:1.4] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] ${
-                            selected ? "bg-[#edf4ff] font-semibold text-[#2f6fd6] shadow-sm" : "text-[#7a8490] hover:text-[#37485a]"
+                            selected ? "bg-[#edf4ff] text-[#2f6fd6] shadow-sm" : "text-[#7a8490] hover:text-[#37485a]"
                           }`}
                         >
                           {photoTab.label}
@@ -3951,27 +3951,27 @@ function PhotoStatusDialog({
           <div className="rounded-[10px] bg-[#fbfcfd] p-4">
             <div className="flex items-center gap-2">
               <QrCode className="h-4 w-4 text-[#2f7866]" />
-              <p className="text-[15px] font-medium text-[#111827]">모바일로 촬영하기</p>
+              <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">모바일로 촬영하기</p>
             </div>
             <div className="mt-3 flex justify-center rounded-[10px] bg-white p-3">
               <img src={qrImageUrl} alt="모바일 촬영 QR 코드" className="h-[176px] w-[176px]" />
             </div>
-            <p className="mt-3 text-center text-[13px] leading-5 text-[#64748b]">
+            <p className="mt-3 text-center text-[13px] font-normal leading-5 text-[#64748b]">
               {action.mobileDescription}
             </p>
           </div>
         )}
 
         {uploading ? (
-          <p className="mt-3 text-[12px] text-[#526173]">사진을 최적화해 업로드하고 있습니다. 메모는 계속 입력할 수 있어요.</p>
+          <p className="mt-3 text-[12px] font-medium leading-[18px] text-[#526173]">사진을 최적화해 업로드하고 있습니다. 메모는 계속 입력할 수 있어요.</p>
         ) : uploadMetrics ? (
-          <p className="mt-3 text-[12px] text-[#526173]">
+          <p className="mt-3 text-[12px] font-medium leading-[18px] text-[#526173]">
             사진 업로드 완료 · {(uploadMetrics.totalMs / 1000).toFixed(1)}초 · {Math.max(1, Math.round(uploadMetrics.sourceByteSize / 1024))}KB → {Math.max(1, Math.round(uploadMetrics.uploadedByteSize / 1024))}KB
           </p>
         ) : null}
 
         {error ? (
-          <p className="mt-3 rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[13px] leading-5 text-[#b42318]">
+          <p className="mt-3 rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[13px] font-medium leading-5 text-[#b42318]">
             {error}
           </p>
         ) : null}
@@ -3982,7 +3982,7 @@ function PhotoStatusDialog({
               type="button"
               onClick={() => selectPhoto(action.mediaKind)}
               disabled={busy}
-              className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#334155] px-3 text-[15px] text-white hover:bg-[#1f2937] disabled:opacity-60"
+              className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#334155] px-3 text-[16px] font-medium leading-6 text-white hover:bg-[#1f2937] disabled:opacity-60"
             >
               {busy ? "처리 중" : action.buttonLabel}
             </button>
@@ -3990,7 +3990,7 @@ function PhotoStatusDialog({
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+              className="min-h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] font-medium leading-6 text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
             >
               취소
             </button>
@@ -5400,11 +5400,11 @@ export default function CalendarManagementScreen({
             className="w-full max-w-[380px] rounded-[10px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.18)]"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="text-[18px] font-semibold text-[#111827]">운영시간 밖으로 이동합니다</h3>
-            <p className="mt-2 text-[15px] leading-6 text-[#475569]">
+            <h3 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">운영시간 밖으로 이동합니다</h3>
+            <p className="mt-2 text-[16px] font-normal leading-6 text-[#475569]">
               예약 시간이 매장 운영시간을 벗어납니다. 그래도 이 시간으로 변경하시겠습니까?
             </p>
-            <div className="mt-4 rounded-[8px] border border-[#e5e7eb] bg-[#f8fafc] px-3 py-3 text-[15px] text-[#334155]">
+            <div className="mt-4 rounded-[8px] border border-[#e5e7eb] bg-[#f8fafc] px-3 py-3 text-[14px] font-normal leading-5 text-[#334155]">
               <p className="font-medium text-[#111827]">{pendingOutOfHoursMove.nextBooking.pet} · {pendingOutOfHoursMove.nextBooking.customer}</p>
               <p className="mt-1">
                 {formatHourLabel(pendingOutOfHoursMove.nextBooking.start)} - {formatHourLabel(pendingOutOfHoursMove.nextBooking.start + pendingOutOfHoursMove.nextBooking.duration)}
@@ -5415,14 +5415,14 @@ export default function CalendarManagementScreen({
               <button
                 type="button"
                 onClick={cancelOutOfHoursMove}
-                className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+                className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] font-medium leading-6 text-[#334155] transition hover:bg-[#f8fafc]"
               >
                 취소
               </button>
               <button
                 type="button"
                 onClick={() => void confirmOutOfHoursMove()}
-                className="h-11 rounded-[8px] bg-[#334155] text-[15px] font-medium text-white transition hover:bg-[#1f2937]"
+                className="h-11 rounded-[8px] bg-[#334155] text-[16px] font-medium leading-6 text-white transition hover:bg-[#1f2937]"
               >
                 변경하기
               </button>
@@ -5444,16 +5444,16 @@ export default function CalendarManagementScreen({
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <h3 id="schedule-board-error-title" className="text-[18px] font-semibold text-[#111827]">
+                <h3 id="schedule-board-error-title" className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">
                   처리할 수 없어요
                 </h3>
-                <p className="mt-2 text-[16px] leading-7 text-[#475569]">{boardError}</p>
+                <p className="mt-2 text-[16px] font-normal leading-6 text-[#475569]">{boardError}</p>
               </div>
               <button
                 type="button"
                 aria-label="닫기"
                 onClick={() => setBoardError("")}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -5489,6 +5489,7 @@ export default function CalendarManagementScreen({
             onAddSchedule={handleAddSchedule}
           />
           <DailyScheduleGrid
+            shopId={bootstrapData.shop.id}
             bookings={filteredBookings}
             staff={staff}
             visibleStaff={visibleStaff}
@@ -5576,16 +5577,16 @@ export default function CalendarManagementScreen({
       {earlyStartBooking ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/25 px-4" onClick={() => setEarlyStartBooking(null)}>
           <div className="w-full max-w-[360px] rounded-[10px] border border-[#dbe2ea] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.18)]" onClick={(event) => event.stopPropagation()}>
-            <h3 className="text-[17px] font-medium text-[#111827]">예약 시간 전입니다</h3>
-            <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
+            <h3 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">예약 시간 전입니다</h3>
+            <p className="mt-2 text-[13px] font-normal leading-5 text-[#64748b]">
               <span className="block">
                 {earlyStartBooking.pet} · {earlyStartBooking.customer} 예약은 {formatHourLabel(earlyStartBooking.start)} 시작입니다.
               </span>
               <span className="block">그래도 미용을 시작할까요?</span>
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setEarlyStartBooking(null)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">아니요</button>
-              <button type="button" onClick={() => { void applyBookingStatusChange(earlyStartBooking.id, "진행 중"); setEarlyStartBooking(null); }} className="h-10 rounded-[8px] bg-[#334155] text-[14px] font-medium text-white hover:bg-[#1f2937]">미용 시작</button>
+              <button type="button" onClick={() => setEarlyStartBooking(null)} className="min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] font-medium leading-6 text-[#334155]">아니요</button>
+              <button type="button" onClick={() => { void applyBookingStatusChange(earlyStartBooking.id, "진행 중"); setEarlyStartBooking(null); }} className="min-h-11 rounded-[8px] bg-[#334155] text-[16px] font-medium leading-6 text-white hover:bg-[#1f2937]">미용 시작</button>
             </div>
           </div>
         </div>

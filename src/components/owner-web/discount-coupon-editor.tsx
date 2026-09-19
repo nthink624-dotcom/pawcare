@@ -32,12 +32,12 @@ function SelectFrame({
 }
 
 const selectClassName =
-  "h-9 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-9 text-[14px] font-medium text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
+  "h-11 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-9 text-[14px]! font-medium! leading-5! text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
 
 const inputClassName =
-  "h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
+  "h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px]! font-normal! leading-6! text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
 
-const fieldLabelClassName = "text-[14px] font-normal text-[#607080]";
+const fieldLabelClassName = "text-[14px] font-medium leading-5 text-[#607080]";
 
 function NormalizedTextInput({
   value,
@@ -97,7 +97,7 @@ function BenefitNameInput({
       disabled={disabled}
       onChange={onChange}
       className={cn(
-        "h-9 w-full rounded-[8px] border border-transparent bg-transparent px-0 text-[16px] font-semibold tracking-normal outline-none transition placeholder:text-[#94a3b8] hover:border-[#dbe2ea] hover:bg-white hover:px-3 focus:border-[#94a3b8] focus:bg-white focus:px-3 focus:ring-2 focus:ring-[#e2e8f0] disabled:text-[#64748b]",
+        "h-11 w-full rounded-[8px] border border-transparent bg-transparent px-0 text-[16px]! font-medium! leading-6! tracking-normal outline-none transition placeholder:text-[#94a3b8] hover:border-[#dbe2ea] hover:bg-white hover:px-3 focus:border-[#94a3b8] focus:bg-white focus:px-3 focus:ring-2 focus:ring-[#e2e8f0] disabled:text-[#64748b]",
         enabled ? "text-[#2f7866]!" : "text-[#64748b]!",
       )}
       placeholder="혜택 이름"
@@ -146,13 +146,13 @@ export default function DiscountCouponEditor({
   if (coupons.length === 0) {
     return (
       <div className="rounded-[10px] border border-dashed border-[#dbe2ea] bg-[#fafbfc] px-4 py-6 text-center">
-        <p className="text-[16px] font-normal text-[#334155]">등록된 혜택이 없습니다.</p>
+        <p className="text-[16px] font-normal leading-6 text-[#334155]">등록된 혜택이 없습니다.</p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           <button
             type="button"
             disabled={disabled}
             onClick={() => (onAddPreset ? onAddPreset("first_visit") : onAdd())}
-            className="inline-flex h-9 items-center rounded-[8px] border border-[#334155] bg-[#334155] px-3 text-[15px] font-normal text-white transition hover:bg-[#1f2937] disabled:opacity-40"
+            className="inline-flex min-h-11 items-center rounded-[8px] border border-[#334155] bg-[#334155] px-3 text-[14px]! font-medium! leading-5! text-white transition hover:bg-[#1f2937] disabled:opacity-40"
           >
             첫 방문 혜택 만들기
           </button>
@@ -160,7 +160,7 @@ export default function DiscountCouponEditor({
             type="button"
             disabled={disabled}
             onClick={() => (onAddPreset ? onAddPreset("revisit") : onAdd())}
-            className="inline-flex h-9 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-normal text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-40"
+            className="inline-flex min-h-11 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]! font-medium! leading-5! text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-40"
           >
             재방문 혜택
           </button>
@@ -168,7 +168,7 @@ export default function DiscountCouponEditor({
             type="button"
             disabled={disabled}
             onClick={() => (onAddPreset ? onAddPreset("all") : onAdd())}
-            className="inline-flex h-9 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-normal text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-40"
+            className="inline-flex min-h-11 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]! font-medium! leading-5! text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-40"
           >
             상시 혜택
           </button>
@@ -176,7 +176,7 @@ export default function DiscountCouponEditor({
             type="button"
             disabled={disabled}
             onClick={() => (onAddPreset ? onAddPreset("custom") : onAdd())}
-            className="inline-flex h-9 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-normal text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-40"
+            className="inline-flex min-h-11 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]! font-medium! leading-5! text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-40"
           >
             직접 설정
           </button>
@@ -216,7 +216,7 @@ export default function DiscountCouponEditor({
                   onChange={(ownerLabel) => onUpdate(coupon.id, { owner_label: ownerLabel })}
                 />
               </label>
-              <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium", coupon.enabled ? "text-[#2f7866]" : "text-[#64748b]")}> 
+              <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium leading-[18px]", coupon.enabled ? "text-[#2f7866]" : "text-[#64748b]")}>
                 <span className={cn("h-2 w-2 rounded-full", coupon.enabled ? "bg-[#1f9d55]" : "bg-[#b9c3cf]")} aria-hidden="true" />
                 {coupon.enabled ? "사용 중" : "중지됨"}
               </span>
@@ -281,7 +281,7 @@ export default function DiscountCouponEditor({
               <button
                 type="button"
                 onClick={() => toggleCollapsed(coupon.id)}
-                className="inline-flex h-9 w-[96px] items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+                className="inline-flex h-11 w-[96px] items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]! font-medium! leading-5! text-[#334155] transition hover:bg-[#f8fafc]"
                 aria-expanded={!collapsed}
               >
                 {collapsed ? "펼치기" : "접기"}
@@ -291,7 +291,7 @@ export default function DiscountCouponEditor({
                 type="button"
                 disabled={disabled}
                 onClick={() => onDelete(coupon.id)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:opacity-40"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:opacity-40"
                 aria-label={`${coupon.owner_label ?? coupon.name} 삭제`}
               >
                 <Trash2 className="h-4.5 w-4.5" />
@@ -304,7 +304,7 @@ export default function DiscountCouponEditor({
             <div className="flex h-full min-h-0 flex-col overflow-hidden p-4 xl:border-r xl:border-[#e5eaf0]">
               <div className="mb-2 flex items-center gap-2">
                 <BadgePercent className="h-4.5 w-4.5 text-[#607080]!" strokeWidth={1.8} />
-                <p className="text-[15px] font-semibold text-[#334155]">혜택 조건</p>
+                <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#334155]">혜택 조건</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="space-y-1">
@@ -331,7 +331,7 @@ export default function DiscountCouponEditor({
                           combination_policy: nextType === "service" ? "stackable" : coupon.combination_policy,
                         });
                       }}
-                      className={cn(selectClassName, "h-11 text-[16px] font-normal")}
+                      className={cn(selectClassName, "h-11 text-[16px]! font-normal! leading-6!")}
                     >
                       <option value="fixed">정액 할인</option>
                       <option value="percent">정률 할인</option>
@@ -364,10 +364,10 @@ export default function DiscountCouponEditor({
                             const safeValue = Number.isFinite(nextValue) ? nextValue : 0;
                             onUpdate(coupon.id, { discount_value: coupon.discount_type === "percent" ? Math.min(safeValue, 100) : safeValue });
                           }}
-                          className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-10 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc]"
+                          className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-10 text-[16px]! font-normal! leading-6! text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc]"
                           placeholder={coupon.discount_type === "percent" ? "10" : "10000"}
                         />
-                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[16px] font-normal text-[#64748b]" aria-hidden="true">
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[16px] font-normal leading-6 text-[#64748b]" aria-hidden="true">
                           {coupon.discount_type === "percent" ? "%" : "원"}
                         </span>
                       </>
@@ -402,12 +402,12 @@ export default function DiscountCouponEditor({
             <div className="flex h-full min-h-0 flex-col overflow-hidden border-t border-[#e5eaf0] p-4 xl:border-t-0">
               <div className="mb-2 flex items-center gap-2">
                 <CalendarDays className="h-4.5 w-4.5 text-[#607080]!" strokeWidth={1.8} />
-                <p className="text-[15px] font-semibold text-[#334155]">적용 범위</p>
+                <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#334155]">적용 범위</p>
               </div>
               <div className="h-[170px] overflow-hidden">
                 <div className="flex h-full">
                   <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white p-1.5">
-                    <label className="flex min-h-9 cursor-pointer items-center gap-2 rounded-[8px] border border-[#e2e8f0] bg-white px-2.5 py-1.5 text-[15px] font-semibold text-[#111827] transition hover:bg-[#f8fafc]">
+                    <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[8px] border border-[#e2e8f0] bg-white px-2.5 py-1.5 text-[14px] font-medium leading-5 text-[#111827] transition hover:bg-[#f8fafc]">
                       <input
                         type="checkbox"
                         checked={coupon.service_scope !== "specific"}
@@ -431,7 +431,7 @@ export default function DiscountCouponEditor({
                           <label
                             key={`${option.id}-${option.linkedOptionIds.join("|")}`}
                             className={cn(
-                              "flex min-h-8 cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-1 text-[14px] font-normal transition",
+                              "flex min-h-11 cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-1 text-[14px] font-normal leading-5 transition",
                               selected ? "bg-[#f8fafc] text-[#111827]" : "bg-white text-[#334155] hover:bg-[#f8fafc]",
                             )}
                           >
@@ -479,7 +479,7 @@ function ToggleChip({ label, active, disabled, onClick }: { label: string; activ
       aria-pressed={active}
       style={!active ? { backgroundColor: "#475569", borderColor: "#475569" } : undefined}
       className={cn(
-        "h-9 rounded-[8px] border px-4 text-[14px] font-medium transition disabled:opacity-40",
+        "h-11 rounded-[8px] border px-4 text-[14px]! font-medium! leading-5! transition disabled:opacity-40",
         active
           ? "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]"
           : "border-[#475569]! bg-[#475569]! text-white hover:border-[#334155]! hover:bg-[#334155]!",

@@ -223,7 +223,7 @@ export function ScheduleCreateDialog({
             <button
               type="button"
               onClick={() => updateDate(addScheduleDays(form.date, -1))}
-              className="inline-flex h-9 w-7 items-center justify-center rounded-[8px] text-[#475569] transition hover:bg-[#f8fafc]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] text-[#475569] transition hover:bg-[#f8fafc]"
               aria-label="이전 날짜"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -232,8 +232,8 @@ export function ScheduleCreateDialog({
               type="button"
               onClick={openDatePicker}
               className={cn(
-                "h-9 min-w-[154px] rounded-[8px] px-1 text-center text-[15px] text-[#111827] transition hover:bg-[#f8fafc]",
-                form.date === currentDateInTimeZone() ? "font-bold" : "font-medium",
+                "h-11 min-w-[154px] rounded-[8px] px-1 text-center text-[16px] font-medium leading-6 text-[#111827] transition hover:bg-[#f8fafc]",
+                form.date === currentDateInTimeZone() && "bg-[#f8fafc]",
               )}
             >
               {formatSchedulePickerRelativeLabel(form.date, data.shop)}
@@ -241,7 +241,7 @@ export function ScheduleCreateDialog({
             <button
               type="button"
               onClick={() => updateDate(addScheduleDays(form.date, 1))}
-              className="inline-flex h-9 w-7 items-center justify-center rounded-[8px] text-[#475569] transition hover:bg-[#f8fafc]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] text-[#475569] transition hover:bg-[#f8fafc]"
               aria-label="다음 날짜"
             >
               <ChevronRight className="h-4 w-4" />
@@ -295,7 +295,7 @@ export function ScheduleCreateDialog({
                         type="button"
                         onClick={() => onChange({ ...form, petId: pet.id })}
                         className={cn(
-                          "inline-flex min-h-8 items-center rounded-[8px] border px-3 py-1.5 text-[14px] transition",
+                          "inline-flex min-h-11 items-center rounded-[8px] border px-3 py-1.5 text-[14px] font-medium leading-5 transition",
                           pet.id === form.petId
                             ? "border-[#1f6b5b] bg-white text-[#1f6b5b]"
                             : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#b8c8d8]",
@@ -313,37 +313,37 @@ export function ScheduleCreateDialog({
           ) : (
             <div className="grid gap-2.5 md:grid-cols-2">
               <label className="space-y-1.5">
-                <span className="text-[14px] text-[#64748b]">고객명</span>
+                <span className="text-[14px] font-medium leading-5 text-[#64748b]">고객명</span>
                 <input
                   type="text"
                   value={form.customerName}
                   onChange={(event) => onChange({ ...form, customerName: event.target.value })}
-                  className={cn("h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition", bookingFieldFocusClassName)}
+                  className={cn("h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal leading-6 outline-none transition", bookingFieldFocusClassName)}
                   placeholder="예: 김민지"
                 />
               </label>
               <label className="space-y-1.5">
-                <span className="text-[14px] text-[#64748b]">반려동물 이름</span>
+                <span className="text-[14px] font-medium leading-5 text-[#64748b]">반려동물 이름</span>
                 <input
                   type="text"
                   value={form.petName}
                   onChange={(event) => onChange({ ...form, petName: event.target.value })}
-                  className={cn("h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition", bookingFieldFocusClassName)}
+                  className={cn("h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal leading-6 outline-none transition", bookingFieldFocusClassName)}
                   placeholder="예: 몽이"
                 />
               </label>
               <label className="space-y-1.5 md:col-span-2">
-                <span className="text-[14px] text-[#64748b]">고객 연락처</span>
+                <span className="text-[14px] font-medium leading-5 text-[#64748b]">고객 연락처</span>
                 <input
                   type="tel"
                   inputMode="numeric"
                   value={form.customerPhone}
                   onChange={(event) => onChange({ ...form, customerPhone: formatSchedulePhone(event.target.value) })}
-                  className={cn("h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition", bookingFieldFocusClassName)}
+                  className={cn("h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal leading-6 outline-none transition", bookingFieldFocusClassName)}
                   placeholder="010-1234-5678"
                 />
                 {isCustomerPhoneIncomplete ? (
-                  <span className="block text-[14px] text-[#64748b]">연락처를 10자리 이상 입력해 주세요.</span>
+                  <span className="block text-[13px] font-normal leading-5 text-[#64748b]">연락처를 10자리 이상 입력해 주세요.</span>
                 ) : null}
               </label>
             </div>
@@ -371,11 +371,11 @@ export function ScheduleCreateDialog({
 
         <div className="mt-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[14px] text-[#64748b]">가능 시간</p>
+            <p className="text-[14px] font-medium leading-5 text-[#64748b]">가능 시간</p>
           </div>
           <div className="mt-1.5 max-h-[128px] overflow-y-auto rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-2">
             {!availabilityReady ? (
-              <p className="py-8 text-center text-[13px] text-[#64748b]">가능한 시간을 준비 중입니다.</p>
+              <p className="py-8 text-center text-[13px] font-normal leading-5 text-[#64748b]">가능한 시간을 준비 중입니다.</p>
             ) : availableSlots.length > 0 ? (
               <div className="grid grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] gap-1.5">
                 {availableSlots.map((slot) => (
@@ -395,25 +395,25 @@ export function ScheduleCreateDialog({
                 ))}
               </div>
             ) : (
-              <p className="py-8 text-center text-[13px] text-[#64748b]">선택한 담당자와 서비스로 등록 가능한 시간이 없습니다.</p>
+              <p className="py-8 text-center text-[13px] font-normal leading-5 text-[#64748b]">선택한 담당자와 서비스로 등록 가능한 시간이 없습니다.</p>
             )}
           </div>
         </div>
 
         <label className="mt-3 block space-y-1.5">
-          <span className="text-[14px] text-[#64748b]">메모</span>
+          <span className="text-[14px] font-medium leading-5 text-[#64748b]">메모</span>
           <textarea
             value={form.memo}
             onChange={(event) => onChange({ ...form, memo: event.target.value })}
-            className={cn("min-h-[68px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px] outline-none transition", bookingFieldFocusClassName)}
+            className={cn("min-h-[68px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] font-normal leading-6 outline-none transition", bookingFieldFocusClassName)}
             placeholder="고객 요청사항이나 직원 참고 메모를 적어주세요."
           />
         </label>
 
-        {error ? <p className="mt-3 rounded-[8px] bg-[#fff7ed] px-3 py-2 text-[13px] text-[#9a3412]">{error}</p> : null}
+        {error ? <p className="mt-3 rounded-[8px] bg-[#fff7ed] px-3 py-2 text-[13px] font-medium leading-5 text-[#9a3412]">{error}</p> : null}
 
         <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2">
-          <button type="button" onClick={onClose} className="min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px] leading-5 text-[#334155]">
+          <button type="button" onClick={onClose} className="min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px] font-medium leading-5 text-[#334155]">
             취소
           </button>
           <button

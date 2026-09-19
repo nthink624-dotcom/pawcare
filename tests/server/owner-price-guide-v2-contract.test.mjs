@@ -327,7 +327,8 @@ test("owner V2 detail renders its native inline table and explicit save refetche
   assert.doesNotMatch(serviceManagement, /setServices\(\(current\) =>[\s\S]{0,260}priceGuide: nextPriceGuide/);
   assert.match(serviceManagement, /const canonicalServices = useMemo/);
   assert.match(serviceManagement, /canonicalPriceGuideDocument \? \([\s\S]*ServiceDurationRecommendationPanel/);
-  assert.match(choice, /요금표 미등록/);
+  assert.match(choice, /요금표 등록/);
+  assert.doesNotMatch(choice, /요금표 미등록/);
   assert.doesNotMatch(onboarding, /data-price-guide-registration-status="saved"|요금표 등록됨/);
   assert.doesNotMatch(customerEntry, /getPriceGuideSections|fullServiceOptions|normalizeServicePriceGuide/);
   assert.match(customerEntry, /serviceOptions\.map\(\(service\) =>/);

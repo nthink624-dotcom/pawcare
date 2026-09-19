@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import SetupModal from "@/components/ui/setup-modal";
 import MobileAiPriceGuideFixture, { type PriceGuideSessionState } from "@/components/auth/mobile-ai-price-guide-fixture";
 import { readBootstrapPriceGuideState } from "@/lib/price-photo/bootstrap-price-guide-state";
-import { hasSetupCheckpoint, readSetupCheckpoint, reloadSetup, saveSetupStep, validateSetupHours, writeSetupCheckpoint, type SetupReadiness, type SetupStep } from "@/lib/owner-initial-setup-flow";
+import { readSetupCheckpoint, reloadSetup, saveSetupStep, validateSetupHours, writeSetupCheckpoint, type SetupReadiness, type SetupStep } from "@/lib/owner-initial-setup-flow";
 import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileRoleContext } from "@/lib/owner-customer-pet-integrity";
 import { SetupHoursFields, setupButton } from "./initial-setup-fields";
@@ -14,23 +14,23 @@ import { bookingBoundsFromHours, validateClosedPolicy, restoreTemporaryClosedDat
 import { readHoursDraft, saveHoursDraft, clearHoursDraft } from "@/lib/initial-setup-hours-draft";
 
 type OwnerInitialSetupState = { readiness: SetupReadiness; roleContext: OwnerMobileRoleContext; bootstrap?: BootstrapPayload };
-export default function OwnerInitialSetupFlow({ setup, onRefresh, onFinish }: {
+export default function OwnerInitialSetupFlow({ setup, onRefresh, onDefer, onFinish }: {
   setup: OwnerInitialSetupState; onRefresh: () => void; onFinish: () => void;
+  onDefer: () => void;
 }) {
   if (setup.roleContext.appRole !== "owner" || !setup.bootstrap) return <SetupModal label="초기 설정 안내" onCancel={() => undefined}><section className="space-y-4 p-5">
     <h1 className="text-[20px] font-semibold">초기 설정</h1>
     <p>대표가 매장 초기 설정을 완료하면 이용할 수 있습니다.</p>
     <button className={`${setupButton} w-full`} onClick={onRefresh}>설정 상태 다시 확인</button>
   </section></SetupModal>;
-  return <InitialSetupWizard bootstrap={setup.bootstrap} readiness={setup.readiness} onFinish={onFinish} />;
+  return <InitialSetupWizard bootstrap={setup.bootstrap} readiness={setup.readiness} onDefer={onDefer} onFinish={onFinish} />;
 }
 
-function InitialSetupWizard({ bootstrap, readiness, onFinish }: { bootstrap: BootstrapPayload; readiness: SetupReadiness; onFinish: () => void }) {
+function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { bootstrap: BootstrapPayload; readiness: SetupReadiness; onDefer: () => void; onFinish: () => void }) {
   const key = `petmanager:initial-setup:${bootstrap.shop.owner_user_id ?? "owner"}:${bootstrap.shop.id}`;
   const [hoursDraft] = useState(() => readHoursDraft(key));
   const [draftNotice, setDraftNotice] = useState("");
   const [step, setStep] = useState<SetupStep>(() => readSetupCheckpoint(key, readiness));
-  const [paused, setPaused] = useState(() => hasSetupCheckpoint(bootstrap) && readSetupCheckpoint(key, readiness) !== "complete");
   const initialCycle = hoursDraft?.cycle ?? bootstrap.shop.regular_closed_cycle ?? "weekly";
   const initialClosedDays = hoursDraft?.regularClosedDays ?? bootstrap.shop.regular_closed_days;
   const [hours, setHours] = useState(() => Object.fromEntries(Object.entries(hoursDraft?.hours ?? bootstrap.shop.business_hours).map(([day, value]) => [day,
@@ -50,7 +50,7 @@ function InitialSetupWizard({ bootstrap, readiness, onFinish }: { bootstrap: Boo
   const lock = useRef(false);
   const verifiedStaffDraft = useRef<string | null>(null);
   const advance = (next: SetupStep) => { writeSetupCheckpoint(key, next); setStep(next); setError(""); };
-  const pause = () => { if (!lock.current && !uploadLock.current && step !== "complete") { writeSetupCheckpoint(key, step); setPaused(true); } };
+  const pause = () => { if (!lock.current && !uploadLock.current && step !== "complete") { writeSetupCheckpoint(key, step); onDefer(); } };
 
   function saveTemporaryHours() {
     if (lock.current) return;
@@ -111,7 +111,7 @@ function InitialSetupWizard({ bootstrap, readiness, onFinish }: { bootstrap: Boo
     finally { lock.current = false; setBusy(false); }
   }
 
-  if (step === "pricing" && !paused) return <SetupModal label="초기 설정 · 서비스와 가격" onCancel={() => { if (!lock.current) window.dispatchEvent(new Event("owner-mobile-back-request", { cancelable: true })); }}>
+  if (step === "pricing") return <SetupModal label="초기 설정 · 서비스와 가격" onCancel={() => { if (!lock.current) window.dispatchEvent(new Event("owner-mobile-back-request", { cancelable: true })); }}>
     {error && <p role="alert" className="px-5 pt-4 text-[14px] text-red-600">{error}</p>}
     {busy ? <p role="status" className="p-5">저장 상태를 확인하고 있어요.</p> : <MobileAiPriceGuideFixture
       presentation="modal" setupFlow shopId={bootstrap.shop.id} ownerBottomNavigation={false}
@@ -122,16 +122,12 @@ function InitialSetupWizard({ bootstrap, readiness, onFinish }: { bootstrap: Boo
   </SetupModal>;
 
   const titles = { hours: "영업시간 설정", staff: "담당자 설정", pricing: "서비스와 가격", complete: "초기 설정을 완료했어요" };
-  return <SetupModal hideScrollbar label={paused ? "초기 설정 이어하기" : titles[step]} onCancel={pause}>
+  return <SetupModal hideScrollbar label={titles[step]} onCancel={pause}>
     <section className={`space-y-5 py-5 text-[16px] leading-6 ${step === "staff" ? "px-4" : "px-5"}`}>
-      <header className="flex items-center justify-between gap-3"><h1 className="text-[20px] font-semibold leading-7">{paused ? "초기 설정 이어하기" : titles[step]}</h1>
-        {!paused && (step === "hours" || step === "staff") && <button disabled={busy || uploading} className="min-h-11 text-[14px] text-[#64748b]" onClick={pause}>나중에 하기</button>}
+      <header className="flex items-center justify-between gap-3"><h1 className="text-[20px] font-semibold leading-7">{titles[step]}</h1>
+        {(step === "hours" || step === "staff") && <button disabled={busy || uploading} className="min-h-11 text-[14px] text-[#64748b]" onClick={pause}>나중에 하기</button>}
       </header>
-      {paused ? <>
-        <p className="text-[#64748b]">{titles[step]}부터 계속 진행할 수 있어요. 저장한 설정은 유지됩니다.</p>
-        <button className={`${setupButton} w-full`} onClick={() => setPaused(false)}>초기 설정 이어하기</button>
-        {step !== "hours" && <button className="min-h-11 w-full underline" onClick={() => { advance("hours"); setPaused(false); }}>영업시간부터 다시 확인</button>}
-      </> : step === "complete" ? <>
+      {step === "complete" ? <>
         <p className="text-[#64748b]">매장 운영을 시작할 준비가 됐어요.</p>
         <button className={`${setupButton} w-full`} onClick={() => { try { window.sessionStorage.removeItem(key); } catch { /* Optional navigation hint. */ } onFinish(); }}>매장 시작하기</button>
       </> : <>

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 
 import OwnerInitialSetupFlow from "@/components/owner/owner-initial-setup-flow";
-import { hasSetupCheckpoint } from "@/lib/owner-initial-setup-flow";
 import OwnerShell from "@/components/owner/owner-shell";
 import { ApiRequestError, fetchApiJsonWithAuth } from "@/lib/api";
 import {
@@ -294,7 +293,7 @@ export default function OwnerMobilePage() {
     if (!appointmentId || (statusAction !== "in_progress" && statusAction !== "completed")) return null;
     return { appointmentId, statusAction, autoOpenCamera: true };
   }, []);
-  const [data, setData] = useState<BootstrapPayload | null>(null);
+  const [data, setData] = useState<CanonicalOwnerBootstrapPayload | null>(null);
   const [ownedShops, setOwnedShops] = useState<OwnedShopSummary[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
@@ -499,7 +498,7 @@ export default function OwnerMobilePage() {
         setMobileRoleContext(roleContext);
 
         const firstSetupEntry = !initialSetupEntryFinished.current && new URLSearchParams(window.location.search).get("entry") === "initial_setup";
-        if (!readiness.completed || (roleContext.appRole === "owner" && (firstSetupEntry || hasSetupCheckpoint(canonicalBootstrap)))) {
+        if (roleContext.appRole === "owner" && firstSetupEntry) {
           setData(null);
           setSubscriptionSummary(null);
           setInitialSetupState({ readiness, roleContext, bootstrap: canonicalBootstrap });
@@ -617,13 +616,15 @@ export default function OwnerMobilePage() {
 
   if (!data) {
     if (initialSetupState) {
-      return <OwnerInitialSetupFlow key={initialSetupState.readiness.shopId} setup={initialSetupState} onRefresh={() => setLoadAttempt((attempt) => attempt + 1)} onFinish={() => {
+      const leaveInitialSetup = () => {
         initialSetupEntryFinished.current = true;
         const url = new URL(window.location.href);
         url.searchParams.delete("entry");
         window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
+        setInitialSetupState(null);
         setLoadAttempt((attempt) => attempt + 1);
-      }} />;
+      };
+      return <OwnerInitialSetupFlow key={initialSetupState.readiness.shopId} setup={initialSetupState} onRefresh={() => setLoadAttempt((attempt) => attempt + 1)} onDefer={leaveInitialSetup} onFinish={leaveInitialSetup} />;
     }
     if (loadFailure) {
       return <OwnerMobileFailureScreen failure={loadFailure} onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />;
@@ -632,16 +633,34 @@ export default function OwnerMobilePage() {
   }
 
   return (
-    <OwnerShell
-      initialData={data}
-      ownedShops={ownedShops}
-      selectedShopId={selectedShopId}
-      subscriptionSummary={subscriptionSummary}
-      userEmail={userEmail}
-      onSwitchShop={handleSwitchShop}
-      appRole={mobileRoleContext.appRole}
-      currentStaffId={mobileRoleContext.currentStaffId}
-      launchPhotoStatusAction={launchPhotoStatusAction}
-    />
+    <>
+      <OwnerShell
+        initialData={data}
+        ownedShops={ownedShops}
+        selectedShopId={selectedShopId}
+        subscriptionSummary={subscriptionSummary}
+        userEmail={userEmail}
+        onSwitchShop={handleSwitchShop}
+        appRole={mobileRoleContext.appRole}
+        currentStaffId={mobileRoleContext.currentStaffId}
+        launchPhotoStatusAction={launchPhotoStatusAction}
+      />
+      {mobileRoleContext.appRole === "owner" && data.initialSetupReadiness?.completed === false ? (
+        <aside className="pointer-events-none fixed inset-x-3 top-3 z-40 mx-auto flex max-w-[404px] justify-end" aria-label="초기 설정 안내">
+          <button
+            type="button"
+            className="pointer-events-auto min-h-11 rounded-[10px] border border-[#c7ddff] bg-white px-3 text-[14px] font-medium text-[#174ea6] shadow-[0_2px_10px_rgba(15,23,42,0.12)]"
+            onClick={() => {
+              const readiness = readOwnerInitialSetupReadiness(data, data.shop.id);
+              setData(null);
+              setSubscriptionSummary(null);
+              setInitialSetupState({ readiness, roleContext: mobileRoleContext, bootstrap: data });
+            }}
+          >
+            초기 설정 이어하기
+          </button>
+        </aside>
+      ) : null}
+    </>
   );
 }

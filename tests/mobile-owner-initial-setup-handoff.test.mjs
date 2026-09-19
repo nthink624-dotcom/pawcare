@@ -45,12 +45,13 @@ test("canonical readiness fails closed and preserves the exact next setup step",
 
 const setupFlow = await readFile(new URL("../src/components/owner/owner-initial-setup-flow.tsx", import.meta.url), "utf8");
 
-test("first signup enters the full wizard even when defaults are ready", () => {
+test("first signup alone opens the wizard; a saved checkpoint never blocks the owner app", () => {
   assert.match(ownerPage, /firstSetupEntry/);
-  assert.match(ownerPage, /!readiness.completed \|\|/);
+  assert.match(ownerPage, /roleContext\.appRole === "owner" && firstSetupEntry/);
+  assert.doesNotMatch(ownerPage, /hasSetupCheckpoint/);
   assert.match(ownerPage, /bootstrap: canonicalBootstrap/);
-  assert.doesNotMatch(setupFlow, /설정 시작하기|step === "welcome"/);
-  assert.match(setupFlow, /hasSetupCheckpoint\(bootstrap\)/);
+  assert.match(setupFlow, /onDefer/);
+  assert.doesNotMatch(setupFlow, /const \[paused,/);
   assert.match(setupFlow, /advance\("hours"\)/);
   assert.match(setupFlow, /advance\("staff"\)/);
   assert.match(setupFlow, /advance\("pricing"\)/);

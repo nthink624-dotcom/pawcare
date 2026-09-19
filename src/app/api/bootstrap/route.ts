@@ -49,9 +49,6 @@ function assertOwnerBootstrapBoundary(value: unknown, requestedShopId?: string) 
     data.initialSetupReadiness,
     "매장 초기 설정 상태를 확인하지 못했습니다.",
   );
-  if (readiness.completed !== true) {
-    throw new OwnerApiError("매장 초기 설정을 완료한 뒤 이용해 주세요.", 409);
-  }
 
   return data;
 }

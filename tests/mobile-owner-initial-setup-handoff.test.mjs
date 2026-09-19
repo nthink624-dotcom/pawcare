@@ -59,6 +59,8 @@ test("first signup alone opens the wizard; a saved checkpoint never blocks the o
   assert.match(setupFlow, /fresh.initialSetupReadiness.completed/);
   assert.match(setupFlow, /매장 시작하기/);
   assert.doesNotMatch(setupFlow, /PC 오너 화면/);
+  assert.match(ownerPage, /roleContext\.appRole === "owner" && readiness\.completed/);
+  assert.doesNotMatch(ownerPage, /if \(!nextReadiness\.completed\)/);
 });
 
 test("signup consumes nextAction, persists a returned session, and separates recoverable atomic states", async () => {

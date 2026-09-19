@@ -505,7 +505,7 @@ export default function OwnerMobilePage() {
           return;
         }
 
-        const subscription = roleContext.appRole === "owner"
+        const subscription = roleContext.appRole === "owner" && readiness.completed
           ? await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
               `/api/subscription?shopId=${encodeURIComponent(resolvedShopId)}`,
               { cache: "no-store" },
@@ -585,13 +585,6 @@ export default function OwnerMobilePage() {
 
       setSelectedShopId(shopId);
       setMobileRoleContext(nextRoleContext);
-
-      if (!nextReadiness.completed) {
-        setData(null);
-        setSubscriptionSummary(null);
-        setInitialSetupState({ readiness: nextReadiness, roleContext: nextRoleContext, bootstrap: canonicalNextBootstrap });
-        return;
-      }
 
       if (nextSubscription && Capacitor.getPlatform() !== "android" && shouldBlockOwnerAccessBySubscription(nextSubscription)) {
         writeOwnerBillingSummaryCache(nextSubscription);

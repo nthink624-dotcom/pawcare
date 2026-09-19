@@ -1,4 +1,5 @@
 import type { MobilePriceGuideV2 } from "./mobile-price-photo-adapter";
+import { getMobilePriceGuideCoreContract } from "./generated-price-guide-core";
 
 const FIXTURE_TOKEN = "dev-price-guide-owner-token";
 const FIXTURE_SHOP_ID = "dev-price-guide-shop";
@@ -214,7 +215,10 @@ export function createInMemoryAuthenticatedOwnerTransport(options: { cleanupResi
     if (url.pathname === "/api/bootstrap" && (init.method === undefined || init.method === "GET")) {
       counts.bootstrapGet += 1;
       noStoreBootstrap = noStoreBootstrap && init.cache === "no-store";
-      return json({ services: [{ id: serviceId, price_guide: cloneDocument(canonicalDocument) }] });
+      return json({
+        priceGuideCore: getMobilePriceGuideCoreContract(),
+        services: [{ id: serviceId, price_guide: cloneDocument(canonicalDocument) }],
+      });
     }
 
     return json({ message: "허용되지 않은 개발 전용 요청입니다." }, 404);

@@ -98,7 +98,7 @@ export default function AdminAlimtalkRuntimePanel({
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-2">
             <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">실시간 relay 진단</p>
-            <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">현재 relay와 템플릿 상태</h2>
+            <h2 className="text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">현재 relay와 템플릿 상태</h2>
             <p className="text-[13px] leading-6 text-[#6f665f]">
               relay가 살아 있는지, 템플릿이 몇 개 연결됐는지, 디버그 엔드포인트 응답이 어떤지 바로 확인합니다.
             </p>
@@ -147,11 +147,11 @@ export default function AdminAlimtalkRuntimePanel({
               <div className="rounded-[6px] border border-[#e6e3dd] bg-white p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[13px] font-semibold text-[#171411]">/health</p>
-                  <span className={`rounded-[999px] border px-2.5 py-1 text-[11px] font-medium ${statusTone(diagnostics.health.ok)}`}>
+                  <span className={`rounded-[999px] border px-2.5 py-1 text-[12px] font-medium ${statusTone(diagnostics.health.ok)}`}>
                     {diagnostics.health.status ?? "ERR"}
                   </span>
                 </div>
-                <p className="mt-2 break-all text-[11px] leading-5 text-[#8a8277]">{diagnostics.health.url || "-"}</p>
+                <p className="mt-2 [overflow-wrap:anywhere] text-[12px] leading-5 text-[#8a8277]">{diagnostics.health.url || "-"}</p>
                 <pre className="mt-3 whitespace-pre-wrap break-words rounded-[6px] border border-[#ece8e2] bg-white px-3 py-3 font-[inherit] text-[12px] leading-5 text-[#5f5952]">
                   {diagnostics.health.error || diagnostics.health.bodyPreview || "응답 없음"}
                 </pre>
@@ -161,12 +161,12 @@ export default function AdminAlimtalkRuntimePanel({
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[13px] font-semibold text-[#171411]">/debug/templates</p>
                   <span
-                    className={`rounded-[999px] border px-2.5 py-1 text-[11px] font-medium ${statusTone(diagnostics.templates.ok)}`}
+                    className={`rounded-[999px] border px-2.5 py-1 text-[12px] font-medium ${statusTone(diagnostics.templates.ok)}`}
                   >
                     {diagnostics.templates.status ?? "ERR"}
                   </span>
                 </div>
-                <p className="mt-2 break-all text-[11px] leading-5 text-[#8a8277]">{diagnostics.templates.url || "-"}</p>
+                <p className="mt-2 [overflow-wrap:anywhere] text-[12px] leading-5 text-[#8a8277]">{diagnostics.templates.url || "-"}</p>
                 <pre className="mt-3 whitespace-pre-wrap break-words rounded-[6px] border border-[#ece8e2] bg-white px-3 py-3 font-[inherit] text-[12px] leading-5 text-[#5f5952]">
                   {diagnostics.templates.error || diagnostics.templates.bodyPreview || "응답 없음"}
                 </pre>
@@ -179,7 +179,7 @@ export default function AdminAlimtalkRuntimePanel({
       <article className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
         <div className="space-y-2">
           <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">관리자 테스트 발송</p>
-          <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">쏘다 + relay 즉시 테스트</h2>
+          <h2 className="text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">쏘다 + relay 즉시 테스트</h2>
           <p className="text-[13px] leading-6 text-[#6f665f]">
             선택한 템플릿의 현재 초안 본문으로 직접 발송합니다. 특히 10분 전 알림처럼 특정 타입만 안 될 때 빠르게 확인할 수 있어요.
           </p>
@@ -255,7 +255,7 @@ export default function AdminAlimtalkRuntimePanel({
                   {sendResult.providerMessageId ? ` · ${sendResult.providerMessageId}` : ""}
                 </p>
               </div>
-              <span className="rounded-[999px] border border-[#d8e7e1] bg-[#f5fbf8] px-2.5 py-1 text-[11px] font-medium text-[#2f7266]">
+              <span className="rounded-[999px] border border-[#d8e7e1] bg-[#f5fbf8] px-2.5 py-1 text-[12px] font-medium text-[#2f7266]">
                 sent
               </span>
             </div>

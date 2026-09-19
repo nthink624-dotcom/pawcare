@@ -1,10 +1,9 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import type { Appointment, StaffScheduleOverride } from "@/types/domain";
-import { currentDateInTimeZone, currentMinutesInTimeZone } from "@/lib/utils";
+import { addDate, currentDateInTimeZone, currentMinutesInTimeZone } from "@/lib/utils";
 import { assignAppointmentsToStaffLanes } from "@/lib/owner-schedule-lanes";
 import { getAdjacentScheduleCardEdgeInsets } from "@/lib/owner-schedule-card-gaps";
 import { getReservationDateDisplay } from "@/lib/reservation-date-display";
@@ -18,6 +17,7 @@ const BOARD_TOP_PADDING = 16;
 // It keeps the final label and grid edge above the fixed bottom navigation and FAB.
 const BOARD_BOTTOM_CLEARANCE = 72;
 const BOARD_HEIGHT = BOARD_TOP_PADDING + (END_HOUR - START_HOUR) * HOUR_HEIGHT + BOARD_BOTTOM_CLEARANCE;
+const CURRENT_TIME_LABEL_COLLISION_DISTANCE = 24;
 
 const STATUS_PRESENTATION: Record<Appointment["status"], { label: string; color: string; tint: string }> = {
   pending: { label: "승인 대기", color: "#b98121", tint: "#fff9ee" },
@@ -29,6 +29,8 @@ const STATUS_PRESENTATION: Record<Appointment["status"], { label: string; color:
   rejected: { label: "거절", color: "#a04455", tint: "#fff8fa" },
   noshow: { label: "노쇼", color: "#a04455", tint: "#fff8fa" },
 };
+
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
 type StaffOption = {
   id: string;
@@ -57,7 +59,7 @@ type Props = {
   staffScheduleOverrides: StaffScheduleOverride[];
   isShopClosed: boolean;
   onSelectStaff: (staffId: string) => void;
-  onChangeDate: (direction: "previous" | "next") => void;
+  onSelectDate: (date: string) => void;
   onOpenDatePicker: () => void;
   onOpenAppointment: (appointment: Appointment) => void;
 };
@@ -83,6 +85,26 @@ function formatClock(hour: number) {
 
 function formatMinutes(minutes: number) {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function formatDuration(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return `${rest}분`;
+  return rest === 0 ? `${hours}시간` : `${hours}시간 ${rest}분`;
+}
+
+function weekdayLabel(value: string) {
+  return WEEKDAY_LABELS[new Date(`${value}T00:00:00`).getDay()] ?? "";
+}
+
+function weekDatesFor(value: string) {
+  const selectedDayIndex = new Date(`${value}T00:00:00`).getDay();
+  return Array.from({ length: 7 }, (_, index) => addDate(value, index - selectedDayIndex));
+}
+
+function currentTimeBadgeOverlapsHourLabel(currentTop: number, hourTop: number) {
+  return Math.abs(currentTop - hourTop) < CURRENT_TIME_LABEL_COLLISION_DISTANCE;
 }
 
 function assignCollisionColumns(appointments: Appointment[], serviceDurations: Record<string, number>): LaneItem[] {
@@ -182,7 +204,7 @@ function ScheduleLane({
 export default function OwnerBookingDaySchedule(props: Props) {
   const {
     date, appointments, petNames, guardianNames, serviceNames, serviceDurations, staffOptions,
-    selectedStaffId, staffScheduleOverrides, isShopClosed, onSelectStaff, onChangeDate,
+    selectedStaffId, staffScheduleOverrides, isShopClosed, onSelectStaff, onSelectDate,
     onOpenDatePicker, onOpenAppointment,
   } = props;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -202,7 +224,9 @@ export default function OwnerBookingDaySchedule(props: Props) {
   const [, setNow] = useState(() => new Date());
   const today = currentDateInTimeZone();
   const isToday = date === today;
-  const { dateLabel, weekdayLabel, relativeDateLabel } = getReservationDateDisplay(date, today);
+  const { dateLabel } = getReservationDateDisplay(date, today);
+  const selectedWeekdayLabel = weekdayLabel(date);
+  const weekDates = useMemo(() => weekDatesFor(date), [date]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
@@ -223,7 +247,7 @@ export default function OwnerBookingDaySchedule(props: Props) {
     const viewport = scrollRef.current;
     const selected = viewport?.querySelector<HTMLElement>(`[data-staff-id="${CSS.escape(selectedStaffId)}"]`);
     if (!viewport || !selected) return;
-    const left = Math.max(0, Math.min(selected.offsetLeft, viewport.scrollWidth - viewport.clientWidth));
+    const left = Math.max(0, Math.min(selected.offsetLeft - viewport.offsetLeft, viewport.scrollWidth - viewport.clientWidth));
     viewport.scrollTo({ left, behavior: "smooth" });
   }, [selectedStaffId]);
 
@@ -292,16 +316,25 @@ export default function OwnerBookingDaySchedule(props: Props) {
 
   return (
     <section className="min-w-0 overflow-hidden bg-white text-[#172033]">
-      <header data-testid="reservation-date-navigation" className="sticky top-[env(safe-area-inset-top)] z-40 flex min-h-14 items-center justify-between border-b border-[#d8dee7] bg-white px-2 py-1.5">
-        <button type="button" aria-label="이전 날짜" onClick={() => onChangeDate("previous")} className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"><ChevronLeft className="h-5 w-5" /></button>
-        <button type="button" aria-label={`${dateLabel}${weekdayLabel ? ` ${weekdayLabel}` : ""}${relativeDateLabel ? ` ${relativeDateLabel}` : ""} 날짜 선택`} onClick={onOpenDatePicker} className="absolute inset-y-0 left-1/2 flex min-h-11 w-[calc(100%-88px)] -translate-x-1/2 items-center justify-center rounded-lg px-2 text-center focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">
-          <span className="relative inline-flex shrink-0">
-            <span data-testid="date-primary" className="whitespace-nowrap text-[16px] font-medium leading-6 text-[#172033] [font-variant-numeric:tabular-nums]">{dateLabel}</span>
-            {weekdayLabel ? <span data-testid="weekday-label" className="pointer-events-none absolute left-full top-1/2 ml-2 inline-flex shrink-0 -translate-y-1/2 whitespace-nowrap text-[16px] font-medium leading-6 text-[#526174]">{weekdayLabel}</span> : null}
-            {relativeDateLabel ? <span data-testid="relative-date-label" className="pointer-events-none absolute left-full top-1/2 ml-2 inline-flex shrink-0 -translate-y-1/2 whitespace-nowrap rounded-full bg-[#edf4ff] px-2 py-1 text-[13px] font-medium leading-5 text-[#1d4ed8]">{relativeDateLabel}</span> : null}
-          </span>
-        </button>
-        <button type="button" aria-label="다음 날짜" onClick={() => onChangeDate("next")} className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"><ChevronRight className="h-5 w-5" /></button>
+      <header data-testid="reservation-date-navigation" className="sticky top-[env(safe-area-inset-top)] z-40 border-b border-[#e8edf3] bg-white">
+        <div className="flex min-h-[52px] items-center justify-between gap-3 px-4 pt-1">
+          <button type="button" aria-label={`${dateLabel} ${selectedWeekdayLabel}요일 날짜 선택`} onClick={onOpenDatePicker} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">
+            <span data-testid="date-primary" className="whitespace-nowrap text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#172033] [font-variant-numeric:tabular-nums]">{dateLabel}</span>
+            <span data-testid="weekday-label" className="whitespace-nowrap text-[14px] font-medium leading-5 text-[#64748b]">{selectedWeekdayLabel}</span>
+          </button>
+          <span data-testid="date-total" className="shrink-0 whitespace-nowrap text-[14px] font-medium leading-5 text-[#37557a] [font-variant-numeric:tabular-nums]">예약 {visibleAppointments.length}건</span>
+        </div>
+        <div data-testid="schedule-week-strip" className="grid grid-cols-7 gap-0.5 px-2 pb-2">
+          {weekDates.map((optionDate) => {
+            const isSelected = optionDate === date;
+            const optionLabel = `${Number(optionDate.slice(5, 7))}월 ${Number(optionDate.slice(8, 10))}일 ${weekdayLabel(optionDate)}요일`;
+            return (
+              <button key={optionDate} type="button" aria-label={optionLabel} aria-current={isSelected ? "date" : undefined} onClick={() => onSelectDate(optionDate)} className="flex h-11 min-w-0 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-1">
+                <span className={isSelected ? "flex h-9 w-9 items-center justify-center rounded-full bg-[#2f5fb3] text-[14px] font-medium leading-5 text-white [font-variant-numeric:tabular-nums]" : "flex h-9 w-9 items-center justify-center rounded-full text-[14px] font-medium leading-5 text-[#25364d] [font-variant-numeric:tabular-nums]"}>{Number(optionDate.slice(8, 10))}</span>
+              </button>
+            );
+          })}
+        </div>
       </header>
 
       {laneOptions.length === 0 ? (
@@ -309,15 +342,18 @@ export default function OwnerBookingDaySchedule(props: Props) {
       ) : (
         <div className="grid grid-cols-[48px_minmax(0,1fr)] min-[410px]:grid-cols-[52px_minmax(0,1fr)]">
           <div className="sticky left-0 z-30 border-r border-[#c8d1dc] bg-white">
-            <div data-testid="time-header" className="flex h-[68px] items-center justify-center border-b border-[#d8dee7] bg-white text-[13px] font-medium leading-5 text-[#42526a]">시간</div>
+            <div data-testid="time-header" className="flex h-16 items-center justify-center border-b border-[#d8dee7] bg-white text-[13px] font-medium leading-5 text-[#42526a]">시간</div>
             <div data-testid="time-rail" className="relative bg-white" style={{ height: BOARD_HEIGHT }}>
-              {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, index) => (
-                <span key={index} className="absolute inset-x-0 top-0 flex -translate-y-1/2 justify-center whitespace-nowrap text-[13px] font-medium leading-5 text-[#526174] [font-variant-numeric:tabular-nums]" style={{ top: BOARD_TOP_PADDING + index * HOUR_HEIGHT }}>{formatClock(START_HOUR + index)}</span>
-              ))}
+              {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, index) => {
+                const hourTop = BOARD_TOP_PADDING + index * HOUR_HEIGHT;
+                return (
+                  <span key={index} className="absolute inset-x-0 top-0 flex -translate-y-1/2 justify-center whitespace-nowrap text-[13px] font-medium leading-5 text-[#526174] [font-variant-numeric:tabular-nums]" style={{ top: hourTop, visibility: showNow && currentTimeBadgeOverlapsHourLabel(nowTop, hourTop) ? "hidden" : undefined }}>{formatClock(START_HOUR + index)}</span>
+                );
+              })}
               {showNow ? (
-                <span data-testid="current-time-marker" className="absolute inset-x-0 z-20" style={{ top: nowTop }} aria-label={`현재 시간 ${formatMinutes(nowMinutes)}`}>
-                  <span data-testid="current-time-line" className="absolute inset-x-0 top-0 h-px bg-[#2563eb]" />
-                  <span data-testid="current-time-label" className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap bg-white px-0.5 text-[13px] font-medium leading-5 text-[#2563eb] [font-variant-numeric:tabular-nums]">{formatMinutes(nowMinutes)}</span>
+                <span data-testid="current-time-marker" className="absolute inset-x-0 z-20 flex -translate-y-1/2 items-center" style={{ top: nowTop }} aria-label={`현재 시간 ${formatMinutes(nowMinutes)}`}>
+                  <span data-testid="current-time-label" className="relative z-10 inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-full bg-[#2f5fb3] px-1.5 text-[13px] font-medium leading-5 text-white [font-variant-numeric:tabular-nums]">{formatMinutes(nowMinutes)}</span>
+                  <span data-testid="current-time-line" className="h-px min-w-0 flex-1 bg-[#2f5fb3]" />
                 </span>
               ) : null}
             </div>
@@ -332,15 +368,17 @@ export default function OwnerBookingDaySchedule(props: Props) {
                 const workStart = override?.status === "work" ? override.start_time : staff.startTime;
                 const workEnd = override?.status === "work" ? override.end_time : staff.endTime;
                 const workHoursLabel = unavailable ? "근무하지 않음" : workStart && workEnd ? `${workStart.slice(0, 5)}–${workEnd.slice(0, 5)}` : "근무시간 미설정";
+                const totalMinutes = laneAppointments.reduce((sum, appointment) => sum + appointmentDuration(appointment, serviceDurations), 0);
+                const staffSummaryLabel = `${workHoursLabel} · ${laneAppointments.length}건 · ${formatDuration(totalMinutes)}`;
                 return (
-                  <div key={staff.id} data-staff-id={staff.id} data-lane-appointment-count={laneAppointments.length} className={isSingleStaffLane ? "w-full min-w-0 max-w-none flex-1 shrink-0 border-r border-[#d8dee7]" : "w-[calc((100vw-48px)*0.88)] min-w-[260px] max-w-[332px] shrink-0 snap-start border-r border-[#d8dee7] min-[410px]:w-[calc((100vw-52px)*0.88)] md:w-[240px]"}>
-                    <button type="button" data-testid="staff-lane-chip" aria-pressed={!unavailable && selectedStaffId === staff.id} aria-disabled={unavailable} disabled={unavailable} onClick={() => onSelectStaff(staff.id)} className="relative flex h-[68px] w-full items-center justify-start gap-3 border-b border-b-[#d8dee7] px-3 text-left text-[#172033] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb] disabled:cursor-default" style={{ backgroundColor: staff.background ?? "#ffffff" }}>
-                      <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#eef2f6]" style={{ color: staff.color, backgroundColor: staff.bookingBackground, boxShadow: staff.bookingBorder ? `inset 0 0 0 1px ${staff.bookingBorder}` : undefined }}>
+                  <div key={staff.id} data-staff-id={staff.id} data-lane-appointment-count={laneAppointments.length} className={isSingleStaffLane ? "w-full min-w-0 max-w-none flex-1 shrink-0 border-r border-[#d8dee7]" : "w-[calc((100vw-48px)*0.88)] min-w-[280px] max-w-[332px] shrink-0 snap-start border-r border-[#d8dee7] min-[410px]:w-[calc((100vw-52px)*0.88)] md:w-[280px]"}>
+                    <button type="button" data-testid="staff-lane-chip" aria-label={`${staff.label}, ${staffSummaryLabel}`} aria-pressed={!unavailable && selectedStaffId === staff.id} aria-disabled={unavailable} disabled={unavailable} onClick={() => onSelectStaff(staff.id)} className="relative flex h-16 w-full items-center justify-start gap-2 border-b border-b-[#d8dee7] px-2 text-left text-[#172033] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb] disabled:cursor-default" style={{ backgroundColor: staff.background ?? "#ffffff" }}>
+                      <span className="flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#eef2f6]" style={{ color: staff.color, backgroundColor: staff.bookingBackground, boxShadow: staff.bookingBorder ? `inset 0 0 0 1px ${staff.bookingBorder}` : undefined }}>
                         <StaffProfilePhoto key={`${staff.id}:${staff.profileImageUrl ?? ""}:${staff.profileImageFallbackKey ?? ""}`} src={staff.profileImageUrl} fallbackKey={staff.profileImageFallbackKey} alt={`${staff.label} 프로필 사진`} />
                       </span>
-                      <span data-testid="staff-lane-copy" className="min-w-0 flex-1 text-left">
-                        <span className="block truncate text-[16px] font-medium leading-6">{staff.label}</span>
-                        <span className="block truncate text-[13px] font-medium leading-5 text-[#526174] [font-variant-numeric:tabular-nums]">{workHoursLabel} · 예약 {laneAppointments.length}건</span>
+                      <span data-testid="staff-lane-copy" className="grid min-w-0 flex-1 grid-rows-[24px_20px] content-center text-left">
+                        <span data-testid="staff-name-row" className="block min-w-0 whitespace-nowrap text-[16px] font-medium leading-6">{staff.label}</span>
+                        <span data-testid="staff-summary-row" className="block min-w-0 whitespace-nowrap text-[13px] font-medium leading-5 text-[#526174] [font-variant-numeric:tabular-nums]">{staffSummaryLabel}</span>
                       </span>
                       <span data-testid="staff-chip-color-bar" aria-hidden="true" className="pointer-events-none absolute bottom-0 left-1/2 h-[2px] w-4/5 -translate-x-1/2" style={{ backgroundColor: staff.color }} />
                     </button>
@@ -348,7 +386,7 @@ export default function OwnerBookingDaySchedule(props: Props) {
                       {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, index) => <span key={index} className="absolute inset-x-0 border-t border-[#e3e8ef]" style={{ top: BOARD_TOP_PADDING + index * HOUR_HEIGHT }} />)}
                       {unavailable ? <div className="absolute inset-0 z-[1] flex items-start justify-center bg-[#f1f4f7]/80 pt-4 text-[13px] leading-5 text-[#526174]">근무하지 않음</div> : null}
                       <ScheduleLane appointments={laneAppointments} staffIdentity={staff} petNames={petNames} guardianNames={guardianNames} serviceNames={serviceNames} serviceDurations={serviceDurations} onOpenAppointment={onOpenAppointment} />
-                      {showNow ? <span className="absolute inset-x-0 z-20 h-px bg-[#2563eb]" style={{ top: nowTop }} aria-hidden="true" /> : null}
+                      {showNow ? <span className="absolute inset-x-0 z-20 h-px bg-[#2f5fb3]" style={{ top: nowTop }} aria-hidden="true" /> : null}
                     </div>
                   </div>
                 );

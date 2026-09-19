@@ -495,18 +495,18 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-[12px] font-semibold tracking-[0.04em] text-[#1f6b5b]">운영자 모드</p>
-                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${adminSurfaceTone}`}>
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${adminSurfaceTone}`}>
                       {adminSurfaceLabel}
                     </span>
                   </div>
-                  <h1 className="mt-2 text-[30px] font-bold tracking-[-0.04em] text-[#171411]">오너 계정 관리</h1>
+                  <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#171411]">오너 계정 관리</h1>
                   <p className="mt-2 text-[14px] leading-6 text-[#6f665f]">
                     오너 이름, 상호명, 전화번호, 매장명으로 빠르게 찾고 플랜과 서비스 기간을 바로 조정하세요.
                   </p>
                 </div>
                 <div className="rounded-[18px] border border-[#e5ddd2] bg-[#fcfbf8] px-4 py-3 text-right">
-                  <p className="text-[11px] font-semibold tracking-[0.04em] text-[#8a8277]">현재 운영자 계정</p>
-                  <p className="mt-1 text-[15px] font-semibold text-[#171411]">{adminId}</p>
+                  <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">현재 운영자 계정</p>
+                  <p className="mt-1 text-[16px] font-semibold text-[#171411]">{adminId}</p>
                 </div>
               </div>
 
@@ -563,9 +563,9 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="truncate text-[15px] font-semibold text-[#171411]">{item.ownerName}</p>
+                          <p className="truncate text-[16px] font-semibold text-[#171411]">{item.ownerName}</p>
                           {item.suspended ? (
-                            <span className="rounded-full bg-[#fff2f2] px-2 py-0.5 text-[10px] font-semibold text-[#b54b4b]">정지</span>
+                            <span className="rounded-full bg-[#fff2f2] px-2 py-0.5 text-[12px] font-semibold text-[#b54b4b]">정지</span>
                           ) : null}
                         </div>
                         <p className="mt-1 truncate text-[13px] font-medium text-[#36302b]">{item.shopName}</p>
@@ -574,7 +574,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
 
                       <div className="flex flex-wrap gap-1.5">
                         {item.loginMethods.map((method) => (
-                          <span key={`${item.userId}-${method}`} className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${loginMethodToneMap[method]}`}>
+                          <span key={`${item.userId}-${method}`} className={`rounded-full border px-2.5 py-1 text-[12px] font-semibold ${loginMethodToneMap[method]}`}>
                             {loginMethodLabels[method]}
                           </span>
                         ))}
@@ -583,7 +583,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                       <div className="text-[13px] text-[#5e564f]">{item.ownerPhoneNumber ?? "-"}</div>
 
                       <div>
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusToneMap[item.status]}`}>
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold ${statusToneMap[item.status]}`}>
                           {statusOptions.find((option) => option.value === item.status)?.label ?? item.status}
                         </span>
                       </div>
@@ -605,12 +605,12 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                           <Store className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="text-[19px] font-semibold tracking-[-0.02em] text-[#171411]">{selectedOwner.ownerName}</p>
+                          <p className="text-[20px] font-semibold tracking-[-0.02em] text-[#171411]">{selectedOwner.ownerName}</p>
                           <p className="mt-0.5 text-[13px] text-[#6f665f]">{selectedOwner.shopName}</p>
                         </div>
                       </div>
                     </div>
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusToneMap[selectedOwner.status]}`}>
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold ${statusToneMap[selectedOwner.status]}`}>
                       {statusOptions.find((option) => option.value === selectedOwner.status)?.label ?? selectedOwner.status}
                     </span>
                   </div>
@@ -619,7 +619,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     <DetailRow label="로그인 수단">
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {selectedOwner.loginMethods.map((method) => (
-                          <span key={`${selectedOwner.userId}-detail-${method}`} className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${loginMethodToneMap[method]}`}>
+                          <span key={`${selectedOwner.userId}-detail-${method}`} className={`rounded-full border px-2.5 py-1 text-[12px] font-semibold ${loginMethodToneMap[method]}`}>
                             {loginMethodLabels[method]}
                           </span>
                         ))}
@@ -870,13 +870,13 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                                 <p className="mt-1 text-[12px] font-medium text-[#5f574f]">
                                   {payment.amount !== null ? `${payment.amount.toLocaleString("ko-KR")}원` : "금액 확인 필요"}
                                 </p>
-                                <p className="mt-2 text-[11px] text-[#8a8277]">결제 시각 · {formatDateTimeLabel(payment.createdAt)}</p>
-                                <p className="mt-1 break-all rounded-[10px] bg-[#faf7f2] px-2.5 py-2 text-[11px] font-medium text-[#7b7269]">
+                                <p className="mt-2 text-[12px] text-[#8a8277]">결제 시각 · {formatDateTimeLabel(payment.createdAt)}</p>
+                                <p className="mt-1 [overflow-wrap:anywhere] rounded-[10px] bg-[#faf7f2] px-2.5 py-2 text-[12px] font-medium text-[#7b7269]">
                                   결제 번호 · {payment.paymentId}
                                 </p>
                               </div>
                               <span
-                                className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getRecentPaymentStatusMeta(payment.status).tone}`}
+                                className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[12px] font-semibold ${getRecentPaymentStatusMeta(payment.status).tone}`}
                               >
                                 {getRecentPaymentStatusMeta(payment.status).label}
                               </span>
@@ -923,7 +923,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                   <div className="rounded-[18px] border border-[#ebe5dc] bg-[#fcfbf8] p-4">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-[14px] font-semibold text-[#171411]">최근 변경 이력</h3>
-                      <span className="text-[11px] font-medium text-[#8a8277]">{selectedOwner.recentEvents.length}건</span>
+                      <span className="text-[12px] font-medium text-[#8a8277]">{selectedOwner.recentEvents.length}건</span>
                     </div>
                     <div className="mt-3 space-y-2">
                       {selectedOwner.recentEvents.length === 0 ? (
@@ -933,10 +933,10 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                           <div key={event.id} className="rounded-[14px] border border-[#e5ddd2] bg-white px-3 py-3">
                             <div className="flex items-center justify-between gap-3">
                               <p className="text-[12px] font-semibold text-[#171411]">{eventLabelMap[event.type]}</p>
-                              <span className="text-[11px] font-medium text-[#8a8277]">{formatDateTimeLabel(event.createdAt)}</span>
+                              <span className="text-[12px] font-medium text-[#8a8277]">{formatDateTimeLabel(event.createdAt)}</span>
                             </div>
                             <p className="mt-1.5 text-[12px] leading-5 text-[#6f665f]">{summarizeEvent(event)}</p>
-                            <p className="mt-1 text-[11px] font-medium text-[#8a8277]">{event.adminEmail}</p>
+                            <p className="mt-1 text-[12px] font-medium text-[#8a8277]">{event.adminEmail}</p>
                           </div>
                         ))
                       )}
@@ -975,7 +975,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
 function DetailRow({ label, value, children, mono = false }: { label: string; value?: string; children?: ReactNode; mono?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-3">
-      <span className="shrink-0 text-[11px] font-semibold tracking-[0.04em] text-[#8a8277]">{label}</span>
+      <span className="shrink-0 text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">{label}</span>
       <div className={`min-w-0 text-right text-[13px] text-[#171411] ${mono ? "font-mono" : "font-medium"}`}>{children ?? value ?? "-"}</div>
     </div>
   );

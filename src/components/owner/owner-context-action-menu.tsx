@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, ChevronUp, CircleHelp, MessageSquareWarning } from "lucide-react";
+import { CalendarPlus, ChevronUp, CircleHelp, MessageSquareWarning, Plus } from "lucide-react";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import type { TesterFeedbackCategory } from "@/lib/tester-feedback";
@@ -8,7 +8,7 @@ import type { TesterFeedbackCategory } from "@/lib/tester-feedback";
 const POSITION_STORAGE_KEY = "petmanager.owner.context-action-position.v1";
 const DRAG_THRESHOLD_PX = 7;
 const EDGE_GAP_PX = 12;
-const BUTTON_SIZE_PX = 48;
+const BUTTON_SIZE_PX = 44;
 const BOTTOM_NAV_CLEARANCE_PX = 84;
 const MIN_USABLE_VIEWPORT_WIDTH_PX = BUTTON_SIZE_PX + EDGE_GAP_PX * 2;
 const MIN_USABLE_VIEWPORT_HEIGHT_PX = BUTTON_SIZE_PX + BOTTOM_NAV_CLEARANCE_PX + EDGE_GAP_PX;
@@ -89,6 +89,7 @@ type OwnerContextActionMenuProps = {
   isOpen: boolean;
   isSuppressed: boolean;
   isTester: boolean;
+  scheduleAppearance?: boolean;
   onOpenChange: (open: boolean) => void;
   onAddReservation: () => void;
   onOpenFeedback: (category: TesterFeedbackCategory) => void;
@@ -98,6 +99,7 @@ const OwnerContextActionMenu = forwardRef<HTMLButtonElement, OwnerContextActionM
   isOpen,
   isSuppressed,
   isTester,
+  scheduleAppearance = false,
   onOpenChange,
   onAddReservation,
   onOpenFeedback,
@@ -257,9 +259,15 @@ const OwnerContextActionMenu = forwardRef<HTMLButtonElement, OwnerContextActionM
           }
           onOpenChange(!isOpen);
         }}
-        className={`inline-flex h-12 w-12 touch-none items-center justify-center rounded-full border text-[#111a30] shadow-[0_5px_16px_rgba(17,26,48,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] ${isTester ? "border-[#d8c59c] bg-[#fff5d9]" : "border-[#cfd8e3] bg-white"}`}
+        className="inline-flex h-11 w-11 touch-none items-center justify-center rounded-full bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
       >
-        <ChevronUp className={`h-5 w-5 transition-transform motion-reduce:transition-none ${isOpen ? "rotate-180" : ""}`} strokeWidth={2.2} aria-hidden="true" />
+        <span
+          data-testid="owner-context-action-trigger-visual"
+          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_8px_rgba(17,26,48,0.14)] ${scheduleAppearance ? "border-[#2f5fb3] bg-[#2f5fb3] text-white" : "text-[#111a30]"} ${scheduleAppearance ? "" : isTester ? "border-[#d8c59c] bg-[#fff5d9]" : "border-[#cfd8e3] bg-white"}`}
+          aria-hidden="true"
+        >
+          {scheduleAppearance ? <Plus className="h-4 w-4" strokeWidth={2.2} /> : <ChevronUp className={`h-4 w-4 transition-transform motion-reduce:transition-none ${isOpen ? "rotate-180" : ""}`} strokeWidth={2.2} />}
+        </span>
       </button>
     </div>
   );

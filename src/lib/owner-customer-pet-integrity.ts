@@ -2,6 +2,13 @@ import type { AppointmentStatus, BootstrapPayload, Guardian, Pet } from "@/types
 
 type ShopScopedEntity = Pick<Guardian | Pet, "id" | "shop_id">;
 
+export const OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE =
+  "계정 권한을 확인하지 못했습니다. 다시 시도해 주세요.";
+
+export type OwnerMobileRoleContext =
+  | { appRole: "owner"; currentStaffId: null }
+  | { appRole: "staff"; currentStaffId: string };
+
 export type OwnerMutationRequest = <T>(
   input: string,
   init: RequestInit,
@@ -86,6 +93,30 @@ const appointmentStatuses = new Set<AppointmentStatus>([
   "noshow",
 ]);
 
+export function resolveOwnerMobileRoleContext(
+  value: Pick<BootstrapPayload, "ownerProfile" | "staffMembers" | "appointments">,
+): OwnerMobileRoleContext {
+  if (value.ownerProfile !== null) {
+    if (typeof value.ownerProfile?.user_id === "string" && value.ownerProfile.user_id.trim()) {
+      return { appRole: "owner", currentStaffId: null };
+    }
+    throw new Error(OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE);
+  }
+
+  if (!Array.isArray(value.staffMembers) || value.staffMembers.length !== 1) {
+    throw new Error(OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE);
+  }
+  const rawStaffId = value.staffMembers[0]?.id;
+  const staffId = typeof rawStaffId === "string" ? rawStaffId.trim() : "";
+  if (!staffId || staffId !== rawStaffId) {
+    throw new Error(OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE);
+  }
+  if (!Array.isArray(value.appointments) || value.appointments.some((appointment) => appointment.staff_id !== staffId)) {
+    throw new Error(OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE);
+  }
+  return { appRole: "staff", currentStaffId: staffId };
+}
+
 export function assertOwnerBootstrapPayload(
   value: BootstrapPayload,
   expectedShopId: string,
@@ -122,7 +153,6 @@ export function assertOwnerBootstrapPayload(
   if (value.appointments.some((item) => item.shop_id !== shopId || !appointmentStatuses.has(item.status))) {
     throw new Error("예약 데이터 형식이 올바르지 않습니다. 다시 불러와 주세요.");
   }
-
   const guardianById = new Map(value.guardians.map((guardian) => [guardian.id, guardian]));
   const petById = new Map(value.pets.map((pet) => [pet.id, pet]));
   const serviceIds = new Set(value.services.map((service) => service.id));

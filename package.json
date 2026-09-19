@@ -2,6 +2,7 @@
   "name": "pawcare",
   "private": true,
   "scripts": {
+    "prebuild": "npm run test:price-guide-core",
     "dev": "next dev",
     "dev:frontend": "next dev",
     "dev:backend": "npm --prefix backend run dev",
@@ -21,6 +22,7 @@
     "android:preview": "powershell -ExecutionPolicy Bypass -File ./scripts/run-android-production-preview.ps1",
     "android:setup-signing": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-android-release-signing.ps1",
     "android:release": "powershell -ExecutionPolicy Bypass -File ./scripts/build-android-release.ps1",
+    "test:android-release-endpoints": "node --test tests/mobile-android-release-endpoint-contract.test.mjs",
     "status:start": "node --experimental-transform-types ./scripts/job-status.ts start",
     "status:complete": "node --experimental-transform-types ./scripts/job-status.ts complete",
     "status:fail": "node --experimental-transform-types ./scripts/job-status.ts fail",
@@ -28,6 +30,7 @@
     "status:list": "node --experimental-transform-types ./scripts/job-status.ts list",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:price-guide-core": "node --test tests/mobile-price-photo-http-adapter-contract.test.mjs tests/mobile-price-guide-matrix-contract.test.mjs",
     "typecheck:backend": "npm --prefix backend run typecheck"
   },
   "dependencies": {

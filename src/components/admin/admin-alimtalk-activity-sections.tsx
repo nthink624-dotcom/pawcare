@@ -25,7 +25,7 @@ export default function AdminAlimtalkActivitySections({
       <article className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
         <div className="space-y-2">
           <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">최근 알림 이슈</p>
-          <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">실패나 스킵이 난 최근 건</h2>
+          <h2 className="text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">실패나 스킵이 난 최근 건</h2>
           <p className="text-[13px] leading-6 text-[#6f665f]">
             템플릿 상태, 고객 수신 설정, relay 전달 문제는 여기서 가장 먼저 확인할 수 있어요.
           </p>
@@ -47,7 +47,7 @@ export default function AdminAlimtalkActivitySections({
                     </p>
                   </div>
                   <span
-                    className={`shrink-0 rounded-[999px] border px-2.5 py-1 text-[11px] font-medium ${statusTone(item.status)}`}
+                    className={`shrink-0 rounded-[999px] border px-2.5 py-1 text-[12px] font-medium ${statusTone(item.status)}`}
                   >
                     {item.status}
                   </span>
@@ -68,7 +68,7 @@ export default function AdminAlimtalkActivitySections({
       <article className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
         <div className="space-y-2">
           <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">최근 발송 이벤트</p>
-          <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">관리자에서 바로 보는 최근 알림 흐름</h2>
+          <h2 className="text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">관리자에서 바로 보는 최근 알림 흐름</h2>
           <p className="text-[13px] leading-6 text-[#6f665f]">
             어떤 타입이 실제로 많이 나가는지, 특정 타입만 계속 실패하는지 한 번에 볼 수 있어요.
           </p>
@@ -92,13 +92,13 @@ export default function AdminAlimtalkActivitySections({
                     {item.petName ? ` · ${item.petName}` : ""}
                     {item.recipientPhoneTail ? ` · ****${item.recipientPhoneTail}` : ""}
                   </p>
-                  <p className="mt-1 text-[11px] leading-5 text-[#8a8277]">
+                  <p className="mt-1 text-[12px] leading-5 text-[#8a8277]">
                     {item.createdAt}
                     {item.providerMessageId ? ` · ${item.providerMessageId}` : ""}
                   </p>
                 </div>
                 <span
-                  className={`shrink-0 rounded-[999px] border px-2.5 py-1 text-[11px] font-medium ${statusTone(item.status)}`}
+                  className={`shrink-0 rounded-[999px] border px-2.5 py-1 text-[12px] font-medium ${statusTone(item.status)}`}
                 >
                   {item.status}
                 </span>

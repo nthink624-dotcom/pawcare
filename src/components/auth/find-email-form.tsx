@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
@@ -19,13 +19,11 @@ function FieldShell({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-function normalizePhoneNumber(value: string) {
-  return value.replace(/\D/g, "").slice(0, 11);
-}
-
 type ApiMessage = {
   message?: string;
   verificationRequestId?: string | null;
+  providerIdentityVerificationId?: string | null;
+  verificationState?: string | null;
   devVerificationCode?: string | null;
   verificationToken?: string | null;
   email?: string | null;
@@ -48,22 +46,63 @@ export default function FindEmailForm() {
     register,
     handleSubmit,
     getValues,
+    watch,
     setValue,
+    trigger,
     formState: { errors, isSubmitting },
   } = useForm<OwnerFindEmailInput>({
     resolver: zodResolver(ownerFindEmailSchema),
     defaultValues: { name: "", birthDate: "", phoneNumber: "", identityVerificationToken: "" },
   });
 
+  const attemptRef = useRef(0);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const verifiedIdentityRef = useRef<string | null>(null);
+  const identitySnapshot = () => {
+    const values = getValues();
+    return JSON.stringify([values.name, values.birthDate, values.phoneNumber, ""]);
+  };
+  useEffect(() => {
+    mountedRef.current = true;
+    const subscription = watch((_values, { name }) => {
+      if (!["name", "birthDate", "phoneNumber"].includes(name ?? "")) return;
+      attemptRef.current++;
+      busyRef.current = false;
+      verifiedIdentityRef.current = null;
+      setLoading(false);
+      setVerificationToken(null);
+      setValue("identityVerificationToken", "");
+      setVerificationRequestId(null); setDevCode(null); setVerificationCode(""); setFoundEmail(null);
+      setMessage(null);
+    });
+    return () => { subscription.unsubscribe(); mountedRef.current = false; busyRef.current = false; };
+  }, [watch, setValue]);
+  const beginAttempt = () => {
+    if (busyRef.current) return null;
+    busyRef.current = true;
+    const id = ++attemptRef.current;
+    const snapshot = identitySnapshot();
+    setLoading(true);
+    setMessage(null);
+    return {
+      current: () => mountedRef.current && attemptRef.current === id && identitySnapshot() === snapshot,
+      finish: () => { if (mountedRef.current && attemptRef.current === id) { busyRef.current = false; setLoading(false); } },
+    };
+  };
+
   const syncVerificationToken = (token: string | null) => {
+    verifiedIdentityRef.current = token ? identitySnapshot() : null;
     setVerificationToken(token);
     setValue("identityVerificationToken", token ?? "", { shouldValidate: true });
   };
 
   const requestCode = async () => {
+    const attempt = beginAttempt();
+    if (!attempt) return;
     const values = getValues();
-    setLoading(true);
-    setMessage(null);
+    syncVerificationToken(null);
+    setVerificationRequestId(null); setDevCode(null); setVerificationCode(""); setFoundEmail(null);
     try {
       const response = await fetch("/api/auth/request-verification-code", {
         method: "POST",
@@ -77,7 +116,8 @@ export default function FindEmailForm() {
         }),
       });
       const result = (await response.json()) as ApiMessage;
-      if (!response.ok) {
+      if (!attempt.current()) return;
+      if (!response.ok || !result.verificationRequestId) {
         setMessage(result.message ?? "인증번호를 보내지 못했습니다. 다시 시도해 주세요.");
         return;
       }
@@ -87,19 +127,23 @@ export default function FindEmailForm() {
       syncVerificationToken(null);
       setFoundEmail(null);
       setMessage(result.message ?? "인증번호를 보냈습니다. 문자 메시지를 확인해 주세요.");
+    } catch {
+      if (attempt.current()) setMessage("인증 요청 중 문제가 발생했습니다. 다시 시도해 주세요.");
     } finally {
-      setLoading(false);
+      attempt.finish();
     }
   };
 
   const verifyCode = async () => {
+    const attempt = beginAttempt();
+    if (!attempt) return;
     const values = getValues();
     if (!verificationRequestId) {
       setMessage("먼저 인증번호를 받아 주세요.");
+      attempt.finish();
       return;
     }
-    setLoading(true);
-    setMessage(null);
+    syncVerificationToken(null);
     try {
       const response = await fetch("/api/auth/verify-identity", {
         method: "POST",
@@ -114,84 +158,91 @@ export default function FindEmailForm() {
         }),
       });
       const result = (await response.json()) as ApiMessage;
+      if (!attempt.current()) return;
       if (!response.ok || !result.verificationToken) {
         setMessage(result.message ?? "인증번호를 다시 확인해 주세요.");
         return;
       }
       syncVerificationToken(result.verificationToken);
       setMessage(result.message ?? "본인 인증이 완료되었습니다.");
+    } catch {
+      if (attempt.current()) setMessage("인증 요청 중 문제가 발생했습니다. 다시 시도해 주세요.");
     } finally {
-      setLoading(false);
+      attempt.finish();
     }
   };
 
   const verifyPass = async () => {
-    const values = getValues();
-    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityChannelKey) {
-      setMessage("PASS 본인인증 환경이 아직 준비되지 않았습니다.");
-      return;
-    }
-    setLoading(true);
-    setMessage(null);
+    const attempt = beginAttempt();
+    if (!attempt) return;
+    syncVerificationToken(null);
+    setVerificationRequestId(null); setDevCode(null); setVerificationCode(""); setFoundEmail(null);
     try {
+      const valid = await trigger(["name", "birthDate", "phoneNumber"]);
+      if (!attempt.current() || !valid) return;
+      const values = getValues();
+      const identity = ownerFindEmailSchema.omit({ identityVerificationToken: true }).safeParse(values);
+      if (!identity.success) { setMessage(identity.error.issues[0]?.message ?? "본인 정보를 확인해 주세요."); return; }
+
+      if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityChannelKey) {
+        setMessage("휴대폰 본인인증 환경이 아직 준비되지 않았습니다."); return;
+      }
+
       const requestResponse = await fetch("/api/auth/request-verification-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: values.name,
-          birthDate: values.birthDate,
-          phoneNumber: values.phoneNumber,
-          purpose: "find-email",
-          method: "portone",
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...identity.data,  purpose: "find-email", method: "portone" }),
       });
       const requestResult = (await requestResponse.json()) as ApiMessage;
-      if (!requestResponse.ok || !requestResult.verificationRequestId) {
-        setMessage(requestResult.message ?? "본인인증 요청을 준비하지 못했습니다.");
-        return;
+      if (!attempt.current()) return;
+      if (!requestResponse.ok || typeof requestResult.verificationRequestId !== "string" ||
+          !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(requestResult.verificationRequestId) ||
+          typeof requestResult.providerIdentityVerificationId !== "string" || !requestResult.providerIdentityVerificationId.trim() ||
+          requestResult.providerIdentityVerificationId.length > 128 ||
+          typeof requestResult.verificationState !== "string" || !/^[a-f0-9]{64}$/.test(requestResult.verificationState)) {
+        setMessage("본인인증 요청을 준비하지 못했습니다. 다시 시도해 주세요."); return;
       }
-
       const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
+      if (!attempt.current()) return;
+      const identityVerificationId = requestResult.providerIdentityVerificationId;
       const result = await requestIdentityVerification({
-        storeId: env.portoneStoreId,
-        channelKey: env.portoneIdentityChannelKey,
-        identityVerificationId: `find_email_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        storeId: env.portoneStoreId, channelKey: env.portoneIdentityChannelKey,
+        identityVerificationId,
+        customData: JSON.stringify({ petmanagerIdentityState: requestResult.verificationState }),
         windowType: { pc: "POPUP", mobile: "POPUP" },
-        customer: {
-          fullName: values.name.trim(),
-          phoneNumber: normalizePhoneNumber(values.phoneNumber),
-          birthYear: values.birthDate.slice(0, 4),
-          birthMonth: values.birthDate.slice(4, 6),
-          birthDay: values.birthDate.slice(6, 8),
-        },
+        customer: { fullName: identity.data.name, phoneNumber: identity.data.phoneNumber,
+          birthYear: identity.data.birthDate.slice(0, 4), birthMonth: identity.data.birthDate.slice(4, 6), birthDay: identity.data.birthDate.slice(6, 8) },
       });
-      if (!result?.identityVerificationId) {
-        setMessage("PASS 본인 인증을 완료하지 못했습니다.");
-        return;
+      if (!attempt.current()) return;
+      if (!result || result.code || result.identityVerificationId !== identityVerificationId) {
+        setMessage("휴대폰 본인인증을 완료하지 못했습니다. 다시 시도해 주세요."); return;
       }
-
       const response = await fetch("/api/auth/verify-pass", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          purpose: "find-email",
-          verificationRequestId: requestResult.verificationRequestId,
-          identityVerificationId: result.identityVerificationId,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purpose: "find-email", verificationRequestId: requestResult.verificationRequestId,
+          identityVerificationId, verificationState: requestResult.verificationState }),
       });
-      const verifyResult = (await response.json()) as ApiMessage;
-      if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "PASS 본인 인증을 확인하지 못했습니다.");
-        return;
+      const verified = (await response.json()) as ApiMessage;
+      if (!attempt.current()) return;
+      if (!response.ok || typeof verified.verificationToken !== "string" || !verified.verificationToken.trim()) {
+        setMessage("본인인증 결과를 확인하지 못했습니다. 다시 시도해 주세요."); return;
       }
-      syncVerificationToken(verifyResult.verificationToken);
-      setMessage(verifyResult.message ?? "PASS 본인 인증이 완료되었습니다.");
+      syncVerificationToken(verified.verificationToken);
+      setMessage("본인 인증이 완료되었습니다.");
+    } catch {
+      if (attempt.current()) setMessage("본인인증 중 문제가 발생했습니다. 다시 시도해 주세요.");
     } finally {
-      setLoading(false);
+
+      attempt.finish();
     }
   };
 
   const onSubmit = handleSubmit(async (values) => {
+    if (!verificationToken || verifiedIdentityRef.current !== identitySnapshot()) {
+      syncVerificationToken(null); setMessage("본인 확인을 먼저 완료해 주세요."); return;
+    }
+    const attempt = beginAttempt();
+    if (!attempt) return;
+    try {
     setMessage(null);
     setFoundEmail(null);
     const response = await fetch("/api/auth/find-email", {
@@ -200,12 +251,16 @@ export default function FindEmailForm() {
       body: JSON.stringify(values),
     });
     const result = (await response.json()) as ApiMessage;
+    if (!attempt.current()) return;
     if (!response.ok || !result.email) {
       setMessage(result.message ?? "이메일을 찾지 못했습니다.");
       return;
     }
     setFoundEmail(result.email);
     setMessage(result.message ?? null);
+    } catch {
+      if (attempt.current()) setMessage("요청을 처리하지 못했습니다. 다시 시도해 주세요.");
+    } finally { attempt.finish(); }
   });
 
   const firstError = errors.name?.message || errors.birthDate?.message || errors.phoneNumber?.message || errors.identityVerificationToken?.message;

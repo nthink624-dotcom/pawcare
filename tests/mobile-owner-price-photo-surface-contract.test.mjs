@@ -5,6 +5,7 @@ import test from "node:test";
 const settings = await readFile(new URL("../src/components/owner/owner-settings-panel.tsx", import.meta.url), "utf8");
 const fixture = await readFile(new URL("../src/components/auth/mobile-ai-price-guide-fixture.tsx", import.meta.url), "utf8");
 const matrix = await readFile(new URL("../src/components/auth/mobile-price-guide-matrix.tsx", import.meta.url), "utf8");
+const extras = await readFile(new URL("../src/components/auth/mobile-price-guide-extras.tsx", import.meta.url), "utf8");
 const matrixReducer = await readFile(new URL("../src/lib/price-photo/mobile-price-guide-matrix.ts", import.meta.url), "utf8");
 const httpAdapter = await readFile(new URL("../src/lib/price-photo/mobile-price-photo-http-adapter.ts", import.meta.url), "utf8");
 const photoSheet = await readFile(new URL("../src/components/owner/owner-external-photo-sheet.tsx", import.meta.url), "utf8");
@@ -146,8 +147,22 @@ test("canonical requery state keeps the full document and persisted identity acr
 });
 
 test("price and duration are independent matrix cells with canonical bounds", () => {
+  assert.match(matrix, /PRICE_GUIDE_UI_HARD_CONTRACT: 16\/24 only; price left \+ duration right on one nowrap row/);
   assert.match(matrix, /data-mobile-price-cell/);
   assert.match(matrix, /data-mobile-price-duration-cell/);
+  assert.match(matrix, /data-mobile-price-left-time-right/);
+  assert.match(matrix, /data-price-side="left"/);
+  assert.match(matrix, /data-duration-side="right"/);
+  assert.match(matrix, /data-mobile-price-guide-service-subheaders/);
+  assert.match(matrix, /text-\[16px\] font-medium leading-6 tabular-nums/);
+  assert.match(matrix, /truncate whitespace-nowrap/);
+  assert.match(matrix, /min-w-0 whitespace-nowrap border-l/);
+  assert.match(matrix, /items-center[^\n]*text-\[16px\] font-medium leading-6[^\n]*data-mobile-price-guide-service-subheaders/);
+  assert.match(matrix, /className="sr-only">가격/);
+  assert.match(matrix, /className="sr-only">예상시간/);
+  assert.doesNotMatch(matrix, /text-\[(?:11|12|14)px\]/);
+  assert.match(matrix, /if \(row\.priceMinKrw === null\) return "미정"/);
+  assert.match(matrix, /row\.durationMinutes === null \? "미정"/);
   assert.match(matrix, /inputMode="numeric"/);
   assert.match(matrix, /MAX_SERVICE_PRICE_KRW/);
   assert.match(matrix, /min=\{1\}[\s\S]*?max=\{1440\}/);
@@ -156,18 +171,24 @@ test("price and duration are independent matrix cells with canonical bounds", ()
   assert.doesNotMatch(fixture, /가격 방식|priceKind.*select/);
 });
 
-test("one canonical matrix owns group, breed, weight, service, price and duration edits", () => {
+test("one canonical matrix owns dynamic service, group, breed, weight, price and duration edits", () => {
   assert.match(matrixReducer, /updateMobilePriceGuideGroup/);
-  assert.match(matrixReducer, /updateMobilePriceGuideService/);
   assert.match(matrixReducer, /updateMobilePriceGuideWeightBand/);
   assert.match(matrixReducer, /updateMobilePriceGuideCell/);
-  assert.match(matrixReducer, /addMobilePriceGuideService/);
-  assert.match(matrixReducer, /removeMobilePriceGuideService/);
   assert.match(matrixReducer, /addMobilePriceGuideWeightBand/);
   assert.match(matrixReducer, /removeMobilePriceGuideWeightBand/);
   assert.match(matrixReducer, /addMobilePriceGuideGroup/);
   assert.match(matrixReducer, /removeMobilePriceGuideGroup/);
   assert.match(matrix, /overflow-x-auto/);
+  assert.match(matrix, /updateMobilePriceGuideService/);
+  assert.match(matrix, /addMobilePriceGuideService/);
+  assert.match(matrix, /removeMobilePriceGuideService/);
+  assert.match(matrix, /data-mobile-custom-breed/);
+  assert.match(matrix, /customBreedMode \? "기타 품종명" : "추가할 품종"/);
+  assert.match(matrix, /customBreedMode \? "원하는 품종 입력" : "품종 검색 또는 입력"/);
+  assert.match(matrix, /min-w-\[72px\] whitespace-nowrap !text-\[16px\] !leading-6/);
+  assert.match(matrix, /className=\{`\$\{actionClass\} !text-\[16px\] !leading-6`\}/);
+  assert.doesNotMatch(matrix, /다른 분류에 배정된 품종은 목록에 나오지 않습니다/);
   assert.match(fixture, /mx-auto w-full min-w-0 max-w-\[430px\][^>]*style=\{reviewContentStyle\}/);
 });
 
@@ -175,10 +196,14 @@ test("the document stays shrinkable while the matrix contains its accessible lab
   assert.match(matrix, /className="min-w-0 max-w-full space-y-5" data-mobile-price-guide-matrix/);
   assert.match(matrix, /className="min-w-0 max-w-full overflow-hidden rounded-\[14px\]/);
   assert.match(matrix, /className="relative w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain" data-mobile-price-guide-matrix-scroll/);
-  assert.match(matrix, /<span className="sr-only">서비스 이름<\/span>/);
-  assert.match(matrix, /<span className="sr-only">체급<\/span>/);
-  assert.match(matrix, /<span className="sr-only">가격<\/span>/);
-  assert.match(matrix, /<span className="sr-only">평균 시간\(분\)<\/span>/);
+  assert.match(matrix, /이름 수정/);
+  assert.match(matrix, />몸무게<\/th>/);
+  assert.match(matrix, />가격<\/span>/);
+  assert.match(matrix, />예상시간<\/span>/);
+  assert.match(matrix, /<MobilePriceGuideExtras document=\{document\} onChange=\{onChange\}/);
+  assert.match(extras, /data-mobile-price-guide-extras/);
+  assert.match(extras, /추가 서비스·요금/);
+  assert.match(extras, /amountKrw/);
   assert.match(fixture, /mx-auto w-full min-w-0 max-w-\[430px\][^>]*style=\{reviewContentStyle\}/);
   assert.match(fixture, /min-w-0 max-w-full space-y-4 px-4 pt-2/);
   assert.doesNotMatch(matrix, /data-mobile-price-guide-matrix[^>]*(?:overflow-x-hidden|overflow-x-clip)/);

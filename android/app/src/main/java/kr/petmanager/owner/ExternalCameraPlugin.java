@@ -1,8 +1,10 @@
 package kr.petmanager.owner;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.provider.MediaStore;
@@ -12,23 +14,34 @@ import androidx.core.content.FileProvider;
 
 import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-@CapacitorPlugin(name = "ExternalCamera")
+@CapacitorPlugin(
+    name = "ExternalCamera",
+    permissions = { @Permission(alias = "camera", strings = { Manifest.permission.CAMERA }) }
+)
 public class ExternalCameraPlugin extends Plugin {
     private static final String CACHE_DIRECTORY = "external-camera";
     private static final String FILE_PREFIX = "petmanager-";
+    private static final String CAMERA_PERMISSION_ALIAS = "camera";
+    private static final String CAMERA_PERMISSION_DENIED = "CAMERA_PERMISSION_DENIED";
+    private static final String CAMERA_UNAVAILABLE = "CAMERA_UNAVAILABLE";
+    private static final String CAMERA_LAUNCH_FAILED = "CAMERA_LAUNCH_FAILED";
     private Uri pendingOutputUri;
     private File pendingOutputFile;
 
@@ -51,8 +64,44 @@ public class ExternalCameraPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getCapabilities(PluginCall call) {
+        List<ResolveInfo> handlers = getCameraHandlers(new Intent(MediaStore.ACTION_IMAGE_CAPTURE));
+        JSObject response = new JSObject();
+        response.put("available", !handlers.isEmpty());
+        response.put("handlerCount", handlers.size());
+        call.resolve(response);
+    }
+
+    @PluginMethod
     public void capture(PluginCall call) {
+        if (getPermissionState(CAMERA_PERMISSION_ALIAS) != PermissionState.GRANTED) {
+            requestPermissionForAlias(CAMERA_PERMISSION_ALIAS, call, "cameraPermissionCallback");
+            return;
+        }
+        launchCamera(call);
+    }
+
+    @PermissionCallback
+    private void cameraPermissionCallback(PluginCall call) {
+        if (getPermissionState(CAMERA_PERMISSION_ALIAS) != PermissionState.GRANTED) {
+            clearPendingOutput();
+            call.reject("카메라 권한을 허용해야 촬영할 수 있습니다.", CAMERA_PERMISSION_DENIED);
+            return;
+        }
+        launchCamera(call);
+    }
+
+    private void launchCamera(PluginCall call) {
         try {
+            Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            List<ResolveInfo> handlers = getContext().getPackageManager().queryIntentActivities(cameraIntent, 0);
+            handlers = filterUsableCameraHandlers(handlers);
+            if (handlers.isEmpty()) {
+                clearPendingOutput();
+                call.reject("사용할 수 있는 카메라 앱이 없습니다.", CAMERA_UNAVAILABLE);
+                return;
+            }
+
             File directory = new File(getContext().getCacheDir(), CACHE_DIRECTORY);
             if (!directory.exists() && !directory.mkdirs()) {
                 call.reject("촬영용 임시 폴더를 만들 수 없습니다.");
@@ -61,18 +110,21 @@ public class ExternalCameraPlugin extends Plugin {
             pendingOutputFile = File.createTempFile(FILE_PREFIX, ".jpg", directory);
             pendingOutputUri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", pendingOutputFile);
 
-            Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, pendingOutputUri);
             cameraIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
             cameraIntent.setClipData(ClipData.newRawUri("petmanager-photo", pendingOutputUri));
-            grantOutputUriToCameraApps(cameraIntent);
+            grantOutputUriToCameraApps(handlers);
             Intent launchIntent = call.getBoolean("chooser", false)
                 ? Intent.createChooser(cameraIntent, "카메라 앱 선택")
                 : cameraIntent;
+            if (launchIntent != cameraIntent) {
+                launchIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                launchIntent.setClipData(cameraIntent.getClipData());
+            }
             startActivityForResult(call, launchIntent, "externalCameraResult");
         } catch (Exception error) {
             clearPendingOutput();
-            call.reject("카메라 앱을 열 수 없습니다.", error);
+            call.reject("카메라 앱을 열 수 없습니다.", CAMERA_LAUNCH_FAILED, error);
         }
     }
 
@@ -142,9 +194,8 @@ public class ExternalCameraPlugin extends Plugin {
         pendingOutputUri = null;
     }
 
-    private void grantOutputUriToCameraApps(Intent cameraIntent) {
+    private void grantOutputUriToCameraApps(List<ResolveInfo> handlers) {
         if (pendingOutputUri == null) return;
-        List<ResolveInfo> handlers = getContext().getPackageManager().queryIntentActivities(cameraIntent, 0);
         for (ResolveInfo handler : handlers) {
             if (handler.activityInfo == null || handler.activityInfo.packageName == null) continue;
             getContext().grantUriPermission(
@@ -153,6 +204,23 @@ public class ExternalCameraPlugin extends Plugin {
                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION
             );
         }
+    }
+
+    private List<ResolveInfo> getCameraHandlers(Intent cameraIntent) {
+        return filterUsableCameraHandlers(
+            getContext().getPackageManager().queryIntentActivities(cameraIntent, PackageManager.MATCH_DEFAULT_ONLY)
+        );
+    }
+
+    private List<ResolveInfo> filterUsableCameraHandlers(List<ResolveInfo> matches) {
+        List<ResolveInfo> handlers = new ArrayList<>();
+        for (ResolveInfo match : matches) {
+            if (match.activityInfo == null) continue;
+            if (!match.activityInfo.enabled || !match.activityInfo.exported) continue;
+            if (match.activityInfo.packageName == null || match.activityInfo.name == null) continue;
+            handlers.add(match);
+        }
+        return handlers;
     }
 
     private void clearStaleOutputFiles() {

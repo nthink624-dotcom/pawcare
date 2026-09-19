@@ -5,13 +5,14 @@ import { identityVerificationPurposeSchema } from "@/lib/auth/owner-identity";
 import { hasPortoneServerEnv, hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
 import {
   completePortoneIdentityVerification,
-  reuseCompletedPortoneIdentityVerification,
+  validatePortoneIdentityVerificationRequest,
 } from "@/server/owner-identity-verification";
 
 const schema = z.object({
   purpose: identityVerificationPurposeSchema,
   verificationRequestId: z.string().uuid(),
-  identityVerificationId: z.string().min(1),
+  identityVerificationId: z.string().min(1).max(128),
+  verificationState: z.string().regex(/^[a-f0-9]{64}$/),
 });
 
 type PortoneVerificationResponse = {
@@ -38,34 +39,6 @@ async function readPortoneJson(response: Response): Promise<PortoneVerificationR
   }
 }
 
-function toKoreanPortoneIdentityMessage(message?: string) {
-  const normalized = (message ?? "").toLowerCase();
-
-  if (normalized.includes("already verified")) {
-    return "이미 완료된 본인인증 요청입니다. 창을 닫고 다시 인증해 주세요.";
-  }
-
-  if (
-    normalized.includes("permission denied") ||
-    normalized.includes("unauthorized") ||
-    normalized.includes("forbidden")
-  ) {
-    return "본인인증 결과 조회 권한을 확인하지 못했어요. PortOne 서버 API 설정을 확인해 주세요.";
-  }
-
-  return message;
-}
-
-function isAlreadyVerifiedPortoneMessage(result: PortoneVerificationResponse) {
-  return [result.message, result.type]
-    .filter((value): value is string => Boolean(value))
-    .some((value) => value.toLowerCase().includes("already verified"));
-}
-
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function buildPortoneIdentityVerificationUrls(identityVerificationId: string) {
   const encodedId = encodeURIComponent(identityVerificationId);
   const getEndpoint = new URL(`/identity-verifications/${encodedId}`, "https://api.portone.io");
@@ -84,35 +57,13 @@ async function fetchPortoneIdentityVerification(identityVerificationId: string) 
     "Content-Type": "application/json",
   };
 
-  let lastResponse: Response | null = null;
-  let lastResult: PortoneVerificationResponse = {};
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    if (attempt > 0) {
-      await wait(700 * attempt);
-    }
-
-    const getResponse = await fetch(getEndpoint, {
-      headers,
-      cache: "no-store",
-    });
-    const getResult = await readPortoneJson(getResponse);
-    lastResponse = getResponse;
-    lastResult = getResult;
-
-    if (getResponse.ok && isVerifiedPortoneIdentity(getResult.identityVerification)) {
-      return { response: getResponse, result: getResult };
-    }
-
-    if (getResponse.status === 401 || getResponse.status === 403) {
-      break;
-    }
-  }
-
-  return {
-    response: lastResponse ?? new Response(null, { status: 400 }),
-    result: lastResult,
-  };
+  const response = await fetch(getEndpoint, {
+    headers,
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  });
+  const result = await readPortoneJson(response);
+  return { response, result };
 }
 
 export async function POST(request: NextRequest) {
@@ -128,44 +79,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = schema.parse(body);
 
+    if (!(await validatePortoneIdentityVerificationRequest(payload))) {
+      return NextResponse.json({ code: "IDENTITY_BINDING_INVALID", message: "인증 요청이 만료되었거나 이미 사용되었습니다. 다시 인증해 주세요." }, { status: 400 });
+    }
     const { response: verificationResponse, result } = await fetchPortoneIdentityVerification(payload.identityVerificationId);
-    if (!verificationResponse.ok || !result.identityVerification) {
-      if (isAlreadyVerifiedPortoneMessage(result)) {
-        const reused = await reuseCompletedPortoneIdentityVerification({
-          purpose: payload.purpose,
-          identityVerificationId: payload.identityVerificationId,
-        });
-
-        if (reused.ok) {
-          return NextResponse.json({
-            success: true,
-            verificationToken: reused.verificationToken,
-            identity: reused.identity,
-            message: "본인 확인이 완료되었습니다.",
-          });
-        }
-
-        const completed = await completePortoneIdentityVerification({
-          verificationRequestId: payload.verificationRequestId,
-          purpose: payload.purpose,
-          identityVerificationId: payload.identityVerificationId,
-          identityVerification: undefined,
-        });
-
-        if (completed.ok) {
-          return NextResponse.json({
-            success: true,
-            verificationToken: completed.verificationToken,
-            identity: completed.identity,
-            message: "본인 확인이 완료되었습니다.",
-          });
-        }
-      }
-
-      result.message = toKoreanPortoneIdentityMessage(result.message);
+    if (!verificationResponse.ok || !isVerifiedPortoneIdentity(result.identityVerification)) {
       return NextResponse.json(
-        { message: result.message ?? "본인확인 결과를 조회하지 못했습니다." },
-        { status: verificationResponse.ok ? 400 : verificationResponse.status || 400 },
+        { code: "IDENTITY_PROVIDER_UNAVAILABLE", message: "본인확인 결과를 확인하지 못했습니다. 인증 창을 닫고 다시 시도해 주세요." },
+        { status: 502 },
       );
     }
 
@@ -173,6 +94,7 @@ export async function POST(request: NextRequest) {
       verificationRequestId: payload.verificationRequestId,
       purpose: payload.purpose,
       identityVerificationId: payload.identityVerificationId,
+      verificationState: payload.verificationState,
       identityVerification: result.identityVerification,
     });
 
@@ -187,18 +109,10 @@ export async function POST(request: NextRequest) {
       message: "본인 확인이 완료되었습니다.",
     });
   } catch (error) {
-    if (!(error instanceof z.ZodError) && error instanceof Error) {
-      const mappedMessage = toKoreanPortoneIdentityMessage(error.message);
-      if (mappedMessage && mappedMessage !== error.message) {
-        return NextResponse.json({ message: mappedMessage }, { status: 400 });
-      }
-    }
-
     if (error instanceof z.ZodError) {
       return NextResponse.json({ message: "본인인증 요청 정보를 다시 확인해 주세요." }, { status: 400 });
     }
 
-    const message = error instanceof Error ? error.message : "본인확인 처리 중 문제가 발생했습니다.";
-    return NextResponse.json({ message }, { status: 400 });
+    return NextResponse.json({ code: "IDENTITY_VERIFY_FAILED", message: "본인확인 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
   }
 }

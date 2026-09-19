@@ -86,8 +86,8 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
               </div>
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">운영 모드</p>
-                <h1 className="mt-2 text-[34px] font-bold tracking-[-0.04em] text-[#171411]">관리자 콘솔</h1>
-                <p className="mt-3 max-w-[760px] text-[15px] leading-7 text-[#6f665f]">
+                <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.04em] text-[#171411]">관리자 콘솔</h1>
+                <p className="mt-3 max-w-[760px] text-[16px] leading-7 text-[#6f665f]">
                   오너 계정 상태, 플랜, 체험 플랜, 결제 상태, 계정 복구까지 관리자 관점에서 빠르게 확인하고 조정할 수 있는 내부 화면입니다.
                 </p>
               </div>
@@ -95,7 +95,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
 
             <div className="rounded-[20px] border border-[#e5ddd2] bg-[#fcfbf8] px-5 py-4">
               <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">현재 운영 계정</p>
-              <p className="mt-2 text-[20px] font-bold text-[#171411]">{currentAccount.fullName}</p>
+              <p className="mt-2 text-[20px] font-semibold text-[#171411]">{currentAccount.fullName}</p>
               <div className="mt-3 space-y-1.5 text-[13px] text-[#6f665f]">
                 <p>아이디 · {currentAccount.loginId}</p>
                 <p>이메일 · {currentAccount.email}</p>

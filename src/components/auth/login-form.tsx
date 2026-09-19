@@ -14,6 +14,7 @@ import {
   OwnerLoginTimeoutError,
   withOwnerLoginTimeout,
 } from "@/lib/auth/owner-login-timeout";
+import { getSafeNextPath } from "@/lib/auth/safe-next-path";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
@@ -45,6 +46,7 @@ export default function LoginForm({
   nextPath?: string;
 }) {
   const router = useRouter();
+  const safeNextPath = getSafeNextPath(nextPath, "/owner/mobile");
   const supabase = useMemo(() => {
     // This form is rendered only after the server rejected the current session.
     // Remove only stale Supabase auth cookies before its browser client starts
@@ -123,10 +125,14 @@ export default function LoginForm({
         window.localStorage.removeItem(SAVED_EMAIL_KEY);
       }
 
-      // Keep the native WebView on the canonical same-origin owner surface.
+      // Keep the native WebView on a validated same-origin owner surface.
       // Refreshing immediately after replace can reload the login document
       // before client navigation commits on slower WebView render processes.
-      router.replace("/owner/mobile" as never);
+      if (safeNextPath === "/owner/mobile") {
+        router.replace("/owner/mobile" as never);
+      } else {
+        router.replace(safeNextPath as never);
+      }
     } catch (error) {
       const timedOut = error instanceof OwnerLoginTimeoutError || (error instanceof DOMException && error.name === "AbortError");
       setMessage(
@@ -168,7 +174,7 @@ export default function LoginForm({
       rememberEmail={rememberEmail}
       loading={loading}
       message={message}
-      nextPath={nextPath}
+      nextPath={safeNextPath}
       canResendConfirmation={canResendConfirmation}
       resendingConfirmation={resending}
       onEmailChange={setEmail}

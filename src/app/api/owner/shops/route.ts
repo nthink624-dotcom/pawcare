@@ -1,121 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { hasSupabaseServerEnv } from "@/lib/server-env";
-import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
-import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
-import { updateShopSettings } from "@/server/owner-mutations";
+import {
+  normalizeCanonicalShopId,
+  OwnerApiError,
+  requestCanonicalApi,
+} from "@/server/owner-api-auth";
 
-function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
-  return metadata?.account_suspended === true;
+function jsonNoStore(body: unknown, init?: ResponseInit) {
+  const headers = new Headers(init?.headers);
+  headers.set("Cache-Control", "no-store, max-age=0");
+  return NextResponse.json(body, { ...init, headers });
 }
 
-export async function PATCH(request: NextRequest) {
-  try {
-    const body = await request.json();
-    await requireOwnerShop(request, body?.shopId);
-    const result = await updateShopSettings(body);
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof OwnerApiError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
-    }
-
-    const message = error instanceof Error ? error.message : "매장 정보를 저장하지 못했어요.";
-    return NextResponse.json({ message }, { status: 400 });
-  }
+async function forward(request: NextRequest, method: "GET" | "PATCH", body?: unknown) {
+  const result = await requestCanonicalApi({
+    request,
+    path: "/api/owner/shops",
+    method,
+    body,
+    auth: "required",
+  });
+  return jsonNoStore(result.body, { status: result.status });
 }
 
 export async function GET(request: NextRequest) {
   try {
-    if (!hasSupabaseServerEnv()) {
-      return NextResponse.json([
-        {
-          id: "demo-shop",
-          name: "데모 매장",
-          address: "서울시 강남구 테헤란로 1",
-          heroImageUrl: "",
-        },
-      ]);
-    }
-
-    const authorization = request.headers.get("authorization") || "";
-    const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-    if (!token) {
-      throw new OwnerApiError("로그인이 필요합니다.", 401);
-    }
-
-    const authClient = getSupabaseAuthClient();
-    const admin = getSupabaseAdmin();
-    if (!authClient || !admin) {
-      throw new OwnerApiError("인증 설정을 확인해 주세요.", 503);
-    }
-
-    const userResult = await authClient.auth.getUser(token);
-    if (userResult.error || !userResult.data.user) {
-      throw new OwnerApiError("로그인이 필요합니다.", 401);
-    }
-
-    if (isSuspendedMetadata(userResult.data.user.user_metadata)) {
-      throw new OwnerApiError("이 계정은 운영자에 의해 일시 중지되었습니다.", 403);
-    }
-
-    const shopsResult = await admin
-      .from("shops")
-      .select("id,name,address,customer_page_settings,created_at")
-      .eq("owner_user_id", userResult.data.user.id)
-      .order("created_at");
-
-    if (shopsResult.error) {
-      const missingCustomerPageSettings =
-        /customer_page_settings/i.test(
-          `${shopsResult.error.message} ${shopsResult.error.details ?? ""} ${shopsResult.error.hint ?? ""}`,
-        ) &&
-        (/column/i.test(shopsResult.error.message) || /schema cache/i.test(shopsResult.error.message));
-
-      if (missingCustomerPageSettings) {
-        const fallbackResult = await admin
-          .from("shops")
-          .select("id,name,address,created_at")
-          .eq("owner_user_id", userResult.data.user.id)
-          .order("created_at");
-
-        if (fallbackResult.error) {
-          throw new OwnerApiError(fallbackResult.error.message, 500);
-        }
-
-        return NextResponse.json(
-          (fallbackResult.data ?? []).map((shop) => ({
-            id: shop.id,
-            name: shop.name,
-            address: shop.address,
-            heroImageUrl: "",
-          })),
-        );
-      }
-
-      throw new OwnerApiError(shopsResult.error.message, 500);
-    }
-
-    return NextResponse.json(
-      (shopsResult.data ?? []).map((shop) => ({
-        id: shop.id,
-        name: shop.name,
-        address: shop.address,
-        heroImageUrl:
-          typeof shop.customer_page_settings === "object" &&
-          shop.customer_page_settings &&
-          "hero_image_url" in shop.customer_page_settings &&
-          typeof shop.customer_page_settings.hero_image_url === "string"
-            ? shop.customer_page_settings.hero_image_url
-            : "",
-      })),
-    );
+    return await forward(request, "GET");
   } catch (error) {
     if (error instanceof OwnerApiError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return jsonNoStore({ message: error.message }, { status: error.status });
     }
+    return jsonNoStore({ message: "매장 목록을 불러오지 못했습니다." }, { status: 500 });
+  }
+}
 
-    const message = error instanceof Error ? error.message : "매장 목록을 불러오지 못했습니다.";
-    return NextResponse.json({ message }, { status: 500 });
+export async function PATCH(request: NextRequest) {
+  try {
+    const body: unknown = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new OwnerApiError("매장 정보를 다시 확인해 주세요.", 400);
+    }
+    const record = body as Record<string, unknown>;
+    if (typeof record.shopId !== "string") {
+      throw new OwnerApiError("매장 정보를 다시 확인해 주세요.", 400);
+    }
+    normalizeCanonicalShopId(record.shopId);
+    return await forward(request, "PATCH", record);
+  } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return jsonNoStore({ message: error.message }, { status: error.status });
+    }
+    return jsonNoStore({ message: "매장 정보를 저장하지 못했습니다." }, { status: 400 });
   }
 }

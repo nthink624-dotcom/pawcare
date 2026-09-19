@@ -19,6 +19,51 @@ function functionBody(source, name) {
   return source.slice(start, next === -1 ? source.length : next);
 }
 
+function ifStatementContaining(source, marker, fromIndex = 0) {
+  const markerIndex = source.indexOf(marker, fromIndex);
+  assert.notEqual(markerIndex, -1, `${marker} must exist`);
+  const ifStart = source.lastIndexOf("if (", markerIndex);
+  assert.notEqual(ifStart, -1, `${marker} must be guarded by an if statement`);
+
+  const conditionStart = source.indexOf("(", ifStart);
+  let conditionEnd = -1;
+  let parenthesisDepth = 0;
+  for (let index = conditionStart; index < source.length; index += 1) {
+    if (source[index] === "(") parenthesisDepth += 1;
+    if (source[index] === ")") parenthesisDepth -= 1;
+    if (parenthesisDepth === 0) {
+      conditionEnd = index;
+      break;
+    }
+  }
+  assert.notEqual(conditionEnd, -1, `${marker} condition must close`);
+
+  const bodyStart = source.indexOf("{", conditionEnd);
+  assert.notEqual(bodyStart, -1, `${marker} guard body must open`);
+  let bodyEnd = -1;
+  let braceDepth = 0;
+  for (let index = bodyStart; index < source.length; index += 1) {
+    if (source[index] === "{") braceDepth += 1;
+    if (source[index] === "}") braceDepth -= 1;
+    if (braceDepth === 0) {
+      bodyEnd = index;
+      break;
+    }
+  }
+  assert.notEqual(bodyEnd, -1, `${marker} guard body must close`);
+
+  return {
+    condition: source.slice(conditionStart + 1, conditionEnd),
+    body: source.slice(bodyStart + 1, bodyEnd),
+  };
+}
+
+function evaluateCondition(condition, scope) {
+  const names = Object.keys(scope);
+  const values = names.map((name) => scope[name]);
+  return Function(...names, `"use strict"; return Boolean(${condition});`)(...values);
+}
+
 test("Android keeps current entitlement information without an external-payment prompt", () => {
   assert.match(nativeNotice, /현재 플랜/);
   assert.match(nativeNotice, /이용 상태/);
@@ -31,8 +76,95 @@ test("Android keeps current entitlement information without an external-payment 
 
 test("Android owner entry never redirects or advertises into billing flows", () => {
   assert.match(ownerMobile, /const isAndroidApp = Capacitor\.getPlatform\(\) === "android"/);
-  assert.match(ownerMobile, /if \(!isAndroidApp && shouldBlockOwnerAccessBySubscription\(subscription\)\)/);
-  assert.match(ownerMobile, /Capacitor\.getPlatform\(\) !== "android"/);
+
+  const initialGate = ifStatementContaining(
+    ownerMobile,
+    "shouldBlockOwnerAccessBySubscription(subscription)",
+  );
+  const initialErrorGate = ifStatementContaining(
+    ownerMobile,
+    'nextMessage.includes("서비스 이용 기간이 만료")',
+  );
+  const switchStart = ownerMobile.indexOf("async function handleSwitchShop");
+  const switchGate = ifStatementContaining(
+    ownerMobile,
+    "shouldBlockOwnerAccessBySubscription(nextSubscription)",
+    switchStart,
+  );
+  const shouldBlockOwnerAccessBySubscription = (summary) =>
+    summary.status === "expired" || summary.status === "past_due";
+  const expired = { status: "expired" };
+  const pastDue = { status: "past_due" };
+  const active = { status: "active" };
+
+  for (const subscription of [expired, pastDue]) {
+    assert.equal(evaluateCondition(initialGate.condition, {
+      subscription,
+      isAndroidApp: true,
+      shouldBlockOwnerAccessBySubscription,
+    }), false);
+    assert.equal(evaluateCondition(initialGate.condition, {
+      subscription,
+      isAndroidApp: false,
+      shouldBlockOwnerAccessBySubscription,
+    }), true);
+    assert.equal(evaluateCondition(switchGate.condition, {
+      nextSubscription: subscription,
+      Capacitor: { getPlatform: () => "android" },
+      shouldBlockOwnerAccessBySubscription,
+    }), false);
+    assert.equal(evaluateCondition(switchGate.condition, {
+      nextSubscription: subscription,
+      Capacitor: { getPlatform: () => "web" },
+      shouldBlockOwnerAccessBySubscription,
+    }), true);
+  }
+  assert.equal(evaluateCondition(initialGate.condition, {
+    subscription: active,
+    isAndroidApp: false,
+    shouldBlockOwnerAccessBySubscription,
+  }), false);
+  assert.equal(evaluateCondition(switchGate.condition, {
+    nextSubscription: active,
+    Capacitor: { getPlatform: () => "web" },
+    shouldBlockOwnerAccessBySubscription,
+  }), false);
+
+  let nullableGuardCalls = 0;
+  const countingBlockCheck = () => {
+    nullableGuardCalls += 1;
+    return true;
+  };
+  assert.equal(evaluateCondition(initialGate.condition, {
+    subscription: null,
+    isAndroidApp: false,
+    shouldBlockOwnerAccessBySubscription: countingBlockCheck,
+  }), false);
+  assert.equal(evaluateCondition(switchGate.condition, {
+    nextSubscription: null,
+    Capacitor: { getPlatform: () => "web" },
+    shouldBlockOwnerAccessBySubscription: countingBlockCheck,
+  }), false);
+  assert.equal(nullableGuardCalls, 0);
+
+  const expiredMessage = "서비스 이용 기간이 만료되었습니다.";
+  assert.equal(evaluateCondition(initialErrorGate.condition, {
+    Capacitor: { getPlatform: () => "android" },
+    nextMessage: expiredMessage,
+  }), false);
+  assert.equal(evaluateCondition(initialErrorGate.condition, {
+    Capacitor: { getPlatform: () => "web" },
+    nextMessage: expiredMessage,
+  }), true);
+  assert.equal(evaluateCondition(initialErrorGate.condition, {
+    Capacitor: { getPlatform: () => "web" },
+    nextMessage: "일시적인 네트워크 오류",
+  }), false);
+
+  for (const gate of [initialGate, initialErrorGate, switchGate]) {
+    assert.match(gate.body, /router\.replace\([^\n]*\/owner\/billing\?compare=1/);
+  }
+  assert.equal((ownerMobile.match(/router\.replace\([^\n]*\/owner\/billing\?compare=1/g) ?? []).length, 3);
 
   assert.match(ownerShell, /const isAndroidApp = useSyncExternalStore/);
   assert.match(ownerShell, /return Capacitor\.getPlatform\(\) === "android"/);

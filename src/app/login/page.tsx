@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import LoginForm from "@/components/auth/login-form";
+import { getSafeNextPath } from "@/lib/auth/safe-next-path";
 import { getServerSessionUser } from "@/lib/auth/server-session";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 
@@ -11,9 +12,21 @@ const errorMessages: Record<string, string> = {
 
 const infoMessages: Record<string, string> = {
   "email-confirmed": "이메일 인증이 완료되었습니다. 로그인해 주세요.",
-  "signup-success": "인증 메일을 보냈어요. 이메일 인증을 완료한 뒤 로그인해 주세요.",
+  "signup-success": "회원가입이 완료되었습니다. 로그인하면 초기 설정을 시작합니다.",
   "reset-success": "비밀번호가 변경됐어요. 새 비밀번호로 다시 로그인해 주세요.",
 };
+
+function getSafeLoginNextPath(
+  value: string | undefined,
+  resolve: typeof getSafeNextPath = (candidate, fallbackPath) => {
+    if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//") || candidate.includes("\\")) {
+      return fallbackPath;
+    }
+    return candidate;
+  },
+) {
+  return resolve(value, "/owner/mobile");
+}
 
 export default async function LoginPage({
   searchParams,
@@ -23,7 +36,10 @@ export default async function LoginPage({
   const params = (await searchParams) ?? {};
   const errorKey = typeof params.error === "string" ? params.error : undefined;
   const messageKey = typeof params.message === "string" ? params.message : undefined;
-  const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner/mobile";
+  const nextPath = getSafeLoginNextPath(
+    typeof params.next === "string" ? params.next : undefined,
+    getSafeNextPath,
+  );
   const user = await getServerSessionUser();
 
   if (user) {

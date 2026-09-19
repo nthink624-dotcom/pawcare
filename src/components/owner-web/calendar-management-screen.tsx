@@ -95,7 +95,7 @@ export default function CalendarManagementScreen() {
                         }}
                       >
                         <p className="text-[12px] font-semibold">{booking.customer}</p>
-                        <p className={`mt-1 text-[11px] ${booking.id === selectedBookingId ? "text-white/80" : "text-[#5f756e]"}`}>
+                        <p className={`mt-1 text-[12px] ${booking.id === selectedBookingId ? "text-white/80" : "text-[#5f756e]"}`}>
                           {booking.pet} · {booking.service}
                         </p>
                       </button>
@@ -105,7 +105,7 @@ export default function CalendarManagementScreen() {
             </div>
           ) : view === "일" ? (
             <div className="space-y-3">
-              <div className="rounded-[18px] border border-[#e6ddd6] bg-[#fbfaf8] px-4 py-3 text-[15px] font-semibold text-[#17211f]">오늘 시간표</div>
+              <div className="rounded-[18px] border border-[#e6ddd6] bg-[#fbfaf8] px-4 py-3 text-[16px] font-semibold text-[#17211f]">오늘 시간표</div>
               <EmptyCalendarHint />
             </div>
           ) : (
@@ -113,7 +113,7 @@ export default function CalendarManagementScreen() {
               {Array.from({ length: 12 }).map((_, index) => (
                 <div key={index} className="rounded-[18px] border border-[#ece4dd] bg-[#fcfaf8] p-4">
                   <p className="text-[13px] font-medium text-[#8f877d]">{index + 1}일</p>
-                  <p className="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-[#17211f]">{(index % 4) + 2}건</p>
+                  <p className="mt-3 text-[20px] font-semibold tracking-[-0.03em] text-[#17211f]">{(index % 4) + 2}건</p>
                   <p className="mt-2 text-[12px] text-[#756e66]">오전 2건 / 오후 {(index % 3) + 1}건</p>
                 </div>
               ))}

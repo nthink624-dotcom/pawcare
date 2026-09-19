@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
 import { env, hasPortoneBrowserEnv } from "@/lib/env";
+import { ownerFindEmailSchema } from "@/lib/auth/owner-find-email";
 import { ownerPasswordResetSchema, type OwnerPasswordResetInput } from "@/lib/auth/owner-password-reset";
 
 function FieldShell({
@@ -42,6 +43,8 @@ type ApiMessage = {
   available?: boolean;
   message?: string;
   verificationRequestId?: string | null;
+  providerIdentityVerificationId?: string | null;
+  verificationState?: string | null;
   verificationToken?: string | null;
 };
 
@@ -71,6 +74,7 @@ export default function ResetPasswordForm({
     register,
     handleSubmit,
     getValues,
+    watch,
     setValue,
     trigger,
     formState: { errors, isSubmitting },
@@ -87,7 +91,44 @@ export default function ResetPasswordForm({
     },
   });
 
+  const attemptRef = useRef(0);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const verifiedIdentityRef = useRef<string | null>(null);
+  const identitySnapshot = () => {
+    const values = getValues();
+    return JSON.stringify([values.name, values.birthDate, values.phoneNumber, values.email]);
+  };
+  useEffect(() => {
+    mountedRef.current = true;
+    const subscription = watch((_values, { name }) => {
+      if (!["name", "birthDate", "phoneNumber", "email"].includes(name ?? "")) return;
+      attemptRef.current++;
+      busyRef.current = false;
+      verifiedIdentityRef.current = null;
+      setLoading(false);
+      setVerificationToken(null);
+      setValue("identityVerificationToken", "");
+      setStep("account");
+      setMessage(null);
+    });
+    return () => { subscription.unsubscribe(); mountedRef.current = false; busyRef.current = false; };
+  }, [watch, setValue]);
+  const beginAttempt = () => {
+    if (busyRef.current) return null;
+    busyRef.current = true;
+    const id = ++attemptRef.current;
+    const snapshot = identitySnapshot();
+    setLoading(true);
+    setMessage(null);
+    return {
+      current: () => mountedRef.current && attemptRef.current === id && identitySnapshot() === snapshot,
+      finish: () => { if (mountedRef.current && attemptRef.current === id) { busyRef.current = false; setLoading(false); } },
+    };
+  };
+
   const syncVerificationToken = (token: string | null) => {
+    verifiedIdentityRef.current = token ? identitySnapshot() : null;
     setVerificationToken(token);
     setValue("identityVerificationToken", token ?? "", { shouldValidate: true });
     if (token) {
@@ -96,6 +137,8 @@ export default function ResetPasswordForm({
   };
 
   const goBack = () => {
+    attemptRef.current++; busyRef.current = false; setLoading(false);
+    syncVerificationToken(null);
     setMessage(null);
     if (step === "account") {
       router.replace("/login");
@@ -112,94 +155,80 @@ export default function ResetPasswordForm({
   };
 
   const startIdentityVerification = async () => {
-    const isValid = await trigger("email");
-    if (!isValid) return;
-    const values = getValues();
-
-    setLoading(true);
-    setMessage(null);
+    const attempt = beginAttempt();
+    if (!attempt) return;
+    syncVerificationToken(null);
 
     try {
+      if (!ready) { setMessage("로그인 환경을 확인한 뒤 다시 시도해 주세요."); return; }
+      const valid = await trigger(["email"]);
+      if (!attempt.current() || !valid) return;
+      const values = getValues();
+      const identity = ownerFindEmailSchema.omit({ identityVerificationToken: true }).safeParse(values);
+      if (!identity.success) { setMessage(identity.error.issues[0]?.message ?? "본인 정보를 확인해 주세요."); return; }
       const emailCheckResponse = await fetch(`/api/auth/check-email?email=${encodeURIComponent(values.email)}`);
-      const emailCheck = (await emailCheckResponse.json().catch(() => ({}))) as ApiMessage;
-
-      if (!emailCheckResponse.ok) {
-        setMessage("이메일을 확인하는 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.");
-        return;
+      const emailCheck = (await emailCheckResponse.json()) as ApiMessage;
+      if (!attempt.current()) return;
+      if (!emailCheckResponse.ok || emailCheck.available !== false) { setMessage("입력한 이메일을 확인해 주세요."); return; }
+      if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityChannelKey) {
+        setMessage("휴대폰 본인인증 환경이 아직 준비되지 않았습니다."); return;
       }
-
-      if (emailCheck.available) {
-        setMessage("입력한 이메일을 확인해 주세요.");
-        return;
-      }
-
-    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityChannelKey) {
-        setMessage("KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.");
-        return;
-      }
-
       setStep("preparing");
       const requestResponse = await fetch("/api/auth/request-verification-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: values.email,
-          purpose: "reset-password",
-          method: "portone",
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...identity.data, email: values.email, purpose: "reset-password", method: "portone" }),
       });
       const requestResult = (await requestResponse.json()) as ApiMessage;
-
-      if (!requestResponse.ok || !requestResult.verificationRequestId) {
-        setMessage(requestResult.message ?? "본인확인 요청을 준비하지 못했어요.");
-        setStep("account");
-        return;
+      if (!attempt.current()) return;
+      if (!requestResponse.ok || typeof requestResult.verificationRequestId !== "string" ||
+          !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(requestResult.verificationRequestId) ||
+          typeof requestResult.providerIdentityVerificationId !== "string" || !requestResult.providerIdentityVerificationId.trim() ||
+          requestResult.providerIdentityVerificationId.length > 128 ||
+          typeof requestResult.verificationState !== "string" || !/^[a-f0-9]{64}$/.test(requestResult.verificationState)) {
+        setMessage("본인인증 요청을 준비하지 못했습니다. 다시 시도해 주세요."); return;
       }
-
-      const identityVerificationId = `resetpw${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
-
       const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
+      if (!attempt.current()) return;
+      const identityVerificationId = requestResult.providerIdentityVerificationId;
       const result = await requestIdentityVerification({
-        storeId: env.portoneStoreId,
-        channelKey: env.portoneIdentityChannelKey,
+        storeId: env.portoneStoreId, channelKey: env.portoneIdentityChannelKey,
         identityVerificationId,
+        customData: JSON.stringify({ petmanagerIdentityState: requestResult.verificationState }),
         windowType: { pc: "POPUP", mobile: "POPUP" },
+        customer: { fullName: identity.data.name, phoneNumber: identity.data.phoneNumber,
+          birthYear: identity.data.birthDate.slice(0, 4), birthMonth: identity.data.birthDate.slice(4, 6), birthDay: identity.data.birthDate.slice(6, 8) },
       });
-
-      if (!result?.identityVerificationId) {
-        setMessage("휴대폰 본인인증이 완료되지 않았어요.");
-        setStep("account");
-        return;
+      if (!attempt.current()) return;
+      if (!result || result.code || result.identityVerificationId !== identityVerificationId) {
+        setMessage("휴대폰 본인인증을 완료하지 못했습니다. 다시 시도해 주세요."); return;
       }
-
       const response = await fetch("/api/auth/verify-pass", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          purpose: "reset-password",
-          verificationRequestId: requestResult.verificationRequestId,
-          identityVerificationId: result.identityVerificationId,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purpose: "reset-password", verificationRequestId: requestResult.verificationRequestId,
+          identityVerificationId, verificationState: requestResult.verificationState }),
       });
-      const verifyResult = (await response.json()) as ApiMessage;
-
-      if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "휴대폰 본인인증 확인에 실패했어요.");
-        setStep("account");
-        return;
+      const verified = (await response.json()) as ApiMessage;
+      if (!attempt.current()) return;
+      if (!response.ok || typeof verified.verificationToken !== "string" || !verified.verificationToken.trim()) {
+        setMessage("본인인증 결과를 확인하지 못했습니다. 다시 시도해 주세요."); return;
       }
-
-      syncVerificationToken(verifyResult.verificationToken);
-      setMessage(verifyResult.message ?? "휴대폰 본인인증이 완료됐어요. 새 비밀번호를 입력해 주세요.");
+      syncVerificationToken(verified.verificationToken);
+      setMessage("본인 인증이 완료되었습니다.");
     } catch {
-      setMessage("본인인증을 진행하는 중 문제가 발생했어요. 다시 시도해 주세요.");
-      setStep("account");
+      if (attempt.current()) setMessage("본인인증 중 문제가 발생했습니다. 다시 시도해 주세요.");
     } finally {
-      setLoading(false);
+      if (attempt.current() && !verifiedIdentityRef.current) setStep("account");
+      attempt.finish();
     }
   };
 
   const onSubmit = handleSubmit(async (values) => {
+    if (!verificationToken || verifiedIdentityRef.current !== identitySnapshot()) {
+      syncVerificationToken(null); setMessage("본인 확인을 먼저 완료해 주세요."); return;
+    }
+    const attempt = beginAttempt();
+    if (!attempt) return;
+    try {
     if (!ready) {
       setMessage("로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
@@ -218,6 +247,7 @@ export default function ResetPasswordForm({
     });
 
     const result = (await response.json()) as ApiMessage;
+    if (!attempt.current()) return;
     if (!response.ok) {
       setMessage(result.message ?? "비밀번호를 재설정하지 못했어요.");
       return;
@@ -225,13 +255,18 @@ export default function ResetPasswordForm({
 
     setMessage(result.message ?? "비밀번호가 변경됐어요. 새 비밀번호로 다시 로그인해 주세요.");
     window.setTimeout(() => {
+      if (!attempt.current()) return;
       router.replace("/login?message=reset-success");
       router.refresh();
     }, 900);
+    } catch {
+      if (attempt.current()) setMessage("요청을 처리하지 못했습니다. 다시 시도해 주세요.");
+    } finally { attempt.finish(); }
   });
 
   const firstError =
     errors.email?.message ||
+    errors.name?.message || errors.birthDate?.message || errors.phoneNumber?.message ||
     errors.password?.message ||
     errors.passwordConfirm?.message;
 
@@ -250,7 +285,6 @@ export default function ResetPasswordForm({
       <div className="relative flex h-10 items-center justify-center">
         <MobileBackButton
           onClick={goBack}
-          disabled={step === "preparing"}
           label={step === "account" ? "로그인으로 이동" : "이전 단계"}
           className="absolute left-0 h-11 w-11 border-0 bg-transparent text-[#111827] shadow-none hover:bg-[#f8fafc] disabled:pointer-events-none disabled:opacity-0"
         />
@@ -271,6 +305,11 @@ export default function ResetPasswordForm({
                   className="auth-type-control min-h-[52px] w-full rounded-[12px] border border-[#e8edf3] bg-white px-4 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15"
                 />
               </label>
+              <div className="mt-4">
+                <FieldShell label="이름"><TextInput type="text" autoComplete="name" {...register("name")} placeholder="이름" /></FieldShell>
+                <FieldShell label="생년월일"><TextInput type="text" inputMode="numeric" maxLength={8} {...register("birthDate")} placeholder="예: 19990321" /></FieldShell>
+                <FieldShell label="휴대폰 번호"><TextInput type="tel" autoComplete="tel" inputMode="numeric" maxLength={11} {...register("phoneNumber")} placeholder="숫자만 입력" /></FieldShell>
+              </div>
             </section>
           ) : null}
 

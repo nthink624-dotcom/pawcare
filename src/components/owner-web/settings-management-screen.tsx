@@ -85,7 +85,7 @@ export default function SettingsManagementScreen() {
                   activeTab === tab.key ? "bg-[#f1f7f4] text-[#2f7866]" : "text-[#5f5851] hover:bg-[#fbfaf8]"
                 }`}
               >
-                <span className="text-[15px] font-medium">{tab.label}</span>
+                <span className="text-[16px] font-medium">{tab.label}</span>
                 <span className="text-[12px]">{activeTab === tab.key ? "선택됨" : ""}</span>
               </button>
             ))}
@@ -95,7 +95,7 @@ export default function SettingsManagementScreen() {
         <WebSurface className="p-6">
           <div className="flex items-center justify-between gap-3 border-b border-[#f0e8e1] pb-4">
             <div>
-              <h3 className="text-[22px] font-semibold tracking-[-0.04em] text-[#17211f]">{current.title}</h3>
+              <h3 className="text-[20px] font-semibold tracking-[-0.04em] text-[#17211f]">{current.title}</h3>
               <p className="mt-2 text-[14px] text-[#7a7269]">웹 오너 페이지에서는 각 탭을 좌측 고정 메뉴로 두고, 우측에서 한 번에 수정하는 구조를 가정했습니다.</p>
             </div>
             <GhostButton label="초기화" />
@@ -105,11 +105,11 @@ export default function SettingsManagementScreen() {
             {current.rows.map((row) => (
               <div key={row.label} className="flex items-start justify-between gap-6 py-5">
                 <div className="min-w-0">
-                  <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#17211f]">{row.label}</p>
+                  <p className="text-[16px] font-semibold tracking-[-0.02em] text-[#17211f]">{row.label}</p>
                   {row.description ? <p className="mt-2 text-[13px] leading-6 text-[#81796f]">{row.description}</p> : null}
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-[15px] font-medium text-[#2f7866]">{row.value}</p>
+                  <p className="text-[16px] font-medium text-[#2f7866]">{row.value}</p>
                 </div>
               </div>
             ))}

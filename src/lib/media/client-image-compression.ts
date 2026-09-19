@@ -24,6 +24,11 @@ export type PetmanagerCompressedImageVariant = PetmanagerCompressedImage & {
   variantKey: MediaVariantKey;
 };
 
+export type PetmanagerImageCompressionSession = Readonly<{
+  file: File;
+  image: HTMLImageElement;
+}>;
+
 const DEFAULT_MAX_LONG_EDGE = 1600;
 const DEFAULT_QUALITY = 0.72;
 const DEFAULT_MAX_BYTES = PETMANAGER_MEDIA_MAX_COMPRESSED_UPLOAD_BYTES;
@@ -54,6 +59,18 @@ function loadImage(file: File) {
     };
     image.src = url;
   });
+}
+
+export async function createPetmanagerImageCompressionSession(
+  file: File,
+): Promise<PetmanagerImageCompressionSession> {
+  assertBrowser();
+
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Only image files can be compressed.");
+  }
+
+  return { file, image: await loadImage(file) };
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
@@ -111,17 +128,11 @@ async function renderCompressedBlob(params: {
   };
 }
 
-export async function compressImageForPetmanager(
-  file: File,
+export async function compressImageForPetmanagerFromSession(
+  session: PetmanagerImageCompressionSession,
   options: PetmanagerImageCompressionOptions = {},
 ): Promise<PetmanagerCompressedImage> {
-  assertBrowser();
-
-  if (!file.type.startsWith("image/")) {
-    throw new Error("Only image files can be compressed.");
-  }
-
-  const image = await loadImage(file);
+  const { file, image } = session;
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const targetBytes = Math.min(options.targetBytes ?? DEFAULT_TARGET_BYTES, maxBytes);
   const outputType = options.outputType ?? "image/webp";
@@ -163,8 +174,16 @@ export async function compressImageForPetmanager(
   };
 }
 
-export async function compressImageVariantsForPetmanager(
+export async function compressImageForPetmanager(
   file: File,
+  options: PetmanagerImageCompressionOptions = {},
+): Promise<PetmanagerCompressedImage> {
+  const session = await createPetmanagerImageCompressionSession(file);
+  return compressImageForPetmanagerFromSession(session, options);
+}
+
+export async function compressImageVariantsForPetmanagerFromSession(
+  session: PetmanagerImageCompressionSession,
   variantKeys: MediaVariantKey[] = ["thumbnail", "preview", "provider_ready"],
 ): Promise<PetmanagerCompressedImageVariant[]> {
   const uniqueVariantKeys = [...new Set(variantKeys)];
@@ -172,7 +191,7 @@ export async function compressImageVariantsForPetmanager(
 
   for (const variantKey of uniqueVariantKeys) {
     const profile = PETMANAGER_MEDIA_VARIANT_PROFILES[variantKey];
-    const compressed = await compressImageForPetmanager(file, {
+    const compressed = await compressImageForPetmanagerFromSession(session, {
       maxLongEdge: profile.maxLongEdge,
       maxBytes: profile.maxBytes,
       targetBytes: profile.targetBytes,
@@ -186,4 +205,12 @@ export async function compressImageVariantsForPetmanager(
   }
 
   return variants;
+}
+
+export async function compressImageVariantsForPetmanager(
+  file: File,
+  variantKeys: MediaVariantKey[] = ["thumbnail", "preview", "provider_ready"],
+): Promise<PetmanagerCompressedImageVariant[]> {
+  const session = await createPetmanagerImageCompressionSession(file);
+  return compressImageVariantsForPetmanagerFromSession(session, variantKeys);
 }

@@ -1,17 +1,18 @@
 "use client";
 
 import Image from "next/image";
+import SignupConsentDialog from "@/components/auth/signup-consent-dialog";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, Eye, EyeOff, Smartphone } from "lucide-react";
+import { Check, Eye, EyeOff } from "lucide-react";
 
-import { ServiceBrand } from "@/components/brand/service-brand";
 import MobileAiPriceGuideFixture, { type PriceGuideDraftRow } from "@/components/auth/mobile-ai-price-guide-fixture";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
-import { MobileBackLinkButton } from "@/components/ui/mobile-back-button";
+import { MobileBackButton, MobileBackLinkButton } from "@/components/ui/mobile-back-button";
 import {
   OWNER_SIGNUP_TERMS_VERSION,
+  OWNER_MARKETING_CONSENT_DOCUMENT_VERSION,
   ownerSignupTerms,
   type OwnerSignupTermId,
 } from "@/lib/auth/owner-signup-terms";
@@ -22,29 +23,46 @@ import {
   normalizeOwnerEmail,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
-import { env, getSupabaseRuntimeStage } from "@/lib/env";
-import { PUBLIC_LEGAL_URLS } from "@/lib/legal/public-legal-links";
+import {
+  clearOwnerAuthTokenCache,
+  writeOwnerAuthHandoff,
+  writeOwnerAuthSessionCache,
+} from "@/lib/auth/owner-auth-handoff";
+import { getSafeNextPath } from "@/lib/auth/safe-next-path";
+import { env } from "@/lib/env";
 import {
   BUTTON_PRIMARY as UI_BUTTON_PRIMARY,
   BUTTON_SECONDARY as UI_BUTTON_SECONDARY,
   INLINE_ERROR,
   INLINE_HELP,
   INPUT_BASE,
-  PAGE_EYEBROW as UI_PAGE_EYEBROW,
-  PAGE_FRAME as UI_PAGE_FRAME,
   PAGE_TITLE as UI_PAGE_TITLE,
   cn,
 } from "@/lib/ui-system";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type Step = "entry" | "price-guide" | "profile";
+type Step = "entry" | "price-guide" | "identity" | "profile";
 type StartTarget = "email" | null;
 type AgreementState = Record<OwnerSignupTermId, boolean>;
-type VerificationMethod = "phone" | "kakao-certificate" | "naver-certificate" | "toss" | "pass";
+type VerificationMethod = "phone";
 type VerificationPurpose = "signup";
+type SignupFields = {
+  name: string;
+  birthDate: string;
+  phoneNumber: string;
+  verificationCode: string;
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  shopName: string;
+  shopPhone: string;
+  shopAddress: string;
+};
 type VerificationApiResponse = {
   message?: string;
   verificationRequestId?: string | null;
+  providerIdentityVerificationId?: string;
+  verificationState?: string;
   devVerificationCode?: string | null;
   verificationToken?: string | null;
 };
@@ -56,18 +74,131 @@ const initialAgreements: AgreementState = {
   marketing: false,
 };
 
-const termLinkById: Record<OwnerSignupTermId, string> = {
-  service: PUBLIC_LEGAL_URLS.terms,
-  privacy: PUBLIC_LEGAL_URLS.privacy,
-  location: PUBLIC_LEGAL_URLS.terms,
-  marketing: PUBLIC_LEGAL_URLS.privacy,
+function createInitialSignupFields(): SignupFields {
+  return {
+    name: "",
+    birthDate: "",
+    phoneNumber: "",
+    verificationCode: "",
+    email: "",
+    password: "",
+    passwordConfirm: "",
+    shopName: "",
+    shopPhone: "",
+    shopAddress: "",
+  };
+}
+
+const SIGNUP_AGREEMENT_STORAGE_KEY = `petmanager:signup-agreements:${OWNER_SIGNUP_TERMS_VERSION}`;
+
+function readSignupAgreementReceipt(): AgreementState | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const rawReceipt = window.sessionStorage.getItem(SIGNUP_AGREEMENT_STORAGE_KEY);
+    if (!rawReceipt) return null;
+
+    const receipt = JSON.parse(rawReceipt) as {
+      version?: unknown;
+      agreements?: Partial<Record<OwnerSignupTermId, unknown>>;
+    };
+    const storedAgreements = receipt.agreements;
+    if (
+      receipt.version !== OWNER_SIGNUP_TERMS_VERSION ||
+      !storedAgreements ||
+      storedAgreements.service !== true ||
+      storedAgreements.privacy !== true ||
+      typeof storedAgreements.location !== "boolean" ||
+      typeof storedAgreements.marketing !== "boolean"
+    ) {
+      return null;
+    }
+
+    return {
+      service: true,
+      privacy: true,
+      location: storedAgreements.location,
+      marketing: storedAgreements.marketing,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeSignupAgreementReceipt(agreements: AgreementState) {
+  if (typeof window === "undefined") return false;
+
+  try {
+    const receipt = JSON.stringify({ version: OWNER_SIGNUP_TERMS_VERSION, agreements });
+    window.sessionStorage.setItem(
+      SIGNUP_AGREEMENT_STORAGE_KEY,
+      receipt,
+    );
+    return window.sessionStorage.getItem(SIGNUP_AGREEMENT_STORAGE_KEY) === receipt;
+  } catch {
+    return false;
+  }
+}
+
+function clearSignupAgreementReceipt() {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.sessionStorage.removeItem(SIGNUP_AGREEMENT_STORAGE_KEY);
+  } catch {
+    // The completed signup should continue even when browser storage is unavailable.
+  }
+}
+
+type AtomicSignupResponse = {
+  success?: boolean;
+  code?: string;
+  message?: string;
+  nextAction?: "billing" | "initial_setup";
+  session?: { accessToken?: string; refreshToken?: string } | null;
 };
 
-const PAGE_FRAME = cn(UI_PAGE_FRAME, "bg-[#f1f3f7] px-5 py-8");
-const PAGE_EYEBROW = cn(UI_PAGE_EYEBROW, "auth-type-label !text-[14px] !font-medium !leading-5 tracking-normal text-[#64748b]");
+function resolveAtomicSignupNextPath(result: AtomicSignupResponse, fallbackPath: string) {
+  if (result.nextAction === "billing") return "/owner/billing?compare=1";
+  if (result.nextAction === "initial_setup") return "/owner/mobile?entry=initial_setup";
+  return fallbackPath;
+}
+
+const PAGE_FRAME = "min-h-dvh w-full bg-white";
+const PAGE_CONTENT =
+  "mx-auto w-full max-w-[430px] px-5 pt-[calc(env(safe-area-inset-top)+8px)]";
 const PAGE_TITLE = cn(UI_PAGE_TITLE, "auth-type-page-title tracking-[-0.02em] text-[#101a31]");
-const BUTTON_PRIMARY = cn(UI_BUTTON_PRIMARY, "auth-type-control min-h-[52px] rounded-[12px] bg-[#111a30] text-white");
-const BUTTON_SECONDARY = cn(UI_BUTTON_SECONDARY, "auth-type-control min-h-[52px] rounded-[12px] border-[#e8edf3] text-[#111827]");
+const BUTTON_PRIMARY = cn(UI_BUTTON_PRIMARY, "auth-type-control h-[48px] min-h-[48px] rounded-[10px] bg-[#111a30] px-[14px] text-white");
+const BUTTON_SECONDARY = cn(UI_BUTTON_SECONDARY, "auth-type-control h-[48px] min-h-[48px] rounded-[10px] border-[#dbe2ea] px-[14px] text-[#111827]");
+const ACTION_BUTTON_GRID = "grid grid-cols-2 gap-3";
+const SHEET_ACTION_FOOTER =
+  "shrink-0 border-t border-[#e8edf3] bg-white px-5 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3";
+
+// Client expiry is only a retry hint. The signup API still verifies signature,
+// expiry, purpose, identity binding, and consumption on every submission.
+function isSignupTokenFresh(token: string | null, now = Date.now()): token is string {
+  if (!token) return false;
+  try {
+    const encoded = token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(encoded));
+    return payload.purpose === "signup" && typeof payload.expiresAt === "number" && payload.expiresAt > now;
+  } catch { return false; }
+}
+
+function waitForIdentityOperation<T>(operation: Promise<T>, signal: AbortSignal, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => finish(() => reject(new Error("IDENTITY_TIMEOUT"))), timeoutMs);
+    const onAbort = () => finish(() => reject(new Error("IDENTITY_CANCELLED")));
+    const finish = (callback: () => void) => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", onAbort);
+      callback();
+    };
+    if (signal.aborted) { onAbort(); return; }
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then((value) => finish(() => resolve(value)), (error) => finish(() => reject(error)));
+  });
+}
 
 type AtomicSignupServicePrice = {
   id: string;
@@ -114,80 +245,87 @@ function maskPhoneNumber(value: string) {
   return `${digits.slice(0, 3)}-****-${digits.slice(7, 11)}`;
 }
 
-const verificationMethods: Array<{
-  id: VerificationMethod;
-  title: string;
-  description: string;
-  kind: "active" | "placeholder";
-}> = [
-  { id: "phone", title: "휴대폰 본인인증", description: "가장 익숙한 방식으로 인증해요.", kind: "active" },
-  { id: "kakao-certificate", title: "카카오 간편 인증", description: "카카오 인증서로 간편하게 인증해요.", kind: "placeholder" },
-  { id: "naver-certificate", title: "네이버 간편 인증", description: "네이버 인증서로 간편하게 인증해요.", kind: "placeholder" },
-  { id: "toss", title: "토스 간편 인증", description: "토스 앱으로 빠르게 인증해요.", kind: "placeholder" },
-  { id: "pass", title: "PASS 간편 인증", description: "PASS 앱으로 빠르게 인증해요.", kind: "active" },
-];
+type RetainedSignupStep = Extract<Step, "identity" | "profile">;
+type VolatileSignupDraft = {
+  version: string;
+  savedAt: number;
+  signupRequestId: string;
+  step: RetainedSignupStep;
+  agreements: AgreementState;
+  fields: Omit<SignupFields, "password" | "passwordConfirm" | "verificationCode">;
+  shopDetailAddress: string;
+  shopPostalCode: string;
+  checkedEmail: string | null;
+  selectedVerificationMethod: VerificationMethod | null;
+  verificationSheetOpen: boolean;
+  verificationDetailSheetOpen: boolean;
+  message: string | null;
+};
 
-const phoneCarrierOptions = [
-  { value: "SKT", label: "SKT" },
-  { value: "KTF", label: "KT" },
-  { value: "LGT", label: "LG U+" },
-  { value: "MVNO", label: "알뜰폰" },
-] as const;
+const VOLATILE_SIGNUP_DRAFT_TTL_MS = 20 * 60 * 1000;
+let volatileSignupDraft: VolatileSignupDraft | null = null;
+let draftExpiryTimer: ReturnType<typeof setTimeout> | null = null;
+const draftBoundaryListeners = new Set<(event?: string, session?: unknown) => void>();
+const observedAuthClients = new WeakSet<object>();
 
-function VerificationMethodLogo({ method }: { method: VerificationMethod }) {
-  if (method === "kakao-certificate") {
-    return (
-      <Image
-        src="/images/auth/kakaotalk_sharing_btn_medium.png"
-        alt="카카오 인증서"
-        width={43}
-        height={43}
-        sizes="43px"
-        className="h-[43px] w-[43px] object-contain"
-      />
-    );
+// Keep one observer for the browser client's lifetime, including signup unmounts.
+function observeSignupAuthBoundary(client: ReturnType<typeof getSupabaseBrowserClient>) {
+  if (!client || observedAuthClients.has(client)) return;
+  observedAuthClients.add(client);
+  client.auth.onAuthStateChange((event: string, session: unknown) => {
+    if (event === "SIGNED_IN" || event === "SIGNED_OUT" ||
+      (event === "INITIAL_SESSION" && session)) {
+      clearVolatileSignupDraft();
+      clearSignupAgreementReceipt();
+      draftBoundaryListeners.forEach((reset) => reset(event, session));
+    }
+  });
+}
+
+function readVolatileSignupDraft(initialStart: "email" | null, now = Date.now()): VolatileSignupDraft | null {
+  if (typeof window === "undefined" || initialStart !== "email" || !volatileSignupDraft) return null;
+  if (
+    volatileSignupDraft.version !== OWNER_SIGNUP_TERMS_VERSION ||
+    now < volatileSignupDraft.savedAt ||
+    now - volatileSignupDraft.savedAt >= VOLATILE_SIGNUP_DRAFT_TTL_MS
+  ) {
+    clearVolatileSignupDraft();
+    return null;
   }
 
-  if (method === "naver-certificate") {
-    return (
-      <Image
-        src="/images/auth/naver-login-light-kr-green-wide-h48.png"
-        alt="네이버 인증서"
-        width={43}
-        height={43}
-        sizes="43px"
-        className="h-[43px] w-[43px] object-contain"
-      />
-    );
-  }
+  return {
+    ...volatileSignupDraft,
+    agreements: { ...volatileSignupDraft.agreements },
+    fields: { ...volatileSignupDraft.fields },
+  };
+}
 
-  if (method === "phone") {
-    return <Smartphone className="h-[28px] w-[28px] text-[#5d6660]" />;
-  }
+function writeVolatileSignupDraft(
+  draft: Omit<VolatileSignupDraft, "version" | "savedAt" | "fields"> & { fields: SignupFields; savedAt: number },
+  now = Date.now(),
+) {
+  if (typeof window === "undefined") return;
+  if (now < draft.savedAt || now - draft.savedAt >= VOLATILE_SIGNUP_DRAFT_TTL_MS) return;
+  if (draftExpiryTimer) clearTimeout(draftExpiryTimer);
+  draftExpiryTimer = setTimeout(clearVolatileSignupDraft, draft.savedAt + VOLATILE_SIGNUP_DRAFT_TTL_MS - now);
+  volatileSignupDraft = {
+    ...draft,
+    version: OWNER_SIGNUP_TERMS_VERSION,
+    savedAt: draft.savedAt,
+    agreements: { ...draft.agreements },
+    fields: {
+      name: draft.fields.name, birthDate: draft.fields.birthDate,
+      phoneNumber: draft.fields.phoneNumber, email: draft.fields.email,
+      shopName: draft.fields.shopName, shopPhone: draft.fields.shopPhone,
+      shopAddress: draft.fields.shopAddress,
+    },
+  };
+}
 
-  if (method === "pass") {
-    return (
-      <Image
-        src="/images/auth/pass-logo-4.png"
-        alt="PASS"
-        width={43}
-        height={43}
-        sizes="43px"
-        className="h-[43px] w-[43px] object-contain"
-      />
-    );
-  }
-
-  return (
-    <Image
-      src="/images/auth/Toss_Symbol_Primary.png"
-      alt="토스 인증"
-      width={35}
-      height={35}
-      sizes="35px"
-      className="h-[35px] w-[35px] object-contain"
-    />
-  );
+function clearVolatileSignupDraft() {
+  if (draftExpiryTimer) clearTimeout(draftExpiryTimer);
+  draftExpiryTimer = null;
+  volatileSignupDraft = null;
 }
 
 function AuthField({
@@ -208,27 +346,14 @@ function AuthField({
   const message = error || helper || hint;
 
   return (
-    <label className="block">
-      <div
-        className={cn(
-          "group relative rounded-[12px] border bg-white px-4 pb-3 pt-3.5 transition focus-within:border-[#2563eb] focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.1)]",
-          error
-            ? "border-[#d99a90] bg-[#fffdfc]"
-            : tone === "success"
-              ? "border-[#9ec6bb] bg-[#fdfefe]"
-              : "border-[#e8edf3]",
-        )}
-      >
-        <span className="auth-type-label absolute -top-2.5 left-3 bg-white px-1.5 text-[#64748b]">
-          {label}
-        </span>
-        {children}
-      </div>
+    <label className="block" data-signup-field-style="stacked">
+      <span className="auth-type-label mb-2 block text-[#475569]">{label}</span>
+      {children}
       {message ? (
         <p
           className={cn(
-            "auth-type-helper mt-1 px-0.5",
-            error ? "text-[#c65c50]" : tone === "success" ? "text-[#3a7c6d]" : "text-[#9a9188]",
+            "auth-type-helper mt-1.5 px-0.5",
+            error ? "text-[#b42318]" : tone === "success" ? "text-[#1f6b5b]" : "text-[#64748b]",
           )}
         >
           {message}
@@ -238,24 +363,8 @@ function AuthField({
   );
 }
 
-function AuthSectionBlock({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-2">
-      <div className="space-y-1 px-1">
-        <h2 className="auth-type-section-title text-[#101a31]">{title}</h2>
-        {description ? <p className="auth-type-helper text-[#64748b]">{description}</p> : null}
-      </div>
-      <div className="space-y-2.5">{children}</div>
-    </section>
-  );
+function AuthSectionBlock({ children }: { children: React.ReactNode }) {
+  return <section className="space-y-4">{children}</section>;
 }
 
 function AuthInput({
@@ -287,22 +396,22 @@ function AuthInput({
         inputMode={inputMode}
         autoComplete={autoComplete}
         className={cn(
-          "auth-type-control min-h-11 w-full border-0 bg-white px-0 py-0 text-[#171411] outline-none placeholder:text-[#94a3b8] focus:bg-white [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_white] [&:-webkit-autofill]:[-webkit-text-fill-color:#171411]",
-          rightSlot ? "pr-8" : "",
+          "auth-type-control h-[48px] min-h-[48px] w-full scroll-mb-[calc(env(safe-area-inset-bottom)+96px)] rounded-[10px] border border-[#dbe2ea] bg-white px-[14px] !font-normal text-[#111827] outline-none transition-[border-color,box-shadow] placeholder:!font-normal placeholder:text-[#94a3b8] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_white] [&:-webkit-autofill]:[-webkit-text-fill-color:#111827]",
+          rightSlot ? "pr-12" : "",
           className,
         )}
       />
-      {rightSlot ? <div className="absolute inset-y-0 right-0 flex items-center">{rightSlot}</div> : null}
+      {rightSlot ? <div className="absolute inset-y-0 right-1 flex items-center">{rightSlot}</div> : null}
     </div>
   );
 }
 
 function EntryStep({
   onStartEmail,
-  nextPath,
+  safeNextPath,
 }: {
   onStartEmail: () => void;
-  nextPath: string;
+  safeNextPath: string;
 }) {
   return (
     <div className="space-y-6">
@@ -314,7 +423,7 @@ function EntryStep({
 
       <div className="auth-type-helper text-center text-[#64748b]">
         이미 계정이 있나요?{" "}
-        <Link href={`/login?next=${encodeURIComponent(nextPath)}` as never} replace className="font-semibold text-[#111111]">
+        <Link href={`/login?next=${encodeURIComponent(safeNextPath)}` as never} replace className="font-semibold text-[#111111]">
           로그인
         </Link>
       </div>
@@ -336,44 +445,116 @@ export default function SignupForm({
   priceGuideFixtureEnabled?: boolean;
 }) {
   const router = useRouter();
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [step, setStep] = useState<Step>(initialStart === "email" ? (priceGuideFixtureEnabled ? "price-guide" : "profile") : "entry");
+  const safeNextPath = getSafeNextPath(nextPath, "/owner");
+  const [sessionCheckAttempt, setSessionCheckAttempt] = useState(0);
+  // The helper caches its browser client; reacquire on retry without trusting a failed initialization.
+  let supabase: ReturnType<typeof getSupabaseBrowserClient> = null;
+  try {
+    if (supabaseReady) supabase = getSupabaseBrowserClient();
+  } catch {
+    // The session gate presents the same safe retry state for client setup failures.
+  }
+  const [signupNavigating, setSignupNavigating] = useState(false);
+  const [authBoundaryStatus, setAuthBoundaryStatus] = useState<"checking" | "ready" | "error">("checking");
+  const [restoredDraft, setRestoredDraft] = useState(() => readVolatileSignupDraft(initialStart));
+  const restoredDraftRef = useRef(restoredDraft);
+  const draftStartedAtRef = useRef(restoredDraft?.savedAt ?? Date.now());
+  const [step, setStep] = useState<Step>(
+    restoredDraft?.step ?? (initialStart === "email" ? (priceGuideFixtureEnabled ? "price-guide" : "identity") : "entry"),
+  );
   const [priceGuideFixtureRows, setPriceGuideFixtureRows] = useState<PriceGuideDraftRow[] | null>(null);
   const [signupRequestId, setSignupRequestId] = useState(() => crypto.randomUUID());
   const [startTarget, setStartTarget] = useState<StartTarget>(null);
-  const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
-  const [message, setMessage] = useState<string | null>(null);
+  const [agreements, setAgreements] = useState<AgreementState>(() => restoredDraft?.agreements ?? { ...initialAgreements });
+  const [message, setMessage] = useState<string | null>(restoredDraft?.message ?? null);
   const [loading, setLoading] = useState(false);
+  const [signupPhase, setSignupPhase] = useState<"idle" | "checking" | "verifying" | "submitting">("idle");
+  const [identityAttempted, setIdentityAttempted] = useState(false);
+  const signupFlowRef = useRef<AbortController | null>(null);
+  const completingSessionTokenRef = useRef<string | null>(null);
+  useEffect(() => () => { signupFlowRef.current?.abort(); }, []);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [checkedEmail, setCheckedEmail] = useState<string | null>(null);
-  const [devCode, setDevCode] = useState<string | null>(null);
   const [verificationRequestId, setVerificationRequestId] = useState<string | null>(null);
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
-  const [verificationSheetOpen, setVerificationSheetOpen] = useState(false);
-  const [verificationDetailSheetOpen, setVerificationDetailSheetOpen] = useState(false);
-  const [selectedVerificationMethod, setSelectedVerificationMethod] = useState<VerificationMethod | null>(null);
-  const [phoneCarrier, setPhoneCarrier] = useState<(typeof phoneCarrierOptions)[number]["value"]>("SKT");
-  const selectedVerificationMeta = useMemo(
-    () => verificationMethods.find((method) => method.id === selectedVerificationMethod) ?? null,
-    [selectedVerificationMethod],
-  );
+  const [verificationSheetOpen, setVerificationSheetOpen] = useState(restoredDraft?.verificationSheetOpen ?? false);
+  const [verificationDetailSheetOpen, setVerificationDetailSheetOpen] = useState(restoredDraft?.verificationDetailSheetOpen ?? false);
+  const [selectedVerificationMethod, setSelectedVerificationMethod] = useState<VerificationMethod | null>(restoredDraft?.selectedVerificationMethod ?? null);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
-  const [shopDetailAddress, setShopDetailAddress] = useState("");
-  const [shopPostalCode, setShopPostalCode] = useState("");
+  const [shopDetailAddress, setShopDetailAddress] = useState(restoredDraft?.shopDetailAddress ?? "");
+  const [shopPostalCode, setShopPostalCode] = useState(restoredDraft?.shopPostalCode ?? "");
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
-  const [fields, setFields] = useState({
-    name: "",
-    birthDate: "",
-    phoneNumber: "",
-    verificationCode: "",
-    email: "",
-    password: "",
-    passwordConfirm: "",
-    shopName: "",
-    shopPhone: "",
-    shopAddress: "",
-  });
+  const [fields, setFields] = useState<SignupFields>(() => ({ ...createInitialSignupFields(), ...restoredDraft?.fields }));
+  const identityRevisionRef = useRef(0);
+  const emailRevisionRef = useRef(0);
+  const providerAttemptRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { providerAttemptRef.current?.abort(); }, []);
+  const cancelProviderAttempt = () => {
+    providerAttemptRef.current?.abort();
+    providerAttemptRef.current = null;
+    setLoading(false);
+  };
+  const verificationTokenRevisionRef = useRef<number | null>(null);
+
+  const resetSignup = useCallback(() => {
+    signupFlowRef.current?.abort();
+    signupFlowRef.current = null;
+    completingSessionTokenRef.current = null;
+    setSignupNavigating(false);
+    setSignupPhase("idle");
+    setIdentityAttempted(false);
+    clearVolatileSignupDraft();
+    restoredDraftRef.current = null;
+    setRestoredDraft(null);
+    emailRevisionRef.current += 1;
+    draftStartedAtRef.current = Date.now();
+    providerAttemptRef.current?.abort();
+    providerAttemptRef.current = null;
+    identityRevisionRef.current += 1;
+    verificationTokenRevisionRef.current = null;
+    setFields(createInitialSignupFields());
+    setSignupRequestId(crypto.randomUUID());
+    setCheckedEmail(null);
+    setCheckingEmail(false);
+    setLoading(false);
+    setVerificationRequestId(null);
+    setVerificationToken(null);
+    setShopDetailAddress("");
+    setShopPostalCode("");
+    setAddressSheetOpen(false);
+    setVerificationSheetOpen(false);
+    setVerificationDetailSheetOpen(false);
+    setSelectedVerificationMethod(null);
+    setShowPassword(false);
+    setShowPasswordConfirm(false);
+    setPriceGuideFixtureRows(null);
+    setAgreements({ ...initialAgreements });
+    setStartTarget(null);
+    setMessage(null);
+    setStep("entry");
+  }, []);
+
+  useEffect(() => {
+    const onAuthBoundary = (event?: string, session?: unknown) => {
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && completingSessionTokenRef.current &&
+        typeof session === "object" && session !== null && "access_token" in session &&
+        session.access_token === completingSessionTokenRef.current) return;
+      resetSignup();
+    };
+    draftBoundaryListeners.add(onAuthBoundary);
+    observeSignupAuthBoundary(supabase);
+    return () => { draftBoundaryListeners.delete(onAuthBoundary); };
+  }, [resetSignup, supabase]);
+
+  useEffect(() => {
+    const expiresAt = draftStartedAtRef.current + VOLATILE_SIGNUP_DRAFT_TTL_MS;
+    const expire = () => { if (!completingSessionTokenRef.current && Date.now() >= expiresAt) resetSignup(); };
+    const timer = setTimeout(expire, Math.max(0, expiresAt - Date.now()));
+    window.addEventListener?.("focus", expire);
+    return () => { clearTimeout(timer); window.removeEventListener?.("focus", expire); };
+  }, [resetSignup, signupRequestId]);
 
   const requiredAgreed = agreements.service && agreements.privacy;
   const allAgreed = ownerSignupTerms.every((term) => agreements[term.id]);
@@ -385,23 +566,79 @@ export default function SignupForm({
         : { error: "비밀번호가 일치하지 않습니다" };
 
   const verificationPurpose: VerificationPurpose = "signup";
-  const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
+
+  useEffect(() => {
+    if (signupNavigating || completingSessionTokenRef.current) { clearVolatileSignupDraft(); return; }
+    if (initialStart !== "email") return;
+    if (step === "entry") {
+      clearVolatileSignupDraft();
+      return;
+    }
+    if ((step !== "identity" && step !== "profile") || !requiredAgreed) return;
+
+    writeVolatileSignupDraft({
+      savedAt: draftStartedAtRef.current,
+      signupRequestId,
+      step,
+      agreements,
+      fields,
+      shopDetailAddress,
+      shopPostalCode,
+      checkedEmail,
+      selectedVerificationMethod,
+      verificationSheetOpen,
+      verificationDetailSheetOpen,
+      message,
+    });
+  }, [
+    signupNavigating,
+    agreements,
+    checkedEmail,
+    fields,
+    initialStart,
+    message,
+    requiredAgreed,
+    selectedVerificationMethod,
+    shopDetailAddress,
+    shopPostalCode,
+    signupRequestId,
+    step,
+    verificationDetailSheetOpen,
+    verificationSheetOpen,
+  ]);
 
   useEffect(() => {
     let active = true;
 
     async function run() {
-      if (!supabaseReady || !supabase) return;
-      const { data } = await supabase.auth.getSession();
-      if (!active || !data.session?.access_token) return;
-
-      if (initialStart === "email") {
-        await supabase.auth.signOut();
-        return;
+      setAuthBoundaryStatus("checking");
+      try {
+        if (!supabaseReady || !supabase) throw new Error("SESSION_CLIENT_UNAVAILABLE");
+        const result = await supabase.auth.getSession();
+        if (!active) return;
+        if (result.error || !result.data || !("session" in result.data)) {
+          throw new Error("SESSION_CHECK_FAILED");
+        }
+        // Only an explicitly successful anonymous result can reveal retained inputs.
+        if (result.data.session === null) {
+          setAuthBoundaryStatus("ready");
+          return;
+        }
+        if (!result.data.session?.access_token) throw new Error("SESSION_RESULT_INVALID");
+        resetSignup();
+        clearSignupAgreementReceipt();
+        if (initialStart === "email") {
+          const signOutResult = await supabase.auth.signOut();
+          if (!active) return;
+          if (signOutResult.error) throw new Error("SESSION_SIGNOUT_FAILED");
+          setAuthBoundaryStatus("ready");
+          return;
+        }
+        router.replace(safeNextPath as never);
+        router.refresh();
+      } catch {
+        if (active) setAuthBoundaryStatus("error");
       }
-
-      router.replace(nextPath as never);
-      router.refresh();
     }
 
     void run();
@@ -409,14 +646,34 @@ export default function SignupForm({
     return () => {
       active = false;
     };
-  }, [initialStart, nextPath, router, supabase, supabaseReady]);
+  }, [initialStart, router, safeNextPath, supabase, supabaseReady, resetSignup, sessionCheckAttempt]);
 
   useEffect(() => {
     if (initialStart !== "email") return;
-    setStep(priceGuideFixtureEnabled ? "price-guide" : "profile");
+    if (!restoredDraftRef.current) {
+      setStep(priceGuideFixtureEnabled ? "price-guide" : "identity");
+    }
     // The development-only price guide fixture starts before the consent/profile flow.
     // Opening the consent sheet here would cover its camera and recovery checks.
-    setStartTarget(priceGuideFixtureEnabled ? null : "email");
+    if (priceGuideFixtureEnabled) {
+      setStartTarget(null);
+      return;
+    }
+
+    const storedAgreements = readSignupAgreementReceipt();
+    if (storedAgreements) {
+      setAgreements(storedAgreements);
+      setStartTarget(null);
+      return;
+    }
+
+    if (restoredDraftRef.current?.agreements.service && restoredDraftRef.current.agreements.privacy) {
+      setAgreements(restoredDraftRef.current.agreements);
+      setStartTarget(null);
+      return;
+    }
+
+    setStartTarget("email");
   }, [initialStart, priceGuideFixtureEnabled]);
 
   const updateField = (key: keyof typeof fields, value: string) => {
@@ -427,25 +684,40 @@ export default function SignupForm({
           ? normalizePhone(value)
           : value;
 
+    const changesRepresentativeIdentity = key === "name" || key === "birthDate" || key === "phoneNumber";
+    if (changesRepresentativeIdentity) {
+      identityRevisionRef.current += 1;
+      verificationTokenRevisionRef.current = null;
+    }
+
     setFields((prev) => ({
       ...prev,
       [key]: normalizedValue,
-      ...(key === "name" || key === "birthDate" || key === "phoneNumber" ? { verificationCode: "" } : {}),
+      ...(changesRepresentativeIdentity ? { verificationCode: "" } : {}),
     }));
 
     if (key === "email") {
+      emailRevisionRef.current += 1;
       setCheckedEmail(null);
     }
 
-    if (key === "name" || key === "birthDate" || key === "phoneNumber") {
+    if (changesRepresentativeIdentity) {
       setVerificationRequestId(null);
       setVerificationToken(null);
-      setDevCode(null);
-    }
+      }
   };
 
   const openStart = () => {
+    resetSignup();
     setMessage(null);
+    const storedAgreements = readSignupAgreementReceipt();
+    if (storedAgreements) {
+      setAgreements(storedAgreements);
+      setStartTarget(null);
+      setStep(priceGuideFixtureEnabled ? "price-guide" : "identity");
+      return;
+    }
+
     setStartTarget("email");
   };
 
@@ -455,15 +727,82 @@ export default function SignupForm({
       return;
     }
 
+    const agreementReceiptStored = writeSignupAgreementReceipt(agreements);
+    if (!agreementReceiptStored) {
+      setMessage("브라우저에서 약관 동의 상태를 저장하지 못했습니다. 현재 탭의 저장소 사용을 허용한 뒤 다시 시도해 주세요.");
+      return;
+    }
+
+    setMessage(null);
     setStartTarget(null);
-    setStep(priceGuideFixtureEnabled ? "price-guide" : "profile");
+    setStep(priceGuideFixtureEnabled ? "price-guide" : "identity");
   };
 
-  const checkEmailAvailability = async (email: string) => {
+  const getRepresentativeIdentityError = () => {
+    if (!fields.name.trim()) return "대표자 이름을 입력해 주세요.";
+    if (!/^01\d{8,9}$/.test(fields.phoneNumber)) return "대표자 휴대폰번호를 올바르게 입력해 주세요.";
+    if (!isValidBirthDate8(fields.birthDate)) return "대표자 생년월일 8자리를 입력해 주세요.";
+    return null;
+  };
+
+  const getRepresentativeAccountError = () => {
+    const identityError = getRepresentativeIdentityError();
+    if (identityError) return identityError;
+    if (!isValidOwnerEmail(normalizeOwnerEmail(fields.email))) return "이메일 형식을 확인해 주세요.";
+    if (!isValidOwnerPassword(fields.password)) return ownerPasswordRuleMessage;
+    if (fields.password !== fields.passwordConfirm) return "비밀번호 확인이 일치하지 않습니다.";
+    return null;
+  };
+
+  const moveToProfileStep = async () => {
+    if (signupFlowRef.current || loading || checkingEmail) return;
+    const error = getRepresentativeAccountError();
+    if (error) { setMessage(error); return; }
+    const flow = new AbortController();
+    signupFlowRef.current = flow;
+    setSignupPhase("checking");
+    setMessage(null);
+    try {
+      const available = await checkEmailAvailability(normalizeOwnerEmail(fields.email), flow.signal);
+      if (available && !flow.signal.aborted && signupFlowRef.current === flow) {
+        setStep("profile");
+      }
+    } finally {
+      if (signupFlowRef.current === flow) {
+        signupFlowRef.current = null;
+        setCheckingEmail(false);
+        setSignupPhase("idle");
+      }
+    }
+  };
+
+  const returnToRepresentativeStep = () => {
+    if (signupFlowRef.current || loading || checkingEmail) return;
+    setMessage(null);
+    setStep("identity");
+  };
+
+  const copyRepresentativePhoneToShop = () => {
+    if (!/^01\d{8,9}$/.test(fields.phoneNumber)) {
+      setMessage("대표자 휴대폰번호를 먼저 올바르게 입력해 주세요.");
+      return;
+    }
+    if (fields.shopPhone && fields.shopPhone !== fields.phoneNumber) {
+      setMessage("이미 다른 매장 연락처가 입력되어 있어 바꾸지 않았어요.");
+      return;
+    }
+
+    updateField("shopPhone", fields.phoneNumber);
+    setMessage(null);
+  };
+
+  const checkEmailAvailability = async (email: string, signal: AbortSignal) => {
+    const revision = emailRevisionRef.current;
     setCheckingEmail(true);
     try {
-      const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`);
-      const result = (await response.json()) as { available?: boolean; message?: string };
+      const response = await waitForIdentityOperation(fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`, { signal }), signal, 15_000);
+      const result = (await waitForIdentityOperation(response.json(), signal, 15_000)) as { available?: boolean; message?: string };
+      if (signal.aborted || revision !== emailRevisionRef.current) return false;
       if (!response.ok || !result.available) {
         setMessage(result.message ?? "이메일을 사용할 수 없습니다.");
         return false;
@@ -471,26 +810,24 @@ export default function SignupForm({
 
       setCheckedEmail(email);
       return true;
+    } catch {
+      if (!signal.aborted && revision === emailRevisionRef.current) setMessage("이메일 확인에 실패했어요. 다시 시도해 주세요.");
+      return false;
     } finally {
-      setCheckingEmail(false);
+      if (!signal.aborted && revision === emailRevisionRef.current) setCheckingEmail(false);
     }
   };
 
   const moveToVerificationStep = async () => {
+    if (signupFlowRef.current || loading || checkingEmail) return;
+    if (!requiredAgreed) { setMessage("필수 약관에 동의해 주세요."); return; }
+    const accountError = getRepresentativeAccountError();
+    if (accountError) {
+      setMessage(accountError);
+      setStep("identity");
+      return;
+    }
     const email = normalizeOwnerEmail(fields.email);
-
-    if (!isValidOwnerEmail(email)) {
-      setMessage("이메일 형식을 확인해 주세요.");
-      return;
-    }
-    if (!isValidOwnerPassword(fields.password)) {
-      setMessage(ownerPasswordRuleMessage);
-      return;
-    }
-    if (fields.password !== fields.passwordConfirm) {
-      setMessage("비밀번호 확인이 일치하지 않습니다.");
-      return;
-    }
     if (!fields.shopName.trim()) {
       setMessage("매장명을 입력해 주세요.");
       return;
@@ -504,85 +841,35 @@ export default function SignupForm({
       return;
     }
 
-    if (checkedEmail !== email && !(await checkEmailAvailability(email))) {
-      return;
-    }
-
+    const flow = new AbortController();
+    signupFlowRef.current = flow;
+    setSignupPhase("checking");
     setMessage(null);
-    setSelectedVerificationMethod(null);
-    setVerificationDetailSheetOpen(false);
-    setVerificationSheetOpen(true);
-  };
-
-  const requestCode = async () => {
-    if (!fields.name.trim()) return setMessage("이름을 입력해 주세요.");
-    if (!isValidBirthDate8(fields.birthDate)) return setMessage("생년월일 8자리를 입력해 주세요.");
-    if (!/^01\d{8,9}$/.test(fields.phoneNumber)) return setMessage("휴대폰번호를 다시 확인해 주세요.");
-
-    setLoading(true);
-    setMessage(null);
-
     try {
-      const response = await fetch("/api/auth/request-verification-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: fields.name,
-          birthDate: fields.birthDate,
-          phoneNumber: fields.phoneNumber,
-          purpose: verificationPurpose,
-          method: "local",
-        }),
-      });
-
-      const result = (await response.json()) as VerificationApiResponse;
-
-      if (!response.ok) {
-        setMessage(result.message ?? "인증번호 요청에 실패했어요.");
+      if (checkedEmail !== email && !(await checkEmailAvailability(email, flow.signal))) {
+        if (!flow.signal.aborted) setStep("identity");
         return;
       }
-
-      setVerificationRequestId(result.verificationRequestId ?? null);
-      setDevCode(result.devVerificationCode ?? null);
-      setMessage("인증번호를 보냈어요.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyCode = async () => {
-    if (!verificationRequestId) {
-      setMessage("먼저 인증번호를 받아 주세요.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const response = await fetch("/api/auth/verify-identity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: fields.name,
-          birthDate: fields.birthDate,
-          phoneNumber: fields.phoneNumber,
-          code: fields.verificationCode,
-          purpose: verificationPurpose,
-          verificationRequestId,
-        }),
-      });
-      const result = (await response.json()) as VerificationApiResponse;
-
-      if (!response.ok || !result.verificationToken) {
-        setMessage(result.message ?? "인증번호를 다시 확인해 주세요.");
-        return;
+      if (flow.signal.aborted) return;
+      let token = verificationTokenRevisionRef.current === identityRevisionRef.current &&
+        isSignupTokenFresh(verificationToken) ? verificationToken : null;
+      if (!token) {
+        setVerificationToken(null);
+        verificationTokenRevisionRef.current = null;
+        setIdentityAttempted(true);
+        setSignupPhase("verifying");
+        token = (await startPhoneIdentity()) ?? null;
       }
-
-      setVerificationToken(result.verificationToken);
-      setMessage("본인 인증이 완료됐어요.");
+      if (!token || flow.signal.aborted) return;
+      setSignupPhase("submitting");
+      await submitSignup(token, flow.signal);
+    } catch {
+      if (!flow.signal.aborted) setMessage("처리하지 못했어요. 다시 시도해 주세요.");
     } finally {
-      setLoading(false);
+      if (signupFlowRef.current === flow) {
+        signupFlowRef.current = null;
+        setSignupPhase("idle");
+      }
     }
   };
 
@@ -597,195 +884,215 @@ export default function SignupForm({
     missingEnvMessage: string;
     bypass?: Record<string, unknown>;
   }) => {
+    const retainVerificationFailure = (failureMessage: string) => {
+      setMessage(failureMessage);
+    };
+
+    if (providerAttemptRef.current || loading) return;
+    const identityRevision = identityRevisionRef.current;
+    const identity = {
+      name: fields.name.trim(),
+      birthDate: fields.birthDate,
+      phoneNumber: fields.phoneNumber,
+    };
+
     if (!portoneReady || !env.portoneStoreId || !channelKey) {
-      setMessage(missingEnvMessage);
+      retainVerificationFailure(missingEnvMessage);
       return;
     }
 
-    if (!fields.name.trim()) {
-      setMessage("이름을 입력해 주세요.");
+    if (!identity.name) {
+      retainVerificationFailure("이름을 입력해 주세요.");
       return;
     }
 
-    if (!isValidBirthDate8(fields.birthDate)) {
-      setMessage("생년월일 8자리를 입력해 주세요.");
+    if (!isValidBirthDate8(identity.birthDate)) {
+      retainVerificationFailure("생년월일 8자리를 입력해 주세요.");
       return;
     }
 
-    if (!/^01\d{8,9}$/.test(fields.phoneNumber)) {
-      setMessage("휴대폰번호를 올바르게 입력해 주세요.");
+    if (!/^01\d{8,9}$/.test(identity.phoneNumber)) {
+      retainVerificationFailure("휴대폰번호를 올바르게 입력해 주세요.");
       return;
     }
 
+    const attempt = new AbortController();
+    providerAttemptRef.current = attempt;
+    setVerificationToken(null);
+    verificationTokenRevisionRef.current = null;
     setLoading(true);
     setMessage(null);
 
+    let failureStage: "REQUEST_FETCH" | "REQUEST_JSON" | "SDK_IMPORT" | "SDK_CALL" | "VERIFY_FETCH" | "VERIFY_JSON" = "REQUEST_FETCH";
+    const reportFailure = (code: string, guidance: string) => {
+      // Keep provider details and internal diagnostics out of customer copy.
+      retainVerificationFailure(code === "SDK_CANCELLED" ? "본인인증을 취소했어요." :
+        code === "POPUP_BLOCKED" ? "팝업을 허용한 뒤 다시 시도해 주세요." :
+        "본인인증을 완료하지 못했어요. 다시 시도해 주세요.");
+    };
     try {
-      const requestResponse = await fetch("/api/auth/request-verification-code", {
+      const requestResponse = await waitForIdentityOperation(fetch("/api/auth/request-verification-code", {
+        signal: attempt.signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           purpose: verificationPurpose,
           method: "portone",
-          name: fields.name,
-          birthDate: fields.birthDate,
-          phoneNumber: fields.phoneNumber,
+          name: identity.name,
+          birthDate: identity.birthDate,
+          phoneNumber: identity.phoneNumber,
         }),
-      });
-      const requestResult = (await requestResponse.json()) as VerificationApiResponse;
+      }), attempt.signal, 15_000);
+      failureStage = "REQUEST_JSON";
+      const requestResult = (await waitForIdentityOperation(requestResponse.json(), attempt.signal, 15_000)) as VerificationApiResponse;
+      if (identityRevisionRef.current !== identityRevision || attempt.signal.aborted) return;
 
-      if (!requestResponse.ok || !requestResult.verificationRequestId) {
-        setMessage(requestResult.message ?? "ë³¸ì¸ ?¸ì¦ ?”ì²­???€?¥í•˜ì§€ ëª»í–ˆ?´ìš”.");
+      if (!requestResponse.ok || !requestResult.verificationRequestId ||
+        !requestResult.providerIdentityVerificationId || !requestResult.verificationState) {
+        reportFailure("REQUEST_REJECTED", "본인 인증 채널 요청 실패로 진행하지 못했어요. 잠시 후 다시 시도해 주세요.");
         return;
       }
 
-      const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
-      const identityVerificationId = `petmanager_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      failureStage = "SDK_IMPORT";
+      const { requestIdentityVerification } = await waitForIdentityOperation(import("@portone/browser-sdk/v2"), attempt.signal, 15_000);
+      if (attempt.signal.aborted) return;
+      const identityVerificationId = requestResult.providerIdentityVerificationId;
 
-      const result = await requestIdentityVerification({
+      failureStage = "SDK_CALL";
+      const result = await waitForIdentityOperation(requestIdentityVerification({
         storeId: env.portoneStoreId,
         channelKey,
         identityVerificationId,
+        customData: JSON.stringify({ petmanagerIdentityState: requestResult.verificationState }),
         windowType: { pc: "POPUP", mobile: "POPUP" },
         customer: {
-          fullName: fields.name.trim(),
-          phoneNumber: fields.phoneNumber,
-          birthYear: fields.birthDate.slice(0, 4),
-          birthMonth: fields.birthDate.slice(4, 6),
-          birthDay: fields.birthDate.slice(6, 8),
+          fullName: identity.name,
+          phoneNumber: identity.phoneNumber,
+          birthYear: identity.birthDate.slice(0, 4),
+          birthMonth: identity.birthDate.slice(4, 6),
+          birthDay: identity.birthDate.slice(6, 8),
         },
         ...(bypass ? { bypass } : {}),
-      });
+      }), attempt.signal, 120_000);
+      if (identityRevisionRef.current !== identityRevision || attempt.signal.aborted) return;
 
-      if (!result?.identityVerificationId) {
-        setMessage("본인 인증을 완료하지 못했어요.");
+      if (!result || result.code || result.identityVerificationId !== identityVerificationId) {
+        const code = !result || (!result.code && !result.identityVerificationId)
+          ? "SDK_CANCELLED" : result.code ? "SDK_REJECTED" : "SDK_CALLBACK_MISMATCH";
+        reportFailure(code, "본인 인증을 완료하지 못했어요. 인증 창의 진행 상태를 확인해 주세요.");
         return;
       }
 
-      const response = await fetch("/api/auth/verify-pass", {
+      failureStage = "VERIFY_FETCH";
+      const response = await waitForIdentityOperation(fetch("/api/auth/verify-pass", {
+        signal: attempt.signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           purpose: verificationPurpose,
           verificationRequestId: requestResult.verificationRequestId,
-          identityVerificationId: result!.identityVerificationId,
+          identityVerificationId,
+          verificationState: requestResult.verificationState,
         }),
-      });
-      const verifyResult = (await response.json()) as VerificationApiResponse;
+      }), attempt.signal, 15_000);
+      failureStage = "VERIFY_JSON";
+      const verifyResult = (await waitForIdentityOperation(response.json(), attempt.signal, 15_000)) as VerificationApiResponse;
+      if (identityRevisionRef.current !== identityRevision || attempt.signal.aborted) return;
 
       if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "본인 인증 확인에 실패했어요.");
+        // Only exact application-owned messages can select customer guidance.
+        // Never echo arbitrary server/provider text or relax identity binding.
+        const mismatchGuidance = new Map<string, string>([
+          ["본인확인 결과의 이름 정보가 일치하지 않습니다.", "대표자 이름과 인증한 이름이 달라요. 이전을 눌러 확인해 주세요."],
+          ["본인확인 결과의 휴대폰번호가 일치하지 않습니다.", "대표자 휴대폰번호와 인증한 번호가 달라요. 이전을 눌러 확인해 주세요."],
+          ["본인확인 결과의 생년월일이 일치하지 않습니다.", "대표자 생년월일과 인증 정보가 달라요. 이전을 눌러 확인해 주세요."],
+        ]);
+        const guidance = mismatchGuidance.get(verifyResult.message ?? "");
+        if (guidance) setMessage(guidance);
+        else reportFailure("VERIFY_REJECTED", "본인 인증 확인 실패로 완료하지 못했어요. 다시 인증해 주세요.");
         return;
       }
 
       setVerificationToken(verifyResult.verificationToken);
+      verificationTokenRevisionRef.current = identityRevision;
       setMessage(successMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyPass = async () => {
-    await verifyPortoneIdentity({
-      channelKey: env.portoneIdentityChannelKey,
-      successMessage: "PASS 본인 인증이 완료되었어요.",
-      missingEnvMessage: "PASS 본인인증 환경이 아직 준비되지 않았어요.",
-    });
-    return;
-    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityChannelKey) {
-      setMessage("PASS 본인인증 환경이 아직 준비되지 않았어요.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
-      const identityVerificationId = `petmanager_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-      const result = await requestIdentityVerification({
-        storeId: env.portoneStoreId!,
-        channelKey: env.portoneIdentityChannelKey!,
-        identityVerificationId,
-        windowType: { pc: "POPUP", mobile: "POPUP" },
-        customer: {
-          fullName: fields.name.trim(),
-          phoneNumber: fields.phoneNumber,
-          birthYear: fields.birthDate.slice(0, 4),
-          birthMonth: fields.birthDate.slice(4, 6),
-          birthDay: fields.birthDate.slice(6, 8),
-        },
-      });
-
-      if (!result?.identityVerificationId) {
-        setMessage("PASS 본인인증을 완료하지 못했어요.");
-        return;
+      return verifyResult.verificationToken;
+    } catch (error: unknown) {
+      if (identityRevisionRef.current === identityRevision && !attempt.signal.aborted) {
+        const timeout = error instanceof Error && error.message === "IDENTITY_TIMEOUT";
+        // v0.1.3 reports this exact fixed string from its CDN loader. Never render raw errors.
+        const cdnFailure = failureStage === "SDK_CALL" && error instanceof Error &&
+          error.message === "[PortOne] Failed to load window.PortOne";
+        const popupBlocked = failureStage === "SDK_CALL" && typeof error === "object" &&
+          error !== null && "code" in error && (error.code === "POPUP_BLOCKED" ||
+            // The KCP popup driver throws this fixed message; the CDN wraps it as UnknownError.
+            // Match the whole constant, never display or extract provider error text.
+            (error.code === "UnknownError" && "message" in error &&
+              error.message === "본인인증 창 호출에 실패하였습니다. 팝업 차단으로 인해 정상적 실행에 실패했습니다."));
+        // The SDK rejects prepare failures with IdentityVerificationError.code.
+        // Only map documented constants; never expose provider text or arbitrary codes.
+        const sdkFailureCodes = new Map<string, string>([
+          ["BadRequest", "SDK_BAD_REQUEST"],
+          ["InvalidArgument", "SDK_INVALID_ARGUMENT"],
+          ["RequestParseFailed", "SDK_REQUEST_PARSE"],
+          ["ParseChannelFailed", "SDK_CHANNEL_PARSE"],
+          ["ChannelNotFound", "SDK_CHANNEL_NOT_FOUND"],
+          ["StoreNotFound", "SDK_STORE_NOT_FOUND"],
+          ["PermissionDenied", "SDK_PERMISSION_DENIED"],
+          ["Unauthenticated", "SDK_UNAUTHENTICATED"],
+          ["FailedPrecondition", "SDK_PRECONDITION"],
+          ["AllChannelsNotSatisfied", "SDK_CHANNEL_CONDITIONS"],
+          ["PGProviderError", "SDK_PROVIDER_ERROR"],
+          ["IdentityVerificationAlreadyVerified", "SDK_ALREADY_VERIFIED"],
+          ["Unavailable", "SDK_UNAVAILABLE"],
+          ["DeadlineExceeded", "SDK_DEADLINE"],
+          ["ResourceExhausted", "SDK_RATE_LIMIT"],
+        ]);
+        const sdkFailure = failureStage === "SDK_CALL" && typeof error === "object" &&
+          error !== null && "code" in error && typeof error.code === "string"
+          ? sdkFailureCodes.get(error.code) : undefined;
+        if (cdnFailure) {
+          reportFailure("CDN_LOAD", "인증 프로그램을 불러오지 못했어요. 입력은 유지됩니다. 오류 코드를 알려 주세요.");
+        } else if (popupBlocked) {
+          reportFailure("POPUP_BLOCKED", "인증 창이 차단되었어요. 브라우저의 팝업 허용 후 다시 시도해 주세요.");
+        } else if (timeout) {
+          reportFailure(`${failureStage}_TIMEOUT`, "인증 응답이 늦어지고 있어요. 인증 창의 진행 상태를 확인한 뒤 다시 시도해 주세요.");
+        } else if (sdkFailure) {
+          reportFailure(sdkFailure, "본인 인증 요청을 진행하지 못했어요. 입력은 유지됩니다. 서비스 담당자의 확인이 필요해요.");
+        } else {
+          const guidance = failureStage === "SDK_IMPORT"
+            ? "인증 기능을 준비하지 못했어요. 네트워크 연결을 확인한 뒤 다시 시도해 주세요."
+            : failureStage === "SDK_CALL"
+              ? "본인 인증을 완료하지 못했어요. 인증 창을 닫고 다시 시도해 주세요."
+              : failureStage.startsWith("VERIFY")
+                ? "인증 결과를 확인하지 못했어요. 잠시 후 다시 시도해 주세요."
+                : "인증 요청을 준비하지 못했어요. 네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+          reportFailure(failureStage, guidance);
+        }
       }
-
-      const response = await fetch("/api/auth/verify-pass", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          identityVerificationId: result!.identityVerificationId,
-          name: fields.name,
-          birthDate: fields.birthDate,
-          phoneNumber: fields.phoneNumber,
-        }),
-      });
-      const verifyResult = await response.json();
-
-      if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "PASS 본인인증 확인에 실패했어요.");
-        return;
-      }
-
-      setVerificationToken(verifyResult.verificationToken);
-      setMessage("PASS 본인인증이 완료됐어요.");
     } finally {
-      setLoading(false);
+      attempt.abort();
+      if (providerAttemptRef.current === attempt) {
+        providerAttemptRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
   const startPhoneIdentity = async () => {
-    const phoneIdentityChannelKey = env.portoneIdentityPhoneChannelKey;
-    const usesLegacyDanalPhoneIdentityChannel =
-      Boolean(env.portoneIdentityDanalChannelKey) &&
-      phoneIdentityChannelKey === env.portoneIdentityDanalChannelKey;
-
-    await verifyPortoneIdentity({
-      channelKey: phoneIdentityChannelKey,
+    return await verifyPortoneIdentity({
+      channelKey: process.env.NEXT_PUBLIC_PORTONE_IDENTITY_KCP_CHANNEL_KEY,
       successMessage: "휴대폰 본인 인증이 완료되었어요.",
-      missingEnvMessage: "휴대폰 본인 인증 채널이 아직 연결되지 않았어요.",
-      bypass: usesLegacyDanalPhoneIdentityChannel
-        ? {
-            danal: {
-              IsCarrier: phoneCarrier,
-              CPTITLE: "petmanager.co.kr",
-            },
-          }
-        : undefined,
+      missingEnvMessage: "KCP 본인인증 채널이 아직 연결되지 않았어요.",
     });
   };
 
-  const startUnifiedIdentity = async (agency: "KAKAO" | "NAVER" | "TOSS" | "PASS", successMessage: string) => {
-    await verifyPortoneIdentity({
-      channelKey: env.portoneIdentityUnifiedChannelKey,
-      successMessage,
-      missingEnvMessage: "KG이니시스 통합인증 채널이 아직 연결되지 않았어요.",
-      bypass: {
-        inicisUnified: {
-          flgFixedUser: "Y",
-          directAgency: agency,
-        },
-      },
-    });
-  };
+  const submitSignup = async (token: string, signal: AbortSignal) => {
+    if (signal.aborted) return;
 
-  const submitSignup = async () => {
-    if (loading) return;
-
-    if (!verificationToken) {
+    if (!isSignupTokenFresh(token) || verificationTokenRevisionRef.current !== identityRevisionRef.current) {
+      setVerificationToken(null);
+      verificationTokenRevisionRef.current = null;
       setMessage("본인 인증을 먼저 완료해 주세요.");
       return;
     }
@@ -835,7 +1142,8 @@ export default function SignupForm({
     setMessage(null);
 
     try {
-      const response = await fetch("/api/auth/signup", {
+      const response = await waitForIdentityOperation(fetch("/api/auth/signup", {
+        signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -846,7 +1154,7 @@ export default function SignupForm({
           name: fields.name.trim(),
           birthDate: fields.birthDate,
           phoneNumber: fields.phoneNumber,
-          identityVerificationToken: verificationToken,
+          identityVerificationToken: token,
           shopName: fields.shopName.trim(),
           shopPhone: fields.shopPhone,
           shopAddress: shopDetailAddress.trim()
@@ -855,53 +1163,161 @@ export default function SignupForm({
           agreements,
           servicePrices,
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
+          marketingConsentVersion: OWNER_MARKETING_CONSENT_DOCUMENT_VERSION,
         }),
-      });
-      const result = await response.json();
+      }), signal, 30_000);
+      const result = (await waitForIdentityOperation(response.json(), signal, 15_000)) as AtomicSignupResponse;
+      if (signal.aborted) return;
 
       if (!response.ok || !result.success) {
-        if (result.code === "SIGNUP_PAYLOAD_MISMATCH") {
+        if (result.code === "ATOMIC_SIGNUP_MIGRATION_REQUIRED") {
+          setMessage("가입 서버에 연결할 수 없어 가입이 중단됐어요. 서비스 담당자의 확인이 필요해요.");
+          return;
+        }
+        if (result.code === "SIGNUP_REQUEST_TOO_LARGE") {
+          setMessage("가입 정보의 용량이 너무 커요. 입력 내용을 줄인 뒤 다시 시도해 주세요.");
+          return;
+        }
+        if (result.code === "INVALID_SIGNUP_REQUEST") {
+          setMessage("가입 요청 형식이 올바르지 않아요. 서비스 담당자에게 문의해 주세요.");
+          return;
+        }
+        if (result.code === "PAYLOAD_MISMATCH" || result.code === "SIGNUP_PAYLOAD_MISMATCH") {
           setSignupRequestId(crypto.randomUUID());
           setMessage("입력 내용이 변경되어 새 가입 요청을 준비했습니다. 다시 시도해 주세요.");
           return;
         }
-        setMessage(result.message ?? "회원가입 중 문제가 발생했어요.");
+        if (result.code === "REQUEST_IN_PROGRESS") {
+          setMessage("회원가입 요청을 처리하고 있습니다. 잠시 후 같은 화면에서 다시 시도해 주세요.");
+          return;
+        }
+        if (result.code === "COMPENSATION_PENDING") {
+          setMessage("이전 가입 실패를 안전하게 정리하고 있습니다. 입력 내용은 유지되며, 운영 확인 후 다시 시도해 주세요.");
+          return;
+        }
+        if (!isSignupTokenFresh(token) || /^(IDENTITY_|VERIFICATION_)/.test(result.code ?? "")) {
+          setVerificationToken(null);
+          verificationTokenRevisionRef.current = null;
+          setMessage("본인인증을 다시 진행해 주세요.");
+          return;
+        }
+        setMessage(response.status >= 500
+          ? "가입 서버에서 오류가 발생했어요. 서비스 담당자에게 문의해 주세요."
+          : "가입 요청이 거절됐어요. 입력 내용을 확인하고, 계속되면 서비스 담당자에게 문의해 주세요.");
         return;
       }
 
-      router.replace(`/login?next=${encodeURIComponent(nextPath)}&message=signup-success` as never);
+      setSignupNavigating(true);
+      clearVolatileSignupDraft();
+      clearSignupAgreementReceipt();
+      const resolvedNextPath = resolveAtomicSignupNextPath(result, safeNextPath);
+      const accessToken = result.session?.accessToken;
+      const refreshToken = result.session?.refreshToken;
+      if (accessToken && refreshToken) {
+        if (!supabase) {
+          resetSignup();
+      setSignupNavigating(true);
+          setMessage("가입은 완료됐지만 로그인 정보를 저장하지 못했습니다. 로그인 화면에서 다시 로그인해 주세요.");
+          router.replace(`/login?next=${encodeURIComponent(resolvedNextPath)}&message=signup-success` as never);
+          return;
+        }
+
+        completingSessionTokenRef.current = accessToken;
+        let sessionFailed = false;
+        try {
+          const sessionResult = await waitForIdentityOperation<{ error: unknown }>(supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          }), signal, 15_000);
+          sessionFailed = Boolean(sessionResult.error);
+        } catch { sessionFailed = true; }
+
+        if (signal.aborted) return;
+        if (sessionFailed) {
+          resetSignup();
+          setSignupNavigating(true);
+          setMessage("가입은 완료됐지만 로그인 정보를 저장하지 못했습니다. 로그인 화면에서 다시 로그인해 주세요.");
+          router.replace(`/login?next=${encodeURIComponent(resolvedNextPath)}&message=signup-success` as never);
+          return;
+        }
+
+        setFields(createInitialSignupFields());
+        const handoff = { accessToken, refreshToken };
+        clearOwnerAuthTokenCache();
+        writeOwnerAuthHandoff(handoff);
+        writeOwnerAuthSessionCache(handoff);
+        router.replace(resolvedNextPath as never);
+        router.refresh();
+        return;
+      }
+
+      resetSignup();
+          setSignupNavigating(true);
+      router.replace(`/login?next=${encodeURIComponent(resolvedNextPath)}&message=signup-success` as never);
       router.refresh();
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   };
 
-  return (
-    <div className={cn(PAGE_FRAME, "text-[#111827]")}>
-      <div className="rounded-[18px] border border-[#e8edf3] bg-white px-5 pb-8 pt-6">
-      <div className="space-y-6">
-        <MobileBackLinkButton
-          href={step === "entry" ? `/login?next=${encodeURIComponent(nextPath)}` : "/signup"}
-          replace
-          aria-label={step === "entry" ? "로그인으로 이동" : "회원가입 첫 단계로 이동"}
-        />
+  if (signupNavigating) return <main className="flex min-h-dvh items-center justify-center bg-white px-5 text-[#111a30]" aria-busy="true"><p role="status" className="text-[16px] leading-6">가입이 완료됐어요. 매장 화면으로 이동하고 있어요.</p></main>;
 
-          <div className="space-y-2">
-            <ServiceBrand />
-            <p className={PAGE_EYEBROW}>회원가입</p>
-          <div>
-            <h1 className={PAGE_TITLE}>
-              {step === "entry" ? "무료체험을 시작해볼까요?" : step === "price-guide" ? "서비스와 가격을 먼저 확인해 주세요" : "계정과 매장 정보를 입력해 주세요"}
-            </h1>
-          </div>
+  if (authBoundaryStatus === "checking") return null;
+  if (authBoundaryStatus === "error") {
+    return (
+      <main className={cn(PAGE_FRAME, "text-[#111827]")} data-signup-session-error>
+        <div className={PAGE_CONTENT}>
+          <p role="alert" className="auth-type-body">로그인 상태를 확인하지 못했어요. 다시 시도해 주세요.</p>
+          <button type="button" className={BUTTON_PRIMARY} onClick={() => {
+            setAuthBoundaryStatus("checking");
+            setSessionCheckAttempt((attempt) => attempt + 1);
+          }}>다시 시도하기</button>
         </div>
-      </div>
+      </main>
+    );
+  }
 
-      <div className="mt-7">
+  return (
+    <main className={cn(PAGE_FRAME, "text-[#111827]")} data-signup-shell="fullscreen">
+      <div className={PAGE_CONTENT}>
+        <header>
+          <div className="flex min-h-11 items-center gap-2">
+            {step === "entry" || step === "price-guide" ? (
+              <MobileBackLinkButton
+                href={step === "entry" ? `/login?next=${encodeURIComponent(safeNextPath)}` : "/signup"}
+                replace
+                aria-label={step === "entry" ? "로그인으로 이동" : "회원가입 첫 단계로 이동"}
+                className="-ml-2 shrink-0 rounded-[10px] border-0 bg-transparent shadow-none hover:bg-[#f8fafc]"
+              />
+            ) : (
+              <MobileBackButton
+                onClick={() => {
+                  setMessage(null);
+                  if (signupFlowRef.current) return;
+                  if (step === "profile") { returnToRepresentativeStep(); return; }
+                  resetSignup();
+                  setStep("entry");
+                }}
+                label={step === "profile" ? "대표자 정보로 돌아가기" : "회원가입 시작으로 돌아가기"}
+                className="-ml-2 shrink-0 rounded-[10px] border-0 bg-transparent shadow-none hover:bg-[#f8fafc]"
+              />
+            )}
+            <h1 className={cn(PAGE_TITLE, "m-0 flex h-11 items-center !leading-none")}>회원가입</h1>
+          </div>
+        </header>
+
+        <div
+          className={cn(
+            step === "identity" ? "pt-8" : "pt-4",
+            step === "identity" || step === "profile"
+              ? "pb-[calc(env(safe-area-inset-bottom)+88px)]"
+              : "pb-[calc(env(safe-area-inset-bottom)+24px)]",
+          )}
+        >
         {step === "entry" ? (
           <EntryStep
             onStartEmail={openStart}
-            nextPath={nextPath}
+            safeNextPath={safeNextPath}
           />
         ) : null}
 
@@ -910,681 +1326,216 @@ export default function SignupForm({
             initialRows={priceGuideFixtureRows}
             onComplete={(rows) => {
               setPriceGuideFixtureRows(rows);
-              setStep("profile");
+              setStep("identity");
             }}
             onExit={(rows) => {
               setPriceGuideFixtureRows(rows);
+              resetSignup();
               setStep("entry");
             }}
           />
         ) : null}
 
-        {step === "profile" ? (
-          <div className="space-y-4">
-            <AuthSectionBlock title="계정 정보">
-              <AuthField label="이메일">
-                <AuthInput
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  value={fields.email}
-                  onChange={(value) => updateField("email", value)}
-                  placeholder="example@petmanager.co.kr"
-                />
-              </AuthField>
+        <fieldset disabled={signupPhase !== "idle"} className="min-w-0 border-0 p-0" aria-busy={signupPhase !== "idle"}>
+        {step === "identity" ? (
+          <div className="w-full text-left" data-signup-identity-stage="top">
+            <div data-signup-identity-fields>
+              <AuthSectionBlock>
+                <AuthField label="이름">
+                  <AuthInput
+                    value={fields.name}
+                    onChange={(value) => updateField("name", value)}
+                    placeholder="대표자 이름"
+                    autoComplete="name"
+                  />
+                </AuthField>
 
-              <AuthField
-                label="비밀번호"
-              >
-                <AuthInput
-                  type={showPassword ? "text" : "password"}
-                  value={fields.password}
-                  onChange={(value) => updateField("password", value)}
-                  placeholder="대/소문자·숫자·특수문자 중 3종 이상"
-                  rightSlot={
-                    <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="flex h-11 w-11 items-center justify-center rounded-[8px] text-[#64748b]" aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}>
-                      {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
-                    </button>
-                  }
-                />
-              </AuthField>
+                <AuthField label="대표자 휴대폰">
+                  <AuthInput
+                    value={formatPhone(fields.phoneNumber)}
+                    onChange={(value) => updateField("phoneNumber", value)}
+                    placeholder="010-0000-0000"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                  />
+                </AuthField>
 
-              <AuthField
-                label="비밀번호 확인"
-                tone={passwordConfirmState?.tone}
-                helper={passwordConfirmState && "helper" in passwordConfirmState ? passwordConfirmState.helper : undefined}
-                error={passwordConfirmState && "error" in passwordConfirmState ? passwordConfirmState.error : undefined}
-              >
-                <AuthInput
-                  type={showPasswordConfirm ? "text" : "password"}
-                  value={fields.passwordConfirm}
-                  onChange={(value) => updateField("passwordConfirm", value)}
-                  placeholder="비밀번호를 한 번 더 입력해 주세요"
-                  rightSlot={
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswordConfirm((prev) => !prev)}
-                      className="flex h-11 w-11 items-center justify-center rounded-[8px] text-[#64748b]"
-                      aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 보기"}
-                    >
-                      {showPasswordConfirm ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
-                    </button>
-                  }
-                />
-              </AuthField>
+                <AuthField label="생년월일">
+                  <AuthInput
+                    value={formatBirthDate(fields.birthDate)}
+                    onChange={(value) => updateField("birthDate", value)}
+                    placeholder="예: 1999-03-21"
+                    inputMode="numeric"
+                    autoComplete="bday"
+                  />
+                </AuthField>
+              </AuthSectionBlock>
+            </div>
+            <div className="mt-4">
+            <AuthSectionBlock>
+                <AuthField label="이메일">
+                  <AuthInput
+                    type="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    value={fields.email}
+                    onChange={(value) => updateField("email", value)}
+                    placeholder="example@petmanager.co.kr"
+                  />
+                </AuthField>
+
+                <AuthField label="비밀번호">
+                  <AuthInput
+                    type={showPassword ? "text" : "password"}
+                    value={fields.password}
+                    onChange={(value) => updateField("password", value)}
+                    placeholder="비밀번호 입력"
+                    rightSlot={
+                      <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="flex h-11 w-11 items-center justify-center rounded-[8px] text-[#64748b]" aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}>
+                        {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                      </button>
+                    }
+                  />
+                </AuthField>
+
+                <AuthField
+                  label="비밀번호 확인"
+                  tone={passwordConfirmState?.tone}
+                  helper={passwordConfirmState && "helper" in passwordConfirmState ? passwordConfirmState.helper : undefined}
+                  error={passwordConfirmState && "error" in passwordConfirmState ? passwordConfirmState.error : undefined}
+                >
+                  <AuthInput
+                    type={showPasswordConfirm ? "text" : "password"}
+                    value={fields.passwordConfirm}
+                    onChange={(value) => updateField("passwordConfirm", value)}
+                    placeholder="비밀번호 다시 입력"
+                    rightSlot={
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordConfirm((prev) => !prev)}
+                        className="flex h-11 w-11 items-center justify-center rounded-[8px] text-[#64748b]"
+                        aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 보기"}
+                      >
+                        {showPasswordConfirm ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                      </button>
+                    }
+                  />
+                </AuthField>
             </AuthSectionBlock>
 
-            <AuthSectionBlock title="매장 정보">
-              <AuthField label="매장명">
-                <AuthInput
-                  value={fields.shopName}
-                  onChange={(value) => updateField("shopName", value)}
-                  placeholder="예: 포근한 발바닥 미용실"
-                />
-              </AuthField>
+            </div>
+          </div>
+        ) : null}
 
-              <AuthField label="매장 연락처">
-                <AuthInput
-                  value={formatPhone(fields.shopPhone)}
-                  onChange={(value) => updateField("shopPhone", value)}
-                  placeholder="010-0000-0000"
-                  inputMode="numeric"
-                />
-              </AuthField>
+        {step === "profile" ? (
+          <div className="grid items-start gap-4" data-signup-profile-fields>
+            <AuthSectionBlock>
+                <AuthField label="매장명">
+                  <AuthInput
+                    value={fields.shopName}
+                    onChange={(value) => updateField("shopName", value)}
+                    placeholder="예: 포근한 발바닥 미용실"
+                  />
+                </AuthField>
 
-              <AuthField label="매장 주소">
-                  <div className="space-y-2.5">
+                <div className="relative">
+                  <AuthField label="매장 연락처">
+                    <AuthInput
+                      value={formatPhone(fields.shopPhone)}
+                      onChange={(value) => updateField("shopPhone", value)}
+                      placeholder="010-0000-0000"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                    />
+                  </AuthField>
+                  <button
+                    type="button"
+                    onClick={copyRepresentativePhoneToShop}
+                    className="absolute -top-3 right-0 inline-flex min-h-11 items-center rounded-[10px] px-1 text-[14px] font-medium text-[#2563eb]"
+                  >
+                    대표자 휴대폰과 동일
+                  </button>
+                </div>
+
+                <AuthField label="매장 주소">
+                  <div className="space-y-3">
                     <button
                       type="button"
                       onClick={() => setAddressSheetOpen(true)}
-                      className="flex min-h-[52px] w-full items-center justify-between gap-3 rounded-[18px] border border-[#e1d7ca] bg-[#fffdf9] px-4 py-3 text-left"
+                      className="flex min-h-[48px] w-full scroll-mb-[calc(env(safe-area-inset-bottom)+96px)] items-center justify-between gap-3 rounded-[10px] border border-[#dbe2ea] bg-white px-[14px] py-2.5 text-left outline-none transition-[border-color,box-shadow] focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/10"
                     >
                       <div className="min-w-0">
                         <p
                           className={cn(
-                            "auth-type-control text-left tracking-[-0.02em] [overflow-wrap:anywhere]",
-                            fields.shopAddress ? "text-[#171411]" : "text-[#6f665f]",
+                            "auth-type-control !font-normal text-left [overflow-wrap:anywhere]",
+                            fields.shopAddress ? "text-[#111827]" : "text-[#64748b]",
                           )}
                         >
-                          {fields.shopAddress || "주소 검색으로 매장 주소를 선택해 주세요"}
+                          {fields.shopAddress || "주소를 검색해 주세요"}
                         </p>
                         {shopPostalCode ? (
-                          <p className="mt-1 text-[12px] font-medium text-[#8a8176]">우편번호 {shopPostalCode}</p>
+                          <p className="mt-1 text-[12px] font-medium text-[#64748b]">우편번호 {shopPostalCode}</p>
                         ) : null}
                       </div>
-                      <span className="shrink-0 text-[13px] font-semibold text-[#2f786b]">주소 검색</span>
+                      <span className="shrink-0 text-[14px] font-medium text-[#334155]">주소 검색</span>
                     </button>
 
                     <AuthInput
                       value={shopDetailAddress}
                       onChange={setShopDetailAddress}
-                      placeholder="상세 주소를 입력해 주세요"
+                      placeholder="상세 주소 입력"
                     />
                   </div>
 
                   <AuthInput
                     className="hidden"
-                  value={fields.shopAddress}
-                  onChange={(value) => updateField("shopAddress", value)}
-                  placeholder="매장 주소를 입력해 주세요"
-                />
-              </AuthField>
+                    value={fields.shopAddress}
+                    onChange={(value) => updateField("shopAddress", value)}
+                    placeholder="매장 주소를 입력해 주세요"
+                  />
+                </AuthField>
             </AuthSectionBlock>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  initialStart === "email" ? router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never) : setStep("entry")
-                }
-                className={cn(BUTTON_SECONDARY, "h-[48px]")}
-              >
-                이전
-              </button>
-              <button type="button" onClick={() => void moveToVerificationStep()} disabled={loading || checkingEmail} className={cn(BUTTON_PRIMARY, "h-[48px]")}>
-                {checkingEmail ? "이메일 확인 중..." : "다음"}
-              </button>
-            </div>
           </div>
         ) : null}
 
-        {message ? <p className={cn(INLINE_ERROR, "mt-3.5")}>{message}</p> : null}
+        </fieldset>
+        {message && !startTarget ? <p role="alert" className={cn(INLINE_ERROR, "mt-3.5")}>{message}</p> : null}
+        </div>
       </div>
 
-      </div>
+      {step === "identity" || step === "profile" ? (
+        <footer className={cn(SHEET_ACTION_FOOTER, "fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[430px]")}
+          data-signup-action-bar="fixed" data-signup-stage-footer={step}>
+          {step === "identity" ? (
+            <button type="button" onClick={moveToProfileStep} disabled={signupPhase !== "idle" || loading || checkingEmail} className={BUTTON_PRIMARY}>{signupPhase === "checking" || checkingEmail ? "이메일 확인 중..." : "다음"}</button>
+          ) : (
+          <div className={ACTION_BUTTON_GRID}>
+          <button type="button" onClick={returnToRepresentativeStep} disabled={signupPhase !== "idle" || loading || checkingEmail} className={BUTTON_SECONDARY}>이전</button>
+          <button type="button" onClick={() => void moveToVerificationStep()}
+            disabled={signupPhase !== "idle" || loading || checkingEmail} className={BUTTON_PRIMARY}>
+            {signupPhase === "checking" ? "확인 중..." : signupPhase === "verifying" ? "본인인증 확인 중..." :
+              signupPhase === "submitting" ? "가입 중..." :
+              isSignupTokenFresh(verificationToken) ? "가입 다시 시도하기" :
+              identityAttempted ? "본인인증 다시 하기" : "본인인증하고 가입하기"}
+          </button>
+          </div>
+          )}
+        </footer>
+      ) : null}
 
       {startTarget ? (
-        <div
-          className="fixed inset-0 z-50 bg-black/35"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setStartTarget(null);
-          }}
-        >
-          <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div className="w-full rounded-t-[26px] bg-white px-5 pb-5 pt-4 shadow-[0_-18px_50px_rgba(15,23,42,0.12)]">
-              <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7dbd4]" />
-
-              <div className="mt-5 flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[14px] font-semibold text-[#5f665f]">약관 동의</p>
-                  <h2 className="auth-type-page-title mt-2 text-[#111827]">
-                    가입을 시작하기 전에 확인해 주세요
-                  </h2>
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-[16px] border border-[#dce9e0] bg-[#f3faf6] p-4">
-                <label className="flex min-h-11 w-full items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={allAgreed}
-                    onChange={(event) =>
-                      setAgreements({
-                        service: event.target.checked,
-                        privacy: event.target.checked,
-                        location: event.target.checked,
-                        marketing: event.target.checked,
-                      })
-                    }
-                    className="mt-1 h-[18px] w-[18px] rounded border border-[#c6d8cf] accent-[#1f6b5b]"
-                  />
-                  <p className="auth-type-control text-[#111827]">전체 동의하기</p>
-                </label>
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {ownerSignupTerms.map((term) => (
-                  <div key={term.id} className="rounded-[16px] border border-[#ebe5dc] bg-[#faf9f6] px-4 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <label className="flex min-h-11 min-w-0 flex-1 items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={agreements[term.id]}
-                          onChange={(event) =>
-                            setAgreements((prev) => ({
-                              ...prev,
-                              [term.id]: event.target.checked,
-                            }))
-                          }
-                          className="mt-1 h-[18px] w-[18px] rounded border border-[#d2cbc0] accent-[#1f6b5b]"
-                        />
-                        <p className="text-[14px] font-semibold text-[#111827]">
-                          [{term.required ? "필수" : "선택"}] {term.title}
-                        </p>
-                      </label>
-
-                      <Link
-                        href={termLinkById[term.id] as never}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="auth-type-helper inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center px-2 text-[#64748b]"
-                      >
-                        보기
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => setStartTarget(null)} className={BUTTON_SECONDARY}>
-                  닫기
-                </button>
-                <button
-                  type="button"
-                  onClick={continueStart}
-                  disabled={!requiredAgreed}
-                  className={BUTTON_PRIMARY}
-                >
-                  계속하기
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {verificationSheetOpen ? (
-        <div
-          className="fixed inset-0 z-50 bg-black/35"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setVerificationSheetOpen(false);
-          }}
-        >
-          <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[26px] bg-white shadow-[0_-18px_50px_rgba(15,23,42,0.12)]">
-              <div className="shrink-0 border-b border-[#f0e9df] px-5 pb-4 pt-4">
-                <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7dbd4]" />
-                <div className="mt-4 flex items-start justify-between gap-4">
-                  <div>
-                    <div>
-                      <h2 className="auth-type-page-title text-[#111827]">본인 확인</h2>
-                    </div>
-
-                    <div className="mt-4 rounded-[16px] border border-[#ebe5dc] bg-[#faf9f6] px-4 py-2.5">
-                      <p className="text-[12px] font-semibold text-[#5f665f]">왜 필요한가요?</p>
-                      <p className="mt-1 text-[12px] leading-[1.5] text-[#6f665f]">
-                        예약·고객 정보 보호와 계정 확인을 위해 필요해요.
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setVerificationSheetOpen(false)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e4ddd2] bg-[#fffdfa] text-[#615d57]"
-                    aria-label="본인 확인 닫기"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-5">
-                <div>
-                  <p className="text-[14px] font-semibold text-[#2f2a25]">편한 방법으로 확인해 주세요</p>
-                  <div className="mt-3 space-y-2">
-                    {verificationMethods.map((method) => (
-                      <button
-                        key={method.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedVerificationMethod(method.id);
-                          setVerificationSheetOpen(false);
-                          setVerificationDetailSheetOpen(true);
-                          setMessage(null);
-                        }}
-                        className={cn(
-                          "flex w-full items-center gap-3 rounded-[16px] border px-4 py-3.5 text-left transition",
-                          selectedVerificationMethod === method.id
-                            ? "border-[#cfe2dc] bg-[#f3faf6]"
-                            : "border-[#e8e1d6] bg-white",
-                        )}
-                      >
-                        <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center">
-                          <VerificationMethodLogo method={method.id} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[14px] font-semibold text-[#171411]">{method.title}</p>
-                        </div>
-                        <span
-                          className={cn(
-                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition",
-                            selectedVerificationMethod === method.id
-                              ? "border-[#1f6b5b] bg-[#1f6b5b] text-white"
-                              : "border-[#d8d1c6] bg-white text-transparent",
-                          )}
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {selectedVerificationMethod === "phone" ? (
-                  <div className="mt-5 space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#2f2a25]">휴대폰 본인인증 정보 입력</p>
-                    <div className="space-y-3">
-                      <AuthField label="이름">
-                        <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
-                      </AuthField>
-                      <AuthField label="생년월일">
-                        <AuthInput
-                          value={formatBirthDate(fields.birthDate)}
-                          onChange={(value) => updateField("birthDate", value)}
-                          placeholder="예: 1999-03-21"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                      <AuthField label="휴대폰번호">
-                        <AuthInput
-                          value={formatPhone(fields.phoneNumber)}
-                          onChange={(value) => updateField("phoneNumber", value)}
-                          placeholder="010-0000-0000"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-[12px] font-medium text-[#7b746b]">통신사 선택</p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {phoneCarrierOptions.map((carrier) => (
-                          <button
-                            key={carrier.value}
-                            type="button"
-                            onClick={() => setPhoneCarrier(carrier.value)}
-                            className={cn(
-                              "h-[42px] rounded-[12px] border text-[13px] font-semibold transition",
-                              phoneCarrier === carrier.value
-                                ? "border-[#1f6b5b] bg-[#eff8f6] text-[#1f6b5b]"
-                                : "border-[#e4ddd2] bg-white text-[#5f5a54]",
-                            )}
-                          >
-                            {carrier.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button type="button" onClick={startPhoneIdentity} disabled={loading} className={cn(BUTTON_SECONDARY, "h-[48px]")}>
-                      {verificationRequestId ? "인증번호 다시 받기" : "휴대폰 본인인증"}
-                    </button>
-
-                    {verificationRequestId ? (
-                      <div className="space-y-3 rounded-[14px] border border-[#ebe2d6] bg-white p-3">
-                        <AuthField label="인증번호">
-                          <AuthInput
-                            value={fields.verificationCode}
-                            onChange={(value) => updateField("verificationCode", value.replace(/\D/g, "").slice(0, 6))}
-                            placeholder="문자로 받은 6자리 숫자"
-                            inputMode="numeric"
-                          />
-                        </AuthField>
-
-                        {canShowDevVerificationCode && devCode ? (
-                          <p className={INLINE_HELP}>로컬 테스트용 인증번호: {devCode}</p>
-                        ) : null}
-
-                        <button type="button" onClick={verifyCode} disabled={loading} className={cn(BUTTON_PRIMARY, "h-[48px]")}>
-                          인증 확인
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {selectedVerificationMethod === "pass" ? (
-                  <div className="mt-5 space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#2f2a25]">PASS 인증 정보 입력</p>
-                    <div className="space-y-3">
-                      <AuthField label="이름">
-                        <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
-                      </AuthField>
-                      <AuthField label="생년월일">
-                        <AuthInput
-                          value={formatBirthDate(fields.birthDate)}
-                          onChange={(value) => updateField("birthDate", value)}
-                          placeholder="예: 1999-03-21"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                      <AuthField label="휴대폰번호">
-                        <AuthInput
-                          value={formatPhone(fields.phoneNumber)}
-                          onChange={(value) => updateField("phoneNumber", value)}
-                          placeholder="010-0000-0000"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => startUnifiedIdentity("PASS", "PASS 본인 인증이 완료되었어요.")}
-                      disabled={loading}
-                      className={cn(BUTTON_SECONDARY, "h-[48px] border-[#cfe2dc] bg-[#eff8f6] text-[#1f6b5b] hover:bg-[#e9f4f0]")}
-                    >
-                      PASS로 인증하기
-                    </button>
-                  </div>
-                ) : null}
-
-                {selectedVerificationMethod && selectedVerificationMethod !== "phone" && selectedVerificationMethod !== "pass" ? (
-                  <div className="mt-5 rounded-[16px] border border-dashed border-[#d9d3ca] bg-[#fcfaf7] px-4 py-5 text-center">
-                    <p className="text-[14px] font-semibold text-[#2f2a25]">준비 중인 인증 수단입니다</p>
-                    <p className="mt-2 text-[12px] leading-5 text-[#6f665f]">
-                      실제 인증 연동 전까지는 사용할 수 없어요.
-                      <br />
-                      서버에서 인증사 결과를 조회해 확인하도록 연결이 필요합니다.
-                    </p>
-                  </div>
-                ) : null}
-
-                {verificationToken ? (
-                  <div className="mt-5 rounded-[14px] border border-[#cfe2dc] bg-[#eff8f6] px-4 py-3">
-                    <p className="text-[14px] font-semibold text-[#1f6b5b]">인증이 완료되었습니다</p>
-                    <p className="mt-1 text-[13px] text-[#43685f]">
-                      {maskName(fields.name)} · {maskPhoneNumber(fields.phoneNumber)}
-                    </p>
-                  </div>
-                ) : null}
-
-                {message ? <p className={cn(INLINE_ERROR, "mt-4")}>{message}</p> : null}
-              </div>
-
-              {verificationToken ? (
-                <div className="shrink-0 border-t border-[#f0e9df] bg-white px-5 pb-5 pt-4">
-                  <button
-                    type="button"
-                    onClick={submitSignup}
-                    disabled={loading || !verificationToken}
-                    className={cn(BUTTON_PRIMARY, "h-[48px]")}
-                  >
-                    {loading ? "가입 처리 중..." : "가입 완료"}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {verificationDetailSheetOpen && selectedVerificationMeta ? (
-        <div
-          className="fixed inset-0 z-50 bg-black/35"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setVerificationDetailSheetOpen(false);
-          }}
-        >
-          <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[26px] bg-white shadow-[0_-18px_50px_rgba(15,23,42,0.12)]">
-              <div className="shrink-0 border-b border-[#f0e9df] px-5 pb-4 pt-4">
-                <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7dbd4]" />
-                <div className="mt-4 flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVerificationDetailSheetOpen(false);
-                        setSelectedVerificationMethod(null);
-                        setVerificationSheetOpen(true);
-                        setMessage(null);
-                      }}
-                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e4ddd2] bg-[#fffdfa] text-[#615d57]"
-                      aria-label="인증 수단 다시 선택하기"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </button>
-                    <div className="min-w-0">
-                      <p className="text-[12px] font-semibold text-[#7b746b]">본인 확인</p>
-                      <h2 className="auth-type-section-title mt-1 truncate text-[#111827]">
-                        {selectedVerificationMeta.title}
-                      </h2>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setVerificationDetailSheetOpen(false)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e4ddd2] bg-[#fffdfa] text-[#615d57]"
-                    aria-label="본인 확인 닫기"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-5">
-                {selectedVerificationMethod === "phone" ? (
-                  <div className="space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#2f2a25]">휴대폰 본인인증 정보 입력</p>
-                    <div className="space-y-3">
-                      <AuthField label="이름">
-                        <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
-                      </AuthField>
-                      <AuthField label="생년월일">
-                        <AuthInput
-                          value={formatBirthDate(fields.birthDate)}
-                          onChange={(value) => updateField("birthDate", value)}
-                          placeholder="예: 1999-03-21"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                      <AuthField label="휴대폰번호">
-                        <AuthInput
-                          value={formatPhone(fields.phoneNumber)}
-                          onChange={(value) => updateField("phoneNumber", value)}
-                          placeholder="010-0000-0000"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-[12px] font-medium text-[#7b746b]">통신사 선택</p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {phoneCarrierOptions.map((carrier) => (
-                          <button
-                            key={carrier.value}
-                            type="button"
-                            onClick={() => setPhoneCarrier(carrier.value)}
-                            className={cn(
-                              "h-[42px] rounded-[12px] border text-[13px] font-semibold transition",
-                              phoneCarrier === carrier.value
-                                ? "border-[#1f6b5b] bg-[#eff8f6] text-[#1f6b5b]"
-                                : "border-[#e4ddd2] bg-white text-[#5f5a54]",
-                            )}
-                          >
-                            {carrier.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button type="button" onClick={startPhoneIdentity} disabled={loading} className={cn(BUTTON_SECONDARY, "h-[48px]")}>
-                      {verificationRequestId ? "인증번호 다시 받기" : "휴대폰 본인인증"}
-                    </button>
-
-                    {verificationRequestId ? (
-                      <div className="space-y-3 rounded-[14px] border border-[#ebe2d6] bg-white p-3">
-                        <AuthField label="인증번호">
-                          <AuthInput
-                            value={fields.verificationCode}
-                            onChange={(value) => updateField("verificationCode", value.replace(/\D/g, "").slice(0, 6))}
-                            placeholder="문자로 받은 6자리 숫자"
-                            inputMode="numeric"
-                          />
-                        </AuthField>
-
-                        {canShowDevVerificationCode && devCode ? (
-                          <p className={INLINE_HELP}>로컬 테스트용 인증번호: {devCode}</p>
-                        ) : null}
-
-                        <button type="button" onClick={verifyCode} disabled={loading} className={cn(BUTTON_PRIMARY, "h-[48px]")}>
-                          인증 확인
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {selectedVerificationMethod === "pass" ? (
-                  <div className="space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#2f2a25]">PASS 인증 정보 입력</p>
-                    <div className="space-y-3">
-                      <AuthField label="이름">
-                        <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
-                      </AuthField>
-                      <AuthField label="생년월일">
-                        <AuthInput
-                          value={formatBirthDate(fields.birthDate)}
-                          onChange={(value) => updateField("birthDate", value)}
-                          placeholder="예: 1999-03-21"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                      <AuthField label="휴대폰번호">
-                        <AuthInput
-                          value={formatPhone(fields.phoneNumber)}
-                          onChange={(value) => updateField("phoneNumber", value)}
-                          placeholder="010-0000-0000"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => startUnifiedIdentity("PASS", "PASS 본인 인증이 완료되었어요.")}
-                      disabled={loading}
-                      className={cn(BUTTON_SECONDARY, "h-[48px] border-[#cfe2dc] bg-[#eff8f6] text-[#1f6b5b] hover:bg-[#e9f4f0]")}
-                    >
-                      PASS로 인증하기
-                    </button>
-                  </div>
-                ) : null}
-
-                {selectedVerificationMethod !== "phone" && selectedVerificationMethod !== "pass" ? (
-                  <div className="rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        startUnifiedIdentity(
-                          selectedVerificationMethod === "kakao-certificate"
-                            ? "KAKAO"
-                            : selectedVerificationMethod === "naver-certificate"
-                              ? "NAVER"
-                              : "TOSS",
-                          `${
-                            selectedVerificationMethod === "kakao-certificate"
-                              ? "카카오"
-                              : selectedVerificationMethod === "naver-certificate"
-                                ? "네이버"
-                                : "토스"
-                          } 간편 인증이 완료되었어요.`,
-                        )
-                      }
-                      disabled={loading}
-                      className={cn(BUTTON_SECONDARY, "h-[48px] border-[#cfe2dc] bg-[#eff8f6] text-[#1f6b5b] hover:bg-[#e9f4f0]")}
-                    >
-                      {selectedVerificationMethod === "kakao-certificate"
-                        ? "카카오 간편 인증 시작"
-                        : selectedVerificationMethod === "naver-certificate"
-                          ? "네이버 간편 인증 시작"
-                          : "토스 간편 인증 시작"}
-                    </button>
-                  </div>
-                ) : null}
-
-                {verificationToken ? (
-                  <div className="mt-5 rounded-[14px] border border-[#cfe2dc] bg-[#eff8f6] px-4 py-3">
-                    <p className="text-[14px] font-semibold text-[#1f6b5b]">인증이 완료되었습니다</p>
-                    <p className="mt-1 text-[13px] text-[#43685f]">
-                      {maskName(fields.name)} · {maskPhoneNumber(fields.phoneNumber)}
-                    </p>
-                  </div>
-                ) : null}
-
-                {message ? <p className={cn(INLINE_ERROR, "mt-4")}>{message}</p> : null}
-              </div>
-
-              {verificationToken ? (
-                <div className="shrink-0 border-t border-[#f0e9df] bg-white px-5 pb-5 pt-4">
-                  <button
-                    type="button"
-                    onClick={submitSignup}
-                    disabled={loading || !verificationToken}
-                    className={cn(BUTTON_PRIMARY, "h-[48px]")}
-                  >
-                    {loading ? "가입 처리 중..." : "가입 완료"}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
+        <SignupConsentDialog
+          agreements={agreements}
+          allAgreed={allAgreed}
+          requiredAgreed={requiredAgreed}
+          onAllChange={(checked) => setAgreements({ service: checked, privacy: checked, location: checked, marketing: checked })}
+          onAgreementChange={(id, checked) => setAgreements((prev) => ({ ...prev, [id]: checked }))}
+          onClose={() => setStartTarget(null)}
+          onContinue={continueStart}
+          message={message}
+          primaryClassName={BUTTON_PRIMARY}
+          secondaryClassName={BUTTON_SECONDARY}
+        />
       ) : null}
 
       {addressSheetOpen ? (
@@ -1600,6 +1551,6 @@ export default function SignupForm({
           }}
         />
       ) : null}
-    </div>
+    </main>
   );
 }

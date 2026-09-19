@@ -14,6 +14,11 @@ import type {
 } from "./mobile-price-photo-adapter";
 import { ensureMobilePriceGuideSourceItemIds, isCanonicalKrwAmount } from "./mobile-price-photo-adapter";
 import { createTransientCleanupRegistry } from "./mobile-price-photo-cleanup";
+import {
+  assertMobilePriceGuideCoreContract,
+  getMobilePriceGuideCoreContract,
+  mobilePriceGuideV2Schema,
+} from "./generated-price-guide-core";
 
 type FetchLike = typeof fetch;
 type UploadIntent = {
@@ -285,12 +290,7 @@ function assertCanonicalPriceDocument(document: MobilePriceGuideV2) {
 }
 
 export function isMobilePriceGuideV2(value: unknown): value is MobilePriceGuideV2 {
-  if (!value || typeof value !== "object") return false;
-  const document = value as Partial<MobilePriceGuideV2>;
-  return document.schemaVersion === 2
-    && Array.isArray(document.rows)
-    && Array.isArray(document.surcharges)
-    && Array.isArray(document.aiReview);
+  return mobilePriceGuideV2Schema.safeParse(value).success;
 }
 
 export function applyDraftsToDocument(document: MobilePriceGuideV2, drafts: MobilePriceDraft[]): MobilePriceGuideV2 {
@@ -459,7 +459,7 @@ export function createMobilePricePhotoHttpAdapter(options: {
           stageError("cleanup", error);
         }
         verifiedPurgeReferences.add(photo.reference);
-        const document = ensureMobilePriceGuideSourceItemIds(result.document);
+        const document = ensureMobilePriceGuideSourceItemIds(mobilePriceGuideV2Schema.parse(result.document));
         return { document, drafts: toMobilePriceDrafts(document) };
       } catch (error) {
         if (
@@ -487,7 +487,8 @@ export function createMobilePricePhotoHttpAdapter(options: {
     async saveServices(document, intent: MobileServiceSaveIntent, signal) {
       await cleanupRegistry.retryPending();
       assertCanonicalPriceDocument(document);
-      const primary = document.rows.find((row) => (
+      const canonicalDocument = mobilePriceGuideV2Schema.parse(document);
+      const primary = canonicalDocument.rows.find((row) => (
         row.serviceName?.trim()
         && row.priceKind !== "unknown"
         && isCanonicalKrwAmount(row.priceMinKrw)
@@ -506,19 +507,26 @@ export function createMobilePricePhotoHttpAdapter(options: {
           name: primary.serviceName, price,
           priceType: primary.priceKind === "fixed" ? "fixed" : "starting",
           durationMinutes: primary.durationMinutes, isActive: true, category: "미용", description: "",
-          sortOrder: 1, capacityLabel: "동일 시간 1건", staffSelectionMode: "all", priceGuide: document,
+          sortOrder: 1, capacityLabel: "동일 시간 1건", staffSelectionMode: "all",
+          priceGuide: canonicalDocument,
+          priceGuideCore: getMobilePriceGuideCoreContract(),
         }),
       });
     },
 
     async requeryServices(serviceId, signal): Promise<MobilePersistedPriceGuide> {
-      const bootstrap = await pcRequest<{ services?: Array<{ id?: unknown; price_guide?: unknown }> }>(`/api/bootstrap?shopId=${encodeURIComponent(options.shopId)}&phase=essential`, { cache: "no-store", signal });
+      const bootstrap = await pcRequest<{
+        services?: Array<{ id?: unknown; price_guide?: unknown }>;
+        priceGuideCore?: unknown;
+      }>(`/api/bootstrap?shopId=${encodeURIComponent(options.shopId)}&phase=essential`, { cache: "no-store", signal });
+      assertMobilePriceGuideCoreContract(bootstrap.priceGuideCore);
       const service = (bootstrap.services ?? []).find((item) => item.id === serviceId);
       const document = service?.price_guide;
-      if (!isMobilePriceGuideV2(document)) {
+      const parsedDocument = mobilePriceGuideV2Schema.safeParse(document);
+      if (!parsedDocument.success) {
         throw new Error("저장한 요금표를 다시 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
       }
-      const canonicalDocument = ensureMobilePriceGuideSourceItemIds(document);
+      const canonicalDocument = ensureMobilePriceGuideSourceItemIds(parsedDocument.data);
       return { serviceId, document: canonicalDocument, drafts: toMobilePriceDrafts(canonicalDocument) };
     },
   };

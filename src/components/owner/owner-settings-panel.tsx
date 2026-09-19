@@ -18,8 +18,7 @@ import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
-import { ensureMobilePriceGuideSourceItemIds } from "@/lib/price-photo/mobile-price-photo-adapter";
-import { isMobilePriceGuideV2, toMobilePriceDrafts } from "@/lib/price-photo/mobile-price-photo-http-adapter";
+import { readBootstrapPriceGuideState } from "@/lib/price-photo/bootstrap-price-guide-state";
 import {
   isStaffProfileFallbackKey,
   staffProfileFallbackKeys,
@@ -60,7 +59,7 @@ type SaveFeedback = {
   description?: string;
 };
 
-type SettingsScreen = "shop" | "closures" | "notifications" | "appNotifications" | "staff" | "support" | "legal" | "account" | null;
+type SettingsScreen = "shop" | "closures" | "price" | "notifications" | "appNotifications" | "staff" | "support" | "legal" | "account" | null;
 type StaffProfileDraft = {
   name: string;
   displayName: string;
@@ -108,26 +107,6 @@ function createStaffProfileDrafts(staffMembers: BootstrapStaffMember[]): Record<
   return Object.fromEntries(staffMembers.map((staffMember) => [staffMember.id, createStaffProfileDraft(staffMember)]));
 }
 
-function readBootstrapPriceGuideState(services: BootstrapPayload["services"]): PriceGuideSessionState | null {
-  for (const service of services) {
-    if (!isMobilePriceGuideV2(service.price_guide)) continue;
-    const document = ensureMobilePriceGuideSourceItemIds(service.price_guide);
-    return {
-      serviceId: service.id,
-      document,
-      rows: toMobilePriceDrafts(document).map((row) => ({
-        id: row.clientId,
-        rowIndex: row.rowIndex,
-        name: row.serviceName,
-        priceKind: row.priceKind,
-        price: String(row.fixedPrice ?? row.minimumPrice ?? ""),
-        maximumPrice: String(row.maximumPrice ?? ""),
-        durationMinutes: row.durationMinutes === null ? "" : String(row.durationMinutes),
-      })),
-    };
-  }
-  return null;
-}
 function createBusinessHoursState(hours: BusinessHours, regularClosedDays: number[]): BusinessHours {
   return Object.fromEntries(
     Array.from({ length: 7 }, (_, day) => {
@@ -325,7 +304,6 @@ export default function OwnerSettingsPanel({
   const operatingSaveCountRef = useRef(0);
   const [isBasicInfoEditing, setIsBasicInfoEditing] = useState(false);
   const [localActiveScreen, setLocalActiveScreen] = useState<SettingsScreen>(initialScreen ?? null);
-  const [isPriceGuideOpen, setIsPriceGuideOpen] = useState(false);
   const [priceGuideState, setPriceGuideState] = useState<PriceGuideSessionState | null>(() =>
     readBootstrapPriceGuideState(data.services),
   );
@@ -407,6 +385,10 @@ export default function OwnerSettingsPanel({
       return;
     }
     setLocalActiveScreen(nextScreen);
+  }
+
+  function setIsPriceGuideOpen(isOpen: boolean) {
+    updateActiveScreen(isOpen ? "price" : null);
   }
 
   useEffect(() => {
@@ -1429,6 +1411,7 @@ export default function OwnerSettingsPanel({
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     shop: { title: "매장 기본 정보", content: shopSection },
     closures: { title: "영업·예약 시간", content: closuresSection },
+    price: { title: "서비스 요금 설정", content: priceGuideSection },
     notifications: { title: "고객 알림톡", content: notificationsSection },
     appNotifications: { title: "내 앱 알림", content: appNotificationsSection },
     staff: { title: "직원 관리", content: staffSection },
@@ -1436,6 +1419,10 @@ export default function OwnerSettingsPanel({
     legal: { title: "약관 및 정책", content: legalSection },
     account: { title: "계정", content: accountSection },
   };
+
+  if (effectiveActiveScreen === "price") {
+    return <section className="min-h-full bg-[#F4F5F7] py-4">{priceGuideSection}</section>;
+  }
 
   if (effectiveActiveScreen) {
     const isShopScreen = effectiveActiveScreen === "shop";
@@ -1550,11 +1537,13 @@ export default function OwnerSettingsPanel({
     );
   }
 
-  if (isPriceGuideOpen) {
-    return <section className="min-h-full bg-[#F4F5F7] py-4">{priceGuideSection}</section>;
-  }
-
   const settingsGroups: OwnerSettingsOverviewGroup[] = [
+    ...(onLogout ? [{
+      title: "계정",
+      items: [
+        { key: "account", icon: UserRound, title: "계정", onClick: () => updateActiveScreen("account") },
+      ],
+    }] : []),
     {
       title: "매장 운영",
       items: [
@@ -1573,9 +1562,8 @@ export default function OwnerSettingsPanel({
       ],
     },
     {
-      title: "계정·정책",
+      title: "약관 및 정책",
       items: [
-        ...(onLogout ? [{ key: "account", icon: UserRound, title: "계정", onClick: () => updateActiveScreen("account") }] : []),
         { key: "legal", icon: FileText, title: "약관 및 정책", onClick: () => updateActiveScreen("legal") },
       ],
     },

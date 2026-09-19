@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
 
@@ -7,6 +8,8 @@ const source = await readFile(new URL("../src/lib/price-photo/mobile-price-photo
 const coordinatorSource = await readFile(new URL("../src/lib/price-photo/mobile-price-photo-adapter.ts", import.meta.url), "utf8");
 const cleanupSource = await readFile(new URL("../src/lib/price-photo/mobile-price-photo-cleanup.ts", import.meta.url), "utf8");
 const matrixSource = await readFile(new URL("../src/lib/price-photo/mobile-price-guide-matrix.ts", import.meta.url), "utf8");
+const generatedCoreSource = await readFile(new URL("../src/lib/price-photo/generated-price-guide-core.ts", import.meta.url), "utf8");
+const nodeRequire = createRequire(import.meta.url);
 
 function transpile(sourceText, requireImpl = () => ({})) {
   const output = ts.transpileModule(sourceText, {
@@ -18,7 +21,14 @@ function transpile(sourceText, requireImpl = () => ({})) {
 }
 
 const cleanupModule = transpile(cleanupSource);
-const coordinatorModule = transpile(coordinatorSource);
+const generatedCoreModule = transpile(generatedCoreSource, (specifier) => {
+  if (specifier === "zod") return nodeRequire("zod");
+  throw new Error(`unexpected import: ${specifier}`);
+});
+const coordinatorModule = transpile(coordinatorSource, (specifier) => {
+  if (specifier === "@/lib/price-photo/generated-price-guide-core") return generatedCoreModule;
+  throw new Error(`unexpected import: ${specifier}`);
+});
 const matrixModule = transpile(matrixSource, (specifier) => {
   if (specifier === "./mobile-price-photo-adapter") return coordinatorModule;
   throw new Error(`unexpected import: ${specifier}`);
@@ -28,6 +38,7 @@ const adapterModule = transpile(source, (specifier) => {
   if (specifier === "@/lib/supabase/client") return { getSupabaseBrowserClient: () => null };
   if (specifier === "./mobile-price-photo-cleanup") return cleanupModule;
   if (specifier === "./mobile-price-photo-adapter") return coordinatorModule;
+  if (specifier === "./generated-price-guide-core") return generatedCoreModule;
   throw new Error(`unexpected import: ${specifier}`);
 });
 
@@ -294,7 +305,7 @@ test("no-store requery returns the exact persisted identity and full price guide
     shopId: "shop",
     fetchImpl: async (url, init) => {
       requests.push({ url: url.toString(), cache: init?.cache });
-      return ok({ services: [
+      return ok({ priceGuideCore: generatedCoreModule.getMobilePriceGuideCoreContract(), services: [
         { id: "other-service", price_guide: { ...document, overallNote: "다른 요금표" } },
         { id: "service-existing", price_guide: document },
       ] });
@@ -309,6 +320,18 @@ test("no-store requery returns the exact persisted identity and full price guide
   assert.deepEqual(persisted.document.rows[0].breedNames, ["푸들"]);
   assert.equal(persisted.document.rows[0].durationMinutes, 90);
   assert.equal(persisted.drafts[0].maximumPrice, 45_000);
+});
+
+test("bootstrap core mismatch fails closed before accepting persisted data", async () => {
+  const adapter = createMobilePricePhotoHttpAdapter({
+    backendOrigin: "https://pc.invalid",
+    shopId: "shop",
+    fetchImpl: async () => ok({
+      priceGuideCore: { version: "2.0.0", sourceHash: "0".repeat(64) },
+      services: [],
+    }),
+  });
+  await assert.rejects(adapter.requeryServices("service-existing", context.signal));
 });
 
 test("service save accepts only canonical integer KRW 0 through 100,000,000", async () => {
@@ -573,7 +596,10 @@ test("deterministic analysis draft round-trips matrix edits through one save and
       if (value.includes("/api/bootstrap?") && init?.method === undefined) {
         counts.requery += 1;
         assert.equal(init.cache, "no-store");
-        return ok({ services: [{ id: "service-existing", price_guide: canonicalDocument }] });
+        return ok({
+          priceGuideCore: generatedCoreModule.getMobilePriceGuideCoreContract(),
+          services: [{ id: "service-existing", price_guide: canonicalDocument }],
+        });
       }
       if (init?.method === "DELETE") {
         counts.delete += 1;
@@ -584,8 +610,7 @@ test("deterministic analysis draft round-trips matrix edits through one save and
   });
   const coordinator = coordinatorModule.createMobilePricePhotoCoordinator(adapter);
   const analysis = await coordinator.analyze(photo);
-  let edited = matrixModule.updateMobilePriceGuideService(analysis.document, 0, 0, "스파 목욕");
-  edited = matrixModule.updateMobilePriceGuideCell(edited, 0, 0, 0, { priceMinKrw: 31_000, durationMinutes: 50 });
+  let edited = matrixModule.updateMobilePriceGuideCell(analysis.document, 0, 0, 0, { priceMinKrw: 31_000, durationMinutes: 50 });
   edited = matrixModule.addMobilePriceGuideWeightBand(edited, 0);
   edited = matrixModule.updateMobilePriceGuideWeightBand(edited, 0, 2, "4~6kg");
   edited = matrixModule.removeMobilePriceGuideWeightBand(edited, 0, 2);
@@ -593,7 +618,7 @@ test("deterministic analysis draft round-trips matrix edits through one save and
   const persisted = await coordinator.saveAndRequery(edited, "service-existing");
   assert.deepEqual(counts, { intent: 1, put: 1, complete: 1, import: 1, delete: 0, save: 1, requery: 1 });
   assert.deepEqual(persisted.document, edited);
-  assert.equal(persisted.document.rows[0].serviceName, "스파 목욕");
+  assert.equal(persisted.document.rows[0].serviceName, "목욕");
   assert.equal(persisted.document.rows[0].priceMinKrw, 31_000);
   assert.equal(persisted.document.rows[0].durationMinutes, 50);
   assert.equal(persisted.document.rows[1].priceKind, "unknown");

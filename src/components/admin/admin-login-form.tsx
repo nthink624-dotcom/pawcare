@@ -43,8 +43,8 @@ export default function AdminLoginForm({ nextPath }: { nextPath: string }) {
 
         <div className="mt-5 text-center">
           <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">관리자 전용</p>
-          <h1 className="mt-2 text-[28px] font-bold tracking-[-0.04em] text-[#171411]">관리자 로그인</h1>
-          <p className="mt-3 text-[15px] leading-7 text-[#7b746b]">
+          <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#171411]">관리자 로그인</h1>
+          <p className="mt-3 text-[16px] leading-7 text-[#7b746b]">
             관리자 아이디와 비밀번호로 로그인하면
             <br />
             오너 계정 관리와 운영자 기능을 바로 사용할 수 있어요.
@@ -84,7 +84,7 @@ export default function AdminLoginForm({ nextPath }: { nextPath: string }) {
           type="button"
           onClick={() => void handleSubmit()}
           disabled={submitting || !loginId || !password}
-          className="mt-6 flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[#0e8c6d] px-5 text-[18px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-6 flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[#0e8c6d] px-5 text-[18px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? "로그인 중..." : "관리자 로그인"}
         </button>

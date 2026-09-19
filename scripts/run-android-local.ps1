@@ -28,6 +28,7 @@ if ($connectedDevices.Count -ne 1) {
 }
 
 $previousServerUrl = $env:CAPACITOR_SERVER_URL
+$previousBuildMode = $env:CAPACITOR_BUILD_MODE
 $previousJavaHome = $env:JAVA_HOME
 $previousAndroidHome = $env:ANDROID_HOME
 
@@ -36,6 +37,7 @@ try {
   & $adb reverse tcp:3100 tcp:3100 | Out-Null
 
   $env:CAPACITOR_SERVER_URL = $serverUrl
+  $env:CAPACITOR_BUILD_MODE = "development"
   $env:JAVA_HOME = $javaHome
   $env:ANDROID_HOME = $sdkRoot
 
@@ -56,6 +58,12 @@ try {
     $env:CAPACITOR_SERVER_URL = $previousServerUrl
   }
 
+  if ($null -eq $previousBuildMode) {
+    Remove-Item Env:\CAPACITOR_BUILD_MODE -ErrorAction SilentlyContinue
+  } else {
+    $env:CAPACITOR_BUILD_MODE = $previousBuildMode
+  }
+
   & npx.cmd cap sync android
   if ($LASTEXITCODE -ne 0) { throw "Capacitor configuration cleanup failed." }
 
@@ -69,6 +77,12 @@ try {
     Remove-Item Env:\CAPACITOR_SERVER_URL -ErrorAction SilentlyContinue
   } else {
     $env:CAPACITOR_SERVER_URL = $previousServerUrl
+  }
+
+  if ($null -eq $previousBuildMode) {
+    Remove-Item Env:\CAPACITOR_BUILD_MODE -ErrorAction SilentlyContinue
+  } else {
+    $env:CAPACITOR_BUILD_MODE = $previousBuildMode
   }
 
   if ($null -eq $previousJavaHome) {

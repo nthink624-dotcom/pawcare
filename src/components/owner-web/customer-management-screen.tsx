@@ -90,7 +90,7 @@ export default function CustomerManagementScreen() {
                     />
                   ) : null}
                   <div className="min-w-0">
-                    <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#17211f]">{row.name}</p>
+                    <p className="text-[16px] font-semibold tracking-[-0.02em] text-[#17211f]">{row.name}</p>
                     <p className="mt-1 text-[12px] text-[#8b8279]">{row.alerts}</p>
                   </div>
                 </div>,

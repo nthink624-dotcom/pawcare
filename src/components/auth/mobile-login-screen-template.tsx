@@ -126,11 +126,14 @@ export default function MobileLoginScreenTemplate({
           {loading ? "로그인 중..." : "로그인"}
         </button>
 
-        <div className="auth-type-helper mt-3 flex flex-wrap items-center justify-center gap-x-1 text-center text-[#64748b]">
+        <div
+          className="mt-3 flex flex-wrap items-center justify-center gap-x-1 text-center text-[16px] font-medium leading-6 text-[#64748b]"
+          data-login-helper-links
+        >
           {helperLinks.map((link, index) => (
             <span key={`${link.href}-${link.label}`} className="contents">
               {index > 0 ? <span className="text-[#d5dce5]">|</span> : null}
-              <Link href={link.href as never} replace className="inline-flex min-h-11 items-center px-1.5 text-[#64748b] hover:text-[#0f172a]">
+              <Link href={link.href as never} replace className="inline-flex min-h-11 items-center whitespace-nowrap px-1.5 text-[#64748b] hover:text-[#0f172a]">
                 {link.label}
               </Link>
             </span>

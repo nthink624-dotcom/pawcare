@@ -66,6 +66,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       verificationRequestId: result.verificationRequestId,
+      ...("providerIdentityVerificationId" in result ? {
+        providerIdentityVerificationId: result.providerIdentityVerificationId,
+        verificationState: result.verificationState,
+      } : {}),
       devVerificationCode: "devVerificationCode" in result ? result.devVerificationCode ?? null : null,
       message:
         payload.method === "portone"
@@ -77,7 +81,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "이름, 생년월일, 휴대폰번호를 다시 확인해 주세요." }, { status: 400 });
     }
 
-    const message = error instanceof Error ? error.message : "인증번호 요청 중 문제가 발생했습니다.";
-    return NextResponse.json({ message }, { status: 400 });
+    return NextResponse.json({ code: "IDENTITY_REQUEST_FAILED", message: "본인 인증 요청을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
   }
 }

@@ -213,7 +213,7 @@ test("unassigned is rendered once only when its lane exists and stale staff fail
 
 test("schedule fixes the time rail and scrolls staff headers with their boards", () => {
   assert.match(schedule, /data-testid="reservation-date-navigation" className="sticky top-\[env\(safe-area-inset-top\)\] z-40/);
-  assert.match(schedule, /border-b border-\[#d8dee7\] bg-white/);
+  assert.match(schedule, /className="relative flex h-16 w-full items-center justify-start gap-2 border-b border-b-\[#d8dee7\]/);
   assert.match(schedule, /data-testid="time-header"/);
   assert.match(schedule, /data-testid="time-rail"/);
   assert.match(schedule, /sticky left-0 z-30/);
@@ -229,6 +229,7 @@ test("schedule fixes the time rail and scrolls staff headers with their boards",
   assert.match(schedule, /grid-cols-\[48px_minmax\(0,1fr\)\]/);
   assert.match(schedule, /min-\[410px\]:grid-cols-\[52px_minmax\(0,1fr\)\]/);
   assert.match(schedule, /viewport\.scrollTo\(\{ left, behavior: "smooth" \}\)/);
+  assert.match(schedule, /selected\.offsetLeft - viewport\.offsetLeft/);
   assert.doesNotMatch(schedule, /scrollIntoView/);
   assert.match(schedule, /onPointerDown=\{beginLaneDrag\}/);
   assert.match(schedule, /onPointerMove=\{moveLaneDrag\}/);
@@ -253,7 +254,8 @@ test("schedule fixes the time rail and scrolls staff headers with their boards",
   assert.match(schedule, /data-testid="staff-lane-board" className="relative bg-white"/);
   assert.doesNotMatch(schedule, /data-testid="staff-lane-board" className="relative bg-\[#f8fafc\]"/);
   assert.match(schedule, /sticky left-0 z-30 border-r border-\[#c8d1dc\] bg-white/);
-  assert.match(schedule, /data-testid="time-header" className="flex h-\[68px\][^"]+bg-white/);
+  assert.match(schedule, /data-testid="time-header" className="flex h-16 items-center justify-center border-b border-\[#d8dee7\] bg-white text-\[13px\] font-medium leading-5 text-\[#42526a\]">시간<\/div>/);
+  assert.doesNotMatch(schedule, /data-testid="time-header"[^>]+(?:rounded|bg-\[#f1f3f7\])/);
   assert.match(schedule, /data-testid="time-rail" className="relative bg-white"/);
 });
 
@@ -264,7 +266,7 @@ test("one saved staff owns the full available lane width without synthetic choic
   assert.match(schedule, /data-staff-lane-layout=\{isSingleStaffLane \? "single" : "multiple"\}/);
   assert.match(schedule, /isSingleStaffLane \? "flex w-full min-w-full" : "flex w-max min-w-full"/);
   assert.match(schedule, /isSingleStaffLane \? "w-full min-w-0 max-w-none flex-1 shrink-0 border-r border-\[#d8dee7\]"/);
-  assert.match(schedule, /: "w-\[calc\(\(100vw-48px\)\*0\.88\)\] min-w-\[260px\] max-w-\[332px\] shrink-0 snap-start/);
+  assert.match(schedule, /: "w-\[calc\(\(100vw-48px\)\*0\.88\)\] min-w-\[280px\] max-w-\[332px\] shrink-0 snap-start/);
   assert.match(schedulePreview, /NODE_ENV === "production".*notFound\(\)/s);
   assert.match(schedulePreview, /staffMode === "single" && singleStaff/);
   assert.match(schedulePreview, /staffMembers: \[singleStaff\]/);
@@ -280,29 +282,33 @@ test("reservation chips keep booking information without rendering pet profile m
   assert.match(schedule, /serviceNames\[appointment\.service_id\] \?\? "서비스"/);
 });
 
-test("date navigation keeps relative labels separate and weekday only after tomorrow", () => {
+test("date navigation restores the selected date summary and exact seven-day selector", () => {
   const { getReservationDateDisplay } = loadReservationDateDisplayContract();
   const today = "2026-09-07";
   assert.deepEqual({ ...getReservationDateDisplay(today, today) }, { dateLabel: "9월 7일", weekdayLabel: null, relativeDateLabel: "오늘" });
   assert.deepEqual({ ...getReservationDateDisplay("2026-09-08", today) }, { dateLabel: "9월 8일", weekdayLabel: null, relativeDateLabel: "내일" });
   assert.deepEqual({ ...getReservationDateDisplay("2026-09-09", today) }, { dateLabel: "9월 9일", weekdayLabel: "수", relativeDateLabel: null });
   assert.deepEqual({ ...getReservationDateDisplay("2026-09-13", today) }, { dateLabel: "9월 13일", weekdayLabel: "일", relativeDateLabel: null });
-  assert.match(schedule, /aria-label="이전 날짜"/);
-  assert.match(schedule, /onChangeDate\("previous"\)/);
-  assert.match(schedule, /aria-label="다음 날짜"/);
-  assert.match(schedule, /onChangeDate\("next"\)/);
-  assert.match(schedule, /h-11 w-11/);
+  assert.match(schedule, /const selectedDayIndex = new Date\(`\$\{value\}T00:00:00`\)\.getDay\(\)/);
+  assert.match(schedule, /Array\.from\(\{ length: 7 \}, \(_, index\) => addDate\(value, index - selectedDayIndex\)\)/);
+  assert.match(schedule, /const weekDates = useMemo\(\(\) => weekDatesFor\(date\), \[date\]\)/);
+  assert.match(schedule, /data-testid="schedule-week-strip"/);
+  assert.match(schedule, /grid grid-cols-7/);
+  assert.match(schedule, /aria-current=\{isSelected \? "date" : undefined\}/);
+  assert.match(schedule, /onClick=\{\(\) => onSelectDate\(optionDate\)\}/);
+  assert.match(schedule, /rounded-full bg-\[#2f5fb3\]/);
+  assert.match(schedule, /data-testid="date-total"/);
+  assert.match(schedule, /예약 \{visibleAppointments\.length\}건/);
   assert.match(schedule, /const isToday = date === today/);
   assert.match(schedule, /data-testid="date-primary"/);
-  assert.match(schedule, /relative inline-flex shrink-0/);
-  assert.match(schedule, /absolute inset-y-0 left-1\/2/);
-  assert.match(schedule, /w-\[calc\(100%-88px\)\] -translate-x-1\/2/);
-  assert.match(schedule, /absolute left-full top-1\/2/);
-  assert.match(schedule, /data-testid="relative-date-label"/);
-  assert.match(schedule, /inline-flex shrink-0 -translate-y-1\/2 whitespace-nowrap/);
+  assert.match(schedule, /const selectedWeekdayLabel = weekdayLabel\(date\)/);
+  assert.match(schedule, /data-testid="weekday-label"/);
   assert.match(schedule, /getReservationDateDisplay\(date, today\)/);
-  assert.match(schedule, /weekdayLabel \? <span data-testid="weekday-label" className="pointer-events-none absolute left-full top-1\/2 ml-2 inline-flex shrink-0 -translate-y-1\/2 whitespace-nowrap text-\[16px\] font-medium leading-6 text-\[#526174\]">\{weekdayLabel\}<\/span> : null/);
-  assert.doesNotMatch(schedule, /text-\[13px\] font-medium leading-5 text-\[#526174\]">\{weekdayLabel\}/);
+  assert.match(ownerApp, /onSelectDate=\{\(date\) => \{/);
+  assert.match(ownerApp, /setVisitSelectionMode\("single"\)/);
+  assert.match(ownerApp, /setVisitRange\(null\)/);
+  assert.match(ownerApp, /setVisitDateFilter\(date\)/);
+  assert.doesNotMatch(schedule, /ChevronLeft|ChevronRight|onChangeDate/);
 });
 
 test("unchanged staff profile media keeps the rendered URL across refreshes", () => {
@@ -354,23 +360,53 @@ test("appointment geometry and card hierarchy preserve canonical contracts", () 
   assert.doesNotMatch(schedule, /CalendarCheck2/);
   assert.match(schedule, /const BOARD_TOP_PADDING = 16/);
   assert.match(schedule, /top: BOARD_TOP_PADDING \+ index \* HOUR_HEIGHT/);
-  assert.match(schedule, /h-12 w-12/);
+  assert.match(schedule, /h-\[52px\] w-\[52px\]/);
   assert.match(schedule, /currentMinutesInTimeZone\(\)/);
   assert.match(schedule, /data-testid="current-time-marker"/);
   assert.match(schedule, /data-testid="current-time-line"/);
   assert.match(schedule, /data-testid="current-time-label"/);
   assert.match(schedule, /aria-label=\{`현재 시간 \$\{formatMinutes\(nowMinutes\)\}`\}/);
-  assert.match(schedule, /data-testid="time-header" className="flex h-\[68px\]/);
-  assert.match(schedule, /className="relative flex h-\[68px\] w-full/);
-  assert.match(schedule, /items-center justify-start gap-3/);
-  assert.match(schedule, /data-testid="staff-lane-copy" className="min-w-0 flex-1 text-left"/);
+  assert.match(schedule, /data-testid="time-header" className="flex h-16/);
+  assert.match(schedule, /className="relative flex h-16 w-full/);
+  assert.match(schedule, /items-center justify-start gap-2/);
+  assert.match(schedule, /data-testid="staff-lane-copy" className="grid min-w-0 flex-1 grid-rows-\[24px_20px\]/);
   assert.doesNotMatch(schedule, /items-center justify-center gap-3 border-b px-3 text-left/);
   assert.match(schedule, /text-\[16px\] font-medium leading-6/);
-  assert.match(schedule, /\{workHoursLabel\} · 예약 \{laneAppointments\.length\}건/);
+  assert.match(schedule, /const staffSummaryLabel = `\$\{workHoursLabel\} · \$\{laneAppointments\.length\}건 · \$\{formatDuration\(totalMinutes\)\}`/);
   assert.match(schedule, /backgroundColor: status\.tint/);
   assert.match(schedule, /pending: \{ label: "승인 대기", color: "#b98121", tint: "#fff9ee" \}/);
   assert.match(schedule, /in_progress: \{ label: "진행 중", color: "#2563eb", tint: "#eff6ff" \}/);
   assert.match(schedule, /completed: \{ label: "미용 완료", color: "#64748b", tint: "#f1f5f9" \}/);
+});
+
+test("current-time badge keeps contrast and clears nearby whole-hour labels", () => {
+  const collisionDistance = Number(schedule.match(/const CURRENT_TIME_LABEL_COLLISION_DISTANCE = (\d+)/)?.[1]);
+  const topAt = (minutes) => 16 + ((minutes - 9 * 60) / 60) * 72;
+  const overlaps = (currentTop, hourTop) => Math.abs(currentTop - hourTop) < collisionDistance;
+
+  assert.equal(collisionDistance, 24);
+  assert.equal(overlaps(topAt(13 * 60 + 51), topAt(14 * 60)), true);
+  assert.equal(overlaps(topAt(14 * 60), topAt(14 * 60)), true);
+  assert.equal(overlaps(topAt(13 * 60 + 40), topAt(14 * 60)), false);
+  assert.match(schedule, /function currentTimeBadgeOverlapsHourLabel\(currentTop: number, hourTop: number\)/);
+  assert.match(schedule, /visibility: showNow && currentTimeBadgeOverlapsHourLabel\(nowTop, hourTop\) \? "hidden" : undefined/);
+  assert.match(schedule, /data-testid="current-time-marker" className="absolute inset-x-0 z-20 flex -translate-y-1\/2 items-center"/);
+  assert.match(schedule, /data-testid="current-time-label" className="relative z-10 inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-full bg-\[#2f5fb3\] px-1\.5 text-\[13px\] font-medium leading-5 text-white \[font-variant-numeric:tabular-nums\]"/);
+  assert.match(schedule, /data-testid="current-time-label"[\s\S]+data-testid="current-time-line" className="h-px min-w-0 flex-1 bg-\[#2f5fb3\]"/);
+  assert.doesNotMatch(schedule, /data-testid="current-time-label" className="[^"]*bg-white[^"]*text-\[#2563eb\]/);
+});
+
+test("staff lane headers keep the photo and exactly two visible information rows", () => {
+  assert.match(schedule, /function formatDuration\(minutes: number\)/);
+  assert.match(schedule, /laneAppointments\.reduce\(\(sum, appointment\) => sum \+ appointmentDuration\(appointment, serviceDurations\), 0\)/);
+  assert.equal(schedule.match(/data-testid="staff-name-row"/g)?.length, 1);
+  assert.equal(schedule.match(/data-testid="staff-summary-row"/g)?.length, 1);
+  assert.match(schedule, /data-testid="staff-name-row" className="block min-w-0 whitespace-nowrap text-\[16px\] font-medium leading-6"/);
+  assert.match(schedule, /data-testid="staff-summary-row" className="block min-w-0 whitespace-nowrap text-\[13px\] font-medium leading-5/);
+  assert.match(schedule, /aria-label=\{`\$\{staff\.label\}, \$\{staffSummaryLabel\}`\}/);
+  assert.match(schedule, /min-w-\[280px\]/);
+  assert.match(schedule, /md:w-\[280px\]/);
+  assert.doesNotMatch(schedule, /data-testid="staff-work-hours"/);
 });
 
 test("touching appointments keep their time geometry while their card surfaces receive a four-pixel visual gap", () => {
@@ -414,12 +450,14 @@ test("today consumes the shared appointment-scoped display-photo projection for 
   assert.doesNotMatch(ownerApp, /groomingRecords\.filter\(\(record\) => record\.pet_id === pet\.id\).*after/i);
 });
 
-test("owner app connects real staff and exact one-day date changes", () => {
+test("owner app connects real staff and exact selected dates", () => {
   assert.match(ownerApp, /getStaffScheduleIdentityTone\(staffMember\.id, staffMember\.chipColorIndex\)/);
   assert.doesNotMatch(ownerApp, /staffIndex/);
   assert.match(ownerApp, /selectedStaffId=\{bookingStaffFilter\}/);
   assert.match(ownerApp, /onSelectStaff=\{setBookingStaffFilter\}/);
-  assert.match(ownerApp, /addDate\(selectedVisitDate, direction === "previous" \? -1 : 1\)/);
+  assert.match(ownerApp, /onSelectDate=\{\(date\) => \{/);
+  assert.match(ownerApp, /setVisitSelectionMode\("single"\)/);
+  assert.match(ownerApp, /setVisitRange\(null\)/);
   assert.match(ownerApp, /setVisitDateFilter\(date\)/);
 });
 

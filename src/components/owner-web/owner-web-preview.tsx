@@ -47,7 +47,7 @@ export default function OwnerWebPreview() {
           <div className="sticky top-6 flex w-full flex-col rounded-[28px] border border-[#e7ddd4] bg-[#1f6b5b] p-5 text-white shadow-[0_18px_40px_rgba(31,107,91,0.18)]">
             <div className="rounded-[22px] bg-white/10 p-4">
               <p className="text-[12px] font-semibold tracking-[0.05em] text-white/70">{PETMANAGER_SERVICE_NAME}</p>
-              <h1 className="mt-3 text-[26px] font-semibold tracking-[-0.05em]">우유 미용실</h1>
+              <h1 className="mt-3 text-[24px] font-semibold tracking-[-0.05em]">우유 미용실</h1>
               <p className="mt-3 text-[14px] leading-6 text-white/78">모바일 오너 페이지를 기반으로, 예약·고객·캘린더·통계·설정을 웹 운영 화면으로 확장한 프리뷰입니다.</p>
             </div>
 
@@ -69,7 +69,7 @@ export default function OwnerWebPreview() {
                       <Icon className={cn("h-4.5 w-4.5", active ? "text-[#1f6b5b]" : "text-white")} />
                     </span>
                     <span>
-                      <span className="block text-[15px] font-semibold tracking-[-0.02em]">{screen.label}</span>
+                      <span className="block text-[16px] font-semibold tracking-[-0.02em]">{screen.label}</span>
                       <span className={cn("mt-1 block text-[12px] leading-5", active ? "text-[#6d7f79]" : "text-white/66")}>{screen.description}</span>
                     </span>
                   </button>

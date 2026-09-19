@@ -82,7 +82,7 @@ export default function ReservationManagementScreen() {
                     }}
                   />
                   <div className="min-w-0">
-                    <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#17211f]">{row.customer}</p>
+                    <p className="text-[16px] font-semibold tracking-[-0.02em] text-[#17211f]">{row.customer}</p>
                     <p className="mt-1 text-[13px] text-[#6d655c]">{row.pet} · {row.time}</p>
                   </div>
                 </div>,

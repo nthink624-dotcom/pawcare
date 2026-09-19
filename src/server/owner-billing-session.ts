@@ -1,57 +1,43 @@
-﻿import { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 
-import { hasSupabaseServerEnv } from "@/lib/server-env";
-import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import type { BillingIdentity } from "@/server/owner-billing";
 import { OwnerBillingError } from "@/server/owner-billing";
+import { OwnerApiError, requireCanonicalOwnerIdentity } from "@/server/owner-api-auth";
 
 type OwnerBillingSession = {
   identity: BillingIdentity;
   shopId: string;
 };
 
-export async function requireOwnerBillingSession(request: NextRequest): Promise<OwnerBillingSession> {
-  if (!hasSupabaseServerEnv()) {
-    throw new OwnerBillingError("서버 결제 설정을 확인해 주세요.", 503);
+export async function requireOwnerBillingSession(
+  request: NextRequest,
+  requestedShopId?: string | null,
+): Promise<OwnerBillingSession> {
+  try {
+    // Billing recovery must remain reachable when a subscription is expired, so this
+    // verifies canonical owner-only shop access without applying the active-subscription gate.
+    const owner = await requireCanonicalOwnerIdentity(
+      request,
+      requestedShopId ?? request.nextUrl.searchParams.get("shopId") ?? undefined,
+    );
+    if (!owner.userId) {
+      throw new OwnerBillingError("서버 결제 설정을 확인해 주세요.", 503);
+    }
+
+    return {
+      identity: {
+        id: owner.userId,
+        email: owner.email,
+        created_at: owner.createdAt,
+        user_metadata: owner.userMetadata,
+      },
+      shopId: owner.shopId,
+    };
+  } catch (error) {
+    if (error instanceof OwnerBillingError) throw error;
+    if (error instanceof OwnerApiError) {
+      throw new OwnerBillingError(error.message, error.status);
+    }
+    throw new OwnerBillingError("결제 관리 권한을 확인하지 못했습니다.", 500);
   }
-
-  const authorization = request.headers.get("authorization") || "";
-  const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-
-  if (!token) {
-    throw new OwnerBillingError("로그인이 필요합니다.", 401);
-  }
-
-  const authClient = getSupabaseAuthClient();
-  const admin = getSupabaseAdmin();
-
-  if (!authClient || !admin) {
-    throw new OwnerBillingError("인증 설정을 확인해 주세요.", 503);
-  }
-
-  const userResult = await authClient.auth.getUser(token);
-  if (userResult.error || !userResult.data.user) {
-    throw new OwnerBillingError("로그인이 필요합니다.", 401);
-  }
-
-  const user = userResult.data.user;
-  const shopResult = await admin.from("shops").select("id").eq("owner_user_id", user.id).maybeSingle();
-
-  if (shopResult.error) {
-    throw new OwnerBillingError(shopResult.error.message, 500);
-  }
-
-  if (!shopResult.data?.id) {
-    throw new OwnerBillingError("연결된 매장 정보를 찾을 수 없습니다.", 403);
-  }
-
-  return {
-    identity: {
-      id: user.id,
-      email: user.email ?? null,
-      created_at: user.created_at ?? null,
-      user_metadata: user.user_metadata ?? null,
-    },
-    shopId: shopResult.data.id,
-  };
 }

@@ -6,11 +6,10 @@ import type {
 } from "./mobile-price-photo-adapter";
 
 export const MOBILE_PRICE_GUIDE_INITIAL_CUTOFFS_KG = [2, 4, 6, 8] as const;
-const STARTER_GROUPS = ["베이직", "플러스", "프리미엄"] as const;
-const STARTER_SERVICES = ["목욕", "전체 미용", "부분 미용", "스포팅"] as const;
+const STARTER_GROUPS = ["소형견", "중형견", "대형견"] as const;
+export const MOBILE_DEFAULT_PRICE_GUIDE_SERVICES = ["목욕", "부분미용", "전체미용", "스포팅"] as const;
 const MAX_GROUPS = 40;
 const MAX_BANDS = 40;
-const MAX_SERVICES = 40;
 const MAX_ROWS = 200;
 
 export type MobilePriceGuideMatrixGroup = MobilePriceGuideTableGroup & {
@@ -20,6 +19,71 @@ export type MobilePriceGuideMatrixGroup = MobilePriceGuideTableGroup & {
 function nullableText(value: string) {
   const trimmed = value.trim();
   return trimmed || null;
+}
+
+function normalizedKey(value: string | null | undefined) {
+  return (value ?? "").replace(/\s+/g, "").trim().toLocaleLowerCase("ko-KR");
+}
+
+function uniqueServiceNames(values: Array<string | null | undefined>, keepOneBlank = false) {
+  const seen = new Set<string>();
+  let keptBlank = false;
+  return values.flatMap((value) => {
+    const name = value?.trim() ?? "";
+    const key = normalizedKey(name);
+    if (!name || !key) {
+      if (!keepOneBlank || keptBlank) return [];
+      keptBlank = true;
+      return [""];
+    }
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [name];
+  });
+}
+
+function mappedMobilePriceGuideRowIndexes(document: MobilePriceGuideV2, groups: MobilePriceGuideMatrixGroup[]) {
+  const cells = groups.flatMap((group, groupIndex) => group.weightBands.flatMap((band, weightIndex) => (
+    group.serviceNames.map((serviceName, serviceIndex) => ({
+      cell: group.cells[weightIndex]?.[serviceIndex],
+      group,
+      groupIndex,
+      band,
+      weightIndex,
+      serviceName,
+      serviceIndex,
+    }))
+  )));
+  const claimedCells = new Set<string>();
+  const mappedRows = new Set<number>();
+
+  document.rows.forEach((row, rowIndex) => {
+    const matchingCell = cells.find(({ cell, groupIndex, weightIndex, serviceIndex }) => {
+      const slot = `${groupIndex}:${weightIndex}:${serviceIndex}`;
+      if (!cell || claimedCells.has(slot)) return false;
+      if (row.sourceItemId && cell.sourceItemId) return row.sourceItemId === cell.sourceItemId;
+      return JSON.stringify(row) === JSON.stringify(cell);
+    });
+    const rowServiceKey = normalizedKey(row.serviceName);
+    const coordinateCell = matchingCell ?? cells.find(({ group, groupIndex, band, weightIndex, serviceName, serviceIndex }) => {
+      const slot = `${groupIndex}:${weightIndex}:${serviceIndex}`;
+      return !claimedCells.has(slot)
+        && Boolean(rowServiceKey)
+        && rowServiceKey === normalizedKey(serviceName)
+        && row.species === group.species
+        && (row.breedGroup?.trim() || "요금표") === (group.sourceLabel.trim() || "요금표")
+        && (weightLabel(row) === band.label || (row.minKg === band.minKg && row.maxKg === band.maxKg));
+    });
+    if (!coordinateCell) return;
+    claimedCells.add(`${coordinateCell.groupIndex}:${coordinateCell.weightIndex}:${coordinateCell.serviceIndex}`);
+    mappedRows.add(rowIndex);
+  });
+  return mappedRows;
+}
+
+export function readPreservedMobilePriceGuideRows(document: MobilePriceGuideV2) {
+  const mappedRows = mappedMobilePriceGuideRowIndexes(document, readMobilePriceGuideMatrix(document));
+  return document.rows.filter((_, rowIndex) => !mappedRows.has(rowIndex));
 }
 
 function createSourceItemId() {
@@ -35,10 +99,10 @@ function weightLabel(row: Pick<MobilePriceGuideRow, "weightBandLabel" | "minKg" 
 }
 
 function createWeightBand(maxKg: number | null = null): MobilePriceGuideWeightBand {
-  return { label: maxKg === null ? "" : `${maxKg}kg 이하`, minKg: null, maxKg, note: null };
+  return { label: maxKg === null ? "" : `${maxKg}kg`, minKg: null, maxKg, note: null };
 }
 
-function createGroup(sourceLabel = "", serviceNames: string[] = [""]): MobilePriceGuideTableGroup {
+function createGroup(sourceLabel = "", serviceNames: string[] = [...MOBILE_DEFAULT_PRICE_GUIDE_SERVICES]): MobilePriceGuideTableGroup {
   return {
     sourceLabel,
     species: "dog",
@@ -73,7 +137,7 @@ function createCell(
   };
 }
 
-function createMatrixGroup(sourceLabel = "", serviceNames: string[] = [""]): MobilePriceGuideMatrixGroup {
+function createMatrixGroup(sourceLabel = "", serviceNames: string[] = [...MOBILE_DEFAULT_PRICE_GUIDE_SERVICES]): MobilePriceGuideMatrixGroup {
   const group = createGroup(sourceLabel, serviceNames);
   return {
     ...group,
@@ -82,7 +146,7 @@ function createMatrixGroup(sourceLabel = "", serviceNames: string[] = [""]): Mob
 }
 
 export function createMobilePriceGuideSkeleton(): MobilePriceGuideV2 {
-  const groups = STARTER_GROUPS.map((label) => createMatrixGroup(label, [...STARTER_SERVICES]));
+  const groups = STARTER_GROUPS.map((label) => createMatrixGroup(label, [...MOBILE_DEFAULT_PRICE_GUIDE_SERVICES]));
   return writeMobilePriceGuideMatrix({
     schemaVersion: 2,
     source: "manual",
@@ -124,11 +188,11 @@ export function readMobilePriceGuideMatrix(document: MobilePriceGuideV2): Mobile
   const groups = document.tableGroups?.length ? document.tableGroups : derivedGroups(document);
   return groups.map((group) => {
     const weightBands = group.weightBands.map((band) => ({ ...band }));
-    const serviceNames = [...group.serviceNames];
     const groupRows = document.rows.filter((row) => (
-      (row.breedGroup?.trim() || "요금표") === group.sourceLabel.trim()
+      (row.breedGroup?.trim() || "요금표") === (group.sourceLabel.trim() || "요금표")
       && row.species === group.species
     ));
+    const serviceNames = uniqueServiceNames(group.serviceNames, true);
     return {
       ...group,
       breedNames: [...group.breedNames],
@@ -136,7 +200,7 @@ export function readMobilePriceGuideMatrix(document: MobilePriceGuideV2): Mobile
       serviceNames,
       cells: weightBands.map((band) => serviceNames.map((serviceName) => {
         const existing = groupRows.find((row) => (
-          (row.serviceName?.trim() ?? "") === serviceName.trim()
+          normalizedKey(row.serviceName) === normalizedKey(serviceName)
           && (weightLabel(row) === band.label || (row.minKg === band.minKg && row.maxKg === band.maxKg))
         ));
         return existing ? { ...existing, breedNames: [...existing.breedNames] } : createCell(group, band, serviceName);
@@ -148,6 +212,7 @@ export function readMobilePriceGuideMatrix(document: MobilePriceGuideV2): Mobile
 export function writeMobilePriceGuideMatrix(
   document: MobilePriceGuideV2,
   groups: MobilePriceGuideMatrixGroup[],
+  options: { discardOriginalRowIndexes?: ReadonlySet<number> } = {},
 ): MobilePriceGuideV2 {
   const tableGroups = groups.map(({ cells: _cells, ...group }) => ({
     ...group,
@@ -155,7 +220,7 @@ export function writeMobilePriceGuideMatrix(
     weightBands: group.weightBands.map((band) => ({ ...band })),
     serviceNames: [...group.serviceNames],
   }));
-  const rows = groups.flatMap((group) => group.weightBands.flatMap((band, weightIndex) => (
+  const matrixRows = groups.flatMap((group) => group.weightBands.flatMap((band, weightIndex) => (
     group.serviceNames.map((serviceName, serviceIndex) => ({
       ...(group.cells[weightIndex]?.[serviceIndex] ?? createCell(group, band, serviceName)),
       serviceName: nullableText(serviceName),
@@ -168,13 +233,60 @@ export function writeMobilePriceGuideMatrix(
       weightBandLabel: nullableText(band.label),
     }))
   )));
-  return { ...document, tableGroups, rows };
+  const fixedRows = document.source === "manual"
+    ? matrixRows
+    : matrixRows.filter((row) => (
+      row.priceMinKrw !== null
+      || row.priceMaxKrw !== null
+      || row.durationMinutes !== null
+      || row.note !== null
+    ));
+  const mappedRows = mappedMobilePriceGuideRowIndexes(document, groups);
+  const preservedRows = document.rows
+    .filter((_, rowIndex) => (
+      !mappedRows.has(rowIndex)
+      && !options.discardOriginalRowIndexes?.has(rowIndex)
+    ))
+    .map((row) => ({ ...row, breedNames: [...row.breedNames] }));
+  const rows = [...fixedRows, ...preservedRows];
+  const aiReview = document.aiReview.flatMap((review) => {
+    const rowTarget = /^rows:(\d+)$/.exec(review.targetId);
+    if (!rowTarget) return [review];
+    const previousRow = document.rows[Number(rowTarget[1])];
+    if (!previousRow) return [];
+    const previousServiceKey = normalizedKey(previousRow.serviceName);
+    const nextRowIndex = rows.findIndex((row) => (
+      (previousRow.sourceItemId && row.sourceItemId
+        ? previousRow.sourceItemId === row.sourceItemId
+        : Boolean(previousServiceKey)
+          && normalizedKey(row.serviceName) === previousServiceKey
+          && row.species === previousRow.species
+          && (row.breedGroup?.trim() || "요금표") === (previousRow.breedGroup?.trim() || "요금표")
+          && (
+            weightLabel(row) === weightLabel(previousRow)
+            || (row.minKg === previousRow.minKg && row.maxKg === previousRow.maxKg)
+          ))
+    ));
+    return nextRowIndex < 0 ? [] : [{ ...review, targetId: `rows:${nextRowIndex}` }];
+  });
+  return { ...document, tableGroups, rows, aiReview };
 }
 
-function updateGroups(document: MobilePriceGuideV2, mutate: (groups: MobilePriceGuideMatrixGroup[]) => void) {
+function updateGroups(
+  document: MobilePriceGuideV2,
+  mutate: (groups: MobilePriceGuideMatrixGroup[]) => void,
+  options: { discardRemovedMatrixRows?: boolean } = {},
+) {
   const groups = readMobilePriceGuideMatrix(document);
+  const mappedBefore = options.discardRemovedMatrixRows
+    ? mappedMobilePriceGuideRowIndexes(document, groups)
+    : null;
   mutate(groups);
-  return writeMobilePriceGuideMatrix(document, groups);
+  const mappedAfter = mappedBefore ? mappedMobilePriceGuideRowIndexes(document, groups) : null;
+  const discardOriginalRowIndexes = mappedBefore && mappedAfter
+    ? new Set([...mappedBefore].filter((rowIndex) => !mappedAfter.has(rowIndex)))
+    : undefined;
+  return writeMobilePriceGuideMatrix(document, groups, { discardOriginalRowIndexes });
 }
 
 function rowCount(groups: MobilePriceGuideMatrixGroup[]) {
@@ -186,11 +298,22 @@ export function updateMobilePriceGuideGroup(
   groupIndex: number,
   patch: Partial<Pick<MobilePriceGuideTableGroup, "sourceLabel" | "breedNames">>,
 ) {
-  return updateGroups(document, (groups) => { groups[groupIndex] = { ...groups[groupIndex], ...patch }; });
-}
-
-export function updateMobilePriceGuideService(document: MobilePriceGuideV2, groupIndex: number, serviceIndex: number, name: string) {
-  return updateGroups(document, (groups) => { groups[groupIndex].serviceNames[serviceIndex] = name; });
+  return updateGroups(document, (groups) => {
+    const nextPatch = { ...patch };
+    if (patch.breedNames) {
+      const unavailable = new Set(groups.flatMap((group, index) => (
+        index === groupIndex ? [] : group.breedNames.map(normalizedKey)
+      )));
+      const seen = new Set<string>();
+      nextPatch.breedNames = patch.breedNames.filter((breed) => {
+        const key = normalizedKey(breed);
+        if (!key || unavailable.has(key) || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+    groups[groupIndex] = { ...groups[groupIndex], ...nextPatch };
+  });
 }
 
 export function updateMobilePriceGuideWeightBand(document: MobilePriceGuideV2, groupIndex: number, weightIndex: number, label: string) {
@@ -219,12 +342,31 @@ export function updateMobilePriceGuideCell(
   });
 }
 
+export function updateMobilePriceGuideService(
+  document: MobilePriceGuideV2,
+  groupIndex: number,
+  serviceIndex: number,
+  serviceName: string,
+) {
+  return updateGroups(document, (groups) => {
+    const group = groups[groupIndex];
+    const nextKey = normalizedKey(serviceName);
+    const duplicate = nextKey && group.serviceNames.some((candidate, index) => (
+      index !== serviceIndex && normalizedKey(candidate) === nextKey
+    ));
+    if (duplicate) return;
+    group.serviceNames[serviceIndex] = serviceName;
+  });
+}
+
 export function addMobilePriceGuideService(document: MobilePriceGuideV2, groupIndex: number) {
   return updateGroups(document, (groups) => {
     const group = groups[groupIndex];
-    if (group.serviceNames.length >= MAX_SERVICES || rowCount(groups) + group.weightBands.length > MAX_ROWS) return;
+    if (group.serviceNames.length >= 40 || rowCount(groups) + group.weightBands.length > MAX_ROWS) return;
     group.serviceNames.push("");
-    group.cells.forEach((cells, index) => cells.push(createCell(group, group.weightBands[index], "")));
+    group.cells.forEach((row, weightIndex) => {
+      row.push(createCell(group, group.weightBands[weightIndex], ""));
+    });
   });
 }
 
@@ -233,8 +375,8 @@ export function removeMobilePriceGuideService(document: MobilePriceGuideV2, grou
     const group = groups[groupIndex];
     if (group.serviceNames.length <= 1) return;
     group.serviceNames.splice(serviceIndex, 1);
-    group.cells.forEach((cells) => cells.splice(serviceIndex, 1));
-  });
+    group.cells.forEach((row) => row.splice(serviceIndex, 1));
+  }, { discardRemovedMatrixRows: true });
 }
 
 export function addMobilePriceGuideWeightBand(document: MobilePriceGuideV2, groupIndex: number) {
@@ -253,7 +395,7 @@ export function removeMobilePriceGuideWeightBand(document: MobilePriceGuideV2, g
     if (group.weightBands.length <= 1) return;
     group.weightBands.splice(weightIndex, 1);
     group.cells.splice(weightIndex, 1);
-  });
+  }, { discardRemovedMatrixRows: true });
 }
 
 export function addMobilePriceGuideGroup(document: MobilePriceGuideV2) {
@@ -267,5 +409,5 @@ export function removeMobilePriceGuideGroup(document: MobilePriceGuideV2, groupI
   return updateGroups(document, (groups) => {
     if (groups.length <= 1) return;
     groups.splice(groupIndex, 1);
-  });
+  }, { discardRemovedMatrixRows: true });
 }

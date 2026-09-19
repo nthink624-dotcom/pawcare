@@ -1,16 +1,23 @@
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$serverUrl = if ($env:CAPACITOR_PRODUCTION_SERVER_URL) {
-  $env:CAPACITOR_PRODUCTION_SERVER_URL.TrimEnd("/") + "/login"
+$productionOrigin = if ($env:CAPACITOR_PRODUCTION_SERVER_URL) {
+  $env:CAPACITOR_PRODUCTION_SERVER_URL.TrimEnd("/")
 } else {
-  "https://petmanager-app.vercel.app/login"
+  "https://app.petmanager.co.kr"
+}
+$serverUrl = $productionOrigin + "/login"
+$apiBaseUrl = if ($env:CAPACITOR_PRODUCTION_API_BASE_URL) {
+  $env:CAPACITOR_PRODUCTION_API_BASE_URL.TrimEnd("/")
+} else {
+  $productionOrigin
 }
 $sdkRoot = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { "$env:LOCALAPPDATA\Android\Sdk" }
 $adb = Join-Path $sdkRoot "platform-tools\adb.exe"
 $javaHome = if ($env:JAVA_HOME) { $env:JAVA_HOME } else { "C:\Program Files\Android\Android Studio\jbr" }
 $gradle = Join-Path $projectRoot "android\gradlew.bat"
 $apk = Join-Path $projectRoot "android\app\build\outputs\apk\debug\app-debug.apk"
+$endpointCheck = Join-Path $PSScriptRoot "assert-android-release-endpoints.ps1"
 
 if (-not $serverUrl.StartsWith("https://")) {
   throw "운영 미리보기 주소는 HTTPS여야 합니다."
@@ -39,6 +46,7 @@ if ($connectedDevices.Count -ne 1) {
 }
 
 $previousServerUrl = $env:CAPACITOR_SERVER_URL
+$previousBuildMode = $env:CAPACITOR_BUILD_MODE
 $previousJavaHome = $env:JAVA_HOME
 $previousAndroidHome = $env:ANDROID_HOME
 
@@ -47,11 +55,15 @@ try {
   & $adb reverse --remove tcp:3100 2>$null | Out-Null
 
   $env:CAPACITOR_SERVER_URL = $serverUrl
+  $env:CAPACITOR_BUILD_MODE = "release"
   $env:JAVA_HOME = $javaHome
   $env:ANDROID_HOME = $sdkRoot
 
   & npx.cmd cap sync android
   if ($LASTEXITCODE -ne 0) { throw "Capacitor 안드로이드 동기화에 실패했습니다." }
+
+  & $endpointCheck -ExpectedServerUrl $serverUrl -ExpectedApiBaseUrl $apiBaseUrl
+  if ($LASTEXITCODE -ne 0) { throw "운영 미리보기 endpoint 검사에 실패했습니다." }
 
   Push-Location (Join-Path $projectRoot "android")
   try {
@@ -65,6 +77,12 @@ try {
     Remove-Item Env:\CAPACITOR_SERVER_URL -ErrorAction SilentlyContinue
   } else {
     $env:CAPACITOR_SERVER_URL = $previousServerUrl
+  }
+
+  if ($null -eq $previousBuildMode) {
+    Remove-Item Env:\CAPACITOR_BUILD_MODE -ErrorAction SilentlyContinue
+  } else {
+    $env:CAPACITOR_BUILD_MODE = $previousBuildMode
   }
 
   & npx.cmd cap sync android
@@ -83,6 +101,12 @@ try {
     Remove-Item Env:\CAPACITOR_SERVER_URL -ErrorAction SilentlyContinue
   } else {
     $env:CAPACITOR_SERVER_URL = $previousServerUrl
+  }
+
+  if ($null -eq $previousBuildMode) {
+    Remove-Item Env:\CAPACITOR_BUILD_MODE -ErrorAction SilentlyContinue
+  } else {
+    $env:CAPACITOR_BUILD_MODE = $previousBuildMode
   }
 
   if ($null -eq $previousJavaHome) {

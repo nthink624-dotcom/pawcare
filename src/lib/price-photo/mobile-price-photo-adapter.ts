@@ -1,48 +1,15 @@
-export type MobilePriceKind = "fixed" | "starting" | "range" | "unknown";
+import type {
+  MobilePriceGuideV2,
+  MobilePriceKind,
+} from "@/lib/price-photo/generated-price-guide-core";
 
-export type MobilePriceGuideRow = {
-  sourceItemId?: string;
-  serviceName: string | null;
-  species: "dog" | "cat" | "all" | "unknown";
-  breedNames: string[];
-  breedGroup: string | null;
-  sizeClass: "small" | "medium" | "large" | "extra-large" | "all" | "unknown";
-  minKg: number | null;
-  maxKg: number | null;
-  weightBandLabel?: string | null;
-  priceKind: MobilePriceKind;
-  priceMinKrw: number | null;
-  priceMaxKrw: number | null;
-  durationMinutes: number | null;
-  note: string | null;
-};
-
-export type MobilePriceGuideWeightBand = {
-  label: string;
-  minKg: number | null;
-  maxKg: number | null;
-  note: string | null;
-};
-
-export type MobilePriceGuideTableGroup = {
-  sourceLabel: string;
-  species: MobilePriceGuideRow["species"];
-  breedNames: string[];
-  sizeClass: MobilePriceGuideRow["sizeClass"];
-  weightBands: MobilePriceGuideWeightBand[];
-  serviceNames: string[];
-  note: string | null;
-};
-
-export type MobilePriceGuideV2 = {
-  schemaVersion: 2;
-  source: "ai_imported" | "owner_corrected" | "vision" | "fixture" | "manual" | "owner_confirmed" | "legacy";
-  overallNote: string | null;
-  rows: MobilePriceGuideRow[];
-  tableGroups?: MobilePriceGuideTableGroup[];
-  surcharges: Array<{ condition: string | null; amountKrw: number | null; percent: number | null; note: string | null }>;
-  aiReview: Array<{ targetId: string; field: string; rawText: string; confidence: "medium" | "low"; userConfirmed: boolean; userCorrected: boolean }>;
-};
+export type {
+  MobilePriceGuideRow,
+  MobilePriceGuideTableGroup,
+  MobilePriceGuideV2,
+  MobilePriceGuideWeightBand,
+  MobilePriceKind,
+} from "@/lib/price-photo/generated-price-guide-core";
 
 export type MobilePriceDraft = {
   clientId: string;

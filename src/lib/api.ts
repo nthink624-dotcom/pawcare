@@ -1,30 +1,17 @@
-﻿import { env } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { buildMobileApiUrl, getMobileApiOrigin } from "@/lib/env";
 import type { BootstrapPayload } from "@/types/domain";
 
 export type PublicBootstrapPayload = Pick<
   BootstrapPayload,
-  "shop" | "services" | "appointments" | "groomingRecords"
+  "shop" | "services"
 > & {
   mode: BootstrapPayload["mode"];
+  priceGuideCore?: unknown;
 };
 
 export function buildApiUrl(path: string) {
-  if (/^https?:\/\//.test(path)) {
-    return path;
-  }
-
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-
-  if (env.apiBaseUrl) {
-    return `${env.apiBaseUrl.replace(/\/$/, "")}${normalizedPath}`;
-  }
-
-  if (typeof window === "undefined") {
-    return `${env.siteUrl.replace(/\/$/, "")}${normalizedPath}`;
-  }
-
-  return normalizedPath;
+  return buildMobileApiUrl(path);
 }
 
 export class ApiRequestError extends Error {
@@ -39,8 +26,12 @@ export class ApiRequestError extends Error {
   }
 }
 
-export async function fetchApiJson<T>(input: string, init?: RequestInit) {
-  const response = await fetch(buildApiUrl(input), init);
+async function fetchApiJsonAtUrl<T>(url: string, init?: RequestInit) {
+  const response = await fetch(url, {
+    ...init,
+    credentials: "omit",
+    redirect: "error",
+  });
   const contentType = response.headers.get("content-type") || "";
   const text = await response.text();
   let json: unknown = null;
@@ -66,6 +57,10 @@ export async function fetchApiJson<T>(input: string, init?: RequestInit) {
   }
 
   return json as T;
+}
+
+export async function fetchApiJson<T>(input: string, init?: RequestInit) {
+  return fetchApiJsonAtUrl<T>(buildApiUrl(input), init);
 }
 
 export async function getPublicBootstrap(shopId?: string) {
@@ -107,6 +102,11 @@ export async function getAccessTokenWithRecovery() {
 }
 
 export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
+  const requestUrl = buildApiUrl(input);
+  if (new URL(requestUrl).origin !== getMobileApiOrigin()) {
+    throw new Error("인증 요청 원점을 확인해 주세요.");
+  }
+
   const accessToken = await getAccessTokenWithRecovery();
 
   const headers = new Headers(init?.headers);
@@ -115,7 +115,7 @@ export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit)
   }
   headers.set("Authorization", `Bearer ${accessToken}`);
 
-  return fetchApiJson<T>(input, {
+  return fetchApiJsonAtUrl<T>(requestUrl, {
     ...init,
     headers,
   });

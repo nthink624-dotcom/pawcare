@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowUp, Camera, Check, ImagePlus, LoaderCircle, Mic, Pause, Send, X } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -184,11 +185,16 @@ export default function OwnerAiCareReportSheet({
   const exitHistoryActiveRef = useRef(false);
   const exitAfterHistoryRef = useRef<"dismiss" | "close" | null>(null);
   const reminderHistoryActiveRef = useRef(false);
+  const viewportBaselineHeightRef = useRef(0);
   const initialRecoveredDraftRef = useRef(initialData?.recoveredDraft ?? null);
   const activeKind: Extract<MediaKind, "grooming_before" | "grooming_after"> = "grooming_after";
   const [items, setItems] = useState<MediaAssetListItem[]>(initialData?.items ?? []);
   const [selectedIds, setSelectedIds] = useState<Partial<Record<"grooming_before" | "grooming_after", string>>>(initialData?.selectedIds ?? {});
   const [signedUrl, setSignedUrl] = useState(initialData?.signedUrl ?? "");
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>(() => {
+    const selectedAfterId = initialData?.selectedIds.grooming_after;
+    return selectedAfterId && initialData?.signedUrl ? { [selectedAfterId]: initialData.signedUrl } : {};
+  });
   // Care-report photos are included when a suitable grooming-after asset exists.
   // Missing photos never block drafting, generation, saving, or publishing.
   const photoConsent = true;
@@ -209,12 +215,15 @@ export default function OwnerAiCareReportSheet({
   const [showReminderSheet, setShowReminderSheet] = useState(false);
   const [pendingReminderMode, setPendingReminderMode] = useState<"default" | "custom">("default");
   const [pendingReminderDays, setPendingReminderDays] = useState(DEFAULT_REVISIT_REMINDER_DAYS);
+  const [isReportEditing, setIsReportEditing] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [visualViewport, setVisualViewport] = useState<{ height: number; offsetTop: number } | null>(null);
 
   const selectedService = useMemo(() => services.find((service) => service.id === appointment.service_id), [appointment.service_id, services]);
   const isPublished = Boolean(publishedCareReport);
   const selectedId = selectedIds[activeKind] ?? "";
   const selectedItem = items.find((item) => item.mediaAsset.id === selectedId) ?? null;
-  const kindItems = items.filter((item) => item.mediaAsset.media_kind === activeKind && item.mediaAsset.status === "ready");
+  const photoItems = useMemo(() => items.filter((item) => (item.mediaAsset.media_kind === "grooming_before" || item.mediaAsset.media_kind === "grooming_after") && item.mediaAsset.status === "ready"), [items]);
   const composerText = report ? revisionText : sourceText;
   const hasComposerInput = Boolean(composerText.trim());
   const defaultReminderDays = clampReminderDays(revisitReminderDefaultDays);
@@ -228,7 +237,7 @@ export default function OwnerAiCareReportSheet({
     syncHeight();
     window.addEventListener("resize", syncHeight);
     return () => window.removeEventListener("resize", syncHeight);
-  }, [report?.reportText]);
+  }, [isReportEditing, report?.reportText]);
 
   useEffect(() => {
     const syncHeight = () => resizeTextarea(composerTextareaRef.current, 84, 144);
@@ -236,6 +245,42 @@ export default function OwnerAiCareReportSheet({
     window.addEventListener("resize", syncHeight);
     return () => window.removeEventListener("resize", syncHeight);
   }, [composerText]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const syncViewport = () => {
+      const height = viewport?.height ?? window.innerHeight;
+      const offsetTop = viewport?.offsetTop ?? 0;
+      const activeElement = document.activeElement;
+      const isTextInput = activeElement instanceof HTMLTextAreaElement || activeElement instanceof HTMLInputElement;
+      if (!isTextInput) viewportBaselineHeightRef.current = Math.max(window.innerHeight, height + offsetTop);
+      if (!viewportBaselineHeightRef.current) viewportBaselineHeightRef.current = Math.max(window.innerHeight, height + offsetTop);
+      const keyboardOpen = isTextInput && viewportBaselineHeightRef.current - (height + offsetTop) > 120;
+      setVisualViewport({ height, offsetTop });
+      setIsKeyboardOpen(keyboardOpen);
+    };
+    const syncAfterFocusChange = () => requestAnimationFrame(syncViewport);
+    syncViewport();
+    viewport?.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    document.addEventListener("focusin", syncAfterFocusChange);
+    document.addEventListener("focusout", syncAfterFocusChange);
+    return () => {
+      viewport?.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      document.removeEventListener("focusin", syncAfterFocusChange);
+      document.removeEventListener("focusout", syncAfterFocusChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isKeyboardOpen) return;
+    const activeElement = document.activeElement;
+    if (!(activeElement instanceof HTMLElement)) return;
+    requestAnimationFrame(() => activeElement.scrollIntoView({ block: "center" }));
+  }, [isKeyboardOpen, visualViewport?.height]);
 
   useEffect(() => {
     if (!showExitConfirm) return;
@@ -320,6 +365,9 @@ export default function OwnerAiCareReportSheet({
       setItems(prepared.items);
       setSelectedIds(prepared.selectedIds);
       setSignedUrl(prepared.signedUrl);
+      if (prepared.selectedIds.grooming_after && prepared.signedUrl) {
+        setPhotoUrls((current) => ({ ...current, [prepared.selectedIds.grooming_after as string]: prepared.signedUrl }));
+      }
       setNextDate(prepared.nextDate);
       setSourceText(prepared.sourceText);
       setRevisionText(prepared.revisionText);
@@ -373,7 +421,25 @@ export default function OwnerAiCareReportSheet({
       .then((result) => { if (active) setSignedUrl(result); })
       .catch(() => { if (active) setSignedUrl(""); });
     return () => { active = false; };
-  }, [developmentFixture, selectedItem, shopId]);
+  }, [developmentFixture, initialData?.selectedIds.grooming_after, initialData?.signedUrl, selectedItem, shopId]);
+
+  useEffect(() => {
+    let active = true;
+    if (developmentFixture || !photoItems.length) return;
+    void Promise.all(photoItems.map(async (item) => {
+      try {
+        const url = await getOwnerMediaSignedUrl(shopId, item.mediaAsset.id, "provider_ready");
+        return [item.mediaAsset.id, url] as const;
+      } catch {
+        return null;
+      }
+    })).then((results) => {
+      if (!active) return;
+      const resolved = Object.fromEntries(results.filter((result): result is readonly [string, string] => Boolean(result)));
+      if (Object.keys(resolved).length) setPhotoUrls((current) => ({ ...current, ...resolved }));
+    });
+    return () => { active = false; };
+  }, [developmentFixture, photoItems, shopId]);
 
   async function upload(file: File) {
     if (developmentFixture) {
@@ -441,6 +507,7 @@ export default function OwnerAiCareReportSheet({
       });
       setReport({ reportText: result.reportText });
       setRevisionText("");
+      setIsReportEditing(false);
       setHasEdited(true);
     } catch (generationError) {
       setError(generationError instanceof Error ? generationError.message : "AI 케어리포트를 만들지 못했습니다.");
@@ -622,53 +689,78 @@ export default function OwnerAiCareReportSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex justify-center bg-[#0b1b2c]/35" role="dialog" aria-modal="true" aria-label="AI 케어리포트 작성">
-      <section className="flex min-h-0 w-full max-w-[430px] flex-col overflow-hidden bg-white">
+    <div className="fixed inset-0 z-[80] flex justify-center bg-[#0b1b2c]/35" role="dialog" aria-modal="true" aria-label="케어리포트 작성">
+      <section
+        className="flex h-[100dvh] min-h-0 w-full max-w-[430px] flex-col overflow-hidden bg-white"
+        style={visualViewport ? { height: `${visualViewport.height}px`, marginTop: `${visualViewport.offsetTop}px` } : undefined}
+      >
         <header className="flex shrink-0 items-start justify-between border-b border-[#dce7f2] bg-white px-5 pb-3 pt-[calc(env(safe-area-inset-top)+12px)]">
-          <div className="min-w-0"><h1 className="text-[20px] font-semibold tracking-[-0.04em] text-[#14213a]">AI 케어리포트 작성</h1><p className="mt-1 truncate text-[14px] text-[#637890]">{pet.name} · {staffName || "담당 디자이너"}</p></div>
+          <div className="min-w-0 pr-2"><h1 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#14213a]">케어리포트 작성</h1><p className="mt-1 text-[14px] font-normal leading-5 text-[#637890] [overflow-wrap:anywhere]">{pet.name} · {staffName || "담당 디자이너"} · {selectedService?.name ?? "서비스 확인 필요"}</p></div>
           <button type="button" onClick={requestClose} className="ml-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef4fa] text-[#58708a]" aria-label="닫기"><X className="h-5 w-5" /></button>
         </header>
 
-        <div data-testid="care-report-scroll-region" role="region" aria-label="케어리포트 내용" tabIndex={0} className="min-h-0 max-h-[calc(100dvh-180px)] flex-none overflow-y-auto px-5 pb-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">
-          <div data-testid="care-report-summary" className="border-b border-[#dce7f2]">
-          <section className="border-b border-[#dce7f2] py-3" aria-label="미용 사진">
-            <input id={cameraInputId} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
-            <input id={albumInputId} type="file" accept="image/*" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
-            <div className="flex min-h-11 items-center gap-2">
-              {selectedItem && signedUrl ? <img src={signedUrl} alt="포함할 미용 사진" className="h-11 w-11 rounded-[10px] border border-[#d7e4f2] object-cover" /> : <span className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-dashed border-[#cbd8e5] text-[#71859a]"><ImagePlus className="h-4 w-4" aria-hidden="true" /><span className="sr-only">포함할 미용 사진 없음</span></span>}
-              <p className="min-w-0 flex-1 truncate text-[14px] text-[#64748b]">{selectedItem ? "미용 사진 포함" : "사진 없음"}</p>
-              <label htmlFor={cameraInputId} aria-label="미용 사진 촬영" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d7e4f2] text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]"><Camera className="h-4 w-4" aria-hidden="true" /></label>
-              <label htmlFor={albumInputId} aria-label="미용 사진 선택" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d7e4f2] text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]"><ImagePlus className="h-4 w-4" aria-hidden="true" /></label>
+        <div data-testid="care-report-scroll-region" role="region" aria-label="케어리포트 내용" tabIndex={0} className="min-h-0 max-h-[calc(100dvh-180px)] flex-none overflow-y-auto px-5 pb-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]" style={{ flex: "1 1 auto", maxHeight: "none" }}>
+          <div data-testid="care-report-summary">
+          <section className="pb-0 pt-3" aria-label="미용 사진">
+            <div className="mb-2 flex min-h-6 items-center justify-between gap-3">
+              <h2 className="text-[14px] font-medium leading-5 text-[#526b84]">오늘 사진</h2>
+              <span className="text-[13px] font-normal leading-5 text-[#64748b]">{photoItems.length ? `${photoItems.length}장` : "사진 없음"}</span>
             </div>
-            {kindItems.length > 1 ? <select aria-label="포함할 미용 사진 선택" value={selectedId} onChange={(event) => { setSelectedIds((current) => ({ ...current, [activeKind]: event.target.value })); setHasEdited(true); }} className="mt-2 h-11 w-full rounded-[10px] border border-[#d7e4f2] px-3 text-[14px] text-[#526b84]">{kindItems.map((item, index) => <option key={item.mediaAsset.id} value={item.mediaAsset.id}>미용 후 사진 {kindItems.length - index}</option>)}</select> : null}
+            <input id={cameraInputId} type="file" accept="image/*" capture="environment" disabled={action !== null} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
+            <input id={albumInputId} type="file" accept="image/*" disabled={action !== null} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
+            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="list" aria-label="등록된 미용 사진">
+              <div className="flex h-24 w-[108px] shrink-0 flex-col justify-between rounded-[14px] border border-dashed border-[#cbd8e5] bg-[#fafcfe] p-1.5" role="listitem">
+                <span className="px-1 pt-1 text-center text-[13px] font-medium leading-5 text-[#64748b]">사진 추가</span>
+                <div className="flex items-center justify-center gap-1">
+                  <label htmlFor={cameraInputId} aria-label="미용 사진 촬영" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-[#d7e4f2] bg-white text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb] ${action !== null ? "pointer-events-none opacity-50" : "cursor-pointer"}`}><Camera className="h-4 w-4" aria-hidden="true" /></label>
+                  <label htmlFor={albumInputId} aria-label="미용 사진 선택" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-[#d7e4f2] bg-white text-[#52708c] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb] ${action !== null ? "pointer-events-none opacity-50" : "cursor-pointer"}`}><ImagePlus className="h-4 w-4" aria-hidden="true" /></label>
+                </div>
+              </div>
+              {photoItems.map((item) => {
+                const id = item.mediaAsset.id;
+                const kind = item.mediaAsset.media_kind;
+                const label = kind === "grooming_before" ? "미용 전" : "미용 후";
+                const url = photoUrls[id] || (id === selectedId ? signedUrl : "");
+                const selected = kind === "grooming_after" && id === selectedId;
+                const content = <>{url ? <Image src={url} alt={`${label} 사진`} fill sizes="96px" unoptimized className="object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-[#f4f7fa] text-[#71859a]"><ImagePlus className="h-5 w-5" aria-hidden="true" /><span className="sr-only">{label} 사진 미리보기 없음</span></span>}<span className="absolute bottom-1.5 left-1.5 rounded-full bg-[#101a31]/75 px-2 py-0.5 text-[12px] font-medium leading-[18px] text-white">{label}</span>{selected ? <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#2f6fd6] text-white" aria-label="케어리포트에 포함됨"><Check className="h-3.5 w-3.5" aria-hidden="true" /></span> : null}</>;
+                return kind === "grooming_after" ? <div key={id} role="listitem" className="h-24 w-24 shrink-0"><button type="button" aria-pressed={selected} aria-label={`${label} 사진을 케어리포트에 포함`} onClick={() => { setSelectedIds((current) => ({ ...current, grooming_after: id })); setHasEdited(true); }} className={`relative h-full w-full overflow-hidden rounded-[14px] border bg-[#f4f7fa] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] ${selected ? "border-[#2f6fd6]" : "border-[#d7e4f2]"}`}>{content}</button></div> : <div key={id} role="listitem" className="relative h-24 w-24 shrink-0 overflow-hidden rounded-[14px] border border-[#d7e4f2] bg-[#f4f7fa]">{content}</div>;
+              })}
+            </div>
           </section>
 
-          <section className="flex min-w-0 flex-wrap items-end justify-between gap-3 border-b border-[#dce7f2] py-3" aria-label="예약 정보">
-            <div className="min-w-0"><p className="text-[13px] leading-5 text-[#64748b]">예약 서비스</p><p className="truncate text-[16px] font-medium leading-6 text-[#20344c]">{selectedService?.name ?? "서비스 확인 필요"}</p></div>
+          <section className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-t-[14px] border border-[#e8edf3] bg-[#fbfcfe] px-3 py-px" aria-label="예약 정보">
+            <div className="min-w-0 flex-1"><p className="text-[13px] leading-5 text-[#64748b]">예약 서비스</p><p className="text-[16px] font-medium leading-6 text-[#20344c] [overflow-wrap:anywhere]">{selectedService?.name ?? "서비스 확인 필요"}</p></div>
             <div><p className="text-[13px] leading-5 text-[#64748b]">오늘 몸무게</p><p className="text-[16px] font-medium leading-6 tabular-nums text-[#20344c]">{visitWeightKg === null ? "미입력" : `${visitWeightKg}kg`}</p></div>
-            <button type="button" onClick={onReturnToDetail} className="min-h-11 shrink-0 rounded-[10px] border border-[#2f6fd6] bg-white px-3 text-[16px] font-medium leading-6 text-[#2f6fd6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">예약 정보 수정</button>
+            <button type="button" onClick={onReturnToDetail} aria-label="예약 정보 수정" className="min-h-11 shrink-0 rounded-[10px] border border-[#cbddec] bg-white px-4 text-[16px] font-medium leading-6 text-[#2f6fd6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">수정</button>
           </section>
-          <button data-testid="care-report-revisit-row" type="button" onClick={openReminderSettings} aria-haspopup="dialog" className="flex min-h-11 w-full items-center justify-between gap-3 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">
-            <span className="text-[16px] font-medium leading-6 text-[#526b84]">재예약 알림 설정</span>
-            <span className="min-w-0 text-right text-[14px] font-normal leading-5 text-[#64748b]">{nextDate ? `${reminderDaysBetween(today, nextDate)}일 후` : `매장 기본값 · ${defaultReminderDays}일 후`}</span>
+          <button data-testid="care-report-revisit-row" type="button" onClick={openReminderSettings} aria-haspopup="dialog" style={{ fontWeight: 400 }} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-b-[14px] border-x border-b border-[#e8edf3] bg-white px-3 py-0 text-left font-normal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">
+            <span className="text-[16px] font-normal leading-6 text-[#526b84]">재예약 알림 설정</span>
+            <span className="min-w-0 text-right text-[16px] font-normal leading-6 text-[#64748b]">{nextDate ? `${reminderDaysBetween(today, nextDate)}일 후` : `매장 기본값 · ${defaultReminderDays}일 후`} <span aria-hidden="true" className="text-[#a5b1bf]">›</span></span>
           </button>
           </div>
 
-          {report ? <section data-testid="care-report-draft" className="space-y-2 pt-4"><h2 className="text-[16px] font-semibold leading-6 text-[#101a31]">케어리포트 초안</h2><textarea ref={reportTextareaRef} aria-label="케어리포트 초안" disabled={isPublished} value={report.reportText} onChange={(event) => { setReport({ reportText: event.target.value.slice(0, 4000) }); setHasEdited(true); }} maxLength={4000} wrap="soft" className="min-h-[128px] max-h-72 w-full resize-none overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-[14px] border border-[#d7e4f2] bg-white px-3 py-3 text-[16px] font-normal leading-6 text-[#263b53] [overflow-wrap:anywhere] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#f8fbfe] disabled:opacity-70" /></section> : null}
-          {!isPublished ? <section data-testid="care-report-composer" className="space-y-2 pt-4">
-            <h2 className="text-[16px] font-semibold leading-6 text-[#101a31]">{report ? "수정 요청" : "케어리포트 내용"}</h2>
-            <div className="overflow-hidden rounded-[14px] border border-[#d7e4f2] bg-white focus-within:border-[#76a8df]">
+          {sourceText.trim() && (report || action === "generate") ? <div data-testid="care-report-user-memo" className="ml-auto mt-3 max-w-[88%] whitespace-pre-wrap rounded-[14px] rounded-br-[6px] bg-[#eef2f7] px-4 py-3 text-[16px] font-normal leading-6 text-[#414b5b] [overflow-wrap:anywhere]">{sourceText.trim()}</div> : null}
+          {action === "generate" ? <div data-testid="care-report-generation-loading" role="status" aria-live="polite" className="mt-3 flex min-h-14 items-center gap-3 rounded-[14px] border border-[#e8edf3] bg-[#fbfcfe] px-4 py-3"><LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-[#2f6fd6] motion-reduce:animate-none" aria-hidden="true" /><span className="text-[14px] font-normal leading-5 text-[#64748b]">보호자에게 보낼 문장으로 정리하고 있어요</span></div> : null}
+          {report ? <section data-testid="care-report-draft" className="mt-3"><div className="overflow-hidden rounded-[18px] border border-[#d8e5f4] bg-[#f6f9fd]"><div data-testid="care-report-ai-result-divider" className="flex min-h-11 items-center justify-between gap-3 px-4 pt-2"><h2 id="care-report-ai-result-title" className="flex min-w-0 items-center gap-2 text-[14px] font-medium leading-5 text-[#2f6fd6]"><span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2f6fd6]" aria-hidden="true" />AI가 정리한 케어리포트</h2></div>{isReportEditing && !isPublished ? <div className="px-3 pb-3 pt-1"><textarea ref={reportTextareaRef} aria-label="케어리포트 초안" disabled={isPublished} value={report.reportText} onChange={(event) => { setReport({ reportText: event.target.value.slice(0, 4000) }); setHasEdited(true); }} maxLength={4000} wrap="soft" className="min-h-[128px] max-h-72 w-full resize-none overflow-y-auto rounded-[14px] border border-[#76a8df] bg-white px-3 py-3 text-[16px] font-normal leading-6 text-[#263b53] [overflow-wrap:anywhere] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#f8fbfe] disabled:opacity-70" /></div> : <div role="region" aria-label="AI 케어리포트 본문" tabIndex={0} className="max-h-72 overflow-y-auto whitespace-pre-wrap px-4 pb-4 pt-1 text-[16px] font-normal leading-6 text-[#263b53] [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">{report.reportText}</div>}{!isPublished ? <div className="grid grid-cols-2 gap-2 px-3 pb-3 pt-1"><button type="button" onClick={() => { if (isReportEditing) setIsReportEditing(false); else { setIsReportEditing(true); requestAnimationFrame(() => reportTextareaRef.current?.focus()); } }} disabled={action !== null} className="min-h-11 rounded-[10px] border border-[#d7e4f2] bg-white px-3 text-[16px] font-medium leading-6 text-[#44556a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50">{isReportEditing ? "수정 완료" : "직접 수정"}</button><button type="button" onClick={() => void generate()} disabled={action !== null || !revisionText.trim()} className="min-h-11 rounded-[10px] border border-[#d7e4f2] bg-white px-3 text-[16px] font-medium leading-6 text-[#44556a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-40">다시 정리</button></div> : null}</div></section> : null}
+          {error ? <p className="mt-3 rounded-[10px] border border-[#f0c4c8] bg-[#fff8f8] px-3 py-2 text-[14px] leading-5 text-[#a04455]">{error}</p> : null}
+        </div>
+        <footer data-testid="care-report-footer-unified" className="shrink-0 border-t border-[#d7e4f2] bg-white px-5 pt-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
+          {isPublished ? <button type="button" onClick={onClose} className="flex min-h-12 w-full items-center justify-center rounded-[14px] bg-[#2f6fd6] px-2 text-[16px] font-semibold leading-6 text-white">닫기</button> : <section data-testid="care-report-composer" className="space-y-2">
+            {report ? <h2 className="sr-only">수정 요청</h2> : <h2 className="text-[16px] font-semibold leading-6 text-[#101a31]">케어리포트 내용</h2>}
+            <div data-testid="care-report-composer-input-surface" className="overflow-hidden rounded-[14px] bg-[#f7f9fc] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]">
               <textarea ref={composerTextareaRef} disabled={isPublished} value={composerText} onChange={(event) => { if (report) setRevisionText(event.target.value.slice(0, 1000)); else setSourceText(event.target.value.slice(0, 4000)); setHasEdited(true); }} aria-label={report ? "수정 요청 입력" : "케어리포트 내용 입력"} placeholder={report ? "수정할 부분을 적어 주세요" : "오늘 미용 내용을 적어 주세요"} wrap="soft" className="min-h-[84px] max-h-36 w-full resize-none overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-transparent px-3 pt-3 text-[16px] font-normal leading-6 text-[#263b53] [overflow-wrap:anywhere] outline-none disabled:opacity-50" />
-              <div className="flex min-h-12 items-center justify-end gap-0 border-t border-[#edf2f7] px-1.5 py-0.5">
+              <div data-testid="care-report-composer-controls" className="flex min-h-11 items-center justify-end gap-0 px-1.5 py-0.5">
                 <button type="button" onClick={() => void toggleVoice()} disabled={isPublished || action !== null} aria-label={recording ? "음성 입력 중지" : "음성 입력 시작"} aria-pressed={recording} className="flex h-11 w-11 items-center justify-center rounded-full bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"><span className={`flex h-[30px] w-[30px] items-center justify-center rounded-full border ${recording ? "border-[#f0b8bf] bg-[#fff7f8] text-[#a04455]" : "border-[#d7e4f2] bg-white text-[#52708c]"}`}>{recording ? <Pause className="h-3.5 w-3.5" aria-hidden="true" /> : <Mic className="h-3.5 w-3.5" aria-hidden="true" />}</span></button>
                 <button type="button" onClick={() => void generate()} disabled={isPublished || action !== null || !hasComposerInput} aria-label="케어리포트 만들기" className="flex h-11 w-11 items-center justify-center rounded-full bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-40"><span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#111A30] text-white"><ArrowUp className="h-4 w-4" aria-hidden="true" /></span></button>
               </div>
             </div>
             {voiceMessage ? <p className="text-[13px] leading-5 text-[#64748b]" role="status">{voiceMessage}</p> : null}
-          </section> : null}
-          {error ? <p className="mt-3 rounded-[10px] border border-[#f0c4c8] bg-[#fff8f8] px-3 py-2 text-[14px] leading-5 text-[#a04455]">{error}</p> : null}
-        </div>
-        <footer className={`grid shrink-0 gap-2 border-t border-[#d7e4f2] bg-white px-5 pt-3 ${isPublished ? "grid-cols-1" : "grid-cols-2"}`} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + env(keyboard-inset-height, 0px) + 12px)" }}>{isPublished ? <button type="button" onClick={onClose} className="flex min-h-12 items-center justify-center rounded-[14px] bg-[#2f6fd6] px-2 text-[16px] font-semibold leading-6 text-white">닫기</button> : <><button type="button" onClick={() => setShowPublishConfirm(true)} disabled={!report || action !== null} className="flex min-h-12 items-center justify-center gap-1.5 rounded-[14px] bg-[#2f6fd6] px-2 text-[16px] font-semibold leading-6 text-white disabled:opacity-40"><Send className="h-4 w-4 shrink-0" />리포트 보내기</button><button type="button" onClick={() => void saveDraft()} disabled={action !== null} className="flex min-h-12 items-center justify-center gap-1.5 rounded-[14px] border border-[#cbddec] px-2 text-[16px] font-semibold leading-6 text-[#4d6d89] disabled:opacity-50"><Check className="h-4 w-4 shrink-0" />{action === 'save' ? '저장 중…' : '임시저장'}</button></>}</footer>
+            <div data-testid="care-report-keyboard-aware-actions" data-keyboard-hidden={isKeyboardOpen ? "true" : "false"} aria-hidden={isKeyboardOpen} className={`grid grid-cols-2 gap-2 ${isKeyboardOpen ? "hidden" : ""}`}>
+              <button type="button" onClick={() => setShowPublishConfirm(true)} disabled={action !== null || !report} className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-[14px] bg-[#2f6fd6] px-2 text-[16px] font-semibold leading-6 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-40"><Send className="h-4 w-4 shrink-0" aria-hidden="true" />이대로 보내기</button>
+              <button type="button" onClick={() => void saveDraft()} disabled={action !== null} className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-[14px] border border-[#cbddec] bg-white px-2 text-[16px] font-medium leading-6 text-[#4d6d89] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"><Check className="h-4 w-4 shrink-0" aria-hidden="true" />{action === "save" ? "저장 중…" : "임시저장"}</button>
+            </div>
+          </section>}
+        </footer>
       </section>
       {showReminderSheet ? <div className="fixed inset-0 z-[82] flex items-end justify-center bg-[#0b1b2c]/35" onMouseDown={(event) => { if (event.target === event.currentTarget) dismissReminderSettings(); }}><section role="dialog" aria-modal="true" aria-labelledby="care-report-reminder-title" className="w-full max-w-[430px] rounded-t-[18px] border border-[#dce7f2] bg-white px-5 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-5">
         <div className="flex min-h-11 items-center gap-2">

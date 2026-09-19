@@ -1,5 +1,5 @@
-import MobileWebLanding from "@/components/landing/mobile-web-landing";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <MobileWebLanding />;
+  redirect("/login?next=/owner/mobile");
 }

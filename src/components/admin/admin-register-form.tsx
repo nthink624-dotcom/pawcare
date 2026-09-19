@@ -67,8 +67,8 @@ export default function AdminRegisterForm() {
 
         <div className="mt-5 text-center">
           <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">최초 1회 전용</p>
-          <h1 className="mt-2 text-[28px] font-bold tracking-[-0.04em] text-[#171411]">관리자 등록</h1>
-          <p className="mt-3 text-[15px] leading-7 text-[#7b746b]">
+          <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#171411]">관리자 등록</h1>
+          <p className="mt-3 text-[16px] leading-7 text-[#7b746b]">
             최초 관리자 계정은 한 번만 등록하면
             <br />
             이후에는 관리자 아이디와 비밀번호로만 로그인할 수 있어요.
@@ -151,7 +151,7 @@ export default function AdminRegisterForm() {
           type="button"
           onClick={() => void handleSubmit()}
           disabled={submitting || !canSubmit}
-          className="mt-6 flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[#0e8c6d] px-5 text-[18px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-6 flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[#0e8c6d] px-5 text-[18px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? "등록 중..." : "관리자 계정 만들기"}
         </button>

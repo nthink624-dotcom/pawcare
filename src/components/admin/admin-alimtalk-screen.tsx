@@ -225,7 +225,7 @@ export default function AdminAlimtalkScreen({
                 </div>
                 <div className="space-y-2">
                   <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">내부 전용</p>
-                  <h1 className="text-[30px] font-bold tracking-[-0.04em] text-[#171411]">알림톡 서버 설정</h1>
+                  <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#171411]">알림톡 서버 설정</h1>
                   <p className="max-w-[760px] text-[14px] leading-6 text-[#6f665f]">
                     여기서는 relay 서버에 올라간 쏘다 키와 템플릿 코드를 원본 그대로 확인하고 수정할 수 있어요. 앱 서버(Vercel) 값은
                     참고용으로 raw 조회만 가능하고, 실제 저장은 relay 서버에 반영됩니다.
@@ -258,7 +258,7 @@ export default function AdminAlimtalkScreen({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">relay 서버</p>
-                <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">원본 키 / 템플릿 수정</h2>
+                <h2 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">원본 키 / 템플릿 수정</h2>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -296,7 +296,7 @@ export default function AdminAlimtalkScreen({
                 {relayFieldGroups.map((group) => (
                   <section key={group.title} className="rounded-[6px] border border-[#e6e3dd] bg-white p-5">
                     <div className="space-y-1">
-                      <h3 className="text-[15px] font-semibold text-[#171411]">{group.title}</h3>
+                      <h3 className="text-[16px] font-semibold text-[#171411]">{group.title}</h3>
                       <p className="text-[12px] leading-5 text-[#7a7268]">{group.description}</p>
                     </div>
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -324,7 +324,7 @@ export default function AdminAlimtalkScreen({
               </div>
               <div>
                 <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">앱 서버(Vercel)</p>
-                <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">현재 읽히는 raw 값</h2>
+                <h2 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">현재 읽히는 raw 값</h2>
                 <p className="mt-3 text-[13px] leading-6 text-[#6f665f]">
                   이 영역은 현재 앱 서버가 읽고 있는 값을 그대로 보여주는 읽기 전용 참고 화면입니다. 여기 값은 Vercel 환경변수를 직접 바꿔야
                   변경됩니다.
@@ -335,7 +335,7 @@ export default function AdminAlimtalkScreen({
             <div className="mt-5 space-y-5">
               {appFieldGroups.map((group) => (
                 <section key={group.title} className="rounded-[6px] border border-[#e6e3dd] bg-white p-5">
-                  <h3 className="text-[15px] font-semibold text-[#171411]">{group.title}</h3>
+                  <h3 className="text-[16px] font-semibold text-[#171411]">{group.title}</h3>
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     {group.fields.map((field) => (
                       <TextField key={field.key} label={field.label} value={appConfig[field.key]} readOnly />
@@ -355,7 +355,7 @@ export default function AdminAlimtalkScreen({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">템플릿 비교</p>
-              <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">쏘다 등록 내용과 현재 코드 본문</h2>
+              <h2 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">쏘다 등록 내용과 현재 코드 본문</h2>
               <p className="mt-3 text-[13px] leading-6 text-[#6f665f]">
                 릴레이 서버에 저장된 코드와 쏘다에 실제 등록된 템플릿 상세, 그리고 현재 앱 코드가 만드는 본문 초안을 한 화면에서 비교합니다.
               </p>

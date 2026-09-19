@@ -263,9 +263,10 @@ export default function OwnerShell({
 
     async function refreshSummary() {
       try {
-        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
-          cache: "no-store",
-        });
+        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
+          `/api/subscription?shopId=${encodeURIComponent(initialData.shop.id)}`,
+          { cache: "no-store" },
+        );
         if (active) {
           setSummary(nextSummary);
         }
@@ -292,7 +293,7 @@ export default function OwnerShell({
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [initialData.shop.id]);
 
   const handleLogout = async () => {
     if (loggingOut) return;

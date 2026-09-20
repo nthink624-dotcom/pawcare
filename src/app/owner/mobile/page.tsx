@@ -505,7 +505,13 @@ export default function OwnerMobilePage() {
           return;
         }
 
-        const subscription = roleContext.appRole === "owner" && readiness.completed
+        // Android can render the authenticated owner screen immediately. OwnerShell
+        // refreshes this same summary after mount and swaps in the native billing
+        // notice when needed. Browsers still resolve it first because they may
+        // redirect to the billing page before exposing the owner surface.
+        const isAndroidApp = Capacitor.getPlatform() === "android";
+        const shouldResolveSubscriptionBeforeRender = !isAndroidApp;
+        const subscription = roleContext.appRole === "owner" && readiness.completed && shouldResolveSubscriptionBeforeRender
           ? await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
               `/api/subscription?shopId=${encodeURIComponent(resolvedShopId)}`,
               { cache: "no-store" },
@@ -513,7 +519,7 @@ export default function OwnerMobilePage() {
           : null;
         if (!active) return;
 
-        if (subscription && Capacitor.getPlatform() !== "android" && shouldBlockOwnerAccessBySubscription(subscription)) {
+        if (subscription && !isAndroidApp && shouldBlockOwnerAccessBySubscription(subscription)) {
           writeOwnerBillingSummaryCache(subscription);
           router.replace(`/owner/billing?compare=1&plan=${encodeURIComponent(subscription.autoRenewPlanCode)}` as never);
           router.refresh();

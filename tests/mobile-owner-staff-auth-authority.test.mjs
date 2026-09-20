@@ -6,6 +6,7 @@ import ts from "typescript";
 const loginRoute = await readFile(new URL("../src/app/api/auth/login/route.ts", import.meta.url), "utf8");
 const ownerPage = await readFile(new URL("../src/app/owner/mobile/page.tsx", import.meta.url), "utf8");
 const ownerApp = await readFile(new URL("../src/components/owner/owner-app.tsx", import.meta.url), "utf8");
+const ownerShell = await readFile(new URL("../src/components/owner/owner-shell.tsx", import.meta.url), "utf8");
 const integritySource = await readFile(new URL("../src/lib/owner-customer-pet-integrity.ts", import.meta.url), "utf8");
 
 function extractFunction(source, name, fileName) {
@@ -105,8 +106,15 @@ test("staff appointment UI scope rejects a missing or stale staff binding", asyn
 test("staff entry does not depend on the owner-only subscription endpoint", () => {
   assert.match(
     ownerPage,
-    /roleContext\.appRole === "owner"\s*&&\s*readiness\.completed\s*\? await fetchApiJsonWithAuth<OwnerSubscriptionSummary>/,
+    /roleContext\.appRole === "owner"\s*&&\s*readiness\.completed\s*&&\s*shouldResolveSubscriptionBeforeRender\s*\? await fetchApiJsonWithAuth<OwnerSubscriptionSummary>/,
   );
   assert.match(ownerPage, /: null;/);
   assert.ok(ownerPage.indexOf("resolveOwnerMobileRoleContext(canonicalBootstrap)") < ownerPage.indexOf('`/api/subscription?shopId='));
+});
+
+test("Android renders after full authority bootstrap and refreshes subscription in OwnerShell", () => {
+  assert.match(ownerPage, /const isAndroidApp = Capacitor\.getPlatform\(\) === "android";/);
+  assert.match(ownerPage, /const shouldResolveSubscriptionBeforeRender = !isAndroidApp;/);
+  assert.match(ownerPage, /readiness\.completed && shouldResolveSubscriptionBeforeRender/);
+  assert.match(ownerShell, /void refreshSummary\(\);/);
 });

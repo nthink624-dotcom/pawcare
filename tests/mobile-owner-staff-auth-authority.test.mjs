@@ -75,6 +75,20 @@ test("mobile role is derived from the canonical staff-scoped bootstrap, not URL 
   assert.match(ownerPage, /setLoadFailure\(getOwnerMobileLoadFailure\(error\)\)/);
 });
 
+test("initial mobile role waits for the full bootstrap authority projection", () => {
+  const loadStart = ownerPage.indexOf("const bootstrap = await fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(");
+  const roleResolution = ownerPage.indexOf("const roleContext = resolveOwnerMobileRoleContext(canonicalBootstrap);", loadStart);
+  const loadEnd = ownerPage.indexOf("} catch (error) {", roleResolution);
+  assert.ok(loadStart >= 0 && roleResolution > loadStart && loadEnd > roleResolution, "initial bootstrap role block must exist");
+
+  const initialRoleLoad = ownerPage.slice(loadStart, loadEnd);
+  assert.match(initialRoleLoad, /`\/api\/bootstrap\?shopId=\$\{encodeURIComponent\(resolvedShopId\)\}`/);
+  assert.doesNotMatch(initialRoleLoad, /phase=essential|deferred refresh/);
+  assert.ok(initialRoleLoad.indexOf("assertOwnerBootstrapPayload(bootstrap") < initialRoleLoad.indexOf("resolveOwnerMobileRoleContext(canonicalBootstrap)"));
+  assert.match(initialRoleLoad, /setMobileRoleContext\(roleContext\)/);
+  assert.match(initialRoleLoad, /setData\(canonicalBootstrap\)/);
+});
+
 test("staff appointment UI scope rejects a missing or stale staff binding", async () => {
   const { matchesMobileRoleAppointmentScope } = await importFunctions(
     ownerApp,

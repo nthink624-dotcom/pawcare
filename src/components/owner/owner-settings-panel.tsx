@@ -1842,35 +1842,39 @@ function SettingsCard({
 function SettingsNavRow({
   icon: Icon,
   title,
+  value,
   onClick,
-  accent = false,
+  href,
 }: {
   icon: LucideIcon;
   title: string;
-  onClick: () => void;
-  accent?: boolean;
+  value?: string;
+  onClick?: () => void;
+  href?: string;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex min-h-[68px] w-full items-center justify-between gap-3 px-4 py-3.5 text-left ${
-        accent ? "bg-[#f6fbf9]" : "bg-white"
-      }`}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <div className={`flex h-6 w-6 shrink-0 items-center justify-center ${
-          accent ? "text-[var(--accent)]" : "text-[var(--text)]"
-        }`}>
-          <Icon className="h-5 w-5" strokeWidth={1.9} />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[18px] font-normal tracking-[-0.02em] text-[var(--text)]">{title}</p>
-        </div>
+  const isActionable = Boolean(onClick || href);
+  const className =
+    "flex min-h-[56px] w-full items-center gap-3 bg-white px-4 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]";
+  const content = (
+    <>
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#f2f6fb] text-[#475467]">
+        <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
       </div>
-      <ChevronRight className={`h-4 w-4 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} />
-    </button>
+      <div className="min-w-0 flex-1">
+        <p className="text-[16px] font-medium leading-6 tracking-[-0.02em] text-[#101828]">{title}</p>
+        {value ? (
+          <p className="mt-0.5 break-words text-[14px] font-normal leading-5 text-[#667085] [overflow-wrap:anywhere]">
+            {value}
+          </p>
+        ) : null}
+      </div>
+      {isActionable ? <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" strokeWidth={1.9} /> : null}
+    </>
   );
+
+  if (href) return <a href={href} className={className}>{content}</a>;
+  if (onClick) return <button type="button" onClick={onClick} className={className}>{content}</button>;
+  return <div className={className}>{content}</div>;
 }
 
 function StaffSettingsHome({
@@ -1890,63 +1894,36 @@ function StaffSettingsHome({
 }) {
   const staffName = staffMember?.displayName || staffMember?.name || "직원";
   const staffRole = staffMember?.position || "직원";
-  const staffInitial = staffName.trim().slice(0, 1) || "직";
+  const staffContext = [shopName, staffRole].filter(Boolean).join(" · ");
 
   return (
-    <section className="min-h-full bg-[#F4F5F7] p-4">
-      <div className="mb-4">
-        <h1 className="text-[24px] font-medium tracking-[-0.02em] text-[#101828]">설정</h1>
-      </div>
+    <section className="min-h-full bg-[#f6f9fc] px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-4">
+      <div className="space-y-5">
+        <section aria-labelledby="staff-settings-account-heading">
+          <h2 id="staff-settings-account-heading" className="mb-2 text-[14px] font-medium leading-5 text-[#667085]">
+            계정
+          </h2>
+          <div className="overflow-hidden rounded-[14px] border border-[#dfe7f0] bg-white divide-y divide-[#edf1f5]">
+            <SettingsNavRow
+              icon={UserRound}
+              title="내 계정"
+              value={`${staffName} · ${staffContext}`}
+              onClick={onAccountClick}
+            />
+            {accountEmail ? <SettingsNavRow icon={Mail} title="로그인 이메일" value={accountEmail} /> : null}
+            <SettingsNavRow href="/login/reset" icon={KeyRound} title="비밀번호 재설정" />
+          </div>
+        </section>
 
-      <div className="space-y-3.5">
-        <div className="rounded-[18px] border border-[#dfe7f0] bg-white p-4">
-          <p className="mb-3 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">내 계정 정보</p>
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[18px] font-medium text-[#2563eb]">
-              {staffInitial}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[18px] font-medium tracking-[-0.02em] text-[#101828]">{staffName}</p>
-              <p className="mt-0.5 truncate text-[16px] text-[#667085]">{shopName} · {staffRole}</p>
-            </div>
+        <section aria-labelledby="staff-settings-support-heading">
+          <h2 id="staff-settings-support-heading" className="mb-2 text-[14px] font-medium leading-5 text-[#667085]">
+            문의·정책
+          </h2>
+          <div className="overflow-hidden rounded-[14px] border border-[#dfe7f0] bg-white divide-y divide-[#edf1f5]">
+            <SettingsNavRow icon={MessageCircle} title="1:1 문의" onClick={onSupportClick} />
+            <SettingsNavRow icon={FileText} title="약관 및 정책" onClick={onLegalClick} />
           </div>
-          <div className="mt-4 rounded-[14px] bg-[#f8fafc] px-3.5 py-3">
-            <p className="text-[16px] leading-6 text-[#475467]">
-              프로필 사진, 표시 이름, 담당 서비스는 오너가 관리해요. 변경이 필요하면 매장 관리자에게 요청해 주세요.
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-[18px] border border-[#dfe7f0] bg-white">
-          <p className="px-4 pt-4 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">계정 / 문의</p>
-          <div className="mt-2 overflow-hidden divide-y divide-[#edf1f5]">
-            {accountEmail ? <AccountRow icon={UserRound} label="로그인 이메일" value={accountEmail} /> : null}
-            <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
-            <button type="button" onClick={onSupportClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
-              <div className="flex min-w-0 items-center gap-3">
-                <MessageCircle className="h-[18px] w-[18px] shrink-0 text-[#101828]" strokeWidth={1.9} />
-                <p className="text-[16px] font-medium text-[#101828]">1:1 문의</p>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
-            </button>
-            <button type="button" onClick={onLegalClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
-              <div className="flex min-w-0 items-center gap-3">
-                <FileText className="h-[18px] w-[18px] shrink-0 text-[#101828]" strokeWidth={1.9} />
-                <p className="text-[16px] font-medium text-[#101828]">약관 및 정책</p>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
-            </button>
-            {onAccountClick ? (
-              <button type="button" onClick={onAccountClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
-                <div className="flex min-w-0 items-center gap-3">
-                  <LogOut className="h-[18px] w-[18px] shrink-0 text-[#c43d3d]" strokeWidth={1.9} />
-                  <p className="text-[16px] font-medium text-[#c43d3d]">로그아웃</p>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
-              </button>
-            ) : null}
-          </div>
-        </div>
+        </section>
       </div>
     </section>
   );

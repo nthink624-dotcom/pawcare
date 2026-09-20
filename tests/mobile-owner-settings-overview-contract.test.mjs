@@ -6,15 +6,20 @@ const overview = await readFile(new URL("../src/components/owner/owner-settings-
 const settings = await readFile(new URL("../src/components/owner/owner-settings-panel.tsx", import.meta.url), "utf8");
 const notifications = await readFile(new URL("../src/components/owner/owner-app-notification-settings.tsx", import.meta.url), "utf8");
 
-test("settings overview uses the approved three-group information architecture", () => {
+test("settings overview uses the approved account-first information architecture", () => {
+  const groupsStart = settings.indexOf("  const settingsGroups: OwnerSettingsOverviewGroup[] = [");
+  const groupsEnd = settings.indexOf("\n  ];", groupsStart);
+  assert.ok(groupsStart >= 0 && groupsEnd > groupsStart, "settings group source must exist");
+  const groupsSource = settings.slice(groupsStart, groupsEnd);
   const orderedLabels = [
+    "계정",
     "매장 운영", "매장 기본 정보", "영업·예약 시간", "서비스·요금 설정", "직원 관리",
     "알림·고객 응대", "고객 알림톡", "내 앱 알림", "문의·도움",
-    "계정·정책", "계정", "약관 및 정책",
+    "약관 및 정책",
   ];
   let cursor = -1;
   for (const label of orderedLabels) {
-    const next = settings.indexOf(label, cursor + 1);
+    const next = groupsSource.indexOf(label, cursor + 1);
     assert.ok(next > cursor, `${label} must appear in approved order`);
     cursor = next;
   }

@@ -22,6 +22,13 @@ test("initial load scopes subscription and bootstrap to the same authorized shop
     pageSource,
     /fetchApiJsonWithAuth<OwnerSubscriptionSummary>\("\/api\/subscription"/,
   );
+
+  const cachedBootstrapStart = pageSource.indexOf("const cachedBootstrapRequest = storedShopId");
+  const shopsRequest = pageSource.indexOf('const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops")');
+  const membershipCheck = pageSource.indexOf("shops.some((shop) => shop.id === storedShopId)");
+  const cachedResult = pageSource.indexOf("const cachedBootstrap = storedShopId === resolvedShopId");
+  assert.ok(cachedBootstrapStart >= 0 && shopsRequest > cachedBootstrapStart, "cached bootstrap must start before the shops request completes");
+  assert.ok(membershipCheck > shopsRequest && cachedResult > membershipCheck, "cached bootstrap must be used only after membership validation");
 });
 
 test("shop changes and foreground refreshes keep subscription scoped to the active shop", () => {

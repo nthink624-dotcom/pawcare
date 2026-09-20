@@ -459,10 +459,22 @@ export default function OwnerMobilePage() {
 
         setUserEmail(ownerAccess.session?.user.email ?? null);
 
-        const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops");
-        if (!active) return;
         const storedShopId =
           typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE) : null;
+        // A previously selected shop is only a performance hint. Start its
+        // authenticated bootstrap in parallel, then accept it only after the
+        // current membership list confirms the same shop ID.
+        const cachedBootstrapRequest = storedShopId
+          ? fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
+              `/api/bootstrap?shopId=${encodeURIComponent(storedShopId)}`,
+              { cache: "no-store" },
+            ).then(
+              (payload) => ({ ok: true as const, payload }),
+              (error) => ({ ok: false as const, error }),
+            )
+          : null;
+        const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops");
+        if (!active) return;
         const resolvedShopId =
           (storedShopId && shops.some((shop) => shop.id === storedShopId) ? storedShopId : shops[0]?.id) ?? null;
 
@@ -482,10 +494,18 @@ export default function OwnerMobilePage() {
           window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
         }
 
-        const bootstrap = await fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
-          `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
-          { cache: "no-store" },
-        );
+        const cachedBootstrap = storedShopId === resolvedShopId && cachedBootstrapRequest
+          ? await cachedBootstrapRequest
+          : null;
+        if (cachedBootstrap && !cachedBootstrap.ok) {
+          throw cachedBootstrap.error;
+        }
+        const bootstrap = cachedBootstrap?.ok
+          ? cachedBootstrap.payload
+          : await fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
+              `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
+              { cache: "no-store" },
+            );
         if (!active) return;
 
         const canonicalBootstrap = assertOwnerBootstrapPayload(bootstrap, resolvedShopId, {

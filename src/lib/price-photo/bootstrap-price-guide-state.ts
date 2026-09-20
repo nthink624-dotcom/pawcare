@@ -10,6 +10,7 @@ export function readBootstrapPriceGuideState(services: BootstrapPayload["service
     return {
       serviceId: service.id,
       document,
+      resumeMode: document.source === "manual" ? "manual" : "review",
       rows: toMobilePriceDrafts(document).map((row) => ({
         id: row.clientId,
         rowIndex: row.rowIndex,

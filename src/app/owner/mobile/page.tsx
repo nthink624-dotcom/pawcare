@@ -483,7 +483,7 @@ export default function OwnerMobilePage() {
         }
 
         const bootstrap = await fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
-          `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
+          `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}&phase=essential`,
           { cache: "no-store" },
         );
         if (!active) return;
@@ -505,27 +505,26 @@ export default function OwnerMobilePage() {
           return;
         }
 
-        const subscription = roleContext.appRole === "owner" && readiness.completed
-          ? await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
-              `/api/subscription?shopId=${encodeURIComponent(resolvedShopId)}`,
-              { cache: "no-store" },
-            )
-          : null;
-        if (!active) return;
-
-        const isAndroidApp = Capacitor.getPlatform() === "android";
-        if (subscription && !isAndroidApp && shouldBlockOwnerAccessBySubscription(subscription)) {
-          router.replace(`/owner/billing?compare=1&plan=${encodeURIComponent(subscription.autoRenewPlanCode)}` as never);
-          router.refresh();
-          return;
-        }
-        if (subscription) writeOwnerBillingSummaryCache(subscription);
-
-        if (!active) return;
         setData(assertOwnerBootstrapPayload(canonicalBootstrap, resolvedShopId, {
           allowMock: shouldUseLocalMobilePreview(),
         }));
-        setSubscriptionSummary(subscription);
+        setSubscriptionSummary(null);
+
+        // The schedule can render from the essential response. Photos, notification
+        // history, and grooming records are refreshed after the first screen appears.
+        void fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
+          `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
+          { cache: "no-store" },
+        )
+          .then((fullBootstrap) => {
+            if (!active) return;
+            setData(assertOwnerBootstrapPayload(fullBootstrap, resolvedShopId, {
+              allowMock: shouldUseLocalMobilePreview(),
+            }));
+          })
+          .catch(() => {
+            // The essential schedule stays usable if the deferred refresh fails.
+          });
       } catch (error) {
         if (!active) return;
         const nextMessage = error instanceof Error ? error.message : "모바일 오너 화면을 불러오지 못했습니다.";

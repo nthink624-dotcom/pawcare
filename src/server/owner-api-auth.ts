@@ -39,6 +39,10 @@ const PRODUCTION_CANONICAL_ORIGINS = new Set([
   "https://www.petmanager.co.kr",
 ]);
 
+const PRODUCTION_CANONICAL_ORIGIN_ALIASES = new Map([
+  ["https://petmanager.co.kr", "https://www.petmanager.co.kr"],
+]);
+
 const QUERY_KEYS_BY_PATH: Record<CanonicalApiPath, ReadonlySet<string>> = {
   "/api/bootstrap": new Set(["scope", "shopId", "phase"]),
   "/api/owner/shops": new Set(),
@@ -85,6 +89,10 @@ function parseOriginOnly(value: string, label: string) {
   return url.origin;
 }
 
+function canonicalizeProductionApiOrigin(origin: string) {
+  return PRODUCTION_CANONICAL_ORIGIN_ALIASES.get(origin) ?? origin;
+}
+
 export function getCanonicalApiOrigin() {
   const development = isDevelopmentRuntime();
   const configured = development
@@ -95,7 +103,8 @@ export function getCanonicalApiOrigin() {
     throw new OwnerApiError("정본 API 원점 설정을 확인해 주세요.", 503);
   }
 
-  const origin = parseOriginOnly(configured, "정본 API");
+  const parsedOrigin = parseOriginOnly(configured, "정본 API");
+  const origin = development ? parsedOrigin : canonicalizeProductionApiOrigin(parsedOrigin);
   const allowedOrigins = development ? DEVELOPMENT_CANONICAL_ORIGINS : PRODUCTION_CANONICAL_ORIGINS;
   if (!allowedOrigins.has(origin)) {
     throw new OwnerApiError("허용되지 않은 정본 API 원점입니다.", 503);

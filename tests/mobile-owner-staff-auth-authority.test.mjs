@@ -89,7 +89,10 @@ test("staff appointment UI scope rejects a missing or stale staff binding", asyn
 });
 
 test("staff entry does not depend on the owner-only subscription endpoint", () => {
-  assert.match(ownerPage, /roleContext\.appRole === "owner"\s*\? await fetchApiJsonWithAuth<OwnerSubscriptionSummary>/);
+  assert.match(
+    ownerPage,
+    /roleContext\.appRole === "owner"\s*&&\s*readiness\.completed\s*\? await fetchApiJsonWithAuth<OwnerSubscriptionSummary>/,
+  );
   assert.match(ownerPage, /: null;/);
   assert.ok(ownerPage.indexOf("resolveOwnerMobileRoleContext(canonicalBootstrap)") < ownerPage.indexOf('`/api/subscription?shopId='));
 });

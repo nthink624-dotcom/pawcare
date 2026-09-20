@@ -290,6 +290,8 @@ test("owner duplicate routes proxy to canonical APIs and retain boundary gates",
   assert.match(authSource, /PETMANAGER_MAIN_APP_ORIGIN/);
   assert.match(authSource, /https:\/\/petmanager\.co\.kr/);
   assert.match(authSource, /https:\/\/www\.petmanager\.co\.kr/);
+  assert.match(authSource, /PRODUCTION_CANONICAL_ORIGIN_ALIASES/);
+  assert.match(authSource, /canonicalizeProductionApiOrigin\(parsedOrigin\)/);
   assert.doesNotMatch(
     between(authSource, "const PRODUCTION_CANONICAL_ORIGINS", "const QUERY_KEYS_BY_PATH"),
     /app\.petmanager\.co\.kr/,
@@ -306,4 +308,32 @@ test("owner duplicate routes proxy to canonical APIs and retain boundary gates",
 
   assert.match(billingSessionSource, /requireCanonicalOwnerIdentity/);
   assert.doesNotMatch(billingSessionSource, /getSupabaseAdmin|\.from\("shops"\)|maybeSingle/);
+});
+
+test("production canonical API normalizes the known redirecting apex before auth fetches", async () => {
+  const authSource = await source("src/server/owner-api-auth.ts");
+  const moduleSource = [
+    declarationText(authSource, "PRODUCTION_CANONICAL_ORIGIN_ALIASES", "owner-api-auth.ts"),
+    declarationText(authSource, "canonicalizeProductionApiOrigin", "owner-api-auth.ts"),
+    "export { canonicalizeProductionApiOrigin };",
+  ].join("\n");
+  const javascript = ts.transpileModule(moduleSource, {
+    compilerOptions: { module: ts.ModuleKind.ES2022, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const harness = await import(
+    `data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}#canonical-origin`
+  );
+
+  assert.equal(
+    harness.canonicalizeProductionApiOrigin("https://petmanager.co.kr"),
+    "https://www.petmanager.co.kr",
+  );
+  assert.equal(
+    harness.canonicalizeProductionApiOrigin("https://www.petmanager.co.kr"),
+    "https://www.petmanager.co.kr",
+  );
+  assert.equal(
+    harness.canonicalizeProductionApiOrigin("https://attacker.invalid"),
+    "https://attacker.invalid",
+  );
 });

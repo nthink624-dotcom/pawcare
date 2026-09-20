@@ -19,7 +19,7 @@ const ready = () => ({ shop: { id: "shop-a" }, initialSetupReadiness: { shopId: 
 test("setup readback retains owner identity and does not cache completion", async () => {
   let read;
   await load({ data: ready(), onRead: (url, options) => { read = { url, options }; } }).reloadSetup("shop-a");
-  assert.equal(read.url, "/api/bootstrap?shopId=shop-a");
+  assert.equal(read.url, "/api/bootstrap?shopId=shop-a&phase=essential");
   assert.equal(read.options.cache, "no-store");
 });
 test("completion readback rejects staff, mismatched shop and contradictory readiness", async () => {

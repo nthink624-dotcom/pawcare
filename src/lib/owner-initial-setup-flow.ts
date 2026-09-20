@@ -31,7 +31,7 @@ export function writeSetupCheckpoint(key: string, step: SetupStep) {
 }
 
 export async function reloadSetup(shopId: string): Promise<SetupBootstrap> {
-  const result = await fetchApiJsonWithAuth<SetupBootstrap>(`/api/bootstrap?shopId=${encodeURIComponent(shopId)}`, { cache: "no-store" });
+  const result = await fetchApiJsonWithAuth<SetupBootstrap>(`/api/bootstrap?shopId=${encodeURIComponent(shopId)}&phase=essential`, { cache: "no-store" });
   const data = assertOwnerBootstrapPayload(result, shopId, { allowMock: false });
   const readiness = result.initialSetupReadiness;
   if (resolveOwnerMobileRoleContext(data).appRole !== "owner" || !readiness || readiness.shopId !== shopId ||

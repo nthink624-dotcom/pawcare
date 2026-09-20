@@ -5,8 +5,9 @@ import type {
   MobilePriceGuideWeightBand,
 } from "./mobile-price-photo-adapter";
 
-export const MOBILE_PRICE_GUIDE_INITIAL_CUTOFFS_KG = [2, 4, 6, 8] as const;
+export const MOBILE_PRICE_GUIDE_INITIAL_CUTOFFS_KG = [2] as const;
 const STARTER_GROUPS = ["소형견", "중형견", "대형견"] as const;
+const MOBILE_PRICE_GUIDE_WEIGHT_INCREMENT_KG = 2;
 export const MOBILE_DEFAULT_PRICE_GUIDE_SERVICES = ["목욕", "부분미용", "전체미용", "스포팅"] as const;
 const MAX_GROUPS = 40;
 const MAX_BANDS = 40;
@@ -98,17 +99,22 @@ function weightLabel(row: Pick<MobilePriceGuideRow, "weightBandLabel" | "minKg" 
   return row.sizeClass === "all" ? "전체 체급" : "";
 }
 
-function createWeightBand(maxKg: number | null = null): MobilePriceGuideWeightBand {
-  return { label: maxKg === null ? "" : `${maxKg}kg`, minKg: null, maxKg, note: null };
+function createWeightBand(maxKg: number | null = null, minKg: number | null = null): MobilePriceGuideWeightBand {
+  return {
+    label: maxKg === null ? "" : minKg === null ? `${maxKg}kg 이하` : `${minKg}~${maxKg}kg`,
+    minKg,
+    maxKg,
+    note: null,
+  };
 }
 
-function createGroup(sourceLabel = "", serviceNames: string[] = [...MOBILE_DEFAULT_PRICE_GUIDE_SERVICES]): MobilePriceGuideTableGroup {
+function createGroup(sourceLabel = "", serviceNames: string[] = ["기본 미용"]): MobilePriceGuideTableGroup {
   return {
     sourceLabel,
     species: "dog",
     breedNames: [],
     sizeClass: "all",
-    weightBands: MOBILE_PRICE_GUIDE_INITIAL_CUTOFFS_KG.map(createWeightBand),
+    weightBands: MOBILE_PRICE_GUIDE_INITIAL_CUTOFFS_KG.map((maxKg) => createWeightBand(maxKg)),
     serviceNames,
     note: null,
   };
@@ -137,7 +143,7 @@ function createCell(
   };
 }
 
-function createMatrixGroup(sourceLabel = "", serviceNames: string[] = [...MOBILE_DEFAULT_PRICE_GUIDE_SERVICES]): MobilePriceGuideMatrixGroup {
+function createMatrixGroup(sourceLabel = "", serviceNames: string[] = ["기본 미용"]): MobilePriceGuideMatrixGroup {
   const group = createGroup(sourceLabel, serviceNames);
   return {
     ...group,
@@ -146,7 +152,7 @@ function createMatrixGroup(sourceLabel = "", serviceNames: string[] = [...MOBILE
 }
 
 export function createMobilePriceGuideSkeleton(): MobilePriceGuideV2 {
-  const groups = STARTER_GROUPS.map((label) => createMatrixGroup(label, [...MOBILE_DEFAULT_PRICE_GUIDE_SERVICES]));
+  const groups = [createMatrixGroup(STARTER_GROUPS[0])];
   return writeMobilePriceGuideMatrix({
     schemaVersion: 2,
     source: "manual",
@@ -383,7 +389,11 @@ export function addMobilePriceGuideWeightBand(document: MobilePriceGuideV2, grou
   return updateGroups(document, (groups) => {
     const group = groups[groupIndex];
     if (group.weightBands.length >= MAX_BANDS || rowCount(groups) + group.serviceNames.length > MAX_ROWS) return;
-    const band = createWeightBand();
+    const previousBand = group.weightBands[group.weightBands.length - 1];
+    const previousMaxKg = previousBand.maxKg;
+    const band = previousMaxKg === null
+      ? createWeightBand()
+      : createWeightBand(previousMaxKg + MOBILE_PRICE_GUIDE_WEIGHT_INCREMENT_KG, previousMaxKg);
     group.weightBands.push(band);
     group.cells.push(group.serviceNames.map((service) => createCell(group, band, service)));
   });
@@ -401,7 +411,7 @@ export function removeMobilePriceGuideWeightBand(document: MobilePriceGuideV2, g
 export function addMobilePriceGuideGroup(document: MobilePriceGuideV2) {
   return updateGroups(document, (groups) => {
     if (groups.length >= MAX_GROUPS || rowCount(groups) + MOBILE_PRICE_GUIDE_INITIAL_CUTOFFS_KG.length > MAX_ROWS) return;
-    groups.push(createMatrixGroup());
+    groups.push(createMatrixGroup(STARTER_GROUPS[groups.length] ?? ""));
   });
 }
 

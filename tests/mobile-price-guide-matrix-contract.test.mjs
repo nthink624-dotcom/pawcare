@@ -21,43 +21,54 @@ const matrix = transpile(matrixSource, (specifier) => {
   throw new Error(`unexpected import: ${specifier}`);
 });
 
-test("direct registration starts with editable defaults and one canonical empty 2/4/6/8 matrix", () => {
+test("direct registration starts with one editable small-dog row", () => {
   const document = matrix.createMobilePriceGuideSkeleton();
-  assert.deepEqual(document.tableGroups.map((group) => group.sourceLabel), ["소형견", "중형견", "대형견"]);
-  assert.deepEqual(document.tableGroups[0].weightBands.map((band) => band.maxKg), [2, 4, 6, 8]);
-  assert.deepEqual(document.tableGroups[0].weightBands.map((band) => band.label), ["2kg", "4kg", "6kg", "8kg"]);
-  assert.deepEqual(document.tableGroups[0].serviceNames, ["목욕", "부분미용", "전체미용", "스포팅"]);
-  assert.equal(document.rows.length, 48);
+  assert.deepEqual(document.tableGroups.map((group) => group.sourceLabel), ["소형견"]);
+  assert.deepEqual(document.tableGroups[0].weightBands.map((band) => band.maxKg), [2]);
+  assert.deepEqual(document.tableGroups[0].weightBands.map((band) => band.label), ["2kg 이하"]);
+  assert.deepEqual(document.tableGroups[0].serviceNames, ["기본 미용"]);
+  assert.equal(document.rows.length, 1);
   assert.ok(document.rows.every((row) => row.priceMinKrw === null && row.durationMinutes === null));
   assert.ok(document.rows.every((row) => row.sourceItemId.startsWith("pgi_client_")));
 });
 
+test("added weights continue the previous two-kilogram boundary", () => {
+  let document = matrix.createMobilePriceGuideSkeleton();
+  document = matrix.addMobilePriceGuideWeightBand(document, 0);
+  document = matrix.addMobilePriceGuideWeightBand(document, 0);
+  assert.deepEqual(document.tableGroups[0].weightBands.map((band) => ({ label: band.label, minKg: band.minKg, maxKg: band.maxKg })), [
+    { label: "2kg 이하", minKg: null, maxKg: 2 },
+    { label: "2~4kg", minKg: 2, maxKg: 4 },
+    { label: "4~6kg", minKg: 4, maxKg: 6 },
+  ]);
+});
+
 test("all matrix mutations update one document and preserve unknown and null values", () => {
   let document = matrix.createMobilePriceGuideSkeleton();
-  const unknownId = document.rows[1].sourceItemId;
+  const unknownId = document.rows[0].sourceItemId;
   document = matrix.updateMobilePriceGuideGroup(document, 0, { sourceLabel: "소형견", breedNames: ["말티즈", "푸들"] });
   document = matrix.updateMobilePriceGuideWeightBand(document, 0, 0, "2kg 미만");
   document = matrix.updateMobilePriceGuideCell(document, 0, 0, 0, { priceMinKrw: 25_000, durationMinutes: 40 });
+  document = matrix.addMobilePriceGuideService(document, 0);
   document = matrix.updateMobilePriceGuideCell(document, 0, 0, 1, { priceKind: "unknown", priceMinKrw: 55_000, durationMinutes: null });
   document = matrix.updateMobilePriceGuideService(document, 0, 1, "전체+얼굴");
   document = matrix.addMobilePriceGuideWeightBand(document, 0);
   document = matrix.addMobilePriceGuideGroup(document);
-  document = matrix.removeMobilePriceGuideWeightBand(document, 0, 4);
-  document = matrix.removeMobilePriceGuideGroup(document, 3);
 
   assert.equal(document.tableGroups[0].sourceLabel, "소형견");
   assert.deepEqual(document.tableGroups[0].breedNames, ["말티즈", "푸들"]);
-  assert.equal(document.rows[0].serviceName, "목욕");
+  assert.equal(document.rows[0].serviceName, "기본 미용");
   assert.equal(document.rows[0].weightBandLabel, "2kg 미만");
   assert.equal(document.rows[0].minKg, null);
   assert.equal(document.rows[0].maxKg, null);
   assert.equal(document.rows[0].priceMinKrw, 25_000);
   assert.equal(document.rows[0].durationMinutes, 40);
-  assert.equal(document.rows[1].sourceItemId, unknownId);
-  assert.equal(document.rows[1].priceKind, "unknown");
-  assert.equal(document.rows[1].priceMinKrw, 55_000);
-  assert.equal(document.rows[1].durationMinutes, null);
-  assert.equal(document.rows[1].serviceName, "전체+얼굴");
+  assert.equal(document.rows[0].sourceItemId, unknownId);
+  const group = matrix.readMobilePriceGuideMatrix(document)[0];
+  assert.equal(group.cells[0][1].priceKind, "unknown");
+  assert.equal(group.cells[0][1].priceMinKrw, 55_000);
+  assert.equal(group.cells[0][1].durationMinutes, null);
+  assert.equal(group.cells[0][1].serviceName, "전체+얼굴");
 });
 
 test("read and write keep imported service columns exactly as declared by the photographed table", () => {
@@ -123,6 +134,7 @@ test("canonical service rows without a matching group or weight coordinate remai
 
 test("breed assignment is unique across every category and can be reassigned after removal", () => {
   let document = matrix.createMobilePriceGuideSkeleton();
+  document = matrix.addMobilePriceGuideGroup(document);
   document = matrix.updateMobilePriceGuideGroup(document, 0, { breedNames: ["말티즈", "푸들"] });
   document = matrix.updateMobilePriceGuideGroup(document, 1, { breedNames: ["말티즈", "비숑"] });
   assert.deepEqual(document.tableGroups[1].breedNames, ["비숑"]);
@@ -133,11 +145,12 @@ test("breed assignment is unique across every category and can be reassigned aft
 
 test("a newly added manual category receives editable default services without null-service rows", () => {
   let document = matrix.addMobilePriceGuideGroup(matrix.createMobilePriceGuideSkeleton());
-  assert.equal(document.rows.length, 64);
-  assert.deepEqual(document.tableGroups[3].serviceNames, ["목욕", "부분미용", "전체미용", "스포팅"]);
+  assert.equal(document.rows.length, 2);
+  assert.equal(document.tableGroups[1].sourceLabel, "중형견");
+  assert.deepEqual(document.tableGroups[1].serviceNames, ["기본 미용"]);
   assert.equal(document.rows.filter((row) => row.serviceName === null).length, 0);
-  document = matrix.removeMobilePriceGuideGroup(document, 3);
-  assert.equal(document.rows.length, 48);
+  document = matrix.removeMobilePriceGuideGroup(document, 1);
+  assert.equal(document.rows.length, 1);
   assert.equal(matrix.readPreservedMobilePriceGuideRows(document).length, 0);
 });
 
@@ -153,6 +166,6 @@ test("AI review targets follow mapped and preserved rows when write reorders the
     ],
   };
   const next = matrix.writeMobilePriceGuideMatrix(reordered, matrix.readMobilePriceGuideMatrix(reordered));
-  assert.equal(next.aiReview[0].targetId, "rows:48");
+  assert.equal(next.aiReview[0].targetId, "rows:1");
   assert.equal(next.aiReview[1].targetId, "rows:0");
 });

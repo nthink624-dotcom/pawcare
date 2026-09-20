@@ -23,33 +23,23 @@ test("owner settings exposes one local service price management entry", () => {
   assert.doesNotMatch(settings, /fetch\([^)]*(?:price|photo|media)/i);
 });
 
-test("camera click explains the privacy gate before dispatching rear camera capture", () => {
-  const chooseSurface = fixture.slice(fixture.indexOf('{mode === "choose"'), fixture.indexOf('{mode === "consent"'));
+test("service price settings offers camera, gallery, and direct entry immediately", () => {
+  const methodSurface = fixture.slice(fixture.indexOf('{mode === "method"'), fixture.indexOf('{mode === "consent"'));
   assert.match(fixture, /<ArrowLeft[^>]*aria-hidden="true"/);
-  assert.match(chooseSurface, /aria-label="서비스 요금 설정으로 돌아가기"/);
-  assert.match(chooseSurface, /className="[^"]*min-h-11[^"]*whitespace-nowrap[^"]*"/);
-  assert.match(chooseSurface, /<ArrowLeft[^>]*aria-hidden="true"[^>]*\/>서비스 요금 설정<\/button>/);
-  assert.match(chooseSurface, /onClick=\{requestExit\}/);
-  assert.match(chooseSurface, /<header[^>]*className="[^"]*fixed[^"]*top-0[^"]*bg-white[^"]*"[^>]*data-price-photo-app-bar>/);
-  assert.match(chooseSurface, /pt-\[env\(safe-area-inset-top\)\]/);
-  assert.match(chooseSurface, /<section[^>]*className="[^"]*bg-white[^"]*p-4[^"]*"[^>]*data-price-photo-registration-content>/);
-  assert.ok(chooseSurface.indexOf("data-price-photo-app-bar") < chooseSurface.indexOf("data-price-photo-registration-content"));
-  const registrationContent = chooseSurface.slice(chooseSurface.indexOf("data-price-photo-registration-content"));
-  assert.doesNotMatch(registrationContent, /서비스 요금 설정으로 돌아가기|>서비스 요금 설정<\/button>/);
-  assert.match(chooseSurface, />사진으로 요금표 등록<\/h2>/);
-  assert.doesNotMatch(chooseSurface, /뒤로가기|서비스 요금표|사진으로 요금표를 불러오세요/);
+  assert.match(methodSurface, />서비스 요금 설정<\/h2>/);
+  assert.match(methodSurface, /사진으로 요금표 등록/);
+  assert.match(methodSurface, /앨범에서 선택/);
+  assert.match(methodSurface, />직접 입력<\/button>/);
+  assert.match(methodSurface, /onClick=\{\(\) => void openCamera\(\)\}/);
+  assert.match(methodSurface, /onClick=\{\(\) => fileInputRef\.current\?\.click\(\)\}/);
+  assert.match(methodSurface, /onClick=\{startManual\}/);
+  assert.match(fixture, /const selectionMode: Extract<Mode, "method" \| "choose"> = shopId \? "method" : "choose"/);
   assert.match(fixture, /capture="environment"/);
   assert.match(fixture, /canUseExternalCameraApps\(\)/);
   assert.match(fixture, /captureWithAndroidCameraApp\("default"\)/);
-  assert.match(fixture, /onClick=\{\(\) => void openCamera\(\)\}/);
-  assert.match(chooseSurface, /사진에 개인정보가 없어요/);
-  assert.doesNotMatch(chooseSurface, /고객 이름|전화번호/);
-  assert.match(fixture, /if \(!privacyConfirmed\) \{/);
-  assert.match(fixture, /privacyInputRef\.current\?\.focus\(\)/);
-  assert.match(fixture, /먼저 사진에 개인정보가 없는지 확인해 주세요/);
   assert.match(fixture, /disabled=\{openingCamera\}/);
-  assert.doesNotMatch(fixture, /disabled=\{!privacyConfirmed \|\| openingCamera\}/);
-  assert.doesNotMatch(chooseSurface, /사진 없이 직접 입력|startManual/);
+  assert.match(fixture, /원본 사진에 고객 이름, 전화번호 등 개인정보가 보이지 않는지 다시 확인/);
+  assert.match(fixture, /요금표 등록 방식으로 돌아가기/);
 });
 
 test("development registration preview mounts the real no-call surface and is unreachable in production", () => {
@@ -66,7 +56,7 @@ test("gallery remains a separate no-capture input path", () => {
   assert.match(fixture, /ref=\{cameraInputRef\}[\s\S]*?capture="environment"[\s\S]*?tabIndex=\{-1\}[\s\S]*?aria-hidden="true"[\s\S]*?className="sr-only"/);
   assert.match(fixture, /ref=\{fileInputRef\}[\s\S]*?tabIndex=\{-1\}[\s\S]*?aria-hidden="true"[\s\S]*?className="sr-only"/);
   assert.match(fixture, /onClick=\{\(\) => fileInputRef\.current\?\.click\(\)\}/);
-  assert.match(fixture, /카메라로 촬영/);
+  assert.match(fixture, /사진으로 요금표 등록/);
   assert.match(fixture, /앨범에서 선택/);
 });
 
@@ -113,7 +103,6 @@ test("service price surfaces remove duplicate helper copy without weakening cons
   ]) assert.doesNotMatch(fixture, new RegExp(copy));
   assert.doesNotMatch(matrix, /평균 시간이 비어 있으면 직접 입력해 주세요/);
   assert.doesNotMatch(fixture, /min-h-16/);
-  assert.match(fixture, /사진에 개인정보가 없어요/);
   assert.match(fixture, /비식별 파생 이미지를 OpenAI로 전송/);
   assert.match(fixture, /원본 사진에 고객 이름, 전화번호 등 개인정보가 보이지 않는지 다시 확인/);
   assert.match(fixture, /role="alert"/);

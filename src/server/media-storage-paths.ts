@@ -1,4 +1,4 @@
-import type { MediaKind } from "@/types/domain";
+import type { MediaKind, MediaRetentionPolicy } from "@/types/domain";
 
 type MediaStorageDateInput = Date | string | null | undefined;
 
@@ -6,6 +6,7 @@ type MediaStorageDirectoryInput = {
   shopId: string;
   mediaAssetId: string;
   mediaKind: MediaKind;
+  retentionPolicy?: MediaRetentionPolicy;
   createdAt?: MediaStorageDateInput;
   guardianId?: string | null;
   petId?: string | null;
@@ -58,5 +59,6 @@ function mediaScopePath(params: MediaStorageDirectoryInput) {
 
 export function buildMediaStorageDirectory(params: MediaStorageDirectoryInput) {
   const { year, month } = getYearMonth(params.createdAt);
-  return `shops/${params.shopId}/${mediaScopePath(params)}/${year}/${month}/${params.mediaAssetId}`;
+  const lifecyclePrefix = params.retentionPolicy === "transient" ? "transient" : "retained";
+  return `${lifecyclePrefix}/shops/${params.shopId}/${mediaScopePath(params)}/${year}/${month}/${params.mediaAssetId}`;
 }

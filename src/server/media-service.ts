@@ -91,9 +91,8 @@ const attachmentRoles = new Set<NotificationMediaAttachmentRole>([
   "other",
 ]);
 const transientKinds = new Set<MediaKind>([
-  "grooming_before",
-  "grooming_after",
   "message_image",
+  "price_guide_source",
   "feedback_screenshot",
   "customer_shared",
 ]);
@@ -333,6 +332,7 @@ function buildStoragePath(params: {
   shopId: string;
   mediaAssetId: string;
   mediaKind: MediaKind;
+  retentionPolicy: MediaRetentionPolicy;
   contentType: string;
   guardianId?: string | null;
   petId?: string | null;
@@ -612,6 +612,7 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     shopId: owner.shopId,
     mediaAssetId,
     mediaKind,
+    retentionPolicy,
     contentType,
     guardianId,
     petId,

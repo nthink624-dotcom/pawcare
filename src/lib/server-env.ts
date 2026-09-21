@@ -120,7 +120,10 @@ export const serverEnv = {
     Number.parseInt(process.env.SIGNUP_PRICE_GUIDE_MAX_DAILY_COST_MICRO_USD || "500000", 10) || 500_000,
   ),
   aiSlotRecommendationProvider: readOptionalSecret(process.env.AI_SLOT_RECOMMENDATION_PROVIDER) ?? "deepseek",
-  mediaCleanupCronSecret: process.env.MEDIA_CLEANUP_CRON_SECRET,
+  mediaCleanupCronSecret:
+    process.env.MEDIA_CLEANUP_CRON_SECRET ||
+    process.env.CRON_SECRET ||
+    process.env.NOTIFICATION_CRON_SECRET,
   adminSetupKey: readOptionalSecret(process.env.ADMIN_SETUP_KEY),
   adminSessionSecret: readOptionalSecret(process.env.ADMIN_SESSION_SECRET),
   adminAuthRateLimitHmacSecret: readOptionalSecret(process.env.ADMIN_AUTH_RATE_LIMIT_HMAC_SECRET),

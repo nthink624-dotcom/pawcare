@@ -3,7 +3,7 @@ export const PETMANAGER_MEDIA_SIGNED_READ_SECONDS = 10 * 60;
 export const PETMANAGER_MEDIA_MAX_COMPRESSED_UPLOAD_BYTES = 2 * 1024 * 1024;
 export const PETMANAGER_MEDIA_TARGET_IMAGE_BYTES = 250 * 1024;
 export const PETMANAGER_MEDIA_TARGET_BEFORE_AFTER_SET_BYTES = 500 * 1024;
-export const PETMANAGER_MEDIA_TRANSIENT_RETENTION_DAYS = 30;
+export const PETMANAGER_MEDIA_TRANSIENT_RETENTION_DAYS = 60;
 export const PETMANAGER_MEDIA_DEFAULT_MONTHLY_SOFT_LIMIT_BYTES = 150 * 1024 * 1024;
 export const PETMANAGER_MEDIA_USAGE_APPROACHING_RATIO = 0.8;
 export const PETMANAGER_MEDIA_VARIANT_PROFILES = {
@@ -99,13 +99,13 @@ export function formatPetmanagerMediaBytes(bytes: number) {
 
 export const PETMANAGER_MEDIA_NOTICE_COPY = {
   uploadNotice:
-    "전송용 사진은 30일 동안만 보관돼요. 오래 보관해야 하는 사진은 미용기록에 저장해 주세요.",
-  uploadNoticeShort: "전송용 사진은 30일 후 자동 정리돼요.",
+    "전송용 사진은 60일 동안만 보관돼요. 오래 보관해야 하는 사진은 미용기록에 저장해 주세요.",
+  uploadNoticeShort: "전송용 사진은 60일 후 자동 정리돼요.",
   compression:
     "사진은 모바일 확인에 적합한 크기로 자동 최적화돼요. 원본보다 용량은 줄지만, 고객이 휴대폰으로 확인하기에는 충분한 품질을 유지합니다.",
   usageApproaching:
-    "이번 달 사진 사용량이 많아지고 있어요. 전송용 사진은 자동 압축되며, 30일 후 자동 정리됩니다.",
+    "이번 달 사진 사용량이 많아지고 있어요. 전송용 사진은 자동 압축되며, 60일 후 자동 정리됩니다.",
   usageExceeded:
     "이번 달 사진 사용량이 권장 기준을 넘었어요. 사진 전송은 계속 가능하지만, 장기 보관은 미용기록 저장 사진 위주로 관리해 주세요.",
-  policySummary: "전송용 사진: 30일 보관 / 미용기록 저장 사진: 계속 보관 / 원본 사진: 기본 보관 안 함",
+  policySummary: "전송용 사진: 60일 보관 / 미용기록 저장 사진: 계정 삭제 또는 직접 삭제 시까지 보관 / 원본 사진: 기본 보관 안 함",
 } as const;

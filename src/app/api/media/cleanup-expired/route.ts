@@ -45,7 +45,7 @@ async function runCleanup(request: NextRequest, forceDryRun: boolean) {
 }
 
 export async function GET(request: NextRequest) {
-  return runCleanup(request, true);
+  return runCleanup(request, false);
 }
 
 export async function POST(request: NextRequest) {

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import SetupModal from "@/components/ui/setup-modal";
 import MobileAiPriceGuideFixture, { type PriceGuideSessionState } from "@/components/auth/mobile-ai-price-guide-fixture";
 import { readBootstrapPriceGuideState } from "@/lib/price-photo/bootstrap-price-guide-state";
+import { ownerPriceGuideSessionKey, readOwnerPriceGuideSessionDraft, writeOwnerPriceGuideSessionDraft } from "@/lib/price-photo/owner-price-guide-session-draft";
 import { readSetupCheckpoint, reloadSetup, saveSetupStep, validateSetupHours, writeSetupCheckpoint, type SetupReadiness, type SetupStep } from "@/lib/owner-initial-setup-flow";
 import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileRoleContext } from "@/lib/owner-customer-pet-integrity";
@@ -28,6 +29,7 @@ export default function OwnerInitialSetupFlow({ setup, onRefresh, onDefer, onFin
 
 function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { bootstrap: BootstrapPayload; readiness: SetupReadiness; onDefer: () => void; onFinish: () => void }) {
   const key = `petmanager:initial-setup:${bootstrap.shop.owner_user_id ?? "owner"}:${bootstrap.shop.id}`;
+  const priceGuideKey = ownerPriceGuideSessionKey(bootstrap);
   const [hoursDraft] = useState(() => readHoursDraft(key));
   const [draftNotice, setDraftNotice] = useState("");
   const [step, setStep] = useState<SetupStep>(() => readSetupCheckpoint(key, readiness));
@@ -42,15 +44,31 @@ function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { boots
   const [cycle, setCycle] = useState<SetupClosureCycle>(initialCycle === "biweekly" ? "weekly" : initialCycle);
   const { businessHours: canonicalHours, regularClosedDays } = unifiedHoursPolicy(hours, cycle);
   const { bookingStart, bookingEnd } = bookingBoundsFromHours(canonicalHours);
-  const [draft, setDraft] = useState<PriceGuideSessionState | null>(() => readBootstrapPriceGuideState(bootstrap.services));
+  const [draft, setDraft] = useState<PriceGuideSessionState | null>(() => readOwnerPriceGuideSessionDraft(priceGuideKey) ?? readBootstrapPriceGuideState(bootstrap.services));
   const [uploading, setUploading] = useState(false);
   const uploadLock = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
+  const readbackGeneration = useRef(0);
   const verifiedStaffDraft = useRef<string | null>(null);
   const advance = (next: SetupStep) => { writeSetupCheckpoint(key, next); setStep(next); setError(""); };
   const pause = () => { if (!lock.current && !uploadLock.current && step !== "complete") { writeSetupCheckpoint(key, step); onDefer(); } };
+
+  function verifySavedStepInBackground(savedStep: "hours" | "staff") {
+    const generation = ++readbackGeneration.current;
+    void reloadSetup(bootstrap.shop.id).then((fresh) => {
+      if (generation !== readbackGeneration.current) return;
+      setSavedStaffIds(fresh.staffMembers.map((member) => member.id));
+      if (!fresh.initialSetupReadiness.steps[savedStep]) {
+        setError("저장은 완료됐지만 저장 상태를 확인하지 못했어요. 이전 단계로 돌아가 다시 확인해 주세요.");
+        return;
+      }
+      if (savedStep === "staff") setDraft((current) => current ?? readBootstrapPriceGuideState(fresh.services));
+    }).catch(() => {
+      if (generation === readbackGeneration.current) setError("저장은 완료됐지만 최신 상태를 확인하지 못했어요. 입력 내용은 유지됩니다.");
+    });
+  }
 
   function saveTemporaryHours() {
     if (lock.current) return;
@@ -90,18 +108,15 @@ function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { boots
           role: member.role ?? "직원", position: member.position ?? "직원",
         })) });
       }
-      const fresh = await reloadSetup(bootstrap.shop.id);
-      setSavedStaffIds(fresh.staffMembers.map((member) => member.id));
-      if (!fresh.initialSetupReadiness.steps[step]) throw new Error("저장된 설정을 확인하지 못했어요. 다시 시도해 주세요.");
-      if (step === "staff" && !fresh.initialSetupReadiness.steps.hours) { advance("hours"); throw new Error("영업시간 설정을 다시 확인해 주세요."); }
-      if (step === "hours") { clearHoursDraft(key); setDraftNotice(""); advance("staff"); }
-      else { verifiedStaffDraft.current = JSON.stringify(staff); setDraft((current) => current ?? readBootstrapPriceGuideState(fresh.services)); advance("pricing"); }
+      if (step === "hours") { clearHoursDraft(key); setDraftNotice(""); advance("staff"); verifySavedStepInBackground("hours"); }
+      else { verifiedStaffDraft.current = JSON.stringify(staff); setSavedStaffIds(staff.map((member) => member.id)); advance("pricing"); verifySavedStepInBackground("staff"); }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "설정을 저장하지 못했어요."); }
     finally { lock.current = false; setBusy(false); }
   }
 
   async function verifyComplete() {
     if (lock.current) return;
+    readbackGeneration.current += 1;
     lock.current = true; setBusy(true); setError("");
     try {
       const fresh = await reloadSetup(bootstrap.shop.id);
@@ -115,9 +130,9 @@ function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { boots
     {error && <p role="alert" className="px-5 pt-4 text-[14px] text-red-600">{error}</p>}
     {busy ? <p role="status" className="p-5">저장 상태를 확인하고 있어요.</p> : <MobileAiPriceGuideFixture
       presentation="modal" setupFlow shopId={bootstrap.shop.id} ownerBottomNavigation={false}
-      initialRows={draft?.rows ?? null} initialDocument={draft?.document ?? null} initialServiceId={draft?.serviceId ?? null}
-      onComplete={(_rows, state) => { if (state) setDraft(state); void verifyComplete(); }}
-      onExit={(_rows, state) => { setDraft(state ?? null); advance("staff"); }}
+      initialRows={draft?.rows ?? null} initialDocument={draft?.document ?? null} initialServiceId={draft?.serviceId ?? null} initialResumeMode={draft?.resumeMode}
+      onComplete={(_rows, state) => { if (state) setDraft(state); writeOwnerPriceGuideSessionDraft(priceGuideKey, null); void verifyComplete(); }}
+      onExit={(_rows, state) => { setDraft(state ?? null); writeOwnerPriceGuideSessionDraft(priceGuideKey, state ?? null); advance("staff"); }}
     />}
   </SetupModal>;
 

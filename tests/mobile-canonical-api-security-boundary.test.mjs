@@ -285,6 +285,8 @@ test("owner duplicate routes proxy to canonical APIs and retain boundary gates",
   assert.match(subscriptionSource, /new URLSearchParams\(\{ shopId \}\)/);
   assert.match(bootstrapSource, /initialSetupReadiness/);
   assert.match(bootstrapSource, /requireRecord\(\s*data\.initialSetupReadiness/);
+  assert.match(bootstrapSource, /requestedPhase !== "launch"/);
+  assert.match(bootstrapSource, /requestedPhase === "essential" \|\| requestedPhase === "launch"/);
   assert.doesNotMatch(bootstrapSource, /readiness\.completed !== true/);
 
   assert.match(authSource, /PETMANAGER_MAIN_APP_ORIGIN/);

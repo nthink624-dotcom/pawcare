@@ -16,7 +16,7 @@ test("initial load scopes subscription and bootstrap to the same authorized shop
   );
   assert.match(
     pageSource,
-    /`\/api\/bootstrap\?shopId=\$\{encodeURIComponent\(resolvedShopId\)\}`/,
+    /`\/api\/bootstrap\?shopId=\$\{encodeURIComponent\(resolvedShopId\)\}&phase=launch`/,
   );
   assert.doesNotMatch(
     pageSource,
@@ -29,6 +29,7 @@ test("initial load scopes subscription and bootstrap to the same authorized shop
   const cachedResult = pageSource.indexOf("const cachedBootstrap = storedShopId === resolvedShopId");
   assert.ok(cachedBootstrapStart >= 0 && shopsRequest > cachedBootstrapStart, "cached bootstrap must start before the shops request completes");
   assert.ok(membershipCheck > shopsRequest && cachedResult > membershipCheck, "cached bootstrap must be used only after membership validation");
+  assert.match(pageSource, /setData\(canonicalBootstrap\);[\s\S]*void fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>/);
 });
 
 test("shop changes and foreground refreshes keep subscription scoped to the active shop", () => {

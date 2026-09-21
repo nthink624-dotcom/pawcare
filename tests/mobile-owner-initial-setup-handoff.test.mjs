@@ -56,6 +56,8 @@ test("first signup alone opens the wizard; a saved checkpoint never blocks the o
   assert.match(setupFlow, /advance\("staff"\)/);
   assert.match(setupFlow, /advance\("pricing"\)/);
   assert.match(setupFlow, /await reloadSetup/);
+  assert.equal(setupFlow.match(/await reloadSetup/g)?.length, 1, "intermediate saves must not wait for a second bootstrap request");
+  assert.match(setupFlow, /void reloadSetup[\s\S]*저장은 완료됐지만 최신 상태를 확인하지 못했어요/);
   assert.match(setupFlow, /fresh.initialSetupReadiness.completed/);
   assert.match(setupFlow, /매장 시작하기/);
   assert.doesNotMatch(setupFlow, /PC 오너 화면/);

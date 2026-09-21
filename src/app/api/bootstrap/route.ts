@@ -62,12 +62,12 @@ export async function GET(request: NextRequest) {
 
     const requestedShopId = normalizeCanonicalShopId(request.nextUrl.searchParams.get("shopId"));
     const requestedPhase = request.nextUrl.searchParams.get("phase");
-    if (scope === "owner" && requestedPhase && requestedPhase !== "full" && requestedPhase !== "essential") {
+    if (scope === "owner" && requestedPhase && requestedPhase !== "full" && requestedPhase !== "essential" && requestedPhase !== "launch") {
       throw new OwnerApiError("bootstrap 요청 단계를 확인해 주세요.", 400);
     }
     const query = new URLSearchParams({ scope });
     if (requestedShopId) query.set("shopId", requestedShopId);
-    if (scope === "owner") query.set("phase", requestedPhase === "essential" ? "essential" : "full");
+    if (scope === "owner") query.set("phase", requestedPhase === "essential" || requestedPhase === "launch" ? requestedPhase : "full");
 
     const result = await requestCanonicalApi({
       request,

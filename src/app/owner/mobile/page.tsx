@@ -466,7 +466,7 @@ export default function OwnerMobilePage() {
         // current membership list confirms the same shop ID.
         const cachedBootstrapRequest = storedShopId
           ? fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
-              `/api/bootstrap?shopId=${encodeURIComponent(storedShopId)}`,
+              `/api/bootstrap?shopId=${encodeURIComponent(storedShopId)}&phase=launch`,
               { cache: "no-store" },
             ).then(
               (payload) => ({ ok: true as const, payload }),
@@ -503,7 +503,7 @@ export default function OwnerMobilePage() {
         const bootstrap = cachedBootstrap?.ok
           ? cachedBootstrap.payload
           : await fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
-              `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
+              `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}&phase=launch`,
               { cache: "no-store" },
             );
         if (!active) return;
@@ -549,6 +549,20 @@ export default function OwnerMobilePage() {
         if (subscription) writeOwnerBillingSummaryCache(subscription);
         setData(canonicalBootstrap);
         setSubscriptionSummary(subscription);
+
+        void fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
+          `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
+          { cache: "no-store" },
+        ).then((fullBootstrap) => {
+          if (!active) return;
+          const fullCanonicalBootstrap = assertOwnerBootstrapPayload(fullBootstrap, resolvedShopId, {
+            allowMock: shouldUseLocalMobilePreview(),
+          });
+          resolveOwnerMobileRoleContext(fullCanonicalBootstrap);
+          setData(fullCanonicalBootstrap);
+        }).catch(() => {
+          // Keep the launch snapshot usable when noncritical data cannot refresh yet.
+        });
       } catch (error) {
         if (!active) return;
         const nextMessage = error instanceof Error ? error.message : "모바일 오너 화면을 불러오지 못했습니다.";

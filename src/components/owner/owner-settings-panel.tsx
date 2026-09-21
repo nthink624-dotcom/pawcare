@@ -1003,20 +1003,18 @@ export default function OwnerSettingsPanel({
   const closuresSection = (
     <>
       <div className="mb-3 rounded-[14px] border border-[#e2e7ed] bg-white p-3.5">
-        <button
-          type="button"
-          onClick={() => openBusinessHoursEditor("all")}
-          className="mb-1 flex w-full items-center justify-between gap-3 rounded-[10px] bg-[#eaf1fc] px-3 py-2.5 text-left"
-        >
-          <div className="min-w-0">
-            <p className="text-[20px] font-semibold leading-7 text-[#1d4d9e]">전체 시간 설정</p>
-            <p className="mt-0.5 truncate text-[16px] font-medium leading-6 text-[#4779c7]">{businessHoursSummary}</p>
-          </div>
-          <span className="inline-flex min-h-11 shrink-0 items-center rounded-[7px] border border-[#cfe0f7] bg-white px-3 text-[16px] font-medium leading-6 text-[#2f6fd6]">
-            일괄 적용
-          </span>
-        </button>
         <div className="divide-y divide-[#edf1f5]">
+          <button
+            type="button"
+            onClick={() => openBusinessHoursEditor("all")}
+            className="flex min-h-14 w-full items-center justify-between gap-3 px-1 text-left"
+          >
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="shrink-0 whitespace-nowrap text-[16px] font-medium leading-6 text-[#1e293b]">전체 시간 설정</span>
+              <p className="min-w-0 truncate text-[16px] font-medium leading-6 text-[#334155]">{businessHoursSummary}</p>
+            </div>
+            <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.8} />
+          </button>
           {businessHoursWeekOrder.map((day) => {
             const hours = getBusinessHour(day);
             const isClosed = regularClosedDays.includes(day);
@@ -1028,13 +1026,13 @@ export default function OwnerSettingsPanel({
                 className="flex min-h-14 w-full items-center justify-between gap-3 px-1 text-left"
               >
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <span className={`inline-flex w-10 shrink-0 items-center text-[14px] leading-5 ${businessHoursRowValueWeightClass} ${day === 0 ? "text-[#e0594f]" : day === 6 ? "text-[#2f6fd6]" : "text-[#1e293b]"}`}>
+                  <span className={`inline-flex w-14 shrink-0 items-center whitespace-nowrap text-[16px] leading-6 ${businessHoursRowValueWeightClass} ${day === 0 ? "text-[#e0594f]" : day === 6 ? "text-[#2f6fd6]" : "text-[#1e293b]"}`}>
                     {weekdayLabels[day]}요일
                   </span>
                   {isClosed ? (
                     <span className="inline-flex items-center rounded-[6px] bg-[#fdeeec] px-2 py-1 text-[14px] font-medium leading-5 text-[#b3453b]">휴무</span>
                   ) : (
-                    <p className={`min-w-0 truncate text-[16px] leading-5 text-[#334155] ${businessHoursRowValueWeightClass}`}>{formatBusinessHoursRange(hours)}</p>
+                    <p className={`min-w-0 truncate text-[16px] leading-6 text-[#334155] ${businessHoursRowValueWeightClass}`}>{formatBusinessHoursRange(hours)}</p>
                   )}
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.8} />
@@ -1045,12 +1043,12 @@ export default function OwnerSettingsPanel({
       </div>
 
       <div className="rounded-[14px] border border-[#e2e7ed] bg-white p-3.5">
-        <p className="mb-3 text-[14px] font-semibold text-[#0f172a]">특정 휴무일</p>
+        <p className="mb-3 text-[14px] font-medium leading-5 text-[#0f172a]">특정 휴무일</p>
         <div className="space-y-3">
           <div className="flex gap-2">
             <button
               type="button"
-              className="flex h-[40px] flex-1 items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3 text-[13px] text-[#1e293b]"
+              className="flex min-h-11 flex-1 items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3 text-[16px] font-medium leading-6 text-[#1e293b]"
               onClick={() => setIsClosedDatePickerOpen(true)}
             >
               <span>{pendingClosedDate || "날짜 선택"}</span>
@@ -1058,7 +1056,7 @@ export default function OwnerSettingsPanel({
             </button>
             <button
               type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#2f6fd6] bg-[#2f6fd6] text-white disabled:opacity-50"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[9px] border border-[#2f6fd6] bg-[#2f6fd6] text-white disabled:opacity-50"
               disabled={!pendingClosedDate}
               onClick={() => {
                 addPendingClosedDate();
@@ -1073,11 +1071,11 @@ export default function OwnerSettingsPanel({
                 <button
                   key={date}
                   type="button"
-                  className="flex h-[38px] w-full items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[13px] font-medium text-[#1e293b]"
+                  className="flex min-h-11 w-full items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[14px] font-medium leading-5 text-[#1e293b]"
                   onClick={() => removeTemporaryClosedDate(date)}
                 >
                   <span>{date}</span>
-                  <span className="text-[12px] text-[#94a3b8]">삭제</span>
+                  <span className="text-[12px] font-medium leading-[18px] text-[#94a3b8]">삭제</span>
                 </button>
               ))}
             </div>
@@ -1088,7 +1086,7 @@ export default function OwnerSettingsPanel({
       {savingOperatingInfo || operatingInfoFeedback.type !== "idle" ? (
         <p
           aria-live="polite"
-          className={`px-1 text-[13px] font-medium ${
+          className={`px-1 text-[13px] font-medium leading-5 ${
             savingOperatingInfo
               ? "text-[#4779c7]"
               : operatingInfoFeedback.type === "error"
@@ -1658,17 +1656,23 @@ function BusinessHoursSheet({
   const openInputId = useId();
   const closeInputId = useId();
   const rangeErrorId = useId();
+  const titleId = useId();
   const hasInvalidRange = !draft.closed && !isOrderedTimeRange(draft.open, draft.close);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={() => {
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 px-4 py-6" onClick={() => {
       if (!saving) onClose();
     }}>
-      <div className="w-full max-w-[430px] rounded-t-[28px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
-        <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-stone-200" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="max-h-[calc(100dvh-48px)] w-full max-w-[398px] overflow-y-auto rounded-[18px] bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.22)]"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="mb-3.5 flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
+            <h3 id={titleId} className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[var(--text)]">{title}</h3>
           </div>
           <button
             type="button"
@@ -1684,7 +1688,7 @@ function BusinessHoursSheet({
               className="flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 text-left"
             >
               <div className="min-w-0">
-                <p className="text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">휴무일로 설정</p>
+                <p className="text-[16px] font-medium leading-6 tracking-[-0.005em] text-[var(--text)]">휴무일로 설정</p>
               </div>
               <Switch
                 checked={draft.closed}
@@ -1769,23 +1773,23 @@ function ClosedDatePickerSheet({
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-semibold text-[var(--text)]">특정 휴무일 추가</h3>
+            <h3 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[var(--text)]">특정 휴무일 추가</h3>
           </div>
-          <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
+          <button className="min-h-11 min-w-11 text-[14px] font-medium leading-5 text-[var(--muted)]" onClick={onClose}>닫기</button>
         </div>
         <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="mb-4 flex items-center justify-between">
-            <button type="button" className="rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onPrevMonth}>
+            <button type="button" className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onPrevMonth}>
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <p className="text-sm font-semibold text-[var(--text)]">{monthLabel}</p>
-            <button type="button" className="rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onNextMonth}>
+            <p className="text-[14px] font-medium leading-5 text-[var(--text)]">{monthLabel}</p>
+            <button type="button" className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onNextMonth}>
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
           <div className="mb-2 grid grid-cols-7 gap-2">
             {weekdayLabels.map((label) => (
-              <div key={label} className="text-center text-xs font-semibold text-[var(--muted)]">{label}</div>
+              <div key={label} className="text-center text-[12px] font-medium leading-[18px] text-[var(--muted)]">{label}</div>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-2">
@@ -1797,7 +1801,7 @@ function ClosedDatePickerSheet({
                   key={date}
                   type="button"
                   onClick={() => onSelectDate(date)}
-                  className={`h-11 rounded-[16px] text-sm font-semibold transition ${
+                  className={`h-11 rounded-[16px] text-[14px] font-medium leading-5 transition ${
                     active ? "bg-[var(--accent)] text-white" : "border border-[var(--border)] bg-white text-[var(--text)]"
                   }`}
                 >

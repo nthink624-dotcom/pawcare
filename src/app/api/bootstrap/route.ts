@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const scope = searchParams.get("scope") || "owner";
     const requestedShopId = searchParams.get("shopId") || undefined;
-    const phase = searchParams.get("phase") === "essential" ? "essential" : "full";
+    const requestedPhase = searchParams.get("phase");
+    const phase = requestedPhase === "essential" || requestedPhase === "launch" ? requestedPhase : "full";
 
     if (scope === "public") {
       const shopId = requestedShopId || "demo-shop";
@@ -69,6 +70,7 @@ export async function GET(request: NextRequest) {
       includeNotifications: phase === "full",
       includeGroomingRecords: phase === "full",
       includeOwnerExtras: phase === "full",
+      includeOwnerProfile: phase === "full" || phase === "launch",
       includeStaffProfileImages: phase === "full",
       includePetDisplayPhotos: phase === "full",
     });

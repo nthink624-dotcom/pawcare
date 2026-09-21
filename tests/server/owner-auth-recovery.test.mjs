@@ -68,6 +68,7 @@ test("essential bootstrap keeps owner authorization and defers noncritical reads
   assert.match(route, /includeNotifications: phase === "full"/);
   assert.match(route, /includeGroomingRecords: phase === "full"/);
   assert.match(route, /includeOwnerExtras: phase === "full"/);
+  assert.match(route, /includeOwnerProfile: phase === "full" \|\| phase === "launch"/);
   assert.match(ownerPage, /loadBootstrap\(resolvedShopId, "full"\)/);
   assert.ok(ownerPage.indexOf('setData(bootstrap)') < ownerPage.indexOf('loadBootstrap(resolvedShopId, "full")'));
 });

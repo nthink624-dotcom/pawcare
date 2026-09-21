@@ -50,6 +50,7 @@ type BootstrapOptions = {
   includeNotifications?: boolean;
   includeGroomingRecords?: boolean;
   includeOwnerExtras?: boolean;
+  includeOwnerProfile?: boolean;
   includeStaffProfileImages?: boolean;
   includePilotCohort?: boolean;
   includePetDisplayPhotos?: boolean;
@@ -428,6 +429,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   const includeNotifications = options.includeNotifications ?? true;
   const includeGroomingRecords = options.includeGroomingRecords ?? true;
   const includeOwnerExtras = options.includeOwnerExtras ?? true;
+  const includeOwnerProfile = options.includeOwnerProfile ?? includeOwnerExtras;
   const includeStaffProfileImages = options.includeStaffProfileImages ?? true;
   const includePilotCohort = options.includePilotCohort ?? true;
   const includePetDisplayPhotos = options.includePetDisplayPhotos ?? false;
@@ -502,7 +504,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   const petStaffNotesQuery = includeOwnerExtras
     ? supabase.from("pet_staff_notes").select("*").eq("shop_id", shopId).order("updated_at", { ascending: false })
     : Promise.resolve({ data: [], error: null });
-  const ownerProfileQuery = includeOwnerExtras
+  const ownerProfileQuery = includeOwnerProfile
     ? supabase
         .from("owner_profiles")
         .select("user_id,shop_id,login_id,name,birth_date,phone_number,identity_verified_at,agreements,created_at,updated_at")

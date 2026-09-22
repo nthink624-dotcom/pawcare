@@ -39,7 +39,18 @@ const AWS_SERVICE = "s3";
 const UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
 
 function getMediaStorageProvider(): StorageProvider {
-  return process.env.MEDIA_STORAGE_PROVIDER === "r2" ? "r2" : "supabase";
+  return process.env.MEDIA_STORAGE_PROVIDER === "r2" || process.env.VERCEL_ENV === "production"
+    ? "r2"
+    : "supabase";
+}
+
+function getMediaStorageProviderForPath(path: string): StorageProvider {
+  if (/^(?:transient|retained)\/supabase\//.test(path)) return "supabase";
+  if (/^(?:transient|retained)\/shops\//.test(path) || path.startsWith("shops/")) {
+    return getMediaStorageProvider();
+  }
+  // Mobile uploads created before lifecycle prefixes used <shopId>/... in Supabase Storage.
+  return "supabase";
 }
 
 function getSupabaseStorageAdmin() {
@@ -198,7 +209,7 @@ export async function createMediaSignedUploadUrl(input: CreateSignedUploadUrlInp
 }
 
 export async function createMediaSignedReadUrl(input: CreateSignedReadUrlInput) {
-  if (getMediaStorageProvider() === "r2") {
+  if (getMediaStorageProviderForPath(input.path) === "r2") {
     return buildR2SignedUrl({
       method: "GET",
       bucket: input.bucket,
@@ -219,48 +230,50 @@ export async function createMediaSignedReadUrl(input: CreateSignedReadUrlInput) 
 export async function removeMediaStorageObjects(input: RemoveObjectsInput) {
   if (!input.paths.length) return;
 
-  if (getMediaStorageProvider() === "r2") {
-    for (const path of input.paths) {
-      const signedUrl = buildR2SignedUrl({
-        method: "DELETE",
-        bucket: input.bucket,
-        path,
-        expiresInSeconds: 60,
-      });
-      const response = await fetch(signedUrl, { method: "DELETE" });
-      if (!response.ok && response.status !== 404) {
-        throw new Error(`R2 delete failed for ${path}: ${response.status}`);
-      }
+  const r2Paths = input.paths.filter((path) => getMediaStorageProviderForPath(path) === "r2");
+  const supabasePaths = input.paths.filter((path) => getMediaStorageProviderForPath(path) === "supabase");
+
+  for (const path of r2Paths) {
+    const signedUrl = buildR2SignedUrl({
+      method: "DELETE",
+      bucket: input.bucket,
+      path,
+      expiresInSeconds: 60,
+    });
+    const response = await fetch(signedUrl, { method: "DELETE" });
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`R2 delete failed for ${path}: ${response.status}`);
     }
-    return;
   }
 
-  const admin = getSupabaseStorageAdmin();
-  const removeResult = await admin.storage.from(input.bucket).remove(input.paths);
-  if (removeResult.error) {
-    throw new Error(removeResult.error.message);
+  if (supabasePaths.length) {
+    const admin = getSupabaseStorageAdmin();
+    const removeResult = await admin.storage.from(input.bucket).remove(supabasePaths);
+    if (removeResult.error) {
+      throw new Error(removeResult.error.message);
+    }
   }
 }
 
 export async function verifyMediaStorageObjectsAbsent(input: RemoveObjectsInput) {
-  if (getMediaStorageProvider() === "r2") {
-    for (const path of input.paths) {
-      const signedUrl = buildR2SignedUrl({
-        method: "HEAD",
-        bucket: input.bucket,
-        path,
-        expiresInSeconds: 60,
-      });
-      const response = await fetch(signedUrl, { method: "HEAD", cache: "no-store" });
-      if (response.status === 404) continue;
-      if (response.ok) return false;
-      throw new Error("R2 media cleanup verification failed.");
-    }
-    return true;
+  const r2Paths = input.paths.filter((path) => getMediaStorageProviderForPath(path) === "r2");
+  const supabasePaths = input.paths.filter((path) => getMediaStorageProviderForPath(path) === "supabase");
+
+  for (const path of r2Paths) {
+    const signedUrl = buildR2SignedUrl({
+      method: "HEAD",
+      bucket: input.bucket,
+      path,
+      expiresInSeconds: 60,
+    });
+    const response = await fetch(signedUrl, { method: "HEAD", cache: "no-store" });
+    if (response.status === 404) continue;
+    if (response.ok) return false;
+    throw new Error("R2 media cleanup verification failed.");
   }
 
   const admin = getSupabaseStorageAdmin();
-  for (const path of input.paths) {
+  for (const path of supabasePaths) {
     const parts = path.split("/");
     const fileName = parts.pop();
     if (!fileName) throw new Error("Media cleanup verification path is invalid.");

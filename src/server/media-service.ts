@@ -91,9 +91,8 @@ const attachmentRoles = new Set<NotificationMediaAttachmentRole>([
   "other",
 ]);
 const transientKinds = new Set<MediaKind>([
-  "grooming_before",
-  "grooming_after",
   "message_image",
+  "price_guide_source",
   "feedback_screenshot",
   "customer_shared",
 ]);
@@ -333,6 +332,7 @@ function buildStoragePath(params: {
   shopId: string;
   mediaAssetId: string;
   mediaKind: MediaKind;
+  retentionPolicy: MediaRetentionPolicy;
   contentType: string;
   guardianId?: string | null;
   petId?: string | null;
@@ -579,6 +579,9 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
   const retentionPolicy = retentionValues.has(input.retentionPolicy as MediaRetentionPolicy)
     ? (input.retentionPolicy as MediaRetentionPolicy)
     : defaultRetentionForKind(mediaKind);
+  if (retentionPolicy === "archive" && !mediaLimitPolicy.allowOriginalArchive) {
+    throw new OwnerApiError("원본 장기 보관은 현재 저장 정책에서 지원하지 않습니다.", 403);
+  }
   const uploadedFrom = uploadSources.has(input.uploadedFrom as MediaUploadSource)
     ? (input.uploadedFrom as MediaUploadSource)
     : "owner_web";
@@ -612,6 +615,7 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     shopId: owner.shopId,
     mediaAssetId,
     mediaKind,
+    retentionPolicy,
     contentType,
     guardianId,
     petId,
@@ -1637,6 +1641,9 @@ export async function cleanupExpiredTransientMedia(input: CleanupExpiredMediaInp
 
       for (const [bucket, paths] of pathsByBucket.entries()) {
         await removeMediaStorageObjects({ bucket, paths });
+        if (!(await verifyMediaStorageObjectsAbsent({ bucket, paths }))) {
+          throw new Error("Media cleanup verification found a remaining storage object.");
+        }
       }
 
       const updateResult = await admin

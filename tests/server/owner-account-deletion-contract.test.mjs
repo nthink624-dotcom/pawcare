@@ -116,7 +116,7 @@ test("public deletion controls keep explicit confirmation and 44px targets", () 
 test("public privacy copy matches current data flows without guessing provider guarantees", () => {
   const privacy = read("src/lib/legal/privacy-policy.ts");
 
-  assert.match(privacy, /시행일자: 2026년 9월 10일/);
+  assert.match(privacy, /시행일자: 2026년 9월 21일/);
   assert.match(privacy, /https:\/\/www\.petmanager\.co\.kr\/privacy/);
   assert.match(privacy, /고객: 보호자 이름, 휴대폰번호/);
   assert.match(privacy, /반려동물: 이름, 품종, 체중/);
@@ -132,6 +132,8 @@ test("public privacy copy matches current data flows without guessing provider g
   assert.match(privacy, /DeepSeek에 서비스명, 실제 소요 시간/);
   assert.match(privacy, /사진과 원음은 보내지 않으며/);
   assert.match(privacy, /hard purge/);
+  assert.match(privacy, /60일 동안 보관하며, 보관기간 만료 후 일일 자동 정리 작업에서 삭제/);
+  assert.match(privacy, /직접 삭제하거나 해당 매장·계정을 삭제할 때까지 보관/);
   assert.match(privacy, /근거 없이 공유 없음으로 표시하지 않습니다/);
   assert.match(privacy, /전송 암호화는 별도 운영 증거 확인 전 포괄적으로 보장하지 않습니다/);
   assert.match(privacy, /공개 계정 삭제 요청 페이지 https:\/\/www\.petmanager\.co\.kr\/account-deletion/);

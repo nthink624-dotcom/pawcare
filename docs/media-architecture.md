@@ -39,6 +39,13 @@ https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com
 
 The bucket must remain private. PetManager issues short-lived signed upload/read URLs after owner/shop authorization.
 
+Object keys are separated by lifecycle purpose:
+
+- `transient/`: customer-send, message, feedback, and failed temporary processing objects; delete after 60 days
+- `retained/`: grooming records and profile images; no bucket-wide automatic expiry
+
+Configure any R2 lifecycle rule only for the `transient/` prefix. Never apply a 60-day rule to the whole bucket.
+
 R2 bucket CORS must allow browser uploads from production and local development:
 
 ```json
@@ -75,7 +82,7 @@ PetManager media is an operational feature with real storage and transfer cost. 
 
 Recommended default retention:
 
-- customer-send temporary images: 30-90 days
+- customer-send temporary images: 60 days
 - grooming record selected images: retained while the shop keeps the record
 - original uploads: not stored, or deleted after variants are ready
 - archived originals: paid option only

@@ -267,9 +267,7 @@ async function createUploadIntent(
         : mediaKind === "price_guide_source" || mediaKind === "feedback_screenshot"
           ? "private"
           : "customer_shared",
-      retentionPolicy: mediaKind === "price_guide_source"
-        ? "archive"
-        : mediaKind === "feedback_screenshot"
+      retentionPolicy: mediaKind === "price_guide_source" || mediaKind === "feedback_screenshot"
           ? "transient"
           : "standard",
       uploadedFrom: "owner_web",

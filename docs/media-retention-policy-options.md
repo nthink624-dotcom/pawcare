@@ -93,7 +93,7 @@ Cons:
 
 Start with Option A:
 
-- default temporary retention: 30 days
+- default temporary retention: 60 days
 - original storage: off
 - grooming record selected images: keep
 - monthly soft limit: 150 MB per shop
@@ -114,9 +114,10 @@ POST /api/media/cleanup-expired
 
 Safety rule:
 
-- `GET` is always dry-run.
+- authenticated scheduled `GET` honors `dryRun` and is used by Vercel Cron.
 - `POST` defaults to dry-run.
+- `GET` and `POST` both require the cron secret in Production.
 - `POST /api/media/cleanup-expired?dryRun=false` performs deletion.
-- Production requires `MEDIA_CLEANUP_CRON_SECRET`, falling back to `NOTIFICATION_CRON_SECRET` if unset.
+- Production uses `MEDIA_CLEANUP_CRON_SECRET`, falling back to Vercel `CRON_SECRET` and then `NOTIFICATION_CRON_SECRET`.
 
 Run dry-run first in production before enabling actual cleanup.

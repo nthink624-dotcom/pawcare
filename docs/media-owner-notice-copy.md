@@ -7,14 +7,14 @@ PetManager should clearly explain that message photos are temporary unless the o
 Use near the photo upload button or send modal.
 
 ```text
-전송용 사진은 30일 동안만 보관돼요.
+전송용 사진은 60일 동안만 보관돼요.
 오래 보관해야 하는 사진은 미용기록에 저장해 주세요.
 ```
 
 Short version:
 
 ```text
-전송용 사진은 30일 후 자동 정리돼요.
+전송용 사진은 60일 후 자동 정리돼요.
 ```
 
 ## Before Send Confirmation
@@ -22,7 +22,7 @@ Short version:
 Use when the owner sends before/after photos to a customer.
 
 ```text
-고객에게 보낸 사진은 최근 전송 내역에서 30일 동안 확인할 수 있어요.
+고객에게 보낸 사진은 최근 전송 내역에서 60일 동안 확인할 수 있어요.
 미용기록에 저장한 사진은 계속 보관됩니다.
 ```
 
@@ -32,7 +32,7 @@ Use when the owner chooses whether to save a photo into the record.
 
 ```text
 이 사진을 미용기록에 저장하면 고객 상세에서 계속 확인할 수 있어요.
-저장하지 않은 전송용 사진은 30일 후 자동 정리됩니다.
+저장하지 않은 전송용 사진은 60일 후 자동 정리됩니다.
 ```
 
 ## Usage Warning
@@ -41,7 +41,7 @@ Use when the shop approaches the monthly soft limit.
 
 ```text
 이번 달 사진 사용량이 많아지고 있어요.
-전송용 사진은 자동 압축되며, 30일 후 자동 정리됩니다.
+전송용 사진은 자동 압축되며, 60일 후 자동 정리됩니다.
 ```
 
 When over the soft limit:
@@ -80,8 +80,8 @@ Keep this minimal. Customers do not need storage-policy detail unless they are v
 Use in a future settings/help surface.
 
 ```text
-전송용 사진: 30일 보관
-미용기록 저장 사진: 계속 보관
+전송용 사진: 60일 보관
+미용기록 저장 사진: 직접 삭제 또는 계정 삭제 시까지 보관
 원본 사진: 기본 보관 안 함
 ```
 

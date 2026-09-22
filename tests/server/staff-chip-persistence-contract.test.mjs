@@ -157,8 +157,9 @@ test("a no-store requery failure leaves the acknowledged state intact and reject
   assert.deepEqual(calls, ["PATCH", "ACK", "GET:no-store"]);
 });
 
-test("detail save uses the server acknowledgement immediately and leaves one non-blocking recovery path", () => {
+test("staff saves acknowledge immediately, then revalidate without blocking the saved state", () => {
   const preview = source("src/components/owner-web/owner-web-preview.tsx");
+  const shell = source("src/components/owner-web/owner-web-app-shell.tsx");
   const screen = source("src/components/owner-web/staff-management-screen.tsx");
   const actions = source("src/components/owner-web/staff-management-ui.tsx");
 
@@ -167,10 +168,17 @@ test("detail save uses the server acknowledgement immediately and leaves one non
   assert.match(preview, /저장 결과를 다시 확인하지 못했습니다\. 입력 내용은 유지했습니다\./);
   assert.match(preview, /setLiveStaffMembers\(acknowledged\.staffMembers\)/);
   assert.match(preview, /cache: "no-store"/);
+  assert.match(preview, /function preloadStaffManagementScreen\(\)[\s\S]*?void import\("@\/components\/owner-web\/staff-management-screen"\)/);
+  assert.match(preview, /window\.setTimeout\(preloadStaffManagementScreen, 1_200\)/);
+  assert.match(preview, /onScreenPrefetch=\{handleScreenPrefetch\}/);
+  assert.match(shell, /onMouseEnter=\{\(\) => onScreenPrefetch\?\.\(screen\.key\)\}/);
+  assert.match(shell, /onFocus=\{\(\) => onScreenPrefetch\?\.\(screen\.key\)\}/);
   assert.match(screen, /\{ deferEssentialRefresh: true \}/);
   assert.match(screen, /setStaffDetailDialogOpen\(false\)/);
   assert.match(screen, /result\?\.backgroundRefresh/);
-  assert.match(screen, /await result\.backgroundRefresh/);
+  assert.match(screen, /void result\.backgroundRefresh\.catch/);
+  assert.doesNotMatch(screen, /await result\.backgroundRefresh/);
+  assert.match(screen, /직원 정보는 저장됐지만 최신 정보를 다시 확인하지 못했습니다\./);
   assert.doesNotMatch(screen, /저장한 직원 색은 반영됐습니다/);
   assert.match(preview, /onSaveSuccess=\{undefined\}/);
   assert.doesNotMatch(preview, /onSaveSuccess=\{initialSetupMode/);

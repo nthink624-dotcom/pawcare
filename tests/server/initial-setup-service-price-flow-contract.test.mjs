@@ -43,7 +43,7 @@ test("direct registration opens a structure-only inline matrix without seeded sh
 
   assert.match(manual, /return createDirectPriceGuideSkeleton\(\)/);
   assert.match(manual, /manualMatrixMode \|\| photoEditing \? \([\s\S]*<PriceGuideNativeInlineTable/);
-  assert.match(manual, /headerSlot=\{manualMatrixMode \? \([\s\S]*aria-label="등록 방식으로 돌아가기"[\s\S]*요금표 직접 등록/);
+  assert.match(manual, /priceFirstDurationControls=\{manualMatrixMode\}[\s\S]*hideHeader=\{manualMatrixMode\}/);
   assert.match(inlineMatrix, /headerSlot\?: ReactNode/);
   assert.doesNotMatch(manual, /buildDefaultPriceGuideV2Draft|PriceGuideRoughInputPanel|한 줄 메모로 초안 만들기/);
   assert.match(matrixModel, /DIRECT_MATRIX_INITIAL_CUTOFFS_KG = \[2, 4, 6, 8\]/);

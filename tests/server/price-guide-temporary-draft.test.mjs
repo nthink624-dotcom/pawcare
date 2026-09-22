@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createPriceGuidePhotoImportFixture } from "../../src/lib/price-guide-photo-import-fixture.ts";
 import { priceGuideDraftKey, savePriceGuideTemporaryDraft, readPriceGuideTemporaryDraft, PRICE_GUIDE_DRAFT_TTL } from "../../src/lib/price-guide-temporary-draft.ts";
@@ -24,4 +25,22 @@ test("malformed data is discarded and extra file/auth fields cannot enter storag
 test("quota errors propagate rather than report a successful save",()=>{
  const store=storage();store.setItem=()=>{throw new Error("quota");};
  assert.throws(()=>savePriceGuideTemporaryDraft(store,"key",createPriceGuidePhotoImportFixture().document),/quota/);
+});
+
+test("editing is automatically persisted across browser sessions and restored in the same editor", async()=>{
+ const [hook, photo, manual] = await Promise.all([
+  readFile(new URL("../../src/components/owner-web/use-price-guide-temporary-draft.ts", import.meta.url), "utf8"),
+  readFile(new URL("../../src/components/owner-web/price-guide-photo-onboarding.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../../src/components/owner-web/price-guide-manual-onboarding.tsx", import.meta.url), "utf8"),
+ ]);
+ assert.match(hook,/const persistedResume = readPriceGuideTemporaryDraft\(localStorage, editingKey\)/);
+ assert.match(hook,/const sessionResume = readPriceGuideTemporaryDraft\(sessionStorage, editingKey\)/);
+ assert.match(hook,/savePriceGuideTemporaryDraft\(localStorage, editingKey, document\)/);
+ assert.match(hook,/localStorage\.setItem\(`\$\{editingKey\}:mode`, editorMode\)/);
+ assert.match(hook,/작성 내용이 자동 저장됐어요/);
+ assert.match(photo,/setEditorMode\(temporaryDraft\.resumeEditorMode \?\? "photo-review"\)/);
+ assert.match(photo,/temporaryDraft\.rememberEditing\(document, "direct"\)/);
+ assert.match(photo,/temporaryDraft\.rememberEditing\(document, "photo-review"\)/);
+ assert.match(manual,/data-price-guide-autosave-status/);
+ assert.doesNotMatch(`${photo}\n${manual}`,/>임시 저장<\/button>/);
 });

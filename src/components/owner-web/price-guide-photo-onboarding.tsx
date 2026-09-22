@@ -46,7 +46,6 @@ function AnalyzedPriceGuideEditor({
   onBack,
   onSave,
   onSaveActionReady,
-  onTemporarySave,
   temporarySaveNotice,
 }: {
   document: PriceGuideV2;
@@ -54,7 +53,6 @@ function AnalyzedPriceGuideEditor({
   onBack: () => void;
   onSave: (document: PriceGuideV2) => Promise<boolean>;
   onSaveActionReady?: (action: (() => Promise<void | boolean>) | null) => void;
-  onTemporarySave: (document: PriceGuideV2) => Promise<void>;
   temporarySaveNotice: string;
 }) {
   const [validationAttempted, setValidationAttempted] = useState(false);
@@ -97,14 +95,11 @@ function AnalyzedPriceGuideEditor({
 
   return (
     <section className="min-w-0 space-y-3" data-testid="price-guide-analyzed-editor" data-price-guide-layout="service-columns">
-      <div className="flex flex-wrap items-center justify-between gap-2">
       <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 !text-[14px] !font-medium !leading-5 text-[#526174] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         등록 방식으로 돌아가기
       </button>
-      <button type="button" disabled={saving} onClick={() => void onTemporarySave(document)} className="min-h-11 rounded-[10px] border border-[#cbd5e1] bg-white px-4 text-[16px] font-medium leading-6 disabled:opacity-50">임시 저장</button>
-      </div>
-      {temporarySaveNotice && <p role="status" className="text-[16px] leading-6 text-[#526174]">{temporarySaveNotice}</p>}
+      {temporarySaveNotice && <p role="status" aria-live="polite" data-price-guide-autosave-status className="text-[16px] leading-6 text-[#526174]">{temporarySaveNotice}</p>}
       <div className="min-w-0" data-price-guide-horizontal-scroll="native-table">
         <PriceGuideNativeInlineTable
           document={document}
@@ -119,7 +114,6 @@ function AnalyzedPriceGuideEditor({
       </div>
       {saveError ? <p role="alert" className="text-[13px] font-medium leading-5 text-[#a04455]">{saveError}</p> : null}
       <div className="flex flex-wrap gap-3">
-      <button type="button" disabled={saving} onClick={() => void onTemporarySave(document)} className="min-h-11 rounded-[10px] border border-[#cbd5e1] bg-white px-5 text-[16px] font-medium leading-6 disabled:opacity-50">임시 저장</button>
       <button type="button" onClick={() => void saveDraft()} disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[#172033] px-5 !text-[16px] !font-medium !leading-6 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
         <Check className="h-4 w-4" aria-hidden="true" />
         {saving ? "저장 중" : "상세 요금표 저장"}
@@ -165,9 +159,9 @@ export default function PriceGuidePhotoOnboarding({
     if (recoveredEditingRef.current || !temporaryDraft.resumeDocument) return;
     recoveredEditingRef.current = true;
     setManualDocument(temporaryDraft.resumeDocument);
-    setEditorMode("photo-review");
+    setEditorMode(temporaryDraft.resumeEditorMode ?? "photo-review");
     setMode("manual");
-  }, [temporaryDraft.resumeDocument]);
+  }, [temporaryDraft.resumeDocument, temporaryDraft.resumeEditorMode]);
 
   useEffect(() => {
     if (mode === "photo") photoHeadingRef.current?.focus();
@@ -236,7 +230,7 @@ export default function PriceGuidePhotoOnboarding({
     setError("");
     setSupportCode(null);
     setManualDocument(nextResult.document);
-    void temporaryDraft.rememberEditing(nextResult.document);
+    void temporaryDraft.rememberEditing(nextResult.document, "photo-review");
     setEditorMode("photo-review");
     clearPhotoTemporaryState();
     setMode("manual");
@@ -381,7 +375,6 @@ export default function PriceGuidePhotoOnboarding({
   }
 
   function returnToChoice() {
-    void temporaryDraft.clearEditing().catch(() => {});
     clearPhotoTemporaryState();
     setError("");
     setSupportCode(null);
@@ -393,7 +386,7 @@ export default function PriceGuidePhotoOnboarding({
   function selectMode(nextMode: OnboardingMode) {
     onSaveActionReady?.(null);
     if (nextMode === "manual") {
-      setManualDocument(initialDocument);
+      setManualDocument((current) => current ?? initialDocument);
       setEditorMode("direct");
     }
     setMode(nextMode);
@@ -423,8 +416,8 @@ export default function PriceGuidePhotoOnboarding({
           initialDocument={manualDocument}
           onBack={returnToChoice}
           onSave={applyReviewedDocument}
-          onTemporarySave={temporaryDraft.save}
           temporarySaveNotice={temporaryDraft.notice}
+          onDraftChange={(document) => { setManualDocument(document); void temporaryDraft.rememberEditing(document, "direct"); }}
           manualMatrixMode
           onSaveActionReady={onSaveActionReady}
         />
@@ -433,10 +426,9 @@ export default function PriceGuidePhotoOnboarding({
       {mode === "manual" && editorMode === "photo-review" && manualDocument ? (
         <AnalyzedPriceGuideEditor
           document={manualDocument}
-          onChange={(document) => { setManualDocument(document); void temporaryDraft.rememberEditing(document); }}
+          onChange={(document) => { setManualDocument(document); void temporaryDraft.rememberEditing(document, "photo-review"); }}
           onBack={returnToChoice}
           onSave={applyReviewedDocument}
-          onTemporarySave={temporaryDraft.save}
           temporarySaveNotice={temporaryDraft.notice}
           onSaveActionReady={onSaveActionReady}
         />

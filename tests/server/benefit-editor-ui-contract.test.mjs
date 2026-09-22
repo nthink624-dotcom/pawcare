@@ -6,17 +6,17 @@ function readProjectFile(path) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
-test("benefit editor keeps the compact blue selection, tab, and footer accessibility contract", () => {
+test("benefit editor keeps the readable blue selection, tab, and footer accessibility contract", () => {
   const panel = readProjectFile("src/components/owner-web/benefits-management-panel.tsx");
   const form = readProjectFile("src/components/owner-web/benefit-registration-form.tsx");
   const table = readProjectFile("src/components/owner-web/benefit-management-table.tsx");
   const globals = readProjectFile("src/app/globals.css");
   const ownerShell = readProjectFile("src/components/owner-web/owner-web-app-shell.tsx");
 
-  assert.match(panel, /h-11.*text-\[14px\].*font-medium.*focus-visible:ring-2/);
+  assert.match(panel, /h-11.*text-\[16px\].*font-medium.*leading-6.*focus-visible:ring-2/);
   assert.match(panel, /benefit-management-tab[^"\n]*focus-visible:ring-\[#2563eb\]/);
   assert.match(ownerShell, /owner-font pm-owner-web/);
-  assert.match(globals, /\.owner-font button,[\s\S]*font: inherit;[\s\S]*\.pm-owner-web\.owner-font \.benefit-management-panel \.benefit-management-tab\s*\{[\s\S]*font-size: 14px;[\s\S]*font-weight: 500;[\s\S]*line-height: 20px;/);
+  assert.match(globals, /\.owner-font button,[\s\S]*font-family: inherit;[\s\S]*\.pm-owner-web\.owner-font \.benefit-management-panel \.benefit-management-tab\s*\{[\s\S]*font-size: 16px;[\s\S]*font-weight: 500;[\s\S]*line-height: 24px;/);
   assert.match(panel, /aria-selected=\{view === "register"\}/);
   assert.match(panel, /aria-selected=\{view === "manage"\}/);
   assert.match(panel, /id="benefit-register-panel"[\s\S]*id="benefit-manage-panel"/);

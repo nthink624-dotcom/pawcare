@@ -40,8 +40,8 @@ export function StaffMonthlySchedule({
   return (
     <>
       <div className="flex h-full min-h-0 max-w-full flex-col overflow-hidden bg-white">
-        <div className="min-h-0 max-w-full flex-1 overflow-hidden">
-          <div className="flex h-full w-full min-w-[980px] flex-col">
+        <div className="min-h-0 max-w-full flex-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex h-full w-full min-w-[1120px] flex-col">
             <div className="grid min-w-0 shrink-0 grid-cols-7 border-l border-t border-[#e1e1dd] bg-[#f7f7f4] text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#6f747a]">
               {monthlyWeekdayColumns.map((day, index) => (
                 <div key={day.key} className={cn("flex h-[34px] items-center justify-center border-b border-r border-[#e1e1dd] pt-px", index === 0 && "border-l-0")}>
@@ -137,7 +137,7 @@ function MonthlyDayCell({
       <div className="mb-[3px] flex h-5 shrink-0 items-center justify-between gap-2">
         <span
           className={cn(
-            "inline-flex h-6 min-w-6 items-center justify-center rounded-[7px] px-1.5 text-[14px] font-normal leading-5",
+            "inline-flex h-6 min-w-6 items-center justify-center rounded-[7px] px-1.5 text-[16px] font-normal leading-6",
             day.isToday ? "bg-[#30312f] text-white" : day.isCurrentMonth ? "text-[#202124]" : "text-[#9a9a94]",
           )}
         >
@@ -157,15 +157,15 @@ function MonthlyDayCell({
                 onOpenScheduleEditor(staffMember, day);
               }}
               className={cn(
-                "pm-wrap-indicator flex h-[21px] w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[6px] border bg-white px-[7px] text-left !text-[12px] !font-medium !leading-[18px] transition hover:bg-[#f7f7f4]",
+                "pm-wrap-indicator flex h-7 w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[6px] border bg-white px-[7px] text-left !text-[14px] !font-medium !leading-5 transition hover:bg-[#f7f7f4]",
                 getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
               )}
               style={{ "--pm-wrap-indicator-color": staffTone.selectedBackground } as CSSProperties}
             >
-              <span className="inline-flex min-w-0 items-center truncate text-[12px] font-medium leading-[18px]" style={{ color: staffTone.text }}>
+              <span className="inline-flex min-w-0 items-center truncate text-[14px] font-medium leading-5" style={{ color: staffTone.text }}>
                 {staffMember.name}
               </span>
-              <span className="inline-flex shrink-0 items-center text-[12px] font-medium leading-[18px] tabular-nums text-[#6f747a]">{cell.label}</span>
+              <span className="inline-flex shrink-0 items-center text-[14px] font-medium leading-5 tabular-nums text-[#6f747a]">{cell.label}</span>
             </button>
           );
         })}

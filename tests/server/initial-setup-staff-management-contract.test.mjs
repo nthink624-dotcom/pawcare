@@ -17,7 +17,7 @@ test("staff setup uses a responsive one-row header and left-aligned three-step r
   assert.doesNotMatch(guide, /data-testid="owner-initial-setup-action-row"/);
   assert.match(guide, /data-testid="owner-initial-setup-header-actions"/);
   assert.doesNotMatch(guide, /mt-3 flex min-h-11 min-w-0 justify-end empty:hidden/);
-  assert.match(guide, /나중에 하기[\s\S]*data-testid="owner-initial-setup-header-actions"[\s\S]*초기 설정 닫기/);
+  assert.match(guide, /저장하고 나중에[\s\S]*data-testid="owner-initial-setup-header-actions"[\s\S]*초기 설정 닫기/);
   assert.match(guide, /\{previousItem \? \([\s\S]*?onClick=\{\(\) => onNavigate\(previousItem\.screen\)\}[\s\S]*?aria-label="이전 단계로"[\s\S]*?\) : null\}/);
   assert.equal([...guide.matchAll(/whitespace-nowrap/g)].length >= 3, true);
   assert.match(guide, /id="owner-initial-setup-title"[\s\S]*?\[overflow-wrap:anywhere\][^"\n]*\[word-break:keep-all\]/);
@@ -33,7 +33,7 @@ test("staff setup keeps explicit Save and Next actions independent", async () =>
   ]);
   assert.match(panel, /<OwnerInitialSetupSaveNextActions onSave=\{onSave\} onNext=\{onNext\} saving=\{isSaving\} \/>/);
   assert.doesNotMatch(panel, /저장하고 다음/);
-  assert.match(screen, /onSave=\{\(\) => void saveInitialSetupStaff\(\)\}/);
+  assert.match(screen, /onSave=\{saveInitialSetupStaff\}/);
   assert.match(screen, /onNext=\{\(\) => onInitialSetupNext\?\.\(\)\}/);
   const saveHandlerStart = preview.indexOf("function handleInitialSetupStepSaved");
   const saveHandlerEnd = preview.indexOf("\n  function handleInitialSetupHoursNext", saveHandlerStart);

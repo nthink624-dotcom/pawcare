@@ -38,5 +38,5 @@ test("paint hierarchy changes without moving 15-minute slots or booking coordina
   assert.match(grid, /const quarterSlotHeight = pixelsPerHour \/ 4/);
   assert.match(grid, /style=\{\{ top: segment\.top \+ index \* quarterSlotHeight \}\}/);
   assert.match(grid, /const deltaSlots = Math\.round\(\(event\.clientY - current\.startY\) \/ quarterSlotHeight\)/);
-  assert.match(grid, /lineInterval === "hour"[\s\S]*?border-\[#dfe8f2\][\s\S]*?lineInterval === "half-hour"[\s\S]*?border-\[#e8eef5\][\s\S]*?border-\[#eef4f9\]\/50/);
+  assert.match(grid, /lineInterval === "hour"[\s\S]*?border-\[#dfe8f2\][\s\S]*?lineInterval === "half-hour"[\s\S]*?border-\[#e8eef5\][\s\S]*?border-transparent/);
 });

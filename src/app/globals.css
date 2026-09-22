@@ -151,11 +151,11 @@ button[class*="hover:bg-[#293548]"]:hover {
   font-family: inherit;
 }
 
-/* Compact tabs use the shared Label role. */
+/* Benefit view tabs are primary controls, so they use the shared Control role. */
 .pm-owner-web.owner-font .benefit-management-panel .benefit-management-tab {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
-  line-height: 20px;
+  line-height: 24px;
 }
 
 /* Product UI never drops below the shared micro role. External brand mocks stay untouched. */

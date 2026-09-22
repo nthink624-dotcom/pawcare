@@ -1,9 +1,10 @@
 ﻿import type { ReactNode } from "react";
 import { useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ImagePlus, X } from "lucide-react";
+import { Check, ChevronDown, LockKeyhole, X } from "lucide-react";
 
 import { GhostButton, PrimaryButton, SoftSelect } from "@/components/owner-web/owner-web-ui";
+import { StaffPhotoField } from "@/components/owner-web/staff-photo-choice";
 import { StableAvatar } from "@/components/owner-web/stable-avatar";
 import { getWrapIndicatorClass } from "@/components/owner-web/status-indicators";
 import { getScheduleStaffIdentityTone, getStaffChipColorIndex, getStaffChipTone, normalizeStaffChipColorIndex, staffChipPalette } from "@/lib/staff-chip-colors";
@@ -53,70 +54,6 @@ function StaffAvatar({ name, staffId, imageUrl, imageAssetId, size = "md" }: { n
   return <StableAvatar identity={staffId} name={name} imageUrl={imageUrl} imageAssetId={imageAssetId} size={size} />;
 }
 
-function StaffPhotoField({
-  identity,
-  name,
-  value,
-  imageAssetId,
-  title = "프로필",
-  subtitle = "",
-  compact = false,
-  onChange,
-}: {
-  identity: string;
-  name: string;
-  value: string;
-  imageAssetId?: string | null;
-  title?: string;
-  subtitle?: string;
-  compact?: boolean;
-  onChange: (value: string) => void;
-}) {
-  const showUploadedPhoto = Boolean(value.trim());
-
-  return (
-    <div className="flex items-center justify-center gap-3">
-      <label className={cn(
-        "group relative flex shrink-0 cursor-pointer flex-col items-center justify-center border border-[#dbe2ea] bg-white text-center font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]/20",
-        compact ? "h-[104px] w-[96px] rounded-[12px] px-2 py-3 text-[14px] leading-5" : "h-[136px] w-[118px] rounded-[14px] px-3 py-4 text-[16px] leading-6",
-        )}>
-          <span className={cn("relative flex items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#475569]", compact ? "h-11 w-11" : "h-[54px] w-[54px]")}>
-          <StableAvatar
-            identity={identity}
-            name={name}
-            imageUrl={value}
-            imageAssetId={imageAssetId}
-            size="sm"
-            className="h-full w-full border-0"
-          />
-          {showUploadedPhoto ? (
-            <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#475569] shadow-[0_1px_4px_rgba(15,23,42,0.12)]">
-              <ImagePlus className="h-3 w-3" strokeWidth={1.9} />
-            </span>
-          ) : null}
-        </span>
-        <span className={cn("max-w-full truncate font-medium", compact ? "mt-2 text-[14px] leading-5" : "mt-3 text-[16px] leading-6")}>{title}</span>
-        {subtitle ? <span className="mt-1 max-w-full truncate text-[13px] font-normal leading-5 text-[#64748b]">{subtitle}</span> : null}
-        <span className={cn("pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/[0.025]", compact ? "rounded-[12px]" : "rounded-[14px]")} />
-        <input
-          type="file"
-          accept="image/*"
-          className="sr-only"
-          aria-label="프로필 사진 올리기"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = () => onChange(typeof reader.result === "string" ? reader.result : "");
-            reader.readAsDataURL(file);
-            event.currentTarget.value = "";
-          }}
-        />
-      </label>
-    </div>
-  );
-}
-
 export function ScheduleTable({
   staff,
   weekDates,
@@ -155,16 +92,16 @@ export function ScheduleTable({
                   type="button"
                   onClick={() => onOpenScheduleEditor(staffMember, day)}
                   className={cn(
-                    "relative mx-2 my-3 flex h-11 min-w-[130px] items-center justify-between gap-2 overflow-hidden rounded-[8px] border bg-white px-2.5 text-left !text-[12px] !font-medium !leading-[18px] whitespace-nowrap [word-break:keep-all] transition hover:bg-[#f8fafc]",
+                    "relative mx-2 my-3 flex h-11 min-w-[130px] items-center justify-between gap-2 overflow-hidden rounded-[8px] border bg-white px-2.5 text-left !text-[14px] !font-medium !leading-5 whitespace-nowrap [word-break:keep-all] transition hover:bg-[#f8fafc]",
                     getCellTone(cell.status),
                     getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
                   )}
                   style={{ "--pm-wrap-indicator-color": staffTone.selectedBackground } as CSSProperties}
                 >
-                  <span className="min-w-0 flex-1 truncate whitespace-nowrap text-[12px] font-medium leading-[18px] [word-break:keep-all]" style={{ color: staffTone.text }}>
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap text-[14px] font-medium leading-5 [word-break:keep-all]" style={{ color: staffTone.text }}>
                     {staffMember.name}
                   </span>
-                  <span className="shrink-0 whitespace-nowrap text-[12px] font-medium leading-[18px] tabular-nums text-[#64748b] [word-break:keep-all]">{cell.label}</span>
+                  <span className="shrink-0 whitespace-nowrap text-[14px] font-medium leading-5 tabular-nums text-[#64748b] [word-break:keep-all]">{cell.label}</span>
                 </button>
               );
             })}
@@ -208,14 +145,17 @@ function StaffChipColorPicker({
               className={cn(
                 "h-11 w-11 min-h-11 min-w-11 rounded-[8px] border bg-white p-1 transition hover:bg-[#f8fafc]",
                 selected ? "border-[#64748b] ring-1 ring-[#64748b]/30" : "border-[#dbe2ea]",
-                unavailable && "cursor-not-allowed opacity-35 hover:bg-white",
+                unavailable && "cursor-not-allowed hover:bg-white",
               )}
+              title={`${tone.label}${unavailable ? " · 사용 중" : ""}`}
               aria-label={`직원 칩 색 ${index + 1}${unavailable ? ", 이미 사용 중" : ""}`}
             >
               <span
-                className="block h-full rounded-[6px] border"
-                style={{ backgroundColor: tone.background, borderColor: tone.border }}
-              />
+                className="flex h-full items-center justify-center rounded-[6px] border"
+                style={{ backgroundColor: tone.selectedBackground, borderColor: tone.selectedBackground }}
+              >
+                {selected ? <Check aria-hidden="true" className="h-5 w-5 rounded-full bg-white p-0.5 text-[#111827]" /> : unavailable ? <LockKeyhole aria-hidden="true" className="h-4 w-4 rounded-full bg-white p-0.5 text-[#475569]" /> : null}
+              </span>
             </button>
           );
         })}
@@ -338,7 +278,7 @@ export function StaffDetailPanel({
   const customerVisibleName = draft.displayName.trim() || internalName;
   const positionName = draft.position.trim() || getStaffRank(selectedStaff.role);
   const profileSubtitle = [draft.titlePrefix.trim(), positionName].filter(Boolean).join(" ");
-  const profileImageAssetId = draft.profileImageUrl.trim() === selectedStaff.profileImageUrl?.trim()
+  const profileImageAssetId = draft.profileImageChoice !== "default" && draft.profileImageUrl.trim() === selectedStaff.profileImageUrl?.trim()
     ? selectedStaff.profileImageAssetIds?.[0]
     : undefined;
   const persistedSelfColorIndex = getStaffChipColorIndex(selectedStaff.id, selectedStaff.chipColorIndex);
@@ -358,7 +298,9 @@ export function StaffDetailPanel({
           imageAssetId={profileImageAssetId}
           title={customerVisibleName}
           subtitle={profileSubtitle}
-          onChange={(profileImageUrl) => onDraftChange((current) => ({ ...current, profileImageUrl }))}
+          photoFile={draft.profileImageFile}
+          fallbackKey={draft.profileImageFallbackKey}
+          onChange={(photo) => onDraftChange((current) => ({ ...current, ...photo }))}
         />
         <Field label="고객에게 노출할 이름">
           <TextInput value={draft.displayName} onChange={(displayName) => onDraftChange((current) => ({ ...current, displayName }))} placeholder="예: 진" />
@@ -445,7 +387,7 @@ export function StaffDetailActions({
   isSaving?: boolean;
 }) {
   return (
-    <div className="grid gap-2 [&_button]:!text-[14px] [&_button]:!font-medium [&_button]:!leading-5">
+    <div className="grid gap-2 [&_button]:!text-[16px] [&_button]:!font-medium [&_button]:!leading-6">
       <div className="grid grid-cols-2 gap-2">
         <GhostButton label="취소" onClick={onReset} />
         <button
@@ -453,7 +395,7 @@ export function StaffDetailActions({
           onClick={onSave}
           disabled={isSaving}
           aria-busy={isSaving}
-          className="inline-flex h-11 min-h-11 items-center justify-center rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937] disabled:cursor-wait disabled:opacity-70"
+          className="inline-flex h-11 min-h-11 items-center justify-center rounded-[8px] bg-[#111827] px-4 text-[16px] font-medium leading-6 text-white hover:bg-[#1f2937] disabled:cursor-wait disabled:opacity-70"
         >
           {isSaving ? "저장 중..." : "저장"}
         </button>
@@ -635,7 +577,7 @@ export function StaffBoardTabs({
             type="button"
             onClick={() => onChange(tab.key)}
             className={cn(
-              "h-11 rounded-[8px] px-4 !text-[14px] !font-medium !leading-5 tracking-[-0.005em] transition",
+              "h-11 rounded-[8px] px-4 !text-[16px] !font-medium !leading-6 tracking-[-0.005em] transition",
               activeTab === tab.key ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-sm" : "text-[#475569] hover:bg-[#f8fafc]",
             )}
           >
@@ -662,7 +604,7 @@ export function StaffDraftForm({
 
   return (
     <div className="space-y-2.5">
-      <StaffPhotoField identity="new-staff-draft" compact name={displayName} value={draft.profileImageUrl} title={displayName} subtitle={title} onChange={(profileImageUrl) => onChange({ ...draft, profileImageUrl })} />
+      <StaffPhotoField identity="new-staff-draft" name={displayName} value={draft.profileImageUrl} photoFile={draft.profileImageFile} fallbackKey={draft.profileImageFallbackKey} title={displayName} subtitle={title} onChange={(photo) => onChange({ ...draft, ...photo })} />
       <div className="grid grid-cols-2 gap-3">
         <Field label={<StaffDraftFieldLabel label="이름" required />}>
           <TextInput value={draft.name} onChange={(name) => onChange({ ...draft, name })} placeholder="예: 박수현" />
@@ -789,7 +731,7 @@ export function StaffScheduleEditModal({
               <Field label="반복 휴무 요일">
                 <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onDraftChange((current) => (current ? { ...current, defaultDaysText } : current))} />
               </Field>
-              <div className="flex justify-end [&_button]:!text-[14px] [&_button]:!font-medium [&_button]:!leading-5">
+              <div className="flex justify-end [&_button]:!text-[16px] [&_button]:!font-medium [&_button]:!leading-6">
                 <GhostButton label="기준 저장" onClick={onSaveDefaultSchedule} />
               </div>
             </div>
@@ -805,7 +747,7 @@ export function StaffScheduleEditModal({
         ) : null}
       </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-2 [&_button]:!text-[14px] [&_button]:!font-medium [&_button]:!leading-5">
+      <div className="mt-6 grid grid-cols-3 gap-2 [&_button]:!text-[16px] [&_button]:!font-medium [&_button]:!leading-6">
         <GhostButton label="기본값" onClick={onReset} />
         <GhostButton label="취소" onClick={onClose} />
         <PrimaryButton label="저장" onClick={onSave} />

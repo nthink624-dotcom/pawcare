@@ -99,6 +99,8 @@ export const serverEnv = {
   alimtalkTemplateGroomingCompleted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED),
   alimtalkTemplateRevisitNotice: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_REVISIT_NOTICE),
   alimtalkTemplateBirthdayGreeting: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BIRTHDAY_GREETING),
+  callIdWebhookHashSecret: readOptionalSecret(process.env.CALL_ID_WEBHOOK_HASH_SECRET),
+  callIdPhoneHmacSecret: readOptionalSecret(process.env.CALL_ID_PHONE_HMAC_SECRET),
   deepseekApiKey: readOptionalSecret(process.env.DEEPSEEK_API_KEY),
   deepseekModel: readOptionalSecret(process.env.DEEPSEEK_MODEL) ?? "deepseek-v4-flash",
   openaiPriceGuideEnabled: process.env.OPENAI_PRICE_GUIDE_ENABLED === "true",

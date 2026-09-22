@@ -12,16 +12,16 @@ import {
 } from "../../src/lib/staff-chip-colors.ts";
 
 const expectedPalette = [
-  ["#E0F1F1", "#1F5F69"],
-  ["#E3F5F0", "#278D7F"],
-  ["#DDF7F3", "#199A98"],
-  ["#EAF7ED", "#4E9A68"],
-  ["#FBF6E8", "#9A7D43"],
-  ["#FFF8D9", "#AD7D08"],
-  ["#FFF0E4", "#C46219"],
-  ["#FDF0E7", "#B85B24"],
-  ["#FFF0EF", "#B94A45"],
-  ["#FBEDEC", "#953E3B"],
+  ["#FBECEF", "#AE3D57"],
+  ["#FDF0E8", "#D86B3D"],
+  ["#FFFBE3", "#E4B92E"],
+  ["#EAF6EF", "#258F60"],
+  ["#EAF4FC", "#2686C7"],
+  ["#EDF0F7", "#334574"],
+  ["#F0EAF7", "#5B2B8A"],
+  ["#F5EDE7", "#7A4F36"],
+  ["#E6F6F7", "#008E9A"],
+  ["#F7F2E9", "#B89460"],
 ];
 
 test("canonical staff palette exposes the exact ten saved chip colors in order", () => {
@@ -32,8 +32,8 @@ test("canonical staff palette exposes the exact ten saved chip colors in order",
   );
   assert.equal(new Set(expectedPalette.map(([background]) => background)).size, 10);
   assert.equal(new Set(expectedPalette.map(([, accent]) => accent)).size, 10);
-  assert.deepEqual(expectedPalette[0], ["#E0F1F1", "#1F5F69"]);
-  assert.deepEqual(expectedPalette[9], ["#FBEDEC", "#953E3B"]);
+  assert.deepEqual(expectedPalette[0], ["#FBECEF", "#AE3D57"]);
+  assert.deepEqual(expectedPalette[9], ["#F7F2E9", "#B89460"]);
   assert.equal(normalizeStaffChipColorIndex(9), 9);
   assert.equal(normalizeStaffChipColorIndex(10), null);
   for (const removedBackground of ["#F8EBEE", "#F3F0F8", "#FBF1C9", "#F3F4EA", "#EEE6F6", "#F9E9E5"]) {
@@ -83,7 +83,7 @@ test("occupied colors are not reissued and the API rejects a new same-shop dupli
   assert.match(picker, /const isUnavailable = \(index: number\) => unavailableColorIndices\.has\(index\) && index !== persistedSelfIndex/);
   assert.doesNotMatch(picker, /const unavailable = !selected && unavailableColorIndices\.has\(index\)/);
   assert.match(picker, /disabled=\{unavailable\}/);
-  assert.match(picker, /unavailable && "cursor-not-allowed opacity-35 hover:bg-white"/);
+  assert.match(picker, /unavailable && "cursor-not-allowed hover:bg-white"/);
   assert.match(picker, /aria-label=\{`직원 칩 색 \$\{index \+ 1\}\$\{unavailable \? ", 이미 사용 중" : ""\}`\}/);
   assert.match(picker, /const persistedSelfColorIndex = getStaffChipColorIndex\(selectedStaff\.id, selectedStaff\.chipColorIndex\)/);
   assert.match(picker, /\.filter\(\(staffMember\) => staffMember\.id !== selectedStaff\.id\)[\s\S]*?\.map\(\(staffMember\) => getStaffChipColorIndex\(staffMember\.id, staffMember\.chipColorIndex\)\)/);

@@ -1,7 +1,5 @@
 "use client";
 
-import type { CSSProperties } from "react";
-
 import { StableAvatar } from "@/components/owner-web/stable-avatar";
 import { getStaffChipTone } from "@/lib/staff-chip-colors";
 import { cn } from "@/lib/utils";
@@ -40,9 +38,6 @@ export function CalendarStaffLaneHeader({
   onSelect: () => void;
 }) {
   const headerTone = getStaffChipTone(staffKey, chipColorIndex);
-  const headerStyle = {
-    backgroundColor: headerTone.background,
-  };
 
   return (
     <button
@@ -52,18 +47,18 @@ export function CalendarStaffLaneHeader({
       data-schedule-staff-header={staffKey}
       data-schedule-staff-selected={selected ? "true" : "false"}
       className={cn(
-        "relative h-[68px] min-w-[160px] cursor-pointer border border-l-0 border-t-0 border-[#e8edf3] px-4 py-2 text-left transition focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]",
-        selected && "z-10",
+        "relative h-[60px] min-w-[160px] cursor-pointer border border-l-0 border-t-0 border-[#e8edf3] bg-white px-4 py-1.5 text-left transition hover:bg-[#fbfcfd] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]",
+        selected && "z-10 bg-[#fbfcfd]",
       )}
-      style={{ flex: flexBasis, ...headerStyle } as CSSProperties}
+      style={{ flex: flexBasis }}
     >
       <span
         aria-hidden="true"
         data-schedule-staff-header-accent="true"
-        className="pointer-events-none absolute bottom-px left-[7%] h-[2px] w-[86%] rounded-full"
+        className="pointer-events-none absolute bottom-px left-4 h-[2px] w-12 rounded-full"
         style={{ backgroundColor: headerTone.selectedBackground }}
       />
-      <div className="flex h-full min-w-0 items-center gap-3">
+      <div className="flex h-full min-w-0 items-center gap-2.5">
         <StableAvatar
           identity={avatarIdentity}
           name={name}
@@ -72,8 +67,8 @@ export function CalendarStaffLaneHeader({
           imageAssetId={profileImageAssetId}
           imageAssetIds={profileImageAssetIds}
           profileImageFallbackKey={profileImageFallbackKey}
-          size="md"
-          className="border-[#e8edf3] bg-[#f8fafc] text-[#52657a]"
+          size="sm"
+          className="h-11 w-11 border-[#e8edf3] bg-[#f8fafc] text-[#52657a]"
         />
 
         <div className="min-w-0 flex-1">

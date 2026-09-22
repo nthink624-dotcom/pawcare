@@ -34,7 +34,7 @@ const initialFilters: BenefitFilters = {
 };
 
 const fieldClassName =
-  "h-11 w-full rounded-[6px] border border-[#dbe2ea] bg-white px-3 text-[14px]! font-medium! leading-5! text-[#111827] outline-none focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]";
+  "h-11 w-full rounded-[6px] border border-[#dbe2ea] bg-white px-3 text-[16px]! font-medium! leading-6! text-[#111827] outline-none focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]";
 
 const tableHeaderClassName = "px-3 py-3 text-[14px] font-medium leading-5";
 
@@ -195,7 +195,7 @@ export default function BenefitManagementTable({
         <div className="flex min-w-0 flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-2 xl:col-span-1">
           <button
             type="submit"
-            className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[6px] border border-[#1d4ed8] bg-[#1d4ed8] px-4 py-2 text-[14px]! font-medium! leading-5! whitespace-normal [word-break:keep-all] text-white transition hover:border-[#1e40af] hover:bg-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+            className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[6px] border border-[#1d4ed8] bg-[#1d4ed8] px-4 py-2 text-[16px]! font-medium! leading-6! whitespace-normal [word-break:keep-all] text-white transition hover:border-[#1e40af] hover:bg-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
           >
             <Search className="h-4 w-4" />
             조회
@@ -203,7 +203,7 @@ export default function BenefitManagementTable({
           <button
             type="button"
             onClick={resetFilters}
-            className="inline-flex min-h-11 min-w-max flex-none items-center justify-center gap-1.5 rounded-[6px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px]! font-medium! leading-5! whitespace-normal [word-break:keep-all] text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c8ba5] focus-visible:ring-offset-2"
+            className="inline-flex min-h-11 min-w-max flex-none items-center justify-center gap-1.5 rounded-[6px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px]! font-medium! leading-6! whitespace-normal [word-break:keep-all] text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c8ba5] focus-visible:ring-offset-2"
           >
             <RotateCcw className="h-4 w-4" />
             초기화
@@ -212,7 +212,7 @@ export default function BenefitManagementTable({
       </form>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 py-3">
-        <p className="text-[14px] font-medium leading-5 text-[#334155]">
+        <p className="text-[16px] font-medium leading-6 text-[#334155]">
           혜택 목록 <span className="font-normal text-[#64748b]">총 {filteredCoupons.length}개</span>
         </p>
         <div className="flex min-w-0 basis-full flex-wrap items-center justify-end gap-2 sm:basis-auto sm:flex-none">
@@ -220,14 +220,14 @@ export default function BenefitManagementTable({
             type="button"
             disabled={selectedCount === 0}
             onClick={deleteSelected}
-            className="inline-flex min-h-11 min-w-max flex-none items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3.5 py-2 text-center text-[14px]! font-medium! leading-5! whitespace-normal [word-break:keep-all] text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c8ba5] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-11 min-w-max flex-none items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3.5 py-2 text-center text-[16px]! font-medium! leading-6! whitespace-normal [word-break:keep-all] text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c8ba5] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
           >
             선택 삭제{selectedCount > 0 ? ` (${selectedCount})` : ""}
           </button>
           <button
             type="button"
             onClick={onOpenRegister}
-            className="inline-flex min-h-11 min-w-max flex-none items-center justify-center gap-1.5 rounded-[8px] border border-[#1d4ed8] bg-[#1d4ed8] px-3.5 py-2 text-center text-[14px]! font-medium! leading-5! whitespace-normal [word-break:keep-all] text-white transition hover:border-[#1e40af] hover:bg-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+            className="inline-flex min-h-11 min-w-max flex-none items-center justify-center gap-1.5 rounded-[8px] border border-[#1d4ed8] bg-[#1d4ed8] px-3.5 py-2 text-center text-[16px]! font-medium! leading-6! whitespace-normal [word-break:keep-all] text-white transition hover:border-[#1e40af] hover:bg-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
           >
             <Plus className="h-4 w-4" />
             새 혜택 등록
@@ -238,7 +238,7 @@ export default function BenefitManagementTable({
       <div className="min-h-[210px] shrink-0 overflow-auto rounded-[6px] border border-[#dbe2ea] lg:min-h-0 lg:flex-1">
         <table
           className={cn(
-            "w-full min-w-[1060px] border-collapse text-center text-[14px] font-normal leading-5",
+            "w-full min-w-[1060px] border-collapse text-center text-[16px] font-normal leading-6",
             filteredCoupons.length === 0 && "lg:h-full",
           )}
         >
@@ -265,7 +265,7 @@ export default function BenefitManagementTable({
               <th className={cn(tableHeaderClassName, "text-center")}>관리</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#e5e7eb] bg-white text-[14px] font-normal leading-5">
+          <tbody className="divide-y divide-[#e5e7eb] bg-white text-[16px] font-normal leading-6">
             {filteredCoupons.length === 0 ? (
             <tr className="lg:h-full">
               <td colSpan={9} className="px-4 py-12 text-center align-middle text-[#64748b]">
@@ -323,7 +323,7 @@ export default function BenefitManagementTable({
                       <button
                         type="button"
                         onClick={() => onToggleEnabled(coupon.id)}
-                        className="h-11 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[14px]! font-medium! leading-5! text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+                        className="h-11 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px]! font-medium! leading-6! text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
                       >
                         {coupon.enabled ? "중지" : "재사용"}
                       </button>

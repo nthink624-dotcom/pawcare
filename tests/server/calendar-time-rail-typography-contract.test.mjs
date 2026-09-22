@@ -14,7 +14,7 @@ test("calendar time rail uses one readable numeric hierarchy without moving its 
   assert.match(rail, /background: "#ffffff"/);
   assert.equal([...rail.matchAll(/backgroundColor: calendarTimeRailTone\.background/g)].length, 3);
 
-  assert.match(rail, /h-\[68px\] w-\[68px\]/);
+  assert.match(rail, /h-\[60px\] w-\[68px\]/);
   assert.match(rail, /className="w-\[68px\] shrink-0/);
   assert.match(rail, /top: getLabelTop\(hour\)/);
   assert.match(rail, /top: Math\.max\(11, Math\.min\(currentTimeTop, height - 11\)\)/);

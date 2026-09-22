@@ -4,10 +4,13 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { priceGuideDraftKey, readPriceGuideTemporaryDraft, savePriceGuideTemporaryDraft } from "@/lib/price-guide-temporary-draft";
 import type { PriceGuideV2 } from "@/types/price-guide-photo-import";
 
+export type PriceGuideEditingMode = "direct" | "photo-review";
+
 export function usePriceGuideTemporaryDraft(shopId: string, fixtureMode: boolean) {
   const [available, setAvailable] = useState(false);
   const [notice, setNotice] = useState("");
   const [resumeDocument, setResumeDocument] = useState<PriceGuideV2 | null>(null);
+  const [resumeEditorMode, setResumeEditorMode] = useState<PriceGuideEditingMode | null>(null);
   const operation = useRef(0);
   const sessionOperation = useRef(0);
   const key = useCallback(async () => {
@@ -24,23 +27,49 @@ export function usePriceGuideTemporaryDraft(shopId: string, fixtureMode: boolean
     let active = true;
     void key().then(value => {
       const draft = readPriceGuideTemporaryDraft(localStorage, value);
-      const resume = readPriceGuideTemporaryDraft(sessionStorage, `${value}:editing`);
-      if (active) { setAvailable(Boolean(draft)); if (sessionOperation.current === 0) setResumeDocument(resume); }
+      const editingKey = `${value}:editing`;
+      const persistedResume = readPriceGuideTemporaryDraft(localStorage, editingKey);
+      const sessionResume = readPriceGuideTemporaryDraft(sessionStorage, editingKey);
+      const resume = persistedResume ?? sessionResume;
+      const savedMode = localStorage.getItem(`${editingKey}:mode`) ?? sessionStorage.getItem(`${editingKey}:mode`);
+      const mode: PriceGuideEditingMode = savedMode === "direct" || savedMode === "photo-review"
+        ? savedMode
+        : resume?.source === "manual" ? "direct" : "photo-review";
+      if (!persistedResume && sessionResume) {
+        savePriceGuideTemporaryDraft(localStorage, editingKey, sessionResume);
+        localStorage.setItem(`${editingKey}:mode`, mode);
+      }
+      if (active) { setAvailable(Boolean(draft)); if (sessionOperation.current === 0) { setResumeDocument(resume); setResumeEditorMode(resume ? mode : null); } }
     }).catch(() => { if (active) setAvailable(false); });
     return () => { active = false; };
   }, [key]);
-  async function rememberEditing(document: PriceGuideV2) {
+  async function rememberEditing(document: PriceGuideV2, editorMode: PriceGuideEditingMode) {
     const current = ++sessionOperation.current;
     try {
       const storageKey = await key();
       if (current !== sessionOperation.current) return;
-      savePriceGuideTemporaryDraft(sessionStorage, `${storageKey}:editing`, document);
-    } catch { setNotice("편집 내용 자동 보관에 실패했어요. 화면을 나가기 전에 임시 저장해 주세요."); }
+      const editingKey = `${storageKey}:editing`;
+      savePriceGuideTemporaryDraft(localStorage, editingKey, document);
+      localStorage.setItem(`${editingKey}:mode`, editorMode);
+      sessionStorage.removeItem(editingKey);
+      sessionStorage.removeItem(`${editingKey}:mode`);
+      setResumeDocument(document);
+      setResumeEditorMode(editorMode);
+      setNotice("작성 내용이 자동 저장됐어요.");
+    } catch { setNotice("작성 내용을 자동 저장하지 못했어요. 브라우저 저장 공간을 확인해 주세요."); }
   }
   async function clearEditing() {
     const current = ++sessionOperation.current;
     const storageKey = await key();
-    if (current === sessionOperation.current) sessionStorage.removeItem(`${storageKey}:editing`);
+    if (current === sessionOperation.current) {
+      const editingKey = `${storageKey}:editing`;
+      localStorage.removeItem(editingKey);
+      localStorage.removeItem(`${editingKey}:mode`);
+      sessionStorage.removeItem(editingKey);
+      sessionStorage.removeItem(`${editingKey}:mode`);
+      setResumeDocument(null);
+      setResumeEditorMode(null);
+    }
   }
   async function save(document: PriceGuideV2) {
     const current = ++operation.current;
@@ -56,5 +85,5 @@ export function usePriceGuideTemporaryDraft(shopId: string, fixtureMode: boolean
     try { await clearEditing(); localStorage.removeItem(await key()); setAvailable(false); setNotice(""); }
     catch { setNotice("요금표는 저장됐지만 브라우저의 임시 저장 내용은 정리하지 못했어요."); }
   }
-  return { available, notice, save, restore, clear, resumeDocument, rememberEditing, clearEditing };
+  return { available, notice, save, restore, clear, resumeDocument, resumeEditorMode, rememberEditing, clearEditing };
 }

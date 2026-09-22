@@ -132,6 +132,7 @@ function PanelCard({
   description,
   action,
   hideHeader = false,
+  contentClassName,
   children,
 }: {
   id?: string;
@@ -140,6 +141,7 @@ function PanelCard({
   description?: string;
   action?: ReactNode;
   hideHeader?: boolean;
+  contentClassName?: string;
   children: ReactNode;
 }) {
   return (
@@ -156,7 +158,7 @@ function PanelCard({
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       ) : null}
-      <div className="px-3 pb-5 pt-4 sm:px-5">{children}</div>
+      <div className={cn("px-3 pb-5 pt-4 sm:px-5", contentClassName)}>{children}</div>
     </section>
   );
 }
@@ -174,7 +176,7 @@ function SocialIcon({ src, alt }: { src: string; alt: string }) {
 }
 
 function CardSectionTitle({ children }: { children: ReactNode }) {
-  return <h3 className="mb-4 text-[18px] font-semibold tracking-[-0.02em] text-[#181b21]">{children}</h3>;
+  return <h3 className="mb-3 text-[20px] leading-7 font-semibold tracking-[-0.02em] text-[#181b21]">{children}</h3>;
 }
 
 function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
@@ -608,7 +610,7 @@ export default function ShopInfoSettingsPanel({
               <div
                 role="tablist"
                 aria-label="설정 메뉴"
-                className="flex min-h-[54px] min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-full border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="no-scrollbar flex min-h-[54px] min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-full border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 {sectionTabs.map((tab) => (
                   <button
@@ -622,7 +624,7 @@ export default function ShopInfoSettingsPanel({
                     onClick={() => changeActiveSection(tab.id)}
                     onKeyDown={(event) => handleSectionTabKeyDown(event, tab.id)}
                     className={cn(
-                      "inline-flex h-11 shrink-0 items-center rounded-full px-4 text-[14px] font-medium leading-5 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+                      "inline-flex h-11 shrink-0 items-center rounded-full px-4 text-[16px] font-medium leading-6 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
                       activeSectionId === tab.id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]",
                     )}
                   >
@@ -636,9 +638,9 @@ export default function ShopInfoSettingsPanel({
           <div
             ref={settingsScrollRef}
             data-shop-info-scroll-region
-            className="min-h-0 flex-1 overflow-y-auto bg-white px-3 py-5 sm:pl-5 sm:pr-1 [scrollbar-width:thin]"
+            className="no-scrollbar min-h-0 flex-1 overflow-y-auto bg-white px-3 py-3 sm:px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            <div className="min-w-0 w-full space-y-[18px] pb-24">
+            <div className="min-w-0 w-full space-y-[18px]">
               <div id="shop-info-panel-basic" role="tabpanel" aria-labelledby="shop-info-tab-basic" hidden={activeSectionId !== "basic"}>
                 <PanelCard
                   id="shop-info-basic"
@@ -1068,13 +1070,13 @@ export default function ShopInfoSettingsPanel({
                     icon={<Scissors className="h-[17px] w-[17px]" />}
                     title="요금표 관리"
                     hideHeader
+                    contentClassName="px-0 pb-3 pt-2 sm:px-0"
                   >
                     <div className="min-w-0 w-full max-w-full overflow-x-auto">{serviceMenuContent}</div>
                   </PanelCard>
                 </div>
               ) : null}
 
-              <p className="text-[13px] font-normal text-[#969ba4]">* 표시는 필수 입력 항목입니다.</p>
             </div>
           </div>
         </div>

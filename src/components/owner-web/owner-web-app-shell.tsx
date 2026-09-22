@@ -1,12 +1,11 @@
 "use client";
 
-import { ChevronDown, ClipboardCheck, HelpCircle, LogOut, MessageSquareWarning, Search } from "lucide-react";
+import { ChevronDown, HelpCircle, LogOut, MessageSquareWarning, Search } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 
 import PetManagerBrand from "@/components/brand/petmanager-brand";
-import OwnerInitialSetupBlockingModal from "@/components/owner-web/owner-initial-setup-blocking-modal";
 import { type OwnerWebScreenKey } from "@/components/owner-web/owner-web-data";
 import OwnerFeatureRequestDialog from "@/components/owner-web/owner-feature-request-dialog";
 import { SoftSelect } from "@/components/owner-web/owner-web-ui";
@@ -131,6 +130,7 @@ const OWNER_HEADER_UTILITY_BUTTON_CLASS =
 export default function OwnerWebAppShell({
   activeScreen,
   onScreenSelect,
+  onScreenPrefetch,
   shopDisplayName,
   shopId,
   ownerName,
@@ -148,20 +148,17 @@ export default function OwnerWebAppShell({
   onOpenShop,
   onOpenAlerts,
   onOpenHelp,
-  onOpenInitialSetup,
-  showInitialSetupAction = true,
-  remainingSetupLabels = [],
   onLogout,
   loggingOut,
   isTester = false,
   feedbackFixtureMode = false,
   setupMode = false,
   backgroundBlocked = false,
-  setupBlockingModalOpen = false,
   children,
 }: {
   activeScreen: OwnerWebScreenKey;
   onScreenSelect: (screen: OwnerWebScreenKey) => void;
+  onScreenPrefetch?: (screen: OwnerWebScreenKey) => void;
   shopDisplayName: string;
   shopId: string;
   ownerName: string;
@@ -179,16 +176,12 @@ export default function OwnerWebAppShell({
   onOpenShop: () => void;
   onOpenAlerts: () => void;
   onOpenHelp: () => void;
-  onOpenInitialSetup: () => void;
-  showInitialSetupAction?: boolean;
-  remainingSetupLabels?: string[];
   onLogout: () => void;
   loggingOut: boolean;
   isTester?: boolean;
   feedbackFixtureMode?: boolean;
   setupMode?: boolean;
   backgroundBlocked?: boolean;
-  setupBlockingModalOpen?: boolean;
   children: ReactNode;
 }) {
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
@@ -243,6 +236,8 @@ export default function OwnerWebAppShell({
                       <button
                         key={screen.key}
                         type="button"
+                        onMouseEnter={() => onScreenPrefetch?.(screen.key)}
+                        onFocus={() => onScreenPrefetch?.(screen.key)}
                         onClick={() => onScreenSelect(screen.key)}
                         className={itemClassName}
                       >
@@ -285,16 +280,6 @@ export default function OwnerWebAppShell({
           </label>
 
           <div className="ml-auto flex items-center gap-2">
-            {showInitialSetupAction ? (
-              <button
-                type="button"
-                onClick={onOpenInitialSetup}
-                className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
-              >
-                <ClipboardCheck className="h-4 w-4" strokeWidth={1.8} />
-                초기 설정
-              </button>
-            ) : null}
             <button
               type="button"
               onClick={() => setFeatureRequestOpen(true)}
@@ -366,17 +351,6 @@ export default function OwnerWebAppShell({
             />
           </div>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
-            {showInitialSetupAction ? (
-              <button
-                type="button"
-                onClick={onOpenInitialSetup}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
-                aria-label="초기 설정 가이드"
-                title="초기 설정 가이드"
-              >
-                <ClipboardCheck className="h-4.5 w-4.5" strokeWidth={1.8} />
-              </button>
-            ) : null}
             <button
               type="button"
               onClick={() => setFeatureRequestOpen(true)}
@@ -411,12 +385,6 @@ export default function OwnerWebAppShell({
           </div>
         </header>
 
-        {showInitialSetupAction && remainingSetupLabels.length > 0 ? (
-          <aside role="status" className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#c7ddff] bg-[#f0f7ff] px-4 py-3 text-[#174ea6]" data-testid="initial-setup-reminder">
-            <div className="min-w-0"><p className="text-[16px] font-semibold leading-6">아직 매장 운영 준비가 완료되지 않았어요</p><p className="text-[14px] leading-5">남은 설정: {remainingSetupLabels.join(" · ")}</p></div>
-            <button type="button" onClick={onOpenInitialSetup} className="min-h-11 shrink-0 rounded-[10px] bg-[#2563eb] px-4 text-[16px] font-medium text-white hover:bg-[#1d4ed8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">초기 설정 이어하기</button>
-          </aside>
-        ) : null}
         <section className="min-h-0 flex-1 overflow-hidden bg-[var(--bg)] p-3 sm:p-4">
           <div
             className="pm-owner-main-surface h-full min-h-0 min-w-0 shadow-none"
@@ -438,12 +406,6 @@ export default function OwnerWebAppShell({
         </section>
       </main>
     </div>
-      <OwnerInitialSetupBlockingModal
-        open={setupBlockingModalOpen && !featureRequestOpen}
-        onResume={onOpenInitialSetup}
-        onFeedback={() => setFeatureRequestOpen(true)}
-        onHelp={onOpenHelp}
-      />
       <OwnerFeatureRequestDialog
         open={featureRequestOpen}
         shopId={shopId}

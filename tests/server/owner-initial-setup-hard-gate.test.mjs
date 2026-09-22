@@ -192,17 +192,18 @@ test("locked account control meets 44px and the manage-read fixture is developme
   assert.doesNotMatch(managePanel, /className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full/);
 });
 
-test("owner screen query bypass is normalized while locked operations stay rendered and inert", () => {
+test("incomplete owner shops open the normal dashboard without an initial-setup page", () => {
   const preview = readFileSync(new URL("../../src/components/owner-web/owner-web-preview.tsx", import.meta.url), "utf8");
   const shell = readFileSync(new URL("../../src/components/owner-web/owner-web-app-shell.tsx", import.meta.url), "utf8");
 
-  assert.match(preview, /if \(!getBootstrapOwnerInitialSetupReadiness\(data\)\.completed\) return "operatingHours"/);
-  assert.match(preview, /backgroundBlocked=\{initialSetupEligible && activeScreen !== "ownerProfile" && activeScreen !== "help"\}/);
-  assert.match(preview, /setupBlockingModalOpen=\{initialSetupEligible && !initialSetupOpen && activeScreen !== "ownerProfile" && activeScreen !== "help"\}/);
+  assert.doesNotMatch(preview, /if \(!getBootstrapOwnerInitialSetupReadiness\(data\)\.completed\) return "operatingHours"/);
+  assert.match(preview, /function getInitialOwnerWebScreen\(data: BootstrapPayload\): OwnerWebScreenKey \{[\s\S]*return shouldStartWithPriceGuideSetup\(data\) \? "services" : "schedule";/);
+  assert.doesNotMatch(preview, /showInitialSetupAction=/);
   assert.match(preview, /<div className="h-full min-h-0 min-w-0">\s*\{renderScreen\(/);
   assert.match(shell, /inert=\{backgroundBlocked \? true : undefined\}/);
   assert.match(shell, /aria-hidden=\{backgroundBlocked \? true : undefined\}/);
   assert.match(shell, /backgroundBlocked && "pointer-events-none select-none"/);
+  assert.doesNotMatch(shell, /초기 설정 이어하기|초기 설정 가이드|<OwnerInitialSetupBlockingModal/);
   assert.doesNotMatch(shell, /operationsLocked/);
 });
 
@@ -222,19 +223,9 @@ test("public entry, booking, and info routes use the same unavailable state", ()
   assert.match(unavailable, /max-w-\[430px\][\s\S]*px-6/);
 });
 
-test("blocking modal is unique, non-dismissible, and traps focus across its three actions", () => {
-  const guide = readFileSync(new URL("../../src/components/owner-web/owner-initial-setup-guide.tsx", import.meta.url), "utf8");
-  const modal = readFileSync(new URL("../../src/components/owner-web/owner-initial-setup-blocking-modal.tsx", import.meta.url), "utf8");
+test("the removed setup page is no longer mounted by the owner preview", () => {
+  const preview = readFileSync(new URL("../../src/components/owner-web/owner-web-preview.tsx", import.meta.url), "utf8");
   const shell = readFileSync(new URL("../../src/components/owner-web/owner-web-app-shell.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(guide + modal, /매장 준비 이어가기|필수 설정을 마치면 고객 예약을 받을 수 있어요|긴급/);
-  assert.equal((modal.match(/>\s*초기 설정 이어하기\s*</g) ?? []).length, 1);
-  assert.equal((modal.match(/>\s*함께 고쳐요\s*</g) ?? []).length, 1);
-  assert.equal((modal.match(/>\s*도움 문의\s*</g) ?? []).length, 1);
-  assert.match(modal, /role="dialog"[\s\S]*aria-modal="true"[\s\S]*aria-labelledby="owner-initial-setup-blocking-title"/);
-  assert.match(modal, /ref=\{primaryActionRef\}[\s\S]*min-h-12/);
-  assert.match(modal, /event\.key === "Escape"[\s\S]*event\.preventDefault\(\)[\s\S]*event\.stopPropagation\(\)/);
-  assert.match(modal, /event\.key !== "Tab"[\s\S]*event\.shiftKey[\s\S]*last\.focus\(\)[\s\S]*first\.focus\(\)/);
-  assert.doesNotMatch(modal, /onClose|onPointerDown|<X\b|체크리스트/);
-  assert.match(modal, /p-4[\s\S]*max-w-\[440px\][\s\S]*rounded-\[18px\][\s\S]*sm:p-6/);
-  assert.match(shell, /onFeedback=\{\(\) => setFeatureRequestOpen\(true\)\}[\s\S]*onHelp=\{onOpenHelp\}/);
+  assert.doesNotMatch(preview, /<OwnerInitialSetupGuide/);
+  assert.doesNotMatch(shell, /data-testid="initial-setup-reminder"|OwnerInitialSetupBlockingModal/);
 });

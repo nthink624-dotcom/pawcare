@@ -295,7 +295,7 @@ export default function PriceGuideNativeInlineTable({
         <p role="alert" className="mt-4 rounded-[10px] border border-[#ecd6d1] bg-[#fff7f5] px-4 py-3 text-[16px] font-medium leading-6 text-[#a04455]">{validationIssues[0].message}</p>
       ) : null}
 
-      <div className={hideHeader ? "mt-0 space-y-3" : "mt-4 space-y-3"}>
+      <div className={hideHeader ? "mt-0 space-y-2" : "mt-4 space-y-2"}>
         {groups.map((group, groupIndex) => {
           if (extrasOnly || (visibleGroupIndex !== undefined && groupIndex !== visibleGroupIndex)) return null;
           const rowIndexes = groupRowIndexes(groupIndex);
@@ -304,7 +304,7 @@ export default function PriceGuideNativeInlineTable({
           const titleIssue = issues.get(`tableGroups:${groupIndex}.sourceLabel`);
           const tableWidth = Math.max(760, 120 + group.serviceNames.length * 210);
           return (
-            <section key={`group-${groupIndex}`} className="min-w-0 rounded-[12px] border border-[#dbe2ea] bg-white p-3" data-native-price-guide-group={groupIndex}>
+            <section key={`group-${groupIndex}`} className="min-w-0 rounded-[12px] border border-[#dbe2ea] bg-white p-2.5" data-native-price-guide-group={groupIndex}>
               {renderedStructureField === titleId ? (
                 <div>
                   <label htmlFor={titleId} className="sr-only">그룹 제목</label>
@@ -327,7 +327,7 @@ export default function PriceGuideNativeInlineTable({
               </div>
 
               <div className="mt-2 max-h-[min(62dvh,680px)] max-w-full overflow-auto overscroll-contain rounded-[10px] border border-[#dbe2ea]" tabIndex={0} aria-label={`${groupName} 인라인 요금표, 좌우와 위아래로 이동할 수 있습니다`} data-price-guide-matrix-scroll="true">
-                <table className="border-collapse text-[16px] leading-6 text-[#334155]" style={{ minWidth: tableWidth }}>
+                <table className="w-full border-collapse text-[16px] leading-6 text-[#334155]" style={{ minWidth: tableWidth }}>
                   <thead className="sticky top-0 z-30"><tr className="bg-[#f8fafc] text-left text-[16px] font-medium leading-6 text-[#64748b]">
                     <th className="sticky left-0 top-0 z-40 w-[120px] border-b border-r border-[#dbe2ea] bg-[#f8fafc] px-2 py-3 !font-medium">몸무게</th>
                     {group.serviceNames.map((serviceName, serviceIndex) => {

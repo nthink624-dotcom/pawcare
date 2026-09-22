@@ -1278,7 +1278,7 @@ function GroomingRecordDetailPanel({
           <div className="min-w-0">
             <p className="text-[14px] text-[#607080]">{petName} · {serviceName}</p>
             <h3 className="mt-1 break-keep text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827] [overflow-wrap:anywhere]">{formatDate(record.groomed_at)} 미용 기록</h3>
-            <p className="mt-1 text-[14px] text-[#64748b]">전후 사진은 촬영 후 30일 동안 보관되는 자료입니다.</p>
+            <p className="mt-1 text-[14px] text-[#64748b]">전송용 사진은 60일 후 자동 정리되며, 미용기록에 저장한 사진은 직접 삭제하거나 계정을 삭제할 때까지 보관됩니다.</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]" aria-label="닫기">
             <X className="h-4 w-4" />
@@ -1940,7 +1940,9 @@ async function getMediaPreview(asset: MediaAsset): Promise<GroomingPhotoPreview>
 }
 
 function formatPhotoRetention(asset: MediaAsset) {
-  return asset.expires_at ? `${formatDate(asset.expires_at)}까지 보관` : "촬영 후 30일간 보관";
+  return asset.expires_at
+    ? `${formatDate(asset.expires_at)}까지 보관`
+    : "직접 삭제 또는 계정 삭제 시까지 보관";
 }
 
 function InlinePetInfo({ label, value }: { label: string; value: string }) {

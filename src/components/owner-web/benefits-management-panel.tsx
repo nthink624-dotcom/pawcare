@@ -31,7 +31,7 @@ type Props = {
 };
 
 const tabClassName =
-  "benefit-management-tab relative inline-flex h-11 items-center justify-center rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full";
+  "benefit-management-tab relative inline-flex h-11 items-center justify-center rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full";
 
 export default function BenefitsManagementPanel({
   view,
@@ -93,7 +93,7 @@ export default function BenefitsManagementPanel({
             type="button"
             onClick={onReload}
             disabled={!dirty}
-            className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
+            className={cn(OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS, "!text-[16px] !leading-6")}
           >
             저장된 내용 불러오기
           </button>

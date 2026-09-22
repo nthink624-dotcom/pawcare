@@ -1,4 +1,5 @@
 import { currentDateInTimeZone } from "@/lib/utils";
+import type { StaffProfileFallbackKey } from "@/lib/staff-profile-fallback";
 import type { OwnerWebStaffMember, OwnerWebWeekdayKey } from "@/components/owner-web/owner-web-staff-data";
 import type {
   InitialSetupStaffPhotoDraft,
@@ -62,6 +63,10 @@ export type StaffDraft = {
   name: string;
   displayName: string;
   profileImageUrl: string;
+  profileImageFallbackKey?: StaffProfileFallbackKey | null;
+  profileImageChoice?: "photo" | "default";
+  profileImageFile?: File | null;
+  profileImagePendingUpload?: { mediaAssetId: string; signedUrl: string } | null;
   profileMessage: string;
   chipColorIndex: number | null;
   phone: string;
@@ -315,6 +320,7 @@ export function buildDraft(staff: StaffMember): StaffDraft {
     name: staff.name,
     displayName: staff.displayName ?? "",
     profileImageUrl: staff.profileImageUrl ?? "",
+    profileImageFallbackKey: staff.profileImageFallbackKey ?? null,
     profileMessage: staff.profileMessage ?? "",
     chipColorIndex: staff.chipColorIndex ?? null,
     phone: staff.phone,

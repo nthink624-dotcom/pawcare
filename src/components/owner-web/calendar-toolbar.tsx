@@ -54,13 +54,13 @@ export function CalendarToolbar({
   const staffLabel = selectedStaff?.name ?? (singleStaff ? "담당 없음" : "전체 직원");
 
   return (
-    <div className="border-b border-[#e4eaf1] bg-white px-4 py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-1 rounded-[10px] border border-[#e1e7ef] bg-[#f8fafc] p-1">
+    <div className="border-b border-[#e8edf3] bg-white px-4 py-2.5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-1">
           <button
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, -dateStep))}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-white hover:text-[#0f172a] hover:shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
             aria-label="이전 날짜"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -68,23 +68,23 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={() => onDateChange(currentDateInTimeZone())}
-            className="inline-flex h-11 min-w-[158px] items-center justify-center rounded-[7px] px-3 text-[16px] font-semibold tracking-[-0.015em] text-[#172033] transition hover:bg-white"
+            className="inline-flex h-11 min-w-[158px] items-center justify-center rounded-[8px] px-3 text-[16px] font-semibold tracking-[-0.015em] text-[#172033] transition hover:bg-[#f8fafc]"
           >
             {formatSchedulePickerRelativeLabel(selectedDate, shop)}
           </button>
           <button
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, dateStep))}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-white hover:text-[#0f172a] hover:shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
             aria-label="다음 날짜"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
+        <div className="flex items-center justify-end gap-2 sm:ml-auto">
           {singleStaff ? (
-            <div className="inline-flex min-h-11 w-[196px] items-center justify-between gap-2 rounded-[9px] border border-[#dfe6ee] bg-white px-3 text-[#0f172a]">
+            <div className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-[9px] border border-[#dfe6ee] bg-white px-3 text-[#0f172a] sm:w-[196px] sm:flex-none">
               <span className="text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">담당</span>
               <span className="flex min-w-0 items-center gap-2">
                 {selectedStaff ? (

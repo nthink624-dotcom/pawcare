@@ -92,6 +92,7 @@ test("analyzed price guide reuses the PC service-column editor with table-local 
   assert.match(photo, /import PriceGuideNativeInlineTable from "@\/components\/owner-web\/price-guide-native-inline-table"/);
   assert.match(photo, /data-price-guide-horizontal-scroll="native-table"/);
   assert.match(nativeTable, /data-price-guide-matrix-scroll="true"/);
+  assert.match(nativeTable, /<table className="w-full border-collapse/);
   assert.match(nativeTable, /max-h-\[min\(62dvh,680px\)\][^"\n]*overflow-auto/);
   assert.match(nativeTable, /<thead className="sticky top-0 z-30"/);
   assert.match(nativeTable, /sticky left-0 top-0 z-40[^\n]*>몸무게</);

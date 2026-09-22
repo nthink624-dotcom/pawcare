@@ -105,10 +105,10 @@ function SetupChecklist({
 }) {
   return (
     <ol className={compact ? "grid min-w-0 grid-cols-2 gap-1.5" : "space-y-1.5"}>
-      {setupItems.map((item) => {
+      {setupItems.map((item, index) => {
         const complete = confirmed.includes(item.key);
         const current = !allComplete && item.key === activeStep;
-        const available = complete || current;
+        const available = complete || current || setupItems.slice(0, index).every((previous) => confirmed.includes(previous.key));
 
         return (
           <li key={item.key} className="min-w-0">

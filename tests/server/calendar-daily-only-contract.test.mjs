@@ -11,7 +11,7 @@ test("owner schedule keeps staff metadata readable and has no weekly view entry 
   const toolbar = source("src/components/owner-web/calendar-toolbar.tsx");
   const screen = source("src/components/owner-web/calendar-management-screen.tsx");
 
-  assert.match(header, /text-\[13px\].*font-medium.*leading-5.*tabular-nums/);
+  assert.match(header, /text-\[13px\].*font-normal.*leading-5.*tabular-nums/);
   assert.match(header, /\{startLabel\}–\{endLabel\}/);
   assert.match(header, /예약 \{bookingCount\}건/);
 
@@ -55,29 +55,30 @@ test("booking dialog keeps selected time and submit primary blue with a 44px ref
   assert.match(dialog, /min-h-11 rounded-\[8px\] border !border-\[#1d4ed8\][^"\n]*px-3 py-2[^"\n]*focus-visible:ring-\[#2563eb\]/);
 });
 
-test("45-minute-and-longer booking cards project one request-note line without changing detail data", () => {
+test("90-minute-and-longer booking cards project one customer-memo line without changing detail data", () => {
   const grid = source("src/components/owner-web/calendar-daily-schedule-grid.tsx");
   const screen = source("src/components/owner-web/calendar-management-screen.tsx");
 
   assert.match(grid, /memo\?: string/);
-  assert.match(grid, /const requestNoteMinimumDuration = 0\.75/);
-  assert.match(grid, /const showRequestNote = booking\.duration >= requestNoteMinimumDuration/);
-  assert.match(grid, /const requestNoteText = requestNote \? `요청사항 \$\{requestNote\}` : "요청사항 없음"/);
+  assert.match(grid, /const detailedBookingMinimumDuration = 1\.5/);
+  assert.match(grid, /return duration >= detailedBookingMinimumDuration \? "detailed" : "compact"/);
+  assert.match(grid, /const requestNoteText = requestNote \? `고객 메모 \$\{requestNote\}` : "고객 메모 없음"/);
   assert.match(grid, /data-booking-request-note=\{requestNote \? "present" : "empty"\}/);
-  assert.match(grid, /grid-rows-\[18px_17px_18px\]/);
+  assert.match(grid, /grid-rows-\[20px_18px_18px\]/);
+  assert.match(grid, />고객 메모<\/span>/);
   assert.match(grid, /title=\{requestNoteText\}/);
   assert.match(screen, /return booking\.memo\?\.trim\(\) \|\| getCustomerRequest\(booking\.id\) \|\| "고객 요청사항이 없습니다\."/);
 });
 
-test("daily booking chips keep semantic status surfaces separate from staff identity and selection", () => {
+test("daily booking chips use pet identity only as an accent and status only as a badge", () => {
   const grid = source("src/components/owner-web/calendar-daily-schedule-grid.tsx");
-  assert.match(grid, /const statusTone = getBookingStatusEdgeTone\(timedStatus\)/);
-  assert.match(grid, /border-\[#dbe3ec\] bg-\[#fffefd\]/);
-  assert.doesNotMatch(grid, /backgroundColor: bookingIdentityTone\.bookingBackground/);
-  assert.doesNotMatch(grid, /borderColor: bookingIdentityTone\.bookingBorder/);
-  assert.match(grid, /borderLeftColor: statusIndicatorColor\[statusTone\]/);
-  assert.match(grid, /data-booking-staff-identity=\{booking\.staffKey\}/);
-  assert.match(grid, /"--pm-booking-status-edge": statusIndicatorColor\[statusTone\]/);
+  assert.match(grid, /const identityTone = getAppointmentIdentityTone\(booking\.petId \?\? booking\.pet \?\? booking\.id\)/);
+  assert.match(grid, /backgroundColor: completedBooking \? identityTone\.mutedBackground : identityTone\.background/);
+  assert.match(grid, /borderColor: identityTone\.border/);
+  assert.match(grid, /borderLeftColor: identityTone\.accent/);
+  assert.match(grid, /inline-flex shrink-0 items-center rounded-full border px-1\.5/);
+  assert.doesNotMatch(grid, /data-booking-staff-identity|--pm-booking-status-edge/);
+  assert.match(grid, /data-booking-density=\{density\}/);
 });
 
 test("daily booking cards retain a 44px pointer and keyboard hit target without changing their visual roles", () => {
@@ -87,8 +88,8 @@ test("daily booking cards retain a 44px pointer and keyboard hit target without 
   assert.match(grid, /return Math\.max\(minimumBookingCardHitTarget, duration \* pixelsPerHour - 4\)/);
   assert.match(grid, /flex min-h-11 items-center justify-start/);
   assert.match(grid, /focus-visible:ring-2 focus-visible:ring-\[#1677ff\]\/70/);
-  assert.match(grid, /border-\[#dbe3ec\] bg-\[#fffefd\]/);
-  assert.doesNotMatch(grid, /backgroundColor: bookingIdentityTone\.bookingBackground/);
-  assert.doesNotMatch(grid, /borderColor: bookingIdentityTone\.bookingBorder/);
-  assert.match(grid, /"--pm-booking-status-edge": statusIndicatorColor\[statusTone\]/);
+  assert.match(grid, /border border-l-\[3px\]/);
+  assert.match(grid, /backgroundColor: completedBooking \? identityTone\.mutedBackground : identityTone\.background/);
+  assert.match(grid, /borderColor: identityTone\.border/);
+  assert.match(grid, /borderLeftColor: identityTone\.accent/);
 });

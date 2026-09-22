@@ -34,20 +34,28 @@ export function StaffAddModal({
   onDraftChange,
   onClose,
   onAdd,
+  isSaving = false,
+  notice = "",
 }: {
   draft: StaffDraft;
   unavailableChipColorIndices: ReadonlySet<number>;
   onDraftChange: (draft: StaffDraft) => void;
   onClose: () => void;
   onAdd: () => void;
+  isSaving?: boolean;
+  notice?: string;
 }) {
   return (
-    <StaffModal title="직원 추가" onClose={onClose}>
-      <StaffDraftForm draft={draft} unavailableChipColorIndices={unavailableChipColorIndices} onChange={onDraftChange} />
-      <div className="mt-4 grid grid-cols-2 gap-2">
+    <StaffModal title="직원 추가" onClose={onClose} footer={<>
+      {notice ? <p role="alert" className="mb-2 text-[14px] leading-5 text-[#a04455]">{notice}</p> : null}
+      <div className="grid grid-cols-2 gap-2">
         <GhostButton label="취소" onClick={onClose} />
-        <PrimaryButton label="추가" onClick={onAdd} disabled={!draft.name.trim()} />
+        <PrimaryButton label={isSaving ? "저장 중..." : "저장"} onClick={onAdd} disabled={isSaving || !draft.name.trim()} />
       </div>
+    </>}>
+      <fieldset disabled={isSaving} className="min-w-0">
+        <StaffDraftForm draft={draft} unavailableChipColorIndices={unavailableChipColorIndices} onChange={onDraftChange} />
+      </fieldset>
     </StaffModal>
   );
 }

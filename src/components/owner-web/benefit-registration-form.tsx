@@ -49,7 +49,7 @@ function ChoiceButton({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "benefit-registration-choice inline-flex h-14 min-w-[148px] items-center justify-start gap-3 rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
+        "benefit-registration-choice inline-flex h-14 min-w-[148px] items-center justify-start gap-3 rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
         selected
           ? "border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8]"
           : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
@@ -199,7 +199,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.combination_policy === policy}
               onClick={() => onChange({ combination_policy: policy })}
               className={cn(
-                "benefit-registration-choice h-11 min-w-[132px] rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
+                "benefit-registration-choice h-11 min-w-[132px] rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
                 draft.combination_policy === policy
                   ? "border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8]"
                   : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
@@ -232,7 +232,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.service_scope !== "specific"}
               onClick={() => onChange({ service_scope: "all", service_option_ids: [] })}
               className={cn(
-                "benefit-registration-choice h-11 min-w-[150px] rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+                "benefit-registration-choice h-11 min-w-[150px] rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
                 draft.service_scope !== "specific"
                   ? "border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8]"
                   : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
@@ -245,7 +245,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.service_scope === "specific"}
               onClick={() => onChange({ service_scope: "specific", service_option_ids: [] })}
               className={cn(
-                "benefit-registration-choice h-11 min-w-[150px] rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+                "benefit-registration-choice h-11 min-w-[150px] rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
                 draft.service_scope === "specific"
                   ? "border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8]"
                   : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
@@ -261,7 +261,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
             ) : scopeOptions.map((option) => {
               const selected = option.linkedOptionIds.some((optionId) => draft.service_option_ids.includes(optionId));
               return (
-                <label key={option.id} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-[5px] px-3 text-[14px] text-[#334155] hover:bg-[#f8fafc]">
+                <label key={option.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[5px] px-3 text-[16px] leading-6 text-[#334155] hover:bg-[#f8fafc]">
                   <input
                     type="checkbox"
                     checked={selected}

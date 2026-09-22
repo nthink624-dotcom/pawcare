@@ -19,8 +19,8 @@ export default function PriceGuideManualOnboarding({
   onSave,
   onSaveActionReady,
   manualMatrixMode = true,
-  onTemporarySave,
   temporarySaveNotice,
+  onDraftChange,
 }: {
   initialDocument?: PriceGuideV2 | null;
   onBack: () => void;
@@ -28,8 +28,8 @@ export default function PriceGuideManualOnboarding({
   onSaveActionReady?: (action: (() => Promise<void | boolean>) | null) => void;
   /** Direct entry opens the table canvas immediately; photo import starts with its clean table review. */
   manualMatrixMode?: boolean;
-  onTemporarySave?: (document: PriceGuideV2) => Promise<void>;
   temporarySaveNotice?: string;
+  onDraftChange?: (document: PriceGuideV2) => void;
 }) {
   const [draft, setDraft] = useState<PriceGuideV2>(() => initialDocument ?? createEmptyManualPriceGuideDocument());
   const [validationAttempted, setValidationAttempted] = useState(false);
@@ -58,7 +58,9 @@ export default function PriceGuideManualOnboarding({
     const contentChanged = JSON.stringify({ rows: draft.rows, tableGroups: draft.tableGroups, surcharges: draft.surcharges, overallNote: draft.overallNote })
       !== JSON.stringify({ rows: next.rows, tableGroups: next.tableGroups, surcharges: next.surcharges, overallNote: next.overallNote });
     const aiDerived = ["ai_imported", "owner_corrected", "owner_confirmed", "vision", "fixture"].includes(draft.source);
-    setDraft(contentChanged && aiDerived ? { ...next, source: "owner_corrected" } : next);
+    const updated: PriceGuideV2 = contentChanged && aiDerived ? { ...next, source: "owner_corrected" } : next;
+    setDraft(updated);
+    onDraftChange?.(updated);
     setSaveError("");
     setFocusFirstMissingDuration(false);
   }
@@ -135,9 +137,8 @@ export default function PriceGuideManualOnboarding({
         />
       )}
       {saveError ? <p role="alert" className="text-[13px] font-medium leading-5 text-[#a04455]">{saveError}</p> : null}
-      {temporarySaveNotice && <p role="status" className="text-[16px] leading-6 text-[#526174]">{temporarySaveNotice}</p>}
+      {temporarySaveNotice && <p role="status" aria-live="polite" data-price-guide-autosave-status className="text-[16px] leading-6 text-[#526174]">{temporarySaveNotice}</p>}
       <div className="flex flex-wrap gap-3">
-      {onTemporarySave && <button type="button" disabled={saving} onClick={() => void onTemporarySave(draft)} className="min-h-11 rounded-[10px] border border-[#cbd5e1] bg-white px-5 text-[16px] font-medium leading-6 disabled:opacity-50">임시 저장</button>}
       <button
         type="button"
         onClick={() => void saveDraft()}

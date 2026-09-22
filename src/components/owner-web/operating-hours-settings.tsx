@@ -520,8 +520,8 @@ function TimeInput({
           setOpen((current) => !current);
         }}
         className={cn(
-          "inline-flex items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none transition hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:ring-[3px] focus:ring-[#64748b]/10 disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
-          compact ? "min-h-11 w-[88px] px-2 text-[14px]" : "min-h-11 w-[116px] px-3 text-[16px]",
+          "inline-flex items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] leading-6 font-medium text-[#111827] outline-none transition hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:ring-[3px] focus:ring-[#64748b]/10 disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
+          compact ? "min-h-11 w-[88px] px-2" : "min-h-11 w-[116px] px-3",
         )}
       >
         <span>{displayValue}</span>
@@ -834,22 +834,22 @@ export default function OperatingHoursSettings({
           <button
             type="button"
             onClick={() => setRegularHolidayMonth((current) => moveMonth(current, -1))}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
             aria-label="이전 달"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
-          <p className="text-[14px] font-normal text-[#111827]">{regularHolidayMonthLabel}</p>
+          <p className="text-[16px] leading-6 font-normal text-[#111827]">{regularHolidayMonthLabel}</p>
           <button
             type="button"
             onClick={() => setRegularHolidayMonth((current) => moveMonth(current, 1))}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
             aria-label="다음 달"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[12px] font-normal text-[#94a3b8]">
+        <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[13px] leading-5 font-normal text-[#64748b]">
           {weekdayLabels.map((day) => (
             <span key={day.key} className={cn(day.key === "sun" && "text-[#c13f52]")}>
               {day.shortLabel}
@@ -858,7 +858,7 @@ export default function OperatingHoursSettings({
         </div>
         <div className="mt-1 grid grid-cols-7 gap-1">
           {regularHolidayCalendarCells.map((dateKey, index) => {
-            if (!dateKey) return <span key={`regular-empty-${index}`} className="h-7" />;
+            if (!dateKey) return <span key={`regular-empty-${index}`} className="h-11" />;
             const savedTemporaryHoliday = bookingSettings.temporaryHolidays.find((holiday) => holiday.date === dateKey);
             const saved = Boolean(savedTemporaryHoliday);
             const regularClosed = isRegularClosedDate(dateKey);
@@ -883,7 +883,7 @@ export default function OperatingHoursSettings({
                   }
                 }}
                 className={cn(
-                  "flex h-7 items-center justify-center rounded-[7px] border text-[13px] font-normal transition",
+                  "flex h-11 items-center justify-center rounded-[7px] border text-[16px] leading-6 font-medium transition",
                   saved ? "border-[#a04455] bg-[#fff1f3] text-[#a04455]" : regularClosed ? "border-[#f0a8b4] bg-[#fff7f8] text-[#c13f52]" : "border-transparent text-[#334155] hover:bg-[#f8fafc]",
                   isToday && !closed && "border-[#dbe2ea] bg-[#f8fafc] text-[#111827]",
                   regularClosed && !saved && "cursor-default",
@@ -922,47 +922,47 @@ export default function OperatingHoursSettings({
         <div className="overflow-hidden rounded-[12px] border border-[#e5e7eb] bg-white">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3">
             <div>
-              <p className="text-[14px] font-medium leading-5 text-[#111827]">공통 적용</p>
-              <p className="mt-0.5 text-[12px] font-normal text-[#94a3b8]">예외 요일만 따로 수정</p>
+              <p className="text-[16px] font-medium leading-6 text-[#111827]">공통 적용</p>
+              <p className="mt-0.5 text-[13px] leading-5 font-normal text-[#64748b]">예외 요일만 따로 수정</p>
             </div>
-            <div className="grid grid-cols-[88px_20px_88px_auto] items-center justify-end gap-2">
+            <div className="grid grid-cols-[88px_12px_88px_auto] items-center justify-end gap-1 sm:gap-2">
               <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact />
               <span className="inline-flex h-8 items-center justify-center text-[13px] font-normal text-[#94a3b8]">~</span>
               <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact />
               <button
                 type="button"
                 onClick={applyBulkTimeToAllDays}
-                className="min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+                className="min-h-11 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] leading-6 font-medium text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
               >
                 적용
               </button>
             </div>
           </div>
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.86fr)]">
+          <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(300px,0.86fr)]">
             <div className="divide-y divide-[#f1f5f9]">
               {businessDays.map((day) => (
-                <div key={day.key} className="grid min-h-[48px] items-center gap-2 px-4 py-2 lg:grid-cols-[28px_82px_minmax(0,1fr)]">
-                  <span className="text-[16px] font-normal text-[#111827]">{day.shortLabel}</span>
+                <div key={day.key} className="grid min-h-[48px] grid-cols-[28px_minmax(0,1fr)] items-center gap-2 px-4 py-2 sm:grid-cols-[28px_90px_minmax(0,1fr)]">
+                  <span className="text-[16px] leading-6 font-normal text-[#111827]">{day.shortLabel}</span>
                   <div className="flex items-center gap-2">
                     <ToggleSwitch checked={day.enabled} onChange={() => updateBusinessDay(day.key, { enabled: !day.enabled })} label={`${day.label} 영업 여부`} compact />
-                    <span className={cn("whitespace-nowrap text-[14px] font-normal", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>{day.enabled ? "영업" : "휴무"}</span>
+                    <span className={cn("whitespace-nowrap text-[16px] leading-6 font-normal", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>{day.enabled ? "영업" : "휴무"}</span>
                   </div>
                   {day.enabled ? (
-                    <div className="ml-auto grid grid-cols-[88px_20px_88px] items-center justify-end gap-2">
+                    <div className="col-span-2 ml-auto grid grid-cols-[88px_20px_88px] sm:col-span-1 items-center justify-end gap-2">
                       <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact />
                       <span className="inline-flex h-8 items-center justify-center text-[13px] font-normal text-[#94a3b8]">~</span>
                       <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} compact />
                     </div>
                   ) : (
-                    <p className="ml-auto rounded-[8px] bg-[#f8fafc] px-3 py-1.5 text-[14px] font-normal text-[#64748b]">예약 없음</p>
+                    <p className="col-span-2 ml-auto rounded-[8px] bg-[#f8fafc] sm:col-span-1 px-3 py-1.5 text-[16px] leading-6 font-normal text-[#64748b]">예약 없음</p>
                   )}
                 </div>
               ))}
             </div>
 
-            <div className="border-t border-[#edf2f7] px-4 py-3 lg:border-l lg:border-t-0">
+            <div className="border-t border-[#edf2f7] px-4 py-3 xl:border-l xl:border-t-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[16px] font-normal text-[#111827]">정기 휴무일</p>
+                <p className="text-[16px] leading-6 font-normal text-[#111827]">정기 휴무일</p>
                 <div className="grid w-[190px] grid-cols-3 gap-1 rounded-[8px] border border-[#e4ebf2] bg-[#f8fafc] p-1">
                   {extendedRegularHolidayCycleOptions.map((option) => (
                     <button
@@ -970,7 +970,7 @@ export default function OperatingHoursSettings({
                       type="button"
                       onClick={() => updateRegularHolidayCycle(option.value)}
                       className={cn(
-                        "h-7 rounded-[7px] text-[13px] font-normal transition",
+                        "min-h-11 rounded-[7px] text-[16px] leading-6 font-medium transition",
                         regularHolidayCycle === option.value ? "bg-white text-[#111827] shadow-sm" : "text-[#64748b] hover:bg-white/70",
                       )}
                     >
@@ -988,7 +988,7 @@ export default function OperatingHoursSettings({
                       type="button"
                       onClick={() => updateBusinessDay(day.key, { enabled: !businessDays.find((item) => item.key === day.key)?.enabled })}
                       className={cn(
-                        "h-8 rounded-[8px] border text-[14px] font-normal transition",
+                        "min-h-11 rounded-[8px] border text-[16px] leading-6 font-medium transition",
                         active ? "border-[#f0a8b4] bg-[#fff7f8] text-[#c13f52]" : "border-[#dbe2ea] bg-white text-[#475569]",
                       )}
                     >
@@ -1002,15 +1002,7 @@ export default function OperatingHoursSettings({
           </div>
 
           <div className="border-t border-[#edf2f7] px-4 py-3">
-            <div className="grid gap-3 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center">
-              <p className="text-[16px] font-medium leading-6 text-[#111827]">예약 가능 시간</p>
-              <div className="flex items-center gap-2">
-                <TimeInput value={bookingSettings.firstBookingTime} onChange={(value) => updateBookingSetting("firstBookingTime", value, true)} compact />
-                <span className="text-[#94a3b8]">-</span>
-                <TimeInput value={bookingSettings.lastBookingTime} onChange={(value) => updateBookingSetting("lastBookingTime", value, true)} compact />
-              </div>
-            </div>
-            <div className="mt-3 grid gap-2 border-t border-[#edf2f7] pt-3 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center">
+            <div className="grid gap-2 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center">
               <label htmlFor="compact-booking-close-grace" className="text-[16px] font-medium leading-6 text-[#111827]">마감 여유</label>
               <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
                 <select
@@ -1037,7 +1029,7 @@ export default function OperatingHoursSettings({
             <div className="mt-3 border-t border-[#edf2f7] pt-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[16px] font-medium leading-6 text-[#111827]">예약 금지 시간</p>
-                <button type="button" onClick={addBlockedWindow} className="inline-flex min-h-11 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">
+                <button type="button" onClick={addBlockedWindow} className="inline-flex min-h-11 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] leading-6 font-medium text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">
                   <Plus className="h-3.5 w-3.5" />
                   금지 시간 추가
                 </button>
@@ -1048,12 +1040,12 @@ export default function OperatingHoursSettings({
                   {bookingSettings.blockedWindows.map((windowItem) => (
                     <div key={windowItem.id} className="grid min-w-0 grid-cols-[minmax(0,88px)_18px_minmax(0,88px)_minmax(0,1fr)_44px] items-center gap-2 rounded-[10px] border border-[#edf2f7] bg-[#fbfcfd] p-2">
                       <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact />
-                      <span className="text-center text-[14px] font-normal text-[#94a3b8]">~</span>
+                      <span className="text-center text-[16px] leading-6 font-normal text-[#94a3b8]">~</span>
                       <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact />
                       <input
                         value={windowItem.label}
                         onChange={(event) => updateBlockedWindow(windowItem.id, { label: event.target.value })}
-                        className="min-h-11 min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20"
+                        className="min-h-11 min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] leading-6 font-normal text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20"
                       />
                       <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" aria-label="예약 제외 시간 삭제">
                         <Trash2 className="h-4 w-4" />
@@ -1068,8 +1060,8 @@ export default function OperatingHoursSettings({
         {pendingTemporaryHolidayDate ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/20 px-4" role="dialog" aria-modal="true">
             <div className="w-full max-w-[360px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
-              <p className="text-[18px] font-normal text-[#111827]">임시 휴무일 지정</p>
-              <p className="mt-3 text-[16px] font-normal leading-6 text-[#475569]">
+              <p className="text-[20px] leading-7 font-semibold text-[#111827]">임시 휴무일 지정</p>
+              <p className="mt-3 text-[16px] leading-6 font-normal leading-6 text-[#475569]">
                 {pendingTemporaryHolidayDate}을 임시 휴무일로 지정할까요?
               </p>
               <div className="mt-5 grid grid-cols-2 gap-2">
@@ -1325,16 +1317,7 @@ export default function OperatingHoursSettings({
 
       {activeTab === "booking" ? (
         <WebSurface className={cn(compact ? "p-3" : "p-4")}>
-          <div className={cn("grid items-center", compact ? "grid-cols-[112px_minmax(0,1fr)] gap-2" : "gap-3 sm:grid-cols-[130px_minmax(0,1fr)]")}>
-            <p className={cn("font-normal text-[#334155]", "text-[16px]")}>예약 가능 시간</p>
-            <div className={cn("flex items-center", compact ? "gap-2" : "gap-4")}>
-              <TimeInput value={bookingSettings.firstBookingTime} onChange={(value) => updateBookingSetting("firstBookingTime", value, true)} compact={compact} />
-              <span className="text-[#94a3b8]">-</span>
-              <TimeInput value={bookingSettings.lastBookingTime} onChange={(value) => updateBookingSetting("lastBookingTime", value, true)} compact={compact} />
-            </div>
-          </div>
-
-          <div className={cn("grid border-t border-[#edf2f7]", compact ? "mt-3 grid-cols-[112px_minmax(0,1fr)] gap-2 pt-3" : "mt-4 gap-3 pt-4 sm:grid-cols-[130px_minmax(0,1fr)]")}>
+          <div className="grid gap-3 sm:grid-cols-[130px_minmax(0,1fr)]">
             <div>
               <label htmlFor="booking-close-grace" className="text-[16px] font-medium leading-6 text-[#334155]">마감 여유</label>
               <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">

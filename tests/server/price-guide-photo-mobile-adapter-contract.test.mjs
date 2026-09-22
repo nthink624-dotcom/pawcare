@@ -50,7 +50,7 @@ test("mobile price-guide adapter keeps the authenticated write boundary and no-s
   assert.match(cors, /"capacitor:\/\/localhost"/);
   assert.match(cors, /Authorization, Content-Type, Accept/);
   assert.match(mediaClient, /mediaKind === "price_guide_source"\s*\|\|\s*mediaKind === "feedback_screenshot"\s*\?\s*"private"/);
-  assert.match(mediaClient, /retentionPolicy: mediaKind === "price_guide_source"\s*\?\s*"archive"\s*:\s*mediaKind === "feedback_screenshot"\s*\?\s*"transient"\s*:\s*"standard"/);
+  assert.match(mediaClient, /retentionPolicy: mediaKind === "price_guide_source"\s*\|\|\s*mediaKind === "feedback_screenshot"\s*\?\s*"transient"\s*:\s*"standard"/);
   assert.match(mediaService, /await removeMediaStorageObjects\(\{ bucket, paths: \[\.\.\.paths\] \}\)[\s\S]*verifyMediaStorageObjectsAbsent\(\{ bucket, paths: \[\.\.\.paths\] \}\)[\s\S]*\.from\("media_assets"\)[\s\S]*\.delete\(\)[\s\S]*\.eq\("shop_id", owner\.shopId\)[\s\S]*\.eq\("media_kind", "price_guide_source"\)[\s\S]*\.select\("id"\)/);
   assert.doesNotMatch(
     mediaService.slice(mediaService.indexOf("export async function removeOwnerPriceGuideSourceMedia"), mediaService.indexOf("export async function getPublicShopMediaSignedUrls")),

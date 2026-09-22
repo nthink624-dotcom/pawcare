@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import type { CSSProperties, DragEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -11,13 +11,11 @@ import {
 import { CalendarStaffLaneHeader } from "@/components/owner-web/calendar-staff-lane-header";
 import { CalendarTimeRail, CalendarTimeRailHeader } from "@/components/owner-web/calendar-time-rail";
 import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
-import { statusIndicatorColor, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
-import { getScheduleStaffIdentityTone } from "@/lib/staff-chip-colors";
+import { getAppointmentIdentityTone } from "@/lib/appointment-identity-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { StaffScheduleOverride } from "@/types/domain";
 
 type SummaryMetricKey = "today" | "completed" | "changes";
-type BookingCardTone = "bath" | "grooming" | "hygiene" | "care" | "neutral";
 type StaffKey = string;
 type StaffFilter = "전체 직원" | StaffKey;
 type BoardPanState = {
@@ -70,10 +68,9 @@ const minimumBookingCardHitTarget = 44;
 const scheduleBodyInsetY = 7;
 const quarterSlotHeight = pixelsPerHour / 4;
 const scheduleSnapSegmentsPerHour = 4;
-const expandableBookingDurationMax = 0.25;
 const bookingCardWidth = "96%";
 const bookingCardHorizontalInset = "2%";
-const requestNoteMinimumDuration = 0.75;
+const detailedBookingMinimumDuration = 1.5;
 
 function formatHourLabel(hour: number) {
   const fullHour = Math.floor(hour);
@@ -120,33 +117,6 @@ function getTimedBookingStatus(booking: DailyBooking, selectedDate: string, curr
   return booking.status;
 }
 
-function getBookingCardTone(booking: Pick<DailyBooking, "service">): BookingCardTone {
-  const service = booking.service.replaceAll(" ", "");
-  if (service.includes("목욕")) return "bath";
-  if (service.includes("위생")) return "hygiene";
-  if (/(부분|발톱|발바닥|얼굴|귀|항문낭)/.test(service)) return "care";
-  if (/(미용|가위|클리핑)/.test(service)) return "grooming";
-  return "neutral";
-}
-
-function getBookingCardToneClass(tone: BookingCardTone) {
-  void tone;
-  return cn(
-    "border border-l-[3px] border-[#dbe3ec] bg-[#fffefd] shadow-none transition-[background-color,border-color,box-shadow] hover:border-[#c8d4e1] hover:bg-white hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
-  );
-}
-
-function getBookingStatusEdgeTone(status: string): StatusIndicatorTone {
-  if (status.includes("대기") || status.includes("예정")) return "pending";
-  if (status === "확정") return "confirmed";
-  if (status === "진행 중") return "active";
-  if (status === "픽업 준비") return "pickupReady";
-  if (status === "완료") return "completed";
-  if (status.includes("변경") || status === "방문 확인 필요" || status === "완료 확인 필요") return "changed";
-  if (status.includes("취소") || status.includes("거절") || status.includes("노쇼")) return "cancelled";
-  return "neutral";
-}
-
 function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, currentHour: number) {
   const status = getTimedBookingStatus(booking, selectedDate, currentHour);
   if (status === "방문 확인 필요") return "방문 확인";
@@ -157,25 +127,15 @@ function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, 
 
 function getReservationStatusPillClass(booking: DailyBooking, selectedDate: string, currentHour: number) {
   const status = getTimedBookingStatus(booking, selectedDate, currentHour);
-  if (isOverduePendingBookingStatus(status)) return "text-[#a04455]";
-  if (status === "방문 확인 필요" || status === "완료 확인 필요") return "text-[#a46710]";
-  if (status === "확정") return "text-[#24784b]";
-  if (status === "진행 중") return "text-[#2563eb]";
-  if (status === "픽업 준비") return "text-[#7c3aed]";
-  if (status === "완료") return "text-[#64748b]";
-  if (status.includes("변경")) return "text-[#a46710]";
-  if (status.includes("취소")) return "text-[#a04455]";
-  if (status.includes("거절")) return "text-[#a04455]";
-  if (status.includes("노쇼")) return "text-[#a04455]";
-  return "text-[#475569]";
-}
-
-function getBookingResizeHandleClass(tone: BookingCardTone) {
-  if (tone === "bath") return "bg-[#4f8a64]/60";
-  if (tone === "grooming") return "bg-[#527dab]/60";
-  if (tone === "hygiene") return "bg-[#8066a5]/60";
-  if (tone === "care") return "bg-[#b88939]/60";
-  return "bg-[#718096]/55";
+  if (isOverduePendingBookingStatus(status)) return "border-[#ead6dc] bg-white/70 text-[#a04455]";
+  if (status === "방문 확인 필요" || status === "완료 확인 필요") return "border-[#ead9b8] bg-white/70 text-[#8a5b11]";
+  if (status === "확정") return "border-[#cfe3d7] bg-white/70 text-[#24784b]";
+  if (status === "진행 중") return "border-[#cdddf7] bg-white/70 text-[#2563eb]";
+  if (status === "픽업 준비") return "border-[#ddd3f1] bg-white/70 text-[#6d50a0]";
+  if (status === "완료") return "border-[#d9e0e7] bg-white/70 text-[#64748b]";
+  if (status.includes("변경")) return "border-[#ead9b8] bg-white/70 text-[#8a5b11]";
+  if (status.includes("취소") || status.includes("거절") || status.includes("노쇼")) return "border-[#ead6dc] bg-white/70 text-[#a04455]";
+  return "border-[#dfe5ec] bg-white/70 text-[#475569]";
 }
 
 function getScheduleDisplayLayout(operatingWindow: { enabled: boolean; openHour: number; closeHour: number }): ScheduleDisplayLayout {
@@ -242,7 +202,7 @@ function getBookingHeight(duration: number) {
 }
 
 function getBookingCardDensity(duration: number) {
-  return duration <= expandableBookingDurationMax ? "micro" : "normal";
+  return duration >= detailedBookingMinimumDuration ? "detailed" : "compact";
 }
 
 function getStaffBookingLayouts<T extends { id: string; start: number; duration: number }>(bookings: T[]) {
@@ -417,8 +377,8 @@ export function DailyScheduleGrid({
                     ? "border-[#dfe8f2]"
                     : "border-[#e8eef5]"
                   : selected
-                    ? "border-[#e8eef5]/50"
-                    : "border-[#eef4f9]/50",
+                    ? "border-transparent"
+                    : "border-transparent",
             )}
             style={{ top: segment.top + index * quarterSlotHeight }}
           />
@@ -799,23 +759,17 @@ export function DailyScheduleGrid({
                         <p className="absolute left-[5%] top-5 z-10 text-[12px] font-medium leading-[18px] text-[#a0acb9]">예약 없음</p>
                       ) : (
                         laneBookings.map((booking) => {
-                          const bookingStaff = scheduleStaff.find((staffMember) => staffMember.key === booking.staffKey);
-                          const bookingIdentityTone = getScheduleStaffIdentityTone(
-                            booking.staffKey,
-                            bookingStaff?.chipColorIndex,
-                          );
                           const selected = selectedBookingId === booking.id;
                           const timeLabel = `${formatHourLabel(booking.start)}-${formatHourLabel(booking.start + booking.duration)}`;
                           const displayTimeLabel = booking.scheduledTimeLabel ?? timeLabel;
                           const changeStatus = isChangeBookingStatus(booking.status);
-                          const cardTone = getBookingCardTone(booking);
                           const timedStatus = getTimedBookingStatus(booking, selectedDate, currentHour);
-                          const statusTone = getBookingStatusEdgeTone(timedStatus);
                           const completedBooking = isCompletedBookingStatus(booking.sourceStatus ?? booking.status);
+                          const identityTone = getAppointmentIdentityTone(booking.petId ?? booking.pet ?? booking.id);
                           const canAdjustBookingTime = !changeStatus && !completedBooking;
                           const density = getBookingCardDensity(booking.duration);
-                          const microCard = density === "micro";
-                          const expandedMicro = density === "micro" && expandedMicroBookingId === booking.id;
+                          const compactCard = density === "compact";
+                          const expandedMicro = density === "compact" && expandedMicroBookingId === booking.id;
                           const bookingHeight = getBookingHeight(booking.duration);
                           const showResizeHandleBar = booking.duration >= 1;
                           const bookingLayout = bookingLayouts.get(booking.id) ?? { lane: 0, laneCount: 1 };
@@ -823,9 +777,8 @@ export function DailyScheduleGrid({
                           const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
                           const statusPillClass = getReservationStatusPillClass(booking, selectedDate, currentHour);
                           const pendingOverlapLabel = getPendingOverlapLabel(booking, conflictBookings);
-                          const showRequestNote = booking.duration >= requestNoteMinimumDuration;
                           const requestNote = booking.memo?.trim() ?? "";
-                          const requestNoteText = requestNote ? `요청사항 ${requestNote}` : "요청사항 없음";
+                          const requestNoteText = requestNote ? `고객 메모 ${requestNote}` : "고객 메모 없음";
 
                           if (booking.displayMode === "reservation-chip") {
                             return (
@@ -839,28 +792,18 @@ export function DailyScheduleGrid({
                                   onSelectStaff(booking.staffKey || firstStaffKey);
                                 }}
                                 className={cn(
-                                  "absolute z-20 box-border flex min-h-11 items-center justify-start overflow-hidden rounded-[9px] px-2.5 py-1.5 text-left text-[12px] font-medium leading-[18px] text-[#334155]",
-                                  getBookingCardToneClass(cardTone),
+                                  "absolute z-20 box-border flex min-h-11 items-center justify-start overflow-hidden rounded-[9px] border border-l-[3px] px-2.5 py-1.5 text-left text-[12px] font-medium leading-[18px] text-[#334155] shadow-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
                                   selected && "!border-[#bcd5fa] ring-1 ring-[#bcd5fa]",
                                 )}
                                 style={{
                                   ...bookingLayoutStyle,
                                   top: getBookingTop(booking.start, scheduleDisplayLayout),
-                                  borderLeftColor: statusIndicatorColor[statusTone],
+                                  backgroundColor: completedBooking ? identityTone.mutedBackground : identityTone.background,
+                                  borderColor: identityTone.border,
+                                  borderLeftColor: identityTone.accent,
                                 }}
                               >
                                 <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap tabular-nums">
-                                  <span
-                                    data-booking-staff-identity={booking.staffKey}
-                                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border"
-                                    style={{
-                                      backgroundColor: bookingIdentityTone.background,
-                                      borderColor: bookingIdentityTone.border,
-                                    }}
-                                    aria-label={`담당 직원 ${bookingStaff?.name ?? ""}`}
-                                  >
-                                    <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: bookingIdentityTone.color }} />
-                                  </span>
                                   <span className="flex min-w-0 flex-col">
                                   <span className="text-[12px] leading-[18px] text-[#64748b]">예약</span>
                                   <span className="leading-[18px]">{booking.scheduledTimeLabel ?? timeLabel}</span>
@@ -877,66 +820,79 @@ export function DailyScheduleGrid({
                               draggable={!resizingBooking && canAdjustBookingTime}
                               data-booking-id={booking.id}
                               data-booking-duration={booking.duration}
+                              data-booking-density={density}
                               onDragStart={(event) => handleBookingDragStart(event, booking.id)}
                               onDragEnd={() => setDraggingBookingId(null)}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 onSelectBooking(booking.id);
                                 onSelectStaff(booking.staffKey || firstStaffKey);
-                                setExpandedMicroBookingId(density === "micro" ? booking.id : null);
+                                setExpandedMicroBookingId(density === "compact" ? booking.id : null);
                               }}
                               className={cn(
-                                "absolute z-20 box-border cursor-grab overflow-hidden rounded-[12px] p-0 text-left outline-none !border-l-[color:var(--pm-booking-status-edge)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1 active:cursor-grabbing",
+                                "absolute z-20 box-border cursor-grab overflow-hidden rounded-[10px] border border-l-[3px] p-0 text-left shadow-none outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1 active:cursor-grabbing",
                                 !canAdjustBookingTime && "cursor-pointer active:cursor-pointer",
                                 resizingBooking?.bookingId === booking.id && "cursor-ns-resize",
                                 draggingBookingId === booking.id && "opacity-70 ring-1 ring-[#93c5fd]",
                                 expandedMicro && "z-50 shadow-none",
                                 selected && "!border-[#bcd5fa] ring-1 ring-[#bcd5fa]",
-                                getBookingCardToneClass(cardTone),
                               )}
                               style={{
                                 ...bookingLayoutStyle,
                                 top: getBookingTop(booking.start, scheduleDisplayLayout),
                                 height: bookingHeight,
-                                "--pm-booking-status-edge": statusIndicatorColor[statusTone],
-                              } as CSSProperties & Record<"--pm-booking-status-edge", string>}
+                                backgroundColor: completedBooking ? identityTone.mutedBackground : identityTone.background,
+                                borderColor: identityTone.border,
+                                borderLeftColor: identityTone.accent,
+                              }}
                             >
                               <div
                                 className={cn(
-                                  "absolute inset-0 flex min-h-0 min-w-0 items-start overflow-hidden text-left",
-                                  microCard ? "px-3 py-2" : showRequestNote ? "px-3.5 py-[3px]" : "px-3.5 py-2.5",
+                                  "absolute inset-0 flex min-h-0 min-w-0 overflow-hidden text-left",
+                                  compactCard ? "items-center px-2.5 py-1.5" : "items-start px-3.5 py-2.5",
                                 )}
                               >
                                 <div
                                   className={cn(
                                     "grid w-full min-w-0 content-start items-center gap-x-1.5",
-                                    microCard ? "grid-cols-[minmax(0,1fr)_max-content]" : "grid-cols-[minmax(0,1fr)_auto]",
-                                    microCard ? "grid-rows-[20px]" : showRequestNote ? "grid-rows-[20px_18px_18px] gap-y-0.5" : "grid-rows-[20px_18px] gap-y-0.5",
+                                    compactCard
+                                      ? "grid-cols-[minmax(0,1fr)_max-content_max-content] grid-rows-[20px]"
+                                      : "grid-cols-[minmax(0,1fr)_auto] grid-rows-[20px_18px_18px] gap-y-1",
                                   )}
                                 >
                                   <p
                                     className={cn(
                                       "min-w-0 truncate text-[14px] font-medium leading-5",
-                                      timedStatus === "완료" ? "text-[#64748b]" : "text-[#263445]",
+                                      timedStatus === "완료" ? "text-[#64748b]" : "",
                                     )}
+                                    style={{ color: timedStatus === "완료" ? undefined : identityTone.text }}
                                   >
-                                    {`${booking.pet} · ${booking.customer}`}
+                                    {compactCard ? booking.pet : `${booking.pet} · ${booking.customer}`}
                                   </p>
                                   <span
                                     className={cn(
                                       "shrink-0 justify-self-end text-[12px] leading-[18px]",
-                                      microCard
-                                        ? "max-w-[116px] truncate whitespace-nowrap text-[#64748b]"
+                                      compactCard
+                                        ? "whitespace-nowrap font-medium tabular-nums text-[#526174]"
                                         : "whitespace-nowrap font-medium tabular-nums text-[#41546a]",
                                     )}
                                   >
-                                    {microCard ? booking.service : displayTimeLabel}
+                                    {compactCard ? formatHourLabel(booking.start) : displayTimeLabel}
                                   </span>
-                                  {!microCard ? (
+                                  {compactCard ? (
+                                    <span
+                                      className={cn(
+                                        "inline-flex shrink-0 items-center rounded-full border px-1.5 text-[11px] font-medium leading-[18px]",
+                                        statusPillClass,
+                                      )}
+                                    >
+                                      {statusLabel}
+                                    </span>
+                                  ) : (
                                     <div className="col-span-2 flex min-w-0 items-center gap-2 leading-[18px]">
                                       <span
                                         className={cn(
-                                          "shrink-0 text-[12px] font-medium leading-[18px]",
+                                          "inline-flex shrink-0 items-center rounded-full border px-1.5 text-[12px] font-medium leading-[18px]",
                                           statusPillClass,
                                         )}
                                       >
@@ -947,36 +903,19 @@ export function DailyScheduleGrid({
                                           {pendingOverlapLabel}
                                         </span>
                                       ) : null}
-                                      <span
-                                        data-booking-staff-identity={booking.staffKey}
-                                        className="inline-flex min-w-0 shrink items-center gap-1 rounded-[6px] border px-1.5 text-[12px] font-medium leading-[18px]"
-                                        style={{
-                                          backgroundColor: bookingIdentityTone.background,
-                                          borderColor: bookingIdentityTone.border,
-                                          color: bookingIdentityTone.text,
-                                        }}
-                                        title={`담당 ${bookingStaff?.name ?? "직원"}`}
-                                      >
-                                        <span
-                                          className="h-1.5 w-1.5 shrink-0 rounded-full"
-                                          style={{ backgroundColor: bookingIdentityTone.color }}
-                                          aria-hidden="true"
-                                        />
-                                        <span className="truncate">{bookingStaff?.name ?? "직원"}</span>
-                                      </span>
                                       <p className="min-w-0 truncate text-[12px] font-medium leading-[18px] text-[#56687b]">
                                         {booking.service}
                                       </p>
                                     </div>
-                                  ) : null}
-                                  {showRequestNote ? (
+                                  )}
+                                  {!compactCard ? (
                                     <p
                                       className="col-span-2 min-w-0 truncate text-[12px] leading-[18px] text-[#56687b]"
                                       title={requestNoteText}
                                       aria-label={requestNoteText}
                                       data-booking-request-note={requestNote ? "present" : "empty"}
                                     >
-                                      <span className="font-medium text-[#475569]">요청사항</span>{" "}
+                                      <span className="font-medium text-[#475569]">고객 메모</span>{" "}
                                       <span className="font-normal">{requestNote || "없음"}</span>
                                     </p>
                                   ) : null}
@@ -994,7 +933,7 @@ export function DailyScheduleGrid({
                                   className="absolute inset-x-3 bottom-0.5 z-30 flex h-4 cursor-ns-resize touch-none items-center justify-center"
                                 >
                                   {showResizeHandleBar ? (
-                                    <span className={cn("h-[5px] w-10 rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.88)]", getBookingResizeHandleClass(cardTone))} />
+                                    <span className="h-[5px] w-10 rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.88)]" style={{ backgroundColor: identityTone.accent }} />
                                   ) : null}
                                 </div>
                               ) : null}

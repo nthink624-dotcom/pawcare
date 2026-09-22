@@ -7,6 +7,7 @@ import { addDate, currentDateInTimeZone, currentMinutesInTimeZone } from "@/lib/
 import { assignAppointmentsToStaffLanes } from "@/lib/owner-schedule-lanes";
 import { getAdjacentScheduleCardEdgeInsets } from "@/lib/owner-schedule-card-gaps";
 import { getReservationDateDisplay } from "@/lib/reservation-date-display";
+import { getAppointmentIdentityTone } from "@/lib/appointment-identity-colors";
 import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
 
 const START_HOUR = 9;
@@ -19,16 +20,18 @@ const BOARD_BOTTOM_CLEARANCE = 72;
 const BOARD_HEIGHT = BOARD_TOP_PADDING + (END_HOUR - START_HOUR) * HOUR_HEIGHT + BOARD_BOTTOM_CLEARANCE;
 const CURRENT_TIME_LABEL_COLLISION_DISTANCE = 24;
 
-const STATUS_PRESENTATION: Record<Appointment["status"], { label: string; color: string; tint: string }> = {
-  pending: { label: "승인 대기", color: "#b98121", tint: "#fff9ee" },
-  confirmed: { label: "예약 확정", color: "#1f9d55", tint: "#f0faf4" },
-  in_progress: { label: "진행 중", color: "#2563eb", tint: "#eff6ff" },
-  almost_done: { label: "픽업 준비", color: "#7c3aed", tint: "#f5f3ff" },
-  completed: { label: "미용 완료", color: "#64748b", tint: "#f1f5f9" },
-  cancelled: { label: "취소", color: "#a04455", tint: "#fff8fa" },
-  rejected: { label: "거절", color: "#a04455", tint: "#fff8fa" },
-  noshow: { label: "노쇼", color: "#a04455", tint: "#fff8fa" },
+const STATUS_PRESENTATION: Record<Appointment["status"], { label: string; compactLabel: string; color: string; badgeBackground: string; badgeBorder: string }> = {
+  pending: { label: "승인 대기", compactLabel: "대기", color: "#8a5b11", badgeBackground: "#fffaf0", badgeBorder: "#ead9b8" },
+  confirmed: { label: "예약 확정", compactLabel: "확정", color: "#24784b", badgeBackground: "#f5fbf7", badgeBorder: "#cfe3d7" },
+  in_progress: { label: "진행 중", compactLabel: "진행", color: "#2563eb", badgeBackground: "#f5f8fe", badgeBorder: "#cdddf7" },
+  almost_done: { label: "픽업 준비", compactLabel: "픽업", color: "#6d50a0", badgeBackground: "#faf8fd", badgeBorder: "#ddd3f1" },
+  completed: { label: "미용 완료", compactLabel: "완료", color: "#64748b", badgeBackground: "#f8f9fa", badgeBorder: "#d9e0e7" },
+  cancelled: { label: "취소", compactLabel: "취소", color: "#a04455", badgeBackground: "#fff8fa", badgeBorder: "#ead6dc" },
+  rejected: { label: "거절", compactLabel: "거절", color: "#a04455", badgeBackground: "#fff8fa", badgeBorder: "#ead6dc" },
+  noshow: { label: "노쇼", compactLabel: "노쇼", color: "#a04455", badgeBackground: "#fff8fa", badgeBorder: "#ead6dc" },
 };
+
+const DETAILED_BOOKING_MINUTES = 90;
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
@@ -132,10 +135,8 @@ function ScheduleLane({
   serviceNames,
   serviceDurations,
   onOpenAppointment,
-  staffIdentity,
 }: Pick<Props, "petNames" | "guardianNames" | "serviceNames" | "serviceDurations" | "onOpenAppointment"> & {
   appointments: Appointment[];
-  staffIdentity: Pick<StaffOption, "color">;
 }) {
   const items = assignCollisionColumns(appointments, serviceDurations);
   const cardEdgeInsets = getAdjacentScheduleCardEdgeInsets(
@@ -157,6 +158,11 @@ function ScheduleLane({
         const top = BOARD_TOP_PADDING + ((start - START_HOUR * 60) / 60) * HOUR_HEIGHT;
         const height = (minutes / 60) * HOUR_HEIGHT;
         const status = STATUS_PRESENTATION[appointment.status];
+        const identityTone = getAppointmentIdentityTone(appointment.pet_id || appointment.id);
+        const completed = appointment.status === "completed";
+        const detailedCard = minutes >= DETAILED_BOOKING_MINUTES;
+        const memo = appointment.memo?.trim() ?? "";
+        const memoLabel = memo ? `고객 메모 ${memo}` : "고객 메모 없음";
         const width = 100 / collisionColumns;
         const edgeInsets = cardEdgeInsets.get(appointment.id) ?? { top: 0, bottom: 0 };
         return (
@@ -164,6 +170,7 @@ function ScheduleLane({
             key={appointment.id}
             type="button"
             data-appointment-id={appointment.id}
+            data-booking-density={detailedCard ? "detailed" : "compact"}
             onClick={() => onOpenAppointment(appointment)}
             className="absolute rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-1"
             style={{
@@ -176,23 +183,53 @@ function ScheduleLane({
           >
             <span
               data-testid="appointment-card-surface"
-              className="absolute inset-x-0 overflow-hidden rounded-lg border border-l-[3px] border-[#d8dee7] px-2 py-1.5 shadow-none"
-              style={{ top: edgeInsets.top, bottom: edgeInsets.bottom, borderLeftColor: status.color, backgroundColor: status.tint }}
+              className="absolute inset-x-0 overflow-hidden rounded-[10px] border border-l-[3px] px-2.5 py-1.5 shadow-none"
+              style={{
+                top: edgeInsets.top, bottom: edgeInsets.bottom,
+                borderColor: identityTone.border,
+                borderLeftColor: identityTone.accent,
+                backgroundColor: completed ? identityTone.mutedBackground : identityTone.background,
+              }}
             >
-              <span className="min-w-0">
-                <span className="flex min-w-0 items-center gap-1.5 truncate text-[13px] font-medium leading-5 text-[#42526a] [font-variant-numeric:tabular-nums]">
-                  <span data-testid="staff-identity-marker" aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: staffIdentity.color }} />
-                  <span className="truncate">{appointment.appointment_time.slice(0, 5)} · {status.label}</span>
-                </span>
-                <span className="block truncate text-[14px] font-medium leading-5 text-[#172033]">
-                  {petNames[appointment.pet_id] ?? "반려동물"} · {guardianNames[appointment.guardian_id] ?? "보호자"}
-                </span>
-                {minutes >= 75 ? (
-                  <span className="block truncate text-[13px] font-normal leading-5 text-[#526174]">
-                    {serviceNames[appointment.service_id] ?? "서비스"}{appointment.memo ? ` · ${appointment.memo}` : ""}
+              {detailedCard ? (
+                <span className="flex min-w-0 flex-col">
+                  <span className="flex min-w-0 items-center justify-between gap-1.5 text-[12px] font-medium leading-[18px] [font-variant-numeric:tabular-nums]">
+                    <span className="truncate text-[#526174]">{appointment.appointment_time.slice(0, 5)}</span>
+                    <span
+                      data-testid="appointment-status-badge"
+                      className="shrink-0 rounded-full border px-1.5 leading-[18px]"
+                      style={{ color: status.color, backgroundColor: status.badgeBackground, borderColor: status.badgeBorder }}
+                    >
+                      {status.label}
+                    </span>
                   </span>
-                ) : null}
-              </span>
+                  <span className="block truncate text-[14px] font-medium leading-5" style={{ color: completed ? "#64748b" : identityTone.text }}>
+                    {petNames[appointment.pet_id] ?? "반려동물"} · {guardianNames[appointment.guardian_id] ?? "보호자"}
+                  </span>
+                  <span className="block truncate text-[13px] font-normal leading-5 text-[#526174]">
+                    {serviceNames[appointment.service_id] ?? "서비스"}
+                  </span>
+                  <span className="block truncate text-[12px] font-normal leading-[18px] text-[#64748b]" title={memoLabel} aria-label={memoLabel} data-booking-customer-memo={memo ? "present" : "empty"}>
+                    <span className="font-medium text-[#475569]">고객 메모</span>{" "}{memo || "없음"}
+                  </span>
+                </span>
+              ) : (
+                <span className="flex h-full min-w-0 items-center gap-1.5">
+                  <span className="min-w-0 flex-1 truncate text-[14px] font-medium leading-5" style={{ color: completed ? "#64748b" : identityTone.text }}>
+                    {petNames[appointment.pet_id] ?? "반려동물"}
+                  </span>
+                  <span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#526174] [font-variant-numeric:tabular-nums]">
+                    {appointment.appointment_time.slice(0, 5)}
+                  </span>
+                  <span
+                    data-testid="appointment-status-badge"
+                    className="shrink-0 rounded-full border px-1.5 text-[11px] font-medium leading-[18px]"
+                    style={{ color: status.color, backgroundColor: status.badgeBackground, borderColor: status.badgeBorder }}
+                  >
+                    {status.compactLabel}
+                  </span>
+                </span>
+              )}
             </span>
           </button>
         );
@@ -385,7 +422,7 @@ export default function OwnerBookingDaySchedule(props: Props) {
                     <div data-testid="staff-lane-board" className="relative bg-white" style={{ height: BOARD_HEIGHT }}>
                       {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, index) => <span key={index} className="absolute inset-x-0 border-t border-[#e3e8ef]" style={{ top: BOARD_TOP_PADDING + index * HOUR_HEIGHT }} />)}
                       {unavailable ? <div className="absolute inset-0 z-[1] flex items-start justify-center bg-[#f1f4f7]/80 pt-4 text-[13px] leading-5 text-[#526174]">근무하지 않음</div> : null}
-                      <ScheduleLane appointments={laneAppointments} staffIdentity={staff} petNames={petNames} guardianNames={guardianNames} serviceNames={serviceNames} serviceDurations={serviceDurations} onOpenAppointment={onOpenAppointment} />
+                      <ScheduleLane appointments={laneAppointments} petNames={petNames} guardianNames={guardianNames} serviceNames={serviceNames} serviceDurations={serviceDurations} onOpenAppointment={onOpenAppointment} />
                       {showNow ? <span className="absolute inset-x-0 z-20 h-px bg-[#2f5fb3]" style={{ top: nowTop }} aria-hidden="true" /> : null}
                     </div>
                   </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Smartphone, Vibrate, Volume2, VolumeX } from "lucide-react";
+import { ChevronRight, Smartphone, Vibrate, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Switch } from "@/components/ui/switch";
@@ -106,22 +106,31 @@ export default function OwnerAppNotificationSettings({
   };
   const appBlocked = runtime.appNotificationsEnabled === false || runtime.permission === "denied";
   const runtimeIssue = !runtime.supported
-    ? "앱을 설치한 휴대폰에서 설정할 수 있어요."
+    ? "앱에서 설정"
     : !preferences.enabled
-      ? "앱 알림이 꺼져 있어요."
+      ? "알림 꺼짐"
       : appBlocked
-    ? "앱 알림 권한이 차단되어 있어요."
+    ? "권한 차단됨"
     : runtime.channelBlocked
-      ? "새 예약 알림 채널이 차단되어 있어요."
+      ? "새 예약 알림 차단됨"
     : runtime.registrationFailed
-      ? "알림 권한은 켜져 있지만 기기 연결에 실패했어요."
+      ? "기기 연결 실패"
       : runtime.registered
-        ? "앱 알림을 받고 있어요. 채널별 차단은 휴대폰 알림 설정에서 확인할 수 있어요."
-        : "알림 연결 중이에요.";
+        ? "기기 연결됨"
+        : "연결 중";
 
   return (
-    <div className="divide-y divide-[var(--border)]">
-      <label htmlFor="owner-app-push-enabled" className="flex min-h-11 items-start justify-between gap-4 px-4 py-4">
+    <div className="bg-white px-4 text-[var(--text)]">
+      <div className="flex min-h-14 flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] py-3">
+        <span className="flex items-center gap-2 text-[14px] font-medium leading-5">
+          <Smartphone aria-hidden="true" className="h-4 w-4 text-[var(--muted)]" strokeWidth={1.8} />
+          이 휴대폰
+        </span>
+        <span role="status" className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] font-medium leading-4 text-[#475569]">
+          {saving ? "저장 중" : runtimeIssue}
+        </span>
+      </div>
+      <label htmlFor="owner-app-push-enabled" className="flex min-h-11 items-center justify-between gap-4 py-4">
         <div className="min-w-0">
           <p className="text-[16px] font-medium leading-6 text-[var(--text)]">앱 알림 받기</p>
         </div>
@@ -130,24 +139,24 @@ export default function OwnerAppNotificationSettings({
           checked={preferences.enabled}
           disabled={!runtime.supported || saving}
           aria-label="앱 알림 받기"
+          className="before:absolute before:-inset-y-3 before:inset-x-0"
           onCheckedChange={handlePrimaryToggle}
         />
       </label>
 
       {showPermissionPrimer && !preferences.enabled ? (
-        <div className="space-y-3 bg-[#f8fafc] px-4 py-4">
+        <div className="mb-3 space-y-3 rounded-[10px] bg-[#f8fafc] p-3">
           <div>
-            <p className="text-[16px] font-medium leading-6 text-[var(--text)]">휴대폰 알림 권한을 요청할게요</p>
-            <p className="mt-1 text-[14px] font-normal leading-5 text-[var(--muted)]">허용하면 새 예약 알림을 이 휴대폰으로 받을 수 있어요.</p>
+            <p className="text-[14px] font-medium leading-5 text-[var(--text)]">휴대폰 알림 권한</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => setShowPermissionPrimer(false)} className="min-h-11 rounded-[10px] border border-[var(--border)] bg-white px-3 text-[14px] font-medium text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[#2563eb]">취소</button>
-            <button type="button" onClick={() => { setShowPermissionPrimer(false); void savePreferences({ ...preferences, enabled: true }); }} className="min-h-11 rounded-[10px] bg-[#2563eb] px-3 text-[14px] font-medium text-white focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">알림 켜기</button>
+            <button type="button" onClick={() => { setShowPermissionPrimer(false); void savePreferences({ ...preferences, enabled: true }); }} className="min-h-11 rounded-[10px] bg-[#111a30] px-3 text-[14px] font-medium text-white focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">알림 켜기</button>
           </div>
         </div>
       ) : null}
 
-      <label htmlFor="owner-booking-push-enabled" className="flex min-h-11 items-start justify-between gap-4 px-4 py-4">
+      <label htmlFor="owner-booking-push-enabled" className="flex min-h-11 items-center justify-between gap-4 border-t border-[var(--border)] py-4">
         <div className="min-w-0">
           <p className="text-[16px] font-medium leading-6 text-[var(--text)]">새 예약 알림</p>
         </div>
@@ -156,15 +165,16 @@ export default function OwnerAppNotificationSettings({
           checked={preferences.bookingRequestedEnabled}
           disabled={!preferences.enabled || saving}
           aria-label="새 예약 접수 알림"
+          className="before:absolute before:-inset-y-3 before:inset-x-0"
           onCheckedChange={(bookingRequestedEnabled) =>
             void savePreferences({ ...preferences, bookingRequestedEnabled })
           }
         />
       </label>
 
-      <div className="px-4 py-4">
-        <p className="text-[16px] font-medium text-[var(--text)]">알림 방식</p>
-        <div className="mt-3 grid grid-cols-3 gap-2" role="radiogroup" aria-label="알림 방식">
+      <div className="border-t border-[var(--border)] py-4">
+        <p className="text-[16px] font-medium leading-6 text-[var(--text)]">알림 방식</p>
+        <div className="mt-3 grid grid-cols-3 gap-1 rounded-[14px] bg-[#f1f5f9] p-1" role="radiogroup" aria-label="알림 방식">
           {alertModeOptions.map((option) => {
             const Icon = option.icon;
             const selected = preferences.alertMode === option.value;
@@ -176,13 +186,13 @@ export default function OwnerAppNotificationSettings({
                 aria-checked={selected}
                 disabled={!preferences.enabled || saving}
                 onClick={() => void savePreferences({ ...preferences, alertMode: option.value })}
-                className={`flex min-h-[66px] flex-col items-center justify-center gap-1.5 rounded-[8px] border px-2 text-[14px] font-medium transition disabled:opacity-45 ${
+                className={`flex min-h-11 flex-wrap items-center justify-center gap-1.5 rounded-[10px] px-2 py-2 text-[14px] font-medium leading-5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-45 ${
                   selected
-                    ? "border-[var(--accent)] bg-[#f1f7f4] text-[var(--accent)]"
-                    : "border-[var(--border)] bg-white text-[var(--muted)]"
+                    ? "bg-[#111a30] text-white"
+                    : "text-[#475569]"
                 }`}
               >
-                <Icon className="h-5 w-5" strokeWidth={1.9} />
+                <Icon aria-hidden="true" className="h-4 w-4 shrink-0" strokeWidth={1.9} />
                 {option.label}
               </button>
             );
@@ -190,36 +200,26 @@ export default function OwnerAppNotificationSettings({
         </div>
       </div>
 
-      <div className="flex items-start gap-3 px-4 py-4">
-        <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
-        <div className="min-w-0">
-          <p className={`text-[14px] leading-5 ${runtime.registered ? "text-[var(--accent)]" : "text-[var(--muted)]"}`}>
-            {runtimeIssue}
-          </p>
-          <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">
-            휴대폰의 무음 모드·방해금지·알림 채널 설정이 앱 설정보다 우선할 수 있어요.
-          </p>
-          <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">변경사항은 자동으로 저장됩니다.</p>
-          {runtime.supported && preferences.enabled && (runtime.channelBlocked || appBlocked) ? (
-            <button
-              type="button"
-              onClick={() => void openDeviceNotificationSettings()}
-              className="mt-3 min-h-11 rounded-[10px] border border-[#cbd5e1] bg-white px-3 text-[14px] font-medium text-[#334155] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
-            >
-              휴대폰 알림 설정 열기
-            </button>
-          ) : null}
-          {runtime.supported && preferences.enabled && runtime.registrationFailed && !runtime.channelBlocked && !appBlocked ? (
-            <button
-              type="button"
-              onClick={() => void syncOwnerPushNotifications(context, { userInitiated: true })}
-              className="mt-3 min-h-11 rounded-[10px] border border-[#cbd5e1] bg-white px-3 text-[14px] font-medium text-[#334155] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
-            >
-              기기 다시 연결
-            </button>
-          ) : null}
-        </div>
-      </div>
+      {runtime.supported && preferences.enabled && (runtime.channelBlocked || appBlocked) ? (
+        <button
+          type="button"
+          onClick={() => void openDeviceNotificationSettings()}
+          className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-[var(--border)] py-3 text-left text-[14px] font-medium text-[#334155] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]"
+        >
+          휴대폰 알림 설정
+          <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0" />
+        </button>
+      ) : null}
+      {runtime.supported && preferences.enabled && runtime.registrationFailed && !runtime.channelBlocked && !appBlocked ? (
+        <button
+          type="button"
+          onClick={() => void syncOwnerPushNotifications(context, { userInitiated: true })}
+          className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-[var(--border)] py-3 text-left text-[14px] font-medium text-[#334155] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]"
+        >
+          기기 다시 연결
+          <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0" />
+        </button>
+      ) : null}
     </div>
   );
 }

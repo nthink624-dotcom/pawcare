@@ -19,6 +19,7 @@ import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription"
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { readBootstrapPriceGuideState } from "@/lib/price-photo/bootstrap-price-guide-state";
+import { ownerPriceGuideSessionKey, readOwnerPriceGuideSessionDraft, writeOwnerPriceGuideSessionDraft } from "@/lib/price-photo/owner-price-guide-session-draft";
 import {
   isStaffProfileFallbackKey,
   staffProfileFallbackKeys,
@@ -304,8 +305,9 @@ export default function OwnerSettingsPanel({
   const operatingSaveCountRef = useRef(0);
   const [isBasicInfoEditing, setIsBasicInfoEditing] = useState(false);
   const [localActiveScreen, setLocalActiveScreen] = useState<SettingsScreen>(initialScreen ?? null);
+  const priceGuideSessionKey = ownerPriceGuideSessionKey(data);
   const [priceGuideState, setPriceGuideState] = useState<PriceGuideSessionState | null>(() =>
-    readBootstrapPriceGuideState(data.services),
+    readOwnerPriceGuideSessionDraft(priceGuideSessionKey) ?? readBootstrapPriceGuideState(data.services),
   );
   const [notificationSettings, setNotificationSettings] = useState<ShopNotificationSettingsState>(
     mapShopNotificationSettingsState(data.shop.notification_settings),
@@ -1395,12 +1397,15 @@ export default function OwnerSettingsPanel({
       initialRows={priceGuideState?.rows ?? null}
       initialDocument={priceGuideState?.document ?? null}
       initialServiceId={priceGuideState?.serviceId ?? null}
+      initialResumeMode={priceGuideState?.resumeMode}
       onComplete={(_rows, state) => {
         setPriceGuideState(state ?? null);
+        writeOwnerPriceGuideSessionDraft(priceGuideSessionKey, null);
         setIsPriceGuideOpen(false);
       }}
       onExit={(_rows, state) => {
         setPriceGuideState(state ?? null);
+        writeOwnerPriceGuideSessionDraft(priceGuideSessionKey, state ?? null);
         setIsPriceGuideOpen(false);
       }}
     />
@@ -1682,22 +1687,30 @@ function BusinessHoursSheet({
           >닫기</button>
         </div>
 
-        <div className="space-y-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
+        <div className="space-y-3">
           {showClosedToggle ? (
-            <div
-              className="flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 text-left"
+            <button
+              type="button"
+              role="switch"
+              aria-checked={draft.closed}
+              disabled={saving}
+              onClick={() => onChange({ ...draft, closed: !draft.closed })}
+              className="flex min-h-14 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="min-w-0">
-                <p className="text-[16px] font-medium leading-6 tracking-[-0.005em] text-[var(--text)]">휴무일로 설정</p>
-              </div>
-              <Switch
-                checked={draft.closed}
-                disabled={saving}
-                aria-label="휴무일로 설정"
-                onCheckedChange={(checked) => onChange({ ...draft, closed: checked })}
-                className="h-11 w-[52px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
-              />
-            </div>
+              <span className="min-w-0 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[var(--text)]">휴무일로 설정</span>
+              <span
+                aria-hidden="true"
+                className={`relative inline-flex h-7 w-[52px] shrink-0 items-center rounded-full border transition-colors duration-200 ${
+                  draft.closed ? "border-[#2f7866] bg-[#2f7866]" : "border-[#d6dee8] bg-[#f1f5f9]"
+                }`}
+              >
+                <span
+                  className={`block h-6 w-6 rounded-full border border-black/5 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.20)] transition-transform duration-200 ${
+                    draft.closed ? "translate-x-[25px]" : "translate-x-[1px]"
+                  }`}
+                />
+              </span>
+            </button>
           ) : null}
           <div className="grid grid-cols-2 gap-2.5">
             <label htmlFor={openInputId} className="block rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 focus-within:border-[#2563eb] focus-within:ring-2 focus-within:ring-[#2563eb]/15">

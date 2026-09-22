@@ -214,8 +214,8 @@ export function CustomerMetricCard({ label, value, compact = false }: { label: s
   );
 }
 
-export function CustomerEmptyState({ title, description, action = null }: { title: string; description: string; action?: React.ReactNode }) {
-  return <AppEmptyState title={title} description={description} action={action} className="rounded-[18px] bg-[#fcfaf7] px-4 py-5" />;
+export function CustomerEmptyState({ title, description, action = null }: { title: string; description?: string; action?: React.ReactNode }) {
+  return <AppEmptyState title={title} description={description} action={action} className="rounded-[18px] border-[#dce7f2] bg-white px-4 py-5" />;
 }
 
 export function CustomerDetailHistoryPagination({
@@ -384,7 +384,7 @@ export function NotificationHistoryRow({ notification, pet }: { notification: Bo
           </div>
           <p className="mt-1 text-[14px] leading-5 text-[var(--muted)]">{timeLabel}</p>
         </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[14px] font-normal ${statusTone}`}>{statusLabel}</span>
+        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-medium leading-[18px] ${statusTone}`}>{statusLabel}</span>
       </div>
     </div>
   );

@@ -276,10 +276,15 @@ test("one saved staff owns the full available lane width without synthetic choic
 
 test("reservation chips keep booking information without rendering pet profile media", () => {
   assert.doesNotMatch(schedule, /RoundPhoto|petVisuals|petVisuals\[/);
-  assert.match(schedule, /\{appointment\.appointment_time\.slice\(0, 5\)\} · \{status\.label\}/);
+  assert.match(schedule, /\{appointment\.appointment_time\.slice\(0, 5\)\}/);
+  assert.match(schedule, /data-testid="appointment-status-badge"/);
+  assert.match(schedule, /\{status\.label\}/);
   assert.match(schedule, /petNames\[appointment\.pet_id\] \?\? "반려동물"/);
   assert.match(schedule, /guardianNames\[appointment\.guardian_id\] \?\? "보호자"/);
   assert.match(schedule, /serviceNames\[appointment\.service_id\] \?\? "서비스"/);
+  assert.match(schedule, /data-booking-density=\{detailedCard \? "detailed" : "compact"\}/);
+  assert.match(schedule, /data-booking-customer-memo=\{memo \? "present" : "empty"\}/);
+  assert.match(schedule, />고객 메모<\/span>/);
 });
 
 test("date navigation restores the selected date summary and exact seven-day selector", () => {
@@ -339,7 +344,8 @@ test("appointment geometry and card hierarchy preserve canonical contracts", () 
   assert.match(schedule, /const BOARD_BOTTOM_CLEARANCE = 72/);
   assert.match(schedule, /BOARD_HEIGHT = BOARD_TOP_PADDING \+ \(END_HOUR - START_HOUR\) \* HOUR_HEIGHT \+ BOARD_BOTTOM_CLEARANCE/);
   assert.match(schedule, /data-appointment-id=\{appointment\.id\}/);
-  assert.match(schedule, /minutes >= 75/);
+  assert.match(schedule, /const DETAILED_BOOKING_MINUTES = 90/);
+  assert.match(schedule, /const detailedCard = minutes >= DETAILED_BOOKING_MINUTES/);
   assert.match(schedule, /미용 완료/);
   assert.match(schedule, /noshow: \{ label: "노쇼"/);
   assert.match(schedule, /border-l-\[3px\]/);
@@ -351,10 +357,9 @@ test("appointment geometry and card hierarchy preserve canonical contracts", () 
   assert.match(schedule, /src=\{staff\.profileImageUrl\}/);
   assert.match(schedule, /backgroundColor: staff\.background \?\? "#ffffff"/);
   assert.doesNotMatch(schedule, /selectedStaffId === staff\.id \? "#f4f6f8"/);
-  assert.match(schedule, /data-testid="staff-identity-marker"/);
-  assert.match(schedule, /backgroundColor: staffIdentity\.color/);
-  assert.match(schedule, /backgroundColor: status\.tint/);
-  assert.match(schedule, /text-\[13px\] font-medium leading-5[^\n]+font-variant-numeric:tabular-nums/);
+  assert.doesNotMatch(schedule, /data-testid="staff-identity-marker"|staffIdentity/);
+  assert.match(schedule, /backgroundColor: completed \? identityTone\.mutedBackground : identityTone\.background/);
+  assert.match(schedule, /text-\[12px\] font-medium leading-\[18px\][^\n]+font-variant-numeric:tabular-nums/);
   assert.doesNotMatch(schedule, /data-testid="date-total-chip"/);
   assert.doesNotMatch(schedule, /총 \{renderedAppointmentCount\}건/);
   assert.doesNotMatch(schedule, /CalendarCheck2/);
@@ -373,10 +378,13 @@ test("appointment geometry and card hierarchy preserve canonical contracts", () 
   assert.doesNotMatch(schedule, /items-center justify-center gap-3 border-b px-3 text-left/);
   assert.match(schedule, /text-\[16px\] font-medium leading-6/);
   assert.match(schedule, /const staffSummaryLabel = `\$\{workHoursLabel\} · \$\{laneAppointments\.length\}건 · \$\{formatDuration\(totalMinutes\)\}`/);
-  assert.match(schedule, /backgroundColor: status\.tint/);
-  assert.match(schedule, /pending: \{ label: "승인 대기", color: "#b98121", tint: "#fff9ee" \}/);
-  assert.match(schedule, /in_progress: \{ label: "진행 중", color: "#2563eb", tint: "#eff6ff" \}/);
-  assert.match(schedule, /completed: \{ label: "미용 완료", color: "#64748b", tint: "#f1f5f9" \}/);
+  assert.match(schedule, /getAppointmentIdentityTone\(appointment\.pet_id \|\| appointment\.id\)/);
+  assert.match(schedule, /borderColor: identityTone\.border/);
+  assert.match(schedule, /borderLeftColor: identityTone\.accent/);
+  assert.match(schedule, /backgroundColor: completed \? identityTone\.mutedBackground : identityTone\.background/);
+  assert.match(schedule, /pending: \{ label: "승인 대기", compactLabel: "대기", color: "#8a5b11"/);
+  assert.match(schedule, /in_progress: \{ label: "진행 중", compactLabel: "진행", color: "#2563eb"/);
+  assert.match(schedule, /completed: \{ label: "미용 완료", compactLabel: "완료", color: "#64748b"/);
 });
 
 test("current-time badge keeps contrast and clears nearby whole-hour labels", () => {

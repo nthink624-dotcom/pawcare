@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [string]$ExpectedServerUrl = "https://app.petmanager.co.kr/login",
-  [string]$ExpectedApiBaseUrl = "https://app.petmanager.co.kr",
+  [string]$ExpectedApiBaseUrl = "https://www.petmanager.co.kr",
   [string]$NativeRootPath,
   [string]$NativeConfigPath,
   [string]$BundlePath,

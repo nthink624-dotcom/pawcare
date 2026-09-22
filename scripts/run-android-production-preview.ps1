@@ -10,7 +10,7 @@ $serverUrl = $productionOrigin + "/login"
 $apiBaseUrl = if ($env:CAPACITOR_PRODUCTION_API_BASE_URL) {
   $env:CAPACITOR_PRODUCTION_API_BASE_URL.TrimEnd("/")
 } else {
-  $productionOrigin
+  "https://www.petmanager.co.kr"
 }
 $sdkRoot = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { "$env:LOCALAPPDATA\Android\Sdk" }
 $adb = Join-Path $sdkRoot "platform-tools\adb.exe"

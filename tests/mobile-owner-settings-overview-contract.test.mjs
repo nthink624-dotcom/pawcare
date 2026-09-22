@@ -5,6 +5,10 @@ import test from "node:test";
 const overview = await readFile(new URL("../src/components/owner/owner-settings-overview.tsx", import.meta.url), "utf8");
 const settings = await readFile(new URL("../src/components/owner/owner-settings-panel.tsx", import.meta.url), "utf8");
 const notifications = await readFile(new URL("../src/components/owner/owner-app-notification-settings.tsx", import.meta.url), "utf8");
+const businessHoursDialog = settings.slice(
+  settings.indexOf("function BusinessHoursSheet("),
+  settings.indexOf("function ClosedDatePickerSheet("),
+);
 
 test("settings overview uses the approved account-first information architecture", () => {
   const groupsStart = settings.indexOf("  const settingsGroups: OwnerSettingsOverviewGroup[] = [");
@@ -41,13 +45,16 @@ test("overview is presentational and preserves compact accessible geometry", () 
 });
 
 test("business-hours and app-notification copy follow the compact readable settings policy", () => {
-  assert.match(settings, /text-\[20px\].*leading-7[^\n]*>전체 시간 설정/);
+  assert.match(settings, /text-\[16px\] font-medium leading-6[^\n]*>전체 시간 설정/);
   assert.match(settings, /text-\[16px\].*leading-6[^\n]*>\{businessHoursSummary\}/);
   assert.match(settings, /text-\[14px\].*leading-5[^\n]*>시작 시간/);
   assert.match(settings, /text-\[14px\].*leading-5[^\n]*>마감 시간/);
-  assert.match(settings, /min-h-11[\s\S]{0,240}text-\[16px\][\s\S]{0,80}>\s*일괄 적용/);
+  assert.doesNotMatch(settings, /일괄 적용/);
+  assert.match(settings, /전체 시간 설정<\/span>[\s\S]{0,300}<ChevronRight aria-hidden="true"/);
+  assert.match(settings, /fixed inset-0 z-40 flex items-center justify-center[\s\S]{0,400}role="dialog"[\s\S]{0,240}max-w-\[398px\][\s\S]{0,120}rounded-\[18px\]/);
+  assert.doesNotMatch(businessHoursDialog, /items-end justify-center bg-black\/30|rounded-t-\[28px\]|h-1\.5 w-12 rounded-full bg-stone-200/);
   assert.doesNotMatch(notifications, /BellRing|새 예약 접수 알림을 이 휴대폰에서 받아요|고객이 예약을 접수하면 바로 알려드려요/);
-  assert.match(notifications, /알림 권한은 켜져 있지만 기기 연결에 실패했어요/);
+  assert.match(notifications, /기기 연결 실패/);
 });
 
 test("alimtalk settings remove balance marketing and keep sender truth in the existing help", () => {
@@ -64,6 +71,7 @@ test("all seven business-hour weekdays reuse the time-value weight token", () =>
   assert.match(settings, /const businessHoursRowValueWeightClass = "font-medium";/);
   assert.match(settings, /businessHoursWeekOrder = \[1, 2, 3, 4, 5, 6, 0\]/);
   assert.equal(settings.match(/\$\{businessHoursRowValueWeightClass\}/g)?.length, 2);
+  assert.match(settings, /w-14 shrink-0 items-center whitespace-nowrap text-\[16px\] leading-6 \$\{businessHoursRowValueWeightClass\}[\s\S]{0,180}\{weekdayLabels\[day\]\}요일/);
   assert.match(settings, /\{weekdayLabels\[day\]\}요일/);
   assert.match(settings, /\{formatBusinessHoursRange\(hours\)\}/);
   assert.doesNotMatch(settings, /weekdayLabels\[day\][\s\S]{0,160}font-semibold/);
@@ -72,11 +80,11 @@ test("all seven business-hour weekdays reuse the time-value weight token", () =>
 test("root statuses use source state without permission, token, or network side effects", () => {
   assert.match(notifications, /getOwnerPushPreferences\(\)/);
   assert.match(notifications, /getOwnerPushRuntimeState\(\)/);
-  assert.match(notifications, /"앱을 설치한 휴대폰에서 설정할 수 있어요\."[\s\S]*"앱 알림이 꺼져 있어요\."[\s\S]*"앱 알림 권한이 차단되어 있어요\."[\s\S]*"알림 권한은 켜져 있지만 기기 연결에 실패했어요\."[\s\S]*"알림 연결 중이에요\."/);
+  assert.match(notifications, /"앱에서 설정"[\s\S]*"알림 꺼짐"[\s\S]*"권한 차단됨"[\s\S]*"기기 연결 실패"[\s\S]*"연결 중"/);
   assert.doesNotMatch(overview, /localStorage|fetchApiJsonWithAuth|PushNotifications/);
   assert.match(notifications, /showPermissionPrimer/);
-  assert.match(notifications, /휴대폰 알림 권한을 요청할게요/);
-  assert.match(notifications, /휴대폰 알림 설정 열기/);
+  assert.match(notifications, /휴대폰 알림 권한/);
+  assert.match(notifications, /휴대폰 알림 설정/);
   assert.doesNotMatch(settings, /status: businessHoursSummary|status: `\$\{data\.staffMembers\.length\}명`|status: notificationSettings\.enabled|status: appNotificationStatus|status: isTesterFeedback/);
 });
 

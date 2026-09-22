@@ -2821,7 +2821,7 @@ function OwnerAppContent({
   const selectedGuardianCount = selectedGuardianIds.length;
   const selectedGuardianPetNames = selectedGuardianPets.map((pet) => pet.name).join(", ");
   const customerInlineSaveButtonClass =
-    "inline-flex items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[13px] font-medium tracking-[-0.01em] text-white transition disabled:opacity-45";
+    "inline-flex items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-medium leading-5 tracking-[-0.005em] text-white transition disabled:opacity-45";
   const customerInlineInputClass = "field-input min-w-0 flex-1 !pt-0 !pb-[2px] !pr-[78px]";
   const headerAction: { label: string; onClick: () => void; disabled?: boolean } | null =
     activeTab === "book"
@@ -2946,7 +2946,17 @@ function OwnerAppContent({
       </header>
       ) : null}
 
-      <main className={cn("no-scrollbar flex-1", isHomeTab && !isCustomerDetailView ? "min-h-0 overflow-hidden pb-0" : activeTab === "book" ? "mb-[calc(env(safe-area-inset-bottom)+60px)] min-h-0 overflow-y-auto overscroll-y-contain pb-0" : "overflow-y-auto pb-24")}>
+      <main
+        className={cn(
+          "no-scrollbar flex-1",
+          isHomeTab && !isCustomerDetailView
+            ? "min-h-0 overflow-hidden pb-0"
+            : activeTab === "book"
+              ? "mb-[calc(env(safe-area-inset-bottom)+60px)] min-h-0 overflow-y-auto overscroll-y-contain pb-0"
+              : "overflow-y-auto pb-24",
+          activeTab === "customers" && !selectedGuardian && "bg-[#f6f9fc]",
+        )}
+      >
         {error && <div className="mx-4 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         {activeTab === "home" && (
@@ -3202,7 +3212,6 @@ function OwnerAppContent({
                 {filteredGuardians.length === 0 ? (
                   <CustomerEmptyState
                     title={customerEmptyTitle}
-                    description={customerEmptyDescription}
                     action={
                       null
                     }
@@ -3273,16 +3282,16 @@ function OwnerAppContent({
               >
                 <ChevronRight className="h-5 w-5 rotate-180" strokeWidth={2} />
               </button>
-              <h2 className="text-[18px] font-medium tracking-[-0.03em] text-[var(--text)]">고객 상세</h2>
+              <h2 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[var(--text)]">고객 상세</h2>
             </div>
 
             <div className="space-y-4">
-              <div className="space-y-2">
-                <p className="px-1 text-[12px] font-medium leading-4 tracking-[0.03em] text-[#64748b]">기본 정보</p>
+              <div className="space-y-3">
+                <p className="px-1 text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#0f172a]">기본 정보</p>
                 <div className="overflow-hidden rounded-[14px] border border-[#e2e7ed] bg-white">
                   {editingCustomerFields.name ? (
                     <div className="flex items-center gap-3 px-[15px] py-[13px]">
-                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">보호자</span>
+                      <span className="w-16 shrink-0 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">보호자</span>
                       <div className="relative min-w-0 flex-1">
                         <input
                           className={customerInlineInputClass}
@@ -3307,8 +3316,8 @@ function OwnerAppContent({
                       className="flex w-full items-center gap-3 px-[15px] py-[13px] text-left"
                       onClick={() => openCustomerFieldEditor("name")}
                     >
-                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">보호자</span>
-                      <span className="min-w-0 flex-1 truncate text-[16px] font-medium text-[#0f172a]">{selectedGuardian.name}</span>
+                      <span className="w-16 shrink-0 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">보호자</span>
+                      <span className="min-w-0 flex-1 truncate text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#0f172a]">{selectedGuardian.name}</span>
                       <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
                     </button>
                   )}
@@ -3316,12 +3325,12 @@ function OwnerAppContent({
                   <div className="border-t border-[#edf1f5]" />
                   {isStaffApp ? (
                     <div className="flex items-center gap-3 px-[15px] py-[13px]">
-                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">연락처</span>
-                      <span className="min-w-0 flex-1 truncate text-[16px] font-medium text-[#64748b]">관리자 확인 필요</span>
+                      <span className="w-16 shrink-0 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">연락처</span>
+                      <span className="min-w-0 flex-1 truncate text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#64748b]">관리자 확인 필요</span>
                     </div>
                   ) : editingCustomerFields.phone ? (
                     <div className="flex items-center gap-3 px-[15px] py-[13px]">
-                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">연락처</span>
+                      <span className="w-16 shrink-0 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">연락처</span>
                       <div className="relative min-w-0 flex-1">
                         <input
                           className={customerInlineInputClass}
@@ -3346,8 +3355,8 @@ function OwnerAppContent({
                       className="flex w-full items-center gap-3 px-[15px] py-[13px] text-left"
                       onClick={() => openCustomerFieldEditor("phone")}
                     >
-                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">연락처</span>
-                      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[16px] font-medium text-[#0f172a]">
+                      <span className="w-16 shrink-0 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">연락처</span>
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#0f172a]">
                         <span className="truncate">{formatShopPhoneNumber(selectedGuardian.phone)}</span>
                       </span>
                       <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
@@ -3357,7 +3366,7 @@ function OwnerAppContent({
                   <div className="border-t border-[#edf1f5]" />
                   {editingCustomerFields.pet ? (
                     <div className="flex items-center gap-3 px-[15px] py-[13px]">
-                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">반려동물</span>
+                      <span className="w-16 shrink-0 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">반려동물</span>
                       <div className="relative min-w-0 flex-1">
                         <input
                           className={customerInlineInputClass}
@@ -3382,8 +3391,8 @@ function OwnerAppContent({
                       className="flex w-full items-center gap-3 px-[15px] py-[13px] text-left"
                       onClick={() => openCustomerFieldEditor("pet")}
                     >
-                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">반려동물</span>
-                      <span className="min-w-0 flex-1 truncate text-[16px] font-medium text-[#0f172a]">{selectedGuardianPetNames || "등록된 반려동물 없음"}</span>
+                      <span className="w-16 shrink-0 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">반려동물</span>
+                      <span className="min-w-0 flex-1 truncate text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#0f172a]">{selectedGuardianPetNames || "등록된 반려동물 없음"}</span>
                       <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
                     </button>
                   )}
@@ -3404,7 +3413,7 @@ function OwnerAppContent({
                         <button
                           type="button"
                           disabled={saving}
-                          className="absolute bottom-3 right-3 inline-flex h-8 min-w-[52px] items-center justify-center rounded-[10px] border border-[#2f6fd6] bg-[#2f6fd6] px-3 text-[12px] font-medium tracking-[-0.01em] text-white transition disabled:opacity-45"
+                          className="absolute bottom-3 right-3 inline-flex h-8 min-w-[52px] items-center justify-center rounded-[10px] border border-[#2f6fd6] bg-[#2f6fd6] px-3 text-[14px] font-medium leading-5 tracking-[-0.01em] text-white transition disabled:opacity-45"
                           onClick={() => void handleCustomerInlineSave()}
                         >
                           저장
@@ -3417,18 +3426,18 @@ function OwnerAppContent({
                       className="flex w-full items-start gap-3 px-[15px] py-[13px] text-left"
                       onClick={() => openCustomerFieldEditor("memo")}
                     >
-                      <span className="w-16 shrink-0 pt-0.5 text-[13px] font-normal text-[#64748b]">메모</span>
-                      <span className={cn("min-w-0 flex-1 overflow-hidden text-[16px] font-medium leading-5 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]", selectedGuardian.memo ? "text-[#0f172a]" : "text-[#94a3b8]")}>{selectedGuardian.memo || "메모를 추가해 주세요"}</span>
+                      <span className="w-16 shrink-0 pt-0.5 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">메모</span>
+                      <span className={cn("min-w-0 flex-1 overflow-hidden text-[16px] font-medium leading-6 tracking-[-0.005em] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]", selectedGuardian.memo ? "text-[#0f172a]" : "text-[#94a3b8]")}>{selectedGuardian.memo || "메모를 추가해 주세요"}</span>
                       <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
                     </button>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <p className="px-1 text-[12px] font-medium leading-4 tracking-[0.03em] text-[#475569]">개인 알림톡</p>
+              <div className="space-y-3">
+                <p className="px-1 text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#475569]">개인 알림톡</p>
                 <div className="flex min-h-14 items-center gap-3 rounded-[14px] border border-[#e2e7ed] bg-white px-[15px] py-1.5">
-                  <p className="min-w-0 flex-1 text-[16px] font-semibold leading-5 text-[#0f172a]">알림톡 전체 수신</p>
+                  <p className="min-w-0 flex-1 text-[16px] font-medium leading-6 text-[#0f172a]">알림톡 전체 수신</p>
                   <button
                     type="button"
                     disabled={saving}
@@ -3446,7 +3455,7 @@ function OwnerAppContent({
 
                 {customerNotificationGroups.map((group) => (
                   <div key={group.title} className="space-y-1.5">
-                    <p className="px-1 pt-2 text-[12px] font-medium leading-4 text-[#475569]">{group.title}</p>
+                    <p className="px-1 pt-2 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#475569]">{group.title}</p>
                     <div className="overflow-hidden rounded-[14px] border border-[#e2e7ed] bg-white">
                       {group.items.map((item, index) => {
                         const active = guardianNotificationsEnabled && selectedGuardian.notification_settings[item.settingKey] !== false;
@@ -3465,7 +3474,7 @@ function OwnerAppContent({
                               disabled ? "cursor-not-allowed opacity-55" : "hover:bg-[#f8fafc]",
                             )}
                           >
-                            <span className="min-w-0 flex-1 text-[14px] font-medium leading-5 text-[#0f172a]">{item.label}</span>
+                            <span className="min-w-0 flex-1 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#0f172a]">{item.label}</span>
                             <span className={cn("relative h-6 w-10 shrink-0 rounded-full transition motion-reduce:transition-none", active ? "bg-[#2f6fd6]" : "bg-[#d8dde3]")} aria-hidden="true">
                               <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] transition motion-reduce:transition-none", active ? "left-[18px]" : "left-0.5")} />
                             </span>
@@ -5978,7 +5987,7 @@ function TodayConfirmedContent({ currentAppointments, careReportFollowupAppointm
   }, [selectedDateKey, slideDirection]);
 
   const openSectionBodyClassName = "no-scrollbar min-h-0 flex-1 overflow-y-auto pb-20";
-  const emptySectionClassName = "min-h-[72px] bg-[#f8fafc] px-3.5 py-4";
+  const emptySectionClassName = "min-h-[72px] border-[#edf1f5]! bg-white! px-3.5 py-4";
 
   const renderSectionBody = () => {
     if (focusedSection === "current") {

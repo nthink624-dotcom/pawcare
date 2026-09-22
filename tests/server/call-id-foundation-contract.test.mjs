@@ -43,8 +43,8 @@ test("caller ID owner setup returns the webhook token only on creation", async (
 });
 
 test("shared contract records caller ID privacy and provider boundaries", async () => {
-  const contract = await read("../../petmanager-shared/docs/data-contracts.md");
-  assert.match(contract, /Caller ID foundation/);
-  assert.match(contract, /raw caller number/);
-  assert.match(contract, /provider-neutral/i);
+  const contract = await read("docs/work-management/PM_CALL_ID_ADOPTION_20260921.md");
+  assert.match(contract, /원본 전화번호 대신 서버 HMAC 지문과 끝 4자리/);
+  assert.match(contract, /KT 통화매니저/);
+  assert.match(contract, /공급사/);
 });

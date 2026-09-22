@@ -98,7 +98,7 @@ test("adapter is pinned to the accepted media and photo-import contract", () => 
   assert.match(source, /"\/api\/owner\/media\/upload-intents"/);
   assert.match(source, /mediaKind: "price_guide_source"/);
   assert.match(source, /visibility: "private"/);
-  assert.match(source, /retentionPolicy: "archive"/);
+  assert.match(source, /retentionPolicy: "transient"/);
   assert.match(source, /uploadedFrom: "owner_mobile"/);
   assert.match(source, /"\/api\/owner\/media\/complete"/);
   assert.match(source, /"\/api\/owner\/price-guide-photo-import"/);

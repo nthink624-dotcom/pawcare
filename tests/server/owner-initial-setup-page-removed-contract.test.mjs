@@ -15,8 +15,11 @@ test("incomplete owner shops open the normal dashboard instead of the removed se
   assert.match(preview, /function getRequestedOwnerWebScreen\(data: BootstrapPayload\): OwnerWebScreenKey \{[\s\S]*if \(!getBootstrapOwnerInitialSetupReadiness\(data\)\.completed\) return "schedule";/);
 });
 
-test("the owner shell no longer exposes an initial-setup page or resume entry", () => {
-  assert.doesNotMatch(shell, /초기 설정 이어하기|초기 설정 가이드|<OwnerInitialSetupBlockingModal/);
-  assert.doesNotMatch(preview, /<OwnerInitialSetupGuide/);
-  assert.doesNotMatch(preview, /showInitialSetupAction=/);
+test("the owner shell keeps the normal dashboard and opens the existing setup modal on demand", () => {
+  assert.match(shell, /설정 마무리하기/);
+  assert.match(preview, /<OwnerInitialSetupGuide/);
+  assert.match(preview, /open=\{initialSetupOpen\}/);
+  assert.match(preview, /setInitialSetupOpen\(true\)/);
+  assert.match(preview, /const visibility = resolveOwnerInitialSetupVisibility[\s\S]*setInitialSetupOpen\(visibility\.open\)/);
+  assert.doesNotMatch(preview, /setActiveScreen\(screenForInitialSetupStep\(readiness\.nextStep/);
 });

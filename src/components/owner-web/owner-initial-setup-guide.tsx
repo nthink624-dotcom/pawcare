@@ -196,7 +196,7 @@ export default function OwnerInitialSetupGuide({
   }, []);
 
   useEffect(() => {
-    if (!open || !portalTarget) return;
+    if (!open || allComplete || !portalTarget) return;
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousBodyOverflow = document.body.style.overflow;
     const previousDocumentOverflow = document.documentElement.style.overflow;
@@ -241,7 +241,7 @@ export default function OwnerInitialSetupGuide({
     };
   }, [closeGuide, open, portalTarget]);
 
-  if (!open || !portalTarget) return null;
+  if (!open || !portalTarget || allComplete) return null;
 
   return createPortal(
     <div className="pointer-events-none fixed inset-0 z-[90]" data-testid="owner-initial-setup-layer">
@@ -260,10 +260,10 @@ export default function OwnerInitialSetupGuide({
           aria-modal="true"
           aria-labelledby="owner-initial-setup-title"
           tabIndex={-1}
-          className="pointer-events-auto relative z-10 flex max-h-[calc(100dvh-20px)] w-full min-w-0 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.20)] outline-none sm:max-h-[calc(100dvh-48px)] sm:w-[min(960px,calc(100vw-48px))]"
+          className="pointer-events-auto relative z-10 flex max-h-[calc(100dvh-20px)] w-full min-w-0 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.20)] outline-none sm:max-h-[calc(100dvh-48px)] sm:w-[min(1120px,calc(100vw-48px))]"
           data-testid="owner-initial-setup-guide"
         >
-          <header className="shrink-0 border-b border-[#dbe2ea] bg-white px-4 py-3 sm:px-6 sm:py-3.5">
+          <header className="shrink-0 border-b border-[#dbe2ea] bg-white px-5 py-4 sm:px-8 sm:py-5">
             <div
               className="flex min-w-0 flex-wrap items-center gap-2"
               data-testid="owner-initial-setup-title-row"
@@ -329,7 +329,7 @@ export default function OwnerInitialSetupGuide({
           </nav>
 
           <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white">
-            <aside className="hidden w-[184px] shrink-0 border-r border-[#dbe2ea] bg-[#fbfcfd] px-3 py-5 md:block" aria-label="매장 준비 단계">
+            <aside className="hidden w-[220px] shrink-0 border-r border-[#dbe2ea] bg-[#fbfcfd] px-4 py-6 md:block" aria-label="매장 준비 단계">
               <SetupChecklist
                 activeStep={activeStep}
                 allComplete={allComplete}
@@ -338,7 +338,7 @@ export default function OwnerInitialSetupGuide({
               />
             </aside>
             <div
-              className={`no-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb] ${activeScreen === "services" ? "sm:px-3 sm:py-5" : "sm:px-6 sm:py-6"}`}
+              className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb] sm:px-8 sm:py-8"
               data-testid="owner-initial-setup-body"
               role="region"
               aria-label={`${activeItem.label} 설정 내용`}

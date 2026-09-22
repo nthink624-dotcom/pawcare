@@ -8,6 +8,7 @@ import { validatePriceGuideDocument } from "@/components/auth/signup-price-guide
 import PriceGuideManualOnboarding from "@/components/owner-web/price-guide-manual-onboarding";
 import PriceGuideNativeInlineTable from "@/components/owner-web/price-guide-native-inline-table";
 import PriceGuideOnboardingChoice from "@/components/owner-web/price-guide-onboarding-choice";
+import type { PriceGuideOnboardingChoiceMode } from "@/components/owner-web/price-guide-onboarding-choice";
 import { usePriceGuideTemporaryDraft } from "@/components/owner-web/use-price-guide-temporary-draft";
 import PriceGuideV2ServiceDetail, { isFixedManualPriceGuideDocument } from "@/components/owner-web/price-guide-v2-service-detail";
 import type { ServicePriceGuide } from "@/components/owner-web/service-price-guide";
@@ -29,7 +30,7 @@ import { cleanupLatePhotoAnalysisResult } from "@/lib/price-guide-photo-analysis
 import { createPriceGuidePhotoImportFixture } from "@/lib/price-guide-photo-import-fixture";
 import type { PriceGuidePhotoImportResponse, PriceGuideV2 } from "@/types/price-guide-photo-import";
 
-type OnboardingMode = "choice" | "photo" | "manual";
+type OnboardingMode = "choice" | PriceGuideOnboardingChoiceMode;
 type EditorMode = "direct" | "photo-review";
 type PhotoAnalysisStage = "idle" | "uploading" | "reading";
 

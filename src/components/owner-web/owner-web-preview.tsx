@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 
 import CalendarManagementScreen, { type OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
+import OwnerInitialSetupGuide from "@/components/owner-web/owner-initial-setup-guide";
 import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
 import type { InitialSetupStaffSessionDraft } from "@/components/owner-web/initial-setup-staff-management-panel";
 import type { StaffProfilePhotoUploader } from "@/components/owner-web/staff-profile-photo-field";
@@ -348,6 +349,7 @@ export default function OwnerWebPreview({
   const navigationInitializedShopIdRef = useRef<string | null>(null);
   const ownerDataRef = useRef(initialData);
   const initialSetupRefreshRef = useRef<{ shopId: string; promise: Promise<BootstrapPayload> } | null>(null);
+  const initialSetupReturnScreenRef = useRef<OwnerWebScreenKey>("schedule");
   const demoMode = isDemoOwnerWebData(ownerData);
   const [liveStaffMembers, setLiveStaffMembers] = useState<OwnerWebStaffMember[]>(() => initialData.staffMembers ?? []);
   const [demoStaffMembers, setDemoStaffMembers] = useState<OwnerWebStaffMember[]>(() => {
@@ -388,7 +390,7 @@ export default function OwnerWebPreview({
     const requestedAfterSignup = new URLSearchParams(window.location.search).get("initialSetup") === "1";
     const visibility = resolveOwnerInitialSetupVisibility(initialSetupReadiness, requestedAfterSignup);
     setActiveScreen(getRequestedOwnerWebScreen(ownerData));
-    setInitialSetupOpen(false);
+    setInitialSetupOpen(visibility.open);
     if (visibility.nextStep) {
       setInitialSetupScreen(screenForInitialSetupStep(visibility.nextStep));
     }
@@ -459,7 +461,7 @@ export default function OwnerWebPreview({
     if (authoritative && getBootstrapOwnerInitialSetupReadiness(preparedData).completed) {
       setInitialSetupOpen(false);
       setInitialSetupSyncError(null);
-      setActiveScreen((currentScreen) => initialSetupOpen ? "schedule" : currentScreen);
+      setActiveScreen((currentScreen) => initialSetupOpen ? initialSetupReturnScreenRef.current : currentScreen);
     }
   }
 
@@ -557,6 +559,7 @@ export default function OwnerWebPreview({
     const readiness = getBootstrapOwnerInitialSetupReadiness(ownerDataRef.current);
     if (readiness.completed) return;
     setInitialSetupSyncError(null);
+    initialSetupReturnScreenRef.current = activeScreen;
     setInitialSetupOpen(true);
     setInitialSetupScreen(screenForInitialSetupStep(readiness.nextStep ?? "hours"));
     setStoreMenuOpen(false);
@@ -651,7 +654,7 @@ export default function OwnerWebPreview({
   function closeInitialSetup() {
     setInitialSetupOpen(false);
     setInitialSetupSyncError(null);
-    setActiveScreen("schedule");
+    setActiveScreen(initialSetupReturnScreenRef.current);
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     url.searchParams.delete("initialSetup");
@@ -787,6 +790,10 @@ export default function OwnerWebPreview({
       }}
       onLogout={handleLogout}
       loggingOut={loggingOut}
+      setupReminder={initialSetupEligible && !demoMode ? {
+        nextStep: initialSetupReadiness.nextStep ?? "hours",
+        onOpen: openInitialSetup,
+      } : undefined}
       isTester={ownerData.pilotCohort?.isPilotMember === true}
       feedbackFixtureMode={feedbackFixtureMode}
     >
@@ -819,6 +826,43 @@ export default function OwnerWebPreview({
         </div>
       </div>
       </OwnerWebAppShell>
+
+      <OwnerInitialSetupGuide
+        open={initialSetupOpen}
+        data={ownerData}
+        activeScreen={initialSetupScreen}
+        onClose={closeInitialSetup}
+        onNavigate={(screen) => {
+          if (screen === "operatingHours" || screen === "staff" || screen === "services") {
+            setInitialSetupScreen(screen);
+          }
+        }}
+      >
+        {renderScreen(
+          initialSetupScreen,
+          ownerData,
+          handleOwnerDataChange,
+          handleShopProfileChange,
+          handleOwnerProfileChange,
+          staffMembers,
+          handleStaffMembersChange,
+          scheduleCreateRequest,
+          handleScheduleCreateRequestHandled,
+          handleCreateReservationForCustomer,
+          handleCreateReservationForDate,
+          automaticVisitReminderAvailable,
+          false,
+          true,
+          handleInitialSetupStepSaved,
+          handleInitialSetupHoursNext,
+          initialSetupStaffSessionDraft,
+          setInitialSetupStaffSessionDraft,
+          handleInitialSetupStaffNext,
+          handleInitialSetupPricingNext,
+          uploadDemoInitialSetupStaffPhoto,
+          undefined,
+        )}
+      </OwnerInitialSetupGuide>
 
     </>
   );

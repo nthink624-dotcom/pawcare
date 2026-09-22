@@ -11,6 +11,7 @@ test("pricing keeps service and duration controls on one compact header row and 
   assert.match(table, /flex min-w-0 items-center gap-1/);
   assert.match(table, /min-h-11 min-w-0 flex-1/);
   assert.doesNotMatch(table, /min-w-\[196px\] flex-wrap/);
-  assert.match(guide, /activeScreen === "services" \? "sm:px-3 sm:py-5" : "sm:px-6 sm:py-6"/);
+  assert.match(guide, /sm:w-\[min\(1120px,calc\(100vw-48px\)\)\]/);
+  assert.match(guide, /sm:px-8 sm:py-8/);
   assert.match(control, /"시간 설정"/);
 });

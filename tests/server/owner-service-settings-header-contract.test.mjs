@@ -14,7 +14,7 @@ test("service-price settings uses one safe app-settings back header across price
   assert.match(serviceScreen, /<ChevronLeft className="h-5 w-5"/);
   assert.match(serviceScreen, /h-11 w-11/);
   assert.match(serviceScreen, /text-\[20px\] font-semibold leading-7/);
-  assert.match(serviceScreen, /서비스·요금 설정/);
+  assert.match(serviceScreen, /서비스 요금 설정/);
   assert.match(serviceScreen, /if \(priceGuideOnboarding\) \{[\s\S]*\{serviceSettingsHeader\}/);
   assert.match(serviceScreen, /const content = \([\s\S]*\{serviceSettingsHeader\}/);
   assert.match(ownerPreview, /onBackToSettings=\{onServiceSettingsBack\}/);

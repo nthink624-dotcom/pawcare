@@ -165,12 +165,12 @@ test("local signup completion opens the public DB-free owner setup while real si
   assert.match(ownerPreview, /const \[initialSetupScreen, setInitialSetupScreen\] = useState<OwnerWebScreenKey>\("operatingHours"\);/);
   assert.match(ownerPreview, /const \[initialSetupOpen, setInitialSetupOpen\] = useState\(false\);/);
   assert.doesNotMatch(ownerPreview, /useState\([^;]*window\.|useState[^;]*localStorage/);
-  assert.match(ownerPreview, /const requestedAfterSignup = new URLSearchParams\(window\.location\.search\)\.get\("initialSetup"\) === "1";[\s\S]*const visibility = resolveOwnerInitialSetupVisibility\(initialSetupReadiness, requestedAfterSignup\);[\s\S]*setInitialSetupOpen\(false\);[\s\S]*setInitialSetupScreen\(screenForInitialSetupStep\(visibility\.nextStep\)\)/);
-  assert.match(ownerPreview, /const initialSetupEligible = !initialSetupReadiness\.completed;[\s\S]*showInitialSetupAction=\{initialSetupEligible\}/);
+  assert.match(ownerPreview, /const requestedAfterSignup = new URLSearchParams\(window\.location\.search\)\.get\("initialSetup"\) === "1";[\s\S]*const visibility = resolveOwnerInitialSetupVisibility\(initialSetupReadiness, requestedAfterSignup\);[\s\S]*setInitialSetupOpen\(visibility\.open\);[\s\S]*setInitialSetupScreen\(screenForInitialSetupStep\(visibility\.nextStep\)\)/);
+  assert.match(ownerPreview, /const initialSetupEligible = !initialSetupReadiness\.completed;[\s\S]*setupReminder=\{initialSetupEligible && !demoMode/);
   for (const component of ["OwnerWebAppShell", "SettingsManagementScreen", "StaffManagementScreen", "ServiceManagementScreen", "OwnerInitialSetupGuide"]) {
     assert.match(ownerPreview, new RegExp(component));
   }
-  assert.match(ownerPreview, /\{initialSetupOpen \? \([\s\S]*<OwnerInitialSetupGuide[\s\S]*open[\s\S]*activeScreen=\{initialSetupScreen\}[\s\S]*onNavigate=\{setInitialSetupScreen\}/);
+  assert.match(ownerPreview, /<OwnerInitialSetupGuide\s+open=\{initialSetupOpen\}[\s\S]*activeScreen=\{initialSetupScreen\}[\s\S]*onNavigate=\{/);
   assert.match(ownerPreview, /persistShopProfile=\{!isDemoOwnerWebData\(initialData\)\}/);
   assert.match(ownerPreview, /demoMode=\{isDemoOwnerWebData\(initialData\)\}/);
   for (const setupScreen of ['screen: "operatingHours"', 'screen: "staff"', 'screen: "services"']) {
@@ -203,7 +203,7 @@ test("local signup completion opens the public DB-free owner setup while real si
   const logout = ownerPreview.slice(logoutStart, logoutEnd);
   assert.match(logout, /if \(demoMode\) \{[\s\S]*window\.location\.href = "\/login";[\s\S]*return;[\s\S]*getSupabaseBrowserClient\(\)/);
 
-  assert.match(operatingHours, /if \(!persistToSupabase \|\| nextShop\.id === "demo-shop" \|\| nextShop\.id === "owner-demo"\) \{[\s\S]*onSaveSuccess\?\.\(\);[\s\S]*return;[\s\S]*fetchApiJsonWithAuth<Shop>\("\/api\/settings"/);
+  assert.match(operatingHours, /if \(!persistToSupabase \|\| nextShop\.id === "demo-shop" \|\| nextShop\.id === "owner-demo"\) \{[\s\S]*if \(notifySuccess\) onSaveSuccess\?\.\(\);[\s\S]*return true;[\s\S]*fetchApiJsonWithAuth<Shop>/);
   assert.match(operatingHours, /notifySuccess = !initialSetupMode[\s\S]*if \(notifySuccess\) onSaveSuccess\?\.\(\)/);
   assert.match(operatingHours, /<OwnerInitialSetupSaveNextActions[\s\S]*onSave=\{completeInitialSetupStep\}[\s\S]*onNext=\{\(\) => onInitialSetupNext\?\.\(\)\}/);
   assert.match(settings, /if \(!persistShopProfile\) \{[\s\S]*onShopChange\?\.\(optimisticShop\);[\s\S]*return;[\s\S]*fetchApiJsonWithAuth/);
@@ -213,7 +213,7 @@ test("local signup completion opens the public DB-free owner setup while real si
   assert.doesNotMatch(services, /shop\.id === "demo-shop"|shop\.id === "owner-demo"/);
   assert.doesNotMatch(guide, /localStorage|getOwnerInitialSetupGuideStorageKey|dismissedAt/);
   assert.match(ownerPreview, /fetchApiJsonWithAuth<BootstrapPayload>\([\s\S]*\/api\/bootstrap\?shopId=\$\{encodeURIComponent\(shopId\)\}&phase=essential[\s\S]*\{ cache: "no-store" \}/);
-  assert.match(staff, /if \(initialSetupMode\) \{[\s\S]*<InitialSetupStaffManagementPanel[\s\S]*onSave=\{\(\) => void saveInitialSetupStaff\(\)\}[\s\S]*onNext=\{\(\) => onInitialSetupNext\?\.\(\)\}/);
+  assert.match(staff, /if \(initialSetupMode\) \{[\s\S]*<InitialSetupStaffManagementPanel[\s\S]*onSave=\{saveInitialSetupStaff\}[\s\S]*onNext=\{\(\) => onInitialSetupNext\?\.\(\)\}/);
   assert.match(staffPanel, /<OwnerInitialSetupSaveNextActions onSave=\{onSave\} onNext=\{onNext\} saving=\{isSaving\} \/>/);
   assert.doesNotMatch(staffPanel, /저장하고 다음/);
   assert.match(ownerPreview, /<StaffManagementScreen[\s\S]*initialSetupMode=\{initialSetupMode\}[\s\S]*onInitialSetupNext=\{onInitialSetupStaffNext\}/);
@@ -315,7 +315,7 @@ test("owner setup exposes only the three actionable setup items and advances fro
   assert.match(guide, /data-testid="owner-initial-setup-title-group"[\s\S]*?aria-label="이전 단계로"[\s\S]*?<ChevronLeft[^>]*aria-hidden="true"[\s\S]*?\{activeItem\.label\}/);
   assert.match(guide, /className="inline-flex h-11 w-11[^"\n]*focus-visible:ring-2[^"\n]*"\s*aria-label="이전 단계로"/);
   assert.doesNotMatch(guide, />\s*이전\s*</);
-  assert.match(guide, /나중에 하기/);
+  assert.match(guide, /저장하고 나중에/);
   assert.doesNotMatch(guide, /localStorage|sessionStorage|dismissedAt/);
   assert.doesNotMatch(guide, /SetupRows|item\.description|다음 단계|계속하기|컨페티|confetti|gradient|font-(?:bold|extrabold|black)|font-\[(?:[7-9]00)\]/i);
   const setupSaveStart = ownerPreview.indexOf("function handleInitialSetupStepSaved");
@@ -325,7 +325,7 @@ test("owner setup exposes only the three actionable setup items and advances fro
   assert.doesNotMatch(setupSaveHandler, /setInitialSetupScreen/);
   assert.match(ownerPreview, /function handleInitialSetupHoursNext\(\) \{[\s\S]*steps\.hours[\s\S]*setInitialSetupScreen\("staff"\)/);
   assert.match(ownerPreview, /setInitialSetupStaffSessionDraft,[\s\S]*handleInitialSetupStaffNext,[\s\S]*handleInitialSetupPricingNext,/);
-  assert.match(staff, /onSave=\{\(\) => void saveInitialSetupStaff\(\)\}[\s\S]*onNext=\{\(\) => onInitialSetupNext\?\.\(\)\}/);
+  assert.match(staff, /onSave=\{saveInitialSetupStaff\}[\s\S]*onNext=\{\(\) => onInitialSetupNext\?\.\(\)\}/);
   assert.match(staffPanel, /<OwnerInitialSetupSaveNextActions onSave=\{onSave\} onNext=\{onNext\} saving=\{isSaving\} \/>/);
   assert.match(ownerPreview, /onInitialSetupNext=\{onInitialSetupStaffNext\}/);
   assert.match(ownerPreview, /handleInitialSetupHoursNext,[\s\S]*setInitialSetupStaffSessionDraft,[\s\S]*handleInitialSetupStaffNext,[\s\S]*handleInitialSetupPricingNext,/);
@@ -349,7 +349,7 @@ test("owner setup uses an accessible guide and a non-dismissible blocking modal 
   assert.doesNotMatch(ownerPreview, /pm-initial-setup-layout|setupMode=\{initialSetupOpen\}/);
   assert.match(ownerShell, /inert=\{backgroundBlocked \? true : undefined\}[\s\S]*aria-hidden=\{backgroundBlocked \? true : undefined\}/);
   assert.match(ownerShell, /backgroundBlocked && "pointer-events-none select-none"/);
-  assert.match(ownerPreview, /\{initialSetupOpen \? \([\s\S]*<OwnerInitialSetupGuide[\s\S]*\{renderScreen\([\s\S]*initialSetupScreen[\s\S]*true,/);
+  assert.match(ownerPreview, /<OwnerInitialSetupGuide\s+open=\{initialSetupOpen\}[\s\S]*activeScreen=\{initialSetupScreen\}[\s\S]*onNavigate=\{/);
   assert.doesNotMatch(guide, /lg:sticky|aria-label="매장 준비 4단계"|SetupRows|item\.description/);
   assert.match(guide, /min-h-11/);
   assert.match(guide, /role="dialog"[\s\S]*aria-modal="true"[\s\S]*aria-labelledby="owner-initial-setup-title"/);
@@ -357,7 +357,7 @@ test("owner setup uses an accessible guide and a non-dismissible blocking modal 
   assert.match(guide, /pointer-events-auto absolute inset-0 bg-\[#0f172a\]\/35[\s\S]*onPointerDown=\{closeGuide\}/);
   assert.match(guide, /pointer-events-none absolute inset-0[^"\n]*p-\[10px\][^"\n]*sm:p-6/);
   assert.match(guide, /pointer-events-auto relative z-10 flex max-h-/);
-  assert.match(guide, /max-h-\[calc\(100dvh-20px\)\][^"\n]*rounded-\[18px\][^"\n]*sm:max-h-\[calc\(100dvh-48px\)\][^"\n]*sm:w-\[min\(960px,calc\(100vw-48px\)\)\]/);
+  assert.match(guide, /max-h-\[calc\(100dvh-20px\)\][^"\n]*rounded-\[18px\][^"\n]*sm:max-h-\[calc\(100dvh-48px\)\][^"\n]*sm:w-\[min\(1120px,calc\(100vw-48px\)\)\]/);
   assert.match(guide, /OWNER_TYPOGRAPHY\.sectionTitle/);
   assert.match(guide, /data-testid="owner-initial-setup-body"/);
   assert.doesNotMatch(guide, /sticky bottom-0|<footer/);
@@ -389,7 +389,7 @@ test("owner setup uses an accessible guide and a non-dismissible blocking modal 
   assert.equal([...guide.matchAll(/whitespace-nowrap/g)].length >= 3, true);
   assert.match(guide, /id="owner-initial-setup-title"[\s\S]*?\[overflow-wrap:anywhere\][^"\n]*\[word-break:keep-all\]/);
   assert.doesNotMatch(guide, /grid-cols-\[minmax\(0,1fr\)_auto\]|absolute left-1\/2 top-1\/2|sm:absolute sm:right-\[164px\]|truncate/);
-  assert.match(guide, /hidden w-\[184px\][^"\n]*md:block/);
+  assert.match(guide, /hidden w-\[220px\][^"\n]*md:block/);
   assert.doesNotMatch(ownerPreview + "\n" + shopInfoSettings, /aria-label="매장 준비 단계"/);
   assert.doesNotMatch(shopInfoSettings, /xl:grid-cols-\[minmax\(0,1fr\)_320px\]|CustomerPagePhonePreview|<aside/);
   assert.doesNotMatch(guide + ownerPreview + blockingModal, /owner-initial-setup-resume-card|매장 준비 이어하기/);
@@ -399,12 +399,12 @@ test("owner setup uses an accessible guide and a non-dismissible blocking modal 
   assert.match(blockingModal, /ref=\{primaryActionRef\}[\s\S]*min-h-12[\s\S]*>\s*초기 설정 이어하기\s*</);
   assert.doesNotMatch(blockingModal, /onClose|onPointerDown|<X\b/);
   assert.doesNotMatch(guide, /\{completedCount\}\/4/);
-  assert.match(ownerPreview, /setActiveScreen\(getBootstrapOwnerInitialSetupReadiness\(ownerDataRef\.current\)\.completed \? "schedule" : "operatingHours"\);[\s\S]*searchParams\.delete\("initialSetup"\)/);
-  assert.match(ownerPreview, /setupBlockingModalOpen=\{initialSetupEligible && !initialSetupOpen && activeScreen !== "ownerProfile" && activeScreen !== "help"\}/);
+  assert.match(ownerPreview, /setActiveScreen\(initialSetupReturnScreenRef\.current\)/);
+  assert.doesNotMatch(ownerPreview, /OwnerInitialSetupBlockingModal|setupBlockingModalOpen/);
   assert.match(ownerPreview, /<div className="h-full min-h-0 min-w-0">[\s\S]*\{renderScreen\(/);
   assert.match(operatingHours, /initialSetupMode[\s\S]*grid-cols-\[minmax\(0,1fr\)_20px_minmax\(0,1fr\)\]/);
   assert.match(operatingHours, /initialSetupSubview[\s\S]*휴무일 추가[\s\S]*영업시간으로 돌아가기/);
-  assert.match(operatingHours, /if \(initialSetupMode\) \{[\s\S]*addTemporaryHoliday\(dateKey\);[\s\S]*setPendingTemporaryHolidayDate\(dateKey\)/);
+  assert.match(operatingHours, /if \(!persistToSupabase \|\| nextShop\.id === "demo-shop" \|\| nextShop\.id === "owner-demo"\) \{[\s\S]*if \(notifySuccess\) onSaveSuccess\?\.\(\);[\s\S]*return true;[\s\S]*fetchApiJsonWithAuth<Shop>/);
   assert.match(operatingHours, /!initialSetupMode && pendingTemporaryHolidayDate/);
   assert.match(staff, /hidePreview=\{initialSetupMode \|\| boardTab !== "list"\}/);
   const onboardingStaffStart = staff.lastIndexOf("if (initialSetupMode) {");
@@ -431,10 +431,10 @@ test("service setup separates new-shop choice, inline direct matrix, photo revie
   assert.match(services, /if \(rows\.length === 0\) return \[\];/);
   assert.match(services, /PriceGuidePhotoOnboarding/);
   assert.match(services, /if \(priceGuideOnboarding\) \{[\s\S]*data-testid="owner-initial-setup-services"/);
-  assert.match(choice, /요금표 등록/);
+  assert.doesNotMatch(choice, /요금표 등록|빠른 등록/);
   assert.match(choice, /사진으로 등록/);
   assert.match(choice, /직접 등록/);
-  assert.match(choice, /min-h-11/);
+  assert.match(choice, /min-h-\[88px\]/);
   assert.match(choice, /sm:grid-cols-2/);
   assert.match(choice, /onClick=\{\(\) => onSelect\(mode\)\}/);
   assert.doesNotMatch(choice, /요금표 미등록|기존 요금표 사진을 올려요\.|서비스와 요금을 직접 입력해요\./);

@@ -14,11 +14,11 @@ test("initial setup polish keeps the hard gate while removing its footer", async
 
 test("initial setup keeps actions in one responsive header and promotes checklist controls", async () => {
   const guide = await source("src/components/owner-web/owner-initial-setup-guide.tsx");
-  assert.match(guide, /data-testid="owner-initial-setup-title-actions"[\s\S]*나중에 하기[\s\S]*data-testid="owner-initial-setup-header-actions"[\s\S]*초기 설정 닫기/);
+  assert.match(guide, /data-testid="owner-initial-setup-title-actions"[\s\S]*저장하고 나중에[\s\S]*data-testid="owner-initial-setup-header-actions"[\s\S]*초기 설정 닫기/);
   assert.doesNotMatch(guide, /mt-3 flex min-h-11 min-w-0 justify-end empty:hidden/);
   assert.match(guide, /text-\[16px\] font-medium leading-6 text-\[#15213b\]/);
   assert.match(guide, /<OwnerInitialSetupPrimaryAction>[\s\S]*onSave[\s\S]*onNext/);
-  assert.match(guide, /min-h-11[\s\S]*\$\{OWNER_TYPOGRAPHY\.control\}[\s\S]*나중에 하기/);
+  assert.match(guide, /min-h-11[\s\S]*\$\{OWNER_TYPOGRAPHY\.control\}[\s\S]*저장하고 나중에/);
 });
 
 test("staff setup removes blank live-region space while keeping announcements and field roles", async () => {

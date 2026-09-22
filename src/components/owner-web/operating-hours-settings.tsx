@@ -1121,7 +1121,7 @@ export default function OperatingHoursSettings({
       {activeTab === "business" ? (
         <div className={cn("grid", initialSetupMode ? "gap-5" : compact ? "gap-3 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]" : "gap-4 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]")}>
           {!initialSetupMode || initialSetupSubview === "hours" ? (
-          <WebSurface className={cn("min-w-0 xl:order-2", initialSetupMode ? "rounded-none border-0 p-0" : compact ? "p-3" : "p-4")}>
+          <WebSurface className={cn("min-w-0 xl:order-2", initialSetupMode ? "rounded-[12px] border-[#dbe2ea] p-3 sm:p-4" : compact ? "p-3" : "p-4")}>
             <div className="divide-y divide-[#edf2f7]">
               <div
                 className={cn(
@@ -1228,7 +1228,7 @@ export default function OperatingHoursSettings({
           ) : null}
 
           {!initialSetupMode || initialSetupSubview === "closures" ? (
-          <WebSurface className={cn("xl:order-1", initialSetupMode ? "rounded-none border-0 p-0" : compact ? "p-3" : "p-4")}>
+          <WebSurface className={cn("xl:order-1", initialSetupMode ? "rounded-[12px] border-[#dbe2ea] p-3 sm:p-4" : compact ? "p-3" : "p-4")}>
             {initialSetupMode ? (
               <button
                 type="button"

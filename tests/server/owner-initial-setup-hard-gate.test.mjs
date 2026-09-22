@@ -175,7 +175,7 @@ test("general media writes resolve setup-safe purpose before storage or metadata
 
 test("locked account control meets 44px and the manage-read fixture is development-only", () => {
   const shell = readFileSync(new URL("../../src/components/owner-web/owner-web-app-shell.tsx", import.meta.url), "utf8");
-  assert.match(shell, /className="grid h-11 min-w-\[178px\]/);
+  assert.match(shell, /className="grid min-h-11 min-w-\[178px\]/);
 
   const demoManage = readFileSync(new URL("../../src/app/demo/book/manage/page.tsx", import.meta.url), "utf8");
   const managePanel = readFileSync(new URL("../../src/components/customer/customer-booking-manage-panel.tsx", import.meta.url), "utf8");
@@ -199,11 +199,12 @@ test("incomplete owner shops open the normal dashboard without an initial-setup 
   assert.doesNotMatch(preview, /if \(!getBootstrapOwnerInitialSetupReadiness\(data\)\.completed\) return "operatingHours"/);
   assert.match(preview, /function getInitialOwnerWebScreen\(data: BootstrapPayload\): OwnerWebScreenKey \{[\s\S]*return shouldStartWithPriceGuideSetup\(data\) \? "services" : "schedule";/);
   assert.doesNotMatch(preview, /showInitialSetupAction=/);
-  assert.match(preview, /<div className="h-full min-h-0 min-w-0">\s*\{renderScreen\(/);
+  assert.match(preview, /<div className="h-full min-h-0 min-w-0">\s*<div className="h-full min-h-0 min-w-0"[^>]*>\s*\{renderScreen\(/);
   assert.match(shell, /inert=\{backgroundBlocked \? true : undefined\}/);
   assert.match(shell, /aria-hidden=\{backgroundBlocked \? true : undefined\}/);
   assert.match(shell, /backgroundBlocked && "pointer-events-none select-none"/);
-  assert.doesNotMatch(shell, /초기 설정 이어하기|초기 설정 가이드|<OwnerInitialSetupBlockingModal/);
+  assert.match(shell, /설정 마무리하기/);
+  assert.match(preview, /<OwnerInitialSetupGuide/);
   assert.doesNotMatch(shell, /operationsLocked/);
 });
 
@@ -223,9 +224,10 @@ test("public entry, booking, and info routes use the same unavailable state", ()
   assert.match(unavailable, /max-w-\[430px\][\s\S]*px-6/);
 });
 
-test("the removed setup page is no longer mounted by the owner preview", () => {
+test("the setup guide is mounted as a modal without replacing the dashboard", () => {
   const preview = readFileSync(new URL("../../src/components/owner-web/owner-web-preview.tsx", import.meta.url), "utf8");
   const shell = readFileSync(new URL("../../src/components/owner-web/owner-web-app-shell.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(preview, /<OwnerInitialSetupGuide/);
-  assert.doesNotMatch(shell, /data-testid="initial-setup-reminder"|OwnerInitialSetupBlockingModal/);
+  assert.match(preview, /<OwnerInitialSetupGuide[\s\S]*open=\{initialSetupOpen\}/);
+  assert.match(preview, /onClose=\{closeInitialSetup\}/);
+  assert.match(shell, /설정 마무리하기/);
 });

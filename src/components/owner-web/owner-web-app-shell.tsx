@@ -10,7 +10,7 @@ import { type OwnerWebScreenKey } from "@/components/owner-web/owner-web-data";
 import OwnerFeatureRequestDialog from "@/components/owner-web/owner-feature-request-dialog";
 import { SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { cn } from "@/lib/utils";
-import type { BootstrapPayload } from "@/types/domain";
+import type { BootstrapPayload, OwnerInitialSetupStepKey } from "@/types/domain";
 
 type OwnerWebNavigationKey = OwnerWebScreenKey | "billing";
 type OwnerWebNavigationItem =
@@ -152,6 +152,7 @@ export default function OwnerWebAppShell({
   loggingOut,
   isTester = false,
   feedbackFixtureMode = false,
+  setupReminder,
   setupMode = false,
   backgroundBlocked = false,
   children,
@@ -180,6 +181,10 @@ export default function OwnerWebAppShell({
   loggingOut: boolean;
   isTester?: boolean;
   feedbackFixtureMode?: boolean;
+  setupReminder?: {
+    nextStep: OwnerInitialSetupStepKey;
+    onOpen: () => void;
+  };
   setupMode?: boolean;
   backgroundBlocked?: boolean;
   children: ReactNode;
@@ -384,6 +389,26 @@ export default function OwnerWebAppShell({
             />
           </div>
         </header>
+
+        {setupReminder ? (
+          <div className="shrink-0 border-b border-[#cfe0f7] bg-[#f4f8ff] px-4 py-3 sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[14px] font-medium leading-5 text-[#1e4f93]">매장 운영 준비가 아직 완료되지 않았어요</p>
+                <p className="mt-0.5 text-[13px] font-normal leading-5 text-[#5c7391]">
+                  다음 단계: {setupReminder.nextStep === "hours" ? "영업시간" : setupReminder.nextStep === "staff" ? "직원·근무시간" : "서비스·가격"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={setupReminder.onOpen}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[9px] bg-[#2877e6] px-4 text-[14px] font-medium leading-5 text-white transition hover:bg-[#2168cf] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+              >
+                설정 마무리하기
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <section className="min-h-0 flex-1 overflow-hidden bg-[var(--bg)] p-3 sm:p-4">
           <div

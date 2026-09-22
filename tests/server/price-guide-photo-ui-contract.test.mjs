@@ -67,8 +67,8 @@ test("owner photo import provides file selection, preview, retry, and direct edi
   assert.doesNotMatch(photo, /표 전체가 정면으로 보이게 찍으면 더 정확합니다/);
   assert.doesNotMatch(photo, /여러 장이면 겹치는 부분이 있어도 자동으로 정리합니다/);
   assert.match(photo, /PriceGuideOnboardingChoice/);
-  assert.match(choice, /요금표 등록/);
-  assert.match(choice, /min-h-11/);
+  assert.doesNotMatch(choice, /요금표 등록|빠른 등록/);
+  assert.match(choice, /min-h-\[88px\]/);
   assert.match(choice, /border-\[#cfd9e5\] bg-white/);
   assert.match(choice, /focus-visible:ring-2 focus-visible:ring-\[#2563eb\]/);
   assert.match(choice, /사진으로 등록/);

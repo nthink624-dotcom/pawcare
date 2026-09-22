@@ -107,7 +107,7 @@ test("authoritative price-guide save keeps the normal services screen while setu
     ownerPreview.indexOf("function handleOwnerDataChange"),
   );
 
-  assert.match(boundary, /setActiveScreen\(\(currentScreen\) => initialSetupOpen \? "schedule" : currentScreen\)/);
+  assert.match(boundary, /setActiveScreen\(\(currentScreen\) => initialSetupOpen \? initialSetupReturnScreenRef\.current : currentScreen\)/);
   assert.doesNotMatch(boundary, /setActiveScreen\("schedule"\)/);
   assert.doesNotMatch(boundary, /history\.(?:pushState|replaceState)/);
   assert.match(ownerPreview, /onPriceGuideSaveSuccess=\{\(canonicalBootstrap\) => onInitialSetupStepSaved\("pricing", canonicalBootstrap\)\}/);
@@ -165,6 +165,6 @@ test("the owner menu, screen, and embedded settings tab share the price-guide na
   ]);
 
   assert.match(ownerData, /\{ key: "services", label: "요금표 관리" \}/);
-  assert.match(serviceScreen, /<h1[\s\S]*?>\s*서비스·요금 설정\s*<\/h1>/);
+  assert.match(serviceScreen, /<h1[\s\S]*?>\s*서비스 요금 설정\s*<\/h1>/);
   assert.match(settingsPanel, /\{ id: "menu", label: "요금표 관리"/);
 });

@@ -30,7 +30,9 @@ async function importMobileApiBoundaryHarness(envSource, apiSource) {
     "function getSupabaseRuntimeStage() { return runtimeStage; }",
     declarationText(envSource, "DEVELOPMENT_API_ORIGINS", "env.ts"),
     declarationText(envSource, "PRODUCTION_API_ORIGINS", "env.ts"),
+    declarationText(envSource, "PRODUCTION_API_ORIGIN_ALIASES", "env.ts"),
     declarationText(envSource, "MAX_API_PATH_DECODE_PASSES", "env.ts"),
+    declarationText(envSource, "canonicalizeProductionApiOrigin", "env.ts"),
     declarationText(envSource, "UNSAFE_API_PATH_CHARACTERS", "env.ts"),
     declarationText(envSource, "ENCODED_API_PATH_SEPARATOR", "env.ts"),
     declarationText(envSource, "parseOriginOnly", "env.ts"),
@@ -98,8 +100,10 @@ test("mobile API client fails closed to an allowlisted origin before attaching a
 
   assert.match(envSource, /http:\/\/127\.0\.0\.1:3000/);
   assert.match(envSource, /http:\/\/localhost:3000/);
-  assert.match(envSource, /https:\/\/app\.petmanager\.co\.kr/);
   assert.match(envSource, /https:\/\/www\.petmanager\.co\.kr/);
+  assert.match(envSource, /PRODUCTION_API_ORIGIN_ALIASES/);
+  assert.match(envSource, /https:\/\/app\.petmanager\.co\.kr/);
+  assert.match(envSource, /canonicalizeProductionApiOrigin/);
   assert.match(envSource, /if \(!candidate\)/);
   assert.match(envSource, /runtimeStage !== "development" && !origin\.startsWith\("https:\/\/"\)/);
   assert.match(envSource, /MAX_API_PATH_DECODE_PASSES = 4/);
@@ -239,10 +243,23 @@ test("valid API paths preserve unicode query and authenticated request options",
     redirect: "error",
   });
 
-  harness.configureHarness("https://app.petmanager.co.kr", "production");
+  harness.configureHarness("https://www.petmanager.co.kr", "production");
   assert.deepEqual(await harness.fetchApiJsonWithAuth("/api/owner/shops?active=true"), { ok: true });
   const productionState = harness.readHarnessState();
-  assert.equal(productionState.requests.at(-1)?.url, "https://app.petmanager.co.kr/api/owner/shops?active=true");
+  assert.equal(productionState.requests.at(-1)?.url, "https://www.petmanager.co.kr/api/owner/shops?active=true");
+});
+
+test("production API defaults to the canonical www origin when no build override is present", async () => {
+  const [envSource, apiSource] = await Promise.all([
+    source("src/lib/env.ts"),
+    source("src/lib/api.ts"),
+  ]);
+  const harness = await importMobileApiBoundaryHarness(envSource, apiSource);
+  harness.configureHarness("", "production");
+  assert.equal(
+    harness.buildMobileApiUrl("/api/bootstrap?scope=public"),
+    "https://www.petmanager.co.kr/api/bootstrap?scope=public",
+  );
 });
 
 test("public bootstrap projects only public shop, service, and price-guide data", async () => {
@@ -294,10 +311,9 @@ test("owner duplicate routes proxy to canonical APIs and retain boundary gates",
   assert.match(authSource, /https:\/\/www\.petmanager\.co\.kr/);
   assert.match(authSource, /PRODUCTION_CANONICAL_ORIGIN_ALIASES/);
   assert.match(authSource, /canonicalizeProductionApiOrigin\(parsedOrigin\)/);
-  assert.doesNotMatch(
-    between(authSource, "const PRODUCTION_CANONICAL_ORIGINS", "const QUERY_KEYS_BY_PATH"),
-    /app\.petmanager\.co\.kr/,
-  );
+  const canonicalOrigins = between(authSource, "const PRODUCTION_CANONICAL_ORIGINS", "const QUERY_KEYS_BY_PATH");
+  assert.match(canonicalOrigins, /https:\/\/www\.petmanager\.co\.kr/);
+  assert.match(canonicalOrigins, /PRODUCTION_CANONICAL_ORIGIN_ALIASES/);
   assert.match(authSource, /credentials: "omit"/);
   assert.match(authSource, /redirect: "error"/);
   assert.doesNotMatch(authSource, /headers\.set\("Cookie"|headers\.set\("cookie"/);
@@ -328,6 +344,10 @@ test("production canonical API normalizes the known redirecting apex before auth
 
   assert.equal(
     harness.canonicalizeProductionApiOrigin("https://petmanager.co.kr"),
+    "https://www.petmanager.co.kr",
+  );
+  assert.equal(
+    harness.canonicalizeProductionApiOrigin("https://app.petmanager.co.kr"),
     "https://www.petmanager.co.kr",
   );
   assert.equal(

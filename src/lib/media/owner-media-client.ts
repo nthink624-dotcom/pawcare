@@ -156,6 +156,9 @@ async function uploadCompressedFile(params: {
 }
 
 async function createUploadIntent(context: OwnerMediaContext, mediaKind: MediaKind, compressed: PetmanagerCompressedImage) {
+  const retentionPolicy = mediaKind === "message_image" || mediaKind === "customer_shared" || mediaKind === "feedback_screenshot"
+    ? "transient"
+    : "standard";
   return fetchApiJsonWithAuth<UploadIntentResponse>("/api/owner/media/upload-intents", {
     method: "POST",
     body: JSON.stringify({
@@ -168,7 +171,7 @@ async function createUploadIntent(context: OwnerMediaContext, mediaKind: MediaKi
       height: compressed.height,
       mediaKind,
       visibility: mediaKind === "shop_profile" ? "public" : "customer_shared",
-      retentionPolicy: "standard",
+      retentionPolicy,
       uploadedFrom: "owner_web",
       guardianId: context.guardianId ?? null,
       petId: context.petId ?? null,

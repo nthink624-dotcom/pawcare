@@ -382,7 +382,7 @@ export function createMobilePricePhotoHttpAdapter(options: {
           body: JSON.stringify({
             shopId: options.shopId, originalFileName: file.name, contentType: file.type, byteSize: file.size,
             sourceByteSize: file.size, width: null, height: null, mediaKind: "price_guide_source", visibility: "private",
-            retentionPolicy: "archive", uploadedFrom: "owner_mobile",
+            retentionPolicy: "transient", uploadedFrom: "owner_mobile",
             clientCorrelationId,
             requestCorrelationFingerprint,
           }),

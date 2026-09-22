@@ -35,11 +35,11 @@ const DEVELOPMENT_CANONICAL_ORIGINS = new Set([
 ]);
 
 const PRODUCTION_CANONICAL_ORIGINS = new Set([
-  "https://petmanager.co.kr",
   "https://www.petmanager.co.kr",
 ]);
 
 const PRODUCTION_CANONICAL_ORIGIN_ALIASES = new Map([
+  ["https://app.petmanager.co.kr", "https://www.petmanager.co.kr"],
   ["https://petmanager.co.kr", "https://www.petmanager.co.kr"],
 ]);
 
@@ -97,7 +97,8 @@ export function getCanonicalApiOrigin() {
   const development = isDevelopmentRuntime();
   const configured = development
     ? process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "http://127.0.0.1:3000"
-    : process.env.PETMANAGER_MAIN_APP_ORIGIN?.trim() || "";
+    : process.env.PETMANAGER_MAIN_APP_ORIGIN?.trim() ||
+      (process.env.VERCEL_ENV === "production" ? "https://www.petmanager.co.kr" : "");
 
   if (!configured) {
     throw new OwnerApiError("정본 API 원점 설정을 확인해 주세요.", 503);

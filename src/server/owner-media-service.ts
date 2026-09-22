@@ -4,11 +4,13 @@ import {
   PETMANAGER_MEDIA_BUCKET,
   PETMANAGER_MEDIA_MAX_COMPRESSED_UPLOAD_BYTES,
   PETMANAGER_MEDIA_SIGNED_READ_SECONDS,
+  PETMANAGER_MEDIA_TRANSIENT_RETENTION_DAYS,
   PETMANAGER_MEDIA_VARIANT_PROFILES,
 } from "@/lib/media/media-policy";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/utils";
 import { OwnerApiError } from "@/server/owner-api-auth";
+import { createMediaSignedReadUrl, createMediaSignedUploadUrl } from "@/server/media-storage";
 import type {
   MediaAsset,
   MediaKind,
@@ -29,10 +31,6 @@ function assertSupabase() {
   return supabase;
 }
 
-function cleanSegment(value: string) {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "file";
-}
-
 function extensionFromContentType(contentType: string) {
   if (contentType.includes("webp")) return "webp";
   if (contentType.includes("png")) return "png";
@@ -44,16 +42,23 @@ function buildMediaPath(params: {
   shopId: string;
   mediaAssetId: string;
   contentType: string;
-  originalFileName?: string | null;
   variantKey?: MediaVariantKey;
+  retentionPolicy?: MediaRetentionPolicy;
 }) {
   const date = new Date();
   const yyyy = String(date.getFullYear());
   const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const fileBase = cleanSegment(params.originalFileName || params.mediaAssetId).replace(/\.[^.]+$/, "");
   const ext = extensionFromContentType(params.contentType);
   const variant = params.variantKey ? `/variants/${params.variantKey}` : "";
-  return `${params.shopId}/${yyyy}/${mm}/${params.mediaAssetId}${variant}/${fileBase}.${ext}`;
+  const lifecyclePrefix = params.retentionPolicy === "transient" ? "transient" : "retained";
+  return `${lifecyclePrefix}/shops/${params.shopId}/mobile/${yyyy}/${mm}/${params.mediaAssetId}${variant}/${params.mediaAssetId}.${ext}`;
+}
+
+function getExpiresAt(retentionPolicy: MediaRetentionPolicy) {
+  if (retentionPolicy !== "transient") return null;
+  const expiresAt = new Date();
+  expiresAt.setUTCDate(expiresAt.getUTCDate() + PETMANAGER_MEDIA_TRANSIENT_RETENTION_DAYS);
+  return expiresAt.toISOString();
 }
 
 function mediaAssetSelect() {
@@ -94,11 +99,15 @@ export async function createMediaUploadIntent(
   const supabase = assertSupabase();
   const mediaAssetId = randomUUID();
   const now = nowIso();
+  const retentionPolicy = input.retentionPolicy ?? "standard";
+  if (retentionPolicy === "archive") {
+    throw new OwnerApiError("원본 장기 보관은 현재 저장 정책에서 지원하지 않습니다.", 403);
+  }
   const storagePath = buildMediaPath({
     shopId: context.shopId,
     mediaAssetId,
     contentType: input.contentType,
-    originalFileName: input.originalFileName,
+    retentionPolicy,
   });
   const mediaAsset: MediaAsset = {
     id: mediaAssetId,
@@ -119,33 +128,29 @@ export async function createMediaUploadIntent(
     media_kind: input.mediaKind,
     visibility: input.visibility ?? "customer_shared",
     status: "uploading",
-    retention_policy: input.retentionPolicy ?? "standard",
+    retention_policy: retentionPolicy,
     uploaded_by_user_id: context.userId,
     uploaded_from: input.uploadedFrom === "owner_mobile" ? "owner_mobile" : "owner_web",
     metadata: input.metadata ?? {},
     created_at: now,
     updated_at: now,
-    expires_at: null,
+    expires_at: getExpiresAt(retentionPolicy),
     deleted_at: null,
   };
 
+  const upload = await createMediaSignedUploadUrl({
+    bucket: PETMANAGER_MEDIA_BUCKET,
+    path: storagePath,
+    contentType: input.contentType,
+  });
   const insert = await supabase.from("media_assets").insert(mediaAsset).select(mediaAssetSelect()).single();
   if (insert.error) throw new OwnerApiError(insert.error.message, 500);
-
-  const signed = await supabase.storage.from(PETMANAGER_MEDIA_BUCKET).createSignedUploadUrl(storagePath);
-  if (signed.error) throw new OwnerApiError(signed.error.message, 500);
 
   return {
     mediaAsset: insert.data as unknown as MediaAsset,
     upload: {
-      bucket: PETMANAGER_MEDIA_BUCKET,
-      path: storagePath,
-      token: signed.data.token,
-      signedUrl: signed.data.signedUrl,
-      method: "PUT",
-      headers: {},
+      ...upload,
       maxBytes: PETMANAGER_MEDIA_MAX_COMPRESSED_UPLOAD_BYTES,
-      provider: "supabase" as const,
     },
   };
 }
@@ -191,7 +196,7 @@ export async function createMediaVariantUploadIntent(
   const supabase = assertSupabase();
   const asset = await supabase
     .from("media_assets")
-    .select("id,shop_id,original_file_name")
+    .select("id,shop_id,original_file_name,retention_policy")
     .eq("shop_id", context.shopId)
     .eq("id", input.mediaAssetId)
     .single();
@@ -201,23 +206,20 @@ export async function createMediaVariantUploadIntent(
     shopId: context.shopId,
     mediaAssetId: input.mediaAssetId,
     contentType: input.contentType,
-    originalFileName: asset.data.original_file_name,
     variantKey: input.variantKey,
+    retentionPolicy: asset.data.retention_policy,
   });
 
-  const signed = await supabase.storage.from(PETMANAGER_MEDIA_BUCKET).createSignedUploadUrl(path);
-  if (signed.error) throw new OwnerApiError(signed.error.message, 500);
+  const upload = await createMediaSignedUploadUrl({
+    bucket: PETMANAGER_MEDIA_BUCKET,
+    path,
+    contentType: input.contentType,
+  });
 
   return {
     upload: {
-      bucket: PETMANAGER_MEDIA_BUCKET,
-      path,
-      token: signed.data.token,
-      signedUrl: signed.data.signedUrl,
-      method: "PUT",
-      headers: {},
+      ...upload,
       maxBytes: profile.maxBytes,
-      provider: "supabase" as const,
     },
   };
 }
@@ -236,7 +238,7 @@ export async function completeMediaVariantUpload(
   const supabase = assertSupabase();
   const asset = await supabase
     .from("media_assets")
-    .select("id,shop_id,original_file_name")
+    .select("id,shop_id,original_file_name,retention_policy")
     .eq("shop_id", context.shopId)
     .eq("id", input.mediaAssetId)
     .single();
@@ -246,8 +248,8 @@ export async function completeMediaVariantUpload(
     shopId: context.shopId,
     mediaAssetId: input.mediaAssetId,
     contentType: input.contentType,
-    originalFileName: asset.data.original_file_name,
     variantKey: input.variantKey,
+    retentionPolicy: asset.data.retention_policy,
   });
   const now = nowIso();
   const row = {
@@ -359,10 +361,12 @@ export async function getMediaSignedUrl(
     path = asset.data.storage_path;
   }
 
-  const signed = await supabase.storage.from(bucket).createSignedUrl(path, PETMANAGER_MEDIA_SIGNED_READ_SECONDS);
-  if (signed.error) throw new OwnerApiError(signed.error.message, 500);
   return {
-    signedUrl: signed.data.signedUrl,
+    signedUrl: await createMediaSignedReadUrl({
+      bucket,
+      path,
+      expiresInSeconds: PETMANAGER_MEDIA_SIGNED_READ_SECONDS,
+    }),
     expiresInSeconds: PETMANAGER_MEDIA_SIGNED_READ_SECONDS,
   };
 }

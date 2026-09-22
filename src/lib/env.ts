@@ -35,9 +35,12 @@ const DEVELOPMENT_API_ORIGINS = new Set([
 ]);
 
 const PRODUCTION_API_ORIGINS = new Set([
-  "https://app.petmanager.co.kr",
-  "https://petmanager.co.kr",
   "https://www.petmanager.co.kr",
+]);
+
+const PRODUCTION_API_ORIGIN_ALIASES = new Map([
+  ["https://app.petmanager.co.kr", "https://www.petmanager.co.kr"],
+  ["https://petmanager.co.kr", "https://www.petmanager.co.kr"],
 ]);
 
 const MAX_API_PATH_DECODE_PASSES = 4;
@@ -59,10 +62,17 @@ function parseOriginOnly(value: string, label: string) {
   return url.origin;
 }
 
+function canonicalizeProductionApiOrigin(origin: string) {
+  return PRODUCTION_API_ORIGIN_ALIASES.get(origin) ?? origin;
+}
+
 export function getMobileApiOrigin() {
   const runtimeStage = getSupabaseRuntimeStage();
   const configured = env.apiBaseUrl.trim();
-  const candidate = configured || (runtimeStage === "development" ? "http://127.0.0.1:3000" : "");
+  const rawCandidate =
+    configured ||
+    (runtimeStage === "development" ? "http://127.0.0.1:3000" : "https://www.petmanager.co.kr");
+  const candidate = runtimeStage === "development" ? rawCandidate : canonicalizeProductionApiOrigin(rawCandidate);
 
   if (!candidate) {
     throw new Error("운영 API 원점 설정을 확인해 주세요.");

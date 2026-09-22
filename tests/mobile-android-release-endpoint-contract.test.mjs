@@ -8,8 +8,9 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const checkerPath = path.join(projectRoot, "scripts", "assert-android-release-endpoints.ps1");
-const productionOrigin = "https://app.petmanager.co.kr";
-const productionServerUrl = `${productionOrigin}/login`;
+const productionServerOrigin = "https://app.petmanager.co.kr";
+const productionApiOrigin = "https://www.petmanager.co.kr";
+const productionServerUrl = `${productionServerOrigin}/login`;
 const powershell = process.platform === "win32" ? "powershell.exe" : "pwsh";
 
 const source = (relativePath) => readFile(path.join(projectRoot, relativePath), "utf8");
@@ -26,7 +27,7 @@ function runChecker(nativeRootPath, nativeConfigPath) {
       "-ExpectedServerUrl",
       productionServerUrl,
       "-ExpectedApiBaseUrl",
-      productionOrigin,
+      productionApiOrigin,
       "-NativeRootPath",
       nativeRootPath,
       "-NativeConfigPath",
@@ -37,7 +38,7 @@ function runChecker(nativeRootPath, nativeConfigPath) {
   );
 }
 
-test("Android release and preview use the canonical HTTPS app origin while local device development keeps 3100", async () => {
+test("Android release keeps the mobile shell on app origin and uses the canonical www API while local development keeps 3100", async () => {
   const [capacitorConfig, releaseScript, previewScript, localScript, checkerScript] = await Promise.all([
     source("capacitor.config.ts"),
     source("scripts/build-android-release.ps1"),
@@ -49,7 +50,9 @@ test("Android release and preview use the canonical HTTPS app origin while local
   assert.match(capacitorConfig, /CAPACITOR_BUILD_MODE/);
   assert.match(capacitorConfig, /capacitorBuildMode === "release"/);
   assert.match(releaseScript, /https:\/\/app\.petmanager\.co\.kr/);
+  assert.match(releaseScript, /https:\/\/www\.petmanager\.co\.kr/);
   assert.match(previewScript, /https:\/\/app\.petmanager\.co\.kr/);
+  assert.match(previewScript, /https:\/\/www\.petmanager\.co\.kr/);
   assert.doesNotMatch(releaseScript, /petmanager-app\.vercel\.app/);
   assert.doesNotMatch(previewScript, /petmanager-app\.vercel\.app/);
   assert.match(localScript, /http:\/\/127\.0\.0\.1:3100\/login/);

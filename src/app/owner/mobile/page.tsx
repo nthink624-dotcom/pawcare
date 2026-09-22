@@ -687,7 +687,7 @@ export default function OwnerMobilePage() {
               setInitialSetupState({ readiness, roleContext: mobileRoleContext, bootstrap: data });
             }}
           >
-            초기 설정 이어하기
+            설정 마무리하기
           </button>
         </aside>
       ) : null}

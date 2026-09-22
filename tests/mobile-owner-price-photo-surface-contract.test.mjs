@@ -26,7 +26,8 @@ test("owner settings exposes one local service price management entry", () => {
 test("service price settings offers camera, gallery, and direct entry immediately", () => {
   const methodSurface = fixture.slice(fixture.indexOf('{mode === "method"'), fixture.indexOf('{mode === "consent"'));
   assert.match(fixture, /<ArrowLeft[^>]*aria-hidden="true"/);
-  assert.match(methodSurface, />서비스 요금 설정<\/h2>/);
+  assert.match(methodSurface, /rounded-\[16px\] border border-slate-200 bg-white/);
+  assert.doesNotMatch(methodSurface, />서비스 요금 설정<\/h2>/);
   assert.match(methodSurface, /사진으로 요금표 등록/);
   assert.match(methodSurface, /앨범에서 선택/);
   assert.match(methodSurface, />직접 입력<\/button>/);

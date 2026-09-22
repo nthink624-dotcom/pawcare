@@ -370,15 +370,16 @@ export default function MobileAiPriceGuideFixture({
   };
 
   return (
-    <section className={`mx-auto w-full min-w-0 max-w-[430px] ${inModal ? "flex max-h-[calc(100dvh-48px)] flex-col bg-white" : mode === selectionMode ? "min-h-dvh bg-white" : ""}`} aria-label="요금표 사진 검토" style={reviewContentStyle} data-price-guide-review-content={reviewModeActive ? "active" : undefined}>
+    <section className={`mx-auto w-full min-w-0 max-w-[430px] ${inModal ? "flex max-h-[calc(100dvh-48px)] flex-col bg-white" : mode === "method" ? "bg-[#f4f5f7] py-4" : mode === selectionMode ? "min-h-dvh bg-white" : ""}`} aria-label={mode === "method" ? "요금표 등록 방식" : "요금표 사진 검토"} style={reviewContentStyle} data-price-guide-review-content={reviewModeActive ? "active" : undefined}>
       <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" tabIndex={-1} aria-hidden="true" className="sr-only" onChange={selectPhoto} />
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" tabIndex={-1} aria-hidden="true" className="sr-only" onChange={selectPhoto} />
 
-      {mode === "method" && <div className="space-y-4 p-5">
-        <h2 className="text-[20px] font-semibold leading-7 text-[#111a30]">서비스 요금 설정</h2>
-        <button type="button" disabled={openingCamera} className="flex min-h-14 w-full items-center justify-center gap-3 rounded-[10px] border border-slate-200 px-4 text-[16px] font-medium disabled:cursor-wait disabled:opacity-70" onClick={() => void openCamera()}><Camera size={22} aria-hidden />{openingCamera ? "카메라 여는 중..." : "사진으로 요금표 등록"}</button>
-        <button type="button" className="flex min-h-14 w-full items-center justify-center gap-3 rounded-[10px] border border-slate-200 px-4 text-[16px] font-medium" onClick={() => fileInputRef.current?.click()}><ImagePlus size={22} aria-hidden />앨범에서 선택</button>
-        <button type="button" className="min-h-14 w-full rounded-[10px] border border-slate-200 px-4 text-[16px] font-medium" onClick={startManual}>직접 입력</button>
+      {mode === "method" && <div className="mx-4 my-4 rounded-[16px] border border-slate-200 bg-white p-4 shadow-[0_4px_14px_rgba(15,23,42,0.06)]">
+        <div className="space-y-3">
+          <button type="button" disabled={openingCamera} className="flex min-h-14 w-full items-center justify-center gap-3 rounded-[10px] border border-slate-200 px-4 text-[16px] font-medium disabled:cursor-wait disabled:opacity-70" onClick={() => void openCamera()}><Camera size={22} aria-hidden />{openingCamera ? "카메라 여는 중..." : "사진으로 요금표 등록"}</button>
+          <button type="button" className="flex min-h-14 w-full items-center justify-center gap-3 rounded-[10px] border border-slate-200 px-4 text-[16px] font-medium" onClick={() => fileInputRef.current?.click()}><ImagePlus size={22} aria-hidden />앨범에서 선택</button>
+          <button type="button" className="min-h-14 w-full rounded-[10px] border border-slate-200 px-4 text-[16px] font-medium" onClick={startManual}>직접 입력</button>
+        </div>
       </div>}
 
       {mode === "choose" && (

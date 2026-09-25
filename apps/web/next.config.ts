@@ -25,7 +25,9 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/owner/mobile",
-        destination: "http://127.0.0.1:3100/owner/mobile",
+        destination: process.env.NODE_ENV === "development"
+          ? "http://127.0.0.1:3100/owner/mobile"
+          : "https://app.petmanager.co.kr/owner/mobile",
         permanent: false,
       },
     ];

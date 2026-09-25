@@ -1,14 +1,23 @@
 {
-  "framework": "nextjs",
   "regions": ["sin1"],
-  "crons": [
+  "services": {
+    "frontend": {
+      "root": "apps/mobile",
+      "framework": "nextjs"
+    },
+    "backend": {
+      "root": "backend",
+      "entrypoint": "src/server.ts"
+    }
+  },
+  "rewrites": [
     {
-      "path": "/api/notifications/visit-reminders",
-      "schedule": "0 0 * * *"
+      "source": "/api/backend(/.*)?",
+      "destination": { "type": "service", "service": "backend" }
     },
     {
-      "path": "/api/media/cleanup-expired?dryRun=false",
-      "schedule": "20 18 * * *"
+      "source": "/(.*)",
+      "destination": { "type": "service", "service": "frontend" }
     }
   ]
 }

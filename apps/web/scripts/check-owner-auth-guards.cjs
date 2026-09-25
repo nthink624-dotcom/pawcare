@@ -178,7 +178,12 @@ assertIncludes(
 );
 assertIncludes(
   "src/app/api/bootstrap/route.ts",
-  'searchParams.get("phase") === "essential"',
+  'const requestedPhase = searchParams.get("phase")',
+  "Owner bootstrap must read the requested phase from the URL.",
+);
+assertIncludes(
+  "src/app/api/bootstrap/route.ts",
+  'requestedPhase === "essential" || requestedPhase === "launch" ? requestedPhase : "full"',
   "Owner bootstrap must expose an authorized essential phase for first usable paint.",
 );
 assertIncludes(

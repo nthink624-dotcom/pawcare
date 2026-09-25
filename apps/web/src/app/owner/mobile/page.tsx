@@ -2,7 +2,9 @@
 
 import { useEffect } from "react";
 
-const MOBILE_OWNER_URL = "http://127.0.0.1:3100/owner/mobile";
+const MOBILE_OWNER_URL = process.env.NODE_ENV === "development"
+  ? "http://127.0.0.1:3100/owner/mobile"
+  : "https://app.petmanager.co.kr/owner/mobile";
 
 export default function OwnerMobileRedirectPage() {
   useEffect(() => {

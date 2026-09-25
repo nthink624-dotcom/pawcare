@@ -1,29 +1,4 @@
 {
-  "regions": ["sin1"],
-  "services": {
-    "frontend": {
-      "root": ".",
-      "framework": "nextjs"
-    },
-    "backend": {
-      "root": "backend",
-      "entrypoint": "src/server.ts"
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/backend(/.*)?",
-      "destination": {
-        "type": "service",
-        "service": "backend"
-      }
-    },
-    {
-      "source": "/(.*)",
-      "destination": {
-        "type": "service",
-        "service": "frontend"
-      }
-    }
-  ]
+  "framework": "nextjs",
+  "regions": ["sin1"]
 }

@@ -3,6 +3,7 @@ import type {
   NotificationType,
   ShopNotificationSettings,
 } from "@/types/domain";
+import { APPROVED_ALIMTALK_CONTRACTS } from "@petmanager-contract/index";
 
 export type NotificationTarget = "guardian" | "owner" | "system";
 export type NotificationChannel = "alimtalk" | "in_app" | "data_only";
@@ -11,7 +12,6 @@ export type ShopSettingKey =
   | "enabled"
   | "revisit_enabled"
   | "booking_confirmed_enabled"
-  | "booking_rejected_enabled"
   | "booking_cancelled_enabled"
   | "booking_rescheduled_enabled"
   | "appointment_reminder_10m_enabled"
@@ -25,9 +25,7 @@ export type GuardianSettingKey = keyof GuardianNotificationSettings | null;
 export type AlimtalkTemplateAlias =
   | "booking_received"
   | "booking_confirmed"
-  | "booking_rejected"
   | "booking_cancelled"
-  | "booking_rescheduled_confirmed"
   | "appointment_reminder_10m"
   | "visit_schedule_notice"
   | "visit_reminder_notice"
@@ -40,8 +38,9 @@ export type AlimtalkTemplateAlias =
 export type AlimtalkTemplateConfigKey =
   | "templateBookingReceived"
   | "templateBookingConfirmed"
-  | "templateBookingRejected"
+  | "templateBookingManageLinkRequested"
   | "templateBookingCancelled"
+  | "templateBookingTimeProposed"
   | "templateBookingRescheduledConfirmed"
   | "templateAppointmentReminder10m"
   | "templateVisitScheduleNotice"
@@ -90,15 +89,14 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     title: "예약 확정",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "예약 상태가 confirmed가 되면 발송",
+    trigger: "오너가 직접 등록한 예약을 확정할 때만 발송. 고객이 직접 신청한 예약에는 발송하지 않음",
     dispatchSource: "src/server/owner-mutations.ts",
     templateAlias: "booking_confirmed",
     templateConfigKey: "templateBookingConfirmed",
     shopSettingKey: "booking_confirmed_enabled",
     guardianSettingKey: "enabled",
     notes: null,
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 보호자님, 예약이 확정되었어요. (방긋)\n\n방문 일시: #{예약일시}\n예약 서비스: #{서비스명}\n\n방문 당일 편하게 와 주세요. 기다리고 있겠습니다.\n\n#{예약관리링크}",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.booking_confirmed.body,
   },
   {
     type: "owner_booking_requested",
@@ -115,21 +113,6 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     draftBody: null,
   },
   {
-    type: "booking_rejected",
-    title: "예약 거절",
-    target: "guardian",
-    channel: "alimtalk",
-    trigger: "예약 상태가 rejected가 되면 발송",
-    dispatchSource: "src/server/owner-mutations.ts",
-    templateAlias: "booking_rejected",
-    templateConfigKey: "templateBookingRejected",
-    shopSettingKey: "booking_rejected_enabled",
-    guardianSettingKey: "enabled",
-    notes: null,
-    draftBody:
-      "[#{매장명}] 예약 거절 안내\n\n#{반려동물명} 보호자님께서 요청하신 예약은 매장 사정으로 인해 확정이 어렵게 되어 양해 부탁드립니다.\n\n불편을 드려 죄송합니다.\n\n해당 구간 외 다른 일정으로 예약이 가능하니, 아래 링크에서 다시 확인 부탁드립니다.\n\n#{예약관리링크}",
-  },
-  {
     type: "booking_cancelled",
     title: "예약 취소",
     target: "guardian",
@@ -141,23 +124,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "booking_cancelled_enabled",
     guardianSettingKey: "enabled",
     notes: null,
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 보호자님, 예약 취소가 처리되었어요.\n\n취소된 예약: #{예약일시}\n\n아쉽지만 다음에 또 뵙길 바랄게요.\n언제든지 다시 예약하고 싶으시면 아래 링크를 이용해 주세요.\n\n#{예약관리링크}",
-  },
-  {
-    type: "booking_rescheduled_confirmed",
-    title: "예약 변경 확정",
-    target: "guardian",
-    channel: "alimtalk",
-    trigger: "예약 변경 완료 시 발송",
-    dispatchSource: "src/server/owner-mutations.ts",
-    templateAlias: "booking_rescheduled_confirmed",
-    templateConfigKey: "templateBookingRescheduledConfirmed",
-    shopSettingKey: "booking_rescheduled_enabled",
-    guardianSettingKey: "enabled",
-    notes: null,
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 보호자님, 예약 변경이 확정되었어요.\n\n기존 예약은 취소되고, 아래 일정으로 새로 확정되었어요.\n\n새로운 일정: #{예약일시}\n예약 서비스: #{서비스명}\n\n변경된 일정에 맞춰 뵙겠습니다.\n추가 변경이 필요하시면 아래 링크에서 예약 정보를 확인해 주세요.\n\n#{예약관리링크}",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.booking_cancelled.body,
   },
   {
     type: "appointment_reminder_10m",
@@ -171,8 +138,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "appointment_reminder_10m_enabled",
     guardianSettingKey: "appointment_reminder_10m_enabled",
     notes: "수동 버튼은 force 전송, 자동 발송은 예약 10분 전 조건 사용",
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 보호자님, 이제 곧 만나요! (방긋)\n\n방문 일시: #{예약일시}\n예약 서비스: #{서비스명}\n\n준비 마치고 기다리고 있을게요.\n오시는 길 조심히 오세요.\n\n#{예약관리링크}",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.appointment_reminder_10m.body,
   },
   {
     type: "visit_schedule_notice",
@@ -186,8 +152,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "appointment_reminder_10m_enabled",
     guardianSettingKey: "appointment_reminder_10m_enabled",
     notes: "예약 안내 3종 중 내일 예약 안내에 사용",
-    draftBody:
-      "[#{매장명}]\n내일은 #{반려동물명} 미용 예약일입니다.\n\n예약 일시: #{예약일시}\n예약 서비스: #{서비스명}",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.visit_schedule_notice.body,
   },
   {
     type: "visit_reminder_notice",
@@ -201,8 +166,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "appointment_reminder_10m_enabled",
     guardianSettingKey: "appointment_reminder_10m_enabled",
     notes: "예약 안내 3종 중 오늘 예약 안내에 사용",
-    draftBody:
-      "[#{매장명}]\n오늘은 #{반려동물명} 미용 예약일입니다.\n\n예약 일시: #{예약일시}\n예약 서비스: #{서비스명}",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.visit_reminder_notice.body,
   },
   {
     type: "grooming_started",
@@ -216,8 +180,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "enabled",
     guardianSettingKey: "enabled",
     notes: "현재는 전체 알림 ON이면 발송",
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 보호자님, 미용이 시작되었어요.\n\n#{반려동물명}은 예쁘게 변신 중이니 안심해 주세요.\n예쁘게 마무리해서 보내드릴게요!",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.grooming_started.body,
   },
   {
     type: "grooming_almost_done",
@@ -232,7 +195,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     guardianSettingKey: "enabled",
     notes: null,
     draftBody:
-      "[#{매장명}]\n#{반려동물명} 미용이 곧 끝나요.\n\n마무리 단계라 곧 픽업 가능하세요.\n\n잠시 후 픽업하실 수 있어요.\n\n예약 정보는 아래 링크에서 확인하실 수 있어요.\n#{예약관리링크}",
+      "[#{매장명}]\n#{반려동물명} 미용을 마무리하고 있어요.\n\n#{픽업안내}",
   },
   {
     type: "grooming_completed",
@@ -247,7 +210,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     guardianSettingKey: "enabled",
     notes: null,
     draftBody:
-      "[#{매장명}]\n#{반려동물명} 미용이 모두 완료되었어요.\n\n오늘도 믿고 맡겨주셔서 감사해요.\n#{반려동물명}이 기다리고 있으니 편하신 시간에 와주세요.\n\n#{예약관리링크}",
+      "[#{매장명}]\n#{반려동물명} 미용이 완료되었습니다.\n\n오늘 사진과 케어리포트를 아래에서 바로 확인하실 수 있어요.\n편하신 시간에 픽업 부탁드립니다.\n\n케어리포트 링크\n#{예약 확인 링크}",
   },
   {
     type: "revisit_notice",
@@ -261,7 +224,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "revisit_enabled",
     guardianSettingKey: "revisit_enabled",
     notes: "매장과 고객 양쪽 revisit 설정이 모두 켜져야 함",
-    draftBody: "[#{매장명}] #{반려동물명} 재방문 시기가 가까워졌어요.",
+    draftBody: "[#{매장명}]\n#{반려동물명}의 다음 케어 시기가 다가왔어요.\n\n마지막 방문: #{마지막방문일}\n권장 관리 주기: #{관리주기}\n\n예약 링크\n#{예약 링크}",
   },
   {
     type: "birthday_greeting",
@@ -379,12 +342,8 @@ export function shouldSendByShopSettings(
       return true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
-    case "booking_rejected":
-      return settings.booking_rejected_enabled;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
-    case "booking_rescheduled_confirmed":
-      return settings.booking_rescheduled_enabled;
     case "appointment_reminder_10m":
     case "visit_schedule_notice":
     case "visit_reminder_notice":
@@ -417,13 +376,8 @@ export function shouldSendByGuardianSettings(
   switch (type) {
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
-    case "booking_rejected":
-      return settings.booking_rejected_enabled;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
-    case "booking_time_proposed":
-    case "booking_rescheduled_confirmed":
-      return settings.booking_rescheduled_enabled;
     case "appointment_reminder_10m":
     case "visit_schedule_notice":
     case "visit_reminder_notice":

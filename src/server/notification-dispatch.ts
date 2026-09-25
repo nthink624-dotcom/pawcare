@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   getAlimtalkTemplateAlias,
+  renderNotificationTemplateBody,
   shouldSendByGuardianSettings,
   shouldSendByShopSettings,
 } from "@/lib/notification-registry";
@@ -13,7 +14,6 @@ import {
 } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
-import { renderNotificationTemplateBodyWithOverrides } from "@/server/alimtalk-template-overrides";
 import {
   buildBookingEntryUrl,
   buildBookingManageUrl,
@@ -79,6 +79,15 @@ export class NotificationLedgerPersistenceError extends Error {
 
 function normalizePhone(value: string) {
   return phoneNormalize(value).slice(0, 11);
+}
+
+function formatAlimtalkAppointmentDate(date: string) {
+  return shortDate(date).replace("/", "월 ").replace("(", "일(");
+}
+
+function getPhoneTail(value: string | null | undefined) {
+  const normalized = phoneNormalize(value ?? "");
+  return normalized ? normalized.slice(-4) : null;
 }
 
 function logNotificationSkipped(params: {
@@ -151,24 +160,31 @@ async function buildNotificationMessage(params: {
   recipientName: string | null;
   serviceName: string | null;
   rejectionReason: string | null;
+  ownerAdditionalMessage: string | null;
+  visitPreparation: string | null;
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
 }) {
   const dateLabel =
     params.appointment
-      ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
+      ? `${formatAlimtalkAppointmentDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
-  const rendered = await renderNotificationTemplateBodyWithOverrides(params.type, {
+  const rendered = renderNotificationTemplateBody(params.type, {
     "매장명": params.shopName,
     "반려동물명": params.petName,
     "보호자명": params.recipientName,
     "예약일시": dateLabel,
+    "제안일시": dateLabel,
     "서비스명": params.serviceName ?? "",
     "거절사유": params.rejectionReason ?? "",
     "픽업안내": "잠시 후 픽업하실 수 있어요.",
     "예약 링크": params.bookingEntryUrl,
     "예약 확인 링크": params.bookingManageUrl,
     "예약관리링크": params.bookingManageUrl ?? params.bookingEntryUrl,
+    "방문준비사항": params.visitPreparation ?? "",
+    "추가안내": params.ownerAdditionalMessage ?? "",
+    "마지막방문일": "최근 방문일",
+    "관리주기": "매장 권장 주기",
   });
   if (rendered) return rendered;
 
@@ -214,24 +230,6 @@ async function buildNotificationMessage(params: {
           return previous !== "";
         })
         .join("\n");
-    case "booking_rejected":
-      return [
-        `[${params.shopName}] 예약 거절 안내`,
-        "",
-        `${params.petName} 보호자님께서 신청하신 예약은 매장 사정으로 인해 확정이 어려운 점 양해 부탁드립니다.`,
-        "",
-        "불편을 드려 죄송합니다.",
-        "",
-        "해당 시간 외 다른 일정으로 예약이 가능하오니,  아래 링크에서 다시 확인 부탁드립니다.",
-        "",
-        bookingLinksBlock,
-      ]
-        .filter((line, index, lines) => {
-          if (line) return true;
-          const previous = lines[index - 1];
-          return previous !== "";
-        })
-        .join("\n");
     case "booking_cancelled":
       return [
         `[${params.shopName}]`,
@@ -241,27 +239,6 @@ async function buildNotificationMessage(params: {
         "",
         "아쉽지만 다음에 또 뵐 수 있길 바라요.",
         "언제든 다시 예약하고 싶으실 때 아래 링크를 이용해 주세요.",
-        "",
-        bookingLinksBlock,
-      ]
-        .filter((line, index, lines) => {
-          if (line) return true;
-          const previous = lines[index - 1];
-          return previous !== "";
-        })
-        .join("\n");
-    case "booking_rescheduled_confirmed":
-      return [
-        `[${params.shopName}]`,
-        `${params.petName} 보호자님, 예약 변경이 확정되었어요`,
-        "",
-        "기존 예약은 취소되고, 아래 일정으로 새로 잡혔어요.",
-        "",
-        ` 새로운 일정: ${dateLabel}`,
-        ` 예약 서비스: ${params.serviceName ?? ""}`,
-        "",
-        "새 일정에 맞춰 뵐게요!",
-        "추가 변경이 필요하시면 아래 링크에서 편하게 해주세요.",
         "",
         bookingLinksBlock,
       ]
@@ -443,7 +420,6 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const bookingManageUrl =
     bookingAccessToken ? buildBookingManageUrl(input.shopId, bookingAccessToken) : null;
   const message =
-    input.message?.trim() ||
     await buildNotificationMessage({
       type: input.type,
       shopName: bootstrap.shop.name,
@@ -452,6 +428,8 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       recipientName,
       serviceName: service?.name ?? null,
       rejectionReason: appointment?.rejection_reason ?? null,
+      ownerAdditionalMessage: typeof input.metadata?.ownerAdditionalMessage === "string" ? input.metadata.ownerAdditionalMessage.trim() : null,
+      visitPreparation: typeof input.metadata?.visitPreparation === "string" ? input.metadata.visitPreparation.trim() : null,
       bookingEntryUrl,
       bookingManageUrl,
     });

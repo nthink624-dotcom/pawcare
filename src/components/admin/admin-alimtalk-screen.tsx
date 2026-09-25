@@ -40,9 +40,7 @@ const relayFieldGroups: Array<{
     fields: [
       { key: "templateBookingReceived", label: "예약 접수", placeholder: "booking_received" },
       { key: "templateBookingConfirmed", label: "예약 확정", placeholder: "booking_confirmed" },
-      { key: "templateBookingRejected", label: "예약 거절", placeholder: "booking_rejected" },
       { key: "templateBookingCancelled", label: "예약 취소", placeholder: "booking_cancelled" },
-      { key: "templateBookingRescheduledConfirmed", label: "예약 변경 확정", placeholder: "booking_rescheduled_confirmed" },
       { key: "templateAppointmentReminder10m", label: "방문 10분 전", placeholder: "appointment_reminder_10m" },
       { key: "templateGroomingStarted", label: "미용 시작", placeholder: "grooming_started" },
       { key: "templateGroomingAlmostDone", label: "픽업 준비", placeholder: "grooming_almost_done" },
@@ -74,7 +72,6 @@ const appFieldGroups: Array<{
     fields: [
       { key: "templateBookingReceived", label: "예약 접수" },
       { key: "templateBookingConfirmed", label: "예약 확정" },
-      { key: "templateBookingRejected", label: "예약 거절" },
       { key: "templateBookingCancelled", label: "예약 취소" },
       { key: "templateBookingRescheduledConfirmed", label: "예약 변경 확정" },
       { key: "templateAppointmentReminder10m", label: "방문 10분 전" },

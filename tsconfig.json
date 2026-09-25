@@ -23,9 +23,8 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"],
+      "@petmanager-contract/*": ["./packages/alimtalk-contract/*"]
     }
   },
   "include": [

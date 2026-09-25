@@ -22,7 +22,6 @@ export const appointmentStatusSchema = z.object({
   status: z.enum(["confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
   rejectionReasonTemplate: z.string().optional(),
   rejectionReasonCustom: z.string().optional(),
-  eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
   mediaAssetIds: z.array(z.string()).max(10).optional(),
   notifyCustomer: z.boolean().optional().default(true),
 });
@@ -39,7 +38,6 @@ export const appointmentEditSchema = z.object({
   staffMemo: z.string().default(""),
   visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).optional(),
   pickupReadyEtaMinutes: z.coerce.number().int().min(0).max(180).optional(),
-  eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
   enforceShopCapacity: z.boolean().optional().default(true),
   allowOutsideShopHours: z.boolean().optional().default(false),
   notifyCustomer: z.boolean().optional().default(true),
@@ -152,7 +150,6 @@ export const shopSettingsSchema = z.object({
     enabled: z.boolean(),
     revisitEnabled: z.boolean(),
     bookingConfirmedEnabled: z.boolean(),
-    bookingRejectedEnabled: z.boolean(),
     bookingCancelledEnabled: z.boolean(),
     bookingRescheduledEnabled: z.boolean(),
     appointmentReminder10mEnabled: z.boolean().default(true),

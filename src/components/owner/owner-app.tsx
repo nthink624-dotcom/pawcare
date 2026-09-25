@@ -151,7 +151,6 @@ type ShopProfileSavePayload = {
       enabled: boolean;
       revisitEnabled: boolean;
       bookingConfirmedEnabled: boolean;
-      bookingRejectedEnabled: boolean;
       bookingCancelledEnabled: boolean;
       bookingRescheduledEnabled: boolean;
       groomingAlmostDoneEnabled: boolean;
@@ -172,7 +171,6 @@ type AppointmentStatusUpdatePayload = {
   status: AppointmentStatus;
   rejectionReasonTemplate?: string;
   rejectionReasonCustom?: string;
-  eventType?: "booking_rescheduled_confirmed";
   mediaAssetIds?: string[];
 };
 type AppointmentEditPayload = {
@@ -317,12 +315,8 @@ function getAppointmentNotificationLabel(type: BootstrapPayload["notifications"]
   switch (type) {
     case "booking_confirmed":
       return "확정 알림";
-    case "booking_rejected":
-      return "거절 알림";
     case "booking_cancelled":
       return "취소 알림";
-    case "booking_rescheduled_confirmed":
-      return "변경 알림";
     case "appointment_reminder_10m":
       return "방문 안내";
     case "grooming_started":
@@ -5149,7 +5143,6 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                   enabled: data.shop.notification_settings.enabled,
                   revisitEnabled: data.shop.notification_settings.revisit_enabled,
                   bookingConfirmedEnabled: data.shop.notification_settings.booking_confirmed_enabled,
-                  bookingRejectedEnabled: data.shop.notification_settings.booking_rejected_enabled,
                   bookingCancelledEnabled: data.shop.notification_settings.booking_cancelled_enabled,
                   bookingRescheduledEnabled: data.shop.notification_settings.booking_rescheduled_enabled,
                   groomingAlmostDoneEnabled: data.shop.notification_settings.grooming_almost_done_enabled,

@@ -165,8 +165,6 @@ function resolveGuardianIds(payload: { guardianId?: string; guardianIds?: string
 
 type AppointmentStatusNotificationType =
   | "booking_confirmed"
-  | "booking_rescheduled_confirmed"
-  | "booking_rejected"
   | "booking_cancelled"
   | "grooming_started"
   | "grooming_almost_done"
@@ -243,7 +241,6 @@ export async function updateShopSettings(input: unknown) {
     enabled: payload.notificationSettings.enabled,
     revisit_enabled: payload.notificationSettings.revisitEnabled,
     booking_confirmed_enabled: payload.notificationSettings.bookingConfirmedEnabled,
-    booking_rejected_enabled: payload.notificationSettings.bookingRejectedEnabled,
     booking_cancelled_enabled: payload.notificationSettings.bookingCancelledEnabled,
     booking_rescheduled_enabled: payload.notificationSettings.bookingRescheduledEnabled,
     appointment_reminder_10m_enabled: payload.notificationSettings.appointmentReminder10mEnabled,
@@ -1058,21 +1055,9 @@ export async function updateAppointmentStatus(input: unknown) {
     }
 
     setMockStore(store);
-    await persistAppointmentChangeEvent({ before: previousAppointment, after: appointment, eventType: "status", note: payload.eventType ?? null });
+    await persistAppointmentChangeEvent({ before: previousAppointment, after: appointment, eventType: "status", note: null });
     if (!payload.notifyCustomer) return appointment;
-    if (payload.status === "confirmed" && payload.eventType === "booking_rescheduled_confirmed") {
-      await dispatchAppointmentNotificationWithLogs({
-        shopId: appointment.shop_id,
-        appointment,
-        type: "booking_rescheduled_confirmed",
-      });
-    }
     if (payload.status === "rejected") {
-      await dispatchAppointmentNotificationWithLogs({
-        shopId: appointment.shop_id,
-        appointment,
-        type: "booking_rejected",
-      });
     }
     if (payload.status === "cancelled") {
       await dispatchAppointmentNotificationWithLogs({
@@ -1190,23 +1175,11 @@ export async function updateAppointmentStatus(input: unknown) {
     before: previousAppointment,
     after: resolvedAppointment as Appointment,
     eventType: "status",
-    note: payload.eventType ?? null,
+    note: null,
   });
 
   if (!payload.notifyCustomer) return resolvedAppointment;
-  if (payload.status === "confirmed" && payload.eventType === "booking_rescheduled_confirmed") {
-    await dispatchAppointmentNotificationWithLogs({
-      shopId: resolvedAppointment.shop_id,
-      appointment: resolvedAppointment,
-      type: "booking_rescheduled_confirmed",
-    });
-  }
   if (payload.status === "rejected") {
-    await dispatchAppointmentNotificationWithLogs({
-      shopId: resolvedAppointment.shop_id,
-      appointment: resolvedAppointment,
-      type: "booking_rejected",
-    });
   }
   if (payload.status === "cancelled") {
     await dispatchAppointmentNotificationWithLogs({
@@ -1306,17 +1279,7 @@ export async function updateAppointmentDetails(input: unknown) {
     Object.assign(target, nextValues);
     setMockStore(store);
 
-    await persistAppointmentChangeEvent({ before: previousAppointment, after: target, eventType: "details", note: payload.eventType ?? null });
-    if (payload.notifyCustomer) {
-      await dispatchNotification({
-        shopId: target.shop_id,
-        appointmentId: target.id,
-        guardianId: target.guardian_id,
-        petId: target.pet_id,
-        type: "booking_rescheduled_confirmed",
-      });
-    }
-
+    await persistAppointmentChangeEvent({ before: previousAppointment, after: target, eventType: "details", note: null });
     return target;
   }
 
@@ -1329,18 +1292,8 @@ export async function updateAppointmentDetails(input: unknown) {
     before: appointment,
     after: resolvedAppointment as Appointment,
     eventType: "details",
-    note: payload.eventType ?? null,
+    note: null,
   });
-  if (payload.notifyCustomer) {
-    await dispatchNotification({
-      shopId: resolvedAppointment.shop_id,
-      appointmentId: resolvedAppointment.id,
-      guardianId: resolvedAppointment.guardian_id,
-      petId: resolvedAppointment.pet_id,
-      type: "booking_rescheduled_confirmed",
-    });
-  }
-
   return resolvedAppointment;
 }
 

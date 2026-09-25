@@ -124,7 +124,6 @@ const demoShop: Shop = {
     enabled: true,
     revisit_enabled: true,
     booking_confirmed_enabled: true,
-    booking_rejected_enabled: true,
     booking_cancelled_enabled: true,
     booking_rescheduled_enabled: true,
     grooming_started_enabled: true,

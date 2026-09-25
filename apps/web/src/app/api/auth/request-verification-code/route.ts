@@ -1,0 +1,121 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
+import { isValidBirthDate8, normalizeOwnerEmail, normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
+import { identityVerificationPurposeSchema } from "@/lib/auth/owner-identity";
+import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+import {
+  createLocalIdentityVerificationRequest,
+  createProviderIdentityVerificationRequest,
+} from "@/server/owner-identity-verification";
+
+const schema = z.object({
+  purpose: identityVerificationPurposeSchema,
+  method: z.enum(["local", "portone"]).default("local"),
+  email: z.string().trim().optional().default(""),
+  name: z.string().trim().optional().default(""),
+  birthDate: z.string().optional().default(""),
+  phoneNumber: z.string().optional().default(""),
+});
+
+function isValidPhoneNumber(value: string) {
+  return /^01\d{8,9}$/.test(normalizeOwnerPhoneNumber(value));
+}
+
+async function fillDevelopmentProfileForLocalReset(input: z.infer<typeof schema>) {
+  if (
+    input.method !== "local" ||
+    input.purpose !== "reset-password" ||
+    getSupabaseServerRuntimeStage() !== "development" ||
+    (input.name && input.birthDate && input.phoneNumber)
+  ) {
+    return input;
+  }
+
+  const email = normalizeOwnerEmail(input.email);
+  if (!email) return input;
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return input;
+
+  const { data } = await supabase
+    .from("owner_profiles")
+    .select("name, birth_date, phone_number")
+    .eq("login_id", email)
+    .maybeSingle<{ name: string | null; birth_date: string | null; phone_number: string | null }>();
+
+  if (!data?.name || !data.birth_date || !data.phone_number) return input;
+
+  return {
+    ...input,
+    name: data.name,
+    birthDate: data.birth_date,
+    phoneNumber: normalizeOwnerPhoneNumber(data.phone_number),
+  };
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    if (!hasSupabaseServerEnv()) {
+      return NextResponse.json({ message: "인증 서버 환경이 아직 준비되지 않았습니다." }, { status: 503 });
+    }
+
+    const body = await request.json();
+    const parsedPayload = schema.parse({
+      ...body,
+      email: normalizeOwnerEmail(body?.email ?? ""),
+      phoneNumber: normalizeOwnerPhoneNumber(body?.phoneNumber ?? ""),
+    });
+    const payload = await fillDevelopmentProfileForLocalReset(parsedPayload);
+
+    if (payload.method === "portone") {
+      const result = await createProviderIdentityVerificationRequest(payload);
+
+      return NextResponse.json({
+        success: true,
+        verificationRequestId: result.verificationRequestId,
+        providerIdentityVerificationId: result.providerIdentityVerificationId,
+        verificationState: result.verificationState,
+        devVerificationCode: null,
+        message: "본인확인 요청을 준비했어요.",
+      });
+    }
+
+    if (!isValidBirthDate8(payload.birthDate)) {
+      return NextResponse.json({ message: "생년월일은 숫자 8자리로 입력해 주세요." }, { status: 400 });
+    }
+
+    if (!isValidPhoneNumber(payload.phoneNumber)) {
+      return NextResponse.json({ message: "휴대폰번호를 올바르게 입력해 주세요." }, { status: 400 });
+    }
+
+    if (payload.method === "local" && getSupabaseServerRuntimeStage() === "production") {
+      return NextResponse.json(
+        { message: "운영 환경에서는 인증번호 방식 본인확인을 사용할 수 없습니다." },
+        { status: 403 },
+      );
+    }
+
+    const result = await createLocalIdentityVerificationRequest(payload);
+
+    return NextResponse.json({
+      success: true,
+      verificationRequestId: result.verificationRequestId,
+      devVerificationCode: "devVerificationCode" in result ? result.devVerificationCode ?? null : null,
+      message:
+        false
+          ? "본인확인 요청을 준비했어요."
+          : "인증번호를 전송했어요. 문자 메시지를 확인해 주세요.",
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ message: "이름, 생년월일, 휴대폰번호를 다시 확인해 주세요." }, { status: 400 });
+    }
+
+    return NextResponse.json(
+      { message: "본인인증 요청을 준비하지 못했어요. 잠시 후 다시 시도해 주세요." },
+      { status: 500 },
+    );
+  }
+}

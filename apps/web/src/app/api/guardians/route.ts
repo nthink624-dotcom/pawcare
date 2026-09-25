@@ -1,0 +1,59 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
+import { createGuardian, softDeleteGuardians, updateGuardian } from "@/server/owner-mutations";
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const owner = await requireOwnerShop(request, body?.shopId);
+    assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
+    const result = await createGuardian(body);
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
+    const message = error instanceof Error ? error.message : "고객 저장에 실패했습니다.";
+    return NextResponse.json({ message }, { status: 400 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const owner = await requireOwnerShop(request, body?.shopId);
+    assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
+    const result = await updateGuardian({ ...body, shopId: owner.shopId });
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
+    const message = error instanceof Error ? error.message : "고객 정보 수정에 실패했습니다.";
+    return NextResponse.json({ message }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const owner = await requireOwnerShop(request, body?.shopId);
+    assertOwnerOrManager(owner);
+    await assertOwnerInitialSetupComplete(owner.shopId);
+    const result = await softDeleteGuardians({ ...body, shopId: owner.shopId });
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
+    const message = error instanceof Error ? error.message : "고객 삭제에 실패했습니다.";
+    return NextResponse.json({ message }, { status: 400 });
+  }
+}

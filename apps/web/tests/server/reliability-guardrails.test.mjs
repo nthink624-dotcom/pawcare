@@ -1,0 +1,544 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import test from "node:test";
+
+function readProjectFile(path) {
+  return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
+}
+
+test("owner admin keeps the shared readable typography hierarchy", () => {
+  const typography = readProjectFile("src/components/admin/admin-typography.ts");
+  const adminFiles = [
+    "src/components/admin/owner-admin-screen.tsx",
+    "src/components/admin/owner-admin-detail-panel.tsx",
+    "src/components/admin/owner-admin-password-panel.tsx",
+  ].map(readProjectFile);
+
+  assert.match(typography, /helper: "text-\[14px\]/);
+  assert.match(typography, /body: "text-\[16px\]/);
+  assert.match(typography, /sectionTitle: "text-\[20px\]/);
+  assert.match(typography, /pageTitle: "text-\[28px\]/);
+
+  for (const source of adminFiles) {
+    assert.match(source, /ADMIN_TYPOGRAPHY/);
+    assert.doesNotMatch(source, /text-\[(?:10|11|12|13)px\]/);
+  }
+});
+
+test("admin entry keeps only the new home and current workspaces", () => {
+  const adminPage = readProjectFile("src/app/admin/page.tsx");
+  const adminHome = readProjectFile("src/components/admin/admin-home.tsx");
+  const adminNav = readProjectFile("src/components/admin/admin-section-nav.tsx");
+
+  assert.match(adminPage, /<AdminHome adminName=\{adminName\} \/>/);
+  assert.match(adminHome, /관리자 홈/);
+  assert.doesNotMatch(adminHome, /오늘 먼저 볼 것/);
+  assert.match(adminHome, /대표 업무 흐름/);
+  assert.match(adminHome, /계정 관리/);
+  assert.match(adminHome, /고객 문의/);
+  assert.doesNotMatch(adminHome, /href="\/admin\/operations"/);
+  assert.doesNotMatch(adminNav, /href: "\/admin\/operations"/);
+  assert.equal(existsSync(new URL("../../src/app/admin/operations/page.tsx", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../../src/components/admin/admin-dashboard.tsx", import.meta.url)), false);
+  assert.match(adminNav, /href: "\/owner\/admin"/);
+  assert.match(adminNav, /href: "\/admin\/marketing"/);
+});
+
+test("admin navigation keeps the compact shared shell and accessible support anchor", () => {
+  const adminHome = readProjectFile("src/components/admin/admin-home.tsx");
+  const adminNav = readProjectFile("src/components/admin/admin-section-nav.tsx");
+
+  assert.match(adminHome, /max-w-\[1440px\]/);
+  assert.match(adminHome, /sm:rounded-\[14px\]/);
+  assert.match(adminHome, /sm:border/);
+  assert.match(adminHome, /md:grid-cols-2 xl:grid-cols-4/);
+  assert.match(adminHome, /min-h-\[112px\]/);
+  assert.match(adminHome, /id="customer-support"/);
+  assert.match(adminHome, /supportDetailsRef\.current\.open = true/);
+  assert.match(adminHome, /supportSummaryRef\.current\?\.focus\(\)/);
+  assert.doesNotMatch(adminHome, /ArrowRight/);
+  assert.doesNotMatch(adminHome, /PETMANAGER_SERVICE_NAME/);
+  assert.doesNotMatch(adminHome, /대표 업무 흐름과 운영 메뉴를 한곳에서 확인합니다/);
+
+  assert.match(adminNav, /href: "\/admin", label: "홈", icon: Home/);
+  assert.match(adminNav, /href: "\/owner\/admin", label: "계정 관리"/);
+  assert.match(adminNav, /href: "\/admin\/marketing", label: "워크룸"/);
+  assert.match(adminNav, /href: "\/admin\/support", label: "고객 문의"/);
+  assert.match(adminNav, /min-h-11/);
+  assert.match(adminNav, /aria-current=\{selected \? "page" : undefined\}/);
+});
+
+test("core admin workspaces use the shared typography scale", () => {
+  const adminFiles = [
+    "src/components/admin/admin-home.tsx",
+    "src/components/admin/admin-marketing-war-room.tsx",
+    "src/components/admin/admin-marketing-kpi-panel.tsx",
+  ].map(readProjectFile);
+
+  for (const source of adminFiles) {
+    assert.match(source, /ADMIN_TYPOGRAPHY/);
+    assert.doesNotMatch(source, /text-\[(?:10|11|12|13)px\]/);
+  }
+
+  assert.match(
+    adminFiles[0],
+    /limited \? <span className=\{`rounded-full px-2 py-0\.5 \$\{ADMIN_TYPOGRAPHY\.meta\}/,
+  );
+});
+
+test("local preview refuses stale builds instead of serving an older landing", () => {
+  const startScript = readProjectFile("scripts/start-local-server.ps1");
+
+  assert.match(
+    startScript,
+    /if \(-not \$Dev\) \{\s+npm\.cmd run build\s+if \(\$LASTEXITCODE -ne 0\)/,
+  );
+  assert.match(startScript, /older \.next build cannot be served/);
+});
+
+test("the database overlap guard remains transaction-serialized", () => {
+  const migration = readProjectFile(
+    "../../supabase/migrations/20260803145206_serialize_staff_appointment_overlap_checks.sql",
+  );
+
+  assert.match(migration, /prevent_overlapping_staff_appointments/);
+  assert.match(migration, /pg_advisory_xact_lock/);
+  assert.match(migration, /'confirmed', 'in_progress', 'almost_done'/);
+  assert.match(migration, /errcode = '23P01'/);
+});
+
+test("customer reservations stay immediate-confirmed while legacy pending records remain readable", () => {
+  const domain = readProjectFile("src/types/domain.ts");
+  const bootstrap = readProjectFile("src/server/bootstrap.ts");
+  const ownerMutations = readProjectFile("src/server/owner-mutations.ts");
+  const removalMigration = readProjectFile(
+    "../../supabase/migrations/202606300001_remove_reservation_pending_flow.sql",
+  );
+
+  assert.match(domain, /export type AppointmentStatus =[\s\S]{0,240}\| "pending"/);
+  assert.doesNotMatch(bootstrap, /pending"\s*\?\s*"confirmed"/);
+  assert.match(ownerMutations, /const status = "confirmed";/);
+  assert.match(ownerMutations, /approval_mode: "auto" as const/);
+  assert.match(removalMigration, /where status = 'pending'/);
+  assert.match(removalMigration, /check \(status in \('confirmed', 'in_progress', 'almost_done'/);
+  assert.doesNotMatch(removalMigration, /check \(status in \('pending'/);
+});
+
+test("Supabase development and production identities stay explicit", () => {
+  const agents = readProjectFile("AGENTS.md");
+  const environmentGuide = readProjectFile("docs/supabase-environment-separation.md");
+  const releaseChecklist = readProjectFile("docs/release-checklist.md");
+  const gitignoreUrl = new URL("../../.gitignore", import.meta.url);
+  const gitignore = existsSync(gitignoreUrl) ? readFileSync(gitignoreUrl, "utf8") : null;
+  const operatingRules = `${agents}\n${environmentGuide}\n${releaseChecklist}`;
+
+  assert.match(environmentGuide, /Development Supabase DB[\s\S]{0,320}qefxdtmdtvnzgupmjlom/);
+  assert.match(environmentGuide, /Production Supabase DB[\s\S]{0,360}ysxykikqnneuhypybjry/);
+  assert.match(environmentGuide, /https:\/\/qefxdtmdtvnzgupmjlom\.supabase\.co/);
+  assert.match(environmentGuide, /https:\/\/ysxykikqnneuhypybjry\.supabase\.co/);
+  assert.doesNotMatch(operatingRules, /Do not (?:use or maintain|operate) a separate Supabase Dev project/);
+  if (gitignore !== null) {
+    assert.match(gitignore, /supabase\/\*\*\/\.temp\//);
+  } else {
+    assert.equal(
+      process.env.VERCEL,
+      "1",
+      ".gitignore may only be absent from Vercel's filtered deployment bundle",
+    );
+  }
+});
+
+test("photo list surfaces keep using the batch signed URL client", () => {
+  const mediaPanel = readProjectFile("src/components/owner-web/media-upload-panel.tsx");
+  const settingsScreen = readProjectFile("src/components/owner-web/settings-management-screen.tsx");
+
+  assert.match(mediaPanel, /getOwnerMediaSignedUrls/);
+  assert.doesNotMatch(mediaPanel, /\/api\/owner\/media\/signed-url\?/);
+  assert.match(settingsScreen, /getOwnerMediaSignedUrls/);
+});
+
+test("the owner application retains a route error recovery boundary", () => {
+  const errorBoundary = readProjectFile("src/app/error.tsx");
+  const errorContext = readProjectFile("src/lib/app-error-context.ts");
+
+  assert.match(errorBoundary, /reset/);
+  assert.match(errorBoundary, /getAppErrorEscapeContext/);
+  assert.match(errorContext, /관리자 메인/);
+  assert.match(errorContext, /오너 홈/);
+  assert.match(errorBoundary, /\[petmanager-ui\]/);
+});
+
+test("grooming outcomes keep photos optional while preserving customer results and revenue", () => {
+  const ownerMutations = readProjectFile("src/server/owner-mutations.ts");
+  const ownerCalendar = readProjectFile("src/components/owner-web/calendar-management-screen.tsx");
+  const careReportChoice = readProjectFile("src/components/owner-web/calendar-care-report-choice-dialog.tsx");
+  const careReportPhotoCard = readProjectFile("src/components/owner-web/calendar-care-report-photo-card.tsx");
+  const careReportPanel = readProjectFile("src/components/owner-web/calendar-care-report-completion-panel.tsx");
+  const careNoteInput = readProjectFile("src/components/owner-web/calendar-care-note-input.tsx");
+  const completionFields = readProjectFile("src/components/owner-web/calendar-grooming-completion-fields.tsx");
+  const reminderSettings = readProjectFile("src/components/owner-web/settings-revisit-reminder-default.tsx");
+  const notificationSettings = readProjectFile("src/lib/notification-settings.ts");
+  const careReportRoute = readProjectFile("src/app/api/owner/care-reports/route.ts");
+  const tokenContract = readProjectFile("src/server/booking-access-token.ts");
+  const notificationDispatch = readProjectFile("src/server/notification-dispatch.ts");
+  const resultCard = readProjectFile("src/components/customer/customer-grooming-result-card.tsx");
+  const mediaService = readProjectFile("src/server/media-service.ts");
+  const migration = readProjectFile(
+    "../../supabase/migrations/20260803162637_grooming_record_outcomes.sql",
+  );
+  const atomicCareReportPublishMigration = readProjectFile(
+    "../../supabase/migrations/20260821164152_publish_care_report_atomically.sql",
+  );
+
+  assert.doesNotMatch(ownerMutations, /requiresStartPhoto/);
+  assert.doesNotMatch(ownerMutations, /assertPhotoRequirementForAppointmentStatus/);
+  assert.doesNotMatch(ownerMutations, /getRequiredStatusMediaKind/);
+  assert.doesNotMatch(ownerCalendar, /사진은 완료할 때 등록/);
+  assert.doesNotMatch(ownerCalendar, /사진 없이 바로 시작/);
+  assert.doesNotMatch(ownerCalendar, /미용 완료 사진을 먼저 선택해 주세요/);
+  assert.doesNotMatch(ownerCalendar, /AI 케어리포트 내용을 확인 완료해 주세요/);
+  assert.match(ownerCalendar, /aria-label="미용 사진 선택"/);
+  assert.match(ownerCalendar, /label: "미용 전"/);
+  assert.match(ownerCalendar, /label: "미용 후"/);
+  assert.doesNotMatch(ownerCalendar, /previousImageUrl=\{activeCompletionPhotoIsBefore/);
+  assert.doesNotMatch(ownerCalendar, /nextImageUrl=\{activeCompletionPhotoIsBefore/);
+  assert.doesNotMatch(ownerCalendar, /onPrevious=\{\(\) => setActiveMediaKind/);
+  assert.doesNotMatch(ownerCalendar, /onNext=\{\(\) => setActiveMediaKind/);
+  assert.match(careReportPhotoCard, /등록된 \{label\} 사진이 없습니다/);
+  assert.match(careReportPhotoCard, /availableImageUrls/);
+  assert.match(careReportPhotoCard, /\(current \+ 1\) % availableImageUrls\.length/);
+  assert.match(careReportPhotoCard, /\(current - 1 \+ availableImageUrls\.length\) % availableImageUrls\.length/);
+  assert.match(careReportPhotoCard, /onPointerMove/);
+  assert.match(careReportPhotoCard, /Math\.abs\(deltaX\) < 34/);
+  assert.match(careReportPhotoCard, /care-photo-carousel-next/);
+  assert.match(careReportPhotoCard, /care-photo-carousel-previous/);
+  assert.match(careReportPhotoCard, /CarePhotoSideFrame/);
+  assert.match(careReportPhotoCard, /이전 사진 보기/);
+  assert.match(careReportPhotoCard, /다음 사진 보기/);
+  assert.match(careReportPhotoCard, /rotateY\(15deg\)/);
+  assert.match(careReportPhotoCard, /draggable=\{false\}/);
+  assert.match(careReportPhotoCard, /onDragStart=\{\(event\) => event\.preventDefault\(\)\}/);
+  assert.match(ownerCalendar, /CalendarCareReportCompletionPanel/);
+  assert.match(ownerCalendar, /max-w-\[520px\]/);
+  assert.match(ownerCalendar, /no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain/);
+  assert.doesNotMatch(ownerCalendar, /\[scrollbar-width:thin\]/);
+  assert.doesNotMatch(ownerCalendar, /lg:grid-cols-\[minmax\(0,0\.92fr\)_minmax\(0,1\.08fr\)\]/);
+  assert.match(ownerCalendar, /AI 케어리포트 작성·이어보기/);
+  assert.match(
+    ownerCalendar,
+    /if \(targetBooking && nextStatus === "완료"\) \{\s+setPhotoStatusAction\(null\);\s+setBasicCareReportError\(""\);\s+setCareReportChoiceBooking\(targetBooking\);/,
+  );
+  assert.match(ownerCalendar, /setCareReportChoiceBooking\(targetBooking\);/);
+  assert.match(ownerCalendar, /CalendarCareReportChoiceDialog/);
+  assert.match(careReportChoice, /AI 케어리포트 작성하기/);
+  assert.match(careReportChoice, /기본 기록만/);
+  assert.match(ownerCalendar, /statusAlreadyCompleted:\s+canonicalAppointment\?\.status === "completed" \|\| isCompletedBookingStatus/);
+  assert.match(ownerCalendar, /onBeforePublish=\{handleCompletionBeforePublish\}/);
+  assert.match(careReportPanel, /if \(previewMode \|\| !reportText\.trim\(\)[^\n]+\) return;[\s\S]{0,240}await onBeforePublish\?\.\(\);[\s\S]{0,160}fetchApiJsonWithAuth\("\/api\/owner\/care-reports"/);
+  assert.match(ownerCalendar, /if \(isCompletionMode\) await draft\.flushDraft\(\);\s+onClose\(\);/);
+  assert.match(ownerCalendar, /onPointerDown=\{\(event\) => \{\s+if \(event\.target !== event\.currentTarget \|\| busy \|\| careReportBusy\) return;/);
+  assert.match(careReportPanel, /확정하여 보내기/);
+  assert.match(careReportPanel, /임시저장/);
+  assert.doesNotMatch(careReportPanel, /작성 없이 완료/);
+  assert.doesNotMatch(careReportPanel, /저장하고 닫기/);
+  assert.match(careReportPanel, /action: "save_draft"/);
+  assert.match(careReportPanel, /action: "publish"/);
+  assert.match(careReportPanel, /aria-label="고객에게 보낼 케어리포트"/);
+  assert.match(careReportPanel, /value=\{reportText\}/);
+  assert.match(careReportPanel, /onChange=\{\(event\) => onChange\(event\.target\.value\.slice\(0, 4000\)\)\}/);
+  assert.match(careReportPanel, /currentReportText: isRevision \? reportText : undefined/);
+  assert.match(careReportPanel, /revisionRequest: isRevision \? revisionRequest : undefined/);
+  assert.equal([...careReportPanel.matchAll(/data-care-report-editor/g)].length, 1);
+  assert.doesNotMatch(careReportPanel, /디자이너의 한마디|시술 내용|피부·피모 상태|미용 반응|홈케어 팁|다음 방문/);
+  assert.match(careReportPanel, /sticky bottom-0/);
+  assert.doesNotMatch(careReportPanel, /fixed bottom-2 left-1\/2/);
+  assert.doesNotMatch(careReportPanel, /전체 케어리포트 보기/);
+  assert.match(careNoteInput, /오늘 관찰 메모/);
+  assert.match(careNoteInput, /예\) 목욕은 잘 진행했고, 귀가 조금 예민했어요\./);
+  assert.match(careNoteInput, /min-h-\[88px\].*max-h-\[164px\].*resize-none.*overflow-y-auto/);
+  assert.match(careNoteInput, /speechBaseValueRef\.current = valueRef\.current/);
+  assert.match(careNoteInput, /const spokenText = \[finalized\.trim\(\), interim\.trim\(\)\]/);
+  assert.match(careNoteInput, /onChange\(nextValue\)/);
+  assert.doesNotMatch(careReportPanel, /OwnerCareMessage/);
+  assert.doesNotMatch(careReportPanel, /setOwnerMessages/);
+  assert.match(careReportRoute, /z\.enum\(\["save_draft", "publish", "publish_basic"\]\)/);
+  assert.match(careReportRoute, /input\.action === "publish_basic"/);
+  assert.match(careReportRoute, /input\.action === "save_draft"/);
+  assert.match(careReportRoute, /\.rpc\("publish_ai_care_report"/);
+  assert.match(careReportRoute, /미용 완료 기록이 만들어진 뒤 케어리포트를 보낼 수 있습니다/);
+  assert.match(careReportRoute, /\{ reportText: generated\.reportText \}/);
+  assert.doesNotMatch(careReportRoute, /persistCurrentWeightMeasurement\(/);
+  assert.doesNotMatch(careReportRoute, /ai_care_report_generations[\s\S]{0,500}\.insert/);
+  assert.match(careReportRoute, /care_report_ai_draft: \{ reportText \}/);
+  assert.match(careReportRoute, /care_report_observations: \{\}/);
+  assert.match(careReportRoute, /care_report_voice_transcript: ""/);
+  assert.match(careReportRoute, /p_care_report: \{ reportText \}/);
+  assert.doesNotMatch(careReportRoute, /sanitizeCareReportObservations|prepareCareReportSourceText|persistedObservations|decideCareReportSaveReplay/);
+  assert.match(ownerMutations, /final_service_price \?\? service\?\.price/);
+  assert.match(ownerMutations, /actual_duration_minutes: getActualGroomingDurationMinutes/);
+  assert.match(ownerMutations, /next_recommended_visit_date/);
+  assert.match(ownerMutations, /care_report_service_correction/);
+  assert.match(ownerMutations, /service_name_snapshot: service\.name/);
+  assert.match(completionFields, /aria-label="예약 서비스 수정"/);
+  assert.doesNotMatch(completionFields, /자동 반영/);
+  assert.doesNotMatch(completionFields, /30일 후|60일 후|날짜 직접 선택/);
+  assert.match(completionFields, /재예약 알림/);
+  assert.doesNotMatch(completionFields, />날짜<\/span>/);
+  assert.match(reminderSettings, /재예약 알림 기본 시점/);
+  assert.match(reminderSettings, /미용 완료일 기준/);
+  assert.match(notificationSettings, /revisit_reminder_default_days: 45/);
+  assert.match(tokenContract, /"reschedule" \| "result"/);
+  assert.match(notificationDispatch, /isGroomingResult\s*\?\s*"result"/);
+  assert.match(notificationDispatch, /24 \* 365/);
+  assert.match(resultCard, /펫매니저 케어리포트/);
+  assert.doesNotMatch(resultCard, /앱 설치나 회원가입 없이 바로 확인/);
+  assert.match(resultCard, /케어리포트 작성 중/);
+  assert.match(resultCard, /다시 확인하기/);
+  assert.match(mediaService, /payload\.action !== "result"/);
+  assert.match(mediaService, /\.eq\("appointment_id", payload\.appointmentId\)/);
+  assert.match(migration, /create trigger grooming_records_sync_revenue/);
+  assert.match(migration, /actual_duration_minutes/);
+  assert.match(migration, /next_recommended_visit_date/);
+  assert.match(atomicCareReportPublishMigration, /create or replace function public\.publish_ai_care_report/);
+  assert.match(atomicCareReportPublishMigration, /CARE_REPORT_FINAL_RECORD_MISSING/);
+  assert.match(atomicCareReportPublishMigration, /for update/);
+  assert.match(atomicCareReportPublishMigration, /update public\.grooming_records/);
+  assert.match(atomicCareReportPublishMigration, /delete from public\.grooming_record_drafts/);
+  assert.match(atomicCareReportPublishMigration, /revoke all on function public\.publish_ai_care_report/);
+});
+
+test("actual grooming timestamps never change the scheduled board date or geometry", () => {
+  const ownerCalendar = readProjectFile("src/components/owner-web/calendar-management-screen.tsx");
+
+  assert.match(ownerCalendar, /\.filter\(\(appointment\) => appointment\.appointment_date === selectedDate\)/);
+  assert.match(ownerCalendar, /const startMinute = timeToHour\(appointment\.appointment_time\) \* 60;/);
+  assert.match(ownerCalendar, /const durationMinutes = scheduledDurationMinutes;/);
+  assert.doesNotMatch(ownerCalendar, /getActualAppointmentWindowForDate|hasActualAppointmentWindowOnDate/);
+});
+
+test("grooming notes keep a private autosaved draft without delaying photo completion", () => {
+  const draftHook = readProjectFile("src/components/owner-web/use-grooming-record-draft.ts");
+  const draftRoute = readProjectFile("src/app/api/owner/grooming-record-drafts/route.ts");
+  const completionFields = readProjectFile("src/components/owner-web/calendar-grooming-completion-fields.tsx");
+  const calendar = readProjectFile("src/components/owner-web/calendar-management-screen.tsx");
+  const mediaClient = readProjectFile("src/lib/media/owner-media-client.ts");
+  const resultCard = readProjectFile("src/components/customer/customer-grooming-result-card.tsx");
+  const migration = readProjectFile(
+    "../../supabase/migrations/20260804030815_grooming_record_drafts_and_internal_notes.sql",
+  );
+
+  assert.match(draftHook, /window\.localStorage\.setItem/);
+  assert.match(draftHook, /AUTOSAVE_DELAY_MS = 900/);
+  assert.match(draftHook, /chooseNewestGroomingDraft/);
+  assert.match(draftRoute, /requireOwnerShop/);
+  assert.match(draftRoute, /본인 담당 예약의 미용 기록만 작성할 수 있습니다/);
+  assert.doesNotMatch(completionFields, /매장 내부 메모/);
+  assert.match(completionFields, /aria-label="오늘 몸무게"/);
+  assert.match(calendar, /providerReadyMode: "background"/);
+  assert.match(mediaClient, /Delivery falls back to the optimized original/);
+  assert.doesNotMatch(resultCard, /internal_memo/);
+  assert.match(migration, /grooming_record_drafts/);
+  assert.match(migration, /enable row level security/);
+  assert.match(migration, /revoke all on table public\.grooming_record_drafts from anon, authenticated/);
+});
+
+test("profitability remains tied to timing snapshots and one revenue row", () => {
+  const analytics = readProjectFile("src/server/profitability-analytics.ts");
+  const migration = readProjectFile(
+    "../../supabase/migrations/20260803172356_profitability_and_external_data_imports.sql",
+  );
+
+  assert.match(analytics, /actual_duration_minutes/);
+  assert.match(analytics, /expected_duration_minutes/);
+  assert.match(analytics, /shop_revenue_entries/);
+  assert.match(analytics, /MIN_RECOMMENDATION_SAMPLE_SIZE = 3/);
+  assert.match(migration, /pet_breed_snapshot/);
+  assert.match(migration, /pet_weight_snapshot/);
+  assert.match(migration, /original_price/);
+  assert.match(migration, /discount_amount/);
+  assert.doesNotMatch(migration, /security definer/i);
+});
+
+test("external imports retain preview, idempotency, and private audit boundaries", () => {
+  const route = readProjectFile("src/app/api/owner/data-import/route.ts");
+  const commit = readProjectFile("src/server/data-import-commit.ts");
+  const migration = readProjectFile(
+    "../../supabase/migrations/20260803172356_profitability_and_external_data_imports.sql",
+  );
+
+  assert.match(route, /mode === "commit"/);
+  assert.match(route, /MAX_IMPORT_FILE_BYTES/);
+  assert.match(commit, /file_sha256/);
+  assert.match(commit, /external_record_key/);
+  assert.match(commit, /is_active: false/);
+  assert.match(migration, /unique \(shop_id, source, file_sha256\)/);
+  assert.match(migration, /enable row level security/);
+  assert.match(migration, /revoke all on table public\.shop_data_import_batches from anon, authenticated/);
+  assert.doesNotMatch(migration, /raw_row|raw_file|file_contents/);
+});
+
+test("landing keeps the product story free from retired pricing and savings claims", () => {
+  const conversion = readProjectFile("src/components/landing/landing-conversion-sections.tsx");
+  const primary = readProjectFile("src/components/landing/landing-primary-sections.tsx");
+  const landing = `${conversion}\n${primary}`;
+
+  assert.match(landing, /14일 무료로 시작하기/);
+  assert.match(landing, /기존 데이터 이전 지원/);
+  assert.match(landing, /보호자 화면 광고 없음/);
+  assert.doesNotMatch(landing, /홈페이지에 요금 공개/);
+  assert.doesNotMatch(landing, /하루 30분만 예약 응대를 덜 해도/);
+  assert.doesNotMatch(landing, /티피보다.*(?:싸|저렴)/);
+});
+
+test("landing media ships with the deploy and booking previews use the isolated persistent demo shop", () => {
+  const bookingCarousel = readProjectFile("src/components/landing/landing-booking-flow-carousel.tsx");
+  const bookingPreview = readProjectFile("src/app/demo/landing-booking/page.tsx");
+  const careReportCard = readProjectFile("src/components/landing/landing-ai-care-report-card.tsx");
+  const careReportPreview = readProjectFile("src/app/demo/customer-care-report-preview/page.tsx");
+  const nextConfig = readProjectFile("next.config.ts");
+  const requiredImages = [
+    "public/images/landing/hero-groomer-missed-call-v3.png",
+    "public/images/landing/actual-customers.png",
+    "public/images/landing/section-new-booking-notification-v2.png",
+  ];
+
+  for (const imagePath of requiredImages) {
+    assert.equal(existsSync(new URL(`../../${imagePath}`, import.meta.url)), true, `${imagePath} must ship`);
+  }
+  assert.doesNotMatch(bookingCarousel, /\/demo\/landing-booking\?experience=/);
+  assert.match(bookingCarousel, /getLandingDemoShopId/);
+  assert.match(bookingCarousel, /petmanager-demo-service-full/);
+  assert.match(bookingCarousel, /GalaxyPhoneMockup/);
+  assert.match(careReportCard, /GalaxyPhoneMockup/);
+  assert.doesNotMatch(careReportCard, /rounded-\[40px\]/);
+  assert.match(careReportCard, /\/demo\/customer-care-report-preview/);
+  assert.match(careReportCard, /\/demo\/owner-care-report-completion-preview\?mode=landing/);
+  assert.doesNotMatch(careReportCard, /customer-care-report-view\.png/);
+  assert.doesNotMatch(careReportCard, /owner-care-report-authoring-v3\.png/);
+  assert.match(careReportCard, /max-w-\[220px\]/);
+  assert.match(careReportPreview, /scrollbar-width: none/);
+  assert.match(nextConfig, /allowedDevOrigins:[^\n]*"127\.0\.0\.1"/);
+  assert.match(bookingCarousel, /landingDemoShopId/);
+  assert.doesNotMatch(bookingCarousel, /\/entry\/\$\{/);
+  assert.doesNotMatch(bookingPreview, /getBootstrap|supabase|owner-demo/);
+});
+
+test("the owner operations visual keeps the laptop dominant with a foreground phone overlap", () => {
+  const primarySections = readProjectFile("src/components/landing/landing-primary-sections.tsx");
+
+  assert.match(primarySections, /<OwnerLaptopPreview view=\{view\} large \/>/);
+  assert.match(primarySections, /sm:pr-\[32px\]/);
+  assert.match(primarySections, /sm:absolute sm:bottom-0 sm:right-0 sm:w-\[190px\]/);
+});
+
+test("customer booking dates and staff cards share the authoritative availability result", () => {
+  const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
+  const bookingFlow = readProjectFile("src/components/customer/customer-first-visit-claude-flow.tsx");
+  const availabilityRoute = readProjectFile("src/app/api/availability/route.ts");
+
+  assert.match(bookingPage, /offset < CUSTOMER_BOOKING_HORIZON_DAYS/);
+  assert.match(bookingPage, /dates:\s*dateOptions\.map/);
+  assert.match(bookingPage, /summaryOnly: true/);
+  assert.doesNotMatch(bookingPage, /fullSlots: true/);
+  assert.match(bookingFlow, /calc\(\(100% - 24px\) \/ 4\)/);
+  assert.match(bookingFlow, /scroll-snap-type:x mandatory/);
+  assert.match(bookingFlow, /예약 가능한 시간이 없어요/);
+  assert.match(bookingFlow, /availabilityLabel = availability === true \? "예약 가능" : unavailable \? "예약 불가" : "확인 중"/);
+  assert.match(bookingFlow, /disabled=\{availability !== true\}/);
+  assert.match(bookingFlow, /disabled=\{!firstVisit\.date \|\| isUnavailable \|\| isChecking/);
+  assert.match(availabilityRoute, /searchParams\.get\("summary"\) === "1"/);
+  assert.match(availabilityRoute, /availabilityByDate/);
+  assert.match(availabilityRoute, /staffAvailability/);
+  assert.match(availabilityRoute, /customerVisibleSlots\.slice\(0, 1\)/);
+});
+
+test("the customer entry service selection is carried into booking without a duplicate service step", () => {
+  const entryPage = readProjectFile("src/components/customer/customer-booking-entry-page.tsx");
+  const servicePicker = readProjectFile("src/components/customer/customer-entry-service-picker.tsx");
+  const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
+
+  assert.match(servicePicker, /role="radiogroup"/);
+  assert.match(servicePicker, /aria-checked=\{selected\}/);
+  assert.match(entryPage, /serviceId=\$\{encodeURIComponent\(service\.serviceId\)\}/);
+  assert.match(entryPage, /serviceOptionId=\$\{encodeURIComponent\(service\.id\)\}/);
+  assert.match(entryPage, /서비스를 선택해 주세요/);
+  assert.match(bookingPage, /firstVisitStep === 1 && serviceSelectedBeforeFlow/);
+  assert.match(bookingPage, /setFirstVisitStep\(3\)/);
+  assert.match(bookingPage, /firstVisitStep === 3 && serviceSelectedBeforeFlow/);
+});
+
+test("customer bookings keep the canonical service and snapshot the selected price-guide option", () => {
+  const customerBookings = readProjectFile("src/server/customer-bookings.ts");
+  const appointmentSchema = readProjectFile("src/server/schemas.ts");
+  const ownerMutations = readProjectFile("src/server/owner-mutations.ts");
+  const resultCard = readProjectFile("src/components/customer/customer-grooming-result-card.tsx");
+
+  assert.doesNotMatch(customerBookings, /customer-booking-\$\{randomUUID\(\)\}/);
+  assert.doesNotMatch(customerBookings, /createAppointment, upsertService/);
+  assert.match(customerBookings, /selectedCustomerServiceOption\?\.serviceId \?\? payload\.serviceId/);
+  assert.match(customerBookings, /durationMinutes: selectedCustomerServiceOption\?\.durationMinutes/);
+  assert.match(customerBookings, /customerServiceOptionName:/);
+  assert.match(customerBookings, /customerServiceOptionDurationMinutes:/);
+  assert.match(appointmentSchema, /durationMinutes: z\.coerce\.number\(\)\.int\(\)\.min\(15\)/);
+  assert.match(ownerMutations, /durationMinutesOverride: durationMinutes/);
+  assert.match(ownerMutations, /buildAppointmentWindow\(payload\.appointmentDate, payload\.appointmentTime, durationMinutes\)/);
+  assert.match(resultCard, /serviceOptionId: getRebookingServiceOptionId\(appointment\)/);
+});
+
+test("personalized rebooking links restore the exact guardian and pet without phone-only merging", () => {
+  const tokenContract = readProjectFile("src/server/booking-access-token.ts");
+  const rebookingRoute = readProjectFile("src/app/api/customer-rebooking-link/route.ts");
+  const bookingEntry = readProjectFile("src/app/book/[shopId]/page.tsx");
+  const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
+  const customerBookings = readProjectFile("src/server/customer-bookings.ts");
+  const resultCard = readProjectFile("src/components/customer/customer-grooming-result-card.tsx");
+  const notificationDispatch = readProjectFile("src/server/notification-dispatch.ts");
+
+  assert.match(tokenContract, /REBOOKING_ACCESS_TOKEN_HOURS = 0\.5/);
+  assert.match(tokenContract, /source\.action !== "result" && source\.action !== "rebook_source"/);
+  assert.match(tokenContract, /action: "rebook"/);
+  assert.match(rebookingRoute, /exchangeBookingAccessTokenForRebooking/);
+  assert.match(rebookingRoute, /experience: "revisit", t: rebookingToken/);
+  assert.match(bookingEntry, /access\.action === "rebook"/);
+  assert.match(bookingEntry, /initialBookingProfile=\{initialBookingProfile\}/);
+  assert.match(bookingPage, /rebookingAccessToken: initialAccessToken \?\? ""/);
+  assert.match(bookingPage, /rebookingPetId: initialAccessToken \? selectedRebookingPetId : ""/);
+  assert.match(customerBookings, /access\.shopId !== payload\.shopId \|\| access\.action !== "rebook"/);
+  assert.doesNotMatch(customerBookings, /phoneOnlyActiveGuardian/);
+  assert.match(resultCard, /\/api\/customer-rebooking-link/);
+  assert.match(notificationDispatch, /isRevisitNotice && bookingAccessToken/);
+  assert.match(notificationDispatch, /buildPersonalizedRebookingSourceUrl\(input\.shopId, bookingAccessToken\)/);
+});
+
+test("customer reservation management requires an appointment-scoped signed link", () => {
+  const tokenContract = readProjectFile("src/server/booking-access-token.ts");
+  const customerLookupRoute = readProjectFile("src/app/api/customer-lookup/route.ts");
+  const customerBookings = readProjectFile("src/server/customer-bookings.ts");
+  const managePanel = readProjectFile("src/components/customer/customer-booking-manage-panel.tsx");
+  const recoveryRoute = readProjectFile("src/app/api/customer-booking-access-link/route.ts");
+  const recoveryService = readProjectFile("src/server/customer-booking-access-recovery.ts");
+  const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
+
+  assert.match(tokenContract, /action\?: "manage" \| "reschedule"/);
+  assert.match(tokenContract, /payload\.action === "manage"[\s\S]*!payload\.appointmentId/);
+  assert.match(customerBookings, /accessToken: z\.string\(\)\.trim\(\)\.min\(1\)/);
+  assert.match(customerBookings, /access\.appointmentId !== payload\.appointmentId/);
+  assert.doesNotMatch(customerBookings, /export async function lookupCustomerBookings\(/);
+  assert.doesNotMatch(customerBookings, /export async function lookupCustomerBookingProfile\(/);
+  assert.match(customerLookupRoute, /if \(!token\)/);
+  assert.doesNotMatch(customerLookupRoute, /searchParams\.get\("guardianName"\)/);
+  assert.match(managePanel, /accessToken: initialAccessToken/);
+  assert.match(customerBookings, /buildCustomerWeightHistory\(/);
+  assert.match(customerBookings, /currentResultRecord\?\.groomed_at/);
+  assert.match(managePanel, /weightHistory=\{lookupResult\.weightHistory \?\? \[\]\}/);
+  assert.match(managePanel, /\/api\/customer-booking-access-link/);
+  assert.doesNotMatch(managePanel, /보호자 이름 입력/);
+  assert.doesNotMatch(managePanel, /반려동물 이름 입력/);
+  assert.match(recoveryRoute, /NEUTRAL_MESSAGE/);
+  assert.match(recoveryRoute, /"Retry-After": "900"/);
+  assert.match(recoveryService, /PHONE_REQUEST_LIMIT = 3/);
+  assert.match(recoveryService, /IP_REQUEST_LIMIT = 10/);
+  assert.doesNotMatch(recoveryService, /type: "booking_manage_link_requested"/);
+  assert.doesNotMatch(recoveryService, /await dispatchNotification\(/);
+  assert.doesNotMatch(bookingPage, /profile: "1"/);
+});

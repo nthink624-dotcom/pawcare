@@ -1,0 +1,864 @@
+﻿"use client";
+
+import { addDays, format, parseISO } from "date-fns";
+import { ko } from "date-fns/locale";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, Check, Clock3, MessageCircle, X } from "lucide-react";
+
+import {
+  CustomerGroomingResultCard,
+  type CustomerResultMediaAsset,
+} from "@/components/customer/customer-grooming-result-card";
+import type { CustomerWeightMeasurement } from "@/lib/customer-weight-history";
+import { fetchApiJson } from "@/lib/api";
+import { invalidateCustomerAvailability } from "@/lib/customer-availability";
+import { isShopClosedOnDate } from "@/lib/availability";
+import { CUSTOMER_BOOKING_HORIZON_DAYS } from "@/lib/customer-booking-window";
+import { fetchCustomerAvailability } from "@/lib/customer-availability";
+import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
+import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, minutesFromTime, phoneNormalize } from "@/lib/utils";
+import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
+
+export type CustomerBookingManageLookupPayload = {
+  guardians: Array<{ id: string; name: string; phone: string }>;
+  appointments: Appointment[];
+  groomingRecords: GroomingRecord[];
+  resultMediaAssets?: CustomerResultMediaAsset[];
+  weightHistory?: CustomerWeightMeasurement[];
+  pets: Array<{ id: string; name: string; guardian_id: string; breed?: string }>;
+  access?: {
+    appointmentId?: string | null;
+    action?: "manage" | "reschedule" | "result" | null;
+  };
+};
+
+type LookupPayload = CustomerBookingManageLookupPayload;
+
+type DateOption = {
+  value: string;
+  label: string;
+  weekday: string;
+};
+
+type ManageForm = {
+  appointmentId: string;
+  serviceId: string;
+  customerServiceOptionId: string;
+  staffId: string;
+  date: string;
+  timeSlot: string;
+  note: string;
+};
+
+type Feedback = {
+  type: "success" | "error";
+  title: string;
+  message: string;
+};
+
+const statusLabelMap: Partial<Record<Appointment["status"], string>> = {
+  pending: "예약 대기",
+  confirmed: "확정",
+  in_progress: "미용 중",
+  almost_done: "픽업 준비",
+  completed: "완료",
+  cancelled: "취소",
+  rejected: "미승인",
+  noshow: "노쇼",
+};
+
+const progressSteps: Array<{ status: Appointment["status"]; label: string }> = [
+  { status: "pending", label: "예약 대기" },
+  { status: "confirmed", label: "확정" },
+  { status: "in_progress", label: "미용 중" },
+  { status: "almost_done", label: "픽업 준비" },
+  { status: "completed", label: "완료" },
+];
+
+function getStatusTone(status: Appointment["status"]) {
+  if (status === "cancelled" || status === "rejected" || status === "noshow") return "border-[#f1d4cf] bg-[#fff7f4] text-[#b95045]";
+  if (status === "completed") return "border-[#f0e3dd] bg-[#fffaf8] text-[#8a7a72]";
+  return "border-[#f3ded8] bg-[#fff8f5] text-[#d35f50]";
+}
+
+function getProgressIndex(status: Appointment["status"]) {
+  const index = progressSteps.findIndex((step) => step.status === status);
+  return index < 0 ? 0 : index;
+}
+
+async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
+  return fetchApiJson<T>(String(input), {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+  });
+}
+
+function buildDateOptions(shop: Shop): DateOption[] {
+  const options: DateOption[] = [];
+  const today = currentDateInTimeZone();
+  const todayDate = parseISO(`${today}T00:00:00`);
+  let offset = 0;
+
+  while (options.length < 8 && offset < CUSTOMER_BOOKING_HORIZON_DAYS) {
+      const date = addDays(todayDate, offset);
+      const value = format(date, "yyyy-MM-dd");
+      const isClosed = isShopClosedOnDate(shop, value);
+
+    if (!isClosed) {
+      options.push({
+        value,
+        label: value === today ? "오늘" : format(date, "M/d"),
+        weekday: format(date, "EEE", { locale: ko }),
+      });
+    }
+
+    offset += 1;
+  }
+
+  return options;
+}
+
+function canManageAppointment(appointment: Appointment) {
+  if (appointment.status !== "confirmed") return false;
+
+  const today = currentDateInTimeZone();
+  if (appointment.appointment_date > today) return true;
+  if (appointment.appointment_date < today) return false;
+
+  return minutesFromTime(appointment.appointment_time) > currentMinutesInTimeZone();
+}
+
+function formatDateLabel(value: string) {
+  if (!value) return "-";
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return format(parsed, "M월 d일 EEEE", { locale: ko });
+}
+
+function formatVisitedAt(value: string) {
+  if (!value) return "방문 기록 없음";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return format(parsed, "yy.MM.dd", { locale: ko });
+}
+
+function getCustomerActionLabel(status: Appointment["status"]) {
+  if (status === "confirmed") return "예약 취소 문의";
+  if (status === "almost_done") return "매장에 문의하기";
+  if (status === "completed") return "다시 예약하기";
+  return "예약 문의";
+}
+
+function ManageInfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-2">
+      <span className="text-[16px] font-semibold leading-6 text-[#64748b]">{label}</span>
+      <span className="text-right text-[16px] font-normal leading-6 tracking-[-0.01em] text-[#101a31]">{value}</span>
+    </div>
+  );
+}
+
+function formatServiceFallback() {
+  return "선택한 서비스";
+}
+
+function getAppointmentServiceOptionName(appointment: Appointment) {
+  const value = appointment.discount_snapshot?.customerServiceOptionName;
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function ProgressTracker({ status }: { status: Appointment["status"] }) {
+  const currentIndex = getProgressIndex(status);
+
+  if (status === "cancelled" || status === "rejected" || status === "noshow") {
+    return (
+      <div className="rounded-[16px] border border-[#f1c7c7] bg-[#fff5f5] px-3 py-3 text-[14px] font-semibold text-[#a04455]">
+        {statusLabelMap[status] || status} 처리된 예약입니다.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[16px] border border-[#eadbc9] bg-white px-3 py-3">
+      <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#2b241f]">진행 상태</p>
+      <div className="mt-3 grid grid-cols-5 gap-1.5">
+        {progressSteps.map((step, index) => {
+          const active = index <= currentIndex;
+          const current = index === currentIndex;
+          return (
+            <div key={step.status} className="text-center">
+              <span
+                className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full border text-[11px] ${
+                  active ? "border-[#8B5E3C] bg-[#8B5E3C] text-white" : "border-[#eadbc9] bg-[#fffaf3] text-[#b8a79a]"
+                }`}
+              >
+                {active ? <Check className="h-3.5 w-3.5" strokeWidth={2.2} /> : index + 1}
+              </span>
+              <span className={`mt-1 block text-[11px] font-semibold ${current ? "text-[#8B5E3C]" : "text-[#8b7767]"}`}>{step.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default function CustomerBookingManagePanel({
+  shopId,
+  shop,
+  services,
+  customerServiceOptions = [],
+  staffMembers = [],
+  initialAccessToken,
+  initialLookupResult = null,
+  operationsLocked = false,
+  onBack,
+}: {
+  shopId: string;
+  shop: Shop;
+  services: Service[];
+  customerServiceOptions?: CustomerServiceSourceOption[];
+  staffMembers?: BootstrapStaffMember[];
+  initialAccessToken?: string;
+  initialLookupResult?: CustomerBookingManageLookupPayload | null;
+  operationsLocked?: boolean;
+  onBack: () => void;
+}) {
+  const dateOptions = useMemo(() => buildDateOptions(shop), [shop]);
+  const [lookupPhone, setLookupPhone] = useState("");
+  const [lookupResult, setLookupResult] = useState<LookupPayload | null>(initialLookupResult);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [openAppointmentId, setOpenAppointmentId] = useState<string | null>(null);
+  const [manageForm, setManageForm] = useState<ManageForm | null>(null);
+  const [manageSlots, setManageSlots] = useState<string[]>([]);
+  const [manageRecommendedSlots, setManageRecommendedSlots] = useState<string[]>([]);
+  const [loadingManageSlots, setLoadingManageSlots] = useState(false);
+
+  const petMap = useMemo(
+    () => Object.fromEntries((lookupResult?.pets || []).map((pet) => [pet.id, pet])),
+    [lookupResult?.pets],
+  );
+  const staffMap = useMemo(
+    () => Object.fromEntries(staffMembers.map((staff) => [staff.id, staff.name])),
+    [staffMembers],
+  );
+  const orderedStaffMembers = useMemo(() => {
+    const selectedStaffId = manageForm?.staffId;
+    if (!selectedStaffId) return staffMembers;
+    return [...staffMembers].sort((left, right) => {
+      if (left.id === selectedStaffId) return -1;
+      if (right.id === selectedStaffId) return 1;
+      return 0;
+    });
+  }, [manageForm?.staffId, staffMembers]);
+  const sortedAppointments = useMemo(
+    () => [...(lookupResult?.appointments || [])].sort((a, b) => `${b.appointment_date} ${b.appointment_time}`.localeCompare(`${a.appointment_date} ${a.appointment_time}`)),
+    [lookupResult?.appointments],
+  );
+  const visibleAppointments = useMemo(() => {
+    if (lookupResult?.access?.action === "result" && lookupResult.access.appointmentId) {
+      const directResult = sortedAppointments.find(
+        (appointment) =>
+          appointment.id === lookupResult.access?.appointmentId && appointment.status === "completed",
+      );
+      return directResult ? [directResult] : [];
+    }
+    return sortedAppointments.filter(canManageAppointment);
+  }, [lookupResult?.access?.action, lookupResult?.access?.appointmentId, sortedAppointments]);
+  const latestAppointments = useMemo(() => visibleAppointments.slice(0, 1), [visibleAppointments]);
+  const selectedServiceOption = customerServiceOptions.find(
+    (option) => option.id === manageForm?.customerServiceOptionId && option.serviceId === manageForm?.serviceId,
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      if (operationsLocked || !manageForm?.date || !manageForm.serviceId || !manageForm.appointmentId || !selectedServiceOption) {
+        setManageSlots([]);
+        setManageRecommendedSlots([]);
+        return;
+      }
+
+      setLoadingManageSlots(true);
+      try {
+        const result = await fetchCustomerAvailability({
+          shopId,
+          date: manageForm.date,
+          serviceId: manageForm.serviceId,
+          previewDurationMinutes: selectedServiceOption?.durationMinutes,
+          staffId: manageForm.staffId || null,
+          excludeAppointmentId: manageForm.appointmentId,
+        });
+        if (!active) return;
+        setManageSlots(result.slots);
+        setManageRecommendedSlots((result.recommendedSlots ?? []).filter((slot) => result.slots.includes(slot)).slice(0, 4));
+        if (!result.slots.includes(manageForm.timeSlot)) {
+          setManageForm((prev) => (prev ? { ...prev, timeSlot: "" } : prev));
+        }
+      } finally {
+        if (active) setLoadingManageSlots(false);
+      }
+    }
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, manageForm?.staffId, operationsLocked, selectedServiceOption?.durationMinutes, shopId]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadFromToken() {
+      if (!initialAccessToken) return;
+
+      try {
+        setLookupError(null);
+        const query = new URLSearchParams({ shopId, t: initialAccessToken });
+        const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
+        if (!active) return;
+
+        setLookupResult(result);
+        setFeedback(null);
+
+        const directRescheduleAppointment =
+          result.access?.action === "reschedule" && result.access.appointmentId
+            ? result.appointments.find((appointment) => appointment.id === result.access?.appointmentId) ?? null
+            : null;
+
+        if (!operationsLocked && directRescheduleAppointment && canManageAppointment(directRescheduleAppointment)) {
+          const savedSourceId = typeof directRescheduleAppointment.discount_snapshot?.customerServiceOptionId === "string"
+            ? directRescheduleAppointment.discount_snapshot.customerServiceOptionId
+            : "";
+          const sourceOption = customerServiceOptions.find(
+            (option) => option.id === savedSourceId && option.serviceId === directRescheduleAppointment.service_id,
+          );
+          setOpenAppointmentId(directRescheduleAppointment.id);
+          setManageForm({
+            appointmentId: directRescheduleAppointment.id,
+            serviceId: sourceOption?.serviceId ?? "",
+            customerServiceOptionId: sourceOption?.id ?? "",
+            staffId: directRescheduleAppointment.staff_id ?? "",
+            date: directRescheduleAppointment.appointment_date,
+            timeSlot: directRescheduleAppointment.appointment_time,
+            note: directRescheduleAppointment.memo,
+          });
+          return;
+        }
+
+        setOpenAppointmentId(null);
+        setManageForm(null);
+
+        if (result.access?.action !== "result" && !result.appointments.some(canManageAppointment)) {
+          setLookupError("확인 가능한 예약이 없어요. 진행 전 예약만 조회할 수 있어요.");
+        }
+
+        if (result.access?.action === "reschedule") {
+          setFeedback({
+            type: "error",
+            title: "예약 시간을 변경할 수 없어요",
+            message: "변경 가능한 예약이 아니어서 매장에 문의해 주세요.",
+          });
+        }
+      } catch (error) {
+        if (!active) return;
+        setLookupError(error instanceof Error ? error.message : "예약 정보를 불러오지 못했어요.");
+      }
+    }
+
+    void loadFromToken();
+    return () => {
+      active = false;
+    };
+  }, [customerServiceOptions, initialAccessToken, operationsLocked, shopId]);
+
+  async function reloadBookingFromToken() {
+    if (!initialAccessToken) return;
+    try {
+      setLookupError(null);
+      const query = new URLSearchParams({ shopId, t: initialAccessToken });
+      const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
+      setLookupResult(result);
+      setOpenAppointmentId(null);
+      setManageForm(null);
+      setFeedback(null);
+      if (!result.appointments.some(canManageAppointment)) {
+        setLookupError("확인 가능한 예약이 없어요. 진행 전 예약만 조회할 수 있어요.");
+      }
+    } catch (error) {
+      setLookupError(error instanceof Error ? error.message : "조회에 실패했어요.");
+      setLookupResult(null);
+      setOpenAppointmentId(null);
+      setManageForm(null);
+    }
+  }
+
+  function openRescheduleForm(appointment: Appointment) {
+    const savedSourceId = typeof appointment.discount_snapshot?.customerServiceOptionId === "string"
+      ? appointment.discount_snapshot.customerServiceOptionId
+      : "";
+    const sourceOption = customerServiceOptions.find(
+      (option) => option.id === savedSourceId && option.serviceId === appointment.service_id,
+    );
+    setFeedback(null);
+    setOpenAppointmentId(appointment.id);
+    setManageForm({
+      appointmentId: appointment.id,
+      serviceId: sourceOption?.serviceId ?? "",
+      customerServiceOptionId: sourceOption?.id ?? "",
+      staffId: appointment.staff_id ?? "",
+      date: appointment.appointment_date,
+      timeSlot: appointment.appointment_time,
+      note: appointment.memo,
+    });
+  }
+
+  function closeRescheduleForm() {
+    setOpenAppointmentId(null);
+    setManageForm(null);
+    setManageSlots([]);
+    setManageRecommendedSlots([]);
+  }
+
+  async function requestAccessLink() {
+    if (submitting || !lookupPhone) return;
+
+    setSubmitting(true);
+    setLookupError(null);
+    try {
+      const result = await fetchJson<{ message: string }>("/api/customer-booking-access-link", {
+        method: "POST",
+        body: JSON.stringify({ shopId, phone: lookupPhone }),
+      });
+      setFeedback({
+        type: "success",
+        title: "알림톡을 확인해 주세요",
+        message: result.message,
+      });
+    } catch {
+      setFeedback({
+        type: "success",
+        title: "알림톡을 확인해 주세요",
+        message: "예약 정보가 있다면 저장된 연락처로 예약 관리 링크를 보내드렸습니다.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function cancelAppointment(appointmentId: string) {
+    if (submitting || !initialAccessToken) return;
+
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      await fetchJson("/api/customer-appointments", {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "cancel",
+          shopId,
+          appointmentId,
+          accessToken: initialAccessToken,
+        }),
+      });
+      invalidateCustomerAvailability();
+      await reloadBookingFromToken();
+      closeRescheduleForm();
+      setFeedback({
+        type: "success",
+        title: "예약이 취소되었어요",
+        message: "취소 내용이 바로 반영되었습니다.",
+      });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        title: "예약 취소에 실패했어요",
+        message: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitReschedule() {
+    if (
+      submitting
+      || !initialAccessToken
+      || !manageForm?.date
+      || !manageForm.timeSlot
+      || !manageForm.serviceId
+      || !manageForm.customerServiceOptionId
+    ) return;
+
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      await fetchJson("/api/customer-appointments", {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "reschedule",
+          shopId,
+          appointmentId: manageForm.appointmentId,
+          accessToken: initialAccessToken,
+          serviceId: manageForm.serviceId,
+          customerServiceOptionId: manageForm.customerServiceOptionId,
+          staffId: manageForm.staffId || null,
+          appointmentDate: manageForm.date,
+          appointmentTime: manageForm.timeSlot,
+          memo: manageForm.note,
+        }),
+      });
+      invalidateCustomerAvailability();
+      await reloadBookingFromToken();
+      closeRescheduleForm();
+      setFeedback({
+        type: "success",
+        title: "예약 변경이 완료되었어요",
+        message: "변경된 일정이 바로 반영되었습니다.",
+      });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        title: "예약 변경에 실패했어요",
+        message: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const showLookupForm = !initialAccessToken && !operationsLocked;
+
+  return (
+    <>
+      {operationsLocked ? (
+        <p className="rounded-[14px] border border-[#e8edf3] bg-white px-5 py-6 text-center text-[16px] font-medium leading-6 text-[#15213b]">
+          매장 준비를 먼저 완료해 주세요
+        </p>
+      ) : null}
+      {showLookupForm ? (
+        <section className="rounded-[24px] bg-white p-4 shadow-[0_14px_32px_rgba(139,106,85,0.08)]">
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+              aria-label="닫기"
+            >
+              <X className="h-5 w-5" strokeWidth={1.9} />
+            </button>
+          </div>
+          <h2 className="text-[17px] font-semibold tracking-[-0.03em] text-[#111827]">예약 관리 링크 다시 받기</h2>
+          <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
+            예약할 때 입력한 연락처로 안전한 예약 관리 링크를 보내드려요.
+          </p>
+          <div className="mt-4 space-y-2.5">
+            <div className="flex gap-2">
+              <input
+                value={lookupPhone}
+                onChange={(event) => setLookupPhone(phoneNormalize(event.target.value))}
+                placeholder="연락처 입력"
+                inputMode="tel"
+                className="field flex-1 rounded-[14px] border-[#f3e5df] bg-[#fffaf8] px-4 py-4 text-[16px]"
+              />
+              <button type="button" onClick={() => void requestAccessLink()} disabled={!lookupPhone || submitting} className="inline-flex h-[54px] items-center justify-center rounded-[14px] bg-[#ec7f72] px-5 text-[15px] font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50">
+                링크 받기
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {lookupError ? <p className="rounded-[16px] bg-[#fff1f1] px-4 py-3 text-sm text-red-600">{lookupError}</p> : null}
+
+      {feedback ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101a31]/20 px-5 py-6" role="presentation">
+          <section className="w-full max-w-[390px] rounded-[24px] bg-white px-6 py-10 text-center shadow-[0_20px_50px_rgba(16,26,49,0.18)]" role="dialog" aria-modal="true" aria-labelledby="booking-feedback-title">
+            <div className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full text-white ${feedback.type === "success" ? "bg-[#1f9d55]" : "bg-[#c65b52]"}`}>
+              {feedback.type === "success" ? <Check className="h-10 w-10" strokeWidth={2.2} /> : <X className="h-10 w-10" strokeWidth={2.1} />}
+            </div>
+            <h2 id="booking-feedback-title" className="mt-6 text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#101a31]">{feedback.title}</h2>
+            <p className="mt-3 max-w-[300px] mx-auto text-[16px] leading-6 text-[#64748b]">{feedback.message}</p>
+            <button type="button" onClick={feedback.type === "success" ? onBack : () => setFeedback(null)} className="mt-8 inline-flex min-h-11 w-full max-w-[260px] items-center justify-center rounded-[12px] bg-[#ec7f72] px-5 text-[16px] font-medium text-white">
+              {feedback.type === "success" ? "닫기" : "예약 내역으로 돌아가기"}
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {lookupResult && !feedback ? (
+        <section className="space-y-3">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+              aria-label="닫기"
+            >
+              <X className="h-5 w-5" strokeWidth={1.9} />
+            </button>
+          </div>
+          {latestAppointments.map((appointment) => {
+            const pet = petMap[appointment.pet_id];
+            const service = services.find((item) => item.id === appointment.service_id);
+            const serviceOption = customerServiceOptions.find((item) => item.serviceId === appointment.service_id || item.id === appointment.service_id);
+            const staffName = appointment.staff_id ? staffMap[appointment.staff_id] : "";
+            const manageable = canManageAppointment(appointment);
+            const isOpen = openAppointmentId === appointment.id && manageForm?.appointmentId === appointment.id;
+            const statusLabel = statusLabelMap[appointment.status] || appointment.status;
+            const serviceLabel =
+              getAppointmentServiceOptionName(appointment) ||
+              service?.name ||
+              serviceOption?.name ||
+              formatServiceFallback();
+            const inquiryLabel = getCustomerActionLabel(appointment.status);
+            const groomingRecord = lookupResult.groomingRecords.find(
+              (record) => record.appointment_id === appointment.id,
+            );
+            const isResultView =
+              lookupResult.access?.action === "result" &&
+              lookupResult.access.appointmentId === appointment.id &&
+              Boolean(groomingRecord) &&
+              Boolean(initialAccessToken);
+
+            return (
+              <article key={appointment.id} className="overflow-hidden rounded-[24px] border border-[#f3e5df] bg-white shadow-[0_18px_42px_rgba(60,40,30,0.07)]">
+                <div className="px-4 pb-3 pt-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-medium leading-5 tracking-[-0.01em] text-[#64748b]">예약 내역</p>
+                      <h3 className="mt-2 truncate text-[24px] font-semibold tracking-[-0.03em] text-[#101a31]">
+                        {pet?.name || "예약"} · {lookupResult.guardians[0]?.name || "보호자"}
+                      </h3>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[16px] leading-6 font-medium text-[#475569]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays className="h-4 w-4" />
+                          {formatDateLabel(appointment.appointment_date)}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock3 className="h-4 w-4" />
+                          {formatClockTime(appointment.appointment_time)}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-3 py-1 text-[12px] font-semibold ${getStatusTone(appointment.status)}`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 rounded-[16px] border border-[#f3e5df] bg-[#fffaf8] px-4 py-2">
+                    <ManageInfoRow label="서비스" value={serviceLabel} />
+                    <ManageInfoRow label="예약 상태" value={statusLabel} />
+                    {pet?.name ? <ManageInfoRow label="아기 이름" value={pet.name} /> : null}
+                    {staffName ? <ManageInfoRow label="담당" value={staffName} /> : null}
+                  </div>
+
+                  <div className="mt-3 rounded-[16px] border border-[#f3e5df] bg-white px-4 py-3">
+                    <p className="text-[14px] font-medium leading-5 tracking-[-0.01em] text-[#64748b]">고객 요청사항</p>
+                    <p className="mt-2 whitespace-pre-wrap text-[16px] leading-6 text-[#101a31]">
+                      {appointment.memo?.trim() || "등록된 요청사항이 없습니다."}
+                    </p>
+                  </div>
+
+                  {isResultView && groomingRecord && initialAccessToken ? (
+                    <CustomerGroomingResultCard
+                      shopId={shopId}
+                      accessToken={initialAccessToken}
+                      appointment={appointment}
+                      record={groomingRecord}
+                      petName={pet?.name || "반려동물"}
+                      serviceName={serviceLabel}
+                      staffName={staffName}
+                      shopPhone={shop.phone}
+                      mediaAssets={(lookupResult.resultMediaAssets ?? []).filter(
+                        (asset) => asset.appointmentId === appointment.id,
+                      )}
+                      weightHistory={lookupResult.weightHistory ?? []}
+                    />
+                  ) : null}
+
+                  {manageable && !operationsLocked ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => openRescheduleForm(appointment)} className="h-11 rounded-[12px] border border-[#f3e5df] bg-white text-[16px] font-medium text-[#101a31]">
+                        예약 변경
+                      </button>
+                      <button type="button" onClick={() => void cancelAppointment(appointment.id)} disabled={submitting} className="h-11 rounded-[12px] bg-[#ec7f72] text-[16px] font-medium text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50">
+                        예약 취소
+                      </button>
+                    </div>
+                  ) : !operationsLocked ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (appointment.status === "completed") {
+                          onBack();
+                          return;
+                        }
+                        window.location.href = `tel:${shop.phone}`;
+                      }}
+                      className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-[#f3e5df] bg-white text-[15px] font-semibold text-[#3a2e2a]"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      {inquiryLabel}
+                    </button>
+                  ) : null}
+
+                  {isOpen ? (
+                    <>
+                    <button type="button" aria-label="예약 변경 모달 닫기" onClick={closeRescheduleForm} className="fixed inset-0 z-30 cursor-default bg-[#101a31]/20" />
+                    <div className="fixed left-1/2 top-1/2 z-40 max-h-[calc(100dvh-32px)] w-[calc(100%-32px)] max-w-[398px] -translate-x-1/2 -translate-y-1/2 space-y-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-[18px] border border-[#e5eaf0] bg-[#fffaf8] px-3 py-3 shadow-[0_20px_50px_rgba(16,26,49,0.2)]">
+                      {staffMembers.length > 0 ? (
+                        <div>
+                          <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#3a2e2a]">담당 디자이너</p>
+                          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {orderedStaffMembers.map((staff) => {
+                              const selected = manageForm?.staffId === staff.id;
+                              return (
+                                <button
+                                  key={staff.id}
+                                  type="button"
+                                  onClick={() => setManageForm((prev) => (prev ? { ...prev, staffId: staff.id, timeSlot: "" } : prev))}
+                                  className={`min-h-11 min-w-[132px] shrink-0 rounded-[12px] border px-3 py-2 text-[14px] font-medium ${selected ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#e5eaf0] bg-white text-[#101a31]"}`}
+                                >
+                                  {staff.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div>
+                        <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#3a2e2a]">변경할 날짜</p>
+                        <div className="mt-2 grid grid-cols-4 gap-2">
+                          {dateOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setManageForm((prev) => (prev ? { ...prev, date: option.value, timeSlot: "" } : prev))}
+                              className={`rounded-[12px] border px-2 py-3 text-center text-sm font-medium ${manageForm?.date === option.value ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#e5eaf0] bg-white text-[#3a2e2a]"}`}
+                            >
+                              <div>{option.label}</div>
+                              <div className="mt-1 text-xs font-medium">{option.weekday}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#3a2e2a]">변경할 시간</p>
+                        <div className="mt-2">
+                          {loadingManageSlots ? (
+                            <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#8a7a72]">가능한 시간을 확인하고 있어요.</div>
+                          ) : manageSlots.length === 0 ? (
+                            <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#8a7a72]">선택한 날짜에 가능한 시간이 없어요.</div>
+                          ) : (
+                            <div className="space-y-3">
+                              {manageRecommendedSlots.length > 0 ? (
+                                <div>
+                                  <p className="text-[13px] font-medium text-[#3a2e2a]">추천 시간</p>
+                                  <div className="mt-2 grid grid-cols-2 gap-2">
+                                    {manageRecommendedSlots.map((slot) => {
+                                      const selected = manageForm?.timeSlot === slot;
+                                      return (
+                                        <button
+                                          key={`recommended-${slot}`}
+                                          type="button"
+                                          onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
+                                          className={`h-12 rounded-[8px] border px-3 text-[14px] font-medium transition ${
+                                            selected
+                                              ? "border-[#ec7f72] bg-[#ec7f72] text-white shadow-[0_8px_18px_rgba(236,127,114,.18)]"
+                                              : "border-[#ec7f72] bg-[#fff0ed] text-[#d9685d]"
+                                          }`}
+                                        >
+                                          {slot} <span className={selected ? "text-white/85" : "text-[#d9685d]/85"}>추천</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : null}
+                              {manageSlots.some((slot) => !manageRecommendedSlots.includes(slot)) ? (
+                                <div>
+                                  <p className="text-[13px] font-medium text-[#3a2e2a]">예약 가능한 시간</p>
+                                  <div className="mt-2 grid grid-cols-3 gap-2">
+                                    {manageSlots
+                                      .filter((slot) => !manageRecommendedSlots.includes(slot))
+                                      .map((slot) => (
+                                        <button
+                                          key={slot}
+                                          type="button"
+                                          onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
+                                          className={`rounded-[12px] border px-2 py-3 text-sm font-medium ${manageForm?.timeSlot === slot ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#e5eaf0] bg-white text-[#3a2e2a]"}`}
+                                        >
+                                          {slot}
+                                        </button>
+                                      ))}
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <label className="block text-[14px] leading-5 font-medium text-[#3a2e2a]">
+                        <span className="mb-2 block text-[14px] leading-5 font-medium text-[#3a2e2a]">서비스 선택</span>
+                        <select
+                          value={manageForm?.customerServiceOptionId || ""}
+                          onChange={(event) => {
+                            const option = customerServiceOptions.find((item) => item.id === event.target.value);
+                            setManageForm((prev) => (prev ? {
+                              ...prev,
+                              serviceId: option?.serviceId ?? "",
+                              customerServiceOptionId: option?.id ?? "",
+                              timeSlot: "",
+                            } : prev));
+                          }}
+                          className="field rounded-[12px] border-[#e5eaf0] bg-white"
+                        >
+                          {customerServiceOptions.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="block text-[14px] leading-5 font-medium text-[#3a2e2a]">
+                        <span className="mb-2 block text-[14px] leading-5 font-medium text-[#3a2e2a]">추가 메모</span>
+                        <textarea
+                          value={manageForm?.note || ""}
+                          onChange={(event) => setManageForm((prev) => (prev ? { ...prev, note: event.target.value } : prev))}
+                          placeholder="변경하면서 전달할 메모가 있으면 남겨 주세요."
+                          className="field min-h-24 rounded-[12px] border-[#e5eaf0] bg-white px-4 py-4"
+                        />
+                      </label>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={closeRescheduleForm} className="rounded-[12px] border border-[#e5eaf0] bg-white px-4 py-3 text-sm font-semibold text-[#3a2e2a]">
+                          닫기
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void submitReschedule()}
+                          disabled={submitting || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId || !manageForm.customerServiceOptionId}
+                          className="rounded-[12px] bg-[#ec7f72] px-4 py-3 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50"
+                        >
+                          바로 변경하기
+                        </button>
+                      </div>
+                    </div>
+                    </>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })}
+
+        </section>
+      ) : null}
+    </>
+  );
+}

@@ -1,0 +1,1402 @@
+﻿/* Keep Tailwind's plain-text scan inside deterministic product source roots. */
+@import "tailwindcss" source(none);
+@source "./";
+@source "../components";
+@source "../features";
+@source "../lib";
+@source "../server";
+@source "../../../shared/components";
+
+:root {
+  --font-ui-ko: var(--font-pretendard, "Pretendard Variable"), "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
+  --type-micro-size: 12px;
+  --type-micro-line: 18px;
+  --type-helper-size: 13px;
+  --type-helper-line: 20px;
+  --type-body-small-size: 14px;
+  --type-body-small-line: 20px;
+  --type-body-size: 16px;
+  --type-body-line: 24px;
+  --type-heading-small-size: 18px;
+  --type-heading-small-line: 26px;
+  --type-heading-medium-size: 20px;
+  --type-heading-medium-line: 28px;
+  --type-heading-large-size: 24px;
+  --type-heading-large-line: 32px;
+  --type-page-title-size: 28px;
+  --type-page-title-line: 36px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --background: #f1f3f7;
+  --surface: #ffffff;
+  --muted: #7c7a73;
+  --border: #e8e2d8;
+  --pm-brand-blue: #111a30;
+  --pm-brand-blue-hover: #17233d;
+  --pm-brand-blue-soft: #eaf1ff;
+  --pm-brand-blue-wash: #f1f5fb;
+  --pm-brand-blue-border: #dbe5f6;
+  --pm-brand-blue-sky: #0ea5e9;
+  --pm-brand-blue-shadow: rgba(17, 26, 48, 0.13);
+  --pm-brand-blue-page-gradient: linear-gradient(135deg, #eef2f8 0%, #f7f9fc 58%, #edf1f7 100%);
+  --pm-brand-blue-soft-gradient: linear-gradient(135deg, #eaf1ff 0%, #f4f7fc 58%, #ffffff 100%);
+  --pm-brand-blue-button-gradient: #111a30;
+  --accent: var(--pm-brand-blue);
+  --accent-soft: var(--pm-brand-blue-soft);
+  --text: #101a31;
+  --success: #1f6b5b;
+  --warning: #8c6e53;
+  --danger: #9a5e4e;
+  --peach-soft: #f6eee3;
+  --shadow-soft: 0 10px 30px rgba(35, 35, 31, 0.035);
+  --pm-safe-top: env(safe-area-inset-top, 0px);
+  --pm-safe-right: env(safe-area-inset-right, 0px);
+  --pm-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --pm-safe-left: env(safe-area-inset-left, 0px);
+  --pm-scrollbar-thumb: rgba(145, 154, 168, 0.46);
+  --pm-scrollbar-thumb-hover: rgba(96, 112, 128, 0.68);
+  --pm-scrollbar-track: transparent;
+}
+
+.landing-theme {
+  --landing-accent: #0f172a;
+  --landing-accent-hover: #020617;
+  --landing-accent-soft: #f1f5f9;
+  --landing-accent-wash: #f8fafc;
+  --landing-accent-border: #cbd5e1;
+  --landing-accent-on-dark: #cbd5e1;
+}
+
+html {
+  background: var(--background);
+  min-height: 100%;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+body {
+  background: #f1f3f7;
+  color: var(--text);
+  font-family: var(--font-ui-ko);
+  font-synthesis: none;
+  font-weight: var(--weight-regular);
+  min-height: 100%;
+}
+
+/* 제품 전반의 기본 실행 버튼은 인증 화면의 네이비를 공통으로 사용한다. */
+button[class*="bg-[#1f6b5b]"],
+button[class*="bg-[#247761]"],
+button[class*="bg-[#2f7866]"],
+button[class*="bg-[#2563eb]"],
+button[class*="bg-[#334155]"],
+button[class*="bg-[#111827]"],
+button[class*="bg-[var(--accent)]"] {
+  background-color: var(--pm-brand-blue) !important;
+}
+
+button[class*="hover:bg-[#185848]"]:hover,
+button[class*="hover:bg-[#195748]"]:hover,
+button[class*="hover:bg-[#1d4ed8]"]:hover,
+button[class*="hover:bg-[#1f2937]"]:hover,
+button[class*="hover:bg-[#293548]"]:hover {
+  background-color: var(--pm-brand-blue-hover) !important;
+}
+
+@keyframes pmButtonFluid {
+  0% {
+    transform: translate3d(-22%, -12%, 0) scale(1.12) rotate(0deg);
+  }
+
+  14% {
+    transform: translate3d(18%, -24%, 0) scale(1.2) rotate(9deg);
+  }
+
+  29% {
+    transform: translate3d(28%, 12%, 0) scale(1.08) rotate(-7deg);
+  }
+
+  43% {
+    transform: translate3d(-12%, 26%, 0) scale(1.18) rotate(14deg);
+  }
+
+  58% {
+    transform: translate3d(24%, 24%, 0) scale(1.14) rotate(-12deg);
+  }
+
+  72% {
+    transform: translate3d(-30%, 4%, 0) scale(1.2) rotate(6deg);
+  }
+
+  87% {
+    transform: translate3d(6%, -8%, 0) scale(1.1) rotate(-10deg);
+  }
+
+  100% {
+    transform: translate3d(-22%, -12%, 0) scale(1.12) rotate(0deg);
+  }
+}
+
+.owner-font {
+  font-family: var(--font-ui-ko);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.owner-font button,
+.owner-font input,
+.owner-font select,
+.owner-font textarea {
+  font-family: inherit;
+}
+
+/* Benefit view tabs are primary controls, so they use the shared Control role. */
+.pm-owner-web.owner-font .benefit-management-panel .benefit-management-tab {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+/* Product UI never drops below the shared micro role. External brand mocks stay untouched. */
+.pm-owner-web [class~="text-[8px]"]:not([data-booking-link-channel="naver"] *):not([data-customer-phone-preview-frame] *),
+.pm-owner-web [class~="text-[9px]"]:not([data-booking-link-channel="naver"] *):not([data-customer-phone-preview-frame] *),
+.pm-owner-web [class~="text-[10px]"]:not([data-booking-link-channel="naver"] *):not([data-customer-phone-preview-frame] *),
+.pm-owner-web [class~="text-[11px]"]:not([data-booking-link-channel="naver"] *):not([data-customer-phone-preview-frame] *) {
+  font-size: var(--type-micro-size);
+  font-weight: var(--weight-medium);
+  line-height: var(--type-micro-line);
+}
+
+.pm-owner-web {
+  --pm-ui-border: #e8edf3;
+  --pm-owner-main-surface-background: #ffffff;
+  --pm-owner-main-surface-border: var(--pm-ui-border);
+  --pm-owner-main-surface-radius: 14px;
+  --acc: #1677ff;
+  --acc-dk: #0e65d8;
+  --acc-tint: #eff6ff;
+  --acc-soft: #dbeafe;
+  --acc-on: #f7fbff;
+  --bg: #f7f8fa;
+  --card: #ffffff;
+  --ink: #1f2937;
+  --ink2: #334155;
+  --mid: #64748b;
+  --mut: #94a3b8;
+  --faint: #cbd5e1;
+  --line: var(--pm-ui-border);
+  --line2: var(--pm-ui-border);
+  --bd: var(--pm-ui-border);
+  --nav-bg: #ffffff;
+  --nav-bd: var(--pm-ui-border);
+  --nav-ink: #3c4049;
+  --nav-mut: #969ba4;
+  --nav-sec: #abb0b9;
+  --nav-hover: #f5f8fc;
+  --background: var(--bg);
+  --surface: var(--card);
+  --muted: var(--mid);
+  --border: var(--pm-ui-border);
+  --accent: var(--acc);
+  --accent-soft: var(--acc-tint);
+  --text: var(--ink);
+  --shadow-soft: none;
+  --pm-scrollbar-thumb: rgba(117, 132, 153, 0.42);
+  --pm-scrollbar-thumb-hover: rgba(76, 94, 116, 0.68);
+  --pm-scrollbar-track: transparent;
+  word-break: keep-all;
+}
+
+/* 모든 오너 메뉴는 중첩 wrapper 없이 같은 외곽 surface 역할을 한 번만 사용한다. */
+.pm-owner-web .pm-owner-main-surface {
+  background: var(--pm-owner-main-surface-background);
+  border: 1px solid var(--pm-owner-main-surface-border);
+  border-radius: var(--pm-owner-main-surface-radius);
+  overflow: visible;
+}
+
+/* 기존 direct core의 자체 외곽선은 공용 surface와 겹치지 않게 내용 경계로만 남긴다. */
+.pm-owner-web .pm-owner-main-surface [data-schedule-board-root="true"],
+.pm-owner-web .pm-owner-main-surface [data-owner-screen-root="customers"] > div > section {
+  border-width: 0 !important;
+  border-radius: var(--pm-owner-main-surface-radius) !important;
+  box-shadow: none !important;
+}
+
+.pm-owner-web .pm-owner-main-surface [data-owner-screen-root="calendarRecords"] > div,
+.pm-owner-web .pm-owner-main-surface [data-owner-screen-root="calendarRecords"] > div > section {
+  border-radius: var(--pm-owner-main-surface-radius) !important;
+}
+
+/* 가입 직후 설정은 실제 폼과 가이드를 같은 작업면에 유지한다. */
+.pm-initial-setup-layout {
+  display: grid;
+  min-width: 0;
+  align-items: start;
+  gap: 1rem;
+}
+
+.pm-initial-setup-guide {
+  order: -1;
+  width: 100%;
+  min-width: 0;
+  align-self: start;
+  word-break: keep-all;
+}
+
+@media (min-width: 1024px) {
+  .pm-initial-setup-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .pm-initial-setup-guide {
+    position: sticky;
+    top: 1rem;
+    order: 0;
+  }
+
+  .pm-initial-setup-mobile-toggle {
+    display: none !important;
+  }
+
+  .pm-initial-setup-checklist {
+    display: block !important;
+  }
+}
+
+/* PC 오너 화면의 일반 카드·입력·구분선은 하나의 중성 테두리로 유지한다. */
+.pm-owner-web :is(
+  [class*="border-[#cbd5e1]"],
+  [class*="border-[#d8dce3]"],
+  [class*="border-[#e1e4ea]"],
+  [class*="border-[#e2e8f0]"],
+  [class*="border-[#e5e7eb]"],
+  [class*="border-[#e6edf2]"],
+  [class*="border-[#edf2f7]"],
+  [class*="border-[#cfd7e3]"],
+  [class*="border-[#cfd8e3]"],
+  [class*="border-[#e8eaef]"],
+  [class*="border-[#eaecf0]"],
+  [class*="border-[#dde7f2]"],
+  [class*="border-[#e6eaf0]"]
+) {
+  border-color: var(--pm-ui-border) !important;
+}
+
+/* 직원 개인 칩 색은 일반 카드 테두리 정규화보다 우선하는 왼쪽 식별선으로만 쓴다. */
+.pm-owner-web button[data-staff-identity-card] {
+  border-left-width: 3px !important;
+  border-left-color: var(--pm-wrap-indicator-color) !important;
+}
+
+.pm-owner-web :is(
+  [class*="divide-[#cbd5e1]"],
+  [class*="divide-[#d8dce3]"],
+  [class*="divide-[#e1e4ea]"],
+  [class*="divide-[#e2e8f0]"],
+  [class*="divide-[#e5e7eb]"],
+  [class*="divide-[#e6edf2]"],
+  [class*="divide-[#edf2f7]"],
+  [class*="divide-[#cfd7e3]"],
+  [class*="divide-[#cfd8e3]"],
+  [class*="divide-[#e8eaef]"],
+  [class*="divide-[#eaecf0]"]
+) > :not(:last-child) {
+  border-color: var(--pm-ui-border) !important;
+}
+
+.pm-owner-web .bg-\[\#2f7866\],
+.pm-owner-web .bg-\[\#1f6b5b\],
+.pm-owner-web .bg-\[\#16705f\],
+.pm-owner-web .bg-\[\#0f766e\],
+.pm-owner-web .bg-\[\#047857\],
+.pm-owner-web button.bg-\[\#5570F1\],
+.pm-owner-web button.bg-\[\#111827\],
+.pm-owner-web button.bg-\[var\(--accent\)\] {
+  background-color: var(--acc) !important;
+}
+
+.pm-owner-web button.hover\:bg-\[\#286a5a\]:hover,
+.pm-owner-web button.hover\:bg-\[\#286b5b\]:hover,
+.pm-owner-web button.hover\:bg-\[\#276756\]:hover,
+.pm-owner-web button.hover\:bg-\[\#236b5b\]:hover,
+.pm-owner-web button.hover\:bg-\[\#1b604f\]:hover,
+.pm-owner-web button.hover\:bg-\[\#1f2937\]:hover,
+.pm-owner-web button.hover\:bg-\[\#4962d6\]:hover {
+  background-color: var(--acc-dk) !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\],
+.pm-owner-web button.bg-\[\#111827\],
+.pm-owner-web button.bg-\[\#316fe8\],
+.pm-owner-web button.bg-\[\#2f6bd4\],
+.pm-owner-web button.bg-\[\#2563eb\],
+.pm-owner-web button.bg-\[\#1f6b5b\],
+.pm-owner-web button.bg-\[\#12b76a\],
+.pm-owner-web button.bg-\[var\(--accent\)\],
+.pm-owner-web a.bg-\[\#316fe8\],
+.pm-owner-web a.bg-\[\#2f6bd4\],
+.pm-owner-web a.bg-\[\#2563eb\],
+.pm-owner-web a.bg-\[var\(--accent\)\] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--pm-brand-blue) !important;
+  background-image: linear-gradient(112deg, #102fc8 0%, #2563eb 44%, #0891b2 76%, #1d4ed8 100%) !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]::before,
+.pm-owner-web button.bg-\[\#111827\]::before,
+.pm-owner-web button.bg-\[\#316fe8\]::before,
+.pm-owner-web button.bg-\[\#2f6bd4\]::before,
+.pm-owner-web button.bg-\[\#2563eb\]::before,
+.pm-owner-web button.bg-\[\#1f6b5b\]::before,
+.pm-owner-web button.bg-\[\#12b76a\]::before,
+.pm-owner-web button.bg-\[var\(--accent\)\]::before,
+.pm-owner-web a.bg-\[\#316fe8\]::before,
+.pm-owner-web a.bg-\[\#2f6bd4\]::before,
+.pm-owner-web a.bg-\[\#2563eb\]::before,
+.pm-owner-web a.bg-\[var\(--accent\)\]::before {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  z-index: -1;
+  background:
+    linear-gradient(98deg, rgba(15, 47, 200, 0.96) 0%, rgba(37, 99, 235, 0.86) 22%, rgba(14, 165, 233, 0.78) 39%, rgba(125, 211, 252, 0.9) 56%, rgba(29, 78, 216, 0.92) 76%, rgba(15, 23, 119, 0.96) 100%),
+    linear-gradient(24deg, rgba(125, 211, 252, 0.78) 0%, rgba(37, 99, 235, 0) 45%, rgba(14, 165, 233, 0.68) 100%);
+  filter: blur(7px) saturate(1.22);
+  opacity: 1;
+  transform-origin: 50% 50%;
+  transform: translate3d(-16%, -10%, 0) scale(1.14) rotate(0deg);
+  animation: pmButtonFluid 6.2s ease-in-out infinite;
+  transition: opacity 160ms ease;
+}
+
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\],
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\],
+.pm-owner-web .pm-owner-sidebar .group-hover\:bg-\[\#316fe8\]:hover {
+  background-color: #316fe8 !important;
+  background-image: none !important;
+  animation: none !important;
+}
+
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]::before,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]::before {
+  content: none !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]:hover,
+.pm-owner-web button.bg-\[\#111827\]:hover,
+.pm-owner-web button.bg-\[\#316fe8\]:hover,
+.pm-owner-web button.bg-\[\#2f6bd4\]:hover,
+.pm-owner-web button.bg-\[\#2563eb\]:hover,
+.pm-owner-web button.bg-\[\#1f6b5b\]:hover,
+.pm-owner-web button.bg-\[\#12b76a\]:hover,
+.pm-owner-web button.bg-\[var\(--accent\)\]:hover,
+.pm-owner-web a.bg-\[\#316fe8\]:hover,
+.pm-owner-web a.bg-\[\#2f6bd4\]:hover,
+.pm-owner-web a.bg-\[\#2563eb\]:hover,
+.pm-owner-web a.bg-\[var\(--accent\)\]:hover {
+  background-image: linear-gradient(112deg, #102fc8 0%, #2563eb 44%, #0891b2 76%, #1d4ed8 100%) !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]:hover::before,
+.pm-owner-web button.bg-\[\#111827\]:hover::before,
+.pm-owner-web button.bg-\[\#316fe8\]:hover::before,
+.pm-owner-web button.bg-\[\#2f6bd4\]:hover::before,
+.pm-owner-web button.bg-\[\#2563eb\]:hover::before,
+.pm-owner-web button.bg-\[\#1f6b5b\]:hover::before,
+.pm-owner-web button.bg-\[\#12b76a\]:hover::before,
+.pm-owner-web button.bg-\[var\(--accent\)\]:hover::before,
+.pm-owner-web a.bg-\[\#316fe8\]:hover::before,
+.pm-owner-web a.bg-\[\#2f6bd4\]:hover::before,
+.pm-owner-web a.bg-\[\#2563eb\]:hover::before,
+.pm-owner-web a.bg-\[var\(--accent\)\]:hover::before {
+  opacity: 1;
+  animation-duration: 6.2s;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#111827\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#316fe8\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#2f6bd4\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#2563eb\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#1f6b5b\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#12b76a\]:focus-visible::before,
+.pm-owner-web button.bg-\[var\(--accent\)\]:focus-visible::before,
+.pm-owner-web a.bg-\[\#316fe8\]:focus-visible::before,
+.pm-owner-web a.bg-\[\#2f6bd4\]:focus-visible::before,
+.pm-owner-web a.bg-\[\#2563eb\]:focus-visible::before,
+.pm-owner-web a.bg-\[var\(--accent\)\]:focus-visible::before {
+  opacity: 1;
+  animation-duration: 6.2s;
+}
+
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\],
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]:hover,
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]:focus-visible,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\],
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]:hover,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]:focus-visible {
+  background-color: #316fe8 !important;
+  background-image: none !important;
+  animation: none !important;
+}
+
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]::before,
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]:hover::before,
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]:focus-visible::before,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]::before,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]:hover::before,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]:focus-visible::before {
+  content: none !important;
+  animation: none !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]:disabled,
+.pm-owner-web button.bg-\[\#111827\]:disabled,
+.pm-owner-web button.bg-\[\#316fe8\]:disabled,
+.pm-owner-web button.bg-\[\#2f6bd4\]:disabled,
+.pm-owner-web button.bg-\[\#2563eb\]:disabled,
+.pm-owner-web button.bg-\[\#1f6b5b\]:disabled,
+.pm-owner-web button.bg-\[\#12b76a\]:disabled,
+.pm-owner-web button.bg-\[var\(--accent\)\]:disabled {
+  background-image: none !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]:disabled::before,
+.pm-owner-web button.bg-\[\#111827\]:disabled::before,
+.pm-owner-web button.bg-\[\#316fe8\]:disabled::before,
+.pm-owner-web button.bg-\[\#2f6bd4\]:disabled::before,
+.pm-owner-web button.bg-\[\#2563eb\]:disabled::before,
+.pm-owner-web button.bg-\[\#1f6b5b\]:disabled::before,
+.pm-owner-web button.bg-\[\#12b76a\]:disabled::before,
+.pm-owner-web button.bg-\[var\(--accent\)\]:disabled::before {
+  content: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-owner-web button.bg-\[\#5570F1\],
+  .pm-owner-web button.bg-\[\#111827\],
+  .pm-owner-web button.bg-\[\#316fe8\],
+  .pm-owner-web button.bg-\[\#2f6bd4\],
+  .pm-owner-web button.bg-\[\#2563eb\],
+  .pm-owner-web button.bg-\[\#1f6b5b\],
+  .pm-owner-web button.bg-\[\#12b76a\],
+  .pm-owner-web button.bg-\[var\(--accent\)\],
+  .pm-owner-web a.bg-\[\#316fe8\],
+  .pm-owner-web a.bg-\[\#2f6bd4\],
+  .pm-owner-web a.bg-\[\#2563eb\],
+  .pm-owner-web a.bg-\[var\(--accent\)\] {
+    animation: none;
+  }
+
+  .pm-owner-web button.bg-\[\#5570F1\]::before,
+  .pm-owner-web button.bg-\[\#111827\]::before,
+  .pm-owner-web button.bg-\[\#316fe8\]::before,
+  .pm-owner-web button.bg-\[\#2f6bd4\]::before,
+  .pm-owner-web button.bg-\[\#2563eb\]::before,
+  .pm-owner-web button.bg-\[\#1f6b5b\]::before,
+  .pm-owner-web button.bg-\[\#12b76a\]::before,
+  .pm-owner-web button.bg-\[var\(--accent\)\]::before,
+  .pm-owner-web a.bg-\[\#316fe8\]::before,
+  .pm-owner-web a.bg-\[\#2f6bd4\]::before,
+  .pm-owner-web a.bg-\[\#2563eb\]::before,
+  .pm-owner-web a.bg-\[var\(--accent\)\]::before {
+    animation: none;
+  }
+}
+
+.pm-owner-web .bg-\[\#edf7f3\],
+.pm-owner-web .bg-\[\#eef7f4\],
+.pm-owner-web .bg-\[\#eefaf5\],
+.pm-owner-web .bg-\[\#f1f7f4\],
+.pm-owner-web .bg-\[\#f2faf6\],
+.pm-owner-web .bg-\[\#f3fbf7\],
+.pm-owner-web .bg-\[\#f3fbf8\],
+.pm-owner-web .bg-\[\#e6f3ef\] {
+  background-color: var(--acc-tint) !important;
+}
+
+.pm-owner-web .text-\[\#2f7866\],
+.pm-owner-web .text-\[\#1f6b5b\],
+.pm-owner-web .text-\[\#16705f\],
+.pm-owner-web .text-\[\#146757\],
+.pm-owner-web .text-\[\#047857\],
+.pm-owner-web .text-\[\#0f766e\] {
+  color: var(--acc-dk) !important;
+}
+
+.pm-owner-web .border-\[\#2f7866\],
+.pm-owner-web .border-\[\#1f6b5b\],
+.pm-owner-web .border-\[\#16705f\],
+.pm-owner-web .border-\[\#c8ded8\],
+.pm-owner-web .border-\[\#cfe4dc\],
+.pm-owner-web .border-\[\#d7eadf\],
+.pm-owner-web .border-\[\#d8eadf\] {
+  border-color: var(--line2) !important;
+}
+
+.pm-owner-web .focus\:border-\[\#2f7866\]:focus,
+.pm-owner-web .focus-within\:border-\[\#2f7866\]:focus-within {
+  border-color: var(--acc) !important;
+}
+
+.pm-owner-web .focus\:ring-\[\#2f7866\]\/10:focus,
+.pm-owner-web .focus\:ring-\[\#dceee8\]:focus {
+  --tw-ring-color: color-mix(in srgb, var(--acc) 14%, transparent) !important;
+}
+
+.pm-owner-web .hover\:border-\[\#2f7866\]:hover,
+.pm-owner-web .hover\:border-\[\#9dc8ba\]:hover,
+.pm-owner-web .hover\:border-\[\#bad8cd\]:hover {
+  border-color: var(--acc-soft) !important;
+}
+
+.pm-owner-web .ring-\[\#2f7866\]\/15,
+.pm-owner-web .ring-\[\#2f7866\]\/14,
+.pm-owner-web .ring-\[\#2f7866\]\/10,
+.pm-owner-web .ring-\[\#8ab9ab\]\/20,
+.pm-owner-web .ring-\[\#8ab9ab\]\/18 {
+  --tw-ring-color: color-mix(in srgb, var(--acc) 14%, transparent) !important;
+}
+
+.pm-owner-web .shadow-\[0_8px_18px_rgba\(47\,120\,102\,0\.16\)\],
+.pm-owner-web .shadow-\[0_6px_16px_rgba\(47\,120\,102\,0\.08\)\],
+.pm-owner-web .shadow-\[0_0_0_2px_rgba\(47\,120\,102\,0\.08\)\] {
+  box-shadow: 0 8px 18px rgba(32, 33, 36, 0.05) !important;
+}
+
+.pm-owner-web .bg-emerald-50,
+.pm-owner-web .bg-green-50,
+.pm-owner-web .bg-teal-50 {
+  background-color: var(--acc-tint) !important;
+}
+
+.pm-owner-web .bg-emerald-600,
+.pm-owner-web .bg-green-600,
+.pm-owner-web .bg-teal-600 {
+  background-color: var(--acc) !important;
+}
+
+.pm-owner-web .text-emerald-700,
+.pm-owner-web .text-green-700,
+.pm-owner-web .text-teal-700,
+.pm-owner-web .text-emerald-800,
+.pm-owner-web .text-green-800,
+.pm-owner-web .text-teal-800 {
+  color: var(--acc-dk) !important;
+}
+
+.pm-owner-web .border-emerald-200,
+.pm-owner-web .border-green-200,
+.pm-owner-web .border-teal-200,
+.pm-owner-web .border-emerald-300,
+.pm-owner-web .border-green-300,
+.pm-owner-web .border-teal-300 {
+  border-color: var(--line2) !important;
+}
+
+/* PC 운영 워크스페이스: 참고 화면처럼 평면 블루 액션과 얇은 구분선을 유지한다. */
+.pm-owner-web :is(
+  button.bg-\[\#5570F1\],
+  button.bg-\[\#111827\],
+  button.bg-\[\#316fe8\],
+  button.bg-\[\#2f6bd4\],
+  button.bg-\[\#2563eb\],
+  button.bg-\[\#1f6b5b\],
+  button.bg-\[\#12b76a\],
+  button.bg-\[var\(--accent\)\],
+  a.bg-\[\#316fe8\],
+  a.bg-\[\#2f6bd4\],
+  a.bg-\[\#2563eb\],
+  a.bg-\[var\(--accent\)\]
+) {
+  background-color: var(--acc) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.pm-owner-web :is(
+  button.bg-\[\#5570F1\],
+  button.bg-\[\#111827\],
+  button.bg-\[\#316fe8\],
+  button.bg-\[\#2f6bd4\],
+  button.bg-\[\#2563eb\],
+  button.bg-\[\#1f6b5b\],
+  button.bg-\[\#12b76a\],
+  button.bg-\[var\(--accent\)\],
+  a.bg-\[\#316fe8\],
+  a.bg-\[\#2f6bd4\],
+  a.bg-\[\#2563eb\],
+  a.bg-\[var\(--accent\)\]
+)::before {
+  content: none !important;
+  animation: none !important;
+}
+
+.pm-owner-web :is(
+  button.bg-\[\#5570F1\],
+  button.bg-\[\#111827\],
+  button.bg-\[\#316fe8\],
+  button.bg-\[\#2f6bd4\],
+  button.bg-\[\#2563eb\],
+  button.bg-\[\#1f6b5b\],
+  button.bg-\[\#12b76a\],
+  button.bg-\[var\(--accent\)\],
+  a.bg-\[\#316fe8\],
+  a.bg-\[\#2f6bd4\],
+  a.bg-\[\#2563eb\],
+  a.bg-\[var\(--accent\)\]
+):hover {
+  background-color: var(--acc-dk) !important;
+  background-image: none !important;
+}
+
+/* 오래된 베이지 계열은 PC 운영 영역에서 중성 화이트 표면으로만 보정한다. */
+.pm-owner-web :is(
+  [class*="bg-[#f8f6f2]"],
+  [class*="bg-[#fffdf8]"],
+  [class*="bg-[#fffdfa]"],
+  [class*="bg-[#fffefb]"],
+  [class*="bg-[#fcfaf6]"],
+  [class*="bg-[#fbf8f3]"],
+  [class*="bg-[#f4f8f6]"],
+  [class*="bg-[#eef7f3]"],
+  [class*="bg-[#edf6f2]"],
+  [class*="bg-[#f8fbf9]"],
+  [class*="bg-[#fffaf0]"],
+  [class*="bg-[#fff8fa]"],
+  [class*="bg-[#fff9ef]"],
+  [class*="bg-[#fff7f7]"],
+  [class*="bg-[#fffaf7]"],
+  [class*="bg-[#fbefea]"],
+  [class*="bg-[#faf0f3]"],
+  [class*="bg-[#f0f0ef]"]
+) {
+  background-color: #ffffff !important;
+}
+
+.pm-owner-web :is(
+  [class*="border-[#dfd8cc]"],
+  [class*="border-[#d9d2c7]"],
+  [class*="border-[#d8d1c5]"],
+  [class*="border-[#e5ddd1]"],
+  [class*="border-[#e5ddd2]"],
+  [class*="border-[#e3dbcf]"],
+  [class*="border-[#e6ded2]"],
+  [class*="border-[#e4dccf]"],
+  [class*="border-[#ddd6ca]"],
+  [class*="border-[#ddd5c8]"],
+  [class*="border-[#e8e1d7]"],
+  [class*="border-[#e5d4d7]"],
+  [class*="border-[#dfe7e2]"],
+  [class*="border-[#cfd8d3]"],
+  [class*="border-[#ead9b8]"],
+  [class*="border-[#e5c7cf]"]
+) {
+  border-color: var(--pm-ui-border) !important;
+}
+
+.pm-owner-web :is(
+  [class*="text-[#173b33]"],
+  [class*="text-[#17211e]"],
+  [class*="text-[#1d2925]"],
+  [class*="text-[#2d3935]"],
+  [class*="text-[#171411]"],
+  [class*="text-[#1f5b51]"]
+) {
+  color: var(--ink) !important;
+}
+
+.pm-owner-web :is(
+  [class*="text-[#766f66]"],
+  [class*="text-[#736c63]"],
+  [class*="text-[#6b6a64]"],
+  [class*="text-[#615d56]"],
+  [class*="text-[#6e6a61]"],
+  [class*="text-[#51615b]"],
+  [class*="text-[#4e5f59]"],
+  [class*="text-[#396457]"],
+  [class*="text-[#335a50]"],
+  [class*="text-[#4a4640]"]
+) {
+  color: var(--mid) !important;
+}
+
+.pm-mobile-owner {
+  min-height: 100dvh;
+  padding-top: var(--pm-safe-top);
+  padding-bottom: var(--pm-safe-bottom);
+}
+
+.pm-mobile-owner > header {
+  top: var(--pm-safe-top);
+}
+
+.pm-mobile-owner > main {
+  padding-bottom: calc(4.25rem + var(--pm-safe-bottom));
+}
+
+.pm-mobile-owner > nav {
+  padding-bottom: calc(var(--pm-safe-bottom) + 2px);
+}
+
+.pm-mobile-sheet-scrim {
+  padding-bottom: var(--pm-safe-bottom);
+}
+
+.pm-mobile-sheet {
+  max-height: calc(92dvh - var(--pm-safe-top));
+  padding-bottom: calc(1.25rem + var(--pm-safe-bottom));
+}
+
+.pm-mobile-owner.pm-mobile-owner-preview {
+  height: 590px;
+  min-height: 0;
+  padding-bottom: 0;
+  padding-top: 0;
+}
+
+.pm-mobile-owner.pm-mobile-owner-preview > header {
+  top: 0;
+}
+
+.pm-mobile-owner.pm-mobile-owner-preview > main {
+  padding-bottom: 1rem;
+}
+
+.pm-customer-safe-area-preview {
+  position: relative;
+  height: 590px;
+  overflow: hidden;
+  background: #fdf7f5;
+}
+
+.pm-customer-safe-area-preview .pm-proto {
+  height: 590px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pm-customer-safe-area-preview .pm-proto .dock {
+  position: absolute !important;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+.pm-owner-web[data-sidebar="dark"] {
+  --nav-bg: #201f1d;
+  --nav-bd: #332f2b;
+  --nav-ink: #e9e7e3;
+  --nav-mut: #8e8a84;
+  --nav-sec: #6d6963;
+  --nav-hover: #2a2825;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--pm-scrollbar-thumb) var(--pm-scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--pm-scrollbar-track);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  min-height: 44px;
+  background-color: var(--pm-scrollbar-thumb);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--pm-scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.field {
+  width: 100%;
+  border-radius: 0.9rem;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  padding: 0.85rem 0.95rem;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(17, 26, 48, 0.1);
+}
+
+.app-shell {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  max-width: 430px;
+}
+
+.page-frame {
+  margin-left: auto;
+  margin-right: auto;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 430px;
+  padding: 1rem 1rem 2rem;
+}
+
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.surface-card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.surface-card-compact {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.page-eyebrow {
+  color: #5f665f;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.page-title {
+  color: #101828;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1.16;
+}
+
+.page-description {
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.main-title {
+  color: #101828;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1.08;
+}
+
+.section-title {
+  color: #171411;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.3;
+}
+
+.card-title {
+  color: #171411;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+
+.body-text {
+  color: #5f574f;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.caption-text {
+  color: #8a8277;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 0.375rem;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.field-input {
+  width: 100%;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid #cfd4cd;
+  background: #fff;
+  padding: 0 1rem;
+  color: #171411;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.field-input::placeholder {
+  color: #b0b7bf;
+}
+
+.field-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(17, 26, 48, 0.1);
+}
+
+.field-textarea {
+  width: 100%;
+  min-height: 96px;
+  border-radius: 12px;
+  border: 1px solid #cfd4cd;
+  background: #fff;
+  padding: 0.75rem 1rem;
+  color: #171411;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  outline: none;
+  resize: vertical;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.field-textarea::placeholder {
+  color: #b0b7bf;
+}
+
+.field-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(17, 26, 48, 0.1);
+}
+
+.btn-primary {
+  display: inline-flex;
+  height: 48px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--accent);
+  padding: 0 1rem;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity 0.18s ease;
+}
+
+.btn-primary:hover {
+  opacity: 0.95;
+}
+
+.btn-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  height: 48px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 0 1rem;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  transition:
+    background-color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.btn-secondary:hover {
+  background: #fcfaf7;
+}
+
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.control-bar {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fcfbf8;
+  padding: 0.5rem 0.75rem;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.25rem 0.625rem;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.btn-danger {
+  display: inline-flex;
+  height: 52px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--danger);
+  padding: 0 1rem;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  transition: opacity 0.18s ease;
+}
+
+.btn-danger:hover {
+  opacity: 0.95;
+}
+
+.btn-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.inline-error {
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.inline-help {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.gsi-material-button {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #fff;
+  background-image: none;
+  border: 1px solid #747775;
+  border-radius: 4px;
+  box-sizing: border-box;
+  color: #1f1f1f;
+  cursor: pointer;
+  font-family: Roboto, Arial, sans-serif;
+  font-size: 14px;
+  height: 40px;
+  letter-spacing: 0.25px;
+  outline: none;
+  overflow: hidden;
+  padding: 0 12px;
+  position: relative;
+  text-align: center;
+  transition:
+    background-color 0.218s,
+    border-color 0.218s,
+    box-shadow 0.218s;
+  vertical-align: middle;
+  white-space: nowrap;
+  width: auto;
+  max-width: 400px;
+  min-width: min-content;
+}
+
+.gsi-material-button .gsi-material-button-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  margin-right: 10px;
+  min-width: 20px;
+  width: 20px;
+}
+
+.gsi-material-button .gsi-material-button-content-wrapper {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  height: 100%;
+  justify-content: space-between;
+  position: relative;
+  width: 100%;
+}
+
+.gsi-material-button .gsi-material-button-contents {
+  flex-grow: 1;
+  font-family: Roboto, Arial, sans-serif;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+.gsi-material-button .gsi-material-button-state {
+  transition: opacity 0.218s;
+  bottom: 0;
+  left: 0;
+  opacity: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.gsi-material-button:disabled {
+  cursor: default;
+  background-color: #ffffff61;
+  border-color: #1f1f1f1f;
+}
+
+.gsi-material-button:disabled .gsi-material-button-contents,
+.gsi-material-button:disabled .gsi-material-button-icon {
+  opacity: 38%;
+}
+
+.gsi-material-button:not(:disabled):active .gsi-material-button-state,
+.gsi-material-button:not(:disabled):focus .gsi-material-button-state {
+  background-color: #303030;
+  opacity: 12%;
+}
+
+.gsi-material-button:not(:disabled):hover {
+  box-shadow:
+    0 1px 2px 0 rgba(60, 64, 67, 0.3),
+    0 1px 3px 1px rgba(60, 64, 67, 0.15);
+}
+
+.gsi-material-button:not(:disabled):hover .gsi-material-button-state {
+  background-color: #303030;
+  opacity: 8%;
+}
+
+.pm-wrap-indicator {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #dbe2ea;
+  border-left: 3px solid var(--pm-wrap-indicator-color);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.pm-mobile-owner {
+  --background: #ffffff;
+  --surface: #ffffff;
+  --muted: #646a74;
+  --border: #e1e4ea;
+  --accent: var(--pm-brand-blue);
+  --accent-soft: var(--pm-brand-blue-soft);
+  --text: #181b21;
+  --shadow-soft: 0 10px 28px rgba(24, 27, 33, 0.04);
+}
+
+.pm-mobile-owner > header {
+  border-color: #eaecf0 !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 1px 0 rgba(24, 27, 33, 0.025);
+}
+
+.pm-mobile-owner main {
+  background: #ffffff;
+}
+
+.pm-mobile-owner .bg-\[\#fffaf6\],
+.pm-mobile-owner .bg-\[\#f6fbf8\],
+.pm-mobile-owner .bg-\[\#fbf8f4\],
+.pm-mobile-owner .bg-\[\#fcfaf7\],
+.pm-mobile-owner .bg-\[\#fbfaf7\],
+.pm-mobile-owner .bg-\[\#faf8f4\],
+.pm-mobile-owner .bg-\[\#fbf8f2\],
+.pm-mobile-owner .bg-\[\#fffdf8\],
+.pm-mobile-owner .bg-\[\#fffaf7\] {
+  background-color: #ffffff !important;
+}
+
+.pm-mobile-owner .bg-\[\#fbfaf7\],
+.pm-mobile-owner .bg-\[\#f7f4ef\] {
+  background-color: #f8fafc !important;
+}
+
+.pm-mobile-owner .border-\[\#ead9cf\],
+.pm-mobile-owner .border-\[\#d8e7e0\],
+.pm-mobile-owner .border-\[\#e9ddd3\],
+.pm-mobile-owner .border-\[\#ece8e2\],
+.pm-mobile-owner .border-\[\#ead8c9\],
+.pm-mobile-owner .border-\[\#ead8d2\],
+.pm-mobile-owner .border-\[\#d6e7e1\],
+.pm-mobile-owner .border-\[\#e8e0d2\],
+.pm-mobile-owner .border-\[\#d9d4cb\],
+.pm-mobile-owner .border-\[\#ece5dd\],
+.pm-mobile-owner .border-\[\#dfe8e2\],
+.pm-mobile-owner .border-\[\#dfeae5\],
+.pm-mobile-owner .border-\[\#cfded8\] {
+  border-color: #e1e7ef !important;
+}
+
+.pm-mobile-owner .bg-\[\#e6b091\] {
+  background-color: #b98121 !important;
+}
+
+.pm-mobile-owner .bg-\[\#c9b39e\] {
+  background-color: #94a3b8 !important;
+}
+
+.pm-mobile-owner .bg-\[\#c99273\],
+.pm-mobile-owner .bg-\[\#2f7866\],
+.pm-mobile-owner .bg-\[\#16705f\],
+.pm-mobile-owner .bg-\[\#1f6b5b\] {
+  background-color: var(--accent) !important;
+}
+
+.pm-mobile-owner .text-\[\#2f7866\],
+.pm-mobile-owner .text-\[\#16705f\],
+.pm-mobile-owner .text-\[\#1f6b5b\] {
+  color: var(--accent) !important;
+}
+
+.pm-mobile-owner .border-\[\#2f7866\],
+.pm-mobile-owner .border-\[\#16705f\],
+.pm-mobile-owner .border-\[\#1f6b5b\] {
+  border-color: var(--accent) !important;
+}
+
+.pm-mobile-owner .text-\[\#8b6b5d\],
+.pm-mobile-owner .text-\[\#8d867e\],
+.pm-mobile-owner .text-\[\#8f8a83\],
+.pm-mobile-owner .text-\[\#a8a199\],
+.pm-mobile-owner .text-\[\#b0aba3\] {
+  color: #6b7280 !important;
+}
+
+.pm-mobile-owner .rounded-\[18px\] {
+  border-radius: 14px !important;
+}
+
+.pm-mobile-owner .rounded-2xl {
+  border-radius: 14px !important;
+}
+
+.pm-mobile-owner .font-semibold,
+.pm-mobile-owner .font-bold,
+.pm-mobile-owner .font-black {
+  font-weight: 500 !important;
+}
+
+.pm-mobile-owner .text-xs,
+.pm-mobile-owner .text-sm,
+.pm-mobile-owner .text-\[10px\],
+.pm-mobile-owner .text-\[11px\],
+.pm-mobile-owner .text-\[12px\],
+.pm-mobile-owner .text-\[13px\],
+.pm-mobile-owner .text-\[14px\],
+.pm-mobile-owner .text-\[15px\] {
+  font-size: 16px !important;
+  line-height: 22px !important;
+}
+
+.pm-mobile-owner .shadow-\[0_8px_18px_rgba\(31\,107\,91\,0\.12\)\],
+.pm-mobile-owner .shadow-\[0_4px_14px_rgba\(35\,35\,31\,0\.04\)\],
+.pm-mobile-owner .shadow-\[0_4px_14px_rgba\(35\,35\,31\,0\.03\)\],
+.pm-mobile-owner .shadow-\[0_2px_8px_rgba\(35\,35\,31\,0\.05\)\],
+.pm-mobile-owner .shadow-\[0_2px_8px_rgba\(31\,107\,91\,0\.05\)\],
+.pm-mobile-owner .shadow-\[0_6px_14px_rgba\(31\,107\,91\,0\.18\)\],
+.pm-mobile-owner .shadow-\[0_8px_18px_rgba\(47\,120\,102\,0\.14\)\],
+.pm-mobile-owner .shadow-\[0_10px_30px_rgba\(21\,22\,19\,0\.08\)\] {
+  box-shadow: none !important;
+}
+
+.pm-mobile-owner .hover\:bg-\[\#fcfaf7\]:hover,
+.pm-mobile-owner .hover\:bg-\[\#fffdfa\]:hover,
+.pm-mobile-owner .hover\:bg-\[\#f6f1ec\]:hover,
+.pm-mobile-owner .hover\:bg-\[\#faf7f2\]:hover {
+  background-color: #f3f6fb !important;
+}
+
+.pm-mobile-owner .hover\:bg-\[\#195748\]:hover,
+.pm-mobile-owner .hover\:bg-\[\#286a5a\]:hover,
+.pm-mobile-owner .hover\:bg-\[\#286b5b\]:hover,
+.pm-mobile-owner .hover\:bg-\[\#276756\]:hover,
+.pm-mobile-owner .hover\:bg-\[\#236b5b\]:hover {
+  background-color: color-mix(in srgb, var(--accent) 86%, #000) !important;
+}
+
+.pm-mobile-owner .focus\:shadow-\[0_0_0_3px_rgba\(31\,107\,91\,0\.12\)\]:focus {
+  box-shadow: 0 0 0 3px rgba(47, 107, 212, 0.12) !important;
+}
+
+.landing-solution-scroller::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Canonical administrator readability floor. ADMIN_TYPOGRAPHY owns component tokens;
+   this scope protects legacy admin descendants until they are migrated. */
+.admin-readable {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.admin-readable :where(p, span, a, button, input, select, textarea, dt, dd, li, summary) {
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+}
+
+.admin-readable :where(button, a) {
+  min-height: 44px;
+  font-size: 16px !important;
+}

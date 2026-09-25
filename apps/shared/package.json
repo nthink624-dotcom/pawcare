@@ -1,0 +1,20 @@
+{
+  "name": "@petmanager/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contracts/*": "./contracts/*.ts",
+    "./components/*": "./components/*.tsx",
+    "./lib/*": "./lib/*.ts"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.5.0",
+    "lucide-react": "^0.577.0"
+  },
+  "peerDependencies": {
+    "react": "^19.2.4",
+    "next": "^16.1.6"
+  }
+}

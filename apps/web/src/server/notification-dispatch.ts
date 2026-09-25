@@ -1,0 +1,1193 @@
+import { createHash, randomUUID } from "node:crypto";
+
+import {
+  getAlimtalkTemplateAlias,
+  shouldSendByGuardianSettings,
+  shouldSendByShopSettings,
+} from "@/lib/notification-registry";
+import {
+  getConfiguredAlimtalkTemplateKey,
+  hasAlimtalkServerEnv,
+  hasSupabaseServerEnv,
+  resolveAlimtalkTemplateKey,
+  serverEnv,
+} from "@/lib/server-env";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
+import {
+  getApprovedSsodaaNotificationTemplate,
+  requiresApprovedSsodaaTemplate,
+} from "@/server/alimtalk-approved-template";
+import {
+  buildBookingEntryUrl,
+  buildBookingManageUrl,
+  buildPersonalizedRebookingSourceUrl,
+  createBookingAccessToken,
+} from "@/server/booking-access-token";
+import { getBootstrap } from "@/server/bootstrap";
+import { getMockStore, setMockStore } from "@/server/mock-store";
+import { sendAlimtalkMessage, type AlimtalkButton, type AlimtalkMediaAttachment } from "@/server/alimtalk-provider";
+import {
+  refundShopAlimtalkCredit,
+  reserveShopAlimtalkCredit,
+  type AlimtalkCreditReservation,
+} from "@/server/alimtalk-credit-service";
+import { markNotificationMediaDeliveryResult } from "@/server/media-delivery-service";
+import { attachMediaToNotification, getOwnerMediaSignedUrl } from "@/server/media-service";
+import type {
+  Appointment,
+  BootstrapPayload,
+  ChannelType,
+  Notification,
+  NotificationStatus,
+  NotificationType,
+} from "@/types/domain";
+
+type NotificationMetadata = Record<string, string | boolean | number | null | undefined>;
+
+type DispatchNotificationInput = {
+  shopId: string;
+  type: NotificationType;
+  channel?: ChannelType;
+  appointmentId?: string | null;
+  guardianId?: string | null;
+  petId?: string | null;
+  recipientPhone?: string | null;
+  recipientName?: string | null;
+  templateKey?: string | null;
+  templateType?: string | null;
+  message?: string | null;
+  metadata?: NotificationMetadata | null;
+  mediaAssetIds?: string[] | null;
+  scheduledAt?: string | null;
+  skipIfExists?: boolean;
+  force?: boolean;
+};
+
+type DispatchNotificationResult = {
+  notification: Notification;
+  skipped: boolean;
+  alreadyExists: boolean;
+};
+
+const abuseHandledStatuses = new Set<NotificationStatus>(["queued", "sent", "mocked"]);
+
+const oneShotAppointmentNotificationTypes = new Set<NotificationType>([
+  "booking_received",
+  "booking_confirmed",
+  "owner_booking_requested",
+  "booking_cancelled",
+  "appointment_reminder_10m",
+  "visit_schedule_notice",
+  "visit_reminder_notice",
+  "grooming_started",
+  "grooming_almost_done",
+  "grooming_completed",
+  "revisit_notice",
+]);
+
+
+function normalizePhone(value: string) {
+  return phoneNormalize(value).slice(0, 11);
+}
+
+function formatAlimtalkAppointmentDate(date: string) {
+  return shortDate(date).replace("/", "월 ").replace("(", "일(");
+}
+
+function getPhoneTail(value: string | null | undefined) {
+  const normalized = phoneNormalize(value ?? "");
+  return normalized ? normalized.slice(-4) : null;
+}
+
+function logNotificationSkipped(params: {
+  reason: string;
+  type: NotificationType;
+  appointmentId: string | null | undefined;
+}) {
+  console.log("[notification-dispatch] skipped", {
+    reason: params.reason,
+    type: params.type,
+    appointmentId: params.appointmentId ?? null,
+  });
+}
+
+function getNotificationMetadata(item: Notification) {
+  return item.metadata ?? {};
+}
+
+function getAppointmentSnapshotKey(appointment: Appointment | null) {
+  if (!appointment) return "no-appointment";
+  return [
+    appointment.appointment_date,
+    appointment.appointment_time,
+    appointment.service_id,
+    appointment.staff_id ?? "no-staff",
+  ].join("|");
+}
+
+function getMessageFingerprint(message: string) {
+  return createHash("sha256").update(message.trim().replace(/\s+/g, " ")).digest("hex").slice(0, 16);
+}
+
+function buildAbuseDedupeKey(params: {
+  type: NotificationType;
+  appointment: Appointment | null;
+  guardianId: string | null;
+  petId: string | null;
+  recipientPhone: string;
+  message: string;
+  scheduledAt: string | null;
+}) {
+  const appointmentId = params.appointment?.id ?? null;
+  if (appointmentId && oneShotAppointmentNotificationTypes.has(params.type)) {
+    return `appointment:${appointmentId}:type:${params.type}`;
+  }
+
+  if (appointmentId) {
+    return `appointment:${appointmentId}:type:${params.type}:scheduled:${params.scheduledAt ?? "now"}`;
+  }
+
+  const recipientKey = params.guardianId || params.petId || params.recipientPhone;
+  if (!recipientKey || !params.message.trim()) return null;
+  return `manual:${params.type}:recipient:${recipientKey}:message:${getMessageFingerprint(params.message)}`;
+}
+
+function getDuplicateBlockMessage(type: NotificationType) {
+  switch (type) {
+    case "grooming_started":
+      return "이미 이 예약의 미용 시작 알림을 보냈거나 발송 대기 중입니다. 미용 시작은 예약 건당 한 번만 보낼 수 있어요.";
+    case "grooming_almost_done":
+      return "이미 이 예약의 픽업 준비 알림을 보냈거나 발송 대기 중입니다. 픽업 준비 알림은 예약 건당 한 번만 보낼 수 있어요.";
+    case "grooming_completed":
+      return "이미 이 예약의 미용 완료 알림을 보냈거나 발송 대기 중입니다. 완료 알림은 예약 건당 한 번만 보낼 수 있어요.";
+    case "booking_confirmed":
+      return "이미 이 예약의 확정 알림을 보냈거나 발송 대기 중입니다. 같은 예약 확정 알림은 반복 발송할 수 없어요.";
+    case "booking_cancelled":
+      return "이미 이 예약의 취소 알림을 보냈거나 발송 대기 중입니다.";
+    default:
+      return "이미 같은 예약/고객/내용의 알림을 보냈거나 발송 대기 중입니다. 중복 발송은 차단했어요.";
+  }
+}
+
+function evaluateNotificationAbusePolicy(params: {
+  notifications: Notification[];
+  type: NotificationType;
+  appointment: Appointment | null;
+  guardianId: string | null;
+  petId: string | null;
+  recipientPhone: string;
+  message: string;
+  scheduledAt: string | null;
+}) {
+  const dedupeKey = buildAbuseDedupeKey({
+    type: params.type,
+    appointment: params.appointment,
+    guardianId: params.guardianId,
+    petId: params.petId,
+    recipientPhone: params.recipientPhone,
+    message: params.message,
+    scheduledAt: params.scheduledAt,
+  });
+
+  if (!dedupeKey) {
+    return { blocked: false, dedupeKey: null, reason: null, existingNotificationId: null };
+  }
+
+  const duplicate: Notification | undefined = params.notifications.find((item) => {
+    if (!abuseHandledStatuses.has(item.status)) return false;
+    const metadata = getNotificationMetadata(item);
+    if (metadata.abuseDedupeKey === dedupeKey) return true;
+
+    const appointmentId = params.appointment?.id ?? null;
+    if (!appointmentId || item.type !== params.type) return false;
+    if ((item.appointment_id ?? null) !== appointmentId) return false;
+
+    return oneShotAppointmentNotificationTypes.has(params.type);
+  });
+
+  if (!duplicate) {
+    return { blocked: false, dedupeKey, reason: null, existingNotificationId: null };
+  }
+
+  return {
+    blocked: true,
+    dedupeKey,
+    reason: getDuplicateBlockMessage(params.type),
+    existingNotificationId: duplicate.id,
+  };
+}
+
+function getTemplateKey(type: NotificationType) {
+  return getAlimtalkTemplateAlias(type);
+}
+
+function shouldSendNotification(shop: BootstrapPayload["shop"], type: NotificationType) {
+  return shouldSendByShopSettings(shop.notification_settings, type) ?? false;
+}
+
+function shouldSendGuardianNotification(
+  guardian: BootstrapPayload["guardians"][number] | null,
+  type: NotificationType,
+) {
+  if (!guardian) return true;
+  return shouldSendByGuardianSettings(guardian.notification_settings, type) ?? true;
+}
+
+function getGuardianNotificationBlockReason(
+  guardian: BootstrapPayload["guardians"][number] | null,
+  type: NotificationType,
+) {
+  if (!guardian) return "고객 정보를 찾지 못해 알림톡 발송을 막았습니다.";
+  if (!guardian.notification_settings.enabled) {
+    return "고객이 이 매장의 알림톡 수신을 거부했습니다.";
+  }
+
+  switch (type) {
+    case "appointment_reminder_10m":
+    case "visit_schedule_notice":
+    case "visit_reminder_notice":
+      return "고객이 예약 안내 알림톡 수신을 거부했습니다.";
+    case "booking_confirmed":
+    case "booking_cancelled":
+      return "고객이 예약 변경/확정 알림톡 수신을 거부했습니다.";
+    case "grooming_started":
+    case "grooming_almost_done":
+    case "grooming_completed":
+      return "고객이 미용 진행 알림톡 수신을 거부했습니다.";
+    case "revisit_notice":
+      return "고객이 재방문 알림톡 수신을 거부했습니다.";
+    case "birthday_greeting":
+      return "고객이 생일 축하 알림톡 수신을 거부했습니다.";
+    default:
+      return "고객 알림톡 수신 설정에 따라 발송을 막았습니다.";
+  }
+}
+
+function classifyProviderFailure(message: string | null | undefined) {
+  const normalized = (message ?? "").toLowerCase();
+  if (!normalized) return null;
+
+  const blockedTokens = [
+    "blocked",
+    "block",
+    "reject",
+    "refuse",
+    "unsub",
+    "수신거부",
+    "수신 거부",
+    "차단",
+    "친구 아님",
+    "채널 차단",
+  ];
+
+  return blockedTokens.some((token) => normalized.includes(token)) ? "provider_channel_blocked" : null;
+}
+
+function getAlimtalkSenderConfig(shop: BootstrapPayload["shop"]) {
+  const settings = shop.notification_settings;
+  const canUseShopChannel =
+    settings.alimtalk_sender_mode === "shop_channel" &&
+    settings.alimtalk_shop_channel_status === "active" &&
+    Boolean(settings.alimtalk_sender_profile_key?.trim());
+
+  return {
+    mode: canUseShopChannel ? "shop_channel" : "petmanager",
+    requestedMode: settings.alimtalk_sender_mode,
+    status: settings.alimtalk_shop_channel_status,
+    senderProfileKey: canUseShopChannel ? settings.alimtalk_sender_profile_key?.trim() ?? null : null,
+    channelName: settings.alimtalk_shop_channel_name?.trim() || shop.name,
+    channelUrl: settings.alimtalk_shop_channel_url?.trim() || null,
+  } as const;
+}
+
+function normalizeMediaAssetIds(value: string[] | null | undefined) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim()))).slice(0, 10);
+}
+
+async function buildNotificationMediaAttachments(params: {
+  shopId: string;
+  mediaAssetIds: string[];
+}) {
+  const attachments: AlimtalkMediaAttachment[] = [];
+
+  for (const mediaAssetId of params.mediaAssetIds) {
+    const signed = await getOwnerMediaSignedUrl(
+      {
+        shopId: params.shopId,
+        userId: null,
+      },
+      {
+        mediaAssetId,
+        variantKey: "provider_ready",
+      },
+    );
+
+    attachments.push({
+      mediaAssetId: signed.mediaAsset.id,
+      role:
+        signed.mediaAsset.media_kind === "grooming_before"
+          ? "before_photo"
+          : signed.mediaAsset.media_kind === "grooming_after"
+            ? "after_photo"
+            : "result_photo",
+      url: signed.signedUrl,
+      contentType: signed.variant?.content_type ?? signed.mediaAsset.content_type,
+      byteSize: signed.variant?.byte_size ?? signed.mediaAsset.byte_size,
+      variantKey: signed.variant?.variant_key ?? "original",
+      expiresInSeconds: signed.expiresInSeconds,
+      metadata: {
+        width: signed.variant?.width ?? signed.mediaAsset.width,
+        height: signed.variant?.height ?? signed.mediaAsset.height,
+      },
+    });
+  }
+
+  return attachments;
+}
+
+function legacyBuildBookingLinksBlock(params: {
+  bookingEntryUrl: string | null;
+  bookingManageUrl: string | null;
+}) {
+  const lines: string[] = [];
+
+  if (params.bookingEntryUrl) {
+    lines.push("예약 링크", params.bookingEntryUrl);
+  }
+
+  if (params.bookingManageUrl) {
+    lines.push("예약 확인 링크", params.bookingManageUrl);
+  }
+
+  return lines.join("\n");
+}
+
+function legacyBuildNotificationMessage(params: {
+  type: NotificationType;
+  shopName: string;
+  appointment: Appointment | null;
+  petName: string;
+  recipientName: string | null;
+  serviceName: string | null;
+  rejectionReason: string | null;
+  bookingEntryUrl: string | null;
+  bookingManageUrl: string | null;
+}) {
+  const dateLabel =
+    params.appointment
+      ? `${formatAlimtalkAppointmentDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
+      : "";
+  const bookingLinksBlock = legacyBuildBookingLinksBlock({
+    bookingEntryUrl: params.bookingEntryUrl,
+    bookingManageUrl: params.bookingManageUrl,
+  });
+
+  switch (params.type) {
+    case "booking_received":
+      return [
+        `[${params.shopName}] ${params.petName} 예약이 접수되었어요.`,
+        `방문 일정: ${dateLabel}`,
+        "",
+        "매장에서 예약을 확인한 뒤 확정 알림을 보내드릴게요.",
+        "",
+        "예약 정보는 아래 링크에서 확인하실 수 있어요.",
+        bookingLinksBlock,
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
+    case "owner_booking_requested":
+      return `새 예약이 접수되었어요.\n${params.petName}\n${dateLabel}`;
+    case "booking_confirmed":
+      return [
+        `[${params.shopName}]`,
+        `${params.petName} 보호자님, 예약이 확정되었어요. (방긋)`,
+        "",
+        `방문 일시: ${dateLabel}`,
+        ` 예약 서비스: ${params.serviceName ?? ""}`,
+        "",
+        "방문 당일 편하게 와 주세요. 기다리고 있겠습니다.",
+        "",
+        bookingLinksBlock,
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
+    case "booking_cancelled":
+      return [
+        `[${params.shopName}]`,
+        `${params.petName} 보호자님, 예약 취소가 처리되었어요.`,
+        "",
+        `취소된 예약: ${dateLabel}`,
+        "",
+        "아쉽지만 다음에 또 뵐 수 있길 바라요.",
+        "언제든 다시 예약하고 싶으실 때 아래 링크를 이용해 주세요.",
+        "",
+        bookingLinksBlock,
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
+    case "appointment_reminder_10m":
+      return [
+        `[${params.shopName}]`,
+        `${params.petName} 보호자님, 이제 곧 만나요! (방긋)`,
+        "",
+        ` 방문 일시: ${dateLabel}`,
+        ` 예약 서비스: ${params.serviceName ?? ""}`,
+        "",
+        "준비 마치고 기다리고 있을게요.",
+        "오시는 길 조심히 오세요 ",
+        "",
+        bookingLinksBlock,
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
+    case "grooming_started":
+      return [
+        `[${params.shopName}] 미용 시작 안내`,
+        `${params.petName} 보호자님, 안녕하세요.`,
+        `지금 막 ${params.petName}의 미용을 시작했습니다.`,
+        "",
+        "편안하게 미용받을 수 있도록 저희가 세심하게 살피며 진행하겠습니다.",
+        "미용이 끝나면 픽업 안내 드리겠습니다. 잠시만 기다려 주세요.",
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
+    case "grooming_almost_done":
+      return [
+        `[${params.shopName}]`,
+        `${params.petName} 미용이 곧 끝나요`,
+        "",
+        "마무리 단계라 곧 픽업 가능하세요.",
+        "",
+        "잠시 후 픽업하실 수 있어요.",
+        "",
+        "예약 정보는 아래 링크에서 확인하실 수 있어요.",
+        bookingLinksBlock,
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
+    case "grooming_completed":
+      return [
+        `[${params.shopName}]`,
+        ` ${params.petName} 미용이 모두 완료되었어요.`,
+        "",
+        "오늘도 믿고 맡겨주셔서 감사해요.",
+        `${params.petName}이 기다리고 있으니 편하신 시간에 와주세요.`,
+        "",
+        bookingLinksBlock,
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
+    case "revisit_notice":
+      return `[${params.shopName}] ${params.petName} 재방문 시기가 가까워졌어요.`;
+    case "birthday_greeting":
+      return `[${params.shopName}] ${params.petName}의 생일을 축하드려요.`;
+    default:
+      return `[${params.shopName}] 알림을 확인해 주세요.`;
+  }
+}
+
+function buildOwnerBookingRequestedMessage(params: {
+  petName: string;
+  appointment: Appointment | null;
+}) {
+  const dateLabel =
+    params.appointment
+      ? `${formatAlimtalkAppointmentDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
+      : "";
+
+  return ["새 예약이 접수되었어요.", params.petName, dateLabel].filter(Boolean).join("\n");
+}
+
+export function buildNotificationTemplateValues(params: {
+  appointment: Appointment | null;
+  bookingAccessToken: string | null;
+  bookingEntryUrl: string | null;
+  bookingManageUrl: string | null;
+  directionsUrl: string | null;
+  petName: string;
+  recipientName: string | null;
+  serviceName: string | null;
+  shopAddress: string | null;
+  shopName: string;
+}) {
+  const appointmentDateTime =
+    params.appointment
+      ? `${formatAlimtalkAppointmentDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
+      : "";
+  const visitReminderOffsetMinutes = params.appointment?.visit_reminder_offset_minutes ?? 10;
+  const pickupGuide = "미용 마무리 후 픽업 준비가 되면 안내드립니다.";
+
+  return {
+    매장명: params.shopName,
+    반려동물명: params.petName,
+    보호자명: params.recipientName?.trim() || "",
+    예약일시: appointmentDateTime,
+    제안일시: appointmentDateTime,
+    서비스명: params.serviceName?.trim() || "",
+    매장주소: params.shopAddress?.trim() || "",
+    "예약 링크": params.bookingEntryUrl ?? "",
+    "예약 확인 링크": params.bookingManageUrl ?? "",
+    예약관리링크: params.bookingManageUrl ?? "",
+    예약관리토큰: params.bookingAccessToken ?? "",
+    예약시간변경링크: params.bookingManageUrl ?? "",
+    예약시간변경토큰: params.bookingAccessToken ?? "",
+    bookingRescheduleToken: params.bookingAccessToken ?? "",
+    bookingRescheduleUrl: params.bookingManageUrl ?? "",
+    길찾기링크: params.directionsUrl ?? "",
+    방문전알림분: String(visitReminderOffsetMinutes),
+    방문전알림안내: `예약 시간 ${visitReminderOffsetMinutes}분 전 안내드립니다.`,
+    픽업예상분: "잠시 후",
+    픽업안내: pickupGuide,
+    pickupReadyEtaMinutes: "잠시 후",
+    pickupGuide,
+  };
+}
+
+function buildNotificationMessage(params: {
+  type: NotificationType;
+  shopName: string;
+  appointment: Appointment | null;
+  petName: string;
+  recipientName: string | null;
+  serviceName: string | null;
+  shopAddress: string | null;
+  rejectionReason: string | null;
+  bookingAccessToken: string | null;
+  bookingEntryUrl: string | null;
+  bookingManageUrl: string | null;
+  directionsUrl: string | null;
+  approvedTemplateBody: string | null;
+}) {
+  if (params.approvedTemplateBody) {
+    return params.approvedTemplateBody;
+  }
+
+  if (params.type === "owner_booking_requested") {
+    return buildOwnerBookingRequestedMessage({
+      petName: params.petName,
+      appointment: params.appointment,
+    });
+  }
+
+  throw new Error(
+    `${params.type} 알림은 쏘다에 승인되어 연결된 템플릿이 없어 발송할 수 없습니다.`,
+  );
+}
+
+function buildNaverMapSearchUrl(shopName: string, shopAddress: string | null | undefined) {
+  const query = [shopName, shopAddress?.trim()].filter(Boolean).join(" ");
+  if (!query) return null;
+  return `https://map.kakao.com/link/search/${encodeURIComponent(query)}`;
+}
+
+function buildNotificationButtons(params: {
+  type: NotificationType;
+  bookingEntryUrl: string | null;
+  bookingManageUrl: string | null;
+  directionsUrl: string | null;
+  hasMediaAttachments: boolean;
+}): AlimtalkButton[] {
+  if (params.type === "revisit_notice") {
+    if (!params.bookingEntryUrl) return [];
+    return [
+      {
+        type: "WL",
+        name: "바로 재예약",
+        linkMobile: params.bookingEntryUrl,
+        linkPc: params.bookingEntryUrl,
+      },
+    ];
+  }
+
+  if (
+    params.type === "appointment_reminder_10m" ||
+    params.type === "visit_schedule_notice" ||
+    params.type === "visit_reminder_notice"
+  ) {
+    if (params.directionsUrl) {
+      return [{
+        type: "WL",
+        name: "길찾기",
+        linkMobile: params.directionsUrl,
+        linkPc: params.directionsUrl,
+      }];
+    }
+    return [];
+  }
+
+  if (params.type === "booking_confirmed") {
+    if (params.bookingManageUrl) {
+      return [{
+        type: "WL",
+        name: "예약 확인",
+        linkMobile: params.bookingManageUrl,
+        linkPc: params.bookingManageUrl,
+      }];
+    }
+    return [];
+  }
+
+  if (params.type !== "grooming_completed" || !params.bookingManageUrl) {
+    return [];
+  }
+
+  return [
+    {
+      type: "WL",
+      name: "케어리포트 확인",
+      linkMobile: params.bookingManageUrl,
+      linkPc: params.bookingManageUrl,
+    },
+  ];
+}
+
+function hasExistingNotification(
+  notifications: Notification[],
+  input: Pick<DispatchNotificationInput, "type" | "appointmentId" | "guardianId" | "petId">,
+) {
+  return notifications.some((item) => {
+    const sameType = item.type === input.type;
+    const sameAppointment = (item.appointment_id ?? null) === (input.appointmentId ?? null);
+    const sameGuardian = (item.guardian_id ?? null) === (input.guardianId ?? null);
+    const samePet = (item.pet_id ?? null) === (input.petId ?? null);
+    const alreadyHandled = item.status === "sent" || item.status === "queued" || item.status === "mocked";
+    return sameType && sameAppointment && sameGuardian && samePet && alreadyHandled;
+  });
+}
+
+export async function dispatchNotification(input: DispatchNotificationInput): Promise<DispatchNotificationResult> {
+  const bootstrap = await getBootstrap(input.shopId);
+  const appointment =
+    input.appointmentId ? bootstrap.appointments.find((item) => item.id === input.appointmentId) ?? null : null;
+  const guardian =
+    input.guardianId
+      ? bootstrap.guardians.find((item) => item.id === input.guardianId) ?? null
+      : appointment
+        ? bootstrap.guardians.find((item) => item.id === appointment.guardian_id) ?? null
+        : null;
+  const pet =
+    input.petId
+      ? bootstrap.pets.find((item) => item.id === input.petId) ?? null
+      : appointment
+        ? bootstrap.pets.find((item) => item.id === appointment.pet_id) ?? null
+        : null;
+  const service =
+    appointment ? bootstrap.services.find((item) => item.id === appointment.service_id) ?? null : null;
+  const target = input.type === "owner_booking_requested" || (input.channel ?? "alimtalk") === "in_app" ? "owner" : "guardian";
+  const initialPhoneTail = getPhoneTail(input.recipientPhone) ?? getPhoneTail(guardian?.phone ?? null);
+
+  console.log("[notification-dispatch] called", {
+    type: input.type,
+    appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    target,
+    phoneTail: initialPhoneTail,
+  });
+
+  if (input.skipIfExists && hasExistingNotification(bootstrap.notifications, input)) {
+    logNotificationSkipped({
+      reason: "already exists",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+    const existing = bootstrap.notifications.find(
+      (item) =>
+        item.type === input.type &&
+        (item.appointment_id ?? null) === (input.appointmentId ?? null) &&
+        (item.guardian_id ?? null) === (input.guardianId ?? guardian?.id ?? null) &&
+        (item.pet_id ?? null) === (input.petId ?? pet?.id ?? null),
+    );
+
+    return {
+      notification:
+        existing ??
+        ({
+          id: "existing",
+          shop_id: input.shopId,
+          appointment_id: input.appointmentId ?? null,
+          pet_id: input.petId ?? pet?.id ?? null,
+          guardian_id: input.guardianId ?? guardian?.id ?? null,
+          type: input.type,
+          channel: input.channel ?? "alimtalk",
+          message: input.message ?? "",
+          status: "skipped",
+          created_at: nowIso(),
+          sent_at: null,
+        } as Notification),
+      skipped: true,
+      alreadyExists: true,
+    };
+  }
+
+  const recipientPhone = input.recipientPhone?.trim()
+    ? normalizePhone(input.recipientPhone)
+    : guardian?.phone
+      ? normalizePhone(guardian.phone)
+      : "";
+  const recipientName = input.recipientName?.trim() ? input.recipientName.trim() : guardian?.name ?? null;
+  const templateAlias = (input.channel ?? "alimtalk") === "in_app" ? null : input.templateKey ?? getTemplateKey(input.type);
+  const usesAlimtalkRelay = Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret);
+  const configuredTemplateKey = getConfiguredAlimtalkTemplateKey(templateAlias);
+  const templateKey = usesAlimtalkRelay ? configuredTemplateKey : resolveAlimtalkTemplateKey(templateAlias);
+  const templateType = input.templateType ?? "alimtalk";
+  const isGroomingResult = input.type === "grooming_completed";
+  const isRevisitNotice = input.type === "revisit_notice";
+  const isManageLink =
+    !isGroomingResult && !isRevisitNotice && Boolean(appointment);
+  const bookingAccessToken =
+    guardian?.id && pet?.id
+      ? createBookingAccessToken({
+          shopId: input.shopId,
+          guardianId: guardian.id,
+          petId: pet.id,
+          appointmentId:
+            isGroomingResult || isManageLink
+              ? appointment?.id ?? input.appointmentId ?? undefined
+              : undefined,
+          action: isGroomingResult
+              ? "result"
+              : isRevisitNotice
+                ? "rebook_source"
+                : isManageLink
+                  ? "manage"
+                  : undefined,
+          expiresInHours: isGroomingResult || isRevisitNotice ? 24 * 365 : undefined,
+        })
+      : null;
+  const bookingEntryUrl =
+    isRevisitNotice && bookingAccessToken
+      ? buildPersonalizedRebookingSourceUrl(input.shopId, bookingAccessToken)
+      : buildBookingEntryUrl(input.shopId);
+  const bookingManageUrl =
+    bookingAccessToken ? buildBookingManageUrl(input.shopId, bookingAccessToken) : null;
+  const directionsUrl = buildNaverMapSearchUrl(bootstrap.shop.name, bootstrap.shop.address);
+  const mediaAssetIds = normalizeMediaAssetIds(input.mediaAssetIds);
+  const notificationTemplateValues = buildNotificationTemplateValues({
+    appointment,
+    bookingAccessToken,
+    bookingEntryUrl,
+    bookingManageUrl,
+    directionsUrl,
+    petName: pet?.name ?? "pet",
+    recipientName,
+    serviceName: service?.name ?? null,
+    shopAddress: bootstrap.shop.address ?? null,
+    shopName: bootstrap.shop.name,
+  });
+  const connectedTemplate = await getApprovedSsodaaNotificationTemplate(
+    input.type,
+    notificationTemplateValues,
+  );
+  const message =
+    (input.channel ?? "alimtalk") === "in_app" && input.message?.trim()
+      ? input.message.trim()
+      : buildNotificationMessage({
+          type: input.type,
+          shopName: bootstrap.shop.name,
+          shopAddress: bootstrap.shop.address ?? null,
+          appointment,
+          petName: pet?.name ?? "pet",
+          recipientName,
+          serviceName: service?.name ?? null,
+          rejectionReason: appointment?.rejection_reason ?? null,
+          bookingAccessToken,
+          bookingEntryUrl,
+          bookingManageUrl,
+          directionsUrl,
+          approvedTemplateBody: connectedTemplate?.body ?? null,
+        });
+  const abusePolicy = evaluateNotificationAbusePolicy({
+    notifications: bootstrap.notifications,
+    type: input.type,
+    appointment,
+    guardianId: input.guardianId ?? guardian?.id ?? null,
+    petId: input.petId ?? pet?.id ?? null,
+    recipientPhone,
+    message,
+    scheduledAt: input.scheduledAt ?? null,
+  });
+
+  let status: NotificationStatus = "queued";
+  let provider = input.channel === "mock" ? "mock" : bootstrap.mode === "supabase" ? "kakao" : "mock";
+  let sentAt: string | null = null;
+  let failReason: string | null = null;
+  let providerMessageId: string | null = null;
+  let creditReservation: AlimtalkCreditReservation | null = null;
+  let creditRefunded = false;
+  const alimtalkSenderConfig = getAlimtalkSenderConfig(bootstrap.shop);
+  const scheduledAt = input.scheduledAt ?? null;
+  const shouldSendNow = !scheduledAt || new Date(scheduledAt).getTime() <= Date.now();
+  const canSendShop = input.force ? true : shouldSendNotification(bootstrap.shop, input.type);
+  const canSendGuardian = shouldSendGuardianNotification(guardian, input.type);
+  const canSend = canSendShop && canSendGuardian;
+  const guardianBlockReason = canSendGuardian ? null : getGuardianNotificationBlockReason(guardian, input.type);
+  const mediaAttachments =
+    bootstrap.mode === "supabase" && mediaAssetIds.length > 0
+      ? await buildNotificationMediaAttachments({
+          shopId: input.shopId,
+          mediaAssetIds,
+        })
+      : [];
+  const connectedTemplateButtons = connectedTemplate?.buttons ?? null;
+  const alimtalkButtons =
+    connectedTemplateButtons ??
+    (requiresApprovedSsodaaTemplate()
+      ? []
+      : buildNotificationButtons({
+          type: input.type,
+          bookingEntryUrl,
+          bookingManageUrl,
+          directionsUrl,
+          hasMediaAttachments: mediaAttachments.length > 0,
+        }));
+  const isPhotoAlimtalkRequest =
+    (input.channel ?? "alimtalk") === "alimtalk" &&
+    input.type === "grooming_completed" &&
+    mediaAssetIds.length > 0;
+  const hasConfiguredPhotoAlimtalkTemplate = Boolean(serverEnv.alimtalkTemplateGroomingCompleted);
+  const templateKeyForDelivery = templateKey;
+
+  if (input.appointmentId && !appointment) {
+    logNotificationSkipped({
+      reason: "missing appointment",
+      type: input.type,
+      appointmentId: input.appointmentId,
+    });
+  }
+
+  if ((input.guardianId || appointment?.guardian_id) && !guardian) {
+    logNotificationSkipped({
+      reason: "missing guardian",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  }
+
+  if ((input.channel ?? "alimtalk") !== "in_app" && !templateAlias) {
+    logNotificationSkipped({
+      reason: "unsupported notification type",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  }
+
+  if (abusePolicy.blocked) {
+    status = "skipped";
+    failReason = abusePolicy.reason;
+    logNotificationSkipped({
+      reason: "duplicate notification abuse guard",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  } else if (!canSend) {
+    status = "skipped";
+    failReason = !canSendShop
+      ? "Notification disabled by shop settings."
+      : guardianBlockReason;
+    logNotificationSkipped({
+      reason: !canSendShop ? "notification disabled" : "customer notification setting off",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  } else if ((input.channel ?? "alimtalk") !== "in_app" && !recipientPhone) {
+    status = "failed";
+    failReason = "Recipient phone number not found.";
+    logNotificationSkipped({
+      reason: "missing phone",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  } else if ((input.channel ?? "alimtalk") === "in_app") {
+    status = "sent";
+    provider = "in_app";
+    sentAt = nowIso();
+  } else if (isPhotoAlimtalkRequest && !hasConfiguredPhotoAlimtalkTemplate) {
+    status = "queued";
+    provider = "pending_template";
+    failReason = "완료 사진 알림톡 템플릿 승인 전입니다. 요청만 저장했습니다.";
+    logNotificationSkipped({
+      reason: "photo alimtalk template not configured",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  } else if (
+    (input.channel ?? "alimtalk") === "alimtalk" &&
+    (serverEnv.alimtalkProvider === "ssodaa" || usesAlimtalkRelay) &&
+    !templateKey
+  ) {
+    status = "failed";
+    failReason = `Missing Alimtalk template mapping for ${input.type}.`;
+    logNotificationSkipped({
+      reason: "missing template alias",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  } else if (!shouldSendNow) {
+    status = "queued";
+  } else if ((input.channel ?? "alimtalk") === "alimtalk") {
+    if (bootstrap.mode !== "supabase") {
+      status = "mocked";
+      provider = "mock";
+      sentAt = nowIso();
+    } else if (hasAlimtalkServerEnv()) {
+      try {
+        creditReservation = await reserveShopAlimtalkCredit({
+          shopId: input.shopId,
+          appointmentId: input.appointmentId ?? appointment?.id ?? null,
+          notificationType: input.type,
+          metadata: {
+            templateAlias,
+            templateKey: templateKeyForDelivery,
+          },
+        });
+
+        if (!creditReservation.consumed) {
+          status = "skipped";
+          failReason = "알림톡 잔여 건수가 없습니다.";
+          logNotificationSkipped({
+            reason: "insufficient alimtalk credits",
+            type: input.type,
+            appointmentId: input.appointmentId ?? appointment?.id ?? null,
+          });
+        } else {
+          const delivery = await sendAlimtalkMessage({
+            to: recipientPhone,
+            message,
+            templateAlias,
+            templateKey: templateKeyForDelivery,
+            templateType,
+            senderChannelMode: alimtalkSenderConfig.mode,
+            senderProfileKey: alimtalkSenderConfig.senderProfileKey,
+            senderChannelName: alimtalkSenderConfig.channelName,
+            senderChannelUrl: alimtalkSenderConfig.channelUrl,
+            recipientName,
+            metadata: input.metadata ?? null,
+            mediaAttachments,
+            buttons: alimtalkButtons,
+          });
+          status = "sent";
+          provider = delivery.provider;
+          providerMessageId = delivery.providerMessageId;
+          sentAt = nowIso();
+        }
+      } catch (error) {
+        const providerFailureCategory = classifyProviderFailure(error instanceof Error ? error.message : String(error));
+        if (creditReservation?.consumed) {
+          try {
+            await refundShopAlimtalkCredit({
+              shopId: input.shopId,
+              sourceEventId: creditReservation.eventId,
+              appointmentId: input.appointmentId ?? appointment?.id ?? null,
+              notificationType: input.type,
+              metadata: {
+                providerMessageId,
+              },
+            });
+            creditRefunded = true;
+          } catch (refundError) {
+            console.error("[notification-dispatch] alimtalk credit refund failed", {
+              message: refundError instanceof Error ? refundError.message : String(refundError),
+              sourceEventId: creditReservation.eventId,
+            });
+          }
+        }
+        status = "failed";
+        failReason = error instanceof Error ? error.message : "Alimtalk send failed.";
+        input.metadata = {
+          ...(input.metadata ?? {}),
+          providerFailureCategory,
+        };
+      }
+    } else {
+      status = "queued";
+      failReason = "Alimtalk server environment is not configured yet.";
+      logNotificationSkipped({
+        reason: "no alimtalk payload",
+        type: input.type,
+        appointmentId: input.appointmentId ?? appointment?.id ?? null,
+      });
+    }
+  } else {
+    status = bootstrap.mode === "supabase" ? "queued" : "mocked";
+    sentAt = status === "mocked" ? nowIso() : null;
+  }
+
+  const notification: Notification = {
+    id: randomUUID(),
+    shop_id: input.shopId,
+    appointment_id: input.appointmentId ?? appointment?.id ?? null,
+    pet_id: input.petId ?? pet?.id ?? null,
+    guardian_id: input.guardianId ?? guardian?.id ?? null,
+    type: input.type,
+    channel: input.channel ?? "alimtalk",
+    message,
+    status,
+    template_key: templateKey ?? null,
+    template_type: templateType,
+    provider,
+    provider_message_id: providerMessageId,
+    recipient_phone: recipientPhone || null,
+    fail_reason: failReason,
+    scheduled_at: scheduledAt,
+    metadata: {
+      ...(input.metadata ?? {}),
+      abuseDedupeKey: abusePolicy.dedupeKey,
+      abusePolicyVersion: "2026-06-07",
+      duplicateOfNotificationId: abusePolicy.existingNotificationId,
+      appointmentSnapshotKey: getAppointmentSnapshotKey(appointment),
+      recipientName,
+      serviceName: service?.name ?? null,
+      bookingEntryUrl,
+      bookingManageUrl,
+      alimtalkCreditEventId: creditReservation?.eventId ?? null,
+      alimtalkCreditBucket: creditReservation?.consumedBucket ?? null,
+      alimtalkCreditRemaining: creditReservation?.remainingCount ?? null,
+      alimtalkCreditConsumed: status === "sent" && Boolean(creditReservation?.consumed),
+      alimtalkCreditRefunded: creditRefunded,
+      alimtalkSenderMode: alimtalkSenderConfig.mode,
+      alimtalkSenderRequestedMode: alimtalkSenderConfig.requestedMode,
+      alimtalkShopChannelStatus: alimtalkSenderConfig.status,
+      alimtalkShopChannelName: alimtalkSenderConfig.channelName,
+      alimtalkShopChannelUrl: alimtalkSenderConfig.channelUrl,
+      guardianNotificationBlocked: !canSendGuardian,
+      guardianNotificationBlockReason: guardianBlockReason,
+      notificationOptOutScope: !canSendGuardian ? "shop_guardian" : null,
+    },
+    sent_at: sentAt,
+    created_at: nowIso(),
+  };
+
+  if (!hasSupabaseServerEnv() || bootstrap.mode !== "supabase") {
+    const store = getMockStore();
+    store.notifications = [notification, ...store.notifications];
+    setMockStore(store);
+    return { notification, skipped: status === "skipped", alreadyExists: false };
+  }
+
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    throw new Error("Notification server connection is unavailable.");
+  }
+
+  const insertPayload = {
+    id: notification.id,
+    shop_id: notification.shop_id,
+    appointment_id: notification.appointment_id,
+    pet_id: notification.pet_id,
+    guardian_id: notification.guardian_id,
+    type: notification.type,
+    channel: notification.channel,
+    message: notification.message,
+    status: notification.status,
+    template_key: notification.template_key ?? null,
+    template_type: notification.template_type ?? null,
+    provider: notification.provider ?? null,
+    provider_message_id: notification.provider_message_id ?? null,
+    recipient_phone: notification.recipient_phone ?? null,
+    fail_reason: notification.fail_reason ?? null,
+    scheduled_at: notification.scheduled_at ?? null,
+    metadata: notification.metadata ?? null,
+    sent_at: notification.sent_at,
+    created_at: notification.created_at,
+  };
+
+  const result = await admin.from("notifications").insert(insertPayload).select("*").single();
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  if (creditReservation?.eventId) {
+    const creditEventResult = await admin
+      .from("shop_alimtalk_credit_events")
+      .update({ notification_id: result.data.id })
+      .eq("id", creditReservation.eventId);
+    if (creditEventResult.error) {
+      console.error("[notification-dispatch] alimtalk credit event notification link failed", {
+        message: creditEventResult.error.message,
+        creditEventId: creditReservation.eventId,
+        notificationId: result.data.id,
+      });
+    }
+  }
+
+  if (mediaAssetIds.length > 0) {
+    const attached = await attachMediaToNotification(
+      {
+        shopId: input.shopId,
+        userId: null,
+      },
+      {
+        notificationId: result.data.id,
+        channel: input.channel ?? "alimtalk",
+        media: mediaAssetIds.map((mediaAssetId, index) => ({
+          mediaAssetId,
+          attachmentRole:
+            mediaAttachments[index]?.role === "before_photo"
+              ? "before_photo"
+              : mediaAttachments[index]?.role === "after_photo"
+                ? "after_photo"
+                : "result_photo",
+          sortOrder: index,
+        })),
+      },
+    );
+
+    if (status === "sent" || status === "failed") {
+      await markNotificationMediaDeliveryResult(
+        {
+          shopId: input.shopId,
+          userId: null,
+        },
+        {
+          notificationId: result.data.id,
+          status,
+          channel: input.channel ?? "alimtalk",
+          provider,
+          providerMessageId,
+          recipientPhone,
+          failReason,
+          sentAt,
+          providerMedia: attached.attachments.map((attachment) => ({
+            notificationMediaAttachmentId: attachment.id,
+            providerMediaId: null,
+          })),
+        },
+      );
+    }
+  }
+
+  return {
+    notification: result.data as Notification,
+    skipped: status === "skipped",
+    alreadyExists: false,
+  };
+}

@@ -1,0 +1,10 @@
+# Local-only browser profiles, screenshots, and test artifacts must never be
+# uploaded as deployment source files.
+tmp/
+output/
+artifacts/
+test-results/
+.codex/
+.local-secrets/
+.tmp-*
+tmp-*.png

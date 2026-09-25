@@ -1,0 +1,430 @@
+"use client";
+
+import { Check, PencilLine, Plus } from "lucide-react";
+
+import { BasilIcon } from "@/components/owner-web/basil-icon";
+import type {
+  ServicePriceGuideCell,
+  ServicePriceGuideSection,
+} from "@/components/owner-web/service-price-guide";
+import { cn } from "@/lib/utils";
+
+function formatGroupDisplayName(title: string) {
+  const trimmedTitle = title.trim();
+  if (!trimmedTitle) return "이름 없는 그룹";
+  return trimmedTitle.endsWith("그룹") ? trimmedTitle : `${trimmedTitle} 그룹`;
+}
+
+function formatPriceInput(value: string) {
+  const numericValue = Number(value.replace(/[^0-9]/g, ""));
+  if (!numericValue) return "";
+  return numericValue.toLocaleString("ko-KR");
+}
+
+type ServicePriceGuideSectionCardProps = {
+  section: ServicePriceGuideSection;
+  breedLabels: string[];
+  isEditing: boolean;
+  canDeleteSection: boolean;
+  onToggleEdit: () => void;
+  onChangeTitle: (title: string) => void;
+  onOpenBreedManagement: () => void;
+  onAddWeightBand: () => void;
+  onAddItem: () => void;
+  onRemoveSection: () => void;
+  onUpdateItemLabel: (itemId: string, label: string) => void;
+  onRemoveItem: (itemId: string) => void;
+  onUpdateWeightBand: (index: number, label: string) => void;
+  onRemoveWeightBand: (index: number) => void;
+  onUpdateCell: (
+    itemId: string,
+    band: string,
+    patch: Partial<ServicePriceGuideCell>,
+  ) => void;
+};
+
+export function ServicePriceGuideSectionCard({
+  section,
+  breedLabels,
+  isEditing,
+  canDeleteSection,
+  onToggleEdit,
+  onChangeTitle,
+  onOpenBreedManagement,
+  onAddWeightBand,
+  onAddItem,
+  onRemoveSection,
+  onUpdateItemLabel,
+  onRemoveItem,
+  onUpdateWeightBand,
+  onRemoveWeightBand,
+  onUpdateCell,
+}: ServicePriceGuideSectionCardProps) {
+  // PRICE_GUIDE_UI_HARD_CONTRACT: every visible value is 16/24;
+  // price stays on the left and duration stays on the right without wrapping.
+  const smallButtonStyle = {
+    fontSize: "16px",
+    fontWeight: 500,
+    lineHeight: "24px",
+  } as const;
+  const editOnlyClassName = isEditing
+    ? "opacity-100"
+    : "pointer-events-none invisible opacity-0";
+
+  return (
+    <section className="w-full min-w-0 rounded-[20px] border border-[#e2e7ed] bg-white px-[30px] pb-[30px] pt-7 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+      <div className="mb-5 flex min-w-0 items-center justify-between">
+        <div className="flex min-w-0 items-center gap-[10px]">
+          {isEditing ? (
+            <label className="flex min-h-11 min-w-0 shrink-0 items-center gap-[7px] whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-[14px] text-[16px] font-medium leading-6 text-[#0f172a] transition focus-within:border-[#cbd5e1]">
+              <span className="sr-only">그룹명</span>
+              <input
+                type="text"
+                value={section.title}
+                onChange={(event) => onChangeTitle(event.target.value)}
+                placeholder="그룹명"
+                aria-label={`${formatGroupDisplayName(section.title)} 그룹명 수정`}
+                style={{ fontSize: "16px", fontWeight: 500, lineHeight: "24px" }}
+                className="min-w-[1ch] max-w-[120px] border-0 bg-transparent p-0 text-[16px] font-medium leading-6 text-[#0f172a] outline-none placeholder:text-[#94a3b8] [field-sizing:content]"
+              />
+              {section.title.trim() && !section.title.trim().endsWith("그룹") ? (
+                <span className="shrink-0 leading-none tracking-[-0.02em]" aria-hidden="true">
+                  그룹
+                </span>
+              ) : null}
+              <PencilLine
+                className="h-[13px] w-[13px] shrink-0 text-[#94a3b8]"
+                strokeWidth={2}
+              />
+            </label>
+          ) : (
+            <h3 className="truncate text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#0f172a]">
+              {formatGroupDisplayName(section.title)}
+            </h3>
+          )}
+          <span className="shrink-0 whitespace-nowrap text-[16px] font-medium leading-6 text-[#64748b]">
+            {breedLabels.length}종 등록됨
+          </span>
+        </div>
+
+        <div className="ml-4 flex shrink-0 items-center gap-2">
+          {isEditing ? (
+            <>
+              <button
+                type="button"
+                onClick={onAddWeightBand}
+                style={smallButtonStyle}
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#f6f7f9]"
+              >
+                <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} />
+                무게
+              </button>
+              <button
+                type="button"
+                onClick={onAddItem}
+                style={smallButtonStyle}
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#f6f7f9]"
+              >
+                <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} />
+                항목
+              </button>
+              <span className="mx-0.5 h-5 w-px shrink-0 bg-[#e2e7ed]" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={onToggleEdit}
+                style={smallButtonStyle}
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#0f172a] bg-[#0f172a] px-[13px] text-[16px] font-medium leading-6 text-white transition-colors hover:bg-[#1c2a3e]"
+              >
+                <Check className="h-[13px] w-[13px]" strokeWidth={2} />
+                완료
+              </button>
+              <button
+                type="button"
+                onClick={onRemoveSection}
+                disabled={!canDeleteSection}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#f2d3d3] bg-white text-[#d64545] transition-colors hover:bg-[#fbebeb] disabled:cursor-not-allowed disabled:opacity-40"
+                title={canDeleteSection ? "그룹 삭제" : "그룹은 최소 1개가 필요합니다."}
+                aria-label={canDeleteSection ? "그룹 삭제" : "그룹 삭제 불가"}
+              >
+                <BasilIcon name="trash" className="h-[13px] w-[13px]" />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onToggleEdit}
+              style={smallButtonStyle}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#0f172a] bg-[#0f172a] px-[13px] text-[16px] font-medium leading-6 text-white transition-colors hover:bg-[#1c2a3e]"
+            >
+              <PencilLine className="h-[13px] w-[13px]" strokeWidth={2} />
+              편집
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-center gap-2 rounded-[13px] bg-[#f6f7f9] p-5">
+        {breedLabels.length > 0 ? (
+          breedLabels.map((breed, index) => (
+            <span
+              key={`${breed}-${index}`}
+              className="whitespace-nowrap rounded-full border border-[#e2e7ed] bg-white px-3 py-1.5 text-[16px] font-medium leading-6 text-[#334155]"
+            >
+              {breed}
+            </span>
+          ))
+        ) : (
+          <span className="text-[16px] font-normal leading-6 text-[#64748b]">
+            등록된 품종이 없습니다.
+          </span>
+        )}
+        {isEditing ? (
+          <button
+            type="button"
+            onClick={onOpenBreedManagement}
+            style={smallButtonStyle}
+            className="ml-auto inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#f6f7f9]"
+          >
+            <PencilLine className="h-[13px] w-[13px]" strokeWidth={2} />
+            품종 관리
+          </button>
+        ) : null}
+      </div>
+
+      <div className="w-full max-w-full overflow-x-auto rounded-[13px] border border-[#e2e7ed]">
+        <table className="w-full border-collapse text-[16px] leading-6 text-[#1e293b]" data-price-guide-ui-hard-contract="true">
+          <colgroup>
+            <col className="w-28" />
+            <col className="w-28" />
+            {section.items.map((item) => (
+              <col key={item.id} />
+            ))}
+            {isEditing ? <col className="w-[34px]" /> : null}
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[16px] font-medium leading-6 text-[#334155]">
+                그룹
+              </th>
+              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[16px] font-medium leading-6 text-[#334155]">
+                무게
+              </th>
+              {section.items.map((item, itemIndex) => (
+                <th
+                  key={item.id}
+                  className={cn(
+                    "min-w-[210px] whitespace-nowrap border-b border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[16px] font-medium leading-6 text-[#334155]",
+                    (isEditing || itemIndex < section.items.length - 1) && "border-r",
+                  )}
+                >
+                  <div className="flex min-w-0 items-center gap-[7px]">
+                    <span className="relative min-w-0 flex-1">
+                      <span className={cn("block truncate", isEditing && "invisible")}>
+                        {item.label}
+                      </span>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={item.label}
+                          onChange={(event) => onUpdateItemLabel(item.id, event.target.value)}
+                          aria-label={`${item.label} 항목명 수정`}
+                          style={{ fontSize: "16px", fontWeight: 500, lineHeight: "24px" }}
+                          className="absolute inset-0 w-full border-0 bg-transparent p-0 text-left text-[16px] font-medium leading-6 text-[#334155] outline-none"
+                        />
+                      ) : null}
+                    </span>
+                    {isEditing ? (
+                      <button
+                        type="button"
+                        onClick={() => onRemoveItem(item.id)}
+                        disabled={section.items.length <= 1}
+                        className="inline-flex h-[13px] w-[13px] shrink-0 items-center justify-center text-[#94a3b8] transition-colors hover:text-[#d64545] disabled:opacity-35"
+                        aria-label={`${item.label} 항목 삭제`}
+                      >
+                        <BasilIcon name="trash" className="h-[13px] w-[13px]" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="mt-2 grid grid-cols-[minmax(0,1fr)_80px] items-center gap-2 border-t border-[#e2e7ed] pt-1 text-[16px] font-medium leading-6 text-[#64748b]" aria-hidden="true" data-price-guide-service-subheaders="true">
+                    <span className="whitespace-nowrap">가격</span>
+                    <span className="whitespace-nowrap border-l border-[#e2e7ed] pl-2">예상시간</span>
+                  </div>
+                </th>
+              ))}
+              {isEditing ? (
+                <th
+                  className="w-[34px] border-b border-[#e2e7ed] bg-[#f6f7f9] px-[14px] py-[11px]"
+                  aria-label="행 관리"
+                />
+              ) : null}
+            </tr>
+          </thead>
+          <tbody>
+            {section.weightBands.map((band, bandIndex) => {
+              const isLastBand = bandIndex === section.weightBands.length - 1;
+
+              return (
+                <tr key={`${section.id}-weight-${bandIndex}`}>
+                  {bandIndex === 0 ? (
+                    <td
+                      rowSpan={section.weightBands.length}
+                      className="min-w-28 whitespace-nowrap border-b border-r border-[#edf1f5] bg-[#f6f7f9] px-4 py-[14px] align-middle text-left font-medium text-[#0f172a]"
+                    >
+                      {formatGroupDisplayName(section.title)}
+                    </td>
+                  ) : null}
+                  <td
+                    className={cn(
+                      "min-w-28 border-r border-[#edf1f5] bg-[#fbfcfd] px-4 py-[14px]",
+                      !isLastBand && "border-b border-[#edf1f5]",
+                    )}
+                  >
+                    <div className="flex min-w-0 items-center gap-1.5 font-medium text-[#0f172a]">
+                      <span className="relative min-w-0 flex-1 whitespace-nowrap">
+                        <span
+                          className={cn(
+                            "block whitespace-nowrap tracking-[-0.7px]",
+                            isEditing && "invisible",
+                          )}
+                        >
+                          {band}
+                        </span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={band}
+                            onChange={(event) => onUpdateWeightBand(bandIndex, event.target.value)}
+                            aria-label={`${band} 무게 구간 수정`}
+                            style={{
+                              fontSize: "16px",
+                              fontWeight: 500,
+                              letterSpacing: "0",
+                              lineHeight: "24px",
+                            }}
+                            className="absolute inset-0 w-full border-0 bg-transparent p-0 text-left text-[16px] font-medium leading-6 text-[#0f172a] outline-none"
+                          />
+                        ) : null}
+                      </span>
+                      {isEditing ? (
+                        <PencilLine
+                          className="h-3 w-3 shrink-0 text-[#94a3b8]"
+                          strokeWidth={2}
+                        />
+                      ) : null}
+                    </div>
+                  </td>
+                  {section.items.map((item, itemIndex) => {
+                    const cell = item.cells[band] ?? {
+                      price: "",
+                      durationMinutes: "",
+                    };
+                    const formattedPrice = formatPriceInput(cell.price);
+                    const priceInputWidth = `calc(${Math.max(formattedPrice.length, 1)}ch + 2px)`;
+                    const durationInputWidth = `calc(${Math.max(cell.durationMinutes.length, 1)}ch + 1px)`;
+
+                    return (
+                      <td
+                        key={item.id}
+                        className={cn(
+                          "px-4 py-[14px]",
+                          !isLastBand && "border-b border-[#edf1f5]",
+                          (isEditing || itemIndex < section.items.length - 1) &&
+                            "border-r border-[#edf1f5]",
+                        )}
+                      >
+                        <div className="grid grid-cols-[minmax(0,1fr)_80px] items-center gap-2 whitespace-nowrap" data-price-left-time-right="true">
+                          {isEditing ? (
+                            <>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formattedPrice}
+                                onChange={(event) =>
+                                  onUpdateCell(item.id, band, { price: event.target.value })
+                                }
+                                placeholder="-"
+                                aria-label={`${item.label} ${band} 가격 수정`}
+                                style={{
+                                  fontSize: "16px",
+                                  fontWeight: 500,
+                                  lineHeight: "24px",
+                                  width: priceInputWidth,
+                                }}
+                                className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-left text-[16px] font-medium leading-6 tabular-nums text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
+                              />
+                              <span className="inline-flex items-center whitespace-nowrap border-l border-[#e2e7ed] pl-2 text-[16px] font-medium leading-6 text-[#64748b]" data-duration-side="right">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={cell.durationMinutes}
+                                  onChange={(event) =>
+                                    onUpdateCell(item.id, band, {
+                                      durationMinutes: event.target.value,
+                                    })
+                                  }
+                                  placeholder="미정"
+                                  aria-label={`${item.label} ${band} 예상 시간 수정`}
+                                  style={{
+                                    fontSize: "16px",
+                                    fontWeight: 500,
+                                    lineHeight: "24px",
+                                    width: durationInputWidth,
+                                  }}
+                                  className="min-w-[3ch] shrink-0 border-0 bg-transparent p-0 text-left text-[16px] font-medium leading-6 tabular-nums text-[#64748b] outline-none placeholder:text-[#94a3b8]"
+                                />
+                                <span>분</span>
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="whitespace-nowrap text-[16px] font-medium leading-6 tabular-nums text-[#0f172a]" data-price-side="left">
+                                {formattedPrice ? `${formattedPrice}원` : "미정"}
+                              </span>
+                              <span className="whitespace-nowrap border-l border-[#e2e7ed] pl-2 text-[16px] font-medium leading-6 text-[#64748b]" data-duration-side="right">
+                                {cell.durationMinutes ? `${cell.durationMinutes}분` : "미정"}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                  {isEditing ? (
+                    <td
+                      className={cn(
+                        "w-[34px] px-[14px] py-3 text-center",
+                        !isLastBand && "border-b border-[#edf1f5]",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onRemoveWeightBand(bandIndex)}
+                        disabled={section.weightBands.length <= 1}
+                        className="inline-flex h-[14px] w-[14px] items-center justify-center text-[#94a3b8] transition-colors hover:text-[#d64545] disabled:opacity-35"
+                        aria-label={`${band} 무게 구간 삭제`}
+                      >
+                        <BasilIcon name="trash" className="h-[14px] w-[14px]" />
+                      </button>
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {isEditing ? (
+        <button
+          type="button"
+          onClick={onAddWeightBand}
+          style={smallButtonStyle}
+          className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-[#e2e7ed] bg-[#f6f7f9] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#eef1f5]"
+        >
+          <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} />
+          무게 구간 추가
+        </button>
+      ) : null}
+    </section>
+  );
+}

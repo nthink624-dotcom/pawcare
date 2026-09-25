@@ -1,0 +1,1983 @@
+"use client";
+
+import { CalendarPlus, Check, Copy, ImagePlus, Sparkles, X } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
+
+import {
+  formatDate,
+  formatDateTime,
+  formatDuration,
+  formatMoney,
+  formatTimestampTime,
+  formatPhoneNumber,
+  getAppointmentStatusMeta,
+  getNotificationStatusMeta,
+  getServiceDuration,
+  getServiceName,
+  splitNotes,
+  type CustomerDetailModel,
+} from "@/components/owner-web/customer-detail-helpers";
+import {
+  OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
+  OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
+} from "@/components/owner-web/owner-web-action-button-styles";
+import { CustomerCareReportHistoryCard } from "@/components/owner-web/customer-care-report-history-card";
+import { fetchApiJsonWithAuth } from "@/lib/api";
+import {
+  filterDiscountCouponsForVisitType,
+  formatDiscountCouponValue,
+  type CustomerVisitType,
+} from "@/lib/discount-coupons";
+import { getPetBiteLevelLabel, normalizePetBiteLevel, petBiteLevelOptions } from "@/lib/pet-bite-level";
+import { buildPetGroupOptions, type PetGroupOption } from "@/lib/pet-group-options";
+import { cn, currentDateInTimeZone } from "@/lib/utils";
+import type { CustomerGradeOverride, GuardianNotificationSettings, MediaAsset, MediaKind, PetBiteLevel } from "@/types/domain";
+
+type CustomerDetailPanelProps = {
+  detail: CustomerDetailModel;
+  selectedPetId: string | null;
+  onSelectPet: (petId: string) => void;
+  onUpdatePetBiteLevel: (guardianId: string, petId: string, biteLevel: PetBiteLevel) => void;
+  onUpdateGuardian: (guardianId: string, patch: { name: string; phone: string; memo: string }) => void | Promise<void>;
+  onSaveGuardianProfile: (guardianId: string, patch: { name: string; phone: string; memo: string; customerGradeOverride: CustomerGradeOverride | null }) => void | Promise<void>;
+  onUpdatePet: (
+    guardianId: string,
+    petId: string,
+    patch: { name: string; breed: string; pricingGroup: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string },
+  ) => void | Promise<void>;
+  onAddPet: (guardianId: string, payload: PetAddPayload) => void | Promise<void>;
+  onDeletePet: (guardianId: string, petId: string) => void | Promise<void>;
+  onToggleGuardianNotifications: (guardianId: string) => void | Promise<void>;
+  onUpdateGuardianNotificationSettings: (guardianId: string, patch: Partial<GuardianNotificationSettings>) => void | Promise<void>;
+  onCreateReservation: (params: { guardianId: string; petId: string | null }) => void;
+  onClose: () => void;
+};
+
+type PetAddPayload = {
+  name: string;
+  breed: string;
+  birthday: string;
+  weight: string;
+  biteLevel: PetBiteLevel;
+  profilePhoto?: File | null;
+};
+
+type DetailAction = "guardianEdit" | "petEdit" | "petAdd" | "notificationSettings" | "appointments" | "notifications" | null;
+
+type MediaAssetListResponse = {
+  items: Array<{ mediaAsset: MediaAsset }>;
+};
+
+type MediaSignedUrlResponse = {
+  signedUrl: string;
+};
+
+type GroomingPhotoPreview = {
+  asset: MediaAsset;
+  url: string;
+};
+
+type GroomingPhotoSummary = {
+  before: GroomingPhotoPreview | null;
+  after: GroomingPhotoPreview | null;
+};
+
+const customerGradeOptions = [
+  { value: "auto", label: "자동" },
+  { value: "normal", label: "일반" },
+  { value: "loyal", label: "단골" },
+  { value: "attention", label: "주의" },
+] as const;
+
+const customerGradeLabels: Record<"auto" | NonNullable<CustomerGradeOverride>, string> = {
+  auto: "자동",
+  normal: "일반",
+  loyal: "단골",
+  attention: "주의",
+};
+
+function getCustomerGradeLabel(customerGradeOverride: CustomerGradeOverride | null | undefined) {
+  return customerGradeLabels[customerGradeOverride ?? "auto"];
+}
+
+export default function CustomerDetailPanel({
+  detail,
+  selectedPetId,
+  onSelectPet,
+  onUpdatePetBiteLevel,
+  onUpdateGuardian,
+  onSaveGuardianProfile,
+  onUpdatePet,
+  onAddPet,
+  onDeletePet,
+  onToggleGuardianNotifications,
+  onUpdateGuardianNotificationSettings,
+  onCreateReservation,
+  onClose,
+}: CustomerDetailPanelProps) {
+  const [copied, setCopied] = useState(false);
+  const [activeAction, setActiveAction] = useState<DetailAction>(null);
+  const [photoSummaries, setPhotoSummaries] = useState<Record<string, GroomingPhotoSummary>>({});
+  const [selectedGroomingRecordId, setSelectedGroomingRecordId] = useState<string | null>(null);
+  const [expandedPhoto, setExpandedPhoto] = useState<{ preview: GroomingPhotoPreview; label: string } | null>(null);
+  const selectedPet = detail.selectedPet;
+  const selectedGroomingRecord = detail.recentGroomingRecords.find((record) => record.id === selectedGroomingRecordId) ?? null;
+  const profileInitial = selectedPet?.name.slice(0, 1) || "P";
+  const phone = formatPhoneNumber(detail.guardian.phone);
+  const petWeightLabel = typeof selectedPet?.weight === "number" ? `${selectedPet.weight} kg` : "몸무게 미입력";
+  const petBirthdayLabel = selectedPet?.birthday ? formatDate(selectedPet.birthday) : "생일 미입력";
+  const petGroupOptions = buildPetGroupOptions(Array.from(detail.servicesById.values()), selectedPet?.pricing_group);
+
+  function buildPetPatch(patch: Partial<{ name: string; breed: string; pricingGroup: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string }>) {
+    if (!selectedPet) return null;
+    return {
+      name: selectedPet.name,
+      breed: selectedPet.breed ?? "",
+      pricingGroup: selectedPet.pricing_group ?? "",
+      birthday: selectedPet.birthday ?? "",
+      weight: typeof selectedPet.weight === "number" ? String(selectedPet.weight) : "",
+      notes: selectedPet.notes ?? "",
+      groomingCycleWeeks: String(selectedPet.grooming_cycle_weeks ?? 4),
+      ...patch,
+    };
+  }
+
+  async function savePetPatch(patch: Partial<{ name: string; breed: string; pricingGroup: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string }>) {
+    const nextPatch = buildPetPatch(patch);
+    if (!selectedPet || !nextPatch) return;
+    await onUpdatePet(detail.guardian.id, selectedPet.id, nextPatch);
+  }
+
+  async function saveGuardianPatch(patch: Partial<{ name: string; phone: string; memo: string }>) {
+    await onUpdateGuardian(detail.guardian.id, {
+      name: detail.guardian.name,
+      phone,
+      memo: detail.guardian.memo ?? "",
+      ...patch,
+    });
+  }
+
+  async function loadGroomingPhotoSummary(recordId: string) {
+    if (photoSummaries[recordId]) return;
+
+    try {
+      const params = new URLSearchParams({
+        groomingRecordId: recordId,
+        limit: "10",
+        includeVariants: "false",
+      });
+      const result = await fetchApiJsonWithAuth<MediaAssetListResponse>(`/api/owner/media/assets?${params.toString()}`);
+      const assets = result.items.map((item) => item.mediaAsset);
+      const before = getMediaByKind(assets, "grooming_before");
+      const after = getMediaByKind(assets, "grooming_after");
+      const summary = {
+        before: before ? await getMediaPreview(before) : null,
+        after: after ? await getMediaPreview(after) : null,
+      };
+      setPhotoSummaries((current) => ({ ...current, [recordId]: summary }));
+    } catch {
+      setPhotoSummaries((current) => ({ ...current, [recordId]: { before: null, after: null } }));
+    }
+  }
+
+  function openGroomingRecord(recordId: string) {
+    setSelectedGroomingRecordId(recordId);
+    void loadGroomingPhotoSummary(recordId);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setSelectedGroomingRecordId(null);
+      setExpandedPhoto(null);
+      setPhotoSummaries({});
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPet?.id]);
+
+  async function copyPhone() {
+    try {
+      await navigator.clipboard.writeText(phone);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1300);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/20 p-4" onClick={onClose}>
+      <section
+        className="relative mx-auto flex h-full max-w-[1520px] flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-[#f7f8fb] shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#e1e7ef] bg-white px-4 py-2.5 sm:flex-nowrap sm:gap-4 sm:px-5">
+          <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
+            <h2 className="break-keep [overflow-wrap:anywhere] text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827] sm:truncate">
+              {detail.guardian.name}
+              {selectedPet ? ` · ${selectedPet.name}` : ""}
+            </h2>
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <ActionButton icon={CalendarPlus} label="예약 추가" onClick={() => onCreateReservation({ guardianId: detail.guardian.id, petId: selectedPet?.id ?? null })} />
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]"
+              aria-label="닫기"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </header>
+
+        <div
+          data-customer-detail-pane-layout="true"
+          className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,0.82fr)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[310px_minmax(0,1fr)] lg:grid-rows-1"
+        >
+          <aside className="min-h-0 overflow-y-auto border-b border-[#e1e7ef] bg-white px-4 py-4 lg:border-b-0 lg:border-r lg:py-4 lg:pl-4 lg:pr-1">
+            <SummaryCard
+              detail={detail}
+              phone={phone}
+              onCopyPhone={copyPhone}
+              copied={copied}
+              onEdit={() => setActiveAction("guardianEdit")}
+              onUpdateGuardian={saveGuardianPatch}
+            />
+            <NotificationSettingsCard
+              detail={detail}
+              onEdit={() => setActiveAction("notificationSettings")}
+              onToggle={(key, checked) =>
+                onUpdateGuardianNotificationSettings(detail.guardian.id, {
+                  [key]: checked,
+                  ...(checked ? { enabled: true } : {}),
+                })
+              }
+            />
+          </aside>
+
+          <main className="min-h-0 overflow-y-auto px-4 py-4 lg:py-4 lg:pl-4 lg:pr-1">
+            {selectedPet ? (
+              <div className="space-y-3">
+                <PetOverviewSection
+                  detail={detail}
+                  selectedPet={selectedPet}
+                  selectedPetId={selectedPetId ?? selectedPet.id}
+                  profileInitial={profileInitial}
+                  phone={phone}
+                  onSelectPet={onSelectPet}
+                  onAddPet={() => setActiveAction("petAdd")}
+                  onEditPet={() => setActiveAction("petEdit")}
+                  onDeletePet={() => void onDeletePet(detail.guardian.id, selectedPet.id)}
+                  petGroupOptions={petGroupOptions}
+                  onUpdatePetGroup={(pricingGroup) => savePetPatch({ pricingGroup })}
+                  onUpdatePetBiteLevel={(biteLevel) => onUpdatePetBiteLevel(detail.guardian.id, selectedPet.id, biteLevel)}
+                  onSavePetNotes={(notes) => savePetPatch({ notes })}
+                />
+
+                <CustomerBenefitsCard detail={detail} />
+
+                <GroomingRecordsCard detail={detail} photoSummaries={photoSummaries} onOpenRecord={openGroomingRecord} />
+              </div>
+            ) : (
+              <EmptyState title="반려동물이 없습니다" description="이 보호자에게 등록된 반려동물 정보가 아직 없습니다." />
+            )}
+          </main>
+        </div>
+        {activeAction ? (
+          <ActionPanel
+            action={activeAction}
+            detail={detail}
+            onUpdateGuardian={onUpdateGuardian}
+            onSaveGuardianProfile={onSaveGuardianProfile}
+            onUpdatePet={onUpdatePet}
+            onAddPet={onAddPet}
+            onToggleGuardianNotifications={onToggleGuardianNotifications}
+            onClose={() => {
+              setActiveAction(null);
+            }}
+          />
+        ) : null}
+        {selectedGroomingRecord ? (
+          <GroomingRecordDetailPanel
+            detail={detail}
+            record={selectedGroomingRecord}
+            photoSummary={photoSummaries[selectedGroomingRecord.id] ?? { before: null, after: null }}
+            onClose={() => {
+              setSelectedGroomingRecordId(null);
+              setExpandedPhoto(null);
+            }}
+            onExpandPhoto={(preview, label) => setExpandedPhoto({ preview, label })}
+          />
+        ) : null}
+        {expandedPhoto ? <PhotoLightbox photo={expandedPhoto} onClose={() => setExpandedPhoto(null)} /> : null}
+      </section>
+    </div>
+  );
+}
+
+function ActionButton({ icon: Icon, label, primary = false, onClick }: { icon: typeof CalendarPlus; label: string; primary?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className={primary ? OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS : OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}>
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
+  );
+}
+
+function SectionCard({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <section className="rounded-[8px] border border-[#dbe2ea] bg-white">
+      <div className="flex items-center justify-between gap-3 border-b border-[#edf2f7] px-3.5 py-2.5">
+        <h3 className="text-[18px] font-semibold leading-[26px] text-[#111827]">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SummaryCard({
+  detail,
+  phone,
+  onCopyPhone,
+  copied,
+  onEdit,
+  onUpdateGuardian,
+}: {
+  detail: CustomerDetailModel;
+  phone: string;
+  onCopyPhone: () => void;
+  copied: boolean;
+  onEdit: () => void;
+  onUpdateGuardian: (patch: Partial<{ name: string; phone: string; memo: string }>) => void | Promise<void>;
+}) {
+  return (
+    <SectionCard title="보호자 정보" action={<SmallButton label="수정" onClick={onEdit} />}>
+      <div className="space-y-4 px-4 py-4">
+        <div className="space-y-3">
+          <SummaryField label="보호자명">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <InlineEditableText
+                value={detail.guardian.name}
+                ariaLabel="보호자명 수정"
+                className="truncate text-[16px] leading-6 text-[#111827]"
+                onCommit={(value) => onUpdateGuardian({ name: value })}
+              />
+              <CustomerGradeBadge value={detail.guardian.customer_grade_override} />
+            </div>
+          </SummaryField>
+          <SummaryField label="전화번호">
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <InlineEditableText
+                value={phone}
+                ariaLabel="연락처 수정"
+                className="min-w-0 truncate text-[16px] leading-6 tabular-nums text-[#111827]"
+                onCommit={(value) => onUpdateGuardian({ phone: value })}
+              />
+              <button
+                type="button"
+                onClick={onCopyPhone}
+                className={cn(
+                  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[7px] border text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+                  copied ? "border-[#2f7866] bg-[#eef7f4] text-[#2f7866]" : "border-[#dbe2ea] bg-white",
+                )}
+                aria-label={copied ? "전화번호 복사됨" : "전화번호 복사"}
+                title={copied ? "복사됨" : "복사"}
+              >
+                <Copy className="h-4 w-4" />
+              </button>
+            </div>
+          </SummaryField>
+          <SummaryField label="메모">
+            <InlineEditableText
+              value={detail.guardian.memo ?? ""}
+              placeholder="보호자 메모를 입력할 수 있습니다."
+              ariaLabel="보호자 메모 수정"
+              className="rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] px-3 py-2 text-left text-[16px] leading-6 text-[#334155]"
+              inputClassName="min-h-[84px]"
+              multiline
+              onCommit={(value) => onUpdateGuardian({ memo: value })}
+            />
+          </SummaryField>
+        </div>
+        <div className="h-px bg-[#edf2f7]" />
+        <div className="space-y-2">
+          <SummaryStatRow label="최근 방문일" value={detail.recentVisitLabel} />
+          <SummaryStatRow label="누적 예약 수" value={`${detail.totalAppointments}건`} />
+          <SummaryStatRow label="누적 미용 기록" value={`${detail.totalGroomingRecords}건`} />
+          <SummaryStatRow label="마지막 예약 상태" value={detail.lastAppointmentStatusLabel} />
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+function SummaryField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="mb-1 text-[14px] font-medium leading-5 text-[#64748b]">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function SummaryStatRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-3 text-[16px] leading-6">
+      <span className="shrink-0 text-[#64748b]">{label}</span>
+      <span className="min-w-0 truncate text-right text-[#111827]">{value}</span>
+    </div>
+  );
+}
+
+function PetOverviewSection({
+  detail,
+  selectedPet,
+  selectedPetId,
+  profileInitial,
+  phone,
+  onSelectPet,
+  onAddPet,
+  onEditPet,
+  onDeletePet,
+  petGroupOptions,
+  onUpdatePetGroup,
+  onUpdatePetBiteLevel,
+  onSavePetNotes,
+}: {
+  detail: CustomerDetailModel;
+  selectedPet: NonNullable<CustomerDetailModel["selectedPet"]>;
+  selectedPetId: string;
+  profileInitial: string;
+  phone: string;
+  onSelectPet: (petId: string) => void;
+  onAddPet: () => void;
+  onEditPet: () => void;
+  onDeletePet: () => void;
+  petGroupOptions: PetGroupOption[];
+  onUpdatePetGroup: (pricingGroup: string) => void | Promise<void>;
+  onUpdatePetBiteLevel: (biteLevel: PetBiteLevel) => void;
+  onSavePetNotes: (notes: string) => void | Promise<void>;
+}) {
+  const hasMultiplePets = detail.pets.length > 1;
+  const birthdayLabel = selectedPet.birthday ? formatDate(selectedPet.birthday) : "미입력";
+  const fullAgeLabel = selectedPet.birthday ? calculateFullAgeLabel(selectedPet.birthday) : "";
+  const weightLabel = typeof selectedPet.weight === "number" ? `${selectedPet.weight}kg` : "미입력";
+  const petMemo = selectedPet.notes?.trim() || "";
+
+  return (
+    <section className="relative rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-[18px] font-semibold leading-[26px] text-[#111827]">반려동물 정보</h3>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <SmallButton label="반려동물 추가" onClick={onAddPet} />
+          <SmallButton label="편집" onClick={onEditPet} />
+          <SmallButton label="삭제" onClick={onDeletePet} />
+        </div>
+      </div>
+
+      {hasMultiplePets ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {detail.pets.map((pet) => {
+            const selected = pet.id === selectedPetId;
+            return (
+              <button
+                key={pet.id}
+                type="button"
+                onClick={() => onSelectPet(pet.id)}
+                className={cn(
+                  "relative flex min-w-0 items-center gap-3 rounded-[8px] border px-3 py-2.5 text-left transition",
+                  selected ? "border-[#2f7866] bg-[#f5fbf8]" : "border-[#dbe2ea] bg-white hover:border-[#b8c8d6] hover:bg-[#fbfcfd]",
+                )}
+              >
+                <PetAvatar name={pet.name} size="sm" />
+                <div className="min-w-0">
+                  <p className="break-keep text-[16px] font-medium leading-6 text-[#111827] [overflow-wrap:anywhere]">{pet.name}</p>
+                  <p className="mt-0.5 break-keep text-[13px] font-normal leading-5 text-[#475569] [overflow-wrap:anywhere]">{buildPetSummary(pet)}</p>
+                </div>
+                {selected ? (
+                  <span className="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2f7866] text-white">
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div className={cn("grid grid-cols-1 gap-3 border-t border-[#edf2f7] pt-3 lg:grid-cols-[108px_220px_minmax(0,1fr)]", hasMultiplePets ? "mt-3" : "mt-2")}>
+        <PetAvatar name={selectedPet.name} size="lg" initial={profileInitial} />
+
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+             <p className="break-keep text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827] [overflow-wrap:anywhere]">{selectedPet.name}</p>
+            {selectedPet.breed ? (
+              <>
+                <span className="h-5 w-px shrink-0 bg-[#cbd5e1]" aria-hidden="true" />
+                <p className="break-keep text-[16px] font-normal leading-6 text-[#475569] [overflow-wrap:anywhere]">{selectedPet.breed}</p>
+              </>
+            ) : null}
+          </div>
+          <div className="mt-4 grid grid-cols-[64px_minmax(0,1fr)] gap-x-2 gap-y-1">
+            <span className="text-[14px] font-medium leading-5 text-[#64748b]">몸무게</span>
+            <span className="text-[16px] font-normal leading-6 text-[#111827]">{weightLabel}</span>
+            <span className="text-[14px] font-medium leading-5 text-[#64748b]">생년월일</span>
+            <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-[16px] font-normal leading-6 text-[#111827]">
+              <span>{birthdayLabel}</span>
+              {fullAgeLabel ? (
+                <>
+                  <span className="h-4 w-px shrink-0 bg-[#cbd5e1]" aria-hidden="true" />
+                  <span className="shrink-0">{fullAgeLabel}</span>
+                </>
+              ) : null}
+            </span>
+            <span className="text-[14px] font-medium leading-5 text-[#64748b]">중성화</span>
+            <span className="text-[16px] font-normal leading-6 text-[#111827]">미입력</span>
+          </div>
+        </div>
+
+        <div className="min-w-0 border-t border-[#e5e7eb] pt-3 lg:border-t-0 lg:border-l lg:pl-4 lg:pt-0">
+          <PetInfoMemo
+            value={petMemo}
+            placeholder="주의사항, 성향, 미용 스타일, 보호자 요청을 메모로 남겨주세요."
+            onCommit={onSavePetNotes}
+          />
+        </div>
+
+      </div>
+
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <PetGroupSelector value={selectedPet.pricing_group || "미입력"} options={petGroupOptions} onChange={onUpdatePetGroup} />
+        <BiteLevelSelector value={normalizePetBiteLevel(selectedPet.bite_level)} onChange={onUpdatePetBiteLevel} />
+      </div>
+      <div className="mt-3">
+        <CustomerQuickFacts detail={detail} />
+      </div>
+    </section>
+  );
+}
+
+function PetAvatar({ name, size, initial }: { name: string; size: "sm" | "lg"; initial?: string }) {
+  const letter = initial || name.slice(0, 1) || "우";
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-full bg-[#eef7f4] text-[#2f7866]",
+        size === "lg" ? "h-[108px] w-[108px] text-[40px] font-semibold leading-[48px]" : "h-11 w-11 text-[20px] font-semibold leading-7",
+      )}
+    >
+      {letter}
+    </div>
+  );
+}
+
+function PetInfoMemo({ value, placeholder, onCommit }: { value: string; placeholder: string; onCommit: (value: string) => void | Promise<void> }) {
+  return (
+    <div className="min-w-0 pt-0.5">
+      <p className="mb-1 text-[14px] font-medium leading-5 text-[#111827]">메모</p>
+      <InlineEditableText
+        value={value}
+        placeholder={placeholder}
+        ariaLabel="반려동물 메모 수정"
+        multiline
+        className="min-h-[96px] w-full rounded-[8px] bg-[#fbfcfd] px-3 py-2 text-[16px] font-normal leading-6 text-[#334155]"
+        inputClassName="min-h-[96px] text-[16px] font-normal leading-6"
+        onCommit={onCommit}
+      />
+    </div>
+  );
+}
+
+function buildPetSummary(pet: Pick<NonNullable<CustomerDetailModel["selectedPet"]>, "breed" | "age" | "weight">) {
+  const parts = [
+    pet.breed || "품종 미입력",
+    typeof pet.age === "number" ? `${pet.age}살` : "",
+    typeof pet.weight === "number" ? `${pet.weight}kg` : "",
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function calculateFullAgeLabel(birthday: string) {
+  const birthDate = new Date(birthday.includes("T") ? birthday : `${birthday}T00:00:00`);
+  if (Number.isNaN(birthDate.getTime())) return "";
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const hadBirthdayThisYear = today.getMonth() > birthDate.getMonth() || (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+  if (!hadBirthdayThisYear) age -= 1;
+  return `만 ${Math.max(age, 0)}세`;
+}
+
+function PetListCard({ detail, selectedPetId, onSelectPet, onAdd }: { detail: CustomerDetailModel; selectedPetId: string | null; onSelectPet: (petId: string) => void; onAdd: () => void }) {
+  return (
+    <div className="mt-4">
+      <SectionCard title="반려동물 목록" action={<SmallButton label="+ 추가" onClick={onAdd} />}>
+        {detail.pets.length > 0 ? (
+          <div className="space-y-2 p-3">
+            {detail.pets.map((pet) => (
+              <button
+                key={pet.id}
+                type="button"
+                onClick={() => onSelectPet(pet.id)}
+                className={cn(
+                  "w-full rounded-[8px] border px-3 py-3 text-left transition",
+                  selectedPetId === pet.id ? "border-[#8bbcaf] bg-[#f5faf8]" : "border-[#edf2f7] bg-white hover:border-[#dbe2ea] hover:bg-[#fbfcfd]",
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eef7f4] text-[18px] font-semibold text-[#2f7866]">{pet.name.slice(0, 1)}</div>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-baseline gap-3">
+                      <p className="shrink-0 text-[16px] font-medium leading-6 text-[#111827]">{pet.name}</p>
+                      <p className="min-w-0 break-keep text-[14px] font-normal leading-5 text-[#64748b] [overflow-wrap:anywhere]">
+                        {[pet.breed, typeof pet.weight === "number" ? `${pet.weight}kg` : "", pet.age ? `${pet.age}세` : ""].filter(Boolean).join(" · ") || "프로필 미입력"}
+                      </p>
+                    </div>
+                    <p className="mt-1 truncate text-[16px] text-[#64748b]">최근 미용 {pet.recentGroomingLabel}</p>
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+                      <BiteLevelMiniScale value={normalizePetBiteLevel(pet.bite_level)} />
+                      {splitNotes(pet.notes)[0] ? <span className="truncate text-[16px] text-[#8a5b11]">{splitNotes(pet.notes)[0]}</span> : null}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="반려동물을 등록해 주세요" description="보호자 아래에 반려동물을 추가할 수 있습니다." compact />
+        )}
+      </SectionCard>
+    </div>
+  );
+}
+
+function BiteLevelSelector({ value, onChange }: { value: PetBiteLevel; onChange: (value: PetBiteLevel) => void }) {
+  return (
+    <div className="w-full border-t border-[#edf2f7] pt-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[14px] font-medium leading-5 text-[#111827]">입질 정도</p>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {petBiteLevelOptions.map((option) => {
+          const selected = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "flex h-11 items-center justify-center rounded-[8px] border px-2 text-center text-[16px] font-medium leading-6 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+                selected ? "border-[#2f7866] bg-[#f7fbf9] text-[#111827]" : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#b8c8d6]",
+              )}
+            >
+              <span className="block leading-5">{option.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PetGroupSelector({ value, options, onChange }: { value: string; options: PetGroupOption[]; onChange: (value: string) => void | Promise<void> }) {
+  const selectOptions = options.some((option) => option.value === value)
+    ? options
+    : value
+      ? [{ value, label: value }, ...options]
+      : options;
+
+  return (
+    <label className="block w-full border-t border-[#edf2f7] pt-3">
+      <span className="mb-2 block text-[14px] font-medium leading-5 text-[#64748b]">가격 그룹</span>
+      <select
+        value={value || selectOptions[0]?.value || ""}
+        onChange={(event) => void onChange(event.target.value)}
+        className="h-11 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] font-medium leading-6 text-[#111827] outline-none transition focus-visible:border-[#2563eb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]"
+      >
+        {selectOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function getBiteLevelIndex(value: PetBiteLevel) {
+  const indexByLevel: Record<PetBiteLevel, number> = {
+    none: 0,
+    mild: 1,
+    watch: 2,
+    bite: 3,
+    strong: 4,
+  };
+  return indexByLevel[value];
+}
+
+function getBiteLevelColorClass(index: number) {
+  if (index <= 1) return "bg-[#2f7866]";
+  if (index === 2) return "bg-[#d29a2f]";
+  if (index === 3) return "bg-[#c66a43]";
+  return "bg-[#a04455]";
+}
+
+function BiteLevelBar({ value, active = true }: { value: PetBiteLevel; active?: boolean }) {
+  const activeIndex = getBiteLevelIndex(value);
+  const activeColor = getBiteLevelColorClass(activeIndex);
+  return (
+    <div className="grid min-w-0 grid-cols-5 gap-1.5" aria-label={`입질 ${getPetBiteLevelLabel(value)}`}>
+      {Array.from({ length: 5 }, (_, index) => (
+        <span key={index} className={cn("h-2.5 rounded-full bg-[#e5eaf0]", active && index === activeIndex && activeColor)} />
+      ))}
+    </div>
+  );
+}
+
+function BiteLevelMiniScale({ value }: { value: PetBiteLevel }) {
+  return (
+    <div className="flex min-w-[104px] items-center gap-1.5">
+      <span className="shrink-0 text-[16px] text-[#64748b]">입질</span>
+      <div className="min-w-0 flex-1">
+        <BiteLevelBar value={value} />
+      </div>
+    </div>
+  );
+}
+
+type GuardianNotificationSettingKey = keyof GuardianNotificationSettings;
+
+function NotificationSettingsCard({
+  detail,
+  onEdit,
+  onToggle,
+}: {
+  detail: CustomerDetailModel;
+  onEdit: () => void;
+  onToggle: (key: GuardianNotificationSettingKey, checked: boolean) => void;
+}) {
+  const settings = detail.guardian.notification_settings;
+  const enabled = settings.enabled !== false;
+  const notificationGroups: Array<{
+    title: string;
+    items: Array<{ label: string; key: GuardianNotificationSettingKey; enabled: boolean }>;
+  }> = [
+    {
+      title: "예약",
+      items: [
+        { label: "확정", key: "booking_confirmed_enabled", enabled: settings.booking_confirmed_enabled !== false },
+        { label: "취소", key: "booking_cancelled_enabled", enabled: settings.booking_cancelled_enabled !== false },
+        { label: "변경", key: "booking_rescheduled_enabled", enabled: settings.booking_rescheduled_enabled !== false },
+      ],
+    },
+    {
+      title: "미용",
+      items: [
+        { label: "시작", key: "grooming_started_enabled", enabled: settings.grooming_started_enabled !== false },
+        { label: "픽업", key: "grooming_almost_done_enabled", enabled: settings.grooming_almost_done_enabled !== false },
+        { label: "완료", key: "grooming_completed_enabled", enabled: settings.grooming_completed_enabled !== false },
+      ],
+    },
+    {
+      title: "관리",
+      items: [
+        { label: "방문 안내", key: "appointment_reminder_10m_enabled", enabled: settings.appointment_reminder_10m_enabled !== false },
+        { label: "재방문", key: "revisit_enabled", enabled: settings.revisit_enabled !== false },
+        { label: "생일 축하", key: "birthday_greeting_enabled", enabled: settings.birthday_greeting_enabled !== false },
+      ],
+    },
+  ];
+  const allItems = notificationGroups.flatMap((group) => group.items);
+  const enabledCount = enabled ? allItems.filter((item) => item.enabled).length : 0;
+
+  return (
+    <div className="mt-4">
+      <SectionCard title="알림 설정" action={<SmallButton label="관리" onClick={onEdit} />}>
+        <div className="space-y-3 px-3.5 py-3">
+          <button
+            type="button"
+            onClick={onEdit}
+             className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 text-left hover:border-[#b8c8d6]"
+          >
+            <span className="min-w-0">
+              <span className="block text-[14px] font-medium leading-5 text-[#64748b]">보호자 알림</span>
+              <span className="mt-0.5 block break-keep text-[16px] font-normal leading-6 text-[#111827] [overflow-wrap:anywhere]">{enabled ? `${enabledCount}개 항목 수신 중` : "전체 알림 중지"}</span>
+            </span>
+            <ToggleState enabled={enabled} />
+          </button>
+
+          {notificationGroups.map((group) => (
+            <div key={group.title} className="rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
+              <p className="text-[14px] font-medium leading-5 text-[#64748b]">{group.title}</p>
+              <div className="mt-2 grid grid-cols-3 gap-1.5">
+                {group.items.map((item) => (
+                  <NotificationSettingChip
+                    key={item.key}
+                    label={item.label}
+                    enabled={enabled && item.enabled}
+                    onClick={() => onToggle(item.key, !(settings[item.key] !== false))}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
+function NotificationSettingChip({ label, enabled, onClick }: { label: string; enabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={enabled}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-[8px] border px-2 text-[16px] font-medium leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+        enabled
+          ? "border-[#cfe4dc] bg-[#f4faf7] text-[#2f7866] hover:border-[#9dc8ba]"
+          : "border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8] hover:border-[#cbd5e1] hover:text-[#64748b]",
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function CustomerQuickFacts({ detail }: { detail: CustomerDetailModel }) {
+  const appointment = detail.upcomingAppointment;
+  const nextAppointmentLabel = appointment ? formatDateTime(appointment.appointment_date, appointment.appointment_time) : "예정 없음";
+  const items: Array<readonly [string, string]> = [
+    ["최근 방문", detail.recentVisitLabel],
+    ["다가오는 예약", nextAppointmentLabel],
+  ];
+  items.push(["누적 예약", `${detail.totalAppointments}건`]);
+
+  return (
+    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[#edf2f7] pt-3">
+      {items.map(([label, value]) => (
+        <div key={label} className="min-w-0 rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] px-3 py-2">
+          <p className="text-[14px] font-medium leading-5 text-[#64748b]">{label}</p>
+          <p className="mt-1 break-keep text-[16px] font-normal leading-6 text-[#111827] [overflow-wrap:anywhere]">{value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CustomerBenefitsCard({ detail }: { detail: CustomerDetailModel }) {
+  if (detail.discountCoupons.length === 0) return null;
+
+  const visitType = getCustomerDetailVisitType(detail);
+  const usedCouponIds = new Set(
+    (detail.selectedPet?.appointments ?? detail.appointments).flatMap((appointment) => appointment.discount_coupon_ids ?? []),
+  );
+  const benefitItems = filterDiscountCouponsForVisitType(detail.discountCoupons, visitType, currentDateInTimeZone())
+    .filter((coupon) => !coupon.per_customer_limit || !usedCouponIds.has(coupon.id))
+    .map((coupon) => ({
+      id: coupon.id,
+      name: coupon.owner_label || coupon.name,
+      value: formatDiscountCouponValue(coupon),
+      targetLabel: coupon.service_scope === "specific" ? "서비스 지정" : "전체 서비스",
+      audienceLabel: getCustomerBenefitAudienceLabel(coupon.audience),
+    }));
+
+  return (
+    <SectionCard
+      title="적용 가능한 혜택"
+      action={
+        <span className="rounded-full bg-[#eef7f4] px-2.5 py-1 text-[13px] font-medium leading-5 text-[#2f7866]">
+          {visitType === "revisit" ? "재방문" : "첫 방문"}
+        </span>
+      }
+    >
+      {benefitItems.length > 0 ? (
+        <div className="grid gap-2 p-3 md:grid-cols-2">
+          {benefitItems.map((item) => (
+            <div key={item.id} className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2.5">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-keep text-[16px] font-normal leading-6 text-[#111827] [overflow-wrap:anywhere]">{item.name}</p>
+                  <p className="mt-0.5 text-[13px] font-normal leading-5 text-[#64748b]">
+                    {item.audienceLabel} · {item.targetLabel}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[16px] font-medium leading-6 text-[#2f7866]">{item.value}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="현재 적용 가능한 혜택이 없습니다" description="혜택 조건이나 1회 제한 여부를 확인해 주세요." compact />
+      )}
+    </SectionCard>
+  );
+}
+
+function getCustomerDetailVisitType(detail: CustomerDetailModel): Exclude<CustomerVisitType, "unknown"> {
+  const appointments = detail.selectedPet?.appointments ?? detail.appointments;
+  const groomingRecords = detail.selectedPet?.groomingRecords ?? detail.groomingRecords;
+  const hasVisitHistory =
+    groomingRecords.length > 0 ||
+    appointments.some((appointment) => appointment.status === "completed");
+  return hasVisitHistory ? "revisit" : "first_visit";
+}
+
+function getCustomerBenefitAudienceLabel(
+  audience: "all" | "first_visit" | "revisit",
+) {
+  if (audience === "first_visit") return "첫 방문 고객";
+  if (audience === "revisit") return "재방문 고객";
+  return "전체 고객";
+}
+
+function NotesCard({ notes, rawNotes, onCommit }: { notes: string[]; rawNotes: string; onCommit: (notes: string) => void | Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(rawNotes);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!editing) setDraft(rawNotes);
+  }, [editing, rawNotes]);
+
+  async function commitNotes() {
+    const nextNotes = draft.trim();
+    if (nextNotes === rawNotes.trim()) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await onCommit(nextNotes);
+      setEditing(false);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "메모 저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className={cn("rounded-[8px] border bg-white", notes.length > 0 ? "border-[#e8c989]" : "border-[#dbe2ea]")}>
+      <div className={cn("flex items-center justify-between gap-3 border-b px-3.5 py-2.5", notes.length > 0 ? "border-[#f0ddb4] bg-[#fffaf0]" : "border-[#edf2f7]")}>
+        <h3 className="text-[18px] font-semibold leading-[26px] text-[#111827]">주의사항 / 미용 메모</h3>
+        <button type="button" onClick={() => setEditing(true)} className="min-h-11 text-[16px] font-medium leading-6 text-[#2f7866] hover:underline">
+          {notes.length > 0 ? `${notes.length}건` : "작성"}
+        </button>
+      </div>
+      {editing ? (
+        <div className="space-y-2 px-3.5 py-3">
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => void commitNotes()}
+            autoFocus
+            placeholder="주의사항이나 미용 메모를 입력해 주세요."
+            className="min-h-[128px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none focus:border-[#2f7866]"
+          />
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[16px] text-[#64748b]">{saving ? "저장 중" : "다른 곳을 클릭하면 저장됩니다."}</p>
+            {error ? <p className="text-[16px] text-[#a04455]">{error}</p> : null}
+          </div>
+        </div>
+      ) : notes.length > 0 ? (
+        <ul className="space-y-1.5 px-3.5 py-3">
+          {notes.slice(0, 3).map((note) => (
+            <li key={note} className="flex cursor-text gap-2 text-[16px] leading-6 text-[#334155]" onClick={() => setEditing(true)}>
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#b98121]" />
+              <span>{note}</span>
+            </li>
+          ))}
+          {notes.length > 3 ? <li className="text-[16px] leading-6 text-[#64748b]">외 {notes.length - 3}건은 반려동물 수정에서 확인</li> : null}
+        </ul>
+      ) : (
+        <button type="button" onClick={() => setEditing(true)} className="w-full">
+          <EmptyState title="등록된 메모가 없습니다" description="여기를 클릭해서 주의사항이나 미용 메모를 바로 남길 수 있습니다." compact />
+        </button>
+      )}
+    </section>
+  );
+}
+
+function UpcomingAppointmentCard({ detail, onViewAll }: { detail: CustomerDetailModel; onViewAll: () => void }) {
+  const appointment = detail.upcomingAppointment;
+  if (!appointment) {
+    return (
+      <SectionCard title="다가오는 예약">
+        <EmptyState title="예정된 예약이 없습니다" description="예약 추가 버튼으로 새 예약을 등록할 수 있습니다." compact />
+      </SectionCard>
+    );
+  }
+  const meta = getAppointmentStatusMeta(appointment.status);
+  const customerRequest = appointment.memo?.trim() ?? "";
+  return (
+    <SectionCard title="다가오는 예약" action={<SmallButton label="전체보기" onClick={onViewAll} />}>
+      <div className="px-3.5 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[18px] font-semibold leading-[26px] text-[#111827]">{formatDateTime(appointment.appointment_date, appointment.appointment_time)}</p>
+            <p className="mt-1 text-[16px] text-[#334155]">{getServiceName(detail.servicesById, appointment.service_id)}</p>
+          </div>
+          <Badge className={meta.className}>{meta.label}</Badge>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-3 text-[16px] text-[#64748b]">
+          <span>예상 소요시간: {formatDuration(getServiceDuration(detail.servicesById, appointment.service_id))}</span>
+          <span>담당자: 미지정</span>
+        </div>
+        <AppointmentActualTimes appointment={appointment} className="mt-2" />
+        {customerRequest ? (
+          <div className="mt-2 line-clamp-2 rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 text-[16px] leading-6 text-[#334155]">
+            <span className="text-[#64748b]">고객 요청사항</span>
+            <span className="mx-2 text-[#cbd5e1]">|</span>
+            {customerRequest}
+          </div>
+        ) : null}
+      </div>
+    </SectionCard>
+  );
+}
+
+function RecentAppointmentsCard({ detail, onViewAll }: { detail: CustomerDetailModel; onViewAll: () => void }) {
+  const visibleAppointments = detail.recentAppointments.slice(0, 4);
+  return (
+    <SectionCard title="최근 예약" action={<SmallButton label="전체보기" onClick={onViewAll} />}>
+      {detail.recentAppointments.length > 0 ? (
+        <div className="divide-y divide-[#edf2f7]">
+          {visibleAppointments.map((appointment) => {
+            const meta = getAppointmentStatusMeta(appointment.status);
+            const customerRequest = appointment.memo?.trim() ?? "";
+            return (
+              <div key={appointment.id} className="px-3.5 py-2 text-[16px]">
+                <div className="grid grid-cols-[1fr_110px_auto] items-center gap-3">
+                  <span className="tabular-nums text-[#334155]">{formatDateTime(appointment.appointment_date, appointment.appointment_time)}</span>
+                  <span className="truncate text-[#334155]">{getServiceName(detail.servicesById, appointment.service_id)}</span>
+                  <Badge className={meta.className}>{meta.label}</Badge>
+                </div>
+                {customerRequest ? (
+                  <p className="mt-1 line-clamp-2 text-[16px] leading-6 text-[#64748b]">
+                    고객 요청사항 <span className="mx-1 text-[#cbd5e1]">|</span> {customerRequest}
+                  </p>
+                ) : null}
+                <AppointmentActualTimes appointment={appointment} className="mt-1" compact />
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState title="최근 예약 내역이 없습니다" description="예약이 등록되면 여기에 표시됩니다." compact />
+      )}
+    </SectionCard>
+  );
+}
+
+function GroomingRecordsCard({
+  detail,
+  photoSummaries,
+  onOpenRecord,
+}: {
+  detail: CustomerDetailModel;
+  photoSummaries: Record<string, GroomingPhotoSummary>;
+  onOpenRecord: (recordId: string) => void;
+}) {
+  return (
+    <SectionCard title="미용 기록">
+      {detail.recentGroomingRecords.length > 0 ? (
+        <div className="overflow-hidden">
+          <div className="hidden grid-cols-[60px_64px_72px_minmax(64px,1fr)_minmax(64px,0.9fr)_112px_60px_64px] items-center border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-center text-[14px] font-medium leading-5 text-[#64748b] lg:grid xl:grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px]">
+            <span>날짜</span>
+            <span>반려동물</span>
+            <span>서비스</span>
+            <span>고객 요청 메시지</span>
+            <span>메모</span>
+            <span>사진</span>
+            <span>금액</span>
+            <span>실제 진행</span>
+          </div>
+          {detail.recentGroomingRecords.map((record) => {
+            const photoSummary = photoSummaries[record.id] ?? { before: null, after: null };
+            const linkedAppointment = getLinkedAppointmentForGroomingRecord(detail, record);
+            const petName = detail.pets.find((pet) => pet.id === record.pet_id)?.name ?? "-";
+            return (
+              <Fragment key={record.id}>
+              <button
+                type="button"
+                onClick={() => onOpenRecord(record.id)}
+                className="hidden min-h-[88px] w-full grid-cols-[60px_64px_72px_minmax(64px,1fr)_minmax(64px,0.9fr)_112px_60px_64px] items-center border-b border-[#edf2f7] px-4 py-3 text-center text-[14px] font-normal leading-5 transition last:border-b-0 hover:bg-[#fbfcfd] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb] lg:grid xl:grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px]"
+              >
+                <span className="min-w-0 break-keep text-[#334155] [overflow-wrap:anywhere] xl:truncate">{formatDate(record.groomed_at)}</span>
+                <span className="min-w-0 break-keep text-[#334155] [overflow-wrap:anywhere] xl:truncate">{petName}</span>
+                <span className="min-w-0 break-keep text-[#334155] [overflow-wrap:anywhere] xl:truncate">{getServiceName(detail.servicesById, record.service_id)}</span>
+                <span className="min-w-0 break-keep text-[#334155] [overflow-wrap:anywhere] xl:truncate">{linkedAppointment?.memo || "-"}</span>
+                <span className="min-w-0 break-keep text-[#64748b] [overflow-wrap:anywhere] xl:truncate">{record.memo || "-"}</span>
+                <GroomingPhotoCell summary={photoSummary} />
+                <span className="min-w-0 break-keep tabular-nums text-[#334155] [overflow-wrap:anywhere]">{formatMoney(record.price_paid)}</span>
+                <ActualGroomingTimeCell
+                  appointment={linkedAppointment}
+                  fallbackDuration={formatDuration(record.actual_duration_minutes ?? getServiceDuration(detail.servicesById, record.service_id))}
+                />
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenRecord(record.id)}
+                data-grooming-record-mobile-card="true"
+                className="grid min-h-11 w-full gap-3 border-b border-[#edf2f7] px-4 py-3 text-left text-[16px] transition last:border-b-0 hover:bg-[#fbfcfd] focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#2563eb] lg:hidden"
+              >
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <span className="truncate tabular-nums font-medium text-[#334155]">{formatDate(record.groomed_at)} · {petName}</span>
+                  <span className="shrink-0 tabular-nums font-medium text-[#334155]">{formatMoney(record.price_paid)}</span>
+                </div>
+                <div className="grid gap-2 text-[14px] leading-5 text-[#475569]">
+                  <span className="min-w-0"><span className="mr-2 text-[#64748b]">서비스</span>{getServiceName(detail.servicesById, record.service_id)}</span>
+                  <span className="min-w-0"><span className="mr-2 text-[#64748b]">고객 요청</span>{linkedAppointment?.memo || "-"}</span>
+                  <span className="min-w-0"><span className="mr-2 text-[#64748b]">메모</span>{record.memo || "-"}</span>
+                </div>
+                <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-t border-[#edf2f7] pt-3">
+                  <span className="text-[14px] text-[#64748b]">사진</span>
+                  <GroomingPhotoCell summary={photoSummary} />
+                </div>
+                <div className="flex min-w-0 items-center justify-between gap-3 text-[14px] text-[#64748b]">
+                  <span>실제 진행</span>
+                  <ActualGroomingTimeCell
+                    appointment={linkedAppointment}
+                    fallbackDuration={formatDuration(record.actual_duration_minutes ?? getServiceDuration(detail.servicesById, record.service_id))}
+                  />
+                </div>
+              </button>
+              </Fragment>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState title="미용 기록이 없습니다" description="완료된 미용 기록이 생기면 여기에 표시됩니다." compact />
+      )}
+    </SectionCard>
+  );
+}
+
+function AppointmentActualTimes({
+  appointment,
+  className,
+  compact = false,
+}: {
+  appointment: CustomerDetailModel["appointments"][number];
+  className?: string;
+  compact?: boolean;
+}) {
+  if (!appointment.actual_started_at && !appointment.actual_completed_at) return null;
+
+  const startedAt = formatTimestampTime(appointment.actual_started_at);
+  const completedAt = formatTimestampTime(appointment.actual_completed_at);
+  const content = `실제 시작 ${startedAt}${appointment.actual_completed_at ? ` · 실제 완료 ${completedAt}` : ""}`;
+
+  return (
+    <p className={cn(className, compact ? "text-[16px]" : "rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[16px]", "tabular-nums text-[#475569]")}>
+      {content}
+    </p>
+  );
+}
+
+function ActualGroomingTimeCell({
+  appointment,
+  fallbackDuration,
+}: {
+  appointment: CustomerDetailModel["appointments"][number] | null;
+  fallbackDuration: string;
+}) {
+  const startedAt = formatTimestampTime(appointment?.actual_started_at);
+  const completedAt = formatTimestampTime(appointment?.actual_completed_at);
+
+  if (startedAt === "-" && completedAt === "-") {
+    return <span className="block text-center text-[#64748b]">{fallbackDuration}</span>;
+  }
+
+  return (
+    <span className="block space-y-0.5 text-center text-[16px] leading-[1.35] text-[#64748b]">
+      <span className="block tabular-nums">시작 {startedAt}</span>
+      <span className="block tabular-nums">완료 {completedAt}</span>
+    </span>
+  );
+}
+
+function getRecordedGroomingDurationMinutes(
+  recordDuration: number | null | undefined,
+  appointment: CustomerDetailModel["appointments"][number] | null,
+) {
+  if (typeof recordDuration === "number") return recordDuration;
+  if (!appointment?.actual_started_at || !appointment.actual_completed_at) return null;
+  const startedAt = new Date(appointment.actual_started_at).getTime();
+  const completedAt = new Date(appointment.actual_completed_at).getTime();
+  if (!Number.isFinite(startedAt) || !Number.isFinite(completedAt) || completedAt < startedAt) return null;
+  return Math.round((completedAt - startedAt) / 60_000);
+}
+
+function GroomingPhotoCell({ summary }: { summary: GroomingPhotoSummary }) {
+  return (
+    <div className="flex min-w-0 items-center justify-center gap-2 text-center">
+      <PhotoPreviewSlot label="전" preview={summary.before} />
+      <PhotoPreviewSlot label="후" preview={summary.after} />
+    </div>
+  );
+}
+
+function PhotoPreviewSlot({ label, preview }: { label: string; preview: GroomingPhotoPreview | null }) {
+  return (
+    <div className={cn("relative h-12 w-12 overflow-hidden rounded-[8px] border bg-[#f8fafc]", preview ? "border-[#c8ded8]" : "border-dashed border-[#dbe2ea]")}>
+      {preview?.url ? (
+        <img src={preview.url} alt={`미용 ${label} 사진`} className="h-full w-full object-cover" />
+      ) : (
+        <div className="h-full w-full bg-[#f8fafc]" />
+      )}
+      <span className="absolute left-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-[5px] bg-white/90 px-1 text-[12px] font-semibold text-[#334155] shadow-[0_1px_4px_rgba(15,23,42,0.12)]">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function GroomingRecordDetailPanel({
+  detail,
+  record,
+  photoSummary,
+  onClose,
+  onExpandPhoto,
+}: {
+  detail: CustomerDetailModel;
+  record: CustomerDetailModel["groomingRecords"][number];
+  photoSummary: GroomingPhotoSummary;
+  onClose: () => void;
+  onExpandPhoto: (preview: GroomingPhotoPreview, label: string) => void;
+}) {
+  const linkedAppointment = getLinkedAppointmentForGroomingRecord(detail, record);
+  const petName = detail.pets.find((pet) => pet.id === record.pet_id)?.name ?? "-";
+  const serviceName = getServiceName(detail.servicesById, record.service_id);
+  const recordedDurationMinutes = getRecordedGroomingDurationMinutes(record.actual_duration_minutes, linkedAppointment);
+  const duration = recordedDurationMinutes !== null
+    ? formatDuration(recordedDurationMinutes)
+    : linkedAppointment
+      ? formatDuration(getServiceDuration(detail.servicesById, linkedAppointment.service_id))
+      : formatDuration(getServiceDuration(detail.servicesById, record.service_id));
+  const nextRecommendedVisit = record.next_recommended_visit_date
+    ? formatDate(`${record.next_recommended_visit_date}T00:00:00+09:00`)
+    : "기록 없음";
+
+  return (
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/24 px-6 py-6" onClick={onClose}>
+      <section
+        className="flex max-h-full w-full max-w-[980px] flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.22)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[14px] text-[#607080]">{petName} · {serviceName}</p>
+            <h3 className="mt-1 break-keep text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827] [overflow-wrap:anywhere]">{formatDate(record.groomed_at)} 미용 기록</h3>
+            <p className="mt-1 text-[14px] text-[#64748b]">전송용 사진은 60일 후 자동 정리되며, 미용기록에 저장한 사진은 직접 삭제하거나 계정을 삭제할 때까지 보관됩니다.</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]" aria-label="닫기">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="min-h-0 overflow-y-auto p-5">
+          <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+            <section className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <GroomingPhotoDetailCard label="미용 전" preview={photoSummary.before} onExpand={onExpandPhoto} />
+                <GroomingPhotoDetailCard label="미용 후" preview={photoSummary.after} onExpand={onExpandPhoto} />
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 rounded-[8px] border border-[#dbe2ea] bg-white p-3 xl:grid-cols-4">
+                <DetailMetric label="서비스" value={serviceName} />
+                <DetailMetric label="금액" value={formatMoney(record.price_paid)} />
+                <DetailMetric label="실제 소요시간" value={duration} />
+                <DetailMetric label="다음 권장 방문일" value={nextRecommendedVisit} />
+              </div>
+              <LongTextBlock title="고객 요청 메시지" value={linkedAppointment?.memo ?? ""} emptyText="예약에 남겨진 고객 요청 메시지가 없습니다." />
+              <LongTextBlock title="스타일 메모" value={record.style_notes} emptyText="스타일 메모가 없습니다." />
+              <LongTextBlock title="고객 안내·특이사항" value={record.memo} emptyText="고객에게 안내한 특이사항이 없습니다." />
+              <LongTextBlock title="매장 내부 메모" value={record.internal_memo ?? ""} emptyText="매장 내부 메모가 없습니다." />
+              {record.care_report_data && record.care_report_owner_confirmed_at ? (
+                <CustomerCareReportHistoryCard
+                  report={record.care_report_data}
+                  confirmedAt={record.care_report_owner_confirmed_at}
+                  sentAt={record.care_report_sent_at}
+                />
+              ) : null}
+              {linkedAppointment ? <AppointmentActualTimes appointment={linkedAppointment} /> : null}
+            </section>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function GroomingPhotoDetailCard({
+  label,
+  preview,
+  onExpand,
+}: {
+  label: string;
+  preview: GroomingPhotoPreview | null;
+  onExpand: (preview: GroomingPhotoPreview, label: string) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+      <div className="flex items-center justify-between border-b border-[#edf2f7] px-3 py-2">
+        <span className="text-[14px] font-medium text-[#334155]">{label}</span>
+        {preview?.url ? (
+          <button type="button" onClick={() => onExpand(preview, label)} className="text-[14px] text-[#2f7866] hover:underline">
+            확대
+          </button>
+        ) : null}
+      </div>
+      {preview?.url ? (
+        <button type="button" onClick={() => onExpand(preview, label)} className="block aspect-[4/3] w-full overflow-hidden bg-[#f8fafc]">
+          <img src={preview.url} alt={`${label} 사진`} className="h-full w-full object-cover transition duration-200 hover:scale-[1.02]" />
+        </button>
+      ) : (
+        <div className="flex aspect-[4/3] items-center justify-center bg-[#f8fafc] text-[14px] text-[#94a3b8]">사진 없음</div>
+      )}
+      <p className="px-3 py-2 text-[13px] text-[#64748b]">{preview ? formatPhotoRetention(preview.asset) : "사진이 등록되지 않았습니다."}</p>
+    </div>
+  );
+}
+
+function DetailMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[13px] text-[#64748b]">{label}</p>
+      <p className="mt-1 truncate text-[16px] font-medium text-[#111827]">{value}</p>
+    </div>
+  );
+}
+
+function LongTextBlock({ title, value, emptyText }: { title: string; value: string | null | undefined; emptyText: string }) {
+  const content = value?.trim();
+  return (
+    <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-3">
+      <h4 className="text-[14px] font-medium leading-5 text-[#111827]">{title}</h4>
+      {content ? (
+        <p className="mt-2 whitespace-pre-wrap break-words text-[16px] leading-7 text-[#334155]">{content}</p>
+      ) : (
+        <p className="mt-2 text-[16px] text-[#94a3b8]">{emptyText}</p>
+      )}
+    </section>
+  );
+}
+
+function PhotoLightbox({ photo, onClose }: { photo: { preview: GroomingPhotoPreview; label: string }; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-6" onClick={onClose}>
+      <section className="max-h-full w-full max-w-[1080px] overflow-hidden rounded-[10px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.35)]" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-[#edf2f7] px-4 py-3">
+          <div>
+            <h3 className="text-[18px] font-semibold leading-[26px] text-[#111827]">{photo.label} 사진</h3>
+            <p className="text-[13px] font-normal leading-5 text-[#64748b]">{formatPhotoRetention(photo.preview.asset)}</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]" aria-label="닫기">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex max-h-[calc(100vh-150px)] items-center justify-center bg-[#0f172a]">
+          <img src={photo.preview.url} alt={`${photo.label} 사진 확대`} className="max-h-[calc(100vh-150px)] w-auto max-w-full object-contain" />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function NotificationHistoryCard({ detail, onViewAll }: { detail: CustomerDetailModel; onViewAll: () => void }) {
+  const visibleNotifications = detail.recentNotifications.slice(0, 4);
+  return (
+    <SectionCard title="알림/소통 이력" action={<SmallButton label="전체보기" onClick={onViewAll} />}>
+      {detail.recentNotifications.length > 0 ? (
+        <div className="divide-y divide-[#edf2f7]">
+          {visibleNotifications.map((notification) => {
+            const meta = getNotificationStatusMeta(notification.status);
+            return (
+              <div key={notification.id} className="px-3.5 py-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[16px] font-medium text-[#111827]">{notification.template_key ?? notification.type}</p>
+                    <p className="text-[16px] text-[#64748b]">
+                      {formatDate(notification.sent_at ?? notification.created_at)} · {notification.provider ?? notification.channel}
+                    </p>
+                    {notification.fail_reason ? <p className="mt-0.5 line-clamp-1 text-[16px] text-[#a04455]">{notification.fail_reason}</p> : null}
+                  </div>
+                  <Badge className={meta.className}>{meta.label}</Badge>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState title="알림 이력이 없습니다" description="발송된 알림이 생기면 여기에 표시됩니다." compact />
+      )}
+    </SectionCard>
+  );
+}
+
+function ActionPanel({
+  action,
+  detail,
+  onUpdateGuardian,
+  onSaveGuardianProfile,
+  onUpdatePet,
+  onAddPet,
+  onToggleGuardianNotifications,
+  onClose,
+}: {
+  action: Exclude<DetailAction, null>;
+  detail: CustomerDetailModel;
+  onUpdateGuardian: CustomerDetailPanelProps["onUpdateGuardian"];
+  onSaveGuardianProfile: CustomerDetailPanelProps["onSaveGuardianProfile"];
+  onUpdatePet: CustomerDetailPanelProps["onUpdatePet"];
+  onAddPet: CustomerDetailPanelProps["onAddPet"];
+  onToggleGuardianNotifications: CustomerDetailPanelProps["onToggleGuardianNotifications"];
+  onClose: () => void;
+}) {
+  const selectedPet = detail.selectedPet;
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [guardianDraft, setGuardianDraft] = useState({
+    name: detail.guardian.name,
+    phone: formatPhoneNumber(detail.guardian.phone),
+    memo: detail.guardian.memo ?? "",
+    customerGradeOverride: detail.guardian.customer_grade_override ?? null,
+  });
+  const [petDraft, setPetDraft] = useState({
+    name: selectedPet?.name ?? "",
+    breed: selectedPet?.breed ?? "",
+    pricingGroup: selectedPet?.pricing_group ?? "",
+    birthday: selectedPet?.birthday ?? "",
+    weight: typeof selectedPet?.weight === "number" ? String(selectedPet.weight) : "",
+    notes: selectedPet?.notes ?? "",
+    groomingCycleWeeks: String(selectedPet?.grooming_cycle_weeks ?? 4),
+  });
+  const [newPetDraft, setNewPetDraft] = useState<PetAddPayload>({
+    name: "",
+    breed: "",
+    birthday: "",
+    weight: "",
+    biteLevel: "none",
+    profilePhoto: null,
+  });
+  const petGroupOptions = buildPetGroupOptions(Array.from(detail.servicesById.values()), selectedPet?.pricing_group);
+  const [newPetPhotoPreviewUrl, setNewPetPhotoPreviewUrl] = useState("");
+  const titleMap: Record<Exclude<DetailAction, null>, string> = {
+    guardianEdit: "보호자 정보 수정",
+    petEdit: "반려동물 정보 수정",
+    petAdd: "반려동물 추가",
+    notificationSettings: "알림 설정",
+    appointments: "예약 전체보기",
+    notifications: "알림/소통 이력 전체보기",
+  };
+
+  async function runSave(task: () => void | Promise<void>, keepOpen = false) {
+    setSaving(true);
+    setError("");
+    try {
+      await task();
+      if (keepOpen) {
+        setError("저장됨");
+      } else {
+        onClose();
+      }
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveGuardianEdit() {
+    await onSaveGuardianProfile(detail.guardian.id, {
+      name: guardianDraft.name,
+      phone: guardianDraft.phone,
+      memo: guardianDraft.memo,
+      customerGradeOverride: guardianDraft.customerGradeOverride,
+    });
+  }
+
+  useEffect(() => {
+    if (action !== "petAdd" || !newPetDraft.profilePhoto) {
+      setNewPetPhotoPreviewUrl("");
+      return;
+    }
+    const nextUrl = URL.createObjectURL(newPetDraft.profilePhoto);
+    setNewPetPhotoPreviewUrl(nextUrl);
+    return () => URL.revokeObjectURL(nextUrl);
+  }, [action, newPetDraft.profilePhoto]);
+
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/20 px-6" onClick={onClose}>
+      <section className="w-full max-w-[520px] rounded-[10px] border border-[#dbe2ea] bg-white shadow-[0_22px_58px_rgba(15,23,42,0.24)]" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-4">
+          <div>
+            <p className="text-[16px] text-[#64748b]">{detail.guardian.name}{selectedPet ? ` · ${selectedPet.name}` : ""}</p>
+            <h3 className="mt-1 break-keep text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827] [overflow-wrap:anywhere]">{titleMap[action]}</h3>
+          </div>
+          <button type="button" onClick={onClose} className="h-11 rounded-[7px] border border-[#dbe2ea] px-3 text-[16px] font-medium leading-6 text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">
+            닫기
+          </button>
+        </div>
+        <div className="space-y-3 px-5 py-4">
+          {action === "guardianEdit" ? (
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void runSave(saveGuardianEdit, true);
+              }}
+            >
+              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(172px,0.72fr)]">
+                <FormField label="보호자명" value={guardianDraft.name} onChange={(value) => setGuardianDraft((current) => ({ ...current, name: value }))} />
+                <CustomerClassificationSelect
+                  label="고객 등급"
+                  value={guardianDraft.customerGradeOverride ?? "auto"}
+                  onChange={(value) => setGuardianDraft((current) => ({ ...current, customerGradeOverride: value === "auto" ? null : value as CustomerGradeOverride }))}
+                  options={customerGradeOptions}
+                />
+              </div>
+              <FormField label="연락처" value={guardianDraft.phone} onChange={(value) => setGuardianDraft((current) => ({ ...current, phone: value }))} />
+              <FormField label="메모" value={guardianDraft.memo} onChange={(value) => setGuardianDraft((current) => ({ ...current, memo: value }))} multiline />
+                <ActionPanelFooter
+                  saving={saving}
+                  error={error}
+                  onSave={() => void runSave(saveGuardianEdit, true)}
+                />
+            </form>
+          ) : null}
+          {action === "petEdit" ? (
+            selectedPet ? (
+              <form
+                className="space-y-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void runSave(() => onUpdatePet(detail.guardian.id, selectedPet.id, petDraft));
+                }}
+              >
+                <SelectFormField label="가격 책정용 그룹" value={petDraft.pricingGroup} options={petGroupOptions} onChange={(value) => setPetDraft((current) => ({ ...current, pricingGroup: value }))} />
+                <div className="grid grid-cols-2 gap-2">
+                  <FormField label="생년월일" value={petDraft.birthday} onChange={(value) => setPetDraft((current) => ({ ...current, birthday: value }))} placeholder="YYYY-MM-DD" />
+                  <FormField label="몸무게" value={petDraft.weight} onChange={(value) => setPetDraft((current) => ({ ...current, weight: value }))} placeholder="kg" />
+                </div>
+                <FormField label="주의사항 / 메모" value={petDraft.notes} onChange={(value) => setPetDraft((current) => ({ ...current, notes: value }))} multiline />
+                <ActionPanelFooter saving={saving} error={error} />
+              </form>
+            ) : null
+          ) : null}
+          {action === "petAdd" ? (
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void runSave(() => onAddPet(detail.guardian.id, newPetDraft));
+              }}
+            >
+              <PetProfilePhotoField
+                previewUrl={newPetPhotoPreviewUrl}
+                fileName={newPetDraft.profilePhoto?.name ?? ""}
+                onChange={(file) => setNewPetDraft((current) => ({ ...current, profilePhoto: file }))}
+              />
+              <FormField label="반려동물 이름" value={newPetDraft.name} onChange={(value) => setNewPetDraft((current) => ({ ...current, name: value }))} />
+              <FormField label="품종" value={newPetDraft.breed} onChange={(value) => setNewPetDraft((current) => ({ ...current, breed: value }))} placeholder="예: 푸들, 말티즈" />
+              <div className="grid grid-cols-2 gap-2">
+                <FormField label="생년월일" value={newPetDraft.birthday} onChange={(value) => setNewPetDraft((current) => ({ ...current, birthday: value }))} placeholder="YYYY-MM-DD" />
+                <FormField label="몸무게" value={newPetDraft.weight} onChange={(value) => setNewPetDraft((current) => ({ ...current, weight: value }))} placeholder="kg" />
+              </div>
+              <BiteLevelFormField value={newPetDraft.biteLevel} onChange={(biteLevel) => setNewPetDraft((current) => ({ ...current, biteLevel }))} />
+              <ActionPanelFooter saving={saving} error={error} />
+            </form>
+          ) : null}
+          {action === "notificationSettings" ? (
+            <div className="space-y-3">
+              <PanelNotice title="알림 상태" lines={[`전체 알림: ${detail.guardian.notification_settings.enabled !== false ? "ON" : "OFF"}`]} />
+              <button
+                type="button"
+                onClick={() => void runSave(() => onToggleGuardianNotifications(detail.guardian.id))}
+                className="h-11 w-full rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-medium text-white hover:bg-[#286a5a] disabled:bg-[#94a3b8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+                disabled={saving}
+              >
+                {detail.guardian.notification_settings.enabled !== false ? "알림 끄기" : "알림 켜기"}
+              </button>
+              {error ? <p className="text-[16px] text-[#a04455]">{error}</p> : null}
+            </div>
+          ) : null}
+          {action === "appointments" ? (
+            <PanelNotice title="예약" lines={detail.recentAppointments.map((appointment) => {
+              const request = appointment.memo?.trim();
+              return `${formatDateTime(appointment.appointment_date, appointment.appointment_time)} · ${getServiceName(detail.servicesById, appointment.service_id)} · ${getAppointmentStatusMeta(appointment.status).label}${request ? ` · 요청: ${request}` : ""}`;
+            })} />
+          ) : null}
+          {action === "notifications" ? (
+            <PanelNotice title="알림/소통 이력" lines={detail.recentNotifications.map((notification) => `${formatDate(notification.sent_at ?? notification.created_at)} · ${notification.template_key ?? notification.type} · ${getNotificationStatusMeta(notification.status).label}`)} />
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PanelNotice({ title, lines }: { title: string; lines: string[] }) {
+  return (
+    <div className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
+      <p className="text-[18px] font-semibold leading-[26px] text-[#111827]">{title}</p>
+      <div className="mt-3 space-y-2">
+        {(lines.length > 0 ? lines : ["표시할 내용이 없습니다."]).map((line) => (
+          <p key={line} className="break-keep text-[16px] font-normal leading-6 text-[#475569] [overflow-wrap:anywhere]">{line}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FormField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  multiline?: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
+      {multiline ? (
+        <textarea
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          className="min-h-[96px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[16px] font-medium leading-6 text-[#111827] outline-none focus:border-[#2f7866]"
+        />
+      ) : (
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+        />
+      )}
+    </label>
+  );
+}
+
+function SelectFormField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: PetGroupOption[];
+  onChange: (value: string) => void;
+}) {
+  const selectOptions = options.some((option) => option.value === value)
+    ? options
+    : value
+      ? [{ value, label: value }, ...options]
+      : options;
+
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
+      <select
+        value={value || selectOptions[0]?.value || ""}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full appearance-none rounded-[8px] border border-[#cfd8e3] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] font-medium leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+      >
+        {selectOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function PetProfilePhotoField({ previewUrl, fileName, onChange }: { previewUrl: string; fileName: string; onChange: (file: File | null) => void }) {
+  return (
+    <div className="bg-transparent">
+      <p className="mb-2 text-[14px] font-medium leading-5 text-[#64748b]">프로필 사진</p>
+      <div className="flex items-center gap-3">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white text-[#94a3b8]">
+          {previewUrl ? <img src={previewUrl} alt="반려동물 프로필 미리보기" className="h-full w-full object-cover" /> : <ImagePlus className="h-7 w-7" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] font-medium leading-6 text-[#334155] hover:bg-[#f8fafc] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]">
+            사진 선택
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                onChange(file);
+              }}
+            />
+          </label>
+          {fileName ? (
+            <button type="button" onClick={() => onChange(null)} className="ml-2 h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#64748b] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">
+              삭제
+            </button>
+          ) : null}
+          <p className="mt-1 break-keep text-[13px] font-normal leading-5 text-[#64748b] [overflow-wrap:anywhere]">{fileName || "JPG, PNG, WebP 이미지를 등록할 수 있습니다."}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BiteLevelFormField({ value, onChange }: { value: PetBiteLevel; onChange: (value: PetBiteLevel) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">입질 정도</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(normalizePetBiteLevel(event.target.value))}
+        className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+      >
+        {petBiteLevelOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function InlineEditableText({
+  value,
+  placeholder = "입력",
+  ariaLabel,
+  className,
+  inputClassName,
+  multiline = false,
+  onCommit,
+}: {
+  value: string;
+  placeholder?: string;
+  ariaLabel: string;
+  className?: string;
+  inputClassName?: string;
+  multiline?: boolean;
+  onCommit: (value: string) => void | Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [editing, value]);
+
+  async function commit() {
+    const nextValue = draft.trim();
+    if (nextValue === value.trim()) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await onCommit(nextValue);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    const commonClassName = cn(
+      "w-full rounded-[7px] border border-[#2f7866] bg-white px-2 text-[#111827] outline-none",
+      multiline ? "min-h-[84px] py-2 leading-6" : "h-11",
+      inputClassName,
+    );
+
+    if (multiline) {
+      return (
+        <textarea
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={() => void commit()}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setDraft(value);
+              setEditing(false);
+            }
+          }}
+          disabled={saving}
+          autoFocus
+          aria-label={ariaLabel}
+          placeholder={placeholder}
+          className={commonClassName}
+        />
+      );
+    }
+
+    return (
+      <input
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void commit();
+          if (event.key === "Escape") {
+            setDraft(value);
+            setEditing(false);
+          }
+        }}
+        disabled={saving}
+        autoFocus
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        className={commonClassName}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className={cn(
+        "inline-flex min-h-11 max-w-full items-center rounded-[6px] text-left hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+        className,
+      )}
+      aria-label={ariaLabel}
+    >
+      {value.trim() || placeholder}
+    </button>
+  );
+}
+
+function ActionPanelFooter({ saving, error, onSave }: { saving: boolean; error: string; onSave?: () => void }) {
+  return (
+    <div className="space-y-2 pt-1">
+      {error ? <p className={cn("break-keep text-[13px] font-medium leading-5 [overflow-wrap:anywhere]", error === "저장됨" ? "text-[#1f6b5b]" : "text-[#a04455]")}>{error}</p> : null}
+      <button
+        type={onSave ? "button" : "submit"}
+        onClick={onSave}
+        className="h-11 w-full rounded-[8px] bg-[#15213b] px-4 text-[16px] font-medium leading-6 text-white hover:bg-[#101a31] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:bg-[#94a3b8]"
+        disabled={saving}
+      >
+        {saving ? "저장 중" : "저장"}
+      </button>
+    </div>
+  );
+}
+
+function CustomerClassificationSelect({ label, value, options, onChange }: { label: string; value: string; options: ReadonlyArray<{ value: string; label: string }>; onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none focus-visible:border-[#2563eb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]">
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function CustomerGradeBadge({ value }: { value: CustomerGradeOverride | null | undefined }) {
+  return (
+    <span data-customer-grade-badge="true" className="inline-flex min-h-6 shrink-0 items-center rounded-full border border-[#d8e0ea] bg-[#f7f9fc] px-2 text-[12px] font-medium leading-[18px] text-[#475569]">
+      고객 등급 {getCustomerGradeLabel(value)}
+    </span>
+  );
+}
+
+function InfoRow({ label, value, alignTop = false }: { label: string; value: React.ReactNode; alignTop?: boolean }) {
+  return (
+    <div className={cn("grid grid-cols-[92px_minmax(0,1fr)] gap-3", alignTop ? "items-start" : "items-center")}>
+      <span className="text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
+      <span className="min-w-0 text-[16px] font-normal leading-6 text-[#111827]">{value}</span>
+    </div>
+  );
+}
+
+function getMediaByKind(assets: MediaAsset[], mediaKind: MediaKind) {
+  return assets.find((asset) => asset.media_kind === mediaKind) ?? null;
+}
+
+function getLinkedAppointmentForGroomingRecord(detail: CustomerDetailModel, record: CustomerDetailModel["groomingRecords"][number]) {
+  if (record.appointment_id) {
+    const linkedAppointment = detail.appointments.find((appointment) => appointment.id === record.appointment_id);
+    if (linkedAppointment) return linkedAppointment;
+  }
+
+  const groomedDate = record.groomed_at.slice(0, 10);
+  return detail.appointments.find((appointment) => appointment.pet_id === record.pet_id && appointment.appointment_date === groomedDate) ?? null;
+}
+
+async function getMediaPreview(asset: MediaAsset): Promise<GroomingPhotoPreview> {
+  try {
+    const params = new URLSearchParams({
+      mediaAssetId: asset.id,
+      variant: "preview",
+    });
+    const result = await fetchApiJsonWithAuth<MediaSignedUrlResponse>(`/api/owner/media/signed-url?${params.toString()}`);
+    return { asset, url: result.signedUrl };
+  } catch {
+    return { asset, url: "" };
+  }
+}
+
+function formatPhotoRetention(asset: MediaAsset) {
+  return asset.expires_at
+    ? `${formatDate(asset.expires_at)}까지 보관`
+    : "직접 삭제 또는 계정 삭제 시까지 보관";
+}
+
+function InlinePetInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-2 text-[16px] font-normal leading-6">
+      <span className="text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
+      <span className="min-w-0 break-keep text-[#111827] [overflow-wrap:anywhere]">{value}</span>
+    </span>
+  );
+}
+
+function Badge({ children, className }: { children: React.ReactNode; className: string }) {
+  return <span className={cn("inline-flex min-h-6 shrink-0 items-center rounded-[6px] border px-2 text-[12px] font-medium leading-[18px]", className)}>{children}</span>;
+}
+
+function ToggleState({ enabled }: { enabled: boolean }) {
+  return (
+    <span className={cn("inline-flex h-6 items-center rounded-[6px] px-2 text-[12px] font-medium leading-[18px]", enabled ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#f1f5f9] text-[#94a3b8]")}>
+      {enabled ? "ON" : "OFF"}
+    </span>
+  );
+}
+
+function SmallButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className="h-11 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-medium leading-6 text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">{label}</button>;
+}
+
+function EmptyState({ title, description, compact = false }: { title: string; description: string; compact?: boolean }) {
+  return (
+    <div className={cn("flex flex-col items-center justify-center text-center", compact ? "px-3 py-4" : "min-h-[320px] px-6")}>
+      <div className={cn("flex items-center justify-center rounded-full bg-[#eef7f4] text-[#2f7866]", compact ? "h-8 w-8" : "h-10 w-10")}>
+        <Sparkles className="h-4 w-4" />
+      </div>
+      <p className={cn("break-keep text-[16px] font-medium leading-6 text-[#111827] [overflow-wrap:anywhere]", compact ? "mt-2" : "mt-3")}>{title}</p>
+      <p className="mt-1 break-keep text-[16px] font-normal leading-6 text-[#64748b] [overflow-wrap:anywhere]">{description}</p>
+    </div>
+  );
+}

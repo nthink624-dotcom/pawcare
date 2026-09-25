@@ -1,0 +1,51 @@
+﻿import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
+import {
+  getOwnerSubscriptionSummary,
+  OwnerBillingError,
+  updateOwnerSubscriptionPreferences,
+} from "@/server/owner-billing";
+import { requireOwnerBillingSession } from "@/server/owner-billing-session";
+import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+
+const patchSchema = z.object({
+  currentPlanCode: z.literal("single_monthly_v1").optional(),
+}).strict();
+
+export async function GET(request: NextRequest) {
+  try {
+    const { identity, shopId } = await requireOwnerBillingSession(request, request.nextUrl.searchParams.get("shopId"));
+    const summary = await getOwnerSubscriptionSummary(identity, shopId);
+    return ownerMobileCorsJson(request, summary);
+  } catch (error) {
+    if (error instanceof OwnerBillingError) {
+      return ownerMobileCorsJson(request, { message: error.message }, { status: error.status });
+    }
+
+    return ownerMobileCorsJson(request, { message: "구독 정보를 불러오지 못했습니다." }, { status: 500 });
+  }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return ownerMobileCorsPreflight(request);
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { identity, shopId } = await requireOwnerBillingSession(request, request.nextUrl.searchParams.get("shopId"));
+    const body = patchSchema.parse(await request.json());
+    const summary = await updateOwnerSubscriptionPreferences(identity, shopId, body);
+    return NextResponse.json(summary);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ message: "구독 변경 요청 형식이 올바르지 않습니다." }, { status: 400 });
+    }
+
+    if (error instanceof OwnerBillingError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
+    return NextResponse.json({ message: "구독 정보를 저장하지 못했습니다." }, { status: 500 });
+  }
+}

@@ -1,0 +1,111 @@
+.manualStep {
+  opacity: 0;
+  animation: manual-step 6.4s cubic-bezier(0.22, 1, 0.36, 1) var(--step-delay) infinite both;
+}
+
+.manualResult {
+  opacity: 0;
+  animation: manual-result 6.4s ease-out 1.05s infinite both;
+}
+
+.bookingCard {
+  opacity: 0;
+  animation: booking-card 6.4s cubic-bezier(0.2, 0.9, 0.25, 1.15) 1.45s infinite both;
+}
+
+.bookingNotification {
+  opacity: 0;
+  animation: booking-notification 6.4s cubic-bezier(0.2, 0.9, 0.25, 1.15) 1.65s infinite both;
+}
+
+.continueResult {
+  opacity: 0;
+  animation: continue-result 6.4s ease-out 1.8s infinite both;
+}
+
+@keyframes manual-step {
+  0%, 3% {
+    opacity: 0.52;
+    transform: translateY(4px) scale(0.99);
+  }
+  11%, 76% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  91%, 100% {
+    opacity: 0.52;
+    transform: translateY(2px) scale(0.99);
+  }
+}
+
+@keyframes manual-result {
+  0%, 5% {
+    opacity: 0.62;
+    transform: translateY(3px);
+  }
+  13%, 74% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  89%, 100% {
+    opacity: 0.62;
+    transform: translateY(2px);
+  }
+}
+
+@keyframes booking-card {
+  0%, 5% {
+    opacity: 0.72;
+    transform: translateY(8px) scale(0.98);
+  }
+  15%, 73% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  88%, 100% {
+    opacity: 0.72;
+    transform: translateY(4px) scale(0.99);
+  }
+}
+
+@keyframes booking-notification {
+  0%, 12% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  21%, 75% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  91%, 100% {
+    opacity: 0.72;
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes continue-result {
+  0%, 6% {
+    opacity: 0.68;
+    transform: translateY(3px);
+  }
+  15%, 72% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  87%, 100% {
+    opacity: 0.68;
+    transform: translateY(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .manualStep,
+  .manualResult,
+  .bookingCard,
+  .bookingNotification,
+  .continueResult {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

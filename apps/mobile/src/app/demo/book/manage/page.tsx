@@ -1,0 +1,27 @@
+import CustomerBookingPage from "@/components/customer/customer-booking-page";
+import { getBootstrap } from "@/server/bootstrap";
+
+export const dynamic = "force-dynamic";
+
+export default async function DemoBookManagePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ token?: string; t?: string }>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const data = await getBootstrap("demo-shop");
+
+  return (
+    <CustomerBookingPage
+      shopId="demo-shop"
+      initialShop={data.shop}
+      initialServices={data.services}
+      initialStaffMembers={data.staffMembers}
+      initialAppointments={data.appointments}
+      initialRecords={data.groomingRecords}
+      initialMode="manage"
+      initialAccessToken={resolvedSearchParams?.t || resolvedSearchParams?.token}
+      entryHref="/demo/book/start"
+    />
+  );
+}

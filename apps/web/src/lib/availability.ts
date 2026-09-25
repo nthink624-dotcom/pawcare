@@ -1,0 +1,426 @@
+﻿import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
+
+import type { Appointment, BootstrapStaffMember, Pet, Service, Shop, StaffScheduleOverride } from "@/types/domain";
+import { getAppointmentEffectiveWindow } from "@/lib/appointment-time";
+import {
+  confirmedSlotCapacity,
+  defaultBookingAvailableEndTime,
+  defaultBookingAvailableStartTime,
+  normalizeBookingAvailableTime,
+  normalizeBookingSlotIntervalMinutes,
+  normalizeBookingSlotOffsetMinutes,
+} from "@/lib/booking-slot-settings";
+import { getLatestBookingStartMinute, isBookingWithinCanonicalWindow } from "@/lib/booking-last-start-cutoff";
+import { getBusinessHoursForWeekday } from "@/lib/business-hours";
+import { hasBlockedWindowOverlap } from "@/lib/reservation-policy-settings";
+import { currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, timeFromMinutes } from "@/lib/utils";
+
+export type RevisitStatus = "overdue" | "soon" | "ok" | "unknown";
+
+type ShopClosedPolicy = Pick<
+  Shop,
+  "business_hours" | "regular_closed_days" | "regular_closed_cycle" | "regular_closed_anchor_date" | "temporary_closed_dates"
+> &
+  Partial<Pick<Shop, "reservation_policy_settings">>;
+
+const slotBlockingAppointmentStatuses = new Set<Appointment["status"]>([
+  "confirmed",
+  "in_progress",
+  "almost_done",
+  "completed",
+]);
+
+function getWeekStart(date: Date) {
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = next.getDay();
+  next.setDate(next.getDate() - (day === 0 ? 6 : day - 1));
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function isBiweeklyClosedWeek(date: Date, anchorDateKey?: string | null) {
+  if (!anchorDateKey) return true;
+
+  const anchor = new Date(`${anchorDateKey}T00:00:00`);
+  if (!Number.isFinite(anchor.getTime())) return true;
+
+  const diffDays = Math.round((getWeekStart(date).getTime() - getWeekStart(anchor).getTime()) / (24 * 60 * 60 * 1000));
+  return Math.abs(Math.trunc(diffDays / 7)) % 2 === 0;
+}
+
+function getWeekOfMonth(date: Date) {
+  return Math.ceil(date.getDate() / 7);
+}
+
+export function isRegularClosedOnDate(shop: ShopClosedPolicy, date: string) {
+  const day = parseISO(`${date}T00:00:00`);
+  const weekday = day.getDay();
+  const policyHasRegularClosedCycle = Object.prototype.hasOwnProperty.call(
+    shop.reservation_policy_settings ?? {},
+    "regular_closed_cycle",
+  );
+  const regularClosedCycle =
+    policyHasRegularClosedCycle
+      ? shop.reservation_policy_settings?.regular_closed_cycle ?? "weekly"
+      : shop.regular_closed_cycle ?? "weekly";
+  const regularClosedAnchorDate =
+    policyHasRegularClosedCycle
+      ? shop.reservation_policy_settings?.regular_closed_anchor_date ?? null
+      : shop.regular_closed_anchor_date ?? null;
+
+  if (!shop.regular_closed_days.includes(weekday)) return false;
+  if (regularClosedCycle === "biweekly") return isBiweeklyClosedWeek(day, regularClosedAnchorDate);
+  if (regularClosedCycle === "monthly_1_3") return [1, 3].includes(getWeekOfMonth(day));
+  if (regularClosedCycle === "monthly_2_4") return [2, 4].includes(getWeekOfMonth(day));
+  return true;
+}
+
+export function isShopClosedOnDate(shop: ShopClosedPolicy, date: string) {
+  const day = parseISO(`${date}T00:00:00`);
+  const weekday = day.getDay();
+  const hours = getBusinessHoursForWeekday(shop, weekday);
+
+  if (isRegularClosedOnDate(shop, date)) return true;
+  if (shop.temporary_closed_dates.includes(date)) return true;
+  if (!hours?.enabled) return true;
+
+  return false;
+}
+
+export function computeAvailableSlots(params: {
+  date: string;
+  serviceId?: string;
+  durationMinutesOverride?: number;
+  shop: Shop;
+  services: Service[];
+  appointments: Appointment[];
+  excludeAppointmentId?: string;
+  staffId?: string | null;
+  staffMembers?: BootstrapStaffMember[];
+  staffScheduleOverrides?: StaffScheduleOverride[];
+}) {
+  const {
+    date,
+    serviceId,
+    durationMinutesOverride,
+    shop,
+    services,
+    appointments,
+    excludeAppointmentId,
+    staffId,
+    staffMembers = [],
+    staffScheduleOverrides = [],
+  } = params;
+  const day = parseISO(`${date}T00:00:00`);
+  const weekday = day.getDay();
+  if (isShopClosedOnDate(shop, date)) return [];
+  const hours = getBusinessHoursForWeekday(shop, weekday);
+  if (!hours?.enabled) return [];
+  const service = serviceId ? services.find((item) => item.id === serviceId) : null;
+  const durationMinutes = durationMinutesOverride ?? service?.duration_minutes;
+  if (!durationMinutes) return [];
+
+  const businessOpen = minutesFromTime(hours.open);
+  const businessClose = minutesFromTime(hours.close);
+  const bookingOpen = minutesFromTime(
+    normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
+  );
+  const bookingClose = minutesFromTime(
+    normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
+  );
+  const open = Math.max(businessOpen, bookingOpen);
+  if (bookingClose < open) return [];
+  const closeGraceMinutes = shop.reservation_policy_settings?.booking_close_grace_minutes;
+  const nowMinutes = currentMinutesInTimeZone();
+  const isToday = date === currentDateInTimeZone();
+  const slots: string[] = [];
+  const slotIntervalMinutes = normalizeBookingSlotIntervalMinutes(shop.booking_slot_interval_minutes);
+  const slotOffsetMinutes = normalizeBookingSlotOffsetMinutes(
+    shop.booking_slot_offset_minutes,
+    slotIntervalMinutes,
+  );
+  const firstSlotMinute = alignToSlotPattern(open, slotIntervalMinutes, slotOffsetMinutes);
+  const latestStartMinute = getLatestBookingStartMinute({
+    bookingEndMinute: bookingClose,
+    businessCloseMinute: businessClose,
+    durationMinutes,
+    closeGraceMinutes,
+  });
+  if (latestStartMinute === null) return [];
+  const candidateStartMinutes = new Set<number>();
+
+  for (let cursor = firstSlotMinute; cursor <= latestStartMinute; cursor += slotIntervalMinutes) {
+    candidateStartMinutes.add(cursor);
+  }
+
+  for (const appointment of appointments) {
+    if (!isAppointmentEndSlotCandidate({ appointment, date, staffId, excludeAppointmentId })) continue;
+
+    const effectiveWindow = getAppointmentEffectiveWindow(appointment, services);
+    if (!effectiveWindow || effectiveWindow.date !== date) continue;
+
+    const appointmentEnd = effectiveWindow.endMinute;
+    if (!isBookingWithinCanonicalWindow({
+      startMinute: appointmentEnd,
+      durationMinutes,
+      bookingStartMinute: bookingOpen,
+      bookingEndMinute: bookingClose,
+      businessOpenMinute: businessOpen,
+      businessCloseMinute: businessClose,
+      closeGraceMinutes,
+    })) continue;
+
+    candidateStartMinutes.add(appointmentEnd);
+  }
+
+  for (const cursor of Array.from(candidateStartMinutes).sort((a, b) => a - b)) {
+    if (isToday && cursor <= nowMinutes) {
+      continue;
+    }
+
+    if (hasBlockedWindowOverlap(shop.reservation_policy_settings, cursor, cursor + durationMinutes)) {
+      continue;
+    }
+
+    const shopWideSlotAvailable =
+      staffMembers.length > 0
+        ? true
+        : isSlotAvailable({
+            date,
+            startMinute: cursor,
+            durationMinutes,
+            appointments,
+            services,
+            excludeAppointmentId,
+          });
+
+    if (
+      shopWideSlotAvailable &&
+      isStaffSlotAvailable({
+        date,
+        startMinute: cursor,
+        durationMinutes,
+        shop,
+        staffId,
+        staffMembers,
+        staffScheduleOverrides,
+        appointments,
+        services,
+        excludeAppointmentId,
+      })
+    ) {
+      slots.push(timeFromMinutes(cursor));
+    }
+  }
+  return slots;
+}
+
+export function computeRecommendedAvailableSlots(params: {
+  date: string;
+  availableSlots: string[];
+  appointments: Appointment[];
+  services: Service[];
+  excludeAppointmentId?: string;
+  staffId?: string | null;
+}) {
+  const { date, availableSlots, appointments, services, excludeAppointmentId, staffId } = params;
+  const availableSlotSet = new Set(availableSlots);
+  const recommendedSlotMinutes = new Set<number>();
+
+  for (const appointment of appointments) {
+    if (!isAppointmentEndSlotCandidate({ appointment, date, staffId, excludeAppointmentId })) continue;
+
+    const effectiveWindow = getAppointmentEffectiveWindow(appointment, services);
+    if (!effectiveWindow || effectiveWindow.date !== date) continue;
+
+    const appointmentEnd = effectiveWindow.endMinute;
+    const appointmentEndSlot = timeFromMinutes(appointmentEnd);
+    if (availableSlotSet.has(appointmentEndSlot)) {
+      recommendedSlotMinutes.add(appointmentEnd);
+    }
+  }
+
+  return Array.from(recommendedSlotMinutes)
+    .sort((a, b) => a - b)
+    .map((minute) => timeFromMinutes(minute));
+}
+
+function isAppointmentEndSlotCandidate(params: {
+  appointment: Appointment;
+  date: string;
+  staffId?: string | null;
+  excludeAppointmentId?: string;
+}) {
+  const { appointment, date, staffId, excludeAppointmentId } = params;
+  if (appointment.id === excludeAppointmentId) return false;
+  if (appointment.appointment_date !== date) return false;
+  if (["cancelled", "rejected", "noshow"].includes(appointment.status)) return false;
+  if (staffId && appointment.staff_id !== staffId) return false;
+  return true;
+}
+
+function isStaffSlotAvailable(params: {
+  date: string;
+  startMinute: number;
+  durationMinutes: number;
+  shop: Shop;
+  staffId?: string | null;
+  staffMembers: BootstrapStaffMember[];
+  staffScheduleOverrides: StaffScheduleOverride[];
+  appointments: Appointment[];
+  services: Service[];
+  excludeAppointmentId?: string;
+}): boolean {
+  const { date, startMinute, durationMinutes, shop, staffId, staffMembers, staffScheduleOverrides, appointments, services, excludeAppointmentId } = params;
+  if (!staffId) {
+    if (staffMembers.length === 0) {
+      return isSlotAvailable({ date, startMinute, durationMinutes, appointments, services, excludeAppointmentId });
+    }
+    return staffMembers.some((staffMember) => isStaffSlotAvailable({ ...params, staffId: staffMember.id }));
+  }
+
+  const staffMember = staffMembers.find((item) => item.id === staffId);
+  if (!staffMember) return false;
+
+  let availableStart: number;
+  let availableEnd: number;
+  const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
+  const dayKey = weekdayKeys[weekday];
+  const override = staffScheduleOverrides.find((item) => item.staff_id === staffId && item.work_date === date);
+
+  if (override) {
+    if (override.status === "off" || override.status === "annual") return false;
+
+    if (override.status === "half") {
+      const splitMinute = minutesFromTime("13:00");
+      availableStart = override.period === "오전" ? splitMinute : minutesFromTime(staffMember.startTime);
+      availableEnd = override.period === "오후" ? splitMinute : minutesFromTime(staffMember.endTime);
+    } else if (override.status === "work") {
+      availableStart = minutesFromTime(override.start_time ?? staffMember.startTime);
+      availableEnd = minutesFromTime(override.end_time ?? staffMember.endTime);
+    } else {
+      return false;
+    }
+  } else {
+    if (!staffMember.defaultDays.includes(dayKey)) return false;
+    availableStart = minutesFromTime(staffMember.startTime);
+    availableEnd = minutesFromTime(staffMember.endTime);
+  }
+
+  const hours = getBusinessHoursForWeekday(shop, weekday);
+  if (!hours?.enabled) return false;
+  if (!isBookingWithinCanonicalWindow({
+    startMinute,
+    durationMinutes,
+    bookingStartMinute: minutesFromTime(
+      normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
+    ),
+    bookingEndMinute: minutesFromTime(
+      normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
+    ),
+    businessOpenMinute: minutesFromTime(hours.open),
+    businessCloseMinute: minutesFromTime(hours.close),
+    closeGraceMinutes: shop.reservation_policy_settings?.booking_close_grace_minutes,
+    staffStartMinute: availableStart,
+    staffEndMinute: availableEnd,
+  })) return false;
+
+  return isSlotAvailable({
+    date,
+    startMinute,
+    durationMinutes,
+    appointments: appointments.filter((appointment) => appointment.staff_id === staffId),
+    services,
+    excludeAppointmentId,
+  });
+}
+
+export function isSlotAvailable(params: {
+  date: string;
+  startMinute: number;
+  durationMinutes: number;
+  appointments: Appointment[];
+  services: Service[];
+  excludeAppointmentId?: string;
+}) {
+  const { date, startMinute, durationMinutes, appointments, services, excludeAppointmentId } = params;
+  const endMinute = startMinute + durationMinutes;
+  const activeAppointments = appointments.filter(
+    (appointment) =>
+      appointment.appointment_date === date &&
+      slotBlockingAppointmentStatuses.has(appointment.status) &&
+      appointment.id !== excludeAppointmentId,
+  );
+
+  const overlapBoundaries = new Set<number>([startMinute, endMinute]);
+  const overlappingAppointments = activeAppointments.flatMap((appointment) => {
+    const effectiveWindow = getAppointmentEffectiveWindow(appointment, services);
+    if (!effectiveWindow || effectiveWindow.date !== date) return [];
+
+    const appointmentStart = effectiveWindow.startMinute;
+    const appointmentEnd = effectiveWindow.endMinute;
+    const overlapsWindow = appointmentStart < endMinute && startMinute < appointmentEnd;
+    if (!overlapsWindow) return [];
+
+    overlapBoundaries.add(Math.max(startMinute, appointmentStart));
+    overlapBoundaries.add(Math.min(endMinute, appointmentEnd));
+
+    return [{ appointmentStart, appointmentEnd, status: appointment.status }];
+  });
+
+  const sortedBoundaries = Array.from(overlapBoundaries).sort((a, b) => a - b);
+
+  for (let index = 0; index < sortedBoundaries.length - 1; index += 1) {
+    const segmentStart = sortedBoundaries[index];
+    const segmentEnd = sortedBoundaries[index + 1];
+    if (segmentStart === segmentEnd) continue;
+
+    const probeMinute = segmentStart + 0.5;
+    const overlaps = overlappingAppointments.filter(
+      ({ appointmentStart, appointmentEnd }) =>
+        appointmentStart <= probeMinute && probeMinute < appointmentEnd,
+    );
+
+    if (overlaps.length >= confirmedSlotCapacity) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getAppointmentDurationMinutes(appointment: Appointment) {
+  const start = new Date(appointment.start_at).getTime();
+  const end = new Date(appointment.end_at).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return Math.round((end - start) / 60 / 1000);
+}
+
+function alignToSlotPattern(openMinute: number, intervalMinutes: number, offsetMinutes: number) {
+  const normalizedInterval = normalizeBookingSlotIntervalMinutes(intervalMinutes);
+  const normalizedOffset = normalizeBookingSlotOffsetMinutes(offsetMinutes, normalizedInterval);
+  const remainder = ((openMinute - normalizedOffset) % normalizedInterval + normalizedInterval) % normalizedInterval;
+
+  if (remainder === 0) {
+    return openMinute;
+  }
+
+  return openMinute + (normalizedInterval - remainder);
+}
+
+export function revisitInfo(
+  pet: Pet,
+  lastGroomedAt?: string | null,
+  referenceDate = currentDateInTimeZone(),
+): { dueDate: string | null; daysUntil: number | null; status: RevisitStatus } {
+  if (!lastGroomedAt) return { dueDate: null, daysUntil: null, status: "unknown" };
+  const due = addDays(parseISO(lastGroomedAt), pet.grooming_cycle_weeks * 7);
+  const today = parseISO(`${referenceDate}T00:00:00`);
+  const daysUntil = differenceInCalendarDays(due, today);
+  return {
+    dueDate: format(due, "yyyy-MM-dd"),
+    daysUntil,
+    status: daysUntil < 0 ? "overdue" : daysUntil <= 5 ? "soon" : "ok",
+  };
+}

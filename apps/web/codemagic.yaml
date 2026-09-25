@@ -1,0 +1,168 @@
+# Manual-start only: this workflow uploads a signed IPA to App Store Connect,
+# but never submits it to TestFlight beta review, App Review, or release.
+workflows:
+  owner-ios-app-store-connect-upload:
+    name: PetManager Owner iOS - signed IPA and App Store Connect upload
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    # Create this non-secret integration name in Codemagic before the first run.
+    integrations:
+      app_store_connect: petmanager_app_store_connect
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: kr.co.petmanager.owner
+      vars:
+        OWNER_MOBILE_DIR: "apps/owner-mobile"
+        OWNER_WEB_URL: "https://www.petmanager.co.kr"
+        BUNDLE_ID: "kr.co.petmanager.owner"
+        XCODE_PROJECT: "apps/owner-mobile/ios/App/App.xcodeproj"
+        XCODE_SCHEME: "App"
+        APP_STORE_APPLE_ID: "6811699450"
+      node: 24
+      # Apple requires Xcode 26 or later for iOS uploads as of 2026-04-28.
+      xcode: 26.6
+
+    cache:
+      cache_paths:
+        - $HOME/.npm
+        - $HOME/Library/Caches/org.swift.swiftpm
+
+    scripts:
+      - name: Validate canonical owner-mobile inputs
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          APP_DIR="$CM_BUILD_DIR/$OWNER_MOBILE_DIR"
+          PROJECT_PATH="$CM_BUILD_DIR/$XCODE_PROJECT"
+
+          test -f "$APP_DIR/package.json"
+          test -f "$APP_DIR/package-lock.json"
+          test -f "$APP_DIR/capacitor.config.ts"
+          test -d "$PROJECT_PATH"
+          test "$OWNER_WEB_URL" = "https://www.petmanager.co.kr"
+          grep -Fq 'appId: "kr.co.petmanager.owner"' "$APP_DIR/capacitor.config.ts"
+          grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = kr.co.petmanager.owner;' "$PROJECT_PATH/project.pbxproj"
+          grep -Fq 'name = App;' "$PROJECT_PATH/project.pbxproj"
+
+      - name: Install locked Node dependencies and type-check
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          cd "$CM_BUILD_DIR/$OWNER_MOBILE_DIR"
+          npm ci --no-audit --no-fund
+          npm exec tsc -- --noEmit
+
+      - name: Sync Capacitor iOS with the production owner URL
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          cd "$CM_BUILD_DIR/$OWNER_MOBILE_DIR"
+          npm run sync:ios
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const generatedConfig = JSON.parse(
+            fs.readFileSync("ios/App/App/capacitor.config.json", "utf8"),
+          );
+          const expectedUrl = new URL(process.env.OWNER_WEB_URL).href;
+          const actualUrl = generatedConfig.server?.url
+            ? new URL(generatedConfig.server.url).href
+            : null;
+
+          if (generatedConfig.appId !== process.env.BUNDLE_ID) {
+            throw new Error("Generated Capacitor appId does not match BUNDLE_ID.");
+          }
+          if (actualUrl !== expectedUrl) {
+            throw new Error("Generated Capacitor server URL does not match OWNER_WEB_URL.");
+          }
+          NODE
+
+      - name: Verify the Xcode project, scheme, and bundle identifier
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          PROJECT_PATH="$CM_BUILD_DIR/$XCODE_PROJECT"
+          XCODE_LIST="$(xcodebuild -list -project "$PROJECT_PATH")"
+          printf '%s\n' "$XCODE_LIST" | grep -Eq "^[[:space:]]+$XCODE_SCHEME$"
+
+          ACTUAL_BUNDLE_ID="$(
+            xcodebuild \
+              -project "$PROJECT_PATH" \
+              -scheme "$XCODE_SCHEME" \
+              -configuration Release \
+              -showBuildSettings \
+            | awk -F ' = ' '/^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER = / { print $2; exit }'
+          )"
+          test "$ACTUAL_BUNDLE_ID" = "$BUNDLE_ID"
+
+      - name: Apply App Store distribution signing
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          cd "$CM_BUILD_DIR/$OWNER_MOBILE_DIR/ios/App"
+          xcode-project use-profiles
+
+      - name: Increment the App Store Connect build number
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          cd "$CM_BUILD_DIR/$OWNER_MOBILE_DIR/ios/App"
+          LATEST_BUILD_NUMBER="$(
+            app-store-connect get-latest-build-number \
+              "$APP_STORE_APPLE_ID" \
+              --platform=IOS \
+              --all-versions
+          )"
+
+          case "$LATEST_BUILD_NUMBER" in
+            ''|*[!0-9]*)
+              echo "App Store Connect returned a non-integer build number." >&2
+              exit 1
+              ;;
+          esac
+
+          NEXT_BUILD_NUMBER="$((LATEST_BUILD_NUMBER + 1))"
+          agvtool new-version -all "$NEXT_BUILD_NUMBER"
+
+          UPDATED_BUILD_NUMBER="$(
+            xcodebuild \
+              -project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+              -scheme "$XCODE_SCHEME" \
+              -configuration Release \
+              -showBuildSettings \
+            | awk -F ' = ' '/^[[:space:]]*CURRENT_PROJECT_VERSION = / { print $2; exit }'
+          )"
+          test "$UPDATED_BUILD_NUMBER" = "$NEXT_BUILD_NUMBER"
+
+      - name: Build the signed IPA
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          cd "$CM_BUILD_DIR/$OWNER_MOBILE_DIR/ios/App"
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+
+          test -n "$(find build/ios/ipa -maxdepth 1 -type f -name '*.ipa' -print -quit)"
+
+    artifacts:
+      - apps/owner-mobile/ios/App/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false

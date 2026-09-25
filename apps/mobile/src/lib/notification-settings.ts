@@ -1,0 +1,100 @@
+﻿import type { BootstrapPayload, Guardian, GuardianNotificationSettings, Shop, ShopNotificationSettings } from "@/types/domain";
+
+export const DEFAULT_REVISIT_REMINDER_DAYS = 45;
+
+export const defaultShopNotificationSettings: ShopNotificationSettings = {
+  enabled: true,
+  revisit_enabled: true,
+  revisit_reminder_default_days: DEFAULT_REVISIT_REMINDER_DAYS,
+  booking_confirmed_enabled: true,
+  booking_cancelled_enabled: true,
+  booking_rescheduled_enabled: true,
+  appointment_reminder_10m_enabled: true,
+  appointment_reminder_10m_mode: "manual",
+  visit_reminder_offset_minutes: 10,
+  grooming_started_enabled: true,
+  grooming_almost_done_enabled: true,
+  pickup_ready_eta_minutes: 5,
+  grooming_completed_enabled: true,
+  grooming_start_without_photo_enabled: false,
+  grooming_complete_without_photo_enabled: false,
+};
+
+export const defaultGuardianNotificationSettings: GuardianNotificationSettings = {
+  enabled: true,
+  revisit_enabled: true,
+  booking_confirmed_enabled: true,
+  booking_cancelled_enabled: true,
+  booking_rescheduled_enabled: true,
+  appointment_reminder_10m_enabled: true,
+  grooming_started_enabled: true,
+  grooming_almost_done_enabled: true,
+  grooming_completed_enabled: true,
+  birthday_greeting_enabled: true,
+};
+
+export function normalizeShopNotificationSettings(settings: Partial<ShopNotificationSettings> | null | undefined): ShopNotificationSettings {
+  return {
+    ...defaultShopNotificationSettings,
+    ...(settings ?? {}),
+  };
+}
+
+export function coerceEnabledShopNotificationSettings(settings: ShopNotificationSettings): ShopNotificationSettings {
+  if (!settings.enabled) return settings;
+
+  const hasAnyDetailedNotificationEnabled =
+    settings.revisit_enabled ||
+    settings.booking_confirmed_enabled ||
+    settings.booking_cancelled_enabled ||
+    settings.booking_rescheduled_enabled ||
+    settings.appointment_reminder_10m_enabled ||
+    settings.grooming_started_enabled ||
+    settings.grooming_almost_done_enabled ||
+    settings.grooming_completed_enabled;
+
+  if (hasAnyDetailedNotificationEnabled) {
+    return settings;
+  }
+
+  return {
+    ...settings,
+    revisit_enabled: true,
+    booking_confirmed_enabled: true,
+    booking_cancelled_enabled: true,
+    booking_rescheduled_enabled: true,
+    appointment_reminder_10m_enabled: true,
+    grooming_started_enabled: true,
+    grooming_almost_done_enabled: true,
+    grooming_completed_enabled: true,
+  };
+}
+
+export function normalizeGuardianNotificationSettings(settings: Partial<GuardianNotificationSettings> | null | undefined): GuardianNotificationSettings {
+  return {
+    ...defaultGuardianNotificationSettings,
+    ...(settings ?? {}),
+  };
+}
+
+export function normalizeShopNotifications<T extends Pick<Shop, "notification_settings">>(shop: T): T {
+  return {
+    ...shop,
+    notification_settings: normalizeShopNotificationSettings(shop.notification_settings),
+  };
+}
+
+export function normalizeGuardianNotifications<T extends Pick<Guardian, "notification_settings">>(guardian: T): T {
+  return {
+    ...guardian,
+    notification_settings: normalizeGuardianNotificationSettings(guardian.notification_settings),
+  };
+}
+
+export function normalizeBootstrapNotifications(payload: BootstrapPayload): BootstrapPayload {
+  return {
+    ...payload,
+    shop: normalizeShopNotifications(payload.shop),
+    guardians: payload.guardians.map((guardian) => normalizeGuardianNotifications(guardian)),
+  };
+}

@@ -14,3 +14,11 @@ supabase/**/.temp/
 
 .vercel
 artifacts/
+
+# Local migration recovery material must never be committed.
+.migration-backup/
+archive/
+**/keystore.properties
+**/google-services.json
+*.jks
+*.keystore

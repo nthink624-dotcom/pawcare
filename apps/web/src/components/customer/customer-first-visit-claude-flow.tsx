@@ -1,0 +1,670 @@
+"use client";
+
+import { Check, ChevronLeft, UserRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import CustomerBreedAutocomplete from "@/components/customer/customer-breed-autocomplete";
+import { formatCustomerServiceDuration, type CustomerServiceSourceOption } from "@/lib/customer-service-options";
+import { getStaffCustomerName } from "@/lib/staff-display";
+import { formatServicePrice, phoneNormalize } from "@/lib/utils";
+import type { Appointment, BootstrapStaffMember, Service, Shop } from "@/types/domain";
+
+type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
+
+type DateOption = {
+  value: string;
+  label: string;
+  weekday: string;
+};
+
+type FirstVisitForm = {
+  ownerName: string;
+  phone: string;
+  petName: string;
+  breed: string;
+  weightKg: string;
+  date: string;
+  timeSlot: string;
+  staffId: string;
+  serviceId: string;
+  customerServiceOptionId: string;
+  customServiceName: string;
+  note: string;
+};
+
+type BookingCompletion = {
+  appointment: Appointment;
+  bookingManageUrl: string;
+};
+
+function isValidBookingPhoneNumber(value: string) {
+  const digits = phoneNormalize(value);
+  if (digits.startsWith("02")) return digits.length === 9 || digits.length === 10;
+  return digits.length === 10 || digits.length === 11;
+}
+
+type SavedBookingPet = {
+  id: string;
+  name: string;
+  breed: string;
+  weight: number | null;
+};
+
+const CUSTOM_SERVICE_ID = "__custom__";
+function formatDateChipTitle(date: DateOption, previousDate?: DateOption) {
+  if (date.label === "오늘") return "오늘";
+  if (previousDate?.label === "오늘") return "내일";
+  return date.weekday;
+}
+
+function formatDateChipSubtitle(date: DateOption) {
+  const parsed = new Date(`${date.value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date.label.includes("/") ? date.label.replace("/", ".") : date.label;
+  return `${parsed.getMonth() + 1}.${String(parsed.getDate()).padStart(2, "0")}`;
+}
+
+function formatDateForSummary(value: string) {
+  if (!value) return "-";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekdays[date.getDay()]})`;
+}
+
+function formatTimeForSummary(value: string) {
+  if (!value) return "-";
+  const [hour, minute] = value.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return value;
+  return `${hour < 12 ? "오전" : "오후"} ${String(hour % 12 || 12).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function buildReservationNumber(appointment?: Appointment | null) {
+  if (!appointment) return "접수 후 발급";
+  const datePart = appointment.appointment_date.replace(/-/g, "").slice(2);
+  const rawSuffix = appointment.id.replace(/\D/g, "").slice(-3) || appointment.id.replace(/-/g, "").slice(-3).toUpperCase();
+  return `PM${datePart}-${rawSuffix.padStart(3, "0")}`;
+}
+
+function ClaudeStyles() {
+  return (
+    <style>{`
+      .pm-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--primary:#ec7f72;--primaryDk:#a9473f;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;min-height:100dvh;background:var(--surface);color:var(--text);font-family:inherit;overflow:hidden}
+      .pm-proto *{box-sizing:border-box}
+      .pm-proto :is(button,a,input,textarea,select,[role="button"]):focus-visible{outline:2px solid var(--primaryDk);outline-offset:2px;box-shadow:0 0 0 3px rgba(236,127,114,.22)}
+      .pm-proto :is(input,textarea)::placeholder{color:#94a3b8;opacity:1;font-size:16px;line-height:24px}
+      .pm-proto .nav{position:sticky;top:0;z-index:8;display:flex;align-items:center;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--borderSoft)}
+      .pm-proto .nav .back{width:44px;height:44px;min-width:44px;min-height:44px;border:none;background:none;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:10px;color:var(--text);margin:-7px 6px -7px -7px}
+      .pm-proto .nav .ttl{font-size:18px;line-height:26px;font-weight:600;letter-spacing:-.01em}
+      .pm-proto .pgscroll{height:calc(100dvh - 51px);overflow:auto;scrollbar-width:none;padding:12px 16px calc(178px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:18px}
+      .pm-proto .pgscroll::-webkit-scrollbar{display:none}
+      .pm-proto .sec h3{font-size:18px;line-height:26px;font-weight:600;color:var(--text);letter-spacing:-.01em;margin-bottom:12px;display:flex;align-items:center;gap:7px}
+      .pm-proto .svc{display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px solid var(--border);border-radius:var(--r);padding:14px 15px;cursor:pointer;transition:border-color .15s,background .15s;width:100%;text-align:left}
+      .pm-proto .svc + .svc{margin-top:9px}
+      .pm-proto .svc.sel{border-color:var(--primary);background:var(--primarySoft)}
+      .pm-proto .svc .radio{width:21px;height:21px;border-radius:50%;border:2px solid var(--track);flex-shrink:0;position:relative;transition:border-color .15s}
+      .pm-proto .svc.sel .radio{border-color:var(--primary)}
+      .pm-proto .svc.sel .radio::after{content:"";position:absolute;inset:3.5px;border-radius:50%;background:var(--primary)}
+      .pm-proto .svc .info{min-width:0;flex:1;display:flex;align-items:baseline;gap:12px}
+      .pm-proto .svc .info .n{font-size:15px;font-weight:500;letter-spacing:-.02em;color:var(--text);flex-shrink:0}
+      .pm-proto .svc .info .d{font-size:15px;color:var(--textMuted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pm-proto .service-page .svc .info .d{font-size:14px}
+      .pm-proto .svc .price{margin-left:auto;font-size:15px;font-weight:500;color:var(--primaryDk);font-variant-numeric:tabular-nums;white-space:nowrap}
+      .pm-proto .date-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+      .pm-proto .date-head h3{margin-bottom:0}
+      .pm-proto .date-head .swipe-hint{font-size:13px;line-height:20px;font-weight:500;color:var(--textMuted)}
+      .pm-proto .dstrip{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 16px 4px 0;scroll-snap-type:x mandatory;scroll-padding-inline:0;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
+      .pm-proto .dstrip::-webkit-scrollbar{display:none}
+      .pm-proto .dcell{flex:0 0 calc((100% - 24px) / 4);min-width:0;height:92px;border-radius:13px;border:1.5px solid var(--border);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;scroll-snap-align:start}
+      .pm-proto .dcell .dw{font-size:15px;color:var(--textMid)}
+      .pm-proto .dcell .dn{font-size:18px;font-weight:600;letter-spacing:-.02em}
+      .pm-proto .dcell .avail{display:inline-flex;align-items:center;gap:4px;margin-top:2px;color:#26704b;font-size:12px;line-height:18px;font-weight:500;letter-spacing:-.01em;white-space:nowrap}
+      .pm-proto .dcell .avail::before{content:"";width:5px;height:5px;border-radius:999px;background:#1f9d55}
+      .pm-proto .dcell:disabled{cursor:not-allowed;border-color:#e1d9d4;background:#f7f4f2;color:#887a73;opacity:1}
+      .pm-proto .dcell:disabled .dw,.pm-proto .dcell:disabled .dn{color:#887a73}
+      .pm-proto .dcell.unavailable .avail{color:#9a5a50}
+      .pm-proto .dcell.unavailable .avail::before{background:#a04455}
+      .pm-proto .dcell.sel{border-color:var(--primary);background:var(--primary)}
+      .pm-proto .dcell.sel .dw,.pm-proto .dcell.sel .dn,.pm-proto .dcell.sel .avail{color:var(--text)}
+      .pm-proto .dcell.sel .avail::before{background:var(--text)}
+      .pm-proto .tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+      .pm-proto .tcell{height:46px;text-align:center;font-size:16px;line-height:24px;font-weight:500;border-radius:10px;border:1.5px solid var(--border);background:var(--card);font-variant-numeric:tabular-nums;cursor:pointer}
+      .pm-proto .tcell.sel{border-color:var(--primary);background:var(--primary);color:var(--text)}
+      .pm-proto .tcell .rec{margin-left:4px;color:var(--primaryDk);font-size:15px;font-weight:500}
+      .pm-proto .tcell.sel .rec{color:var(--text)}
+      .pm-proto .hint{font-size:15px;color:var(--textMuted);text-align:center;line-height:1.45}
+      .pm-proto .empty-slots{display:flex;min-height:106px;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border);border-radius:14px;background:rgba(255,255,255,.72);padding:20px 16px;text-align:center}
+      .pm-proto .empty-slots strong{font-size:16px;font-weight:600;color:var(--text);letter-spacing:-.02em}
+      .pm-proto .empty-slots span{font-size:14px;color:var(--textMid)}
+      .pm-proto .field{display:flex;flex-direction:column;gap:8px}
+      .pm-proto .field label{font-size:14px;line-height:20px;font-weight:500;letter-spacing:-.02em}
+      .pm-proto .field input,.pm-proto .field textarea{font-family:inherit;font-size:16px;line-height:24px;color:var(--text);background:var(--card);border:1.5px solid var(--border);border-radius:11px;padding:11px 14px;width:100%;outline:none}
+      .pm-proto .field textarea{resize:none;height:88px}
+      .pm-proto .frow{display:flex;gap:10px;align-items:flex-start}
+      .pm-proto .frow .field{flex:1;min-width:0}
+      .pm-proto .info-page{gap:12px;padding-top:14px}
+      .pm-proto .info-page .sec h3{display:none}
+      .pm-proto .info-page .sec{display:flex;flex-direction:column;gap:11px}
+      .pm-proto .info-page .field label .optional{margin-left:4px;color:var(--textMuted);font-weight:500}
+      .pm-proto .info-page .field{gap:5px;padding:0;border:0;background:transparent}
+      .pm-proto .info-page .field label{font-size:14px;font-weight:500;line-height:20px;color:var(--text);padding-left:2px}
+      .pm-proto .info-page .field input{height:48px;padding:11px 13px;border-radius:10px;background:#fff;box-shadow:none;font-size:16px;line-height:24px}
+      .pm-proto .info-page .field textarea{height:90px;padding:12px 13px;border-radius:10px;background:#fff;box-shadow:none;font-size:16px;line-height:24px}
+      .pm-proto .start-note{border:1px solid #f4cfc8;border-radius:14px;background:#fff2ef;padding:12px 13px;line-height:1.45}
+      .pm-proto .start-note .badge{display:inline-flex;align-items:center;height:23px;border-radius:999px;background:var(--primary);padding:0 9px;font-size:13px;font-weight:500;color:var(--text);letter-spacing:-.02em}
+      .pm-proto .start-note .title{display:block;margin-top:8px;font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.02em}
+      .pm-proto .start-note .desc{display:block;margin-top:3px;font-size:14px;color:var(--textMid)}
+      .pm-proto .pet-picker-title{font-size:20px;font-weight:600;letter-spacing:-.03em;color:var(--text)}
+      .pm-proto .pet-list{display:flex;flex-direction:column;gap:9px}
+      .pm-proto .pet-card{width:100%;display:flex;align-items:center;gap:12px;border:1.5px solid var(--border);border-radius:14px;background:#fff;padding:13px 14px;text-align:left;color:var(--text)}
+      .pm-proto .pet-card.sel{border-color:var(--primary);background:var(--primarySoft)}
+      .pm-proto .pet-card .avatar{width:38px;height:38px;flex-shrink:0;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);font-size:15px;font-weight:500}
+      .pm-proto .pet-card .meta{min-width:0;flex:1}
+      .pm-proto .pet-card .name{display:block;font-size:16px;font-weight:600;letter-spacing:-.02em}
+      .pm-proto .pet-card .breed{display:block;margin-top:3px;font-size:14px;color:var(--textMid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pm-proto .pet-add{width:100%;min-height:48px;border:1.5px dashed #edc9c1;border-radius:14px;background:#fffaf8;color:var(--primaryDk);font-size:15px;font-weight:500}
+      .pm-proto .chips{display:flex;flex-wrap:wrap;gap:7px}
+      .pm-proto .breedchip{border:1px solid var(--border);background:var(--card);border-radius:999px;color:var(--textMid);font-size:15px;font-weight:500;padding:7px 10px}
+      .pm-proto .breedchip.sel{border-color:var(--primary);background:var(--primarySoft);color:var(--primaryDk)}
+      .pm-proto .breed-more-toggle{align-self:flex-start;min-width:44px;min-height:44px;border:0;background:transparent;padding:0 8px;color:var(--primaryDk);font-size:14px;font-weight:500;line-height:20px;text-decoration:underline;text-underline-offset:3px}
+      .pm-proto .breed-search .breed-suggestions{margin-top:2px}
+      .pm-proto .breed-search .breed-direct-note{font-size:13px;line-height:1.45;color:var(--textMid);padding:2px 2px 0}
+      .pm-proto .staffstrip{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;padding:0 16px 4px 0;scrollbar-width:none;scroll-snap-type:x mandatory;scroll-padding-inline:0;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
+      .pm-proto .staffstrip::-webkit-scrollbar{display:none}
+      .pm-proto .staff{width:calc((100% - 30px) / 3.3333);flex:0 0 calc((100% - 30px) / 3.3333);min-width:0;min-height:112px;scroll-snap-align:start;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:14px 8px 11px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+      .pm-proto .staff.sel{border-color:var(--primary);background:var(--primarySoft)}
+      .pm-proto .staff:disabled{cursor:not-allowed;border-color:#eadfd9;background:#f7f4f2;color:#9a8b83;opacity:1}
+      .pm-proto .staff .avatar{width:44px;height:44px;margin:0 auto 10px;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
+      .pm-proto .staff .avatar img{width:100%;height:100%;object-fit:cover}
+      .pm-proto .staff .name{display:block;width:100%;font-size:16px;line-height:24px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pm-proto .staff .state{display:block;margin-top:4px;font-size:13px;line-height:20px;color:#64748b;white-space:nowrap}
+      .pm-proto .staff:disabled .state{color:#8a7a72}
+      .pm-proto .auto-assignment-guide{margin-top:10px;border:1px solid #f0dfd9;border-radius:10px;background:#fffaf8;padding:9px 11px;font-size:13px;line-height:1.5;color:#7d625a}
+      .pm-proto .auto-assignment-guide strong{color:var(--primaryDk);font-weight:500}
+      .pm-proto .consent-note{margin-top:2px;border:1px solid #f4d9d2;border-radius:12px;background:#fff8f6;padding:10px 12px;font-size:14px;line-height:1.48;color:#9a7168}
+      .pm-proto .consent-note .label{display:block;margin-bottom:3px;font-size:13px;font-weight:500;color:var(--primaryDk)}
+      .pm-proto .consent-note .agree{color:#8a665d}
+      .pm-proto .contact-flat{display:flex;flex-direction:column;gap:13px}
+      .pm-proto .contact-item{display:flex;flex-direction:column;gap:6px;background:transparent;border:0;padding:0}
+      .pm-proto .contact-label{font-size:14px;line-height:20px;font-weight:500;letter-spacing:-.02em;color:var(--text);padding-left:1px}
+      .pm-proto .contact-input{height:50px;width:100%;border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:11px 13px;font-family:inherit;font-size:16px;line-height:24px;color:var(--text);outline:none}
+      .pm-proto .confirm-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:4px 15px}
+      .pm-proto .confirm-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;font-size:16px;line-height:24px}
+      .pm-proto .confirm-row + .confirm-row{border-top:1px solid var(--borderSoft)}
+      .pm-proto .confirm-row .k{width:70px;flex-shrink:0;color:var(--textMuted);font-size:14px;line-height:20px}
+      .pm-proto .confirm-row .v{min-width:0;flex:1;font-weight:500;color:var(--text);letter-spacing:-.02em}
+      .pm-proto .dock{position:fixed;bottom:0;left:50%;right:auto;transform:translateX(-50%);z-index:30;width:100%;max-width:430px;padding:6px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(253,247,245,.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border)}
+      .pm-proto .cta{width:100%;min-height:48px;padding:12px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:var(--text);font-family:inherit;font-size:16px;line-height:24px;font-weight:500;letter-spacing:-.02em;cursor:pointer;box-shadow:none}
+      .pm-proto .cta:disabled{background:#e8d9d2;color:#b9a89f;box-shadow:none;cursor:not-allowed}
+      .pm-proto .dock .sumline{display:flex;align-items:center;gap:8px;padding:2px 4px 4px;font-size:15px;line-height:20px}
+      .pm-proto .dock .sumline .k{color:var(--textMuted);white-space:nowrap}
+      .pm-proto .dock .sumline .v{font-weight:600;letter-spacing:-.02em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .pm-proto .dock .sumline .amt{margin-left:auto;font-size:15px;font-weight:500;color:var(--primaryDk);white-space:nowrap}
+      .pm-proto .btnrow{display:flex;gap:10px;width:100%}
+      .pm-proto .btn{flex:1;min-height:48px;padding:12px 0;border-radius:var(--rbtn);font-family:inherit;font-size:16px;line-height:24px;font-weight:500;letter-spacing:-.02em;cursor:pointer;border:none}
+      .pm-proto .btn.ghost{background:var(--card);border:1px solid var(--border);color:var(--text)}
+      .pm-proto .btn.primary{background:var(--primary);color:var(--text);box-shadow:none}
+      .pm-proto .done{min-height:100dvh;display:flex;flex-direction:column;align-items:center;padding:42px 24px 24px;text-align:center}
+      .pm-proto .done .ic{width:84px;height:84px;border-radius:50%;background:#1f9d55;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:none}
+      .pm-proto .done h2{font-size:22px;font-weight:600;letter-spacing:-.03em;margin-top:22px}
+      .pm-proto .done .lead{font-size:15px;color:var(--textMid);margin-top:9px;line-height:1.6}
+      .pm-proto .rcard{width:100%;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:6px 18px;margin-top:28px;text-align:left}
+      .pm-proto .rcard .ry{display:flex;align-items:center;font-size:16px;line-height:24px;padding:13px 0}
+      .pm-proto .rcard .ry + .ry{border-top:1px solid var(--borderSoft)}
+      .pm-proto .rcard .ry .k{color:var(--textMuted);width:72px;flex-shrink:0}
+      .pm-proto .rcard .ry .v{font-weight:600;letter-spacing:-.02em}
+      .pm-proto .rcard .ry .v.amt{color:var(--primaryDk)}
+    `}</style>
+  );
+}
+
+function Nav({ title, onBack, showBack = true }: { title: string; step?: string; onBack: () => void; showBack?: boolean }) {
+  return (
+    <div className="nav">
+      {showBack ? (
+        <button className="back" onClick={onBack} type="button" aria-label="이전">
+          <ChevronLeft size={22} strokeWidth={2} />
+        </button>
+      ) : (
+        <span className="back" aria-hidden="true" />
+      )}
+      <div className="ttl">{title}</div>
+    </div>
+  );
+}
+
+export default function CustomerFirstVisitClaudeFlow({
+  customerServiceOptions,
+  dateOptions,
+  staffMembers,
+  firstVisit,
+  savedPets,
+  step,
+  selectedService,
+  selectedServiceOption,
+  availableSlots,
+  recommendedSlots,
+  recommendationSource,
+  dateAvailability,
+  staffAvailability,
+  loadingDateAvailability,
+  staffSelectionRequiresAction,
+  loadingSlots,
+  submitting,
+  completedBooking,
+  previewOnly = false,
+  onBackToEntry,
+  onStepBack,
+  onNext,
+  onSubmit,
+  onServiceSelect,
+  onStaffSelect,
+  onDateSelect,
+  onTimeSelect,
+  onOwnerNameChange,
+  onPhoneChange,
+  onPetNameChange,
+  onBreedChange,
+  onWeightChange,
+  onNoteChange,
+  onGoManage,
+  onAddBooking,
+}: {
+  shop: Shop;
+  customerServiceOptions: CustomerServiceSourceOption[];
+  dateOptions: DateOption[];
+  staffMembers: BootstrapStaffMember[];
+  firstVisit: FirstVisitForm;
+  savedPets: SavedBookingPet[];
+  step: FirstVisitStep;
+  selectedService?: Service;
+  selectedServiceOption?: CustomerServiceSourceOption;
+  availableSlots: string[];
+  recommendedSlots: string[];
+  recommendationSource?: "ai" | "rule";
+  dateAvailability: Record<string, boolean | undefined>;
+  staffAvailability: Record<string, boolean | undefined>;
+  loadingDateAvailability: boolean;
+  staffSelectionRequiresAction: boolean;
+  loadingSlots: boolean;
+  submitting: boolean;
+  completedBooking: BookingCompletion | null;
+  previewOnly?: boolean;
+  onBackToEntry: () => void;
+  onStepBack: () => void;
+  onNext: () => void;
+  onSubmit: () => Promise<void>;
+  onOpenShopInfo: () => void;
+  onServiceSelect: (serviceOptionId: string) => void;
+  onStaffSelect: (staffId: string) => void;
+  onDateSelect: (date: string) => void;
+  onTimeSelect: (time: string) => void;
+  onOwnerNameChange: (value: string) => void;
+  onPhoneChange: (value: string) => void;
+  onPetNameChange: (value: string) => void;
+  onBreedChange: (value: string) => void;
+  onWeightChange: (value: string) => void;
+  onNoteChange: (value: string) => void;
+  onGoManage: () => void;
+  onAddBooking: () => void;
+}) {
+  const breedInputRef = useRef<HTMLInputElement | null>(null);
+  const savedPetPickerKey = `${step}:${savedPets.length}`;
+  const [newPetPickerKey, setNewPetPickerKey] = useState<string | null>(null);
+  const serviceSummaryName = firstVisit.serviceId === CUSTOM_SERVICE_ID ? "상담 후 결정" : selectedServiceOption?.displayName || selectedService?.name || "서비스 선택";
+  const selectedServiceProjection = selectedServiceOption
+    ? {
+        name: selectedServiceOption.displayName,
+        durationLabel: formatCustomerServiceDuration(selectedServiceOption),
+        priceLabel: formatServicePrice(selectedServiceOption.price, selectedServiceOption.priceType),
+      }
+    : null;
+  const uniqueAvailableSlots = useMemo(() => Array.from(new Set(availableSlots)), [availableSlots]);
+  const uniqueRecommendedSlots = useMemo(
+    () => Array.from(new Set(recommendedSlots)).filter((slot) => uniqueAvailableSlots.includes(slot)),
+    [recommendedSlots, uniqueAvailableSlots],
+  );
+  const petNameForConsent = firstVisit.petName.trim() || "아기";
+  const selectedSavedPet = savedPets.find((pet) => pet.name.trim() && pet.name.trim() === firstVisit.petName.trim()) ?? null;
+  const showSavedPetPicker = savedPets.length > 0 && newPetPickerKey !== savedPetPickerKey;
+
+  if (step === 5) {
+    const appointment = completedBooking?.appointment;
+    const summaryDate = appointment?.appointment_date || firstVisit.date;
+    const summaryTime = appointment?.appointment_time?.slice(0, 5) || firstVisit.timeSlot;
+
+    return (
+      <div className="pm-proto">
+        <ClaudeStyles />
+        <div className="done">
+          <div className="ic">
+            <Check size={42} strokeWidth={2.2} />
+          </div>
+          <h2>{previewOnly ? "예약 흐름을 확인했습니다" : "예약이 등록되었습니다!"}</h2>
+          <div className="rcard">
+            <div className="ry"><span className="k">예약 번호</span><span className="v">{buildReservationNumber(appointment)}</span></div>
+            <div className="ry"><span className="k">예약 날짜</span><span className="v">{formatDateForSummary(summaryDate)}</span></div>
+            <div className="ry"><span className="k">예약 시간</span><span className="v">{formatTimeForSummary(summaryTime)}</span></div>
+            <div className="ry"><span className="k">서비스</span><span className="v">{serviceSummaryName}</span></div>
+          </div>
+          <div style={{ flex: 1 }} />
+          <div className="btnrow">
+            <button className="btn primary" type="button" onClick={onGoManage}>{previewOnly ? "미리보기 처음으로" : "예약 내역 보기"}</button>
+            <button className="btn ghost" type="button" onClick={onAddBooking}>{previewOnly ? "다시 확인하기" : "추가 예약하기"}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pm-proto">
+      <ClaudeStyles />
+
+      {step === 1 ? (
+        <>
+          <Nav title="아기 정보" step="1 / 4" onBack={onBackToEntry} />
+          <div className="pgscroll info-page">
+            {showSavedPetPicker ? (
+              <div className="sec">
+                <div>
+                  <div className="pet-picker-title">누구 예약할까요?</div>
+                </div>
+                <div className="pet-list">
+                  {savedPets.map((pet) => {
+                    const active = selectedSavedPet?.id === pet.id;
+                    return (
+                      <button
+                        key={pet.id}
+                        type="button"
+                        className={`pet-card${active ? " sel" : ""}`}
+                        onClick={() => {
+                          onPetNameChange(pet.name);
+                          onBreedChange(pet.breed);
+                          onWeightChange(pet.weight ? String(pet.weight) : "");
+                          onNoteChange("");
+                        }}
+                      >
+                        <span className="avatar">{pet.name.trim().slice(0, 1) || "아"}</span>
+                        <span className="meta">
+                          <span className="name">{pet.name}</span>
+                          <span className="breed">{pet.breed || "품종 미입력"}{pet.weight ? ` · ${pet.weight}kg` : ""}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    className="pet-add"
+                    type="button"
+                    onClick={() => {
+                      setNewPetPickerKey(savedPetPickerKey);
+                      onPetNameChange("");
+                      onBreedChange("");
+                      onWeightChange("");
+                      onNoteChange("");
+                      window.setTimeout(() => breedInputRef.current?.focus(), 0);
+                    }}
+                  >
+                    + 새 아기 등록
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="start-note">
+                  <span className="badge">TIP</span>
+                  <span className="title">다음 예약부터 아기 선택만 하면 돼요</span>
+                  <span className="desc">이번 한 번만 등록하면 보호자 정보와 아기 정보를 저장해두고, 다음 예약부터 목록에서 바로 선택할 수 있어요.</span>
+                </div>
+                {savedPets.length > 0 ? (
+                  <button
+                    className="pet-add"
+                    type="button"
+                    onClick={() => setNewPetPickerKey(null)}
+                  >
+                    저장된 아기 목록 보기
+                  </button>
+                ) : null}
+                <div className="sec">
+                  <h3>반려동물 정보</h3>
+                  <div className="field">
+                    <label>아기 이름</label>
+                    <input value={firstVisit.petName} onChange={(event) => onPetNameChange(event.target.value)} placeholder="아기 이름" />
+                  </div>
+                  <div className="field">
+                    <label>몸무게</label>
+                    <div style={{ position: "relative" }}>
+                      <input
+                        value={firstVisit.weightKg}
+                        inputMode="decimal"
+                        onChange={(event) => onWeightChange(event.target.value.replace(/[^0-9.]/g, "").slice(0, 6))}
+                        placeholder="예: 4.5"
+                        style={{ paddingRight: 48 }}
+                      />
+                      <span style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", color: "var(--textMuted)", fontSize: 15 }}>kg</span>
+                    </div>
+                  </div>
+                  <CustomerBreedAutocomplete ref={breedInputRef} value={firstVisit.breed} onChange={onBreedChange} />
+                </div>
+
+                <div className="sec">
+                  <h3>요청사항</h3>
+                  <div className="field">
+                    <label>요청사항 <span className="optional">(선택)</span></label>
+                    <textarea value={firstVisit.note} onChange={(event) => onNoteChange(event.target.value.slice(0, 200))} placeholder="미용 스타일, 예민한 부위, 건강 특이사항 등을 알려주세요." />
+                  </div>
+                  <div className="hint" style={{ marginTop: 8, textAlign: "right" }}>{firstVisit.note.length}/200</div>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="dock">
+            <button className="cta" type="button" disabled={!firstVisit.petName.trim() || !firstVisit.breed.trim() || !(Number(firstVisit.weightKg) > 0)} onClick={onNext}>다음</button>
+          </div>
+        </>
+      ) : null}
+
+      {step === 2 ? (
+        <>
+          <Nav title="서비스 선택" step="2 / 4" onBack={onStepBack} />
+          <div className="pgscroll service-page">
+            <div className="sec">
+              <h3>서비스 선택</h3>
+              {customerServiceOptions.map((service) => (
+                <button
+                  key={service.id}
+                  type="button"
+                  className={`svc${firstVisit.customerServiceOptionId === service.id ? " sel" : ""}`}
+                  onClick={() => onServiceSelect(service.id)}
+                >
+                  <span className="radio" />
+                  <span className="info">
+                    <span className="n">{service.displayName}</span>
+                    <span className="d">{formatCustomerServiceDuration(service)}</span>
+                  </span>
+                  <span className="price">{formatServicePrice(service.price, service.priceType)}</span>
+                </button>
+              ))}
+              {customerServiceOptions.length === 0 ? <div className="hint">노출 중인 서비스가 없습니다.</div> : null}
+            </div>
+          </div>
+          <div className="dock">
+            <div className="sumline">
+              <span className="k">선택</span>
+              <span className="v">{firstVisit.customerServiceOptionId ? serviceSummaryName : "서비스를 골라주세요"}</span>
+            </div>
+            <button className="cta" type="button" disabled={!firstVisit.serviceId} onClick={onNext}>다음</button>
+          </div>
+        </>
+      ) : null}
+
+      {step === 3 ? (
+        <>
+          <Nav title="날짜 · 시간 선택" step="3 / 4" onBack={onStepBack} />
+          <div className="pgscroll">
+            <div className="sec">
+              <div className="date-head">
+                <h3>날짜 선택</h3>
+                <span className="swipe-hint">예약 가능 여부를 확인해요</span>
+              </div>
+              <div className="dstrip">
+                {dateOptions.map((date, index) => {
+                  const active = firstVisit.date === date.value;
+                  const availability = dateAvailability[date.value];
+                  const unavailable = availability === false;
+                  const availabilityLabel = availability === true ? "예약 가능" : unavailable ? "예약 불가" : "확인 중";
+                  return (
+                    <button
+                      key={date.value}
+                      type="button"
+                      className={`dcell${active ? " sel" : ""}${unavailable ? " unavailable" : ""}`}
+                      aria-label={`${date.label}, ${formatDateChipSubtitle(date)}, ${availabilityLabel}`}
+                      disabled={availability !== true}
+                      onClick={() => onDateSelect(date.value)}
+                    >
+                      <span className="dw">{formatDateChipTitle(date, dateOptions[index - 1])}</span>
+                      <span className="dn">{formatDateChipSubtitle(date)}</span>
+                      <span className="avail">{availabilityLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="sec">
+              <h3>선생님 · 디자이너 선택</h3>
+              <div className="staffstrip">
+                {staffMembers.length > 1 ? (
+                  <button
+                    type="button"
+                    className={`staff${!firstVisit.staffId && !staffSelectionRequiresAction ? " sel" : ""}`}
+                    disabled={!firstVisit.date || dateAvailability[firstVisit.date] !== true || loadingDateAvailability}
+                    onClick={() => onStaffSelect("")}
+                  >
+                    <span className="avatar"><UserRound size={22} /></span>
+                    <span className="name">빠른 예약</span>
+                    <span className="state">{firstVisit.date && dateAvailability[firstVisit.date] === true ? "예약 가능" : "날짜를 먼저 선택"}</span>
+                  </button>
+                ) : null}
+                {staffMembers.map((staff) => {
+                  const active = firstVisit.staffId === staff.id;
+                  const isUnavailable = Boolean(firstVisit.date) && staffAvailability[staff.id] === false;
+                  const isChecking = Boolean(firstVisit.date) && staffAvailability[staff.id] === undefined;
+                  return (
+                    <button
+                      key={staff.id}
+                      type="button"
+                      className={`staff${active ? " sel" : ""}`}
+                      disabled={!firstVisit.date || isUnavailable || isChecking || loadingDateAvailability}
+                      aria-describedby={isUnavailable ? `staff-${staff.id}-availability` : undefined}
+                      onClick={() => onStaffSelect(staff.id)}
+                    >
+                      <span className="avatar">
+                        {staff.profileImageUrl ? <img src={staff.profileImageUrl} alt="" /> : <UserRound size={22} />}
+                      </span>
+                      <span className="name">{getStaffCustomerName(staff)}</span>
+                      <span id={isUnavailable ? `staff-${staff.id}-availability` : undefined} className="state">
+                        {!firstVisit.date ? "날짜를 먼저 선택" : isUnavailable ? "이 날짜 예약 불가" : isChecking ? "가능 시간 확인 중" : "예약 가능"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="sec">
+              <h3>예약 가능한 시간</h3>
+              {loadingSlots ? (
+                <div className="hint">가능한 시간을 확인하고 있어요.</div>
+              ) : uniqueAvailableSlots.length === 0 ? (
+                <div className="empty-slots" role="status">
+                  <strong>예약 가능한 시간이 없어요</strong>
+                  <span>다른 날짜를 선택해 주세요.</span>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {uniqueRecommendedSlots.length > 0 ? (
+                    <div>
+                      <p className="mb-2 text-[13px] font-medium text-[#15213b]">{recommendationSource === "ai" ? "AI 추천 시간" : "추천 시간"}<span className="ml-1.5 font-normal text-[#64748b]">예약 흐름을 고려했어요</span></p>
+                      <div className="tgrid">
+                        {uniqueRecommendedSlots.map((slot) => (
+                          <button key={`recommended-${slot}`} type="button" className={`tcell border-[#cbd5e1] bg-[#f8fafc]${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
+                            {slot}<span className="rec">추천</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {uniqueAvailableSlots.some((slot) => !uniqueRecommendedSlots.includes(slot)) ? (
+                    <div>
+                      {uniqueRecommendedSlots.length > 0 ? <p className="mb-2 text-[13px] font-medium text-[#15213b]">다른 예약 가능한 시간</p> : null}
+                      <div className="tgrid">
+                        {uniqueAvailableSlots.filter((slot) => !uniqueRecommendedSlots.includes(slot)).map((slot) => (
+                          <button key={slot} type="button" className={`tcell${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
+                            {slot}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="dock">
+            <div className="sumline">
+              <span className="k">서비스</span>
+              <span className="v">
+                {selectedServiceProjection
+                  ? `${selectedServiceProjection.name} · ${selectedServiceProjection.durationLabel}`
+                  : "서비스 선택"}
+              </span>
+              <span className="amt">{selectedServiceProjection?.priceLabel ?? ""}</span>
+            </div>
+            <div className="sumline">
+              <span className="k">일정</span>
+              <span className="v">{firstVisit.date && firstVisit.timeSlot ? `${formatDateForSummary(firstVisit.date)} · ${firstVisit.timeSlot}` : "날짜와 시간을 골라주세요"}</span>
+            </div>
+            <button className="cta" type="button" disabled={!firstVisit.date || !firstVisit.timeSlot || staffSelectionRequiresAction} onClick={onNext}>다음</button>
+          </div>
+        </>
+      ) : null}
+
+      {step === 4 ? (
+        <>
+          <Nav title="최종 확인" step="4 / 4" onBack={onStepBack} />
+          <div className="pgscroll">
+            <div className="contact-flat">
+              <div className="contact-item">
+                <label className="contact-label">보호자 이름</label>
+                <input className="contact-input" value={firstVisit.ownerName} onChange={(event) => onOwnerNameChange(event.target.value)} placeholder="이름" />
+              </div>
+              <div className="contact-item">
+                <label className="contact-label">연락처</label>
+                <input className="contact-input" value={firstVisit.phone} inputMode="tel" onChange={(event) => onPhoneChange(event.target.value)} placeholder="010-1234-5678" />
+              </div>
+              <p className="consent-note">
+                <span className="label">안내</span>
+                우리 소중한 {petNameForConsent}의 예약 확인과 미용 안내를 위해 보호자님의 성함과 연락처가 필요해요. 입력하신 정보는 예약 진행 및 안내 목적으로만 사용됩니다. <span className="agree">개인정보 수집·이용에 동의하시면 예약 등록을 눌러주세요.</span>
+              </p>
+            </div>
+
+            <div className="sec">
+              <h3>예약 내용</h3>
+              <div className="confirm-card">
+                <div className="confirm-row"><span className="k">아기</span><span className="v">{firstVisit.petName || "-"} · {firstVisit.breed || "-"} · {firstVisit.weightKg ? `${firstVisit.weightKg}kg` : "-"}</span></div>
+                <div className="confirm-row"><span className="k">서비스</span><span className="v">{serviceSummaryName}</span></div>
+                <div className="confirm-row"><span className="k">일시</span><span className="v">{firstVisit.date && firstVisit.timeSlot ? `${formatDateForSummary(firstVisit.date)} · ${formatTimeForSummary(firstVisit.timeSlot)}` : "-"}</span></div>
+                <div className="confirm-row"><span className="k">담당</span><span className="v">{staffMembers.find((staff) => staff.id === firstVisit.staffId) ? getStaffCustomerName(staffMembers.find((staff) => staff.id === firstVisit.staffId)!) : staffMembers.length === 1 ? getStaffCustomerName(staffMembers[0]) : "빠른 예약"}</span></div>
+              </div>
+            </div>
+          </div>
+          <div className="dock">
+            <button className="cta" type="button" disabled={!firstVisit.ownerName.trim() || !isValidBookingPhoneNumber(firstVisit.phone) || submitting} onClick={() => void onSubmit()}>
+              {submitting ? "예약 등록 중..." : "예약 등록하기"}
+            </button>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}

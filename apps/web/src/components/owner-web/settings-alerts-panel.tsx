@@ -1,0 +1,812 @@
+"use client";
+
+import { CircleHelp, MessageCircle } from "lucide-react";
+import Image from "next/image";
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
+
+import { SettingsRevisitReminderDefault } from "@/components/owner-web/settings-revisit-reminder-default";
+import { AlertSettingsSwitch } from "@/components/owner-web/settings-alert-switch";
+import {
+  PETMANAGER_BRAND_MARK_SRC,
+  PETMANAGER_MASTER_BRAND_NAME,
+  PETMANAGER_SERVICE_NAME,
+} from "@/lib/brand";
+import { fetchApiJsonWithAuth } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import type {
+  AlimtalkSenderMode,
+  AlimtalkShopChannelStatus,
+  NotificationDeliveryMode,
+  NotificationType,
+} from "@/types/domain";
+
+export type AlertSettingsDraft = {
+  enabled: boolean;
+  alimtalkSenderMode: AlimtalkSenderMode;
+  alimtalkShopChannelStatus: AlimtalkShopChannelStatus;
+  alimtalkShopChannelName: string;
+  alimtalkShopChannelUrl: string;
+  alimtalkSenderProfileKey: string;
+  alimtalkChannelRequestedAt: string | null;
+  alimtalkChannelAdminNote: string;
+  alimtalkBusinessChannelVerified: boolean;
+  alimtalkTemplateRequestNote: string;
+  alimtalkTemplateRequestUpdatedAt: string | null;
+  revisitEnabled: boolean;
+  revisitReminderDefaultDays: number;
+  bookingConfirmedEnabled: boolean;
+  bookingCancelledEnabled: boolean;
+  bookingRescheduledEnabled: boolean;
+  appointmentReminder10mEnabled: boolean;
+  appointmentReminder10mMode: NotificationDeliveryMode;
+  visitReminderOffsetMinutes: number;
+  groomingStartedEnabled: boolean;
+  groomingAlmostDoneEnabled: boolean;
+  pickupReadyEtaMinutes: number;
+  groomingCompletedEnabled: boolean;
+  groomingStartWithoutPhotoEnabled: boolean;
+  groomingCompleteWithoutPhotoEnabled: boolean;
+};
+
+type AlertToggleKey = Exclude<
+  keyof AlertSettingsDraft,
+  | "enabled"
+  | "alimtalkSenderMode"
+  | "alimtalkShopChannelStatus"
+  | "alimtalkShopChannelName"
+  | "alimtalkShopChannelUrl"
+  | "alimtalkSenderProfileKey"
+  | "alimtalkChannelRequestedAt"
+  | "alimtalkChannelAdminNote"
+  | "alimtalkBusinessChannelVerified"
+  | "alimtalkTemplateRequestNote"
+  | "alimtalkTemplateRequestUpdatedAt"
+  | "revisitReminderDefaultDays"
+  | "visitReminderOffsetMinutes"
+  | "pickupReadyEtaMinutes"
+  | "groomingStartWithoutPhotoEnabled"
+  | "groomingCompleteWithoutPhotoEnabled"
+>;
+
+type AlertItem = {
+  key: AlertToggleKey;
+  title: string;
+  type: NotificationType;
+  role: string;
+};
+
+type AlimtalkTemplatePreview = {
+  type: NotificationType;
+  title: string;
+  templateCode: string | null;
+  templateName: string | null;
+  body: string;
+  buttons: Array<{ name: string }>;
+  inspectionStatus: string | null;
+  serviceStatus: string | null;
+  source: "ssodaa_approved" | "draft";
+};
+
+type AlimtalkTemplatePreviewResponse = {
+  shopId: string;
+  shopName: string;
+  templates: AlimtalkTemplatePreview[];
+};
+
+function AlertHelp({
+  label,
+  children,
+  align = "left",
+}: {
+  label: string;
+  children: ReactNode;
+  align?: "left" | "right";
+}) {
+  return (
+    <span className="group/help relative inline-flex shrink-0">
+      <button
+        type="button"
+        aria-label={`${label} 도움말`}
+        onClick={(event) => event.stopPropagation()}
+        className="inline-flex h-11 w-11 items-center justify-center text-[#94a3b8] transition hover:text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cbd5e1]"
+      >
+        <CircleHelp className="h-4 w-4" aria-hidden="true" />
+      </button>
+      <span
+        role="tooltip"
+        className={cn(
+          "pointer-events-none invisible absolute top-[calc(100%+8px)] z-30 w-[240px] max-w-[calc(100vw-48px)] whitespace-normal break-words rounded-[6px] border border-[#dbe2ea] bg-white px-3 py-2 text-left text-[13px] font-normal leading-5 text-[#475569] opacity-0 shadow-[0_8px_22px_rgba(15,23,42,0.12)] transition group-hover/help:visible group-hover/help:opacity-100 group-focus-within/help:visible group-focus-within/help:opacity-100 sm:w-max sm:whitespace-nowrap",
+          align === "right" ? "right-0" : "right-0 sm:left-0",
+        )}
+      >
+        {children}
+      </span>
+    </span>
+  );
+}
+
+const alertItems: AlertItem[] = [
+  {
+    key: "bookingConfirmedEnabled",
+    title: "예약 확정",
+    type: "booking_confirmed",
+    role: "오너가 직접 추가한 예약에만 발송되며, 고객에게 방문 일시와 예약 내용을 안내합니다.",
+  },
+  {
+    key: "bookingCancelledEnabled",
+    title: "예약 취소",
+    type: "booking_cancelled",
+    role: "예약을 취소했을 때 고객에게 취소 사실과 다른 시간 조율 안내를 함께 보냅니다.",
+  },
+  {
+    key: "appointmentReminder10mEnabled",
+    title: "직전 안내",
+    type: "appointment_reminder_10m",
+    role: "예약 시간이 가까워졌을 때 방문 시간, 길찾기, 예약 확인 링크를 짧게 안내합니다.",
+  },
+  {
+    key: "appointmentReminder10mEnabled",
+    title: "오늘 안내",
+    type: "visit_reminder_notice",
+    role: "당일 예약이거나 예약 당일에 시간이 충분히 남아 있을 때 오늘 방문 일정을 다시 안내합니다.",
+  },
+  {
+    key: "appointmentReminder10mEnabled",
+    title: "내일 안내",
+    type: "visit_schedule_notice",
+    role: "예약일 하루 전에 방문 일정과 준비 사항을 미리 안내합니다.",
+  },
+  {
+    key: "groomingStartedEnabled",
+    title: "미용 시작",
+    type: "grooming_started",
+    role: "현장에서 미용을 시작했을 때 보호자에게 진행 시작을 알려줍니다.",
+  },
+  {
+    key: "groomingAlmostDoneEnabled",
+    title: "픽업 준비",
+    type: "grooming_almost_done",
+    role: "미용 마무리 전 보호자가 데리러 올 시간을 준비하도록 안내합니다.",
+  },
+  {
+    key: "groomingCompletedEnabled",
+    title: "미용 완료",
+    type: "grooming_completed",
+    role: "미용이 끝났을 때 완료 상태와 픽업 가능 상태를 안내합니다.",
+  },
+];
+
+type AlertGroupKey = "reservation" | "reservationGuide" | "grooming";
+
+const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; items: AlertItem[] }> = [
+  {
+    key: "reservation",
+    title: "\uC608\uC57D",
+    items: alertItems.filter((item) =>
+      [
+        "booking_confirmed",
+        "booking_cancelled",
+      ].includes(item.type),
+    ),
+  },
+  {
+    key: "reservationGuide",
+    title: "\uC608\uC57D\uC548\uB0B4",
+    help:
+      "\uC608\uC57D \uC2DC\uC810\uC5D0 \uB530\uB77C \uC9C1\uC804, \uC624\uB298, \uB0B4\uC77C \uC548\uB0B4 \uC911 \uD544\uC694\uD55C \uC548\uB0B4\uB9CC \uD55C \uBC88 \uBC1C\uC1A1\uB429\uB2C8\uB2E4.",
+    items: alertItems.filter((item) =>
+      [
+        "appointment_reminder_10m",
+        "visit_reminder_notice",
+        "visit_schedule_notice",
+      ].includes(item.type),
+    ),
+  },
+  {
+    key: "grooming",
+    title: "\uBBF8\uC6A9\uC9C4\uD589",
+    items: alertItems.filter((item) =>
+      ["groomingStartedEnabled", "groomingAlmostDoneEnabled", "groomingCompletedEnabled"].includes(item.key),
+    ),
+  },
+];
+
+const reservationNoticeTypes: NotificationType[] = [
+  "appointment_reminder_10m",
+  "visit_reminder_notice",
+  "visit_schedule_notice",
+];
+
+function isReservationNoticeType(type: NotificationType) {
+  return reservationNoticeTypes.includes(type);
+}
+
+function TimingOptionButton({
+  selected,
+  children,
+  onClick,
+}: {
+  selected: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "min-h-11 rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+        selected
+          ? "border-[#202020] bg-[#f5f5f5] text-[#111827] shadow-[inset_0_0_0_1px_rgba(17,17,17,0.03)]"
+          : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#cbd5e1] hover:bg-[#fafafa]",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function clampMinuteValue(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function MinuteTimingControl({
+  title,
+  value,
+  unitLabel,
+  options,
+  min = 1,
+  max = 180,
+  onChange,
+}: {
+  title: string;
+  value: number;
+  unitLabel: string;
+  options: readonly number[];
+  min?: number;
+  max?: number;
+  onChange: (minutes: number) => void;
+}) {
+  return (
+    <div className="rounded-[10px] border border-[#e5e7eb] bg-[#fbfbfb] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[16px] font-medium leading-6 text-[#111827]">{title}</p>
+        <label className="flex h-11 items-center overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+          <input
+            type="number"
+            min={min}
+            max={max}
+            step={1}
+            value={value}
+            onChange={(event) => {
+              const nextValue = Number.parseInt(event.target.value, 10);
+              if (!Number.isFinite(nextValue)) {
+                return;
+              }
+              onChange(clampMinuteValue(nextValue, min, max));
+            }}
+            onBlur={(event) => {
+              const nextValue = Number.parseInt(event.target.value, 10);
+              onChange(clampMinuteValue(Number.isFinite(nextValue) ? nextValue : value, min, max));
+            }}
+            className="h-full w-[76px] border-0 bg-transparent px-3 text-right text-[16px] font-medium leading-6 text-[#111827] outline-none"
+            aria-label={`${title} 분 단위 입력`}
+          />
+          <span className="border-l border-[#e5e7eb] px-3 text-[16px] font-normal leading-6 text-[#475569]">{unitLabel}</span>
+        </label>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {options.map((minutes) => (
+          <TimingOptionButton key={minutes} selected={value === minutes} onClick={() => onChange(minutes)}>
+            {minutes}{unitLabel}
+          </TimingOptionButton>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function KakaoAlimtalkPreview({
+  item,
+  preview,
+  loading,
+  error,
+  shopName,
+}: {
+  item: AlertItem;
+  preview: AlimtalkTemplatePreview | null;
+  loading: boolean;
+  error: string;
+  shopName: string;
+}) {
+  const message = preview?.body ?? "";
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[18px] font-semibold leading-[26px] text-[#111827]">실제 발송 미리보기</p>
+          <p className="mt-1 text-[14px] font-normal leading-5 text-[#64748b]">{item.title}</p>
+        </div>
+        <MessageCircle className="h-5 w-5 text-[#64748b]" />
+      </div>
+
+      <p className="rounded-[8px] bg-[#f6f8fa] px-3 py-2 text-[13px] leading-5 text-[#64748b]">
+        {loading
+          ? "쏘다 승인 본문과 버튼을 확인하고 있습니다."
+          : error
+            ? error
+            : `쏘다 승인 본문·버튼을 그대로 가져와 ${shopName} 정보로 표시합니다.`}
+      </p>
+
+      <div className="mt-4 flex justify-center">
+        <div className="min-w-0 w-full max-w-[300px] overflow-hidden rounded-[2px] border border-[#a9bdcc] bg-[#bdd2e2] px-3.5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
+          <div className="flex items-center gap-2">
+            <Image
+              src={PETMANAGER_BRAND_MARK_SRC}
+              alt={PETMANAGER_MASTER_BRAND_NAME}
+              width={36}
+              height={36}
+              className="h-9 w-9 rounded-full bg-white object-contain p-1"
+            />
+            <p className="min-w-0 truncate text-[14px] font-normal leading-5 text-[#0f172a]">{PETMANAGER_SERVICE_NAME}</p>
+          </div>
+
+          <div className="relative ml-0 mt-1 w-full rounded-[2px] bg-white text-[#111827] shadow-sm sm:ml-[35px] sm:w-[214px]">
+            <div className="rounded-t-[2px] bg-[#ffe500] px-2.5 py-2 text-[13px] font-normal leading-5 text-[#111827]">
+              알림톡 도착
+            </div>
+            <span className="absolute right-2 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-[#3b3328] text-[12px] font-medium leading-[18px] text-white sm:-right-3">
+              kakao
+            </span>
+            <div className="px-2.5 py-3 text-[13px] font-normal leading-5">
+              {message ? (
+                message.split("\n").map((line, index) => {
+                  if (!line) {
+                    return <div key={`${line}-${index}`} className="h-2.5" />;
+                  }
+                  return <p key={`${line}-${index}`}>{line}</p>;
+                })
+              ) : (
+                <p className="text-[#64748b]">
+                  {loading ? "불러오는 중…" : "승인된 내용을 표시할 수 없습니다."}
+                </p>
+              )}
+            </div>
+            {preview?.buttons.map((button) => (
+              <div
+                key={button.name}
+                className="border-t border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-2 text-center text-[13px] font-medium leading-5 text-[#334155]"
+              >
+                {button.name}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const shopChannelStatusLabels: Record<AlimtalkShopChannelStatus, string> = {
+  not_requested: "신청 전",
+  requested: "신청 접수",
+  reviewing: "심사 중",
+  active: "사용 가능",
+  rejected: "보완 필요",
+};
+
+function getNextShopChannelSettings(value: AlertSettingsDraft): AlertSettingsDraft {
+  const now = new Date().toISOString();
+  const nextStatus =
+    value.alimtalkShopChannelStatus === "active" || value.alimtalkShopChannelStatus === "reviewing"
+      ? value.alimtalkShopChannelStatus
+      : "requested";
+
+  return {
+    ...value,
+    alimtalkSenderMode: "shop_channel",
+    alimtalkShopChannelStatus: nextStatus,
+    alimtalkChannelRequestedAt: value.alimtalkChannelRequestedAt ?? now,
+  };
+}
+
+export default function SettingsAlertsPanel({
+  value,
+  onChange,
+  shopId,
+  shopName,
+  automaticVisitReminderAvailable = true,
+}: {
+  value: AlertSettingsDraft;
+  onChange: (value: AlertSettingsDraft) => void | Promise<void>;
+  shopId: string;
+  shopName: string;
+  automaticVisitReminderAvailable?: boolean;
+}) {
+  const [selectedAlertType, setSelectedAlertType] = useState<NotificationType>("appointment_reminder_10m");
+  const [templatePreviewState, setTemplatePreviewState] = useState<{
+    shopId: string;
+    previews: Partial<Record<NotificationType, AlimtalkTemplatePreview>>;
+    error: string;
+  }>({ shopId: "", previews: {}, error: "" });
+  const templatePreviews =
+    templatePreviewState.shopId === shopId ? templatePreviewState.previews : {};
+  const templatePreviewsLoading = templatePreviewState.shopId !== shopId;
+  const templatePreviewsError =
+    templatePreviewState.shopId === shopId ? templatePreviewState.error : "";
+  const previewItem = alertItems.find((item) => item.type === selectedAlertType) ?? alertItems[0];
+  const visitReminderEnabled =
+    automaticVisitReminderAvailable && value.appointmentReminder10mEnabled && value.appointmentReminder10mMode === "auto";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetchApiJsonWithAuth<AlimtalkTemplatePreviewResponse>(
+      `/api/owner/alimtalk-template-previews?shopId=${encodeURIComponent(shopId)}`,
+      { cache: "no-store" },
+    )
+      .then((result) => {
+        if (cancelled) return;
+        setTemplatePreviewState({
+          shopId,
+          previews: Object.fromEntries(
+            result.templates.map((template) => [template.type, template]),
+          ) as Partial<Record<NotificationType, AlimtalkTemplatePreview>>,
+          error: "",
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setTemplatePreviewState({
+          shopId,
+          previews: {},
+          error: error instanceof Error
+            ? error.message
+            : "쏘다 승인 템플릿을 불러오지 못했습니다.",
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shopId]);
+
+  function update(key: AlertToggleKey, checked: boolean) {
+    if (key === "appointmentReminder10mEnabled") {
+      onChange({
+        ...value,
+        appointmentReminder10mEnabled: automaticVisitReminderAvailable ? checked : false,
+        appointmentReminder10mMode: automaticVisitReminderAvailable && checked ? "auto" : "manual",
+      });
+      return;
+    }
+
+    onChange({ ...value, [key]: checked });
+  }
+
+  const showSenderChannelSettings = false;
+
+  return (
+    <section data-pc-alerts-surface className="min-w-0 overflow-hidden rounded-[14px] border border-[#e8edf3] bg-white">
+      <div className="grid min-w-0 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 divide-y divide-[#e8edf3]">
+          {showSenderChannelSettings ? (
+          <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[18px] font-semibold leading-[26px] text-[#111827]">알림톡 발신 채널</p>
+                <p className="mt-1 text-[16px] font-normal leading-6 text-[#64748b]">
+                  알림톡 발송 설정과 이력은 {PETMANAGER_SERVICE_NAME}에서 관리하고, 발신자만 매장 채널로
+                  바꿀 수 있습니다.
+                </p>
+              </div>
+              <span
+                className={cn(
+                  "rounded-full px-3 py-1 text-[12px] font-medium leading-[18px]",
+                  value.alimtalkShopChannelStatus === "active"
+                    ? "bg-[#e9f5f0] text-[#287667]"
+                    : value.alimtalkShopChannelStatus === "rejected"
+                      ? "bg-[#fff1f2] text-[#a04455]"
+                      : value.alimtalkShopChannelStatus === "requested" ||
+                          value.alimtalkShopChannelStatus === "reviewing"
+                        ? "bg-[#fff7ed] text-[#9a6619]"
+                        : "bg-[#f1f5f9] text-[#64748b]",
+                )}
+              >
+                {shopChannelStatusLabels[value.alimtalkShopChannelStatus]}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => onChange({ ...value, alimtalkSenderMode: "petmanager" })}
+                className={cn(
+                  "rounded-[10px] border px-4 py-3 text-left transition",
+                  value.alimtalkSenderMode === "petmanager"
+                    ? "border-[#2f7d68] bg-[#f6fbf9]"
+                    : "border-[#dbe2ea] bg-white hover:border-[#cbd5e1]",
+                )}
+              >
+                <span className="block text-[16px] text-[#111827]">{PETMANAGER_SERVICE_NAME} 기본 채널</span>
+                <span className="mt-1 block text-[14px] leading-5 text-[#64748b]">
+                  바로 사용합니다. 고객에게는 {PETMANAGER_SERVICE_NAME} 기본 발신 채널로 보입니다.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange(getNextShopChannelSettings(value))}
+                className={cn(
+                  "rounded-[10px] border px-4 py-3 text-left transition",
+                  value.alimtalkSenderMode === "shop_channel"
+                    ? "border-[#2f7d68] bg-[#f6fbf9]"
+                    : "border-[#dbe2ea] bg-white hover:border-[#cbd5e1]",
+                )}
+              >
+                <span className="block text-[16px] text-[#111827]">내 매장 채널 사용 신청</span>
+                <span className="mt-1 block text-[14px] leading-5 text-[#64748b]">
+                  카카오 채널/발신 프로필 심사 후 고객에게 매장명으로 알림톡이 보입니다.
+                </span>
+              </button>
+            </div>
+            {value.alimtalkSenderMode === "shop_channel" ? (
+              <div className="mt-3 space-y-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-[14px] font-medium leading-5 text-[#334155]">카카오 채널명</span>
+                    <input
+                      value={value.alimtalkShopChannelName}
+                      onChange={(event) =>
+                        onChange({
+                          ...getNextShopChannelSettings(value),
+                          alimtalkShopChannelName: event.target.value,
+                        })
+                      }
+                      placeholder="예: 우진만세"
+                      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7d68]"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[14px] font-medium leading-5 text-[#334155]">채널 URL 또는 검색명</span>
+                    <input
+                      value={value.alimtalkShopChannelUrl}
+                      onChange={(event) =>
+                        onChange({
+                          ...getNextShopChannelSettings(value),
+                          alimtalkShopChannelUrl: event.target.value,
+                        })
+                      }
+                      placeholder="카카오 채널 링크 또는 검색 가능한 이름"
+                      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7d68]"
+                    />
+                  </label>
+                </div>
+                <label className="flex items-start gap-3 rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={value.alimtalkBusinessChannelVerified}
+                    onChange={(event) =>
+                      onChange({
+                        ...getNextShopChannelSettings(value),
+                        alimtalkBusinessChannelVerified: event.target.checked,
+                      })
+                    }
+                    className="mt-1 h-4 w-4 rounded border-[#cbd5e1] text-[#2f7d68] focus:ring-[#2f7d68]"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-[14px] font-medium leading-5 text-[#111827]">카카오 비즈니스 채널 인증 완료</span>
+                    <span className="mt-1 block text-[13px] leading-5 text-[#64748b]">
+                      알림톡은 비즈니스 채널/발신프로필 심사 후 사용할 수 있어요. 아직 인증 전이면 체크하지 않고 신청해 주세요.
+                    </span>
+                  </span>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[14px] font-medium leading-5 text-[#334155]">희망 알림톡 문구 / 요청사항</span>
+                  <textarea
+                    value={value.alimtalkTemplateRequestNote}
+                    onChange={(event) =>
+                      onChange({
+                        ...getNextShopChannelSettings(value),
+                        alimtalkTemplateRequestNote: event.target.value,
+                        alimtalkTemplateRequestUpdatedAt: new Date().toISOString(),
+                      })
+                    }
+                    rows={4}
+                    placeholder="원하는 말투, 꼭 들어갔으면 하는 문구, 매장명 표기 방식 등을 적어주세요. 실제 발송 문구는 카카오 템플릿 심사 기준에 맞춰 조정될 수 있어요."
+                    className="w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[16px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7d68]"
+                  />
+                  <span className="mt-1 block text-right text-[13px] text-[#94a3b8]">
+                    {value.alimtalkTemplateRequestNote.length} / 1500
+                  </span>
+                </label>
+              </div>
+            ) : null}
+            <p className="mt-3 text-[14px] leading-5 text-[#64748b]">
+              매장 채널을 사용해도 알림톡 발송 설정과 발송 이력은 {PETMANAGER_SERVICE_NAME}에서 그대로
+              관리됩니다.
+            </p>
+          </div>
+          ) : null}
+
+          <div data-alerts-section="global" className="px-4 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
+              <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
+                <p className="min-w-0 break-words text-[18px] font-semibold leading-[26px] text-[#111827]">알림톡 전체 사용</p>
+                <AlertHelp label="알림톡 전체 사용">
+                  끄면 예약 안내와 미용 진행 알림톡 발송이 전체 중지됩니다.
+                </AlertHelp>
+              </div>
+              <AlertSettingsSwitch
+                checked={value.enabled}
+                aria-label="알림톡 전체 사용"
+                onCheckedChange={(checked) => onChange({ ...value, enabled: checked })}
+              />
+            </div>
+          </div>
+
+          <div
+            data-alerts-section="revisit"
+            className="px-4 py-4 [&>div]:!rounded-none [&>div]:!border-0 [&>div]:!bg-transparent [&>div]:!p-0"
+          >
+            <SettingsRevisitReminderDefault
+              enabled={value.revisitEnabled}
+              disabled={!value.enabled}
+              days={value.revisitReminderDefaultDays}
+              onEnabledChange={(enabled) => onChange({ ...value, revisitEnabled: enabled })}
+              onDaysChange={(days) => onChange({ ...value, revisitReminderDefaultDays: days })}
+            />
+          </div>
+
+          {alertGroups.map((group) => {
+            const isReservationGroup = group.key === "reservation";
+
+            return (
+            <section
+              key={group.key}
+              data-alerts-group={group.key}
+              className="min-w-0 px-4 py-4"
+            >
+              <div className={cn(
+                "flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap sm:items-center",
+                isReservationGroup ? "mb-2" : "mb-3",
+              )}>
+                <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
+                  <p className="min-w-0 break-words text-[18px] font-semibold leading-[26px] text-[#111827]">
+                    {isReservationGroup ? "예약 알림" : group.title}
+                  </p>
+                  {group.help ? (
+                    <AlertHelp label={group.title}>{group.help}</AlertHelp>
+                  ) : null}
+                </div>
+                {!isReservationGroup ? (
+                  <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] font-medium leading-[18px] text-[#64748b]">
+                    {group.items.length}개
+                  </span>
+                ) : null}
+              </div>
+              {group.key === "reservationGuide" ? (
+                <div className="mb-3 border-b border-[#e8edf3] pb-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
+                    <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
+                      <p className="min-w-0 break-words text-[16px] font-medium leading-6 text-[#111827]">예약 안내 자동 발송</p>
+                      <AlertHelp label="예약 안내 자동 발송">
+                        켜두면 예약 시점에 맞춰 직전 안내, 오늘 안내, 내일 안내 중 필요한 안내만 한 번 발송됩니다.
+                      </AlertHelp>
+                    </div>
+                    <AlertSettingsSwitch
+                      checked={visitReminderEnabled}
+                      disabled={!value.enabled || !automaticVisitReminderAvailable}
+                      aria-label="예약 안내 자동 발송"
+                      onCheckedChange={(checked) =>
+                        onChange({
+                          ...value,
+                          appointmentReminder10mEnabled: automaticVisitReminderAvailable ? checked : false,
+                          appointmentReminder10mMode: automaticVisitReminderAvailable && checked ? "auto" : "manual",
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
+              <div
+                className={cn(
+                  "min-w-0",
+                  isReservationGroup
+                    ? "grid gap-2 sm:grid-cols-2"
+                    : "grid gap-2 lg:grid-cols-2",
+                )}
+              >
+                {group.items.map((item, itemIndex) => {
+                  const reservationNotice = isReservationNoticeType(item.type);
+                  const checked =
+                    item.key === "appointmentReminder10mEnabled"
+                      ? visitReminderEnabled
+                      : Boolean(value[item.key]);
+                  const selected = previewItem.type === item.type;
+                  const disabled =
+                    !value.enabled || (item.key === "appointmentReminder10mEnabled" && !automaticVisitReminderAvailable);
+                  const compactReservationSwitch = isReservationGroup;
+                  return (
+                      <div
+                        key={`${item.key}-${item.type}`}
+                        aria-expanded={selected}
+                        onClick={() => setSelectedAlertType(item.type)}
+                        className={cn(
+                          compactReservationSwitch
+                            ? "flex min-h-14 min-w-0 cursor-pointer items-center justify-between gap-2 border-b border-[#e8edf3] px-0 py-1.5 text-left transition hover:bg-[#fafafa] last:border-b-0"
+                            : "flex min-w-0 flex-col cursor-pointer items-stretch justify-between gap-4 border-b border-[#e8edf3] py-3 text-left transition hover:bg-[#fafafa] last:border-b-0 sm:flex-row sm:items-center",
+                          compactReservationSwitch
+                            ? selected
+                              ? "bg-[#fafafa]"
+                              : ""
+                            : selected
+                              ? "bg-[#fafafa]"
+                              : checked
+                                ? ""
+                                : "",
+                          !disabled || reservationNotice ? "" : "opacity-55",
+                        )}
+                      >
+                        <div className={cn(
+                          "flex min-w-0 flex-wrap items-center gap-1.5",
+                          compactReservationSwitch ? "flex-1" : "w-full sm:w-auto sm:flex-nowrap",
+                        )}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAlertType(item.type)}
+                            className={cn(
+                              "inline-flex min-h-11 min-w-0 items-center whitespace-normal break-words text-left text-[16px] font-medium leading-6 text-[#111827] focus-visible:outline-none focus-visible:underline",
+                              compactReservationSwitch ? "flex-1" : "w-full sm:w-auto sm:whitespace-nowrap",
+                            )}
+                          >
+                            {item.title}
+                          </button>
+                          <AlertHelp label={item.title} align={itemIndex % 2 === 1 ? "right" : "left"}>
+                            {item.role}
+                          </AlertHelp>
+                        </div>
+                        {reservationNotice ? (
+                          <span
+                            className={cn(
+                              "self-start shrink-0 rounded-full px-2.5 py-1 text-[13px] font-medium leading-5 sm:self-auto",
+                              visitReminderEnabled ? "bg-[#eff6ff] text-[#1d4ed8]" : "bg-[#f1f5f9] text-[#64748b]",
+                            )}
+                          >
+                            {visitReminderEnabled ? "자동 ON" : "자동 OFF"}
+                          </span>
+                        ) : (
+                          <span className="self-start sm:self-auto" onClick={(event) => event.stopPropagation()}>
+                            <AlertSettingsSwitch
+                              checked={checked}
+                              disabled={disabled}
+                              aria-label={`${item.title} 알림`}
+                              onCheckedChange={(nextChecked) => {
+                                setSelectedAlertType(item.type);
+                                update(item.key, nextChecked);
+                              }}
+                            />
+                          </span>
+                        )}
+                      </div>
+                  );
+                })}
+              </div>
+            </section>
+            );
+          })}
+        </div>
+
+        <aside data-alerts-preview className="min-w-0 border-t border-[#e8edf3] px-4 py-4 xl:sticky xl:top-0 xl:self-start xl:border-l xl:border-t-0">
+          <KakaoAlimtalkPreview
+            item={previewItem}
+            preview={templatePreviews[previewItem.type] ?? null}
+            loading={templatePreviewsLoading}
+            error={templatePreviewsError}
+            shopName={shopName}
+          />
+        </aside>
+      </div>
+    </section>
+  );
+}

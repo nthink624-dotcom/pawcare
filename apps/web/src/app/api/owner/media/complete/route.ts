@@ -1,0 +1,52 @@
+import { NextRequest } from "next/server";
+
+import { completeOwnerMediaUpload, getOwnerMediaAssetKind } from "@/server/media-service";
+import { reportPriceGuidePhotoLifecycle } from "@/lib/media/price-guide-photo-lifecycle";
+import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerInitialSetupAllowsStoredMedia } from "@/server/owner-initial-setup-guard";
+import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+
+const WRITE_CORS = { methods: "POST, OPTIONS" };
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = (await request.json()) as Record<string, unknown>;
+    const requestedShopId = typeof body.shopId === "string" ? body.shopId : undefined;
+    const owner = await requireOwnerShop(request, requestedShopId);
+    const mediaAssetId = typeof body.mediaAssetId === "string" ? body.mediaAssetId : "";
+    await assertOwnerInitialSetupAllowsStoredMedia(
+      owner.shopId,
+      () => getOwnerMediaAssetKind(owner, mediaAssetId),
+    );
+    const mediaAsset = await completeOwnerMediaUpload(owner, {
+      mediaAssetId,
+      byteSize: typeof body.byteSize === "number" ? body.byteSize : null,
+      width: typeof body.width === "number" ? body.width : null,
+      height: typeof body.height === "number" ? body.height : null,
+      checksumSha256: typeof body.checksumSha256 === "string" ? body.checksumSha256 : null,
+    });
+    const requestCorrelationFingerprint = mediaAsset.metadata?.priceGuideRequestCorrelationFingerprint;
+    if (typeof requestCorrelationFingerprint === "string") {
+      reportPriceGuidePhotoLifecycle({
+        requestCorrelationFingerprint,
+        stage: "upload",
+        status: "succeeded",
+        elapsedMs: 0,
+        counts: { uploadIntentCount: 1, uploadCount: 1, providerRequestCount: 0, cleanupCount: 0 },
+      });
+    }
+
+    return ownerMobileCorsJson(request, { mediaAsset }, undefined, WRITE_CORS);
+  } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return ownerMobileCorsJson(request, { message: error.message }, { status: error.status }, WRITE_CORS);
+    }
+
+    const message = error instanceof Error ? error.message : "Could not complete media upload.";
+    return ownerMobileCorsJson(request, { message }, { status: 500 }, WRITE_CORS);
+  }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return ownerMobileCorsPreflight(request, WRITE_CORS);
+}

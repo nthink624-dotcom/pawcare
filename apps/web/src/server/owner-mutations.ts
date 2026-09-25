@@ -1,0 +1,2952 @@
+import { randomUUID } from "node:crypto";
+
+import { createHash } from "node:crypto";
+
+import { computeAvailableSlots, isRegularClosedOnDate, isSlotAvailable } from "@/lib/availability";
+import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors";
+import { getActualGroomingDurationMinutes, getAppointmentEffectiveWindow } from "@/lib/appointment-time";
+import { getBusinessHoursForWeekday } from "@/lib/business-hours";
+import { isBookingWithinCanonicalWindow } from "@/lib/booking-last-start-cutoff";
+import { defaultBookingAvailableEndTime, defaultBookingAvailableStartTime, normalizeBookingAvailableTime } from "@/lib/booking-slot-settings";
+import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+import { preparePriceGuideForStorage } from "@/lib/price-guide-core";
+import {
+  coerceEnabledShopNotificationSettings,
+  defaultGuardianNotificationSettings,
+  normalizeBootstrapNotifications,
+  normalizeGuardianNotificationSettings,
+  normalizeShopNotificationSettings,
+} from "@/lib/notification-settings";
+import { defaultReservationPolicySettings, hasBlockedWindowOverlap, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
+import { mergeTemporaryClosedDates, type TemporaryClosedDateChanges } from "@/lib/initial-setup-closed-dates";
+import { getStaffBookingLoads } from "@/lib/staff-booking-load";
+import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { addDate, currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
+import { getBootstrap } from "@/server/bootstrap";
+import { readCurrentVisitWeightForCompletion } from "@/server/appointment-visit-weight";
+import { getMockStore, setMockStore } from "@/server/mock-store";
+import { dispatchNotification } from "@/server/notification-dispatch";
+import { OwnerApiError, type OwnerShopContext } from "@/server/owner-api-auth";
+import { appointmentBelongsToStaff } from "@/server/staff-privacy";
+import {
+  assertShopIdentityChangeLimit,
+  buildShopIdentityChanges,
+  insertShopIdentityChangeEvents,
+} from "@/server/shop-identity-guard";
+import {
+  appointmentInputSchema,
+  appointmentEditSchema,
+  appointmentStatusSchema,
+  guardianDeleteSchema,
+  customerPageSettingsSchema,
+  guardianInputSchema,
+  guardianRestoreSchema,
+  initialSetupShopSettingsSchema,
+  guardianUpdateSchema,
+  petDeleteSchema,
+  petInputSchema,
+  petStaffNoteUpsertSchema,
+  petUpdateSchema,
+  serviceDeleteSchema,
+  serviceInputSchema,
+  shopSettingsSchema,
+} from "@/server/schemas";
+import type { Appointment, AppointmentChangeEvent, AppointmentStatus, Guardian, Pet, PetStaffNote, Service, Shop } from "@/types/domain";
+
+const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+const scheduleActiveStatuses = ["confirmed", "in_progress", "almost_done"] as const;
+const defaultVisitReminderOffsetMinutes = 10;
+const defaultPickupReadyEtaMinutes = 5;
+
+function isMissingPetProfileColumn(error: { message?: string; code?: string } | null | undefined) {
+  return Boolean(
+    error?.message?.includes("schema cache") &&
+      (error.message.includes("bite_level") || error.message.includes("pricing_group")),
+  );
+}
+
+function buildAppointmentWindow(date: string, time: string, durationMinutes: number) {
+  const endMinute = minutesFromTime(time) + durationMinutes;
+
+  return {
+    start_at: `${date}T${time}:00+09:00`,
+    end_at: `${addDate(date, Math.floor(endMinute / (24 * 60)))}T${timeFromMinutes(endMinute % (24 * 60))}:00+09:00`,
+  };
+}
+
+function toTimestampString(date: string, time: string) {
+  const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time;
+  return `${date}T${normalizedTime}+09:00`;
+}
+
+function getRejectionReason(payload: {
+  rejectionReasonTemplate?: string;
+  rejectionReasonCustom?: string;
+}) {
+  if (payload.rejectionReasonTemplate === "湲고? 吏곸젒 ?낅젰") {
+    return payload.rejectionReasonCustom?.trim() || "湲고? ?ъ쑀";
+  }
+
+  return payload.rejectionReasonTemplate?.trim() || payload.rejectionReasonCustom?.trim() || null;
+}
+
+function getAppointmentStatusLabel(status: AppointmentStatus) {
+  const labels: Record<AppointmentStatus, string> = {
+    pending: "예약 대기",
+    confirmed: "예약 확정",
+    in_progress: "미용 시작",
+    almost_done: "픽업 준비",
+    completed: "완료",
+    cancelled: "취소",
+    rejected: "거절",
+    noshow: "노쇼",
+  };
+  return labels[status];
+}
+
+function assertAppointmentStatusIsNotRepeated(params: {
+  previousStatus: AppointmentStatus;
+  nextStatus: AppointmentStatus;
+}) {
+  if (params.previousStatus !== params.nextStatus) return;
+
+  const label = getAppointmentStatusLabel(params.nextStatus);
+  throw new Error(`이미 '${label}' 상태입니다. 같은 상태 버튼은 두 번 이상 처리하거나 알림을 다시 보낼 수 없어요.`);
+}
+
+function assertAppointmentStatusTransitionAllowed(params: {
+  previousStatus: AppointmentStatus;
+  nextStatus: AppointmentStatus;
+}) {
+  const terminalStatuses = new Set<AppointmentStatus>(["completed", "cancelled", "rejected", "noshow"]);
+
+  if (terminalStatuses.has(params.previousStatus)) {
+    throw new Error("이미 종료된 예약은 다시 상태를 변경할 수 없어요. 새 예약을 만들거나 별도 변경으로 처리해 주세요.");
+  }
+
+  if (params.nextStatus === "pending") {
+    throw new Error("예약 대기 상태는 새 예약 생성에서만 사용할 수 있어요.");
+  }
+
+  if (params.previousStatus === "pending") {
+    if (["confirmed", "cancelled", "rejected"].includes(params.nextStatus)) return;
+    throw new Error("예약 대기는 확정, 취소 또는 거절로만 변경할 수 있어요.");
+  }
+
+  if (params.nextStatus === "confirmed") {
+    throw new Error("이미 확정된 예약만 처리할 수 있어요. 종료된 예약을 다시 확정 상태로 되돌릴 수 없습니다.");
+  }
+
+  if (params.nextStatus === "in_progress" && params.previousStatus !== "confirmed") {
+    throw new Error("미용 시작은 예약 확정 상태에서만 처리할 수 있어요.");
+  }
+
+  if (params.nextStatus === "almost_done" && params.previousStatus !== "in_progress") {
+    throw new Error("픽업 준비는 미용 시작 후에만 처리할 수 있어요.");
+  }
+
+  if (params.nextStatus === "completed" && !["in_progress", "almost_done"].includes(params.previousStatus)) {
+    throw new Error("미용 완료는 미용 시작 또는 픽업 준비 상태에서만 처리할 수 있어요.");
+  }
+
+  if (params.nextStatus === "rejected" && params.previousStatus !== "confirmed") {
+    throw new Error("예약 거절은 예약 확정 상태에서만 처리할 수 있어요.");
+  }
+
+  if (params.nextStatus === "noshow" && params.previousStatus !== "confirmed") {
+    throw new Error("노쇼 처리는 예약 확정 상태에서만 처리할 수 있어요.");
+  }
+}
+
+function normalizeAppointmentTimeForCompare(value: string | null | undefined) {
+  return (value ?? "").slice(0, 5);
+}
+
+function isMissingAppointmentChangeEventsError(error: { code?: string | null; message?: string | null } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return (
+    error?.code === "42P01" ||
+    error?.code === "PGRST205" ||
+    message.includes("appointment_change_events") ||
+    message.includes("schema cache")
+  );
+}
+
+function buildAppointmentHistorySnapshot(appointment: Appointment) {
+  return {
+    status: appointment.status,
+    service_id: appointment.service_id,
+    staff_id: appointment.staff_id ?? null,
+    appointment_date: appointment.appointment_date,
+    appointment_time: normalizeAppointmentTimeForCompare(appointment.appointment_time),
+    memo: appointment.memo,
+    rejection_reason: appointment.rejection_reason,
+    start_at: appointment.start_at,
+    end_at: appointment.end_at,
+    actual_started_at: appointment.actual_started_at ?? null,
+    actual_completed_at: appointment.actual_completed_at ?? null,
+    visit_reminder_offset_minutes: appointment.visit_reminder_offset_minutes ?? null,
+    pickup_ready_eta_minutes: appointment.pickup_ready_eta_minutes ?? null,
+  };
+}
+
+function createAppointmentChangeEvent(params: {
+  before: Appointment;
+  after: Appointment;
+  eventType: AppointmentChangeEvent["event_type"];
+  note?: string | null;
+  createdAt?: string;
+}): AppointmentChangeEvent {
+  return {
+    id: randomUUID(),
+    shop_id: params.after.shop_id,
+    appointment_id: params.after.id,
+    event_type: params.eventType,
+    previous_values: buildAppointmentHistorySnapshot(params.before),
+    next_values: buildAppointmentHistorySnapshot(params.after),
+    note: params.note ?? null,
+    created_at: params.createdAt ?? nowIso(),
+  };
+}
+
+async function persistAppointmentChangeEvent(event: AppointmentChangeEvent) {
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    store.appointmentChangeEvents = [event, ...(store.appointmentChangeEvents ?? [])];
+    setMockStore(store);
+    return;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase.from("appointment_change_events").insert(event);
+  if (error) {
+    if (isMissingAppointmentChangeEventsError(error)) {
+      console.warn("[owner-mutations] appointment_change_events table is not ready; skipped history event");
+      return;
+    }
+    console.warn("[owner-mutations] appointment change history insert failed", error.message);
+  }
+}
+
+function hasNotificationRelevantAppointmentDetailChange(params: {
+  appointment: Appointment;
+  serviceId: string;
+  staffId: string | null | undefined;
+  appointmentDate: string;
+  appointmentTime: string;
+  durationMinutes: number;
+  visitReminderOffsetMinutes?: number;
+  pickupReadyEtaMinutes?: number;
+}) {
+  const currentDuration = getAppointmentDurationMinutes(params.appointment, []);
+  return (
+    params.appointment.service_id !== params.serviceId ||
+    (params.appointment.staff_id ?? null) !== (params.staffId ?? null) ||
+    params.appointment.appointment_date !== params.appointmentDate ||
+    normalizeAppointmentTimeForCompare(params.appointment.appointment_time) !== normalizeAppointmentTimeForCompare(params.appointmentTime) ||
+    (currentDuration !== null && currentDuration !== params.durationMinutes) ||
+    (typeof params.visitReminderOffsetMinutes === "number" &&
+      params.appointment.visit_reminder_offset_minutes !== params.visitReminderOffsetMinutes) ||
+    (typeof params.pickupReadyEtaMinutes === "number" &&
+      params.appointment.pickup_ready_eta_minutes !== params.pickupReadyEtaMinutes)
+  );
+}
+
+function ensureAppointmentCanBeConfirmed(params: {
+  appointment: Appointment;
+  shop: Shop;
+  services: Service[];
+  appointments: Appointment[];
+}) {
+  const { appointment, shop, services, appointments } = params;
+  const service = services.find((item) => item.id === appointment.service_id);
+
+  if (!service) {
+    throw new Error("서비스 정보를 찾을 수 없어 승인할 수 없습니다.");
+  }
+
+  const today = currentDateInTimeZone();
+  const appointmentStartMinute = minutesFromTime(appointment.appointment_time);
+  if (
+    appointment.appointment_date < today ||
+    (appointment.appointment_date === today && appointmentStartMinute <= currentMinutesInTimeZone())
+  ) {
+    throw new Error("이미 지난 예약 시간입니다. 시간을 변경한 뒤 확정해 주세요.");
+  }
+
+  const available = isSlotAvailable({
+    date: appointment.appointment_date,
+    startMinute: appointmentStartMinute,
+    durationMinutes: service.duration_minutes,
+    services,
+    appointments: appointment.staff_id
+      ? appointments.filter((item) => item.staff_id === appointment.staff_id)
+      : appointments,
+    excludeAppointmentId: appointment.id,
+  });
+
+  if (!available) {
+    throw new Error("같은 시간에 이미 확정된 예약이 있어 승인할 수 없습니다.");
+  }
+}
+
+function getAppointmentDurationMinutes(appointment: Appointment, services: Service[]) {
+  const start = new Date(appointment.start_at).getTime();
+  const end = new Date(appointment.end_at).getTime();
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+    return Math.round((end - start) / 60 / 1000);
+  }
+
+  return services.find((item) => item.id === appointment.service_id)?.duration_minutes ?? null;
+}
+
+function getAppointmentServiceNameSnapshot(appointment: Appointment, fallback: string | null) {
+  const snapshotName = appointment.discount_snapshot?.customerServiceOptionName;
+  return typeof snapshotName === "string" && snapshotName.trim() ? snapshotName.trim() : fallback;
+}
+
+function ensureStaffAvailableForWindow(params: {
+  shop: Shop;
+  staffMembers: Awaited<ReturnType<typeof getBootstrap>>["staffMembers"];
+  staffScheduleOverrides?: Awaited<ReturnType<typeof getBootstrap>>["staffScheduleOverrides"];
+  staffId?: string | null;
+  date: string;
+  appointmentTime: string;
+  durationMinutes: number;
+}) {
+  const { shop, staffMembers, staffScheduleOverrides = [], staffId, date, appointmentTime, durationMinutes } = params;
+  if (!staffId) return;
+
+  const staffMember = staffMembers.find((item) => item.id === staffId);
+  if (!staffMember) {
+    throw new Error("담당 직원 정보를 찾을 수 없습니다.");
+  }
+
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
+  const dayKey = weekdayKeys[weekday];
+
+  const startMinute = minutesFromTime(appointmentTime);
+  let availableStart: number;
+  let availableEnd: number;
+  const override = staffScheduleOverrides.find((item) => item.staff_id === staffId && item.work_date === date);
+
+  if (override) {
+    if (override.status === "off" || override.status === "annual") {
+      throw new Error("선택한 담당자는 해당 날짜에 근무하지 않습니다.");
+    }
+
+    if (override.status === "half") {
+      const splitMinute = minutesFromTime("13:00");
+      availableStart = override.period === "오전" ? splitMinute : minutesFromTime(staffMember.startTime);
+      availableEnd = override.period === "오후" ? splitMinute : minutesFromTime(staffMember.endTime);
+    } else if (override.status === "work") {
+      availableStart = minutesFromTime(override.start_time ?? staffMember.startTime);
+      availableEnd = minutesFromTime(override.end_time ?? staffMember.endTime);
+    } else {
+      throw new Error("선택한 담당자의 근무 시간을 확인할 수 없습니다.");
+    }
+  } else if (!staffMember.defaultDays.includes(dayKey)) {
+    throw new Error("선택한 담당자는 해당 요일에 근무하지 않습니다.");
+  } else {
+    availableStart = minutesFromTime(staffMember.startTime);
+    availableEnd = minutesFromTime(staffMember.endTime);
+  }
+
+  const hours = getBusinessHoursForWeekday(shop, weekday);
+  const businessOpenMinute = hours?.enabled ? minutesFromTime(hours.open) : null;
+  const businessCloseMinute = hours?.enabled ? minutesFromTime(hours.close) : null;
+  if (
+    businessOpenMinute === null ||
+    businessCloseMinute === null ||
+    !isBookingWithinCanonicalWindow({
+      startMinute,
+      durationMinutes,
+      bookingStartMinute: minutesFromTime(
+        normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
+      ),
+      bookingEndMinute: minutesFromTime(
+        normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
+      ),
+      businessOpenMinute,
+      businessCloseMinute,
+      closeGraceMinutes: shop.reservation_policy_settings?.booking_close_grace_minutes,
+      staffStartMinute: availableStart,
+      staffEndMinute: availableEnd,
+    })
+  ) {
+    throw new Error("예약 시간이 담당자 근무 시간, 예약 가능 시간 또는 마감 여유를 벗어납니다.");
+  }
+}
+
+function ensureOwnerScheduleAdjustmentAvailable(params: {
+  appointment: Appointment;
+  shop: Shop;
+  services: Service[];
+  staffMembers: Awaited<ReturnType<typeof getBootstrap>>["staffMembers"];
+  staffScheduleOverrides?: Awaited<ReturnType<typeof getBootstrap>>["staffScheduleOverrides"];
+  appointments: Appointment[];
+  date: string;
+  appointmentTime: string;
+  durationMinutes: number;
+  staffId?: string | null;
+  allowOutsideShopHours?: boolean;
+}) {
+  const { appointment, shop, services, staffMembers, staffScheduleOverrides, appointments, date, appointmentTime, durationMinutes, staffId } = params;
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
+  const hours = getBusinessHoursForWeekday(shop, weekday);
+  const startMinute = minutesFromTime(appointmentTime);
+  const endMinute = startMinute + durationMinutes;
+
+  if (isRegularClosedOnDate(shop, date) || shop.temporary_closed_dates.includes(date)) {
+    throw new Error("매장 휴무일에는 예약 시간을 조정할 수 없습니다.");
+  }
+
+  if (!hours?.enabled || !isBookingWithinCanonicalWindow({
+    startMinute,
+    durationMinutes,
+    bookingStartMinute: minutesFromTime(
+      normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
+    ),
+    bookingEndMinute: minutesFromTime(
+      normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
+    ),
+    businessOpenMinute: minutesFromTime(hours.open),
+    businessCloseMinute: minutesFromTime(hours.close),
+    closeGraceMinutes: shop.reservation_policy_settings?.booking_close_grace_minutes,
+  })) {
+    throw new Error("예약 시간이 예약 가능 시간 또는 마감 여유를 벗어납니다.");
+  }
+
+  if (hasBlockedWindowOverlap(shop.reservation_policy_settings, startMinute, endMinute)) {
+    throw new Error("예약 제외 시간에는 예약 시간을 조정할 수 없습니다.");
+  }
+
+  if (!staffId) return;
+
+  ensureStaffAvailableForWindow({
+    shop,
+    staffMembers,
+    staffScheduleOverrides,
+    staffId,
+    date,
+    appointmentTime,
+    durationMinutes,
+  });
+
+  const hasConflict = appointments.some((item) => {
+    if (item.id === appointment.id) return false;
+    if (item.appointment_date !== date) return false;
+    if (item.staff_id !== staffId) return false;
+    if (["cancelled", "rejected", "noshow"].includes(item.status)) return false;
+
+    const effectiveWindow = getAppointmentEffectiveWindow(item, services);
+    if (!effectiveWindow || effectiveWindow.date !== date) return false;
+    return effectiveWindow.startMinute < endMinute && startMinute < effectiveWindow.endMinute;
+  });
+
+  if (hasConflict) {
+    throw new Error("선택한 담당자에게 같은 시간 예약이 있습니다.");
+  }
+}
+
+function ensureAppointmentScheduleCanBeActivated(params: {
+  appointment: Appointment;
+  shop: Shop;
+  services: Service[];
+  staffMembers: Awaited<ReturnType<typeof getBootstrap>>["staffMembers"];
+  staffScheduleOverrides?: Awaited<ReturnType<typeof getBootstrap>>["staffScheduleOverrides"];
+  appointments: Appointment[];
+}) {
+  const durationMinutes = getAppointmentDurationMinutes(params.appointment, params.services);
+  if (!durationMinutes) {
+    throw new Error("예약 소요 시간을 확인할 수 없습니다.");
+  }
+
+  ensureOwnerScheduleAdjustmentAvailable({
+    appointment: params.appointment,
+    shop: params.shop,
+    services: params.services,
+    staffMembers: params.staffMembers,
+    staffScheduleOverrides: params.staffScheduleOverrides,
+    appointments: params.appointments,
+    date: params.appointment.appointment_date,
+    appointmentTime: params.appointment.appointment_time,
+    durationMinutes,
+    staffId: params.appointment.staff_id ?? null,
+  });
+}
+
+function hasMissingColumnError(
+  error: {
+    code?: string | null;
+    message?: string | null;
+    details?: string | null;
+    hint?: string | null;
+  } | null | undefined,
+  column: string,
+) {
+  const haystack = [error?.message, error?.details, error?.hint].filter(Boolean).join(" ").toLowerCase();
+  const needle = column.toLowerCase();
+  const isPostgrestSchemaCacheMiss = error?.code === "PGRST204" || haystack.includes("schema cache");
+  return (
+    haystack.includes(needle) &&
+    (haystack.includes("column") || haystack.includes("could not find") || isPostgrestSchemaCacheMiss)
+  );
+}
+
+function getMutableStore() {
+  return normalizeBootstrapNotifications(getMockStore());
+}
+
+function resolveGuardianIds(payload: { guardianId?: string; guardianIds?: string[] }) {
+  const ids = new Set<string>();
+  if (payload.guardianId) ids.add(payload.guardianId);
+  for (const guardianId of payload.guardianIds ?? []) {
+    if (guardianId) ids.add(guardianId);
+  }
+  return Array.from(ids);
+}
+
+type AppointmentStatusNotificationType =
+  | "booking_confirmed"
+  | "booking_cancelled"
+  | "grooming_started"
+  | "grooming_almost_done"
+  | "grooming_completed";
+
+type AppointmentMutationOptions = {
+  deferNotifications?: (task: () => Promise<void>) => void;
+  ownerReadinessTest?: {
+    createdByOwnerUserId: string;
+    requestId: string;
+  };
+};
+
+type AppointmentStatusMutationOptions = AppointmentMutationOptions & {
+  ownerAccess?: Pick<OwnerShopContext, "shopId" | "role" | "staffId">;
+  allowCompletedReplay?: boolean;
+};
+
+function assertAppointmentStatusMutationAccess(
+  appointment: Appointment,
+  ownerAccess: AppointmentStatusMutationOptions["ownerAccess"],
+) {
+  if (!ownerAccess) return;
+  const missingStaffIdentity = ownerAccess.role === "staff" && !ownerAccess.staffId;
+  if (
+    appointment.shop_id !== ownerAccess.shopId ||
+    missingStaffIdentity ||
+    !appointmentBelongsToStaff(appointment, ownerAccess)
+  ) {
+    throw new OwnerApiError("예약을 찾을 수 없습니다.", 404);
+  }
+}
+
+async function runAppointmentNotificationTask(
+  task: () => Promise<void>,
+  options?: AppointmentMutationOptions,
+) {
+  if (options?.deferNotifications) {
+    options.deferNotifications(task);
+    return;
+  }
+
+  await task();
+}
+
+function getAppointmentNotificationReason(result: Awaited<ReturnType<typeof dispatchNotification>>) {
+  if (result.notification.fail_reason) return result.notification.fail_reason;
+  if (result.skipped) return "skipped";
+  if (result.alreadyExists) return "already exists";
+  return null;
+}
+
+async function dispatchAppointmentNotificationWithLogs(params: {
+  shopId: string;
+  appointment: Pick<Appointment, "id" | "guardian_id" | "pet_id">;
+  type: AppointmentStatusNotificationType;
+  skipIfExists?: boolean;
+  mediaAssetIds?: string[];
+  force?: boolean;
+}) {
+  console.log("[appointments-api] notification dispatch start", {
+    appointmentId: params.appointment.id,
+    notificationType: params.type,
+    target: "guardian",
+  });
+
+  try {
+    const result = await dispatchNotification({
+      shopId: params.shopId,
+      appointmentId: params.appointment.id,
+      guardianId: params.appointment.guardian_id,
+      petId: params.appointment.pet_id,
+      type: params.type,
+      mediaAssetIds: params.mediaAssetIds,
+      force: params.force === true,
+      ...(params.skipIfExists ? { skipIfExists: true } : {}),
+    });
+
+    console.log("[appointments-api] notification dispatch result", {
+      appointmentId: params.appointment.id,
+      notificationType: params.type,
+      ok: result.notification.status !== "failed",
+      reason: getAppointmentNotificationReason(result),
+    });
+
+    return result;
+  } catch (error) {
+    console.log("[appointments-api] notification dispatch result", {
+      appointmentId: params.appointment.id,
+      notificationType: params.type,
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+export async function updateShopSettings(
+  input: unknown,
+  context?: {
+    ownerUserId?: string | null;
+    changedByUserId?: string | null;
+  },
+) {
+  const payload = shopSettingsSchema.parse(input);
+  const nextNotificationSettings = {
+    enabled: payload.notificationSettings.enabled,
+    alimtalk_sender_mode: payload.notificationSettings.alimtalkSenderMode,
+    alimtalk_shop_channel_status: payload.notificationSettings.alimtalkShopChannelStatus,
+    alimtalk_shop_channel_name: payload.notificationSettings.alimtalkShopChannelName,
+    alimtalk_shop_channel_url: payload.notificationSettings.alimtalkShopChannelUrl,
+    alimtalk_sender_profile_key: payload.notificationSettings.alimtalkSenderProfileKey,
+    alimtalk_channel_requested_at: payload.notificationSettings.alimtalkChannelRequestedAt,
+    alimtalk_channel_admin_note: payload.notificationSettings.alimtalkChannelAdminNote,
+    alimtalk_business_channel_verified: payload.notificationSettings.alimtalkBusinessChannelVerified,
+    alimtalk_template_request_note: payload.notificationSettings.alimtalkTemplateRequestNote,
+    alimtalk_template_request_updated_at: payload.notificationSettings.alimtalkTemplateRequestUpdatedAt,
+    revisit_enabled: payload.notificationSettings.revisitEnabled,
+    revisit_reminder_default_days: payload.notificationSettings.revisitReminderDefaultDays,
+    booking_confirmed_enabled: payload.notificationSettings.bookingConfirmedEnabled,
+    booking_cancelled_enabled: payload.notificationSettings.bookingCancelledEnabled,
+    booking_rescheduled_enabled: payload.notificationSettings.bookingRescheduledEnabled,
+    appointment_reminder_10m_enabled: payload.notificationSettings.appointmentReminder10mEnabled,
+    appointment_reminder_10m_mode: payload.notificationSettings.appointmentReminder10mMode,
+    visit_reminder_offset_minutes: payload.notificationSettings.visitReminderOffsetMinutes,
+    grooming_started_enabled: payload.notificationSettings.groomingStartedEnabled,
+    grooming_almost_done_enabled: payload.notificationSettings.groomingAlmostDoneEnabled,
+    pickup_ready_eta_minutes: payload.notificationSettings.pickupReadyEtaMinutes,
+    grooming_completed_enabled: payload.notificationSettings.groomingCompletedEnabled,
+    grooming_start_without_photo_enabled: payload.notificationSettings.groomingStartWithoutPhotoEnabled,
+    grooming_complete_without_photo_enabled: payload.notificationSettings.groomingCompleteWithoutPhotoEnabled,
+  };
+  const normalizedNotificationSettings = coerceEnabledShopNotificationSettings(nextNotificationSettings);
+  const concurrentCapacity = 1;
+  const regularClosedAnchorDate = payload.regularClosedCycle === "biweekly" ? payload.regularClosedAnchorDate : null;
+  const normalizedReservationPolicySettings = {
+    ...normalizeReservationPolicySettings(payload.reservationPolicySettings),
+    regular_closed_cycle: payload.regularClosedCycle,
+    regular_closed_anchor_date: regularClosedAnchorDate,
+  };
+  const fullUpdatePayload = {
+    name: payload.name,
+    phone: payload.phone,
+    address: payload.address,
+    description: payload.description,
+    concurrent_capacity: concurrentCapacity,
+    booking_slot_interval_minutes: 15,
+    booking_slot_offset_minutes: 0,
+    booking_available_start_time: payload.bookingAvailableStartTime,
+    booking_available_end_time: payload.bookingAvailableEndTime,
+    approval_mode: "auto" as const,
+    regular_closed_days: payload.regularClosedDays,
+    temporary_closed_dates: payload.temporaryClosedDates,
+    business_hours: payload.businessHours,
+    reservation_policy_settings: normalizedReservationPolicySettings,
+    notification_settings: normalizedNotificationSettings,
+    updated_at: nowIso(),
+  };
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    store.shop = {
+      ...store.shop,
+      id: payload.shopId,
+      name: payload.name,
+      phone: payload.phone,
+      address: payload.address,
+      description: payload.description,
+      concurrent_capacity: concurrentCapacity,
+      booking_slot_interval_minutes: 15,
+      booking_slot_offset_minutes: 0,
+      booking_available_start_time: payload.bookingAvailableStartTime,
+      booking_available_end_time: payload.bookingAvailableEndTime,
+      approval_mode: "auto",
+      regular_closed_days: payload.regularClosedDays,
+      regular_closed_cycle: payload.regularClosedCycle,
+      regular_closed_anchor_date: regularClosedAnchorDate,
+      temporary_closed_dates: payload.temporaryClosedDates,
+      business_hours: Object.fromEntries(Object.entries(payload.businessHours).map(([key, value]) => [Number(key), value])),
+      reservation_policy_settings: normalizedReservationPolicySettings,
+      notification_settings: normalizedNotificationSettings,
+      updated_at: nowIso(),
+    };
+
+    setMockStore(store);
+    return store.shop;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const currentShopResult = await supabase
+    .from("shops")
+    .select("name,phone,address")
+    .eq("id", payload.shopId)
+    .maybeSingle<{
+      name: string | null;
+      phone: string | null;
+      address: string | null;
+    }>();
+
+  if (currentShopResult.error) {
+    throw new Error(currentShopResult.error.message);
+  }
+
+  const identityChanges = buildShopIdentityChanges({
+    current: {
+      name: currentShopResult.data?.name,
+      phone: currentShopResult.data?.phone,
+      address: currentShopResult.data?.address,
+    },
+    next: {
+      name: payload.name,
+      phone: payload.phone,
+      address: payload.address,
+    },
+  });
+  const identityLimit = await assertShopIdentityChangeLimit({
+    admin: supabase,
+    shopId: payload.shopId,
+    changes: identityChanges,
+  });
+
+    const runShopUpdate = async ({
+      includeBookingSlotSettings,
+      includeNotificationSettings,
+      includeBookingAvailableTimeWindow,
+      includeRegularClosedCycleSettings,
+    }: {
+      includeBookingSlotSettings: boolean;
+      includeNotificationSettings: boolean;
+      includeBookingAvailableTimeWindow: boolean;
+      includeRegularClosedCycleSettings: boolean;
+    }) => {
+      const nextPayload: Record<string, unknown> = {
+        ...fullUpdatePayload,
+      };
+
+    if (!includeBookingSlotSettings) {
+      delete nextPayload.booking_slot_interval_minutes;
+      delete nextPayload.booking_slot_offset_minutes;
+    }
+
+      if (!includeBookingAvailableTimeWindow) {
+        delete nextPayload.booking_available_start_time;
+        delete nextPayload.booking_available_end_time;
+      }
+
+      if (!includeRegularClosedCycleSettings) {
+        delete nextPayload.regular_closed_cycle;
+        delete nextPayload.regular_closed_anchor_date;
+      }
+  
+      if (!includeNotificationSettings) {
+        delete nextPayload.notification_settings;
+      }
+
+    return supabase
+      .from("shops")
+      .update(nextPayload)
+      .eq("id", payload.shopId)
+      .select("*")
+      .single();
+  };
+
+    const withRegularClosedSettings = (shop: Shop): Shop => ({
+      ...shop,
+      regular_closed_cycle: payload.regularClosedCycle,
+      regular_closed_anchor_date: regularClosedAnchorDate,
+      reservation_policy_settings: {
+        ...normalizeReservationPolicySettings(shop.reservation_policy_settings),
+        regular_closed_cycle: payload.regularClosedCycle,
+        regular_closed_anchor_date: regularClosedAnchorDate,
+      },
+    });
+
+    const { data, error } = await runShopUpdate({
+      includeBookingSlotSettings: true,
+      includeNotificationSettings: true,
+      includeBookingAvailableTimeWindow: true,
+      includeRegularClosedCycleSettings: false,
+    });
+  
+    if (error) {
+      const missingBookingSlotSettings =
+        hasMissingColumnError(error, "booking_slot_interval_minutes") ||
+      hasMissingColumnError(error, "booking_slot_offset_minutes");
+      const missingBookingAvailableTimeWindow =
+        hasMissingColumnError(error, "booking_available_start_time") ||
+        hasMissingColumnError(error, "booking_available_end_time");
+      const missingRegularClosedCycleSettings =
+        hasMissingColumnError(error, "regular_closed_cycle") ||
+        hasMissingColumnError(error, "regular_closed_anchor_date");
+      const missingNotificationSettings = hasMissingColumnError(error, "notification_settings");
+  
+      if (missingBookingSlotSettings || missingNotificationSettings || missingBookingAvailableTimeWindow || missingRegularClosedCycleSettings) {
+        let fallback = await runShopUpdate({
+          includeBookingSlotSettings: !missingBookingSlotSettings,
+          includeNotificationSettings: !missingNotificationSettings,
+          includeBookingAvailableTimeWindow: !missingBookingAvailableTimeWindow,
+          includeRegularClosedCycleSettings: !missingRegularClosedCycleSettings,
+        });
+  
+        if (
+          fallback.error &&
+          !missingNotificationSettings &&
+        hasMissingColumnError(fallback.error, "notification_settings")
+      ) {
+          fallback = await runShopUpdate({
+            includeBookingSlotSettings: !missingBookingSlotSettings,
+            includeNotificationSettings: false,
+            includeBookingAvailableTimeWindow: !missingBookingAvailableTimeWindow,
+            includeRegularClosedCycleSettings: !missingRegularClosedCycleSettings,
+          });
+        }
+
+      if (fallback.error) {
+        throw new Error(fallback.error.message);
+      }
+
+      const fallbackShop = withRegularClosedSettings(fallback.data as Shop);
+      await insertShopIdentityChangeEvents({
+        admin: supabase,
+        shopId: payload.shopId,
+        ownerUserId: context?.ownerUserId ?? null,
+        changedByUserId: context?.changedByUserId ?? context?.ownerUserId ?? null,
+        changes: identityChanges,
+        changeGroupId: identityLimit.changeGroupId,
+        source: "settings_patch",
+      });
+      return fallbackShop;
+    }
+
+    throw new Error(error.message);
+  }
+
+  const updatedShop = withRegularClosedSettings(data as Shop);
+  await insertShopIdentityChangeEvents({
+    admin: supabase,
+    shopId: payload.shopId,
+    ownerUserId: context?.ownerUserId ?? null,
+    changedByUserId: context?.changedByUserId ?? context?.ownerUserId ?? null,
+    changes: identityChanges,
+    changeGroupId: identityLimit.changeGroupId,
+    source: "settings_patch",
+  });
+  return updatedShop;
+}
+
+type ServiceSaveOperation = "create" | "update";
+
+function getServiceSavePayloadHash(input: {
+  operation: ServiceSaveOperation;
+  service: Service;
+}) {
+  const { operation, service } = input;
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        operation,
+        shopId: service.shop_id,
+        serviceId: service.id,
+        name: service.name,
+        price: service.price,
+        priceType: service.price_type,
+        durationMinutes: service.duration_minutes,
+        isActive: service.is_active,
+        category: service.category,
+        description: service.description,
+        sortOrder: service.sort_order,
+        capacityLabel: service.capacity_label,
+        staffSelectionMode: service.staff_selection_mode,
+        priceGuide: service.price_guide,
+      }),
+    )
+    .digest("hex");
+}
+
+export async function updateInitialSetupShopSettings(input: unknown, options: { preserveTemporaryClosedDates?: boolean; temporaryClosedDateChanges?: TemporaryClosedDateChanges } = {}) {
+  const payload = initialSetupShopSettingsSchema.parse(input);
+  if (payload.regularClosedCycle !== "weekly" && payload.regularClosedDays.some((day) => !payload.businessHours[String(day)]?.enabled)) {
+    throw new Error("주기적으로 쉬는 요일의 영업시간을 확인해 주세요.");
+  }
+  if (payload.regularClosedCycle === "biweekly" && payload.regularClosedDays.length) {
+    const anchor = payload.regularClosedAnchorDate ?? "";
+    const date = new Date(`${anchor}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== anchor) {
+      throw new Error("격주 휴무 기준일을 확인해 주세요.");
+    }
+  }
+  const regularClosedAnchorDate = payload.regularClosedCycle === "biweekly" ? payload.regularClosedAnchorDate : null;
+  const updatePayload = {
+    booking_available_start_time: payload.bookingAvailableStartTime,
+    booking_available_end_time: payload.bookingAvailableEndTime,
+    regular_closed_days: payload.regularClosedDays,
+    regular_closed_cycle: payload.regularClosedCycle,
+    regular_closed_anchor_date: regularClosedAnchorDate,
+    temporary_closed_dates: payload.temporaryClosedDates,
+    business_hours: payload.businessHours,
+    updated_at: nowIso(),
+  };
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    store.shop = {
+      ...store.shop,
+      ...updatePayload,
+      ...(options.preserveTemporaryClosedDates ? { temporary_closed_dates: store.shop.temporary_closed_dates } : {}),
+      ...(options.temporaryClosedDateChanges ? { temporary_closed_dates: mergeTemporaryClosedDates(store.shop.temporary_closed_dates, options.temporaryClosedDateChanges) } : {}),
+      reservation_policy_settings: {
+        ...defaultReservationPolicySettings,
+        ...store.shop.reservation_policy_settings,
+        regular_closed_cycle: payload.regularClosedCycle,
+        regular_closed_anchor_date: regularClosedAnchorDate,
+      },
+      id: payload.shopId,
+      business_hours: Object.fromEntries(
+        Object.entries(payload.businessHours).map(([key, value]) => [Number(key), value]),
+      ),
+    };
+    setMockStore(store);
+    return store.shop;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  const { data: current, error: readError } = await supabase
+    .from("shops")
+    .select("reservation_policy_settings,updated_at,temporary_closed_dates")
+    .eq("id", payload.shopId)
+    .single();
+  if (readError || !current) throw new Error("현재 설정을 확인하지 못했습니다. 다시 시도해 주세요.");
+  const existingPolicy = current.reservation_policy_settings;
+  const query = supabase.from("shops").update({
+    ...updatePayload,
+    ...(options.preserveTemporaryClosedDates ? { temporary_closed_dates: current.temporary_closed_dates } : {}),
+    ...(options.temporaryClosedDateChanges ? { temporary_closed_dates: mergeTemporaryClosedDates(current.temporary_closed_dates ?? [], options.temporaryClosedDateChanges) } : {}),
+    reservation_policy_settings: {
+      ...(existingPolicy && typeof existingPolicy === "object" && !Array.isArray(existingPolicy) ? existingPolicy : {}),
+      regular_closed_cycle: payload.regularClosedCycle,
+      regular_closed_anchor_date: regularClosedAnchorDate,
+    },
+  }).eq("id", payload.shopId);
+  // Fail instead of overwriting settings changed after the read above.
+  const guardedQuery = current.updated_at == null ? query.is("updated_at", null) : query.eq("updated_at", current.updated_at);
+  const { data, error } = await guardedQuery.select("*").maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("설정이 다른 화면에서 변경되었습니다. 새로고침 후 다시 저장해 주세요.");
+  return data as Shop;
+}
+
+export async function upsertService(input: unknown) {
+  const payload = serviceInputSchema.parse(input);
+  const serviceId = payload.serviceId ?? randomUUID();
+  const operation: ServiceSaveOperation = payload.operation ?? (payload.serviceId ? "update" : "create");
+  const timestamp = nowIso();
+  const service: Service = {
+    id: serviceId,
+    shop_id: payload.shopId,
+    name: payload.name,
+    price: payload.price,
+    price_type: payload.priceType,
+    duration_minutes: payload.durationMinutes,
+    is_active: payload.isActive,
+    category: payload.category,
+    description: payload.description,
+    sort_order: payload.sortOrder,
+    capacity_label: payload.capacityLabel,
+    staff_selection_mode: payload.staffSelectionMode,
+    price_guide: payload.priceGuide === undefined
+      ? {}
+      : preparePriceGuideForStorage(payload.priceGuide),
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+  const serviceUpdate = {
+    name: service.name,
+    price: service.price,
+    price_type: service.price_type,
+    duration_minutes: service.duration_minutes,
+    is_active: service.is_active,
+    category: service.category,
+    description: service.description,
+    sort_order: service.sort_order,
+    capacity_label: service.capacity_label,
+    staff_selection_mode: service.staff_selection_mode,
+    price_guide: service.price_guide,
+    updated_at: service.updated_at,
+  };
+  const legacyServiceUpdate = {
+    name: service.name,
+    price: service.price,
+    duration_minutes: service.duration_minutes,
+    is_active: service.is_active,
+    updated_at: service.updated_at,
+  };
+  const compatibleServiceUpdate = {
+    ...legacyServiceUpdate,
+    price_type: service.price_type,
+  };
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const existingIndex = store.services.findIndex((item) => item.id === serviceId);
+    if (operation === "create") {
+      if (existingIndex >= 0) {
+        if (store.services[existingIndex].shop_id !== payload.shopId) {
+          throw new OwnerApiError("서비스를 저장할 수 없습니다.", 404);
+        }
+        return store.services[existingIndex];
+      }
+      store.services = [...store.services, service];
+    } else {
+      const index = store.services.findIndex(
+        (item) => item.id === serviceId && item.shop_id === payload.shopId,
+      );
+      if (index < 0) {
+        throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+      }
+      store.services[index] = {
+        ...store.services[index],
+        ...serviceUpdate,
+      };
+    }
+    setMockStore(store);
+    return service;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  const payloadHash = getServiceSavePayloadHash({ operation, service });
+
+  // Scope ownership before consuming a request id. A foreign or stale service
+  // must fail without leaving an idempotency ledger record behind.
+  const { data: scopedCandidate, error: scopedCandidateError } = await supabase
+    .from("services")
+    .select("*")
+    .eq("id", service.id)
+    .maybeSingle();
+  if (scopedCandidateError) throw new Error(scopedCandidateError.message);
+  if (operation === "update" && (!scopedCandidate || scopedCandidate.shop_id !== service.shop_id)) {
+    throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+  }
+  if (operation === "create" && scopedCandidate && scopedCandidate.shop_id !== service.shop_id) {
+    throw new OwnerApiError("서비스를 저장할 수 없습니다.", 404);
+  }
+
+  if (payload.requestId) {
+    const { error: claimError } = await supabase.from("owner_service_save_requests").insert({
+      request_id: payload.requestId,
+      shop_id: service.shop_id,
+      service_id: service.id,
+      operation,
+      payload_hash: payloadHash,
+    });
+    if (claimError && claimError.code !== "23505") {
+      throw new OwnerApiError("서비스 저장 구성을 확인해 주세요.", 503);
+    }
+    if (claimError?.code === "23505") {
+      const { data: priorRequest, error: priorRequestError } = await supabase
+        .from("owner_service_save_requests")
+        .select("shop_id, service_id, operation, payload_hash, completed_at")
+        .eq("request_id", payload.requestId)
+        .maybeSingle();
+      if (priorRequestError || !priorRequest) {
+        throw new OwnerApiError("서비스 저장 상태를 확인하지 못했습니다.", 503);
+      }
+      if (
+        priorRequest.shop_id !== service.shop_id ||
+        priorRequest.service_id !== service.id ||
+        priorRequest.operation !== operation ||
+        priorRequest.payload_hash !== payloadHash
+      ) {
+        throw new OwnerApiError("같은 저장 요청은 같은 내용으로만 다시 시도할 수 있습니다.", 409);
+      }
+      if (priorRequest.completed_at) return service;
+    }
+  }
+
+  const completeRequest = async () => {
+    if (!payload.requestId) return;
+    const { error } = await supabase
+      .from("owner_service_save_requests")
+      .update({ completed_at: nowIso() })
+      .eq("request_id", payload.requestId)
+      .eq("shop_id", service.shop_id)
+      .eq("service_id", service.id)
+      .eq("operation", operation)
+      .eq("payload_hash", payloadHash);
+    if (error) throw new OwnerApiError("서비스 저장 상태를 확정하지 못했습니다.", 503);
+  };
+
+  if (operation === "create") {
+    if (scopedCandidate) {
+      await completeRequest();
+      return scopedCandidate as Service;
+    }
+
+    const { error } = await supabase.from("services").insert(service);
+    if (!error) {
+      await completeRequest();
+      return service;
+    }
+
+    if (hasMissingColumnError(error, "price_type")) {
+      const { error: fallbackError } = await supabase.from("services").insert({
+        id: service.id,
+        shop_id: service.shop_id,
+        ...legacyServiceUpdate,
+        created_at: service.created_at,
+      });
+
+      if (fallbackError) throw new Error(fallbackError.message);
+      await completeRequest();
+      return service;
+    }
+
+    if (
+      hasMissingColumnError(error, "category") ||
+      hasMissingColumnError(error, "description") ||
+      hasMissingColumnError(error, "sort_order") ||
+      hasMissingColumnError(error, "capacity_label") ||
+      hasMissingColumnError(error, "staff_selection_mode") ||
+      hasMissingColumnError(error, "price_guide")
+    ) {
+      const { error: fallbackError } = await supabase.from("services").insert({
+        id: service.id,
+        shop_id: service.shop_id,
+        ...compatibleServiceUpdate,
+        created_at: service.created_at,
+      });
+
+      if (fallbackError) throw new Error(fallbackError.message);
+      await completeRequest();
+      return service;
+    }
+
+    if (error.code === "23505") {
+      const { data: existingService, error: existingError } = await supabase
+        .from("services")
+        .select("*")
+        .eq("id", service.id)
+        .eq("shop_id", service.shop_id)
+        .maybeSingle();
+      if (existingError || !existingService) {
+        throw new OwnerApiError("서비스를 저장할 수 없습니다.", 404);
+      }
+      await completeRequest();
+      return existingService as Service;
+    }
+
+    throw new Error(error.message);
+  }
+
+  const existingResult = await supabase
+    .from("services")
+    .select("id")
+    .eq("id", payload.serviceId)
+    .eq("shop_id", payload.shopId)
+    .maybeSingle();
+
+  if (existingResult.error) throw new Error(existingResult.error.message);
+  if (!existingResult.data?.id) {
+    throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+  }
+
+  const { data, error } = await supabase
+    .from("services")
+    .update(serviceUpdate)
+    .eq("id", payload.serviceId)
+    .eq("shop_id", payload.shopId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    if (hasMissingColumnError(error, "price_type")) {
+      const fallbackResult = await supabase
+        .from("services")
+        .update(legacyServiceUpdate)
+        .eq("id", payload.serviceId)
+        .eq("shop_id", payload.shopId)
+        .select("id")
+        .maybeSingle();
+
+      if (fallbackResult.error) throw new Error(fallbackResult.error.message);
+      if (!fallbackResult.data?.id) {
+        throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+      }
+      await completeRequest();
+      return service;
+    }
+
+    if (
+      hasMissingColumnError(error, "category") ||
+      hasMissingColumnError(error, "description") ||
+      hasMissingColumnError(error, "sort_order") ||
+      hasMissingColumnError(error, "capacity_label") ||
+      hasMissingColumnError(error, "staff_selection_mode") ||
+      hasMissingColumnError(error, "price_guide")
+    ) {
+      const fallbackResult = await supabase
+        .from("services")
+        .update(compatibleServiceUpdate)
+        .eq("id", payload.serviceId)
+        .eq("shop_id", payload.shopId)
+        .select("id")
+        .maybeSingle();
+
+      if (fallbackResult.error) throw new Error(fallbackResult.error.message);
+      if (!fallbackResult.data?.id) {
+        throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+      }
+      await completeRequest();
+      return service;
+    }
+
+    throw new Error(error.message);
+  }
+  if (!data?.id) {
+    throw new OwnerApiError("수정할 서비스 항목을 찾을 수 없습니다.", 404);
+  }
+  await completeRequest();
+  return service;
+}
+
+type SupabaseAdminClient = NonNullable<ReturnType<typeof getSupabaseAdmin>>;
+
+type CompletionAtomicPayload = {
+  recordId: string;
+  staffId: string | null;
+  styleNotes: string;
+  memo: string;
+  internalMemo: string;
+  pricePaid: number;
+  actualDurationMinutes: number | null;
+  expectedDurationMinutes: number | null;
+  originalPrice: number;
+  discountAmount: number;
+  petBreedSnapshot: string | null;
+  petWeightSnapshot: number | null;
+  pricingGroupSnapshot: string | null;
+  serviceNameSnapshot: string | null;
+  nextRecommendedVisitDate: string | null;
+  careReportData?: Record<string, unknown>;
+  careReportObservations: Record<string, unknown>;
+  careReportGenerationId: string | null;
+  careReportOwnerConfirmedAt: string | null;
+  careReportPhotoConsent: boolean;
+  beforeMediaAssetId: string | null;
+  afterMediaAssetId: string | null;
+  groomedAt: string;
+};
+
+async function commitSupabaseAppointmentStatusAtomic(params: {
+  supabase: SupabaseAdminClient;
+  currentAppointment: Appointment;
+  nextStatus: AppointmentStatus;
+  rejectionReason: string | null;
+  statusChangedAt: string;
+  eventType?: AppointmentChangeEvent["event_type"];
+  eventNote?: string | null;
+  groomingDetails?: {
+    treatmentNotes: string;
+    specialNotes: string;
+    internalNotes: string;
+    nextRecommendedVisitDate: string | null;
+  };
+}) {
+  const { supabase, currentAppointment, nextStatus, rejectionReason, statusChangedAt, groomingDetails } = params;
+  const expectedAfter: Appointment = {
+    ...currentAppointment,
+    status: nextStatus,
+    rejection_reason: rejectionReason,
+    ...(nextStatus === "in_progress" ? { actual_started_at: statusChangedAt } : {}),
+    ...(nextStatus === "completed" ? { actual_completed_at: statusChangedAt } : {}),
+    updated_at: statusChangedAt,
+  };
+  const changeEvent = createAppointmentChangeEvent({
+    before: currentAppointment,
+    after: expectedAfter,
+    eventType: params.eventType ?? "status",
+    note: params.eventNote ?? null,
+    createdAt: statusChangedAt,
+  });
+
+  let completion: CompletionAtomicPayload | null = null;
+  let cleanupCompletionDraft = false;
+  if (nextStatus === "completed") {
+    const [existingRecord, completionDraft, completionBootstrap, appointmentMedia, currentVisitWeight] = await Promise.all([
+      supabase.from("grooming_records").select("*").eq("appointment_id", currentAppointment.id).maybeSingle(),
+      supabase
+        .from("grooming_record_drafts")
+        .select("care_report_observations,care_report_voice_transcript,care_report_ai_draft,care_report_generation_id,care_report_owner_confirmed_at,care_report_photo_consent")
+        .eq("shop_id", currentAppointment.shop_id)
+        .eq("appointment_id", currentAppointment.id)
+        .maybeSingle(),
+      getBootstrap(currentAppointment.shop_id),
+      supabase
+        .from("media_assets")
+        .select("id, media_kind, created_at")
+        .eq("shop_id", currentAppointment.shop_id)
+        .eq("appointment_id", currentAppointment.id)
+        .eq("status", "ready")
+        .is("deleted_at", null)
+        .in("media_kind", ["grooming_before", "grooming_after"])
+        .order("created_at", { ascending: false }),
+      readCurrentVisitWeightForCompletion(currentAppointment.shop_id, currentAppointment.id),
+    ]);
+    if (existingRecord.error) throw new Error(existingRecord.error.message);
+    if (completionDraft.error && !hasMissingColumnError(completionDraft.error, "care_report")) {
+      throw new Error(completionDraft.error.message);
+    }
+    if (appointmentMedia.error) throw new Error(appointmentMedia.error.message);
+
+    const service = completionBootstrap.services.find((item) => item.id === currentAppointment.service_id);
+    const pet = completionBootstrap.pets.find((item) => item.id === currentAppointment.pet_id);
+    const confirmedCareReport =
+      completionDraft.data?.care_report_owner_confirmed_at && completionDraft.data?.care_report_ai_draft
+        ? completionDraft.data.care_report_ai_draft
+        : null;
+    const careReportData = confirmedCareReport ?? existingRecord.data?.care_report_data ?? null;
+    const beforeMediaAssetId = appointmentMedia.data?.find((item) => item.media_kind === "grooming_before")?.id ?? null;
+    const afterMediaAssetId = appointmentMedia.data?.find((item) => item.media_kind === "grooming_after")?.id ?? null;
+    const pricePaid = currentAppointment.final_service_price ?? service?.price ?? 0;
+    const discountAmount = currentAppointment.discount_amount ?? 0;
+    const completedAt = statusChangedAt;
+    completion = {
+      recordId: existingRecord.data?.id ?? randomUUID(),
+      staffId: currentAppointment.staff_id ?? null,
+      styleNotes: groomingDetails?.treatmentNotes ?? existingRecord.data?.style_notes ?? "",
+      memo: groomingDetails?.specialNotes ?? existingRecord.data?.memo ?? "",
+      internalMemo: groomingDetails?.internalNotes ?? existingRecord.data?.internal_memo ?? "",
+      pricePaid,
+      actualDurationMinutes: getActualGroomingDurationMinutes(currentAppointment.actual_started_at, completedAt),
+      expectedDurationMinutes: getAppointmentDurationMinutes(currentAppointment, completionBootstrap.services),
+      originalPrice: Math.max(currentAppointment.original_service_price ?? 0, pricePaid + discountAmount),
+      discountAmount,
+      petBreedSnapshot: pet?.breed ?? null,
+      petWeightSnapshot: currentVisitWeight?.weightKg ?? existingRecord.data?.pet_weight_snapshot ?? null,
+      pricingGroupSnapshot: pet?.pricing_group ?? null,
+      serviceNameSnapshot: getAppointmentServiceNameSnapshot(currentAppointment, service?.name ?? null),
+      nextRecommendedVisitDate:
+        groomingDetails?.nextRecommendedVisitDate ?? existingRecord.data?.next_recommended_visit_date ?? null,
+      ...(careReportData !== null ? { careReportData } : {}),
+      careReportObservations:
+        completionDraft.data?.care_report_observations ?? existingRecord.data?.care_report_observations ?? {},
+      careReportGenerationId:
+        completionDraft.data?.care_report_generation_id ?? existingRecord.data?.care_report_generation_id ?? null,
+      careReportOwnerConfirmedAt:
+        completionDraft.data?.care_report_owner_confirmed_at ??
+        existingRecord.data?.care_report_owner_confirmed_at ??
+        null,
+      careReportPhotoConsent:
+        completionDraft.data?.care_report_photo_consent ?? existingRecord.data?.care_report_photo_consent ?? false,
+      beforeMediaAssetId: beforeMediaAssetId ?? existingRecord.data?.before_media_asset_id ?? null,
+      afterMediaAssetId: afterMediaAssetId ?? existingRecord.data?.after_media_asset_id ?? null,
+      groomedAt: completedAt,
+    };
+    const careReportStarted = Boolean(
+      completionDraft.data?.care_report_ai_draft ||
+        completionDraft.data?.care_report_voice_transcript ||
+        Object.keys(completionDraft.data?.care_report_observations ?? {}).length > 0,
+    );
+    cleanupCompletionDraft = !careReportStarted || Boolean(completionDraft.data?.care_report_owner_confirmed_at);
+  }
+
+  const { data, error } = await supabase.rpc("update_appointment_status_atomic_v1", {
+    p_appointment_id: currentAppointment.id,
+    p_expected_previous_status: currentAppointment.status,
+    p_next_status: nextStatus,
+    p_rejection_reason: rejectionReason,
+    p_changed_at: statusChangedAt,
+    p_event_id: changeEvent.id,
+    p_event_note: changeEvent.note,
+    p_event_previous_values: changeEvent.previous_values,
+    p_event_next_values: changeEvent.next_values,
+    p_completion: completion,
+  });
+  if (error) {
+    if (error.code === "40001" || error.message.includes("changed concurrently")) {
+      throw new Error("다른 변경이 먼저 반영되었습니다. 예약 정보를 새로고침한 뒤 다시 시도해 주세요.");
+    }
+    if (error.code === "P0001" || error.message.includes("already set")) {
+      throw new Error(`이미 '${getAppointmentStatusLabel(nextStatus)}' 상태로 처리되었습니다. 같은 상태 알림은 반복 발송할 수 없어요.`);
+    }
+    throw new Error(getAppointmentWriteErrorMessage(error));
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.appointment) throw new Error("예약 상태 저장 결과를 확인할 수 없습니다.");
+
+  return {
+    appointment: row.appointment as Appointment,
+    groomingRecordId: (row.grooming_record_id as string | null) ?? null,
+    careReportConfirmedAt: (row.care_report_owner_confirmed_at as string | null) ?? null,
+    cleanupCompletionDraft,
+  };
+}
+
+export async function deleteService(input: unknown) {
+  const payload = serviceDeleteSchema.parse(input);
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const beforeCount = store.services.length;
+    store.services = store.services.filter((item) => !(item.id === payload.serviceId && item.shop_id === payload.shopId));
+    if (store.services.length === beforeCount) {
+      throw new Error("삭제할 서비스 항목을 찾을 수 없습니다.");
+    }
+    setMockStore(store);
+    return { success: true, serviceId: payload.serviceId };
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const { data, error } = await supabase
+    .from("services")
+    .delete()
+    .eq("id", payload.serviceId)
+    .eq("shop_id", payload.shopId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data?.id) throw new Error("삭제할 서비스 항목을 찾을 수 없습니다.");
+
+  return { success: true, serviceId: payload.serviceId };
+}
+
+export async function updateCustomerPageSettings(
+  input: unknown,
+  context?: {
+    ownerUserId?: string | null;
+    changedByUserId?: string | null;
+  },
+) {
+  const payload = customerPageSettingsSchema.parse(input);
+  const rawSettings =
+    input && typeof input === "object" && !Array.isArray(input) && "customerPageSettings" in input
+      ? (input as { customerPageSettings?: unknown }).customerPageSettings
+      : null;
+  const rawSettingsObject = rawSettings && typeof rawSettings === "object" && !Array.isArray(rawSettings)
+    ? (rawSettings as Record<string, unknown>)
+    : {};
+  const hasHeroImageUrl = Object.prototype.hasOwnProperty.call(rawSettingsObject, "hero_image_url");
+  const hasHeroImageUrls = Object.prototype.hasOwnProperty.call(rawSettingsObject, "hero_image_urls");
+  const hasHeroMediaAssetId = Object.prototype.hasOwnProperty.call(rawSettingsObject, "hero_media_asset_id");
+  const hasHeroMediaAssetIds = Object.prototype.hasOwnProperty.call(rawSettingsObject, "hero_media_asset_ids");
+
+  function mergeWithExistingCustomerPageSettings(existing: unknown) {
+    const current = normalizeCustomerPageSettings(existing as Partial<Shop["customer_page_settings"]> | null | undefined);
+    return normalizeCustomerPageSettings({
+      ...payload.customerPageSettings,
+      hero_image_url: hasHeroImageUrl ? payload.customerPageSettings.hero_image_url : current.hero_image_url,
+      hero_image_urls: hasHeroImageUrls ? payload.customerPageSettings.hero_image_urls : current.hero_image_urls,
+      hero_media_asset_id: hasHeroMediaAssetId ? payload.customerPageSettings.hero_media_asset_id : current.hero_media_asset_id,
+      hero_media_asset_ids: hasHeroMediaAssetIds ? payload.customerPageSettings.hero_media_asset_ids : current.hero_media_asset_ids,
+    });
+  }
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const nextCustomerPageSettings = mergeWithExistingCustomerPageSettings(store.shop.customer_page_settings);
+    store.shop = {
+      ...store.shop,
+      id: payload.shopId,
+      customer_page_settings: nextCustomerPageSettings,
+      updated_at: nowIso(),
+    };
+    setMockStore(store);
+    return store.shop.customer_page_settings;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  const currentShopResult = await supabase
+    .from("shops")
+    .select("name,address,customer_page_settings")
+    .eq("id", payload.shopId)
+    .maybeSingle<{ name: string | null; address: string | null; customer_page_settings: Record<string, unknown> | null }>();
+
+  if (currentShopResult.error) {
+    if (hasMissingColumnError(currentShopResult.error, "customer_page_settings")) {
+      throw new Error("怨좉컼 ?몄텧 ?뺣낫 而щ읆???꾩쭅 ?놁뒿?덈떎. ?덈궡?쒕┛ SQL????踰덈쭔 ?ㅽ뻾??二쇱꽭??");
+    }
+    throw new Error(currentShopResult.error.message);
+  }
+
+  const nextCustomerPageSettings = mergeWithExistingCustomerPageSettings(currentShopResult.data?.customer_page_settings);
+  const currentSettings = normalizeCustomerPageSettings(currentShopResult.data?.customer_page_settings);
+  const shopName = currentShopResult.data?.name?.trim() ?? "";
+  const customerPageShopNameChanged = currentSettings.shop_name.trim() !== nextCustomerPageSettings.shop_name.trim();
+  const customerPageShopNameAlreadySyncedToShop =
+    customerPageShopNameChanged && nextCustomerPageSettings.shop_name.trim() === shopName;
+  const currentFullAddress = [currentShopResult.data?.address ?? "", currentSettings.address_detail]
+    .map((value) => (value ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+  const nextFullAddress = [currentShopResult.data?.address ?? "", nextCustomerPageSettings.address_detail]
+    .map((value) => (value ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+  const customerPageAddressDetailChanged = currentFullAddress !== nextFullAddress;
+  const identityChanges = buildShopIdentityChanges({
+    current: {
+      ...(customerPageShopNameChanged && !customerPageShopNameAlreadySyncedToShop
+        ? { name: currentSettings.shop_name }
+        : {}),
+      ...(customerPageAddressDetailChanged ? { address: currentFullAddress } : {}),
+      additional_contact: currentSettings.additional_contact,
+    },
+    next: {
+      ...(customerPageShopNameChanged && !customerPageShopNameAlreadySyncedToShop
+        ? { name: nextCustomerPageSettings.shop_name }
+        : {}),
+      ...(customerPageAddressDetailChanged ? { address: nextFullAddress } : {}),
+      additional_contact: nextCustomerPageSettings.additional_contact,
+    },
+  });
+  const identityLimit = await assertShopIdentityChangeLimit({
+    admin: supabase,
+    shopId: payload.shopId,
+    changes: identityChanges,
+  });
+
+  const { data, error } = await supabase
+    .from("shops")
+    .update({
+      customer_page_settings: nextCustomerPageSettings,
+      updated_at: nowIso(),
+    })
+    .eq("id", payload.shopId)
+    .select("customer_page_settings")
+    .single();
+
+  if (error) {
+    if (hasMissingColumnError(error, "customer_page_settings")) {
+      throw new Error("怨좉컼 ?몄텧 ?뺣낫 而щ읆???꾩쭅 ?놁뒿?덈떎. ?덈궡?쒕┛ SQL????踰덈쭔 ?ㅽ뻾??二쇱꽭??");
+    }
+    throw new Error(error.message);
+  }
+  await insertShopIdentityChangeEvents({
+    admin: supabase,
+    shopId: payload.shopId,
+    ownerUserId: context?.ownerUserId ?? null,
+    changedByUserId: context?.changedByUserId ?? context?.ownerUserId ?? null,
+    changes: identityChanges,
+    changeGroupId: identityLimit.changeGroupId,
+    source: "customer_page_settings_patch",
+  });
+  return normalizeCustomerPageSettings(data?.customer_page_settings);
+}
+
+export async function createGuardian(input: unknown) {
+  const payload = guardianInputSchema.parse(input);
+  const guardian: Guardian = {
+    id: randomUUID(),
+    shop_id: payload.shopId,
+    name: payload.name,
+    phone: payload.phone,
+    memo: payload.memo ?? "",
+    customer_grade_override: payload.customerGradeOverride ?? null,
+    customer_member_type: payload.customerMemberType ?? "guardian",
+    notification_settings: normalizeGuardianNotificationSettings({
+      ...defaultGuardianNotificationSettings,
+      ...(typeof payload.enabled === "boolean" ? { enabled: payload.enabled } : {}),
+    }),
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    store.guardians = [...store.guardians, guardian];
+    setMockStore(store);
+    return guardian;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  const { data, error } = await supabase
+    .from("guardians")
+    .insert({
+      id: guardian.id,
+      shop_id: guardian.shop_id,
+      name: guardian.name,
+      phone: guardian.phone,
+      memo: guardian.memo,
+      customer_grade_override: guardian.customer_grade_override,
+      customer_member_type: guardian.customer_member_type,
+      notification_settings: guardian.notification_settings,
+      created_at: guardian.created_at,
+      updated_at: guardian.updated_at,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    if (hasMissingColumnError(error, "notification_settings")) {
+      const fallback = await supabase
+        .from("guardians")
+        .insert({
+          id: guardian.id,
+          shop_id: guardian.shop_id,
+          name: guardian.name,
+          phone: guardian.phone,
+          memo: guardian.memo,
+          created_at: guardian.created_at,
+          updated_at: guardian.updated_at,
+        })
+        .select("*")
+        .single();
+
+      if (fallback.error) throw new Error(fallback.error.message);
+      return {
+        ...guardian,
+        ...(fallback.data ?? {}),
+      };
+    }
+
+    throw new Error(error.message);
+  }
+
+  return {
+    ...guardian,
+    ...(data ?? {}),
+  };
+}
+
+export async function updateGuardian(input: unknown) {
+  const payload = guardianUpdateSchema.parse(input);
+  const notificationSettingsPatch = {
+    ...(payload.notificationSettings ?? {}),
+    ...(typeof payload.enabled === "boolean" ? { enabled: payload.enabled } : {}),
+    ...(typeof payload.revisitEnabled === "boolean" ? { revisit_enabled: payload.revisitEnabled } : {}),
+  };
+  const hasNotificationSettingsPatch = Object.keys(notificationSettingsPatch).length > 0;
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const guardian = store.guardians.find((item) => item.id === payload.guardianId && (!payload.shopId || item.shop_id === payload.shopId));
+    if (!guardian) throw new Error("怨좉컼 ?뺣낫瑜?李얠쓣 ???놁뼱??");
+
+    if (typeof payload.name === "string") guardian.name = payload.name;
+    if (typeof payload.phone === "string") guardian.phone = payload.phone;
+    if (typeof payload.memo === "string") guardian.memo = payload.memo;
+    if (payload.customerGradeOverride !== undefined) guardian.customer_grade_override = payload.customerGradeOverride;
+    if (payload.customerMemberType !== undefined) guardian.customer_member_type = payload.customerMemberType;
+    if (hasNotificationSettingsPatch) {
+      guardian.notification_settings = normalizeGuardianNotificationSettings({
+        ...guardian.notification_settings,
+        ...notificationSettingsPatch,
+      });
+    }
+    guardian.updated_at = nowIso();
+    setMockStore(store);
+    return guardian;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  let currentGuardianQuery = supabase.from("guardians").select("*").eq("id", payload.guardianId);
+  if (payload.shopId) currentGuardianQuery = currentGuardianQuery.eq("shop_id", payload.shopId);
+
+  const currentGuardian = await currentGuardianQuery.single();
+  if (currentGuardian.error) throw new Error(currentGuardian.error.message);
+
+  const nextNotificationSettings = normalizeGuardianNotificationSettings({
+    ...((currentGuardian.data?.notification_settings as Partial<Guardian["notification_settings"]> | null) ?? {}),
+    ...notificationSettingsPatch,
+  });
+
+  const nextValues = {
+    ...(typeof payload.name === "string" ? { name: payload.name } : {}),
+    ...(typeof payload.phone === "string" ? { phone: payload.phone } : {}),
+    ...(typeof payload.memo === "string" ? { memo: payload.memo } : {}),
+    ...(payload.customerGradeOverride !== undefined ? { customer_grade_override: payload.customerGradeOverride } : {}),
+    ...(payload.customerMemberType !== undefined ? { customer_member_type: payload.customerMemberType } : {}),
+    ...(hasNotificationSettingsPatch ? { notification_settings: nextNotificationSettings } : {}),
+    updated_at: nowIso(),
+  };
+
+  let updateQuery = supabase
+    .from("guardians")
+    .update(nextValues)
+    .eq("id", payload.guardianId);
+  if (payload.shopId) updateQuery = updateQuery.eq("shop_id", payload.shopId);
+
+  const { data, error } = await updateQuery.select("*").single();
+
+  if (error) {
+    if (hasMissingColumnError(error, "notification_settings")) {
+      const { notification_settings: _ignored, ...fallbackValues } = nextValues as typeof nextValues & {
+        notification_settings?: unknown;
+      };
+
+      let fallbackQuery = supabase
+        .from("guardians")
+        .update(fallbackValues)
+        .eq("id", payload.guardianId);
+      if (payload.shopId) fallbackQuery = fallbackQuery.eq("shop_id", payload.shopId);
+
+      const fallback = await fallbackQuery.select("*").single();
+
+      if (fallback.error) throw new Error(fallback.error.message);
+      return fallback.data;
+    }
+
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+export async function deleteGuardian(input: unknown) {
+  const payload = guardianDeleteSchema.parse(input);
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const guardian = store.guardians.find((item) => item.id === payload.guardianId);
+    if (!guardian) throw new Error("怨좉컼 ?뺣낫瑜?李얠쓣 ???놁뼱??");
+
+    const petIds = new Set(store.pets.filter((item) => item.guardian_id === payload.guardianId).map((item) => item.id));
+
+    store.guardians = store.guardians.filter((item) => item.id !== payload.guardianId);
+    store.pets = store.pets.filter((item) => item.guardian_id !== payload.guardianId);
+    store.appointments = store.appointments.filter((item) => item.guardian_id !== payload.guardianId);
+    store.groomingRecords = store.groomingRecords.filter((item) => item.guardian_id !== payload.guardianId);
+    store.notifications = store.notifications.filter(
+      (item) => item.guardian_id !== payload.guardianId && !(item.pet_id && petIds.has(item.pet_id)),
+    );
+
+    setMockStore(store);
+    return { success: true, guardianId: payload.guardianId };
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  const petQuery = await supabase.from("pets").select("id").eq("guardian_id", payload.guardianId);
+  if (petQuery.error) throw new Error(petQuery.error.message);
+  const petIds = (petQuery.data ?? []).map((item) => item.id);
+
+  const notificationDelete = await supabase.from("notifications").delete().eq("guardian_id", payload.guardianId);
+  if (notificationDelete.error) throw new Error(notificationDelete.error.message);
+
+  if (petIds.length > 0) {
+    const orphanNotificationDelete = await supabase.from("notifications").delete().in("pet_id", petIds);
+    if (orphanNotificationDelete.error) throw new Error(orphanNotificationDelete.error.message);
+  }
+
+  const recordDelete = await supabase.from("grooming_records").delete().eq("guardian_id", payload.guardianId);
+  if (recordDelete.error) throw new Error(recordDelete.error.message);
+
+  const appointmentDelete = await supabase.from("appointments").delete().eq("guardian_id", payload.guardianId);
+  if (appointmentDelete.error) throw new Error(appointmentDelete.error.message);
+
+  const petDelete = await supabase.from("pets").delete().eq("guardian_id", payload.guardianId);
+  if (petDelete.error) throw new Error(petDelete.error.message);
+
+  const guardianDelete = await supabase.from("guardians").delete().eq("id", payload.guardianId);
+  if (guardianDelete.error) throw new Error(guardianDelete.error.message);
+
+  return { success: true, guardianId: payload.guardianId };
+}
+
+export async function softDeleteGuardians(input: unknown) {
+  const payload = guardianDeleteSchema.parse(input);
+  const guardianIds = resolveGuardianIds(payload);
+
+  if (guardianIds.length === 0) {
+    throw new Error("??젣??怨좉컼???좏깮??二쇱꽭??");
+  }
+
+  const deletedAt = nowIso();
+  const restoreUntil = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const existingIds = new Set(store.guardians.map((guardian) => guardian.id));
+    const missingId = guardianIds.find((guardianId) => !existingIds.has(guardianId));
+    if (missingId) throw new Error("??젣??怨좉컼 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.");
+
+    store.guardians = store.guardians.map((guardian) =>
+      guardianIds.includes(guardian.id)
+        ? {
+            ...guardian,
+            deleted_at: deletedAt,
+            deleted_restore_until: restoreUntil,
+            updated_at: deletedAt,
+          }
+        : guardian,
+    );
+
+    setMockStore(store);
+    return { success: true, guardianIds, restoreUntil };
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  let query = supabase
+    .from("guardians")
+    .update({
+      deleted_at: deletedAt,
+      deleted_restore_until: restoreUntil,
+      updated_at: deletedAt,
+    })
+    .in("id", guardianIds);
+
+  if (payload.shopId) {
+    query = query.eq("shop_id", payload.shopId);
+  }
+
+  const { data, error } = await query.select("id");
+
+  if (error) throw new Error(error.message);
+  const deletedIds = (data ?? []).map((guardian) => guardian.id);
+  if (deletedIds.length !== guardianIds.length) {
+    throw new Error("삭제할 고객을 찾지 못했거나 해당 매장의 고객이 아닙니다.");
+  }
+
+  return { success: true, guardianIds: deletedIds, restoreUntil };
+}
+
+export async function restoreGuardians(input: unknown) {
+  const payload = guardianRestoreSchema.parse(input);
+  const guardianIds = resolveGuardianIds(payload);
+
+  if (guardianIds.length === 0) {
+    throw new Error("蹂듦뎄??怨좉컼???좏깮??二쇱꽭??");
+  }
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const now = Date.now();
+    const scopedGuardians = guardianIds.map((guardianId) =>
+      store.guardians.find((guardian) => guardian.id === guardianId && guardian.shop_id === payload.shopId),
+    );
+
+    if (scopedGuardians.some((guardian) => !guardian)) {
+      throw new OwnerApiError("복구할 고객을 찾지 못했거나 해당 매장의 고객이 아닙니다.", 404);
+    }
+    if (
+      scopedGuardians.some((guardian) => {
+        const restoreUntil = guardian?.deleted_restore_until
+          ? new Date(guardian.deleted_restore_until).getTime()
+          : 0;
+        return !guardian?.deleted_at || !restoreUntil || restoreUntil < now;
+      })
+    ) {
+      throw new OwnerApiError("복구 가능한 고객이 아닙니다.", 400);
+    }
+
+    store.guardians = store.guardians.map((guardian) => {
+      if (guardian.shop_id !== payload.shopId || !guardianIds.includes(guardian.id)) return guardian;
+
+      return {
+        ...guardian,
+        deleted_at: null,
+        deleted_restore_until: null,
+        updated_at: nowIso(),
+      };
+    });
+
+    setMockStore(store);
+    return { success: true, guardianIds };
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  const guardiansQuery = await supabase
+    .from("guardians")
+    .select("id, deleted_at, deleted_restore_until")
+    .in("id", guardianIds)
+    .eq("shop_id", payload.shopId);
+
+  if (guardiansQuery.error) throw new Error(guardiansQuery.error.message);
+
+  if ((guardiansQuery.data ?? []).length !== guardianIds.length) {
+    throw new OwnerApiError("복구할 고객을 찾지 못했거나 해당 매장의 고객이 아닙니다.", 404);
+  }
+
+  const restorableIds = (guardiansQuery.data ?? [])
+    .filter((guardian) => guardian.deleted_at)
+    .filter((guardian) => guardian.deleted_restore_until && new Date(guardian.deleted_restore_until).getTime() >= Date.now())
+    .map((guardian) => guardian.id);
+
+  if (restorableIds.length !== guardianIds.length) {
+    throw new OwnerApiError("복구 가능한 고객이 아닙니다.", 400);
+  }
+
+  const { data, error } = await supabase
+    .from("guardians")
+    .update({
+      deleted_at: null,
+      deleted_restore_until: null,
+      updated_at: nowIso(),
+    })
+    .in("id", restorableIds)
+    .eq("shop_id", payload.shopId)
+    .select("id");
+
+  if (error) throw new Error(error.message);
+
+  if ((data ?? []).length !== restorableIds.length) {
+    throw new OwnerApiError("복구할 고객을 찾지 못했거나 해당 매장의 고객이 아닙니다.", 404);
+  }
+
+  return { success: true, guardianIds: restorableIds };
+}
+
+export async function createPet(input: unknown) {
+  const payload = petInputSchema.parse(input);
+  const pet: Pet = {
+    id: randomUUID(),
+    shop_id: payload.shopId,
+    guardian_id: payload.guardianId,
+    name: payload.name,
+    breed: payload.breed,
+    pricing_group: payload.pricingGroup ?? null,
+    weight: payload.weight ?? null,
+    age: payload.age ?? null,
+    notes: payload.notes ?? "",
+    bite_level: payload.biteLevel ?? "none",
+    birthday: payload.birthday ?? null,
+    grooming_cycle_weeks: payload.groomingCycleWeeks,
+    avatar_seed: payload.name.trim().slice(0, 1) || "P",
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const guardian = store.guardians.find((item) => item.id === payload.guardianId && item.shop_id === payload.shopId);
+    if (!guardian) throw new Error("고객 정보를 찾을 수 없습니다.");
+    store.pets = [...store.pets, pet];
+    setMockStore(store);
+    return pet;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  const guardian = await supabase.from("guardians").select("id").eq("id", payload.guardianId).eq("shop_id", payload.shopId).single();
+  if (guardian.error) throw new Error("고객 정보를 찾을 수 없습니다.");
+
+  const { data, error } = await supabase.from("pets").insert(pet).select("*").single();
+  if (error) {
+    if (isMissingPetProfileColumn(error)) {
+      const { bite_level: _biteLevel, pricing_group: _pricingGroup, ...petWithoutProfileFields } = pet;
+      const retry = await supabase.from("pets").insert(petWithoutProfileFields).select("*").single();
+      if (retry.error) throw new Error(retry.error.message);
+      return retry.data;
+    }
+    throw new Error(error.message);
+  }
+  return data;
+}
+
+export async function updatePet(input: unknown) {
+  const payload = petUpdateSchema.parse(input);
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const pet = store.pets.find((item) => item.id === payload.petId && (!payload.shopId || item.shop_id === payload.shopId));
+    if (!pet) throw new Error("諛섎젮?숇Ъ ?뺣낫瑜?李얠쓣 ???놁뼱??");
+
+    pet.name = payload.name;
+    pet.breed = payload.breed;
+    if (payload.pricingGroup !== undefined) pet.pricing_group = payload.pricingGroup;
+    pet.birthday = payload.birthday ?? null;
+    if (payload.weight !== undefined) pet.weight = payload.weight;
+    if (payload.age !== undefined) pet.age = payload.age;
+    if (payload.notes !== undefined) pet.notes = payload.notes;
+    if (payload.biteLevel !== undefined) pet.bite_level = payload.biteLevel;
+    if (payload.groomingCycleWeeks !== undefined) pet.grooming_cycle_weeks = payload.groomingCycleWeeks;
+    pet.updated_at = nowIso();
+    setMockStore(store);
+    return pet;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  let updateQuery = supabase
+    .from("pets")
+    .update({
+      name: payload.name,
+      breed: payload.breed,
+      ...(payload.pricingGroup !== undefined ? { pricing_group: payload.pricingGroup } : {}),
+      birthday: payload.birthday ?? null,
+      ...(payload.weight !== undefined ? { weight: payload.weight } : {}),
+      ...(payload.age !== undefined ? { age: payload.age } : {}),
+      ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+      ...(payload.biteLevel !== undefined ? { bite_level: payload.biteLevel } : {}),
+      ...(payload.groomingCycleWeeks !== undefined ? { grooming_cycle_weeks: payload.groomingCycleWeeks } : {}),
+      updated_at: nowIso(),
+    })
+    .eq("id", payload.petId);
+  if (payload.shopId) updateQuery = updateQuery.eq("shop_id", payload.shopId);
+
+  const { data, error } = await updateQuery.select("*").single();
+
+  if (error) {
+    if (isMissingPetProfileColumn(error)) {
+      let retryQuery = supabase
+        .from("pets")
+        .update({
+          name: payload.name,
+          breed: payload.breed,
+          birthday: payload.birthday ?? null,
+          ...(payload.weight !== undefined ? { weight: payload.weight } : {}),
+          ...(payload.age !== undefined ? { age: payload.age } : {}),
+          ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+          ...(payload.groomingCycleWeeks !== undefined ? { grooming_cycle_weeks: payload.groomingCycleWeeks } : {}),
+          updated_at: nowIso(),
+        })
+        .eq("id", payload.petId);
+      if (payload.shopId) retryQuery = retryQuery.eq("shop_id", payload.shopId);
+      const retry = await retryQuery.select("*").single();
+      if (retry.error) throw new Error(retry.error.message);
+      return retry.data;
+    }
+    throw new Error(error.message);
+  }
+  return data;
+}
+
+export async function upsertPetStaffNote(input: unknown) {
+  const payload = petStaffNoteUpsertSchema.parse(input);
+  const timestamp = nowIso();
+  const noteValues = {
+    shop_id: payload.shopId,
+    guardian_id: payload.guardianId,
+    pet_id: payload.petId ?? null,
+    note: payload.note.trim(),
+    note_scope: "staff_shared" as const,
+    source: "owner_web" as const,
+    updated_by_user_id: payload.userId ?? null,
+    updated_at: timestamp,
+  };
+
+  if (!hasSupabaseServerEnv()) {
+    return {
+      id: payload.petId ? `${payload.shopId}-${payload.petId}-staff-note` : `${payload.shopId}-${payload.guardianId}-staff-note`,
+      ...noteValues,
+      created_by_user_id: payload.userId ?? null,
+      created_at: timestamp,
+    } satisfies PetStaffNote;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const guardian = await supabase
+    .from("guardians")
+    .select("id")
+    .eq("id", payload.guardianId)
+    .eq("shop_id", payload.shopId)
+    .single();
+  if (guardian.error) throw new Error("고객 정보를 찾을 수 없습니다.");
+
+  if (payload.petId) {
+    const pet = await supabase
+      .from("pets")
+      .select("id")
+      .eq("id", payload.petId)
+      .eq("guardian_id", payload.guardianId)
+      .eq("shop_id", payload.shopId)
+      .single();
+    if (pet.error) throw new Error("반려동물 정보를 찾을 수 없습니다.");
+  }
+
+  let existingQuery = supabase
+    .from("pet_staff_notes")
+    .select("id")
+    .eq("shop_id", payload.shopId)
+    .eq("guardian_id", payload.guardianId);
+  existingQuery = payload.petId ? existingQuery.eq("pet_id", payload.petId) : existingQuery.is("pet_id", null);
+  const existing = await existingQuery.maybeSingle();
+  if (existing.error) throw new Error(existing.error.message);
+
+  if (existing.data?.id) {
+    const { data, error } = await supabase
+      .from("pet_staff_notes")
+      .update(noteValues)
+      .eq("id", existing.data.id)
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return data as PetStaffNote;
+  }
+
+  const { data, error } = await supabase
+    .from("pet_staff_notes")
+    .insert({
+      id: randomUUID(),
+      ...noteValues,
+      created_by_user_id: payload.userId ?? null,
+      created_at: timestamp,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as PetStaffNote;
+}
+
+export async function deletePet(input: unknown) {
+  const payload = petDeleteSchema.parse(input);
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const pet = store.pets.find((item) => item.id === payload.petId && (!payload.shopId || item.shop_id === payload.shopId));
+    if (!pet) throw new Error("반려동물 정보를 찾을 수 없습니다.");
+    const hasLinkedData =
+      store.appointments.some((item) => item.pet_id === payload.petId) ||
+      store.groomingRecords.some((item) => item.pet_id === payload.petId) ||
+      store.notifications.some((item) => item.pet_id === payload.petId);
+    if (hasLinkedData) throw new Error("예약이나 기록이 연결된 반려동물은 삭제할 수 없습니다.");
+
+    store.pets = store.pets.filter((item) => item.id !== payload.petId);
+    setMockStore(store);
+    return { success: true, petId: payload.petId };
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  let petQuery = supabase.from("pets").select("id").eq("id", payload.petId);
+  if (payload.shopId) petQuery = petQuery.eq("shop_id", payload.shopId);
+  const pet = await petQuery.single();
+  if (pet.error) throw new Error("반려동물 정보를 찾을 수 없습니다.");
+
+  const [appointments, records, notifications] = await Promise.all([
+    supabase.from("appointments").select("id").eq("pet_id", payload.petId).limit(1),
+    supabase.from("grooming_records").select("id").eq("pet_id", payload.petId).limit(1),
+    supabase.from("notifications").select("id").eq("pet_id", payload.petId).limit(1),
+  ]);
+  if (appointments.error) throw new Error(appointments.error.message);
+  if (records.error) throw new Error(records.error.message);
+  if (notifications.error) throw new Error(notifications.error.message);
+  if ((appointments.data?.length ?? 0) > 0 || (records.data?.length ?? 0) > 0 || (notifications.data?.length ?? 0) > 0) {
+    throw new Error("예약이나 기록이 연결된 반려동물은 삭제할 수 없습니다.");
+  }
+
+  const result = await supabase.from("pets").delete().eq("id", payload.petId);
+  if (result.error) throw new Error(result.error.message);
+  return { success: true, petId: payload.petId };
+}
+
+export async function createAppointment(input: unknown, options?: AppointmentMutationOptions) {
+  const payload = appointmentInputSchema.parse(input);
+  const data = await getBootstrap(payload.shopId, {
+    includeLanding: false,
+    includeNotifications: false,
+    includeGroomingRecords: false,
+    appointmentsFrom: payload.appointmentDate,
+    appointmentsTo: payload.appointmentDate,
+  });
+  const service = data.services.find((item) => item.id === payload.serviceId);
+
+  if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
+  const durationMinutes = payload.durationMinutes ?? service.duration_minutes;
+
+  let resolvedStaffId = payload.staffId ?? null;
+  if (!resolvedStaffId && data.staffMembers.length > 0) {
+    const availableStaff = data.staffMembers.filter((staffMember) =>
+      computeAvailableSlots({
+        date: payload.appointmentDate,
+        serviceId: service.id,
+        durationMinutesOverride: durationMinutes,
+        shop: data.shop,
+        services: data.services,
+        appointments: data.appointments,
+        staffId: staffMember.id,
+        staffMembers: data.staffMembers,
+        staffScheduleOverrides: data.staffScheduleOverrides,
+      }).includes(payload.appointmentTime),
+    );
+
+    if (availableStaff.length === 0) {
+      throw new Error("선택한 시간에는 예약할 수 없습니다.");
+    }
+
+    const loadByStaffId = new Map(
+      getStaffBookingLoads({
+        date: payload.appointmentDate,
+        staffMembers: data.staffMembers,
+        appointments: data.appointments,
+        services: data.services,
+      }).map((load) => [load.staffId, load]),
+    );
+    availableStaff.sort((left, right) => {
+      const leftLoad = loadByStaffId.get(left.id) ?? { bookedMinutes: 0, bookingCount: 0 };
+      const rightLoad = loadByStaffId.get(right.id) ?? { bookedMinutes: 0, bookingCount: 0 };
+      return (
+        leftLoad.bookedMinutes - rightLoad.bookedMinutes ||
+        leftLoad.bookingCount - rightLoad.bookingCount ||
+        left.id.localeCompare(right.id)
+      );
+    });
+
+    resolvedStaffId = availableStaff[0].id;
+  }
+
+  const availableSlots = computeAvailableSlots({
+    date: payload.appointmentDate,
+    serviceId: service.id,
+    durationMinutesOverride: durationMinutes,
+    shop: data.shop,
+    services: data.services,
+    appointments: data.appointments,
+    staffId: resolvedStaffId,
+    staffMembers: data.staffMembers,
+    staffScheduleOverrides: data.staffScheduleOverrides,
+  });
+
+  if (!availableSlots.includes(payload.appointmentTime)) {
+    throw new Error("선택한 시간에는 예약할 수 없습니다.");
+  }
+
+  ensureStaffAvailableForWindow({
+    shop: data.shop,
+    staffMembers: data.staffMembers,
+    staffScheduleOverrides: data.staffScheduleOverrides,
+    staffId: resolvedStaffId,
+    date: payload.appointmentDate,
+    appointmentTime: payload.appointmentTime,
+    durationMinutes,
+  });
+
+  const status = "confirmed";
+  const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, durationMinutes);
+  const shopNotificationSettings = normalizeShopNotificationSettings(data.shop.notification_settings);
+  const appointment: Appointment & {
+    purpose?: "owner_readiness_test";
+    created_by_owner_user_id?: string;
+    owner_request_id?: string;
+  } = {
+    id: randomUUID(),
+    shop_id: payload.shopId,
+    guardian_id: payload.guardianId,
+    pet_id: payload.petId,
+    service_id: service.id,
+    staff_id: resolvedStaffId,
+    appointment_date: payload.appointmentDate,
+    appointment_time: payload.appointmentTime,
+    status,
+    memo: payload.memo,
+    rejection_reason: null,
+    start_at: appointmentWindow.start_at,
+    end_at: appointmentWindow.end_at,
+    visit_reminder_offset_minutes:
+      payload.visitReminderOffsetMinutes ?? shopNotificationSettings.visit_reminder_offset_minutes ?? defaultVisitReminderOffsetMinutes,
+    pickup_ready_eta_minutes:
+      payload.pickupReadyEtaMinutes ?? shopNotificationSettings.pickup_ready_eta_minutes ?? defaultPickupReadyEtaMinutes,
+    source: payload.source,
+    customer_visit_type: payload.customerVisitType ?? null,
+    discount_coupon_ids: payload.discountCouponIds,
+    discount_coupon_names: payload.discountCouponNames,
+    original_service_price: payload.originalServicePrice,
+    discount_amount: payload.discountAmount,
+    final_service_price: payload.finalServicePrice,
+    discount_snapshot: payload.discountSnapshot,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+    ...(options?.ownerReadinessTest
+      ? {
+          purpose: "owner_readiness_test" as const,
+          created_by_owner_user_id: options.ownerReadinessTest.createdByOwnerUserId,
+          owner_request_id: options.ownerReadinessTest.requestId,
+        }
+      : {}),
+  };
+
+  if (data.mode !== "supabase" || !hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    store.appointments = [...store.appointments, appointment];
+    setMockStore(store);
+    if (!options?.ownerReadinessTest && appointment.status === "confirmed" && appointment.source === "owner") {
+      await runAppointmentNotificationTask(
+        async () => {
+          await dispatchAppointmentNotificationWithLogs({
+            shopId: appointment.shop_id,
+            appointment,
+            type: "booking_confirmed",
+          });
+        },
+        options,
+      );
+    }
+    return appointment;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  const { error } = await supabase.from("appointments").insert(appointment);
+  if (error) {
+    // Readiness-test evidence must never be silently downgraded to a legacy
+    // appointment row without its server-owned purpose/actor/request markers.
+    if (options?.ownerReadinessTest) {
+      throw new OwnerApiError("테스트 예약 기록 구성을 확인해 주세요.", 503);
+    }
+    const missingRejectionReason = hasMissingColumnError(error, "rejection_reason");
+    const missingStaffId = hasMissingColumnError(error, "staff_id");
+    const missingVisitReminderOffset = hasMissingColumnError(error, "visit_reminder_offset_minutes");
+    const missingPickupReadyEta = hasMissingColumnError(error, "pickup_ready_eta_minutes");
+    const missingDiscountColumns =
+      hasMissingColumnError(error, "customer_visit_type") ||
+      hasMissingColumnError(error, "discount_coupon_ids") ||
+      hasMissingColumnError(error, "discount_coupon_names") ||
+      hasMissingColumnError(error, "original_service_price") ||
+      hasMissingColumnError(error, "discount_amount") ||
+      hasMissingColumnError(error, "final_service_price") ||
+      hasMissingColumnError(error, "discount_snapshot");
+
+    if (missingRejectionReason || missingStaffId || missingVisitReminderOffset || missingPickupReadyEta || missingDiscountColumns) {
+      const fallbackPayload: Record<string, unknown> = {
+        id: appointment.id,
+        shop_id: appointment.shop_id,
+        guardian_id: appointment.guardian_id,
+        pet_id: appointment.pet_id,
+        service_id: appointment.service_id,
+        appointment_date: appointment.appointment_date,
+        appointment_time: appointment.appointment_time,
+        status: appointment.status,
+        memo: appointment.memo,
+        start_at: appointment.start_at,
+        end_at: appointment.end_at,
+        source: appointment.source,
+        created_at: appointment.created_at,
+        updated_at: appointment.updated_at,
+      };
+
+      if (!missingStaffId) {
+        fallbackPayload.staff_id = appointment.staff_id ?? null;
+      }
+      if (!missingVisitReminderOffset) {
+        fallbackPayload.visit_reminder_offset_minutes = appointment.visit_reminder_offset_minutes;
+      }
+      if (!missingPickupReadyEta) {
+        fallbackPayload.pickup_ready_eta_minutes = appointment.pickup_ready_eta_minutes;
+      }
+      if (!missingDiscountColumns) {
+        fallbackPayload.customer_visit_type = appointment.customer_visit_type;
+        fallbackPayload.discount_coupon_ids = appointment.discount_coupon_ids;
+        fallbackPayload.discount_coupon_names = appointment.discount_coupon_names;
+        fallbackPayload.original_service_price = appointment.original_service_price;
+        fallbackPayload.discount_amount = appointment.discount_amount;
+        fallbackPayload.final_service_price = appointment.final_service_price;
+        fallbackPayload.discount_snapshot = appointment.discount_snapshot;
+      }
+
+      const { error: fallbackError } = await supabase.from("appointments").insert(fallbackPayload);
+
+      if (fallbackError) throw new Error(getAppointmentWriteErrorMessage(fallbackError));
+      if (!options?.ownerReadinessTest && appointment.status === "confirmed" && appointment.source === "owner") {
+        await runAppointmentNotificationTask(
+          async () => {
+            await dispatchAppointmentNotificationWithLogs({
+              shopId: appointment.shop_id,
+              appointment,
+              type: "booking_confirmed",
+            });
+          },
+          options,
+        );
+      }
+      return appointment;
+    }
+
+    throw new Error(getAppointmentWriteErrorMessage(error));
+  }
+  if (!options?.ownerReadinessTest && appointment.status === "confirmed" && appointment.source === "owner") {
+    await runAppointmentNotificationTask(
+      async () => {
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "booking_confirmed",
+        });
+      },
+      options,
+    );
+  }
+
+  return appointment;
+}
+
+export async function updateAppointmentStatus(input: unknown, options?: AppointmentStatusMutationOptions) {
+  const payload = appointmentStatusSchema.parse(input);
+  const rejectionReason = payload.status === "rejected" ? getRejectionReason(payload) : null;
+  const statusMediaAssetIds = payload.mediaAssetIds ?? [];
+  const shouldNotifyCustomer = payload.notifyCustomer !== false;
+  const activatesSchedule = scheduleActiveStatuses.includes(payload.status as (typeof scheduleActiveStatuses)[number]);
+  const statusChangedAt = nowIso();
+  const groomingDetails = payload.groomingRecord;
+  let completedGroomingRecordId: string | null = null;
+  let completedCareReportConfirmedAt: string | null = null;
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const appointment = store.appointments.find(
+      (item) => item.id === payload.appointmentId && (!options?.ownerAccess || item.shop_id === options.ownerAccess.shopId),
+    );
+    if (!appointment) {
+      if (options?.ownerAccess) throw new OwnerApiError("예약을 찾을 수 없습니다.", 404);
+      throw new Error("예약을 찾을 수 없습니다.");
+    }
+    assertAppointmentStatusMutationAccess(appointment, options?.ownerAccess);
+    if (options?.allowCompletedReplay && payload.status === "completed" && appointment.status === "completed") {
+      return appointment;
+    }
+    const previousAppointment = { ...appointment };
+
+    assertAppointmentStatusIsNotRepeated({
+      previousStatus: appointment.status,
+      nextStatus: payload.status,
+    });
+    assertAppointmentStatusTransitionAllowed({
+      previousStatus: appointment.status,
+      nextStatus: payload.status,
+    });
+
+    if (payload.status === "confirmed") {
+      ensureAppointmentCanBeConfirmed({
+        appointment,
+        shop: store.shop,
+        services: store.services,
+        appointments: store.appointments,
+      });
+    }
+    if (activatesSchedule) {
+      ensureAppointmentScheduleCanBeActivated({
+        appointment,
+        shop: store.shop,
+        services: store.services,
+        staffMembers: store.staffMembers,
+        staffScheduleOverrides: store.staffScheduleOverrides,
+        appointments: store.appointments,
+      });
+    }
+
+    appointment.status = payload.status;
+    appointment.rejection_reason = rejectionReason;
+    if (payload.status === "in_progress") {
+      appointment.actual_started_at = statusChangedAt;
+    }
+    if (payload.status === "completed") {
+      appointment.actual_completed_at = statusChangedAt;
+    }
+    appointment.updated_at = statusChangedAt;
+
+    if (payload.status === "completed") {
+      const service = store.services.find((item) => item.id === appointment.service_id);
+      const pet = store.pets.find((item) => item.id === appointment.pet_id);
+      const currentVisitWeight = await readCurrentVisitWeightForCompletion(appointment.shop_id, appointment.id);
+      const existingRecord = store.groomingRecords.find((record) => record.appointment_id === appointment.id);
+      const pricePaid = appointment.final_service_price ?? service?.price ?? 0;
+      const discountAmount = appointment.discount_amount ?? 0;
+      const recordValues = {
+        staff_id: appointment.staff_id ?? null,
+        service_id: appointment.service_id,
+        appointment_id: appointment.id,
+        style_notes: groomingDetails?.treatmentNotes ?? existingRecord?.style_notes ?? "",
+        memo: groomingDetails?.specialNotes ?? existingRecord?.memo ?? "",
+        internal_memo: groomingDetails?.internalNotes ?? existingRecord?.internal_memo ?? "",
+        price_paid: pricePaid,
+        actual_duration_minutes: getActualGroomingDurationMinutes(
+          appointment.actual_started_at,
+          appointment.actual_completed_at,
+        ),
+        expected_duration_minutes: getAppointmentDurationMinutes(appointment, store.services),
+        original_price: Math.max(appointment.original_service_price ?? 0, pricePaid + discountAmount),
+        discount_amount: discountAmount,
+        pet_breed_snapshot: pet?.breed ?? null,
+        pet_weight_snapshot: currentVisitWeight?.weightKg ?? existingRecord?.pet_weight_snapshot ?? null,
+        pricing_group_snapshot: pet?.pricing_group ?? null,
+        service_name_snapshot: getAppointmentServiceNameSnapshot(appointment, service?.name ?? null),
+        record_source: "owner" as const,
+        next_recommended_visit_date:
+          groomingDetails?.nextRecommendedVisitDate ?? existingRecord?.next_recommended_visit_date ?? null,
+        groomed_at: appointment.actual_completed_at ?? statusChangedAt,
+        updated_at: statusChangedAt,
+      };
+
+      if (existingRecord) {
+        Object.assign(existingRecord, recordValues);
+        completedGroomingRecordId = existingRecord.id;
+      } else {
+        completedGroomingRecordId = randomUUID();
+        store.groomingRecords = [
+          {
+            id: completedGroomingRecordId,
+            shop_id: appointment.shop_id,
+            guardian_id: appointment.guardian_id,
+            pet_id: appointment.pet_id,
+            ...recordValues,
+            created_at: statusChangedAt,
+          },
+          ...store.groomingRecords,
+        ];
+      }
+    }
+
+    setMockStore(store);
+    await persistAppointmentChangeEvent(createAppointmentChangeEvent({
+      before: previousAppointment,
+      after: appointment,
+      eventType: "status",
+      note: payload.eventType ?? null,
+      createdAt: statusChangedAt,
+    }));
+    if (shouldNotifyCustomer && payload.status === "cancelled") {
+      await runAppointmentNotificationTask(async () => {
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "booking_cancelled",
+        });
+      }, options);
+    }
+    if (shouldNotifyCustomer && payload.status === "in_progress") {
+      await runAppointmentNotificationTask(async () => {
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "grooming_started",
+          mediaAssetIds: statusMediaAssetIds,
+          force: true,
+        });
+      }, options);
+    }
+    if (shouldNotifyCustomer && payload.status === "almost_done") {
+      await runAppointmentNotificationTask(async () => {
+        await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "grooming_almost_done",
+          mediaAssetIds: statusMediaAssetIds,
+          force: true,
+        });
+      }, options);
+    }
+    if (shouldNotifyCustomer && payload.status === "completed") {
+      await runAppointmentNotificationTask(async () => {
+        const completionNotification = await dispatchAppointmentNotificationWithLogs({
+          shopId: appointment.shop_id,
+          appointment,
+          type: "grooming_completed",
+          mediaAssetIds: statusMediaAssetIds,
+          force: true,
+        });
+        if (completedGroomingRecordId && completionNotification?.notification) {
+          const latestStore = getMutableStore();
+          const record = latestStore.groomingRecords.find((item) => item.id === completedGroomingRecordId);
+          if (record) {
+            record.customer_notification_id = completionNotification.notification.id;
+            record.shared_with_customer_at = completionNotification.notification.sent_at ?? null;
+            record.updated_at = statusChangedAt;
+            setMockStore(latestStore);
+          }
+        }
+      }, options);
+    }
+    return appointment;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const appointmentQuery = supabase
+    .from("appointments")
+    .select("*")
+    .eq("id", payload.appointmentId);
+  const scopedAppointmentQuery = options?.ownerAccess
+    ? appointmentQuery.eq("shop_id", options.ownerAccess.shopId)
+    : appointmentQuery;
+  const { data: appointmentData, error: appointmentError } = await scopedAppointmentQuery.maybeSingle();
+
+  if (appointmentError) throw new Error(appointmentError.message);
+  if (!appointmentData) {
+    if (options?.ownerAccess) throw new OwnerApiError("예약을 찾을 수 없습니다.", 404);
+    throw new Error("예약을 찾을 수 없습니다.");
+  }
+  const currentAppointment = appointmentData as Appointment;
+  assertAppointmentStatusMutationAccess(currentAppointment, options?.ownerAccess);
+  if (options?.allowCompletedReplay && payload.status === "completed" && currentAppointment.status === "completed") {
+    return currentAppointment;
+  }
+  const previousAppointment = currentAppointment;
+
+  assertAppointmentStatusIsNotRepeated({
+    previousStatus: currentAppointment.status,
+    nextStatus: payload.status,
+  });
+  assertAppointmentStatusTransitionAllowed({
+    previousStatus: currentAppointment.status,
+    nextStatus: payload.status,
+  });
+
+  const bootstrap = await getBootstrap(currentAppointment.shop_id);
+  if (payload.status === "confirmed") {
+    ensureAppointmentCanBeConfirmed({
+      appointment: currentAppointment,
+      shop: bootstrap.shop,
+      services: bootstrap.services,
+      appointments: bootstrap.appointments,
+    });
+  }
+
+  if (activatesSchedule) {
+    ensureAppointmentScheduleCanBeActivated({
+      appointment: currentAppointment,
+      shop: bootstrap.shop,
+      services: bootstrap.services,
+      staffMembers: bootstrap.staffMembers,
+      staffScheduleOverrides: bootstrap.staffScheduleOverrides,
+      appointments: bootstrap.appointments,
+    });
+  }
+
+  const atomicCommit = await commitSupabaseAppointmentStatusAtomic({
+    supabase,
+    currentAppointment: previousAppointment,
+    nextStatus: payload.status,
+    rejectionReason,
+    statusChangedAt,
+    eventType: "status",
+    eventNote: payload.eventType ?? null,
+    groomingDetails,
+  });
+  const resolvedAppointment = atomicCommit.appointment;
+  completedGroomingRecordId = atomicCommit.groomingRecordId;
+  completedCareReportConfirmedAt = atomicCommit.careReportConfirmedAt;
+
+  if (atomicCommit.cleanupCompletionDraft) {
+    const draftCleanup = await supabase
+      .from("grooming_record_drafts")
+      .delete()
+      .eq("shop_id", resolvedAppointment.shop_id)
+      .eq("appointment_id", resolvedAppointment.id);
+    if (draftCleanup.error && !draftCleanup.error.message.includes("grooming_record_drafts")) {
+      console.warn("[owner-mutations] grooming draft cleanup failed", draftCleanup.error.message);
+    }
+  }
+
+  if (shouldNotifyCustomer && payload.status === "cancelled") {
+    await runAppointmentNotificationTask(async () => {
+      await dispatchAppointmentNotificationWithLogs({
+        shopId: resolvedAppointment.shop_id,
+        appointment: resolvedAppointment,
+        type: "booking_cancelled",
+      });
+    }, options);
+  }
+  if (shouldNotifyCustomer && payload.status === "in_progress") {
+    await runAppointmentNotificationTask(async () => {
+      await dispatchAppointmentNotificationWithLogs({
+        shopId: resolvedAppointment.shop_id,
+        appointment: resolvedAppointment,
+        type: "grooming_started",
+        mediaAssetIds: statusMediaAssetIds,
+        force: true,
+      });
+    }, options);
+  }
+  if (shouldNotifyCustomer && payload.status === "almost_done") {
+    await runAppointmentNotificationTask(async () => {
+      await dispatchAppointmentNotificationWithLogs({
+        shopId: resolvedAppointment.shop_id,
+        appointment: resolvedAppointment,
+        type: "grooming_almost_done",
+        mediaAssetIds: statusMediaAssetIds,
+        force: true,
+      });
+    }, options);
+  }
+  if (shouldNotifyCustomer && payload.status === "completed") {
+    await runAppointmentNotificationTask(async () => {
+      const completionNotification = await dispatchAppointmentNotificationWithLogs({
+        shopId: resolvedAppointment.shop_id,
+        appointment: resolvedAppointment,
+        type: "grooming_completed",
+        mediaAssetIds: statusMediaAssetIds,
+        force: true,
+      });
+      if (completedGroomingRecordId && completionNotification?.notification) {
+        const notificationLink = await supabase
+          .from("grooming_records")
+          .update({
+            customer_notification_id: completionNotification.notification.id,
+            shared_with_customer_at: completionNotification.notification.sent_at ?? null,
+            care_report_sent_at: completedCareReportConfirmedAt
+              ? completionNotification.notification.sent_at ?? null
+              : null,
+            updated_at: statusChangedAt,
+          })
+          .eq("id", completedGroomingRecordId);
+        if (notificationLink.error) {
+          console.warn("[owner-mutations] grooming record notification link failed", notificationLink.error.message);
+        }
+      }
+    }, options);
+  }
+
+  return resolvedAppointment;
+}
+
+export async function updateAppointmentDetails(input: unknown) {
+  const payload = appointmentEditSchema.parse(input);
+  const data = await getBootstrap(payload.shopId);
+  const appointment = data.appointments.find((item) => item.id === payload.appointmentId);
+
+  if (!appointment) throw new Error("예약 정보를 찾을 수 없습니다.");
+  const completedServiceCorrection =
+    appointment.status === "completed" &&
+    payload.eventType === "care_report_service_correction" &&
+    payload.preserveStatus &&
+    !payload.notifyCustomer;
+  const scheduleBoardAdjustment = payload.preserveStatus || !payload.notifyCustomer || payload.enforceShopCapacity === false;
+  const editableStatuses = scheduleBoardAdjustment
+    ? ["confirmed", "in_progress", "almost_done", ...(completedServiceCorrection ? ["completed"] : [])]
+    : ["confirmed", "cancelled"];
+  if (!editableStatuses.includes(appointment.status)) {
+    throw new Error("현재 예약 상태에서는 일정 수정이 어렵습니다.");
+  }
+
+  const service = data.services.find((item) => item.id === payload.serviceId);
+  if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
+  const durationMinutes = payload.durationMinutes ?? service.duration_minutes;
+  if (
+    completedServiceCorrection &&
+    ((payload.staffId ?? null) !== (appointment.staff_id ?? null) ||
+      payload.appointmentDate !== appointment.appointment_date ||
+      normalizeAppointmentTimeForCompare(payload.appointmentTime) !== normalizeAppointmentTimeForCompare(appointment.appointment_time) ||
+      payload.memo.trim() !== (appointment.memo ?? "").trim() ||
+      durationMinutes !== service.duration_minutes)
+  ) {
+    throw new Error("완료된 예약에서는 서비스 항목만 수정할 수 있습니다.");
+  }
+  const notificationRelevantDetailsChanged = hasNotificationRelevantAppointmentDetailChange({
+    appointment,
+    serviceId: payload.serviceId,
+    staffId: payload.staffId ?? appointment.staff_id ?? null,
+    appointmentDate: payload.appointmentDate,
+    appointmentTime: payload.appointmentTime,
+    durationMinutes,
+    visitReminderOffsetMinutes: payload.visitReminderOffsetMinutes,
+    pickupReadyEtaMinutes: payload.pickupReadyEtaMinutes,
+  });
+
+  if (payload.notifyCustomer && !notificationRelevantDetailsChanged) {
+    throw new Error("예약 날짜, 시간, 서비스, 담당자 등 고객에게 안내할 변경 사항이 없습니다. 같은 변경 완료 알림은 반복 발송할 수 없어요.");
+  }
+
+  if (!completedServiceCorrection && payload.enforceShopCapacity) {
+    const availableSlots = computeAvailableSlots({
+      date: payload.appointmentDate,
+      serviceId: payload.serviceId,
+      durationMinutesOverride: durationMinutes,
+      shop: data.shop,
+      services: data.services,
+      appointments: data.appointments,
+      excludeAppointmentId: payload.appointmentId,
+      staffId: payload.staffId ?? appointment.staff_id ?? null,
+      staffMembers: data.staffMembers,
+      staffScheduleOverrides: data.staffScheduleOverrides,
+    });
+
+    if (!availableSlots.includes(payload.appointmentTime)) {
+      throw new Error("선택한 시간에는 예약할 수 없습니다.");
+    }
+  } else if (!completedServiceCorrection) {
+    ensureOwnerScheduleAdjustmentAvailable({
+      appointment,
+      shop: data.shop,
+      services: data.services,
+      staffMembers: data.staffMembers,
+      staffScheduleOverrides: data.staffScheduleOverrides,
+      appointments: data.appointments,
+      date: payload.appointmentDate,
+      appointmentTime: payload.appointmentTime,
+      durationMinutes,
+      staffId: payload.staffId ?? appointment.staff_id ?? null,
+      allowOutsideShopHours: payload.allowOutsideShopHours,
+    });
+  }
+
+  ensureStaffAvailableForWindow({
+    shop: data.shop,
+    staffMembers: data.staffMembers,
+    staffScheduleOverrides: data.staffScheduleOverrides,
+    staffId: payload.staffId ?? appointment.staff_id ?? null,
+    date: payload.appointmentDate,
+    appointmentTime: payload.appointmentTime,
+    durationMinutes,
+  });
+
+  const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, durationMinutes);
+  const nextValues = {
+    service_id: payload.serviceId,
+    staff_id: payload.staffId ?? null,
+    appointment_date: payload.appointmentDate,
+    appointment_time: payload.appointmentTime,
+    memo: payload.memo.trim(),
+    status: payload.preserveStatus ? appointment.status : ("confirmed" as const),
+    rejection_reason: payload.preserveStatus ? appointment.rejection_reason : null,
+    start_at: appointmentWindow.start_at,
+    end_at: appointmentWindow.end_at,
+    visit_reminder_offset_minutes:
+      payload.visitReminderOffsetMinutes ?? appointment.visit_reminder_offset_minutes ?? defaultVisitReminderOffsetMinutes,
+    pickup_ready_eta_minutes:
+      payload.pickupReadyEtaMinutes ?? appointment.pickup_ready_eta_minutes ?? defaultPickupReadyEtaMinutes,
+    updated_at: nowIso(),
+    ...(completedServiceCorrection && appointment.service_id !== payload.serviceId
+      ? {
+          original_service_price: service.price,
+          final_service_price: Math.max(0, service.price - (appointment.discount_amount ?? 0)),
+        }
+      : {}),
+  };
+
+  if (data.mode !== "supabase" || !hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const target = store.appointments.find((item) => item.id === payload.appointmentId);
+    if (!target) throw new Error("예약 정보를 찾을 수 없습니다.");
+    const previousAppointment = { ...target };
+
+    Object.assign(target, nextValues);
+    if (completedServiceCorrection && appointment.service_id !== payload.serviceId) {
+      const groomingRecord = store.groomingRecords.find((record) => record.appointment_id === target.id);
+      if (groomingRecord) {
+        groomingRecord.service_id = service.id;
+        groomingRecord.service_name_snapshot = service.name;
+        groomingRecord.price_paid = Math.max(0, service.price - (target.discount_amount ?? 0));
+        groomingRecord.updated_at = String(nextValues.updated_at);
+      }
+    }
+    setMockStore(store);
+    await persistAppointmentChangeEvent(createAppointmentChangeEvent({
+      before: previousAppointment,
+      after: target,
+      eventType: "details",
+      note: payload.eventType ?? null,
+      createdAt: String(nextValues.updated_at),
+    }));
+
+    return target;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
+
+  const { data: updatedAppointment, error } = await supabase
+    .from("appointments")
+    .update(nextValues)
+    .eq("id", payload.appointmentId)
+    .select("*")
+    .single();
+
+  let resolvedAppointment = updatedAppointment;
+
+  if (error) {
+    const missingRejectionReason = hasMissingColumnError(error, "rejection_reason");
+    const missingStaffId = hasMissingColumnError(error, "staff_id");
+    const missingVisitReminderOffset = hasMissingColumnError(error, "visit_reminder_offset_minutes");
+    const missingPickupReadyEta = hasMissingColumnError(error, "pickup_ready_eta_minutes");
+
+    if (missingRejectionReason || missingStaffId || missingVisitReminderOffset || missingPickupReadyEta) {
+      const {
+        rejection_reason: _ignored,
+        staff_id: _ignoredStaffId,
+        visit_reminder_offset_minutes: _ignoredVisitReminderOffset,
+        pickup_ready_eta_minutes: _ignoredPickupReadyEta,
+        ...fallbackValues
+      } = nextValues;
+      const nextFallbackValues: Record<string, unknown> = { ...fallbackValues };
+      if (!missingStaffId) {
+        nextFallbackValues.staff_id = nextValues.staff_id;
+      }
+      if (!missingVisitReminderOffset) {
+        nextFallbackValues.visit_reminder_offset_minutes = nextValues.visit_reminder_offset_minutes;
+      }
+      if (!missingPickupReadyEta) {
+        nextFallbackValues.pickup_ready_eta_minutes = nextValues.pickup_ready_eta_minutes;
+      }
+      const fallback = await supabase
+        .from("appointments")
+        .update(nextFallbackValues)
+        .eq("id", payload.appointmentId)
+        .select("*")
+        .single();
+
+      if (fallback.error) throw new Error(getAppointmentWriteErrorMessage(fallback.error));
+      resolvedAppointment = {
+        ...fallback.data,
+        rejection_reason: null,
+        visit_reminder_offset_minutes: nextValues.visit_reminder_offset_minutes,
+        pickup_ready_eta_minutes: nextValues.pickup_ready_eta_minutes,
+      };
+    } else {
+      throw new Error(getAppointmentWriteErrorMessage(error));
+    }
+  }
+
+  await persistAppointmentChangeEvent(createAppointmentChangeEvent({
+    before: appointment,
+    after: resolvedAppointment as Appointment,
+    eventType: "details",
+    note: payload.eventType ?? null,
+    createdAt: String(nextValues.updated_at),
+  }));
+
+  if (completedServiceCorrection && appointment.service_id !== payload.serviceId) {
+    const recordUpdate = await supabase
+      .from("grooming_records")
+      .update({
+        service_id: service.id,
+        service_name_snapshot: service.name,
+        price_paid: Math.max(0, service.price - (appointment.discount_amount ?? 0)),
+        updated_at: String(nextValues.updated_at),
+      })
+      .eq("shop_id", appointment.shop_id)
+      .eq("appointment_id", appointment.id);
+    if (recordUpdate.error) throw new Error(recordUpdate.error.message);
+  }
+
+  return resolvedAppointment;
+}

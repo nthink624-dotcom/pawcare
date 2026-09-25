@@ -1,0 +1,23 @@
+node_modules
+.next
+.vercel
+.env
+.env.local
+.env.*.local
+coverage
+dist
+*.log
+*.tsbuildinfo
+.local-secrets/
+supabase/.temp/
+supabase/**/.temp/
+
+.vercel
+artifacts/
+
+# Local migration recovery material must never be committed.
+.migration-backup/
+**/keystore.properties
+**/google-services.json
+*.jks
+*.keystore

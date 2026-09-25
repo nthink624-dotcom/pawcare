@@ -101,7 +101,6 @@ export const shopSettingsSchema = z.object({
     enabled: z.boolean(),
     revisitEnabled: z.boolean(),
     bookingConfirmedEnabled: z.boolean(),
-    bookingRejectedEnabled: z.boolean(),
     bookingCancelledEnabled: z.boolean(),
     bookingRescheduledEnabled: z.boolean(),
     groomingAlmostDoneEnabled: z.boolean(),

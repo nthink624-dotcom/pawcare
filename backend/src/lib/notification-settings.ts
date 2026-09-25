@@ -4,7 +4,6 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
   enabled: false,
   revisit_enabled: false,
   booking_confirmed_enabled: false,
-  booking_rejected_enabled: false,
   booking_cancelled_enabled: false,
   booking_rescheduled_enabled: false,
   grooming_almost_done_enabled: false,

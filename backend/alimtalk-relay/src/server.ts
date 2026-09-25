@@ -61,7 +61,6 @@ type RelayConfig = {
   ssodaaSenderKey: string;
   templateBookingReceived: string;
   templateBookingConfirmed: string;
-  templateBookingRejected: string;
   templateBookingCancelled: string;
   templateBookingTimeProposed: string;
   templateBookingRescheduledConfirmed: string;
@@ -86,7 +85,6 @@ const relayEnvKeys = [
   "SSODAA_SENDER_KEY",
   "ALIMTALK_TEMPLATE_BOOKING_RECEIVED",
   "ALIMTALK_TEMPLATE_BOOKING_CONFIRMED",
-  "ALIMTALK_TEMPLATE_BOOKING_REJECTED",
   "ALIMTALK_TEMPLATE_BOOKING_CANCELLED",
   "ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED",
   "ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED",
@@ -149,7 +147,6 @@ function loadRelayConfig(): RelayConfig {
     ssodaaSenderKey: process.env.SSODAA_SENDER_KEY || "",
     templateBookingReceived: process.env.ALIMTALK_TEMPLATE_BOOKING_RECEIVED || "",
     templateBookingConfirmed: process.env.ALIMTALK_TEMPLATE_BOOKING_CONFIRMED || "",
-    templateBookingRejected: process.env.ALIMTALK_TEMPLATE_BOOKING_REJECTED || "",
     templateBookingCancelled: process.env.ALIMTALK_TEMPLATE_BOOKING_CANCELLED || "",
     templateBookingTimeProposed: process.env.ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED || "",
     templateBookingRescheduledConfirmed: process.env.ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED || "",
@@ -177,7 +174,6 @@ function getRelayConfigPayload() {
     ssodaaSenderKey: env.ssodaaSenderKey,
     templateBookingReceived: env.templateBookingReceived,
     templateBookingConfirmed: env.templateBookingConfirmed,
-    templateBookingRejected: env.templateBookingRejected,
     templateBookingCancelled: env.templateBookingCancelled,
     templateBookingTimeProposed: env.templateBookingTimeProposed,
     templateBookingRescheduledConfirmed: env.templateBookingRescheduledConfirmed,
@@ -208,7 +204,6 @@ function toRelayEnvEntries(config: ReturnType<typeof getRelayConfigPayload>): Re
     SSODAA_SENDER_KEY: config.ssodaaSenderKey,
     ALIMTALK_TEMPLATE_BOOKING_RECEIVED: config.templateBookingReceived,
     ALIMTALK_TEMPLATE_BOOKING_CONFIRMED: config.templateBookingConfirmed,
-    ALIMTALK_TEMPLATE_BOOKING_REJECTED: config.templateBookingRejected,
     ALIMTALK_TEMPLATE_BOOKING_CANCELLED: config.templateBookingCancelled,
     ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED: config.templateBookingTimeProposed,
     ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED: config.templateBookingRescheduledConfirmed,
@@ -342,7 +337,6 @@ const templateCodeCheckSchema = z
 const relayTemplateConfigKeys = [
   "templateBookingReceived",
   "templateBookingConfirmed",
-  "templateBookingRejected",
   "templateBookingCancelled",
   "templateBookingTimeProposed",
   "templateBookingRescheduledConfirmed",
@@ -411,7 +405,6 @@ const adminConfigSchema = z
     ssodaaSenderKey: z.string().max(2_048),
     templateBookingReceived: z.string().max(100),
     templateBookingConfirmed: z.string().max(100),
-    templateBookingRejected: z.string().max(100),
     templateBookingCancelled: z.string().max(100),
     templateBookingTimeProposed: z.string().max(100),
     templateBookingRescheduledConfirmed: z.string().max(100),
@@ -439,7 +432,6 @@ const sentListLookupSchema = z
 const templateAliases = [
   "booking_received",
   "booking_confirmed",
-  "booking_rejected",
   "booking_cancelled",
   "booking_time_proposed",
   "booking_rescheduled_confirmed",
@@ -1354,8 +1346,6 @@ function resolveTemplateKey(alias: string | null | undefined) {
       return env.templateBookingReceived || null;
     case "booking_confirmed":
       return env.templateBookingConfirmed || null;
-    case "booking_rejected":
-      return env.templateBookingRejected || null;
     case "booking_cancelled":
       return env.templateBookingCancelled || null;
     case "booking_time_proposed":
@@ -1394,10 +1384,6 @@ function getTemplateDebugMap() {
     booking_confirmed: {
       configured: Boolean(env.templateBookingConfirmed),
       length: env.templateBookingConfirmed.length,
-    },
-    booking_rejected: {
-      configured: Boolean(env.templateBookingRejected),
-      length: env.templateBookingRejected.length,
     },
     booking_cancelled: {
       configured: Boolean(env.templateBookingCancelled),

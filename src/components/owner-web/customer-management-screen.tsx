@@ -177,12 +177,8 @@ function getNotificationTypeLabel(type: NotificationType) {
   const labels: Record<NotificationType, string> = {
     booking_received: "예약 접수",
     booking_confirmed: "예약 확정",
-    booking_manage_link_requested: "예약 관리 링크",
     owner_booking_requested: "오너 알림",
-    booking_rejected: "예약 거절",
     booking_cancelled: "예약 취소",
-    booking_time_proposed: "다른 시간 제안",
-    booking_rescheduled_confirmed: "예약 변경",
     appointment_reminder_10m: "방문 전 안내",
     visit_schedule_notice: "방문 일정 안내",
     visit_reminder_notice: "방문 전 알림",

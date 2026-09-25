@@ -15,7 +15,6 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
   revisit_enabled: true,
   revisit_reminder_default_days: 45,
   booking_confirmed_enabled: true,
-  booking_rejected_enabled: true,
   booking_cancelled_enabled: true,
   booking_rescheduled_enabled: true,
   appointment_reminder_10m_enabled: true,
@@ -95,7 +94,6 @@ export function coerceEnabledShopNotificationSettings(settings: ShopNotification
   const hasAnyDetailedNotificationEnabled =
     settings.revisit_enabled ||
     settings.booking_confirmed_enabled ||
-    settings.booking_rejected_enabled ||
     settings.booking_cancelled_enabled ||
     settings.booking_rescheduled_enabled ||
     settings.appointment_reminder_10m_enabled ||
@@ -111,7 +109,6 @@ export function coerceEnabledShopNotificationSettings(settings: ShopNotification
     ...settings,
     revisit_enabled: true,
     booking_confirmed_enabled: true,
-    booking_rejected_enabled: true,
     booking_cancelled_enabled: true,
     booking_rescheduled_enabled: true,
     appointment_reminder_10m_enabled: true,

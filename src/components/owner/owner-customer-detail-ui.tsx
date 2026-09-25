@@ -310,9 +310,6 @@ function extractNotificationManageUrl(notification: BootstrapPayload["notificati
 function getNotificationActionLabel(type: BootstrapPayload["notifications"][number]["type"]) {
   switch (type) {
     case "booking_cancelled":
-    case "booking_rejected":
-    case "booking_rescheduled_confirmed":
-      return "취소·변경 내역 조회";
     case "booking_received":
     case "booking_confirmed":
     case "appointment_reminder_10m":
@@ -333,12 +330,8 @@ export function NotificationHistoryRow({ notification, pet }: { notification: Bo
         return "예약 완료";
       case "owner_booking_requested":
         return "새 예약 접수";
-      case "booking_rejected":
-        return "예약 거절";
       case "booking_cancelled":
         return "예약 취소";
-      case "booking_rescheduled_confirmed":
-        return "예약 변경";
       case "appointment_reminder_10m":
         return "방문 전 안내";
       case "grooming_started":

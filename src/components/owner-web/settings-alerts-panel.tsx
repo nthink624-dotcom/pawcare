@@ -36,7 +36,6 @@ export type AlertSettingsDraft = {
   revisitEnabled: boolean;
   revisitReminderDefaultDays: number;
   bookingConfirmedEnabled: boolean;
-  bookingRejectedEnabled: boolean;
   bookingCancelledEnabled: boolean;
   bookingRescheduledEnabled: boolean;
   appointmentReminder10mEnabled: boolean;
@@ -141,18 +140,6 @@ const alertItems: AlertItem[] = [
     role: "예약을 취소했을 때 고객에게 취소 사실과 다른 시간 조율 안내를 함께 보냅니다.",
   },
   {
-    key: "bookingRescheduledEnabled",
-    title: "예약 일정 변경 안내",
-    type: "booking_time_proposed",
-    role: "오너가 예약 상세에서 다른 가능한 시간을 안내할 때 고객에게 일정 변경 링크를 보냅니다.",
-  },
-  {
-    key: "bookingRescheduledEnabled",
-    title: "예약 변경 확정",
-    type: "booking_rescheduled_confirmed",
-    role: "고객 또는 오너가 변경한 예약 시간이 최종 확정되었음을 안내합니다.",
-  },
-  {
     key: "appointmentReminder10mEnabled",
     title: "직전 안내",
     type: "appointment_reminder_10m",
@@ -200,8 +187,6 @@ const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; ite
       [
         "booking_confirmed",
         "booking_cancelled",
-        "booking_time_proposed",
-        "booking_rescheduled_confirmed",
       ].includes(item.type),
     ),
   },

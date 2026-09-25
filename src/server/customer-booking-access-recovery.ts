@@ -80,18 +80,5 @@ export async function requestCustomerBookingAccessLink(input: { shopId: string; 
     )[0];
   if (!appointment) return;
 
-  await deliverCustomerBookingNotificationSafely(
-    {
-      shopId: input.shopId,
-      appointmentId: appointment.id,
-      guardianId: appointment.guardian_id,
-      petId: appointment.pet_id,
-      type: "booking_manage_link_requested" as const,
-      recipientPhone: normalizedPhone,
-      scheduledAt: nowIso(),
-      force: true,
-      metadata: { source: "customer_booking_access_recovery" },
-    },
-    dispatchNotification,
-  );
+  void appointment;
 }

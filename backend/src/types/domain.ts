@@ -11,7 +11,6 @@ export type AppointmentStatus =
 
 export type NotificationType =
   | "booking_confirmed"
-  | "booking_rejected"
   | "booking_cancelled"
   | "booking_rescheduled_confirmed"
   | "grooming_started"
@@ -29,7 +28,6 @@ export type ShopNotificationSettings = {
   enabled: boolean;
   revisit_enabled: boolean;
   booking_confirmed_enabled: boolean;
-  booking_rejected_enabled: boolean;
   booking_cancelled_enabled: boolean;
   booking_rescheduled_enabled: boolean;
   grooming_almost_done_enabled: boolean;

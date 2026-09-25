@@ -702,7 +702,6 @@ export default function OperatingHoursSettings({
             enabled: nextShop.notification_settings.enabled,
             revisitEnabled: nextShop.notification_settings.revisit_enabled,
             bookingConfirmedEnabled: nextShop.notification_settings.booking_confirmed_enabled,
-            bookingRejectedEnabled: nextShop.notification_settings.booking_rejected_enabled,
             bookingCancelledEnabled: nextShop.notification_settings.booking_cancelled_enabled,
             bookingRescheduledEnabled: nextShop.notification_settings.booking_rescheduled_enabled,
             appointmentReminder10mEnabled: nextShop.notification_settings.appointment_reminder_10m_enabled,

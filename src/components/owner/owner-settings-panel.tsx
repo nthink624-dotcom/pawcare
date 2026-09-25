@@ -54,7 +54,6 @@ type ShopNotificationSettingsState = {
   enabled: boolean;
   revisitEnabled: boolean;
   bookingConfirmedEnabled: boolean;
-  bookingRejectedEnabled: boolean;
   bookingCancelledEnabled: boolean;
   bookingRescheduledEnabled: boolean;
   groomingAlmostDoneEnabled: boolean;
@@ -109,7 +108,6 @@ function mapShopNotificationSettingsState(
     enabled: settings.enabled,
     revisitEnabled: settings.revisit_enabled,
     bookingConfirmedEnabled: settings.booking_confirmed_enabled,
-    bookingRejectedEnabled: settings.booking_rejected_enabled,
     bookingCancelledEnabled: settings.booking_cancelled_enabled,
     bookingRescheduledEnabled: settings.booking_rescheduled_enabled,
     groomingAlmostDoneEnabled: settings.grooming_almost_done_enabled,
@@ -127,7 +125,6 @@ function withPrimedShopNotificationSettings(
   const hasAnyDetailedNotificationEnabled =
     next.revisitEnabled ||
     next.bookingConfirmedEnabled ||
-    next.bookingRejectedEnabled ||
     next.bookingCancelledEnabled ||
     next.bookingRescheduledEnabled ||
     next.groomingAlmostDoneEnabled ||
@@ -141,7 +138,6 @@ function withPrimedShopNotificationSettings(
     ...next,
     revisitEnabled: true,
     bookingConfirmedEnabled: true,
-    bookingRejectedEnabled: true,
     bookingCancelledEnabled: true,
     bookingRescheduledEnabled: true,
     groomingAlmostDoneEnabled: true,
@@ -1069,12 +1065,6 @@ export default function OwnerSettingsPanel({
               label="예약 확정 안내"
               checked={notificationSettings.bookingConfirmedEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingConfirmedEnabled: checked }))}
-              disabled={!notificationSettings.enabled}
-            />
-            <ToggleRow
-              label="예약 거절 안내"
-              checked={notificationSettings.bookingRejectedEnabled}
-              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingRejectedEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
             <ToggleRow

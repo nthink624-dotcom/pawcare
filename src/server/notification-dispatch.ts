@@ -76,7 +76,6 @@ const oneShotAppointmentNotificationTypes = new Set<NotificationType>([
   "booking_received",
   "booking_confirmed",
   "owner_booking_requested",
-  "booking_rejected",
   "booking_cancelled",
   "appointment_reminder_10m",
   "visit_schedule_notice",
@@ -87,13 +86,13 @@ const oneShotAppointmentNotificationTypes = new Set<NotificationType>([
   "revisit_notice",
 ]);
 
-const snapshotAppointmentNotificationTypes = new Set<NotificationType>([
-  "booking_rescheduled_confirmed",
-  "booking_time_proposed",
-]);
 
 function normalizePhone(value: string) {
   return phoneNormalize(value).slice(0, 11);
+}
+
+function formatAlimtalkAppointmentDate(date: string) {
+  return shortDate(date).replace("/", "월 ").replace("(", "일(");
 }
 
 function getPhoneTail(value: string | null | undefined) {
@@ -145,10 +144,6 @@ function buildAbuseDedupeKey(params: {
     return `appointment:${appointmentId}:type:${params.type}`;
   }
 
-  if (appointmentId && snapshotAppointmentNotificationTypes.has(params.type)) {
-    return `appointment:${appointmentId}:type:${params.type}:snapshot:${getAppointmentSnapshotKey(params.appointment)}`;
-  }
-
   if (appointmentId) {
     return `appointment:${appointmentId}:type:${params.type}:scheduled:${params.scheduledAt ?? "now"}`;
   }
@@ -168,10 +163,6 @@ function getDuplicateBlockMessage(type: NotificationType) {
       return "이미 이 예약의 미용 완료 알림을 보냈거나 발송 대기 중입니다. 완료 알림은 예약 건당 한 번만 보낼 수 있어요.";
     case "booking_confirmed":
       return "이미 이 예약의 확정 알림을 보냈거나 발송 대기 중입니다. 같은 예약 확정 알림은 반복 발송할 수 없어요.";
-    case "booking_rescheduled_confirmed":
-      return "이미 같은 예약 일정으로 변경 완료 알림을 보냈거나 발송 대기 중입니다. 일정이 실제로 바뀐 경우에만 다시 보낼 수 있어요.";
-    case "booking_rejected":
-      return "이미 이 예약의 거절 알림을 보냈거나 발송 대기 중입니다.";
     case "booking_cancelled":
       return "이미 이 예약의 취소 알림을 보냈거나 발송 대기 중입니다.";
     default:
@@ -211,10 +202,6 @@ function evaluateNotificationAbusePolicy(params: {
     const appointmentId = params.appointment?.id ?? null;
     if (!appointmentId || item.type !== params.type) return false;
     if ((item.appointment_id ?? null) !== appointmentId) return false;
-
-    if (snapshotAppointmentNotificationTypes.has(params.type)) {
-      return metadata.appointmentSnapshotKey === getAppointmentSnapshotKey(params.appointment);
-    }
 
     return oneShotAppointmentNotificationTypes.has(params.type);
   });
@@ -262,10 +249,7 @@ function getGuardianNotificationBlockReason(
     case "visit_reminder_notice":
       return "고객이 예약 안내 알림톡 수신을 거부했습니다.";
     case "booking_confirmed":
-    case "booking_rejected":
     case "booking_cancelled":
-    case "booking_time_proposed":
-    case "booking_rescheduled_confirmed":
       return "고객이 예약 변경/확정 알림톡 수신을 거부했습니다.";
     case "grooming_started":
     case "grooming_almost_done":
@@ -393,7 +377,7 @@ function legacyBuildNotificationMessage(params: {
 }) {
   const dateLabel =
     params.appointment
-      ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
+      ? `${formatAlimtalkAppointmentDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
   const bookingLinksBlock = legacyBuildBookingLinksBlock({
     bookingEntryUrl: params.bookingEntryUrl,
@@ -437,24 +421,6 @@ function legacyBuildNotificationMessage(params: {
           return previous !== "";
         })
         .join("\n");
-    case "booking_rejected":
-      return [
-        `[${params.shopName}] 예약 거절 안내`,
-        "",
-        `${params.petName} 보호자님께서 신청하신 예약은 매장 사정으로 인해 확정이 어려운 점 양해 부탁드립니다.`,
-        "",
-        "불편을 드려 죄송합니다.",
-        "",
-        "해당 시간 외 다른 일정으로 예약이 가능하오니,  아래 링크에서 다시 확인 부탁드립니다.",
-        "",
-        bookingLinksBlock,
-      ]
-        .filter((line, index, lines) => {
-          if (line) return true;
-          const previous = lines[index - 1];
-          return previous !== "";
-        })
-        .join("\n");
     case "booking_cancelled":
       return [
         `[${params.shopName}]`,
@@ -464,27 +430,6 @@ function legacyBuildNotificationMessage(params: {
         "",
         "아쉽지만 다음에 또 뵐 수 있길 바라요.",
         "언제든 다시 예약하고 싶으실 때 아래 링크를 이용해 주세요.",
-        "",
-        bookingLinksBlock,
-      ]
-        .filter((line, index, lines) => {
-          if (line) return true;
-          const previous = lines[index - 1];
-          return previous !== "";
-        })
-        .join("\n");
-    case "booking_rescheduled_confirmed":
-      return [
-        `[${params.shopName}]`,
-        `${params.petName} 보호자님, 예약 변경이 확정되었어요`,
-        "",
-        "기존 예약은 취소되고, 아래 일정으로 새로 잡혔어요.",
-        "",
-        ` 새로운 일정: ${dateLabel}`,
-        ` 예약 서비스: ${params.serviceName ?? ""}`,
-        "",
-        "새 일정에 맞춰 뵐게요!",
-        "추가 변경이 필요하시면 아래 링크에서 편하게 해주세요.",
         "",
         bookingLinksBlock,
       ]
@@ -577,7 +522,7 @@ function buildOwnerBookingRequestedMessage(params: {
 }) {
   const dateLabel =
     params.appointment
-      ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
+      ? `${formatAlimtalkAppointmentDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
 
   return ["새 예약이 접수되었어요.", params.petName, dateLabel].filter(Boolean).join("\n");
@@ -597,16 +542,17 @@ export function buildNotificationTemplateValues(params: {
 }) {
   const appointmentDateTime =
     params.appointment
-      ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
+      ? `${formatAlimtalkAppointmentDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
   const visitReminderOffsetMinutes = params.appointment?.visit_reminder_offset_minutes ?? 10;
-  const pickupGuide = "잠시 후 미용이 완료될 예정입니다. 준비되시는 대로 편하게 방문해 주세요.";
+  const pickupGuide = "미용 마무리 후 픽업 준비가 되면 안내드립니다.";
 
   return {
     매장명: params.shopName,
     반려동물명: params.petName,
     보호자명: params.recipientName?.trim() || "",
     예약일시: appointmentDateTime,
+    제안일시: appointmentDateTime,
     서비스명: params.serviceName?.trim() || "",
     매장주소: params.shopAddress?.trim() || "",
     "예약 링크": params.bookingEntryUrl ?? "",
@@ -683,84 +629,32 @@ function buildNotificationButtons(params: {
     ];
   }
 
-  if (params.type === "booking_time_proposed") {
-    if (!params.bookingManageUrl) return [];
-    return [
-      {
-        type: "WL",
-        name: "예약 시간 변경",
-        linkMobile: params.bookingManageUrl,
-        linkPc: params.bookingManageUrl,
-      },
-    ];
-  }
-
   if (
     params.type === "appointment_reminder_10m" ||
     params.type === "visit_schedule_notice" ||
     params.type === "visit_reminder_notice"
   ) {
-    const buttons: AlimtalkButton[] = [];
     if (params.directionsUrl) {
-      buttons.push({
+      return [{
         type: "WL",
         name: "길찾기",
         linkMobile: params.directionsUrl,
         linkPc: params.directionsUrl,
-      });
+      }];
     }
-    if (params.bookingManageUrl) {
-      buttons.push({
-        type: "WL",
-        name: "예약확인",
-        linkMobile: params.bookingManageUrl,
-        linkPc: params.bookingManageUrl,
-      });
-    }
-    return buttons;
+    return [];
   }
 
-  if (params.type === "booking_rescheduled_confirmed") {
-    if (!params.bookingManageUrl) return [];
-    return [
-      {
+  if (params.type === "booking_confirmed") {
+    if (params.bookingManageUrl) {
+      return [{
         type: "WL",
         name: "예약 확인",
         linkMobile: params.bookingManageUrl,
         linkPc: params.bookingManageUrl,
-      },
-      {
-        type: "WL",
-        name: "예약 다시 변경",
-        linkMobile: params.bookingManageUrl,
-        linkPc: params.bookingManageUrl,
-      },
-    ];
-  }
-
-  if (
-    params.type === "booking_confirmed" ||
-    params.type === "booking_manage_link_requested" ||
-    params.type === "booking_rejected"
-  ) {
-    const buttons: AlimtalkButton[] = [];
-    if (params.bookingManageUrl) {
-      buttons.push({
-        type: "WL",
-        name: params.type === "booking_manage_link_requested" ? "예약 관리" : params.type === "booking_rejected" ? "예약 변경" : "예약 확인",
-        linkMobile: params.bookingManageUrl,
-        linkPc: params.bookingManageUrl,
-      });
+      }];
     }
-    if (params.type === "booking_confirmed" && params.directionsUrl) {
-      buttons.push({
-        type: "WL",
-        name: "길찾기",
-        linkMobile: params.directionsUrl,
-        linkPc: params.directionsUrl,
-      });
-    }
-    return buttons;
+    return [];
   }
 
   if (params.type !== "grooming_completed" || !params.bookingManageUrl) {
@@ -865,12 +759,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const configuredTemplateKey = getConfiguredAlimtalkTemplateKey(templateAlias);
   const templateKey = usesAlimtalkRelay ? configuredTemplateKey : resolveAlimtalkTemplateKey(templateAlias);
   const templateType = input.templateType ?? "alimtalk";
-  const isBookingTimeProposal = input.type === "booking_time_proposed";
   const isGroomingResult = input.type === "grooming_completed";
   const isRevisitNotice = input.type === "revisit_notice";
   const isManageLink =
-    input.type === "booking_manage_link_requested" ||
-    (!isBookingTimeProposal && !isGroomingResult && !isRevisitNotice && Boolean(appointment));
+    !isGroomingResult && !isRevisitNotice && Boolean(appointment);
   const bookingAccessToken =
     guardian?.id && pet?.id
       ? createBookingAccessToken({
@@ -878,23 +770,17 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           guardianId: guardian.id,
           petId: pet.id,
           appointmentId:
-            isBookingTimeProposal || isGroomingResult || isManageLink
+            isGroomingResult || isManageLink
               ? appointment?.id ?? input.appointmentId ?? undefined
               : undefined,
-          action: isBookingTimeProposal
-            ? "reschedule"
-            : isGroomingResult
+          action: isGroomingResult
               ? "result"
               : isRevisitNotice
                 ? "rebook_source"
                 : isManageLink
                   ? "manage"
                   : undefined,
-          expiresInHours: isBookingTimeProposal
-            ? 24 * 14
-            : isGroomingResult || isRevisitNotice
-              ? 24 * 365
-              : undefined,
+          expiresInHours: isGroomingResult || isRevisitNotice ? 24 * 365 : undefined,
         })
       : null;
   const bookingEntryUrl =

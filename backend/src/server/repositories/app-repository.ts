@@ -276,7 +276,7 @@ export async function updateAppointmentStatus(input: unknown) {
     const eventType = payload.eventType
       ? payload.eventType
       : payload.status === "rejected"
-          ? "booking_rejected"
+          ? "booking_cancelled"
           : payload.status === "cancelled"
             ? "booking_cancelled"
             : payload.status === "almost_done"
@@ -577,7 +577,6 @@ export async function updateShopSettings(input: unknown) {
     enabled: payload.notificationSettings.enabled,
     revisit_enabled: payload.notificationSettings.revisitEnabled,
     booking_confirmed_enabled: payload.notificationSettings.bookingConfirmedEnabled,
-    booking_rejected_enabled: payload.notificationSettings.bookingRejectedEnabled,
     booking_cancelled_enabled: payload.notificationSettings.bookingCancelledEnabled,
     booking_rescheduled_enabled: payload.notificationSettings.bookingRescheduledEnabled,
     grooming_almost_done_enabled: payload.notificationSettings.groomingAlmostDoneEnabled,

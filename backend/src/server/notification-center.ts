@@ -6,7 +6,6 @@ import type { Appointment, BootstrapPayload, Guardian, NotificationType, Pet } f
 
 const EVENT_SETTINGS_KEY: Record<NotificationType, keyof BootstrapPayload["shop"]["notification_settings"] | null> = {
   booking_confirmed: "booking_confirmed_enabled",
-  booking_rejected: "booking_rejected_enabled",
   booking_cancelled: "booking_cancelled_enabled",
   booking_rescheduled_confirmed: "booking_rescheduled_enabled",
   grooming_started: null,
@@ -40,7 +39,6 @@ function buildMessage(params: {
 }) {
   const { type, petName = "반려견", serviceName = "예약", appointmentTime, rejectionReason } = params;
   if (type === "booking_confirmed") return `${petName} 예약이 확정되었어요.`;
-  if (type === "booking_rejected") return rejectionReason ? `${petName} 예약이 미승인되었어요. 사유: ${rejectionReason}` : `${petName} 예약이 미승인되었어요.`;
   if (type === "booking_cancelled") return `${petName} 예약이 취소되었어요.`;
   if (type === "booking_rescheduled_confirmed") return `${petName} 예약 변경이 확정되었어요.`;
   if (type === "grooming_almost_done") return `${petName} 미용이 곧 끝나요. ${appointmentTime ? `${appointmentTime} 예약` : "예약"} 픽업 준비 부탁드려요.`;

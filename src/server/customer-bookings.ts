@@ -1204,25 +1204,9 @@ export async function updateCustomerBooking(input: unknown) {
 
   if (bootstrap.mode !== "supabase" || !hasSupabaseServerEnv()) {
     const updated = await updateMockAppointment(payload.appointmentId, (current) => ({ ...current, ...nextValues }));
-    if (updated.status === "confirmed") {
-      await deliverCustomerBookingNotificationSafely({
-        shopId: updated.shop_id,
-        appointmentId: updated.id,
-        guardianId: updated.guardian_id,
-        petId: updated.pet_id,
-        type: "booking_rescheduled_confirmed",
-      }, dispatchNotification);
-    }
     return updated;
   }
 
   const updated = await updateSupabaseAppointment(payload.appointmentId, nextValues);
-  await deliverCustomerBookingNotificationSafely({
-    shopId: updated.shop_id,
-    appointmentId: updated.id,
-    guardianId: updated.guardian_id,
-    petId: updated.pet_id,
-    type: "booking_rescheduled_confirmed",
-  }, dispatchNotification);
   return updated;
 }

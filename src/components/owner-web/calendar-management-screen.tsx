@@ -2700,7 +2700,6 @@ function getAlimtalkResendType(status: string): NotificationType {
   if (status === "픽업 준비") return "grooming_almost_done";
   if (status === "완료") return "grooming_completed";
   if (status === "취소") return "booking_cancelled";
-  if (status === "거절") return "booking_rejected";
   return "booking_confirmed";
 }
 

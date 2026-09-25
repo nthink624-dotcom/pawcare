@@ -15,12 +15,8 @@ export type AppointmentStatus =
 export type NotificationType =
   | "booking_received"
   | "booking_confirmed"
-  | "booking_manage_link_requested"
   | "owner_booking_requested"
-  | "booking_rejected"
   | "booking_cancelled"
-  | "booking_time_proposed"
-  | "booking_rescheduled_confirmed"
   | "appointment_reminder_10m"
   | "visit_schedule_notice"
   | "visit_reminder_notice"
@@ -72,7 +68,6 @@ export type ShopNotificationSettings = {
   revisit_enabled: boolean;
   revisit_reminder_default_days: number;
   booking_confirmed_enabled: boolean;
-  booking_rejected_enabled: boolean;
   booking_cancelled_enabled: boolean;
   booking_rescheduled_enabled: boolean;
   appointment_reminder_10m_enabled: boolean;

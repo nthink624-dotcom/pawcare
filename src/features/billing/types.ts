@@ -1,12 +1,12 @@
 import type { RefObject } from "react";
 
 export type BillingConsentProps = {
+  variant?: "page" | "modal";
   eyebrow?: string;
   title?: string;
   planLabel: string;
   billingCycleLabel: string;
   nextBillingDateLabel: string;
-  consentLines: string[];
   checkboxLabel?: string;
   agreed: boolean;
   loading?: boolean;
@@ -24,7 +24,7 @@ export type PaymentMethodOptionId = "saved" | "new";
 export type PaymentMethodOption = {
   id: PaymentMethodOptionId;
   title: string;
-  description: string;
+  description?: string;
   disabled?: boolean;
 };
 
@@ -32,7 +32,6 @@ export type PaymentMethodSheetProps = {
   open: boolean;
   eyebrow?: string;
   title?: string;
-  description?: string;
   closeLabel?: string;
   planLabel: string;
   amountLabel: string;

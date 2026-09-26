@@ -439,7 +439,7 @@ test("customer booking dates and staff cards share the authoritative availabilit
   assert.match(bookingPage, /offset < CUSTOMER_BOOKING_HORIZON_DAYS/);
   assert.match(bookingPage, /dates:\s*dateOptions\.map/);
   assert.match(bookingPage, /summaryOnly: true/);
-  assert.match(bookingPage, /fullSlots: true/);
+  assert.doesNotMatch(bookingPage, /fullSlots: true/);
   assert.match(bookingFlow, /calc\(\(100% - 24px\) \/ 4\)/);
   assert.match(bookingFlow, /scroll-snap-type:x mandatory/);
   assert.match(bookingFlow, /예약 가능한 시간이 없어요/);
@@ -538,6 +538,7 @@ test("customer reservation management requires an appointment-scoped signed link
   assert.match(recoveryRoute, /"Retry-After": "900"/);
   assert.match(recoveryService, /PHONE_REQUEST_LIMIT = 3/);
   assert.match(recoveryService, /IP_REQUEST_LIMIT = 10/);
-  assert.match(recoveryService, /type: "booking_manage_link_requested"/);
+  assert.doesNotMatch(recoveryService, /type: "booking_manage_link_requested"/);
+  assert.doesNotMatch(recoveryService, /await dispatchNotification\(/);
   assert.doesNotMatch(bookingPage, /profile: "1"/);
 });

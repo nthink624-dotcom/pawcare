@@ -16,7 +16,7 @@ import { isShopClosedOnDate } from "@/lib/availability";
 import { CUSTOMER_BOOKING_HORIZON_DAYS } from "@/lib/customer-booking-window";
 import { fetchCustomerAvailability } from "@/lib/customer-availability";
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
-import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
+import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, minutesFromTime, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
 
 export type CustomerBookingManageLookupPayload = {
@@ -44,6 +44,7 @@ type ManageForm = {
   appointmentId: string;
   serviceId: string;
   customerServiceOptionId: string;
+  staffId: string;
   date: string;
   timeSlot: string;
   note: string;
@@ -151,8 +152,8 @@ function getCustomerActionLabel(status: Appointment["status"]) {
 function ManageInfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 py-2">
-      <span className="text-[13px] font-semibold text-[#8b7767]">{label}</span>
-      <span className="text-right text-[15px] font-semibold tracking-[-0.02em] text-[#2b241f]">{value}</span>
+      <span className="text-[16px] font-semibold leading-6 text-[#64748b]">{label}</span>
+      <span className="text-right text-[16px] font-normal leading-6 tracking-[-0.01em] text-[#101a31]">{value}</span>
     </div>
   );
 }
@@ -243,6 +244,15 @@ export default function CustomerBookingManagePanel({
     () => Object.fromEntries(staffMembers.map((staff) => [staff.id, staff.name])),
     [staffMembers],
   );
+  const orderedStaffMembers = useMemo(() => {
+    const selectedStaffId = manageForm?.staffId;
+    if (!selectedStaffId) return staffMembers;
+    return [...staffMembers].sort((left, right) => {
+      if (left.id === selectedStaffId) return -1;
+      if (right.id === selectedStaffId) return 1;
+      return 0;
+    });
+  }, [manageForm?.staffId, staffMembers]);
   const sortedAppointments = useMemo(
     () => [...(lookupResult?.appointments || [])].sort((a, b) => `${b.appointment_date} ${b.appointment_time}`.localeCompare(`${a.appointment_date} ${a.appointment_time}`)),
     [lookupResult?.appointments],
@@ -279,6 +289,7 @@ export default function CustomerBookingManagePanel({
           date: manageForm.date,
           serviceId: manageForm.serviceId,
           previewDurationMinutes: selectedServiceOption?.durationMinutes,
+          staffId: manageForm.staffId || null,
           excludeAppointmentId: manageForm.appointmentId,
         });
         if (!active) return;
@@ -296,7 +307,7 @@ export default function CustomerBookingManagePanel({
     return () => {
       active = false;
     };
-  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, operationsLocked, selectedServiceOption?.durationMinutes, shopId]);
+  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, manageForm?.staffId, operationsLocked, selectedServiceOption?.durationMinutes, shopId]);
 
   useEffect(() => {
     let active = true;
@@ -330,6 +341,7 @@ export default function CustomerBookingManagePanel({
             appointmentId: directRescheduleAppointment.id,
             serviceId: sourceOption?.serviceId ?? "",
             customerServiceOptionId: sourceOption?.id ?? "",
+            staffId: directRescheduleAppointment.staff_id ?? "",
             date: directRescheduleAppointment.appointment_date,
             timeSlot: directRescheduleAppointment.appointment_time,
             note: directRescheduleAppointment.memo,
@@ -397,6 +409,7 @@ export default function CustomerBookingManagePanel({
       appointmentId: appointment.id,
       serviceId: sourceOption?.serviceId ?? "",
       customerServiceOptionId: sourceOption?.id ?? "",
+      staffId: appointment.staff_id ?? "",
       date: appointment.appointment_date,
       timeSlot: appointment.appointment_time,
       note: appointment.memo,
@@ -492,6 +505,7 @@ export default function CustomerBookingManagePanel({
           accessToken: initialAccessToken,
           serviceId: manageForm.serviceId,
           customerServiceOptionId: manageForm.customerServiceOptionId,
+          staffId: manageForm.staffId || null,
           appointmentDate: manageForm.date,
           appointmentTime: manageForm.timeSlot,
           memo: manageForm.note,
@@ -561,13 +575,21 @@ export default function CustomerBookingManagePanel({
       {lookupError ? <p className="rounded-[16px] bg-[#fff1f1] px-4 py-3 text-sm text-red-600">{lookupError}</p> : null}
 
       {feedback ? (
-        <div className={`rounded-[18px] px-4 py-4 text-sm ${feedback.type === "success" ? "bg-[#eef8f1] text-[#25613a]" : "bg-[#fff1f1] text-[#b42318]"}`}>
-          <p className="font-semibold">{feedback.title}</p>
-          <p className="mt-1 leading-6">{feedback.message}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101a31]/20 px-5 py-6" role="presentation">
+          <section className="w-full max-w-[390px] rounded-[24px] bg-white px-6 py-10 text-center shadow-[0_20px_50px_rgba(16,26,49,0.18)]" role="dialog" aria-modal="true" aria-labelledby="booking-feedback-title">
+            <div className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full text-white ${feedback.type === "success" ? "bg-[#1f9d55]" : "bg-[#c65b52]"}`}>
+              {feedback.type === "success" ? <Check className="h-10 w-10" strokeWidth={2.2} /> : <X className="h-10 w-10" strokeWidth={2.1} />}
+            </div>
+            <h2 id="booking-feedback-title" className="mt-6 text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#101a31]">{feedback.title}</h2>
+            <p className="mt-3 max-w-[300px] mx-auto text-[16px] leading-6 text-[#64748b]">{feedback.message}</p>
+            <button type="button" onClick={feedback.type === "success" ? onBack : () => setFeedback(null)} className="mt-8 inline-flex min-h-11 w-full max-w-[260px] items-center justify-center rounded-[12px] bg-[#ec7f72] px-5 text-[16px] font-medium text-white">
+              {feedback.type === "success" ? "닫기" : "예약 내역으로 돌아가기"}
+            </button>
+          </section>
         </div>
       ) : null}
 
-      {lookupResult ? (
+      {lookupResult && !feedback ? (
         <section className="space-y-3">
           <div className="flex justify-end">
             <button
@@ -607,11 +629,11 @@ export default function CustomerBookingManagePanel({
                 <div className="px-4 pb-3 pt-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[13px] font-semibold tracking-[-0.02em] text-[#b6a89f]">예약 내역</p>
-                      <h3 className="mt-2 truncate text-[24px] font-semibold tracking-[-0.05em] text-[#3a2e2a]">
+                      <p className="text-[14px] font-medium leading-5 tracking-[-0.01em] text-[#64748b]">예약 내역</p>
+                      <h3 className="mt-2 truncate text-[24px] font-semibold tracking-[-0.03em] text-[#101a31]">
                         {pet?.name || "예약"} · {lookupResult.guardians[0]?.name || "보호자"}
                       </h3>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] font-medium text-[#8a7a72]">
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[16px] leading-6 font-medium text-[#475569]">
                         <span className="inline-flex items-center gap-1.5">
                           <CalendarDays className="h-4 w-4" />
                           {formatDateLabel(appointment.appointment_date)}
@@ -630,13 +652,13 @@ export default function CustomerBookingManagePanel({
                   <div className="mt-4 rounded-[16px] border border-[#f3e5df] bg-[#fffaf8] px-4 py-2">
                     <ManageInfoRow label="서비스" value={serviceLabel} />
                     <ManageInfoRow label="예약 상태" value={statusLabel} />
-                    {pet?.breed ? <ManageInfoRow label="품종" value={pet.breed} /> : null}
+                    {pet?.name ? <ManageInfoRow label="아기 이름" value={pet.name} /> : null}
                     {staffName ? <ManageInfoRow label="담당" value={staffName} /> : null}
                   </div>
 
                   <div className="mt-3 rounded-[16px] border border-[#f3e5df] bg-white px-4 py-3">
-                    <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#8a7a72]">고객 요청사항</p>
-                    <p className="mt-2 whitespace-pre-wrap text-[15px] leading-6 text-[#3a2e2a]">
+                    <p className="text-[14px] font-medium leading-5 tracking-[-0.01em] text-[#64748b]">고객 요청사항</p>
+                    <p className="mt-2 whitespace-pre-wrap text-[16px] leading-6 text-[#101a31]">
                       {appointment.memo?.trim() || "등록된 요청사항이 없습니다."}
                     </p>
                   </div>
@@ -660,10 +682,10 @@ export default function CustomerBookingManagePanel({
 
                   {manageable && !operationsLocked ? (
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => openRescheduleForm(appointment)} className="h-11 rounded-[12px] border border-[#f3e5df] bg-white text-[15px] font-semibold text-[#3a2e2a]">
+                      <button type="button" onClick={() => openRescheduleForm(appointment)} className="h-11 rounded-[12px] border border-[#f3e5df] bg-white text-[16px] font-medium text-[#101a31]">
                         예약 변경
                       </button>
-                      <button type="button" onClick={() => void cancelAppointment(appointment.id)} disabled={submitting} className="h-11 rounded-[12px] bg-[#ec7f72] text-[15px] font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50">
+                      <button type="button" onClick={() => void cancelAppointment(appointment.id)} disabled={submitting} className="h-11 rounded-[12px] bg-[#ec7f72] text-[16px] font-medium text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50">
                         예약 취소
                       </button>
                     </div>
@@ -685,19 +707,39 @@ export default function CustomerBookingManagePanel({
                   ) : null}
 
                   {isOpen ? (
-                    <div className="mt-4 space-y-3 rounded-[18px] border border-[#f3e5df] bg-[#fffaf8] px-3 py-3">
-                      <div className="rounded-[12px] border border-[#f3e5df] bg-white px-3 py-2.5 text-[13px] leading-5 text-[#7d625a]">
-                        <strong className="font-semibold text-[#b05d54]">예약 변경 안내</strong> 기존 담당 디자이너는 유지됩니다. 변경할 날짜·서비스에 가능한 시간만 보여드리며, 변경이 완료되면 기존 시간은 바로 다시 예약 가능해져요.
-                      </div>
+                    <>
+                    <button type="button" aria-label="예약 변경 모달 닫기" onClick={closeRescheduleForm} className="fixed inset-0 z-30 cursor-default bg-[#101a31]/20" />
+                    <div className="fixed left-1/2 top-1/2 z-40 max-h-[calc(100dvh-32px)] w-[calc(100%-32px)] max-w-[398px] -translate-x-1/2 -translate-y-1/2 space-y-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-[18px] border border-[#e5eaf0] bg-[#fffaf8] px-3 py-3 shadow-[0_20px_50px_rgba(16,26,49,0.2)]">
+                      {staffMembers.length > 0 ? (
+                        <div>
+                          <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#3a2e2a]">담당 디자이너</p>
+                          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {orderedStaffMembers.map((staff) => {
+                              const selected = manageForm?.staffId === staff.id;
+                              return (
+                                <button
+                                  key={staff.id}
+                                  type="button"
+                                  onClick={() => setManageForm((prev) => (prev ? { ...prev, staffId: staff.id, timeSlot: "" } : prev))}
+                                  className={`min-h-11 min-w-[132px] shrink-0 rounded-[12px] border px-3 py-2 text-[14px] font-medium ${selected ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#e5eaf0] bg-white text-[#101a31]"}`}
+                                >
+                                  {staff.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+
                       <div>
-                        <p className="text-sm font-semibold text-[#3a2e2a]">변경할 날짜</p>
+                        <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#3a2e2a]">변경할 날짜</p>
                         <div className="mt-2 grid grid-cols-4 gap-2">
                           {dateOptions.map((option) => (
                             <button
                               key={option.value}
                               type="button"
                               onClick={() => setManageForm((prev) => (prev ? { ...prev, date: option.value, timeSlot: "" } : prev))}
-                              className={`rounded-[12px] border px-2 py-3 text-center text-sm font-bold ${manageForm?.date === option.value ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#f3e5df] bg-white text-[#3a2e2a]"}`}
+                              className={`rounded-[12px] border px-2 py-3 text-center text-sm font-medium ${manageForm?.date === option.value ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#e5eaf0] bg-white text-[#3a2e2a]"}`}
                             >
                               <div>{option.label}</div>
                               <div className="mt-1 text-xs font-medium">{option.weekday}</div>
@@ -707,7 +749,7 @@ export default function CustomerBookingManagePanel({
                       </div>
 
                       <div>
-                        <p className="text-sm font-semibold text-[#3a2e2a]">변경할 시간</p>
+                        <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#3a2e2a]">변경할 시간</p>
                         <div className="mt-2">
                           {loadingManageSlots ? (
                             <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#8a7a72]">가능한 시간을 확인하고 있어요.</div>
@@ -726,7 +768,7 @@ export default function CustomerBookingManagePanel({
                                           key={`recommended-${slot}`}
                                           type="button"
                                           onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
-                                          className={`h-12 rounded-[8px] border px-3 text-[14px] font-bold transition ${
+                                          className={`h-12 rounded-[8px] border px-3 text-[14px] font-medium transition ${
                                             selected
                                               ? "border-[#ec7f72] bg-[#ec7f72] text-white shadow-[0_8px_18px_rgba(236,127,114,.18)]"
                                               : "border-[#ec7f72] bg-[#fff0ed] text-[#d9685d]"
@@ -750,7 +792,7 @@ export default function CustomerBookingManagePanel({
                                           key={slot}
                                           type="button"
                                           onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
-                                          className={`rounded-[12px] border px-2 py-3 text-sm font-bold ${manageForm?.timeSlot === slot ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#f3e5df] bg-white text-[#3a2e2a]"}`}
+                                          className={`rounded-[12px] border px-2 py-3 text-sm font-medium ${manageForm?.timeSlot === slot ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#e5eaf0] bg-white text-[#3a2e2a]"}`}
                                         >
                                           {slot}
                                         </button>
@@ -763,8 +805,8 @@ export default function CustomerBookingManagePanel({
                         </div>
                       </div>
 
-                      <label className="block text-sm font-semibold text-[#3a2e2a]">
-                        <span className="mb-2 block text-xs text-[#8a7a72]">서비스 선택</span>
+                      <label className="block text-[14px] leading-5 font-medium text-[#3a2e2a]">
+                        <span className="mb-2 block text-[14px] leading-5 font-medium text-[#3a2e2a]">서비스 선택</span>
                         <select
                           value={manageForm?.customerServiceOptionId || ""}
                           onChange={(event) => {
@@ -776,7 +818,7 @@ export default function CustomerBookingManagePanel({
                               timeSlot: "",
                             } : prev));
                           }}
-                          className="field rounded-[12px] border-[#f3e5df] bg-white"
+                          className="field rounded-[12px] border-[#e5eaf0] bg-white"
                         >
                           {customerServiceOptions.map((item) => (
                             <option key={item.id} value={item.id}>{item.name}</option>
@@ -784,24 +826,18 @@ export default function CustomerBookingManagePanel({
                         </select>
                       </label>
 
-                      <div className="rounded-[14px] border border-[#f3e5df] bg-white px-4 py-3 text-sm text-[#8a7a72]">
-                        {selectedServiceOption
-                          ? `${selectedServiceOption.name} · ${formatServicePrice(selectedServiceOption.price, selectedServiceOption.priceType)}`
-                          : "선택 가능한 저장 요금표가 없습니다."}
-                      </div>
-
-                      <label className="block text-sm font-semibold text-[#3a2e2a]">
-                        <span className="mb-2 block text-xs text-[#8a7a72]">추가 메모</span>
+                      <label className="block text-[14px] leading-5 font-medium text-[#3a2e2a]">
+                        <span className="mb-2 block text-[14px] leading-5 font-medium text-[#3a2e2a]">추가 메모</span>
                         <textarea
                           value={manageForm?.note || ""}
                           onChange={(event) => setManageForm((prev) => (prev ? { ...prev, note: event.target.value } : prev))}
                           placeholder="변경하면서 전달할 메모가 있으면 남겨 주세요."
-                          className="field min-h-24 rounded-[12px] border-[#f3e5df] bg-white px-4 py-4"
+                          className="field min-h-24 rounded-[12px] border-[#e5eaf0] bg-white px-4 py-4"
                         />
                       </label>
 
                       <div className="grid grid-cols-2 gap-2">
-                        <button type="button" onClick={closeRescheduleForm} className="rounded-[12px] border border-[#f3e5df] bg-white px-4 py-3 text-sm font-semibold text-[#3a2e2a]">
+                        <button type="button" onClick={closeRescheduleForm} className="rounded-[12px] border border-[#e5eaf0] bg-white px-4 py-3 text-sm font-semibold text-[#3a2e2a]">
                           닫기
                         </button>
                         <button
@@ -814,6 +850,7 @@ export default function CustomerBookingManagePanel({
                         </button>
                       </div>
                     </div>
+                    </>
                   ) : null}
                 </div>
               </article>

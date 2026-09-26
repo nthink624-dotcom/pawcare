@@ -2,9 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import {
   getAlimtalkTemplateAlias,
-  renderNotificationTemplateBody,
+  renderNotificationTemplateAliasBody,
   shouldSendByGuardianSettings,
   shouldSendByShopSettings,
+  type AlimtalkTemplateAlias,
 } from "@/lib/notification-registry";
 import {
   hasAlimtalkServerEnv,
@@ -87,6 +88,15 @@ function getTemplateKey(type: NotificationType) {
   return getAlimtalkTemplateAlias(type);
 }
 
+function hasPublishedCareReport(
+  bootstrap: BootstrapPayload,
+  appointment: Appointment | null,
+) {
+  if (!appointment) return false;
+  const record = bootstrap.groomingRecords.find((item) => item.appointment_id === appointment.id);
+  return Boolean(record?.care_report_owner_confirmed_at && record.care_report_data?.reportText?.trim());
+}
+
 function shouldSendNotification(shop: BootstrapPayload["shop"], type: NotificationType) {
   return shouldSendByShopSettings(shop.notification_settings, type) ?? false;
 }
@@ -135,6 +145,7 @@ function buildBookingLinksBlock(params: {
 
 async function buildNotificationMessage(params: {
   type: NotificationType;
+  templateAlias: string | null;
   shopName: string;
   appointment: Appointment | null;
   petName: string;
@@ -150,23 +161,27 @@ async function buildNotificationMessage(params: {
     params.appointment
       ? `${formatAlimtalkAppointmentDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
-  const rendered = renderNotificationTemplateBody(params.type, {
-    "매장명": params.shopName,
-    "반려동물명": params.petName,
-    "보호자명": params.recipientName,
-    "예약일시": dateLabel,
-    "제안일시": dateLabel,
-    "서비스명": params.serviceName ?? "",
-    "거절사유": params.rejectionReason ?? "",
-    "픽업안내": "잠시 후 픽업하실 수 있어요.",
-    "예약 링크": params.bookingEntryUrl,
-    "예약 확인 링크": params.bookingManageUrl,
-    "예약관리링크": params.bookingManageUrl ?? params.bookingEntryUrl,
-    "방문준비사항": params.visitPreparation ?? "",
-    "추가안내": params.ownerAdditionalMessage ?? "",
-    "마지막방문일": "최근 방문일",
-    "관리주기": "매장 권장 주기",
-  });
+  const pickupReadyEtaMinutes = params.appointment?.pickup_ready_eta_minutes ?? 5;
+  const rendered = params.templateAlias
+    ? renderNotificationTemplateAliasBody(params.templateAlias as AlimtalkTemplateAlias, {
+        "매장명": params.shopName,
+        "반려동물명": params.petName,
+        "보호자명": params.recipientName,
+        "예약일시": dateLabel,
+        "제안일시": dateLabel,
+        "서비스명": params.serviceName ?? "",
+        "픽업예상시간": String(pickupReadyEtaMinutes),
+        "거절사유": params.rejectionReason ?? "",
+        "픽업안내": "약속된 시간에 맞춰 편하게 데리러 와 주세요.",
+        "예약 링크": params.bookingEntryUrl,
+        "예약 확인 링크": params.bookingManageUrl,
+        "예약관리링크": params.bookingManageUrl ?? params.bookingEntryUrl,
+        "방문준비사항": params.visitPreparation ?? "",
+        "추가안내": params.ownerAdditionalMessage ?? "",
+        "마지막방문일": "최근 방문일",
+        "관리주기": "매장 권장 주기",
+      })
+    : null;
   if (rendered) return rendered;
 
   const bookingLinksBlock = buildBookingLinksBlock({
@@ -265,13 +280,12 @@ async function buildNotificationMessage(params: {
     case "grooming_almost_done":
       return [
         `[${params.shopName}]`,
-        `${params.petName} 미용이 곧 끝나요`,
+        `${params.recipientName ?? "보호자"} 보호자님, ${params.petName}의 ${params.serviceName ?? "서비스"}이`,
         "",
-        "마무리 단계라 곧 픽업 가능하세요.",
+        `약 ${pickupReadyEtaMinutes}분 후에 완료될 예정이에요.`,
         "",
-        "잠시 후 픽업하실 수 있어요.",
-        "",
-        "예약 정보는 아래 링크에서 확인하실 수 있어요.",
+        "약속된 시간에 맞춰 편하게 데리러 와 주세요.",
+        "곧 만나요!",
         bookingLinksBlock,
       ]
         .filter((line, index, lines) => {
@@ -388,7 +402,16 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       ? normalizePhone(guardian.phone)
       : "";
   const recipientName = input.recipientName?.trim() ? input.recipientName.trim() : guardian?.name ?? null;
-  const templateAlias = (input.channel ?? "alimtalk") === "in_app" ? null : input.templateKey ?? getTemplateKey(input.type);
+  const groomingCompletedHasReport = input.type === "grooming_completed"
+    ? hasPublishedCareReport(bootstrap, appointment)
+    : false;
+  const templateAlias = (input.channel ?? "alimtalk") === "in_app"
+    ? null
+    : input.templateKey ?? (input.type === "grooming_completed"
+      ? groomingCompletedHasReport
+        ? "grooming_completed"
+        : "grooming_completed_without_report"
+      : getTemplateKey(input.type));
   const usesAlimtalkRelay = Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret);
   const templateKey = usesAlimtalkRelay ? null : resolveAlimtalkTemplateKey(templateAlias);
   const notificationTemplateKey = usesAlimtalkRelay ? templateAlias : templateKey;
@@ -407,6 +430,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const message =
     await buildNotificationMessage({
       type: input.type,
+      templateAlias,
       shopName: bootstrap.shop.name,
       appointment,
       petName: pet?.name ?? "pet",

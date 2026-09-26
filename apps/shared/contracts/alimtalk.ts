@@ -50,6 +50,24 @@ export const APPROVED_ALIMTALK_CONTRACTS = {
     button: null,
     variables: ["매장명", "보호자명", "반려동물명"],
   },
+  grooming_almost_done: {
+    code: "grooming_almost_done",
+    body: `[#{매장명}]\n\n#{보호자명} 보호자님, #{반려동물명}의 #{서비스명}이\n약 #{픽업예상시간}분 후에 완료될 예정이에요.\n\n약속된 시간에 맞춰 편하게 데리러 와 주세요.\n곧 만나요!`,
+    button: "예약 확인",
+    variables: ["매장명", "보호자명", "반려동물명", "서비스명", "픽업예상시간"],
+  },
+  grooming_completed: {
+    code: "grooming_completed",
+    body: `[#{매장명}]\n\n#{보호자명} 보호자님, #{반려동물명}의 #{서비스명}이 완료되었어요.\n\n오늘 #{반려동물명}의 예뻐진 모습과\n케어 내용을 케어리포트에 담아두었어요.\n\n아래 버튼에서 편하게 확인해 주세요.`,
+    button: "케어리포트 확인하기",
+    variables: ["매장명", "보호자명", "반려동물명", "서비스명"],
+  },
+  grooming_completed_without_report: {
+    code: "grooming_completed_without_report",
+    body: `[#{매장명}]\n\n#{보호자명} 보호자님, #{반려동물명}의 #{서비스명}이 완료되었어요.\n\n오늘도 믿고 맡겨주셔서 감사해요.`,
+    button: null,
+    variables: ["매장명", "보호자명", "반려동물명", "서비스명"],
+  },
 } as const satisfies Record<string, AlimtalkContract>;
 
 export type ApprovedAlimtalkCode = keyof typeof APPROVED_ALIMTALK_CONTRACTS;

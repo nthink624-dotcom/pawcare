@@ -56,7 +56,9 @@ function PaymentOptionCard({
 
       <div className="min-w-0 flex-1">
         <p className="text-[15px] tracking-[-0.02em] text-[#171411]">{option.title}</p>
-        <p className="mt-1 text-[12.5px] leading-[1.45] text-[#6b6a64]">{option.description}</p>
+        {option.description ? (
+          <p className="mt-1 text-[12.5px] leading-[1.45] text-[#6b6a64]">{option.description}</p>
+        ) : null}
       </div>
 
       <span
@@ -74,7 +76,6 @@ export function PaymentMethodSheet({
   open,
   eyebrow = "PAYMENT",
   title = "결제수단 선택",
-  description = "등록된 카드로 바로 결제하거나, 새 카드를 등록해 계속 이용할 수 있어요.",
   closeLabel = "닫기",
   planLabel,
   amountLabel,
@@ -185,7 +186,7 @@ export function PaymentMethodSheet({
   if (!mounted || typeof document === "undefined" || !selected) return null;
 
   return createPortal(
-    <div className="pm-owner-web fixed inset-0 z-40">
+    <div className="pm-owner-web fixed inset-0 z-[80]" data-payment-method-sheet="true">
       <div
         className={`absolute inset-0 bg-black transition-opacity duration-[250ms] ease-out ${active ? "opacity-40" : "opacity-0"}`}
         onClick={onClose}
@@ -212,7 +213,6 @@ export function PaymentMethodSheet({
               <h2 id={titleId} className="mt-[5px] text-[18px] font-semibold tracking-[-0.04em] text-[#171411]">
                 {title}
               </h2>
-              <p className="mt-2 text-[13px] leading-[1.55] text-[#6b6a64]">{description}</p>
             </div>
 
             <button

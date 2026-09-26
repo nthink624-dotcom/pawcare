@@ -13,11 +13,12 @@ test("new shops see only the two price-guide entry choices before selecting a mo
 
   assert.match(choice, /사진으로 등록/);
   assert.match(choice, /직접 등록/);
-  assert.match(choice, /min-h-\[88px\]/);
+  assert.match(choice, /min-h-\[100px\]/);
   assert.match(choice, /sm:grid-cols-2/);
   assert.match(choice, /onClick=\{\(\) => onSelect\(mode\)\}/);
   assert.doesNotMatch(choice, /요금표 등록|빠른 등록/);
-  assert.doesNotMatch(choice, /요금표 미등록|기존 요금표 사진을 올려요\.|서비스와 요금을 직접 입력해요\./);
+  assert.match(choice, /사진 한 장으로 요금표를 빠르게 시작할 수 있어요\./);
+  assert.match(choice, /서비스와 가격을 직접 입력할 수 있어요\./);
   assert.doesNotMatch(choice, /AI|입력 방법|미용 요금표 만들기|초안을 만들어요|처음부터 직접 입력해요/);
 
   assert.match(photo, /const hasSavedPriceGuide = initialDocument !== null/);

@@ -71,6 +71,7 @@ type RelayConfig = {
   templateGroomingStarted: string;
   templateGroomingAlmostDone: string;
   templateGroomingCompleted: string;
+  templateGroomingCompletedWithoutReport: string;
   templateRevisitNotice: string;
   templateBirthdayGreeting: string;
 };
@@ -95,6 +96,7 @@ const relayEnvKeys = [
   "ALIMTALK_TEMPLATE_GROOMING_STARTED",
   "ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE",
   "ALIMTALK_TEMPLATE_GROOMING_COMPLETED",
+  "ALIMTALK_TEMPLATE_GROOMING_COMPLETED_WITHOUT_REPORT",
   "ALIMTALK_TEMPLATE_REVISIT_NOTICE",
   "ALIMTALK_TEMPLATE_BIRTHDAY_GREETING",
 ] as const;
@@ -157,6 +159,7 @@ function loadRelayConfig(): RelayConfig {
     templateGroomingStarted: process.env.ALIMTALK_TEMPLATE_GROOMING_STARTED || "",
     templateGroomingAlmostDone: process.env.ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE || "",
     templateGroomingCompleted: process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED || "",
+    templateGroomingCompletedWithoutReport: process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED_WITHOUT_REPORT || "",
     templateRevisitNotice: process.env.ALIMTALK_TEMPLATE_REVISIT_NOTICE || "",
     templateBirthdayGreeting: process.env.ALIMTALK_TEMPLATE_BIRTHDAY_GREETING || "",
   };
@@ -184,6 +187,7 @@ function getRelayConfigPayload() {
     templateGroomingStarted: env.templateGroomingStarted,
     templateGroomingAlmostDone: env.templateGroomingAlmostDone,
     templateGroomingCompleted: env.templateGroomingCompleted,
+    templateGroomingCompletedWithoutReport: env.templateGroomingCompletedWithoutReport,
     templateRevisitNotice: env.templateRevisitNotice,
     templateBirthdayGreeting: env.templateBirthdayGreeting,
   };
@@ -214,6 +218,7 @@ function toRelayEnvEntries(config: ReturnType<typeof getRelayConfigPayload>): Re
     ALIMTALK_TEMPLATE_GROOMING_STARTED: config.templateGroomingStarted,
     ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE: config.templateGroomingAlmostDone,
     ALIMTALK_TEMPLATE_GROOMING_COMPLETED: config.templateGroomingCompleted,
+    ALIMTALK_TEMPLATE_GROOMING_COMPLETED_WITHOUT_REPORT: config.templateGroomingCompletedWithoutReport,
     ALIMTALK_TEMPLATE_REVISIT_NOTICE: config.templateRevisitNotice,
     ALIMTALK_TEMPLATE_BIRTHDAY_GREETING: config.templateBirthdayGreeting,
   };
@@ -347,6 +352,7 @@ const relayTemplateConfigKeys = [
   "templateGroomingStarted",
   "templateGroomingAlmostDone",
   "templateGroomingCompleted",
+  "templateGroomingCompletedWithoutReport",
   "templateRevisitNotice",
   "templateBirthdayGreeting",
 ] as const;
@@ -415,6 +421,7 @@ const adminConfigSchema = z
     templateGroomingStarted: z.string().max(100),
     templateGroomingAlmostDone: z.string().max(100),
     templateGroomingCompleted: z.string().max(100),
+    templateGroomingCompletedWithoutReport: z.string().max(100),
     templateRevisitNotice: z.string().max(100),
     templateBirthdayGreeting: z.string().max(100),
   })
@@ -442,6 +449,7 @@ const templateAliases = [
   "grooming_started",
   "grooming_almost_done",
   "grooming_completed",
+  "grooming_completed_without_report",
   "revisit_notice",
   "birthday_greeting",
 ] as const;
@@ -1366,6 +1374,8 @@ function resolveTemplateKey(alias: string | null | undefined) {
       return env.templateGroomingAlmostDone || null;
     case "grooming_completed":
       return env.templateGroomingCompleted || null;
+    case "grooming_completed_without_report":
+      return env.templateGroomingCompletedWithoutReport || null;
     case "revisit_notice":
       return env.templateRevisitNotice || null;
     case "birthday_greeting":
@@ -1424,6 +1434,10 @@ function getTemplateDebugMap() {
     grooming_completed: {
       configured: Boolean(env.templateGroomingCompleted),
       length: env.templateGroomingCompleted.length,
+    },
+    grooming_completed_without_report: {
+      configured: Boolean(env.templateGroomingCompletedWithoutReport),
+      length: env.templateGroomingCompletedWithoutReport.length,
     },
     revisit_notice: {
       configured: Boolean(env.templateRevisitNotice),

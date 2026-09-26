@@ -72,24 +72,25 @@ Vercel 서버가 현재 읽고 있는 값을 보여주는 확인용 영역입니
 
 ## 넘친데이 펫매니저 채널 전환
 
-2026-07-29에 신규 카카오 채널 `넘친데이 펫매니저`의 쏘다 발신프로필을 등록했고, 아래 10개 템플릿을 검수 요청했습니다.
+2026-07-29에 신규 카카오 채널 `넘친데이 펫매니저`의 쏘다 발신프로필을 등록했습니다. 최종 확정 문안은 새 버전으로 검수 요청하고, 기존 버전은 중지 상태로 보존합니다.
 
 | 펫매니저 알림 종류 | 신규 템플릿 코드 |
 | --- | --- |
-| 예약 확정 | `booking_confirmed_v1` |
-| 예약 취소 | `booking_cancelled_v3_1` |
+| 예약 확정 | `booking_confirmed_v2` |
+| 예약 취소 | `booking_cancelled_v4` |
 | 다른 시간 제안 | `booking_rejected_v2` |
 | 예약 변경 확정 | `B_rescheduled_confirmed_v2` |
-| 예약 안내 - 직전 | `booking_soon_notice_v1` |
-| 예약 안내 - 내일 | `booking_tomorrow_notice_v1` |
-| 예약 안내 - 오늘 | `booking_today_notice_v1` |
-| 미용 시작 | `grooming_started_v3` |
-| 픽업 준비 | `grooming_almost_done_v2` |
-| 미용 완료 | `grooming_completed_V2` |
+| 예약 안내 - 직전 | `appointment_reminder_10m_v2` |
+| 예약 안내 - 내일 | `visit_schedule_notice_v2` |
+| 예약 안내 - 오늘 | `visit_reminder_notice_v2` |
+| 미용 시작 | `grooming_started_v4` |
+| 픽업 준비 | `grooming_almost_done_v3` |
+| 미용 완료(케어리포트 있음) | `grooming_completed_v3` |
+| 미용 완료(케어리포트 없음) | `grooming_completed_noreport_v1` |
 
 승인 후 전환 순서:
 
-1. 쏘다에서 10개 템플릿의 최종 상태와 본문·버튼을 확인합니다.
+1. 쏘다에서 새 버전 9개 템플릿의 최종 상태와 본문·버튼을 확인합니다.
 2. `npm run check:alimtalk-profile:neomchin`으로 대기 발신프로필 설정을 확인합니다.
 3. 전부 승인된 경우에만 `npm run activate:alimtalk:neomchin -- --approved`를 실행합니다.
 4. `npm run sync:alimtalk-relay-env`를 실행합니다.

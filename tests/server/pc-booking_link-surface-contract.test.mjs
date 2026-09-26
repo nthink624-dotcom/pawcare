@@ -43,6 +43,8 @@ test("booking link preserves URL, copy actions, customer opening, and owner rout
   }
   assert.match(bookingLink, /href=\{bookingUrl\}[\s\S]{0,180}target="_blank"[\s\S]{0,400}고객 화면 열기/);
   assert.match(bookingLink, /예약 링크 노출 가이드/);
+  assert.match(bookingLink, /const smartPlaceUrl = "https:\/\/smartplace\.naver\.com\/"/);
+  assert.match(bookingLink, /스마트플레이스 열기/);
   assert.match(bookingLink, /\{bookingUrl\}/);
   assert.match(ownerPreview, /"bookingLink"[\s\S]{0,320}\.includes\(screen\)/);
   assert.match(ownerPreview, /case "bookingLink":\s*return <BookingLinkManagementScreen initialData=\{initialData\} \/>/);
@@ -59,6 +61,9 @@ test("booking link reflows at narrow widths without a page-level horizontal scro
   assert.match(naverGuide, /style=\{\{ width: step.width \}\}/);
   assert.match(naverGuide, /h-auto max-w-full/);
   assert.match(naverGuide, /원본 보기/);
+  assert.match(naverGuide, /가장 쉬운 등록 순서/);
+  assert.match(naverGuide, /업체정보 → 부가정보 → 홈페이지·SNS/);
+  assert.match(naverGuide, /스마트플레이스 다시 열기/);
   assert.doesNotMatch(naverGuide, /GuideHighlight|<canvas/);
   assert.match(actionButtons, /inline-flex h-11 items-center justify-center/);
 });

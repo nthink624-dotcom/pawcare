@@ -222,6 +222,15 @@ function getTemplateKey(type: NotificationType) {
   return getAlimtalkTemplateAlias(type);
 }
 
+function hasPublishedCareReport(
+  bootstrap: BootstrapPayload,
+  appointment: Appointment | null,
+) {
+  if (!appointment) return false;
+  const record = bootstrap.groomingRecords.find((item) => item.appointment_id === appointment.id);
+  return Boolean(record?.care_report_owner_confirmed_at && record.care_report_data?.reportText?.trim());
+}
+
 function shouldSendNotification(shop: BootstrapPayload["shop"], type: NotificationType) {
   return shouldSendByShopSettings(shop.notification_settings, type) ?? false;
 }
@@ -476,14 +485,12 @@ function legacyBuildNotificationMessage(params: {
     case "grooming_almost_done":
       return [
         `[${params.shopName}]`,
-        `${params.petName} 미용이 곧 끝나요`,
+        `${params.recipientName ?? "보호자"} 보호자님, ${params.petName}의 ${params.serviceName ?? "서비스"}이`,
         "",
-        "마무리 단계라 곧 픽업 가능하세요.",
+        `약 ${params.appointment?.pickup_ready_eta_minutes ?? 5}분 후에 완료될 예정이에요.`,
         "",
-        "잠시 후 픽업하실 수 있어요.",
-        "",
-        "예약 정보는 아래 링크에서 확인하실 수 있어요.",
-        bookingLinksBlock,
+        "약속된 시간에 맞춰 편하게 데리러 와 주세요.",
+        "곧 만나요!",
       ]
         .filter((line, index, lines) => {
           if (line) return true;
@@ -545,7 +552,8 @@ export function buildNotificationTemplateValues(params: {
       ? `${formatAlimtalkAppointmentDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
   const visitReminderOffsetMinutes = params.appointment?.visit_reminder_offset_minutes ?? 10;
-  const pickupGuide = "미용 마무리 후 픽업 준비가 되면 안내드립니다.";
+  const pickupReadyEtaMinutes = params.appointment?.pickup_ready_eta_minutes ?? 5;
+  const pickupGuide = "약속된 시간에 맞춰 편하게 데리러 와 주세요.";
 
   return {
     매장명: params.shopName,
@@ -566,9 +574,10 @@ export function buildNotificationTemplateValues(params: {
     길찾기링크: params.directionsUrl ?? "",
     방문전알림분: String(visitReminderOffsetMinutes),
     방문전알림안내: `예약 시간 ${visitReminderOffsetMinutes}분 전 안내드립니다.`,
-    픽업예상분: "잠시 후",
+    픽업예상분: String(pickupReadyEtaMinutes),
+    픽업예상시간: String(pickupReadyEtaMinutes),
     픽업안내: pickupGuide,
-    pickupReadyEtaMinutes: "잠시 후",
+    pickupReadyEtaMinutes: String(pickupReadyEtaMinutes),
     pickupGuide,
   };
 }
@@ -612,6 +621,7 @@ function buildNaverMapSearchUrl(shopName: string, shopAddress: string | null | u
 
 function buildNotificationButtons(params: {
   type: NotificationType;
+  templateAlias: string | null;
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
   directionsUrl: string | null;
@@ -657,14 +667,14 @@ function buildNotificationButtons(params: {
     return [];
   }
 
-  if (params.type !== "grooming_completed" || !params.bookingManageUrl) {
+  if (params.type !== "grooming_completed" || params.templateAlias !== "grooming_completed" || !params.bookingManageUrl) {
     return [];
   }
 
   return [
     {
       type: "WL",
-      name: "케어리포트 확인",
+      name: "케어리포트 확인하기",
       linkMobile: params.bookingManageUrl,
       linkPc: params.bookingManageUrl,
     },
@@ -754,7 +764,16 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       ? normalizePhone(guardian.phone)
       : "";
   const recipientName = input.recipientName?.trim() ? input.recipientName.trim() : guardian?.name ?? null;
-  const templateAlias = (input.channel ?? "alimtalk") === "in_app" ? null : input.templateKey ?? getTemplateKey(input.type);
+  const groomingCompletedHasReport = input.type === "grooming_completed"
+    ? hasPublishedCareReport(bootstrap, appointment)
+    : false;
+  const templateAlias = (input.channel ?? "alimtalk") === "in_app"
+    ? null
+    : input.templateKey ?? (input.type === "grooming_completed"
+      ? groomingCompletedHasReport
+        ? "grooming_completed"
+        : "grooming_completed_without_report"
+      : getTemplateKey(input.type));
   const usesAlimtalkRelay = Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret);
   const configuredTemplateKey = getConfiguredAlimtalkTemplateKey(templateAlias);
   const templateKey = usesAlimtalkRelay ? configuredTemplateKey : resolveAlimtalkTemplateKey(templateAlias);
@@ -806,6 +825,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const connectedTemplate = await getApprovedSsodaaNotificationTemplate(
     input.type,
     notificationTemplateValues,
+    templateAlias,
   );
   const message =
     (input.channel ?? "alimtalk") === "in_app" && input.message?.trim()
@@ -864,6 +884,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       ? []
       : buildNotificationButtons({
           type: input.type,
+          templateAlias,
           bookingEntryUrl,
           bookingManageUrl,
           directionsUrl,

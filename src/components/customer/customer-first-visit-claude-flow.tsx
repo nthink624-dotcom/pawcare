@@ -90,14 +90,14 @@ function ClaudeStyles() {
     <style>{`
       .pm-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--primary:#ec7f72;--primaryDk:#a9473f;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;min-height:100dvh;background:var(--surface);color:var(--text);font-family:inherit;overflow:hidden}
       .pm-proto *{box-sizing:border-box}
-      .pm-proto :is(button,a,input,textarea,select,[role="button"]):focus-visible{outline:2px solid #2563eb;outline-offset:2px;box-shadow:0 0 0 3px rgba(37,99,235,.18)}
+      .pm-proto :is(button,a,input,textarea,select,[role="button"]):focus-visible{outline:2px solid var(--primaryDk);outline-offset:2px;box-shadow:0 0 0 3px rgba(236,127,114,.22)}
       .pm-proto :is(input,textarea)::placeholder{color:#94a3b8;opacity:1;font-size:16px;line-height:24px}
       .pm-proto .nav{position:sticky;top:0;z-index:8;display:flex;align-items:center;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--borderSoft)}
       .pm-proto .nav .back{width:44px;height:44px;min-width:44px;min-height:44px;border:none;background:none;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:10px;color:var(--text);margin:-7px 6px -7px -7px}
-      .pm-proto .nav .ttl{font-size:17px;font-weight:600;letter-spacing:-.02em}
-      .pm-proto .pgscroll{height:calc(100dvh - 51px);overflow:auto;scrollbar-width:none;padding:12px 16px 118px;display:flex;flex-direction:column;gap:18px}
+      .pm-proto .nav .ttl{font-size:18px;line-height:26px;font-weight:600;letter-spacing:-.01em}
+      .pm-proto .pgscroll{height:calc(100dvh - 51px);overflow:auto;scrollbar-width:none;padding:12px 16px calc(178px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:18px}
       .pm-proto .pgscroll::-webkit-scrollbar{display:none}
-      .pm-proto .sec h3{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.02em;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+      .pm-proto .sec h3{font-size:18px;line-height:26px;font-weight:600;color:var(--text);letter-spacing:-.01em;margin-bottom:12px;display:flex;align-items:center;gap:7px}
       .pm-proto .svc{display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px solid var(--border);border-radius:var(--r);padding:14px 15px;cursor:pointer;transition:border-color .15s,background .15s;width:100%;text-align:left}
       .pm-proto .svc + .svc{margin-top:9px}
       .pm-proto .svc.sel{border-color:var(--primary);background:var(--primarySoft)}
@@ -111,13 +111,13 @@ function ClaudeStyles() {
       .pm-proto .svc .price{margin-left:auto;font-size:15px;font-weight:500;color:var(--primaryDk);font-variant-numeric:tabular-nums;white-space:nowrap}
       .pm-proto .date-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
       .pm-proto .date-head h3{margin-bottom:0}
-      .pm-proto .date-head .swipe-hint{font-size:12px;font-weight:600;color:var(--textMuted)}
+      .pm-proto .date-head .swipe-hint{font-size:13px;line-height:20px;font-weight:500;color:var(--textMuted)}
       .pm-proto .dstrip{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 16px 4px 0;scroll-snap-type:x mandatory;scroll-padding-inline:0;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
       .pm-proto .dstrip::-webkit-scrollbar{display:none}
       .pm-proto .dcell{flex:0 0 calc((100% - 24px) / 4);min-width:0;height:92px;border-radius:13px;border:1.5px solid var(--border);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;scroll-snap-align:start}
       .pm-proto .dcell .dw{font-size:15px;color:var(--textMid)}
       .pm-proto .dcell .dn{font-size:18px;font-weight:600;letter-spacing:-.02em}
-      .pm-proto .dcell .avail{display:inline-flex;align-items:center;gap:4px;margin-top:2px;color:#26704b;font-size:10px;font-weight:500;letter-spacing:-.03em;white-space:nowrap}
+      .pm-proto .dcell .avail{display:inline-flex;align-items:center;gap:4px;margin-top:2px;color:#26704b;font-size:12px;line-height:18px;font-weight:500;letter-spacing:-.01em;white-space:nowrap}
       .pm-proto .dcell .avail::before{content:"";width:5px;height:5px;border-radius:999px;background:#1f9d55}
       .pm-proto .dcell:disabled{cursor:not-allowed;border-color:#e1d9d4;background:#f7f4f2;color:#887a73;opacity:1}
       .pm-proto .dcell:disabled .dw,.pm-proto .dcell:disabled .dn{color:#887a73}
@@ -127,7 +127,7 @@ function ClaudeStyles() {
       .pm-proto .dcell.sel .dw,.pm-proto .dcell.sel .dn,.pm-proto .dcell.sel .avail{color:var(--text)}
       .pm-proto .dcell.sel .avail::before{background:var(--text)}
       .pm-proto .tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-      .pm-proto .tcell{height:44px;text-align:center;font-size:15px;font-weight:600;border-radius:10px;border:1.5px solid var(--border);background:var(--card);font-variant-numeric:tabular-nums;cursor:pointer}
+      .pm-proto .tcell{height:46px;text-align:center;font-size:16px;line-height:24px;font-weight:500;border-radius:10px;border:1.5px solid var(--border);background:var(--card);font-variant-numeric:tabular-nums;cursor:pointer}
       .pm-proto .tcell.sel{border-color:var(--primary);background:var(--primary);color:var(--text)}
       .pm-proto .tcell .rec{margin-left:4px;color:var(--primaryDk);font-size:15px;font-weight:500}
       .pm-proto .tcell.sel .rec{color:var(--text)}
@@ -168,14 +168,15 @@ function ClaudeStyles() {
       .pm-proto .breed-more-toggle{align-self:flex-start;min-width:44px;min-height:44px;border:0;background:transparent;padding:0 8px;color:var(--primaryDk);font-size:14px;font-weight:500;line-height:20px;text-decoration:underline;text-underline-offset:3px}
       .pm-proto .breed-search .breed-suggestions{margin-top:2px}
       .pm-proto .breed-search .breed-direct-note{font-size:13px;line-height:1.45;color:var(--textMid);padding:2px 2px 0}
-      .pm-proto .staffstrip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-      .pm-proto .staff{width:100%;min-width:0;min-height:112px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:14px 10px 11px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+      .pm-proto .staffstrip{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;padding:0 16px 4px 0;scrollbar-width:none;scroll-snap-type:x mandatory;scroll-padding-inline:0;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
+      .pm-proto .staffstrip::-webkit-scrollbar{display:none}
+      .pm-proto .staff{width:calc((100% - 30px) / 3.3333);flex:0 0 calc((100% - 30px) / 3.3333);min-width:0;min-height:112px;scroll-snap-align:start;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:14px 8px 11px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
       .pm-proto .staff.sel{border-color:var(--primary);background:var(--primarySoft)}
       .pm-proto .staff:disabled{cursor:not-allowed;border-color:#eadfd9;background:#f7f4f2;color:#9a8b83;opacity:1}
       .pm-proto .staff .avatar{width:44px;height:44px;margin:0 auto 10px;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
       .pm-proto .staff .avatar img{width:100%;height:100%;object-fit:cover}
-      .pm-proto .staff .name{display:block;width:100%;font-size:15px;font-weight:500;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .pm-proto .staff .state{display:block;margin-top:4px;font-size:12px;line-height:18px;color:#64748b;white-space:nowrap}
+      .pm-proto .staff .name{display:block;width:100%;font-size:16px;line-height:24px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pm-proto .staff .state{display:block;margin-top:4px;font-size:13px;line-height:20px;color:#64748b;white-space:nowrap}
       .pm-proto .staff:disabled .state{color:#8a7a72}
       .pm-proto .auto-assignment-guide{margin-top:10px;border:1px solid #f0dfd9;border-radius:10px;background:#fffaf8;padding:9px 11px;font-size:13px;line-height:1.5;color:#7d625a}
       .pm-proto .auto-assignment-guide strong{color:var(--primaryDk);font-weight:500}
@@ -187,14 +188,14 @@ function ClaudeStyles() {
       .pm-proto .contact-label{font-size:14px;line-height:20px;font-weight:500;letter-spacing:-.02em;color:var(--text);padding-left:1px}
       .pm-proto .contact-input{height:50px;width:100%;border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:11px 13px;font-family:inherit;font-size:16px;line-height:24px;color:var(--text);outline:none}
       .pm-proto .confirm-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:4px 15px}
-      .pm-proto .confirm-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;font-size:15px;line-height:1.45}
+      .pm-proto .confirm-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;font-size:16px;line-height:24px}
       .pm-proto .confirm-row + .confirm-row{border-top:1px solid var(--borderSoft)}
-      .pm-proto .confirm-row .k{width:70px;flex-shrink:0;color:var(--textMuted)}
+      .pm-proto .confirm-row .k{width:70px;flex-shrink:0;color:var(--textMuted);font-size:14px;line-height:20px}
       .pm-proto .confirm-row .v{min-width:0;flex:1;font-weight:500;color:var(--text);letter-spacing:-.02em}
-      .pm-proto .dock{position:fixed;bottom:0;left:50%;right:auto;transform:translateX(-50%);z-index:30;width:100%;max-width:430px;padding:8px 16px 14px;background:rgba(253,247,245,.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border)}
+      .pm-proto .dock{position:fixed;bottom:0;left:50%;right:auto;transform:translateX(-50%);z-index:30;width:100%;max-width:430px;padding:6px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(253,247,245,.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border)}
       .pm-proto .cta{width:100%;min-height:48px;padding:12px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:var(--text);font-family:inherit;font-size:16px;line-height:24px;font-weight:500;letter-spacing:-.02em;cursor:pointer;box-shadow:none}
       .pm-proto .cta:disabled{background:#e8d9d2;color:#b9a89f;box-shadow:none;cursor:not-allowed}
-      .pm-proto .dock .sumline{display:flex;align-items:center;gap:8px;padding:4px 4px 11px;font-size:15px}
+      .pm-proto .dock .sumline{display:flex;align-items:center;gap:8px;padding:2px 4px 4px;font-size:15px;line-height:20px}
       .pm-proto .dock .sumline .k{color:var(--textMuted);white-space:nowrap}
       .pm-proto .dock .sumline .v{font-weight:600;letter-spacing:-.02em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .pm-proto .dock .sumline .amt{margin-left:auto;font-size:15px;font-weight:500;color:var(--primaryDk);white-space:nowrap}
@@ -207,7 +208,7 @@ function ClaudeStyles() {
       .pm-proto .done h2{font-size:22px;font-weight:600;letter-spacing:-.03em;margin-top:22px}
       .pm-proto .done .lead{font-size:15px;color:var(--textMid);margin-top:9px;line-height:1.6}
       .pm-proto .rcard{width:100%;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:6px 18px;margin-top:28px;text-align:left}
-      .pm-proto .rcard .ry{display:flex;align-items:center;font-size:15px;padding:13px 0}
+      .pm-proto .rcard .ry{display:flex;align-items:center;font-size:16px;line-height:24px;padding:13px 0}
       .pm-proto .rcard .ry + .ry{border-top:1px solid var(--borderSoft)}
       .pm-proto .rcard .ry .k{color:var(--textMuted);width:72px;flex-shrink:0}
       .pm-proto .rcard .ry .v{font-weight:600;letter-spacing:-.02em}
@@ -317,6 +318,11 @@ export default function CustomerFirstVisitClaudeFlow({
         priceLabel: formatServicePrice(selectedServiceOption.price, selectedServiceOption.priceType),
       }
     : null;
+  const uniqueAvailableSlots = useMemo(() => Array.from(new Set(availableSlots)), [availableSlots]);
+  const uniqueRecommendedSlots = useMemo(
+    () => Array.from(new Set(recommendedSlots)).filter((slot) => uniqueAvailableSlots.includes(slot)),
+    [recommendedSlots, uniqueAvailableSlots],
+  );
   const petNameForConsent = firstVisit.petName.trim() || "아기";
   const selectedSavedPet = savedPets.find((pet) => pet.name.trim() && pet.name.trim() === firstVisit.petName.trim()) ?? null;
   const showSavedPetPicker = savedPets.length > 0 && newPetPickerKey !== savedPetPickerKey;
@@ -334,7 +340,6 @@ export default function CustomerFirstVisitClaudeFlow({
             <Check size={42} strokeWidth={2.2} />
           </div>
           <h2>{previewOnly ? "예약 흐름을 확인했습니다" : "예약이 등록되었습니다!"}</h2>
-          <div className="lead">{previewOnly ? "미리보기에서는 예약이나 고객 정보가 저장되지 않습니다." : "예약 일정에 맞춰 방문해 주세요."}</div>
           <div className="rcard">
             <div className="ry"><span className="k">예약 번호</span><span className="v">{buildReservationNumber(appointment)}</span></div>
             <div className="ry"><span className="k">예약 날짜</span><span className="v">{formatDateForSummary(summaryDate)}</span></div>
@@ -497,7 +502,36 @@ export default function CustomerFirstVisitClaudeFlow({
           <Nav title="날짜 · 시간 선택" step="3 / 4" onBack={onStepBack} />
           <div className="pgscroll">
             <div className="sec">
-              <h3>디자이너 선택</h3>
+              <div className="date-head">
+                <h3>날짜 선택</h3>
+                <span className="swipe-hint">예약 가능 여부를 확인해요</span>
+              </div>
+              <div className="dstrip">
+                {dateOptions.map((date, index) => {
+                  const active = firstVisit.date === date.value;
+                  const availability = dateAvailability[date.value];
+                  const unavailable = availability === false;
+                  const availabilityLabel = availability === true ? "예약 가능" : unavailable ? "예약 불가" : "확인 중";
+                  return (
+                    <button
+                      key={date.value}
+                      type="button"
+                      className={`dcell${active ? " sel" : ""}${unavailable ? " unavailable" : ""}`}
+                      aria-label={`${date.label}, ${formatDateChipSubtitle(date)}, ${availabilityLabel}`}
+                      disabled={availability !== true}
+                      onClick={() => onDateSelect(date.value)}
+                    >
+                      <span className="dw">{formatDateChipTitle(date, dateOptions[index - 1])}</span>
+                      <span className="dn">{formatDateChipSubtitle(date)}</span>
+                      <span className="avail">{availabilityLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="sec">
+              <h3>선생님 · 디자이너 선택</h3>
               <div className="staffstrip">
                 {staffMembers.length > 1 ? (
                   <button
@@ -535,54 +569,24 @@ export default function CustomerFirstVisitClaudeFlow({
                   );
                 })}
               </div>
-              {staffMembers.length > 1 ? <p className="auto-assignment-guide"><strong>빠른 예약 안내</strong> 원하는 디자이너가 없다면, 가능한 디자이너 중 해당 날짜 예약이 가장 적은 분께 배정해 드려요.</p> : null}
-            </div>
-
-            <div className="sec">
-              <div className="date-head">
-                <h3>날짜 선택</h3>
-                <span className="swipe-hint">예약 가능 여부를 확인해요</span>
-              </div>
-              <div className="dstrip">
-                {dateOptions.map((date, index) => {
-                  const active = firstVisit.date === date.value;
-                  const availability = dateAvailability[date.value];
-                  const unavailable = availability === false;
-                  const availabilityLabel = availability === true ? "예약 가능" : unavailable ? "예약 불가" : "확인 중";
-                  return (
-                    <button
-                      key={date.value}
-                      type="button"
-                      className={`dcell${active ? " sel" : ""}${unavailable ? " unavailable" : ""}`}
-                      aria-label={`${date.label}, ${formatDateChipSubtitle(date)}, ${availabilityLabel}`}
-                      disabled={availability !== true}
-                      onClick={() => onDateSelect(date.value)}
-                    >
-                      <span className="dw">{formatDateChipTitle(date, dateOptions[index - 1])}</span>
-                      <span className="dn">{formatDateChipSubtitle(date)}</span>
-                      <span className="avail">{availabilityLabel}</span>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             <div className="sec">
               <h3>예약 가능한 시간</h3>
               {loadingSlots ? (
                 <div className="hint">가능한 시간을 확인하고 있어요.</div>
-              ) : availableSlots.length === 0 ? (
+              ) : uniqueAvailableSlots.length === 0 ? (
                 <div className="empty-slots" role="status">
                   <strong>예약 가능한 시간이 없어요</strong>
                   <span>다른 날짜를 선택해 주세요.</span>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {recommendedSlots.length > 0 ? (
+                  {uniqueRecommendedSlots.length > 0 ? (
                     <div>
                       <p className="mb-2 text-[13px] font-medium text-[#15213b]">{recommendationSource === "ai" ? "AI 추천 시간" : "추천 시간"}<span className="ml-1.5 font-normal text-[#64748b]">예약 흐름을 고려했어요</span></p>
                       <div className="tgrid">
-                        {recommendedSlots.map((slot) => (
+                        {uniqueRecommendedSlots.map((slot) => (
                           <button key={`recommended-${slot}`} type="button" className={`tcell border-[#cbd5e1] bg-[#f8fafc]${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
                             {slot}<span className="rec">추천</span>
                           </button>
@@ -590,11 +594,11 @@ export default function CustomerFirstVisitClaudeFlow({
                       </div>
                     </div>
                   ) : null}
-                  {availableSlots.some((slot) => !recommendedSlots.includes(slot)) ? (
+                  {uniqueAvailableSlots.some((slot) => !uniqueRecommendedSlots.includes(slot)) ? (
                     <div>
-                      <p className="mb-2 text-[13px] font-medium text-[#15213b]">{recommendedSlots.length > 0 ? "다른 예약 가능한 시간" : "예약 가능한 시간"}</p>
+                      {uniqueRecommendedSlots.length > 0 ? <p className="mb-2 text-[13px] font-medium text-[#15213b]">다른 예약 가능한 시간</p> : null}
                       <div className="tgrid">
-                        {availableSlots.filter((slot) => !recommendedSlots.includes(slot)).map((slot) => (
+                        {uniqueAvailableSlots.filter((slot) => !uniqueRecommendedSlots.includes(slot)).map((slot) => (
                           <button key={slot} type="button" className={`tcell${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
                             {slot}
                           </button>

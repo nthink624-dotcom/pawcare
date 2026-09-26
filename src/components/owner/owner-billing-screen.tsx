@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
+import { OwnerBillingModal } from "@/components/owner/owner-billing-modal";
 import {
   BillingConsent,
   OwnerBillingCardRegistrationForm,
@@ -23,7 +24,6 @@ import {
   calculateOwnerBillingAmountBreakdown,
   getOwnerPlanByCode,
   getOwnerPlanDisplayName,
-  getOwnerPlanStaffLimitLabel,
   OWNER_SINGLE_MONTHLY_PLAN_CODE,
   type OwnerPlanCode,
 } from "@/lib/billing/owner-plans";
@@ -64,12 +64,6 @@ function formatProjectedServiceEndDate(
 
 function hasSuccessfulPayment(summary: OwnerSubscriptionSummary) {
   return summary.lastPaymentStatus === "paid" || summary.status === "active";
-}
-
-function getCardNumberHint(label: string | null | undefined) {
-  const match = label?.match(/(\d{3,4})/);
-  if (!match) return null;
-  return `앞자리 ${match[1]}`;
 }
 
 const OWNER_BILLING_PENDING_KEY = "owner-billing:pending-register-and-pay";
@@ -139,48 +133,41 @@ function statusCopy(summary: OwnerSubscriptionSummary) {
   if (summary.cancelAtPeriodEnd) {
     return {
       title: "정기결제가 취소되었습니다",
-      body: "현재 이용 기간까지는 계속 사용할 수 있고, 다음 결제일부터 자동 결제가 중단됩니다.",
     };
   }
 
   if (summary.status === "past_due") {
     return {
       title: "결제가 완료되지 않았습니다",
-      body: "카드 정보를 다시 확인하고 결제를 진행하면 바로 다시 사용할 수 있어요.",
     };
   }
 
   if (summary.status === "expired") {
     return {
       title: summary.currentPlanCode === "free" ? "체험 플랜이 종료되었습니다" : "이용 기간이 종료되었습니다",
-      body: "계속 사용하려면 매장 규모에 맞는 요금제를 선택하고 결제를 진행해 주세요.",
     };
   }
 
   if (summary.noticeLevel === "1day") {
     return {
       title: "내일 체험 플랜이 종료됩니다",
-      body: "종료 후 계속 사용하려면 플랜을 확인하고 결제를 준비해 두세요.",
     };
   }
 
   if (summary.noticeLevel === "3days") {
     return {
       title: `${PETMANAGER_SERVICE_NAME} 이용 기간이 ${summary.daysUntilTrialEnds}일 남았어요`,
-      body: "이용 기간이 끝나면 예약·고객 관리 기능 이용이 제한될 수 있습니다.\n서비스를 계속 이용하시려면 플랜 연장이 필요합니다.",
     };
   }
 
   if (summary.status === "active") {
     return {
       title: "현재 플랜을 이용 중입니다",
-      body: "지금 사용 중인 플랜, 이용 종료일, 결제수단을 여기서 확인할 수 있어요.",
     };
   }
 
   return {
     title: "체험 플랜이 진행 중입니다",
-    body: "체험 플랜이 진행 중입니다.",
   };
 }
 
@@ -230,6 +217,7 @@ export default function OwnerBillingScreen({
   const copy = statusCopy(summary);
   const [message, setMessage] = useState<string | null>(null);
   const agreementContinueRef = useRef<HTMLButtonElement | null>(null);
+  const planPickerTriggerRef = useRef<HTMLButtonElement | null>(null);
   const hasUserSelectedPlanRef = useRef(false);
   const lastPreferredPlanCodeRef = useRef(preferredPlanCode);
 
@@ -243,7 +231,6 @@ export default function OwnerBillingScreen({
     [selectedPlan, summary.billingAmount.multiShopDiscount.totalShopCount],
   );
   const selectedMultiShopDiscount = selectedBillingAmount.multiShopDiscount;
-  const selectedStaffLimitLabel = getOwnerPlanStaffLimitLabel(selectedPlan, selectedMultiShopDiscount.totalShopCount);
   const isFreePlan = selectedPlan.code === "free";
   const selectedPlanLabel = getOwnerPlanDisplayName(selectedPlan.code);
   const projectedServiceEndDate = formatProjectedServiceEndDate(summary, selectedPlan);
@@ -254,18 +241,8 @@ export default function OwnerBillingScreen({
       : hasUsableRegisteredPaymentMethod
         ? "등록 카드"
         : "카드 정보 확인 필요";
-  const registeredPaymentDescription = summary.paymentMethodResetRequired
-    ? "기존 카드 정보를 다시 확인할 수 없어 새 카드 등록이 한 번 필요해요."
-    : getCardNumberHint(summary.paymentMethodLabel)
-      ? `${getCardNumberHint(summary.paymentMethodLabel)} 카드로 바로 결제를 진행합니다.`
-      : "등록된 카드로 바로 결제를 진행합니다.";
   const billingCycleLabel = "매월 자동 결제";
   const nextBillingDateLabel = formatDate(addMonthsIso(new Date().toISOString(), 1));
-  const consentLines = [
-    "선택한 요금제는 등록된 카드로 매월 29,000원이 자동 결제됩니다.",
-    "알림톡 발송 기능은 선택한 요금제의 이용 정책에 따라 제공됩니다.",
-    `카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, ${PETMANAGER_SERVICE_NAME}에는 저장되지 않습니다.`,
-  ];
   const agreementContinueLabel =
     registeringCard || retryingPayment || resumingRegisteredCardPayment
       ? "결제 진행 중..."
@@ -277,19 +254,16 @@ export default function OwnerBillingScreen({
         {
           id: "saved",
           title: registeredPaymentTitle,
-          description: registeredPaymentDescription,
         },
         {
           id: "new",
           title: "새 카드 등록",
-          description: "등록 후 바로 해당 플랜 결제로 이어집니다.",
         },
       ]
     : [
         {
           id: "new",
           title: "새 카드 등록",
-          description: "등록 후 바로 해당 플랜 결제로 이어집니다.",
         },
       ];
   const paymentSheetAmountLabel = `월 ${won(selectedBillingAmount.monthlyTotalAmount)}`;
@@ -655,111 +629,32 @@ export default function OwnerBillingScreen({
     </div>
   ) : null;
 
-  if (cardRegistrationOpen) {
-    return (
-      <OwnerBillingCardRegistrationForm
-        planLabel={selectedPlanLabel}
-        amountLabel={`월 ${won(selectedBillingAmount.monthlyTotalAmount)}`}
-        loading={registeringCard || retryingPayment}
-        message={message}
-        onBack={() => {
-          if (registeringCard || retryingPayment) return;
-          setCardRegistrationOpen(false);
-          setMessage(null);
-        }}
-        onSubmit={async (credentials) => {
-          await handleApiCardRegistration(credentials);
-        }}
-      />
-    );
+  const billingFlowBusy = registeringCard || retryingPayment || resumingRegisteredCardPayment;
+
+  function closeBillingFlow() {
+    if (billingFlowBusy) return;
+    setPaymentSheetOpen(false);
+    setCardRegistrationOpen(false);
+    setIsSelectingPlan(false);
+    setSelectionStep("plan");
+    setAgreementAccepted(false);
+    setMessage(null);
   }
 
-  if (isSelectingPlan) {
-    if (selectionStep === "agreement") {
-      return (
-        <>
-          <BillingConsent
-            planLabel={selectedPlanLabel}
-            billingCycleLabel={billingCycleLabel}
-            nextBillingDateLabel={nextBillingDateLabel}
-            consentLines={consentLines}
-            agreed={agreementAccepted}
-            onAgreeChange={setAgreementAccepted}
-            continueLabel={agreementContinueLabel}
-            continueButtonRef={agreementContinueRef}
-            onContinue={() => {
-              if (!agreementAccepted) {
-                setMessage("정기결제 안내 동의가 필요합니다.");
-                return;
-              }
-              setMessage(null);
-
-              void (hasUsableRegisteredPaymentMethod ? handlePayNow() : handleRegisterCard());
-            }}
-            onBack={() => setSelectionStep("plan")}
-            loading={registeringCard || retryingPayment}
-            message={message}
-          />
-
-          <PaymentMethodSheet
-            open={paymentSheetOpen}
-            planLabel={selectedPlanLabel}
-            amountLabel={paymentSheetAmountLabel}
-            nextBillingDateLabel={nextBillingDateLabel}
-            options={paymentMethodOptions}
-            selectedOption={selectedPaymentOption}
-            loading={registeringCard || retryingPayment}
-            continueLabel={
-              registeringCard
-                ? "카드 등록 중..."
-                : retryingPayment
-                  ? "결제 진행 중..."
-                  : selectedPaymentOption === "saved" && hasUsableRegisteredPaymentMethod
-                    ? "선택한 수단으로 계속하기"
-                    : "선택한 수단으로 계속하기"
-            }
-            returnFocusRef={agreementContinueRef}
-            onSelectOption={setSelectedPaymentOption}
-            onClose={() => setPaymentSheetOpen(false)}
-            onContinue={() => void handlePaymentSheetSubmit()}
-          />
-          {cancelRenewalDialog}
-        </>
-      );
-    }
-
-    return (
-      <>
-        <OwnerBillingPlanPicker
-          plans={billableOwnerPlans}
-          currentPlanCode={summary.currentPlanCode}
-          selectedPlanCode={selectedPlanCode}
-          totalShopCount={summary.billingAmount.multiShopDiscount.totalShopCount}
-          onSelectPlanCode={handleSelectPlanCode}
-          onContinue={() => {
-            setMessage(null);
-            setSelectionStep("agreement");
-          }}
-          onBack={() => router.push("/owner")}
-          canCancelRenewal={canCancelRenewal}
-          cancellingRenewal={cancellingRenewal}
-          onCancelRenewal={openCancelRenewalDialog}
-          loading={registeringCard || retryingPayment}
-          message={message}
-        />
-        {cancelRenewalDialog}
-      </>
-    );
+  function closeCardRegistration() {
+    if (billingFlowBusy) return;
+    setCardRegistrationOpen(false);
+    setMessage(null);
   }
 
   return (
-    <div className="owner-font pm-owner-web min-h-screen w-full bg-[var(--bg)] px-4 py-6 text-[var(--ink)] sm:px-6 lg:px-8 lg:py-8">
-      <section className="mx-auto w-full max-w-[1180px] rounded-[14px] border border-[var(--bd)] bg-white px-5 py-6 shadow-none sm:px-6 lg:px-8">
+    <>
+      <div className="owner-font pm-owner-web min-h-screen w-full bg-[var(--bg)] px-4 py-6 text-[var(--ink)] sm:px-6 lg:px-8 lg:py-8">
+        <section className="mx-auto w-full max-w-[1180px] rounded-[14px] border border-[var(--bd)] bg-white px-5 py-6 shadow-none sm:px-6 lg:px-8">
         <p className="text-[11px] font-semibold tracking-[0.14em] text-[#1677ff]">
           {PETMANAGER_SERVICE_NAME} 플랜 및 결제
         </p>
         <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[var(--ink)]">{copy.title}</h1>
-        <p className="mt-3 text-[15px] leading-6 text-[var(--mid)]">{copy.body}</p>
 
         <div className="mt-5 rounded-[12px] border border-[#e8edf3] bg-white px-4 py-4">
           <p className="text-sm font-semibold text-[#111111]">현재 선택된 플랜</p>
@@ -789,15 +684,7 @@ export default function OwnerBillingScreen({
                   : "없음"}
               </span>
             </div>
-            <p className="mt-2 text-[12px] font-medium leading-5 text-[#64748b]">
-              {selectedMultiShopDiscount.appliedLabel} 매장 추가/삭제 변경분은 다음 결제일부터 반영됩니다.
-            </p>
           </div>
-          <p className="mt-2 text-[13px] leading-5 text-[var(--mid)]">
-            {isFreePlan
-              ? "체험 플랜은 관리자 배정용 플랜입니다. 유료 결제로 전환하려면 플랜을 변경해 주세요."
-              : `${selectedStaffLimitLabel} 기준 요금제입니다.`}
-          </p>
         </div>
 
         <div className="mt-4 rounded-[12px] border border-[#e8edf3] bg-white px-4 py-4">
@@ -807,11 +694,6 @@ export default function OwnerBillingScreen({
             </div>
             <div className="min-w-0">
               <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[var(--ink)]">신용/체크카드</p>
-              <p className="mt-1 text-[13px] leading-5 text-[var(--mid)]">
-                {isFreePlan
-                  ? "체험 플랜은 결제가 필요하지 않습니다."
-                  : "카드 등록 후 매월 같은 요금제로 자동 결제됩니다."}
-              </p>
             </div>
           </div>
         </div>
@@ -826,6 +708,7 @@ export default function OwnerBillingScreen({
             {primaryAction.label}
           </button>
           <button
+            ref={planPickerTriggerRef}
             type="button"
             onClick={() => setIsSelectingPlan(true)}
             className="flex h-[48px] w-full items-center justify-center rounded-[9px] border border-[#e8edf3] bg-white px-4 text-[15px] font-semibold text-[#1677ff] transition hover:border-[#bfdbfe] hover:bg-[#f8fbff]"
@@ -843,11 +726,116 @@ export default function OwnerBillingScreen({
             </button>
           ) : null}
         </div>
-      </section>
+        </section>
 
-      {message ? <p className="mx-auto mt-4 w-full max-w-[1180px] rounded-[10px] border border-[#e8edf3] bg-white px-4 py-3 text-sm text-[#334155]">{message}</p> : null}
+        {message ? <p className="mx-auto mt-4 w-full max-w-[1180px] rounded-[10px] border border-[#e8edf3] bg-white px-4 py-3 text-sm text-[#334155]">{message}</p> : null}
+      </div>
+
+      {cardRegistrationOpen ? (
+        <OwnerBillingModal
+          labelledBy="owner-billing-card-registration-title"
+          closeLabel="카드 등록 닫기"
+          onClose={closeCardRegistration}
+          maxWidthClassName="max-w-[720px]"
+          dismissible={!billingFlowBusy}
+        >
+          <OwnerBillingCardRegistrationForm
+            variant="modal"
+            planLabel={selectedPlanLabel}
+            amountLabel={`월 ${won(selectedBillingAmount.monthlyTotalAmount)}`}
+            loading={registeringCard || retryingPayment}
+            message={message}
+            onBack={closeCardRegistration}
+            onSubmit={async (credentials) => {
+              await handleApiCardRegistration(credentials);
+            }}
+          />
+        </OwnerBillingModal>
+      ) : isSelectingPlan ? (
+        selectionStep === "agreement" ? (
+          <OwnerBillingModal
+            labelledBy="owner-billing-consent-title"
+            closeLabel="결제 화면 닫기"
+            onClose={closeBillingFlow}
+            maxWidthClassName="max-w-[900px]"
+            dismissible={!billingFlowBusy}
+            returnFocusRef={planPickerTriggerRef}
+          >
+            <BillingConsent
+              variant="modal"
+              planLabel={selectedPlanLabel}
+              billingCycleLabel={billingCycleLabel}
+              nextBillingDateLabel={nextBillingDateLabel}
+              checkboxLabel={`월 ${won(selectedBillingAmount.monthlyTotalAmount)} 자동결제와 KCP·포트원 카드 처리를 확인했습니다.`}
+              agreed={agreementAccepted}
+              onAgreeChange={setAgreementAccepted}
+              continueLabel={agreementContinueLabel}
+              continueButtonRef={agreementContinueRef}
+              onContinue={() => {
+                if (!agreementAccepted) {
+                  setMessage("정기결제 안내 동의가 필요합니다.");
+                  return;
+                }
+                setMessage(null);
+                void (hasUsableRegisteredPaymentMethod ? handlePayNow() : handleRegisterCard());
+              }}
+              onBack={() => setSelectionStep("plan")}
+              loading={registeringCard || retryingPayment}
+              message={message}
+            />
+          </OwnerBillingModal>
+        ) : (
+          <OwnerBillingModal
+            labelledBy="owner-billing-plan-picker-title"
+            closeLabel="플랜 선택 닫기"
+            onClose={closeBillingFlow}
+            dismissible={!billingFlowBusy}
+            returnFocusRef={planPickerTriggerRef}
+          >
+            <OwnerBillingPlanPicker
+              variant="modal"
+              plans={billableOwnerPlans}
+              currentPlanCode={summary.currentPlanCode}
+              selectedPlanCode={selectedPlanCode}
+              totalShopCount={summary.billingAmount.multiShopDiscount.totalShopCount}
+              onSelectPlanCode={handleSelectPlanCode}
+              onContinue={() => {
+                setMessage(null);
+                setSelectionStep("agreement");
+              }}
+              onBack={closeBillingFlow}
+              canCancelRenewal={canCancelRenewal}
+              cancellingRenewal={cancellingRenewal}
+              onCancelRenewal={openCancelRenewalDialog}
+              loading={registeringCard || retryingPayment}
+              message={message}
+            />
+          </OwnerBillingModal>
+        )
+      ) : null}
+
+      <PaymentMethodSheet
+        open={isSelectingPlan && selectionStep === "agreement" && paymentSheetOpen}
+        planLabel={selectedPlanLabel}
+        amountLabel={paymentSheetAmountLabel}
+        nextBillingDateLabel={nextBillingDateLabel}
+        options={paymentMethodOptions}
+        selectedOption={selectedPaymentOption}
+        loading={registeringCard || retryingPayment}
+        continueLabel={
+          registeringCard
+            ? "카드 등록 중..."
+            : retryingPayment
+              ? "결제 진행 중..."
+              : "선택한 수단으로 계속하기"
+        }
+        returnFocusRef={agreementContinueRef}
+        onSelectOption={setSelectedPaymentOption}
+        onClose={() => setPaymentSheetOpen(false)}
+        onContinue={() => void handlePaymentSheetSubmit()}
+      />
       {cancelRenewalDialog}
-    </div>
+    </>
   );
 }
 

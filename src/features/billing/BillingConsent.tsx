@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowLeft, CreditCard, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CreditCard } from "lucide-react";
 
-import { LEGAL_OPERATOR_NAME, LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
+import { cn } from "@/lib/utils";
 
 import type { BillingConsentProps } from "./types";
 
@@ -22,12 +22,12 @@ function BillingSummaryItem({
 }
 
 export function BillingConsent({
+  variant = "page",
   eyebrow = "플랜 결제",
   title = "정기결제 확인",
   planLabel,
   billingCycleLabel,
   nextBillingDateLabel,
-  consentLines,
   checkboxLabel = "정기결제 안내와 결제 조건을 확인했습니다.",
   agreed,
   loading = false,
@@ -40,12 +40,21 @@ export function BillingConsent({
   continueButtonRef,
 }: BillingConsentProps) {
   return (
-    <div className="owner-font pm-owner-web min-h-full bg-[var(--bg)] px-4 py-8 text-[var(--ink)] lg:px-8 lg:py-10">
-      <section className="mx-auto w-full max-w-[860px] overflow-hidden rounded-[14px] border border-[var(--bd)] bg-white shadow-none">
-        <header className="border-b border-[#e7edf3] px-6 py-5 lg:px-8">
+    <div
+      className={cn(
+        "owner-font pm-owner-web text-[var(--ink)]",
+        variant === "page" ? "min-h-full bg-[var(--bg)] px-4 py-8 lg:px-8 lg:py-10" : "bg-white",
+      )}
+    >
+      <section
+        className={cn(
+          "w-full overflow-hidden bg-white shadow-none",
+          variant === "page" && "mx-auto max-w-[860px] rounded-[14px] border border-[var(--bd)]",
+        )}
+      >
+        <header className={cn("border-b border-[#e7edf3] px-5 py-5 sm:px-6 lg:px-8", variant === "modal" && "pr-16 sm:pr-20")}>
           <p className="text-[13px] font-medium text-[#2563eb]">{eyebrow}</p>
-          <h1 className="mt-1 text-[24px] font-semibold leading-8 text-[#0f172a]">{title}</h1>
-          <p className="mt-2 text-[14px] leading-5 text-[#64748b]">선택한 요금제와 결제 조건을 확인한 뒤 계속해 주세요.</p>
+          <h1 id="owner-billing-consent-title" className="mt-1 text-[24px] font-semibold leading-8 text-[#0f172a]">{title}</h1>
         </header>
 
         <div className="px-6 py-6 lg:px-8">
@@ -54,32 +63,6 @@ export function BillingConsent({
             <BillingSummaryItem label="결제 주기" value={billingCycleLabel} />
             <BillingSummaryItem label="다음 결제 예정일" value={nextBillingDateLabel} />
           </section>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-            <section className="rounded-[10px] border border-[#e8edf3] bg-white p-4">
-              <h2 className="text-[15px] font-medium text-[#334155]">결제 안내</h2>
-              <ul className="mt-3 space-y-2 text-[14px] leading-5 text-[#475569]">
-                {consentLines.map((line) => (
-                  <li key={line} className="flex gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#94a3b8]" />
-                    <span>{line}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <aside className="rounded-[10px] border border-[#e8edf3] bg-[#f8fbff] p-4">
-              <ShieldCheck className="h-5 w-5 text-[#2563eb]" />
-              <p className="mt-3 text-[14px] font-medium text-[#334155]">안전한 카드 등록</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
-                {LEGAL_SERVICE_NAME}는 {LEGAL_OPERATOR_NAME}가 운영합니다. 카드 정보는 KCP와 포트원을 통해
-                처리되며, {LEGAL_OPERATOR_NAME}는 카드번호 전체를 저장하지 않습니다.
-              </p>
-              <p className="mt-2 text-[12px] leading-5 text-[#64748b]">
-                카드 명세서와 결제대행 과정에는 운영사명인 {LEGAL_OPERATOR_NAME}로 표시될 수 있습니다.
-              </p>
-            </aside>
-          </div>
 
           <label className="mt-5 flex cursor-pointer items-center gap-3 rounded-[10px] border border-[#e8edf3] bg-white px-4 py-3">
             <input
@@ -103,7 +86,7 @@ export function BillingConsent({
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] px-3 text-[14px] font-medium text-[#475569] transition hover:bg-[#eef2f7]"
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] px-3 text-[14px] font-medium text-[#475569] transition hover:bg-[#eef2f7]"
             >
               <ArrowLeft className="h-4 w-4" />
               {backLabel}
@@ -114,7 +97,7 @@ export function BillingConsent({
             type="button"
             disabled={loading || !agreed}
             onClick={onContinue}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] px-5 text-[14px] font-medium text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:bg-[#cbd5e1]"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] px-5 text-[14px] font-medium text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:bg-[#cbd5e1]"
           >
             <CreditCard className="h-4 w-4" />
             {continueLabel}

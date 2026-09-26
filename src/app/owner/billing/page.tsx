@@ -21,6 +21,39 @@ type OwnedShopSummary = {
   id: string;
 };
 
+function OwnerBillingRouteFallback() {
+  return (
+    <main className="owner-font pm-owner-web min-h-screen bg-[var(--bg)] text-[var(--ink)]">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0f172a]/40 px-4 py-6 backdrop-blur-[2px]">
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="owner-billing-loading-title"
+          aria-busy="true"
+          className="w-full max-w-[560px] overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white shadow-[0_28px_80px_rgba(15,23,42,0.24)]"
+        >
+          <header className="border-b border-[#e7edf3] px-6 py-5 text-center">
+            <h1 id="owner-billing-loading-title" className="text-[20px] font-semibold text-[#0f172a] sm:text-[22px]">
+              플랜 선택
+            </h1>
+          </header>
+          <div className="p-5 sm:p-6">
+            <div className="animate-pulse rounded-[10px] border border-[#dbeafe] bg-[#f8fbff] p-5">
+              <div className="h-6 w-28 rounded bg-[#dce9fa]" />
+              <div className="mt-6 h-10 w-44 rounded bg-[#dce9fa]" />
+              <div className="mt-5 grid gap-2.5">
+                <div className="h-8 rounded bg-[#eaf1f9]" />
+                <div className="h-8 rounded bg-[#eaf1f9]" />
+              </div>
+              <div className="mt-5 h-11 rounded-[8px] bg-[#dce9fa]" />
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
 function isSummaryForActiveShop(summary: OwnerSubscriptionSummary, shopId: string) {
   return summary.shopId === shopId;
 }
@@ -57,29 +90,35 @@ export function OwnerBillingPageContent() {
       activeShopResolutionRef.current = resolutionId;
       setActiveShopId(null);
       setFreshSummaryShopId(null);
-      setSummary(null);
       const storedShopId = readCurrentOwnerShopId();
       if (!storedShopId) {
+        setSummary(null);
         if (active) setMessage("현재 매장을 확인한 뒤 결제를 관리할 수 있습니다.");
         return;
+      }
+
+      const cachedSummary = readOwnerBillingSummaryCache();
+      if (cachedSummary && isSummaryForActiveShop(cachedSummary, storedShopId)) {
+        setSummary(cachedSummary);
+        setMessage("");
+      } else {
+        setSummary(null);
+        setMessage("구독 정보를 불러오는 중입니다.");
       }
 
       try {
         const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops", { cache: "no-store" });
         if (!active || activeShopResolutionRef.current !== resolutionId) return;
         if (!shops.some((shop) => shop.id === storedShopId)) {
+          setSummary(null);
           setMessage("현재 매장의 결제 권한을 확인하지 못했습니다.");
           return;
         }
 
         setActiveShopId(storedShopId);
-        const cachedSummary = readOwnerBillingSummaryCache();
-        if (cachedSummary && isSummaryForActiveShop(cachedSummary, storedShopId)) {
-          setSummary(cachedSummary);
-          setMessage("최신 구독 정보를 확인하는 중입니다.");
-        }
       } catch (error) {
         if (!active) return;
+        setSummary(null);
         const nextMessage = error instanceof Error ? error.message : "구독 정보를 불러오지 못했습니다.";
         if (
           nextMessage === "로그인이 필요합니다." ||
@@ -136,7 +175,9 @@ export function OwnerBillingPageContent() {
       }
     };
 
-    void refreshSummary();
+    if (freshSummaryShopId !== activeShopId) {
+      void refreshSummary();
+    }
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
@@ -145,7 +186,7 @@ export function OwnerBillingPageContent() {
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [activeShopId]);
+  }, [activeShopId, freshSummaryShopId]);
 
   useEffect(() => {
     if (
@@ -205,6 +246,10 @@ export function OwnerBillingPageContent() {
   ]);
 
   if (!summary) {
+    if ((forcePlanPicker || openPaymentSheet) && message === "구독 정보를 불러오는 중입니다.") {
+      return <OwnerBillingRouteFallback />;
+    }
+
     return (
       <main className="owner-font pm-owner-web min-h-screen bg-[var(--bg)] px-8 py-10">
         <div className="mx-auto w-full max-w-[1180px] rounded-[12px] border border-[var(--bd)] bg-white px-6 py-5 text-[14px] leading-6 text-[var(--mid)] shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
@@ -257,15 +302,7 @@ export function OwnerBillingPageContent() {
 
 export default function OwnerBillingPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="owner-font pm-owner-web min-h-screen bg-[var(--bg)] px-8 py-10">
-          <div className="mx-auto w-full max-w-[1180px] rounded-[12px] border border-[var(--bd)] bg-white px-6 py-5 text-[14px] leading-6 text-[var(--mid)] shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
-            구독 정보를 불러오는 중입니다.
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={<OwnerBillingRouteFallback />}>
       <OwnerBillingPageContent />
     </Suspense>
   );

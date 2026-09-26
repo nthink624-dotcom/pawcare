@@ -276,10 +276,13 @@ export type ApprovedSsodaaNotificationTemplate = {
 
 function renderApprovedSsodaaNotificationTemplate(params: {
   type: NotificationType;
+  templateAlias?: string | null;
   values: NotificationTemplateVariables;
   detail: ConnectedTemplateDetail | null;
 }): ApprovedSsodaaNotificationTemplate | null {
-  const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === params.type);
+  const spec = params.templateAlias
+    ? ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === params.templateAlias)
+    : ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === params.type);
   if (!spec) return null;
 
   if (requiresApprovedSsodaaTemplate() && !params.detail?.templateContent) {
@@ -310,12 +313,15 @@ function renderApprovedSsodaaNotificationTemplate(params: {
 export async function getApprovedSsodaaNotificationTemplate(
   type: NotificationType,
   values: NotificationTemplateVariables,
+  templateAlias?: string | null,
 ) {
-  const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
+  const spec = templateAlias
+    ? ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === templateAlias)
+    : ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
   if (!spec) return null;
 
   const detail = await getApprovedSsodaaTemplate(spec.templateAlias);
-  return renderApprovedSsodaaNotificationTemplate({ type, values, detail });
+  return renderApprovedSsodaaNotificationTemplate({ type, templateAlias: spec.templateAlias, values, detail });
 }
 
 export async function getApprovedSsodaaNotificationTemplates(

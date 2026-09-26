@@ -646,6 +646,26 @@ async function upsertPaymentLedgerEntry(payload: {
   }
 }
 
+async function readRecordedPaymentStatus(paymentId: string) {
+  const admin = getSupabaseAdmin();
+  if (!admin) return null;
+
+  const result = await admin
+    .from(PAYMENT_LEDGER_TABLE)
+    .select("status")
+    .eq("payment_id", paymentId)
+    .maybeSingle();
+
+  if (result.error) {
+    if (!isMissingRelationError(result.error)) {
+      console.error("owner_payment_ledger status read failed", result.error);
+    }
+    return null;
+  }
+
+  return typeof result.data?.status === "string" ? normalizeLedgerStatus(result.data.status) : null;
+}
+
 async function portoneFetch<T>(path: string, init?: RequestInit) {
   if (!serverEnv.portoneApiSecret) {
     throw new OwnerBillingError("PortOne 서버 설정을 확인해 주세요.", 503);
@@ -1106,6 +1126,21 @@ function nextStatusForRecord(record: OwnerSubscriptionRecord) {
   return "trialing";
 }
 
+function hasUpcomingScheduledCharge(record: OwnerSubscriptionRecord) {
+  if (
+    record.subscription_status !== "active" ||
+    record.last_payment_status !== "scheduled" ||
+    !record.last_schedule_id ||
+    !record.last_payment_id ||
+    !record.next_billing_at
+  ) {
+    return false;
+  }
+
+  const nextBillingAt = new Date(record.next_billing_at).getTime();
+  return Number.isFinite(nextBillingAt) && nextBillingAt > Date.now();
+}
+
 async function cancelScheduledPayment(record: OwnerSubscriptionRecord) {
   const billingKey = readStoredBillingKey(record);
   if (!billingKey || !serverEnv.portoneApiSecret) return;
@@ -1124,6 +1159,7 @@ async function cancelScheduledPayment(record: OwnerSubscriptionRecord) {
 
 async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerProfileRecord | null, record: OwnerSubscriptionRecord) {
   assertCurrentSingleMonthlyRecord(record);
+  if (hasUpcomingScheduledCharge(record)) return record;
   const billingKeyState = readStoredBillingKeyState(record);
   const billingKey = billingKeyState.billingKey;
   if (!billingKey || !record.payment_method_exists || record.cancel_at_period_end || !env.portoneStoreId) {
@@ -1191,6 +1227,39 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
   });
 
   return nextRecord;
+}
+
+async function ensureUpcomingChargeScheduled(
+  identity: BillingIdentity,
+  profile: OwnerProfileRecord | null,
+  record: OwnerSubscriptionRecord,
+) {
+  if (
+    record.subscription_status !== "active" ||
+    record.cancel_at_period_end ||
+    !record.payment_method_exists ||
+    hasUpcomingScheduledCharge(record)
+  ) {
+    return record;
+  }
+
+  try {
+    const scheduled = await scheduleUpcomingCharge(identity, profile, record);
+    return scheduled === record ? record : await persistSubscriptionRecord(identity, scheduled);
+  } catch (error) {
+    await recordBillingEvent({
+      userId: identity.id,
+      shopId: record.shop_id,
+      eventType: "payment_schedule_failed",
+      status: "FAILED",
+      payload: {
+        planCode: record.current_plan_code,
+        nextBillingAt: record.current_period_ends_at,
+        message: error instanceof Error ? error.message : "다음 정기결제 예약 실패",
+      },
+    });
+    return record;
+  }
 }
 
 function applySuccessfulCharge(record: OwnerSubscriptionRecord, planCode: OwnerPlanCode, paidAt: string | null, paymentId: string) {
@@ -1425,7 +1494,8 @@ export async function getOwnerSubscriptionSummary(identity: BillingIdentity, sho
   }
 
   if (record) {
-    return await buildOwnerSubscriptionSummary(identity, shopId, record, profile);
+    const scheduleReadyRecord = await ensureUpcomingChargeScheduled(identity, profile, record);
+    return await buildOwnerSubscriptionSummary(identity, shopId, scheduleReadyRecord, profile);
   }
 
   return summary;
@@ -1670,12 +1740,12 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
   const reconciledSummary = await reconcileOwnerSubscriptionRecordIfNeeded(identity, shopId, currentRecord);
   if (reconciledSummary) {
     const { record: refreshedRecord, profile: refreshedProfile } = await readOrCreateSubscription(identity, shopId);
-    if (refreshedRecord && hasRecentSuccessfulCharge(refreshedRecord)) {
+    if (refreshedRecord && (hasRecentSuccessfulCharge(refreshedRecord) || hasUpcomingScheduledCharge(refreshedRecord))) {
       return await buildOwnerSubscriptionSummary(identity, shopId, refreshedRecord, refreshedProfile);
     }
   }
 
-  if (hasRecentSuccessfulCharge(currentRecord)) {
+  if (hasRecentSuccessfulCharge(currentRecord) || hasUpcomingScheduledCharge(currentRecord)) {
     return await buildOwnerSubscriptionSummary(identity, shopId, currentRecord, profile);
   }
 
@@ -1757,10 +1827,19 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
   const { record: benefitAdjustedRecord, profile: benefitAdjustedProfile } =
     payment.status === "PAID" ? await readOrCreateSubscription(identity, shopId) : { record: saved, profile };
 
+  const finalRecord =
+    payment.status === "PAID"
+      ? await ensureUpcomingChargeScheduled(
+          identity,
+          benefitAdjustedProfile ?? profile,
+          benefitAdjustedRecord ?? saved,
+        )
+      : benefitAdjustedRecord ?? saved;
+
   return await buildOwnerSubscriptionSummary(
     identity,
     shopId,
-    benefitAdjustedRecord ?? saved,
+    finalRecord,
     benefitAdjustedProfile ?? profile,
   );
 }
@@ -1824,6 +1903,21 @@ export async function syncOwnerSubscriptionFromPayment(
   }
   assertCurrentSubscriptionPayment(payment, userResult.data.user as BillingIdentity, record);
 
+  const recordedStatus = await readRecordedPaymentStatus(paymentId);
+  if (payment.status === "PAID" && recordedStatus === "PAID") {
+    const scheduleReadyRecord = await ensureUpcomingChargeScheduled(
+      userResult.data.user as BillingIdentity,
+      profile,
+      record,
+    );
+    return await buildOwnerSubscriptionSummary(
+      userResult.data.user as BillingIdentity,
+      shopId,
+      scheduleReadyRecord,
+      profile,
+    );
+  }
+
   let nextRecord = record;
   if (payment.status === "PAID") {
     nextRecord = applySuccessfulCharge(record, planCode, payment.paidAt, paymentId);
@@ -1871,6 +1965,15 @@ export async function syncOwnerSubscriptionFromPayment(
       ? await readOrCreateSubscription(userResult.data.user as BillingIdentity, shopId)
       : { record: saved, profile };
 
+  const finalRecord =
+    payment.status === "PAID"
+      ? await ensureUpcomingChargeScheduled(
+          userResult.data.user as BillingIdentity,
+          benefitAdjustedProfile ?? profile,
+          benefitAdjustedRecord ?? saved,
+        )
+      : benefitAdjustedRecord ?? saved;
+
   return await buildOwnerSubscriptionSummary(
     {
       id: userId,
@@ -1879,7 +1982,7 @@ export async function syncOwnerSubscriptionFromPayment(
       user_metadata: userResult.data.user.user_metadata ?? null,
     },
     shopId,
-    benefitAdjustedRecord ?? saved,
+    finalRecord,
     benefitAdjustedProfile ?? profile,
   );
 }

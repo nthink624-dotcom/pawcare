@@ -38,23 +38,6 @@ function getAppliedUntilDate(plan: OwnerPlan) {
   return formatDate(addMonths(PREVIEW_BASE_DATE, plan.months));
 }
 
-function getConsentLines(plan: OwnerPlan) {
-  if (plan.billingType === "one_time") {
-    return [
-      "선택한 플랜은 결제 1회로 이용이 시작됩니다.",
-      `등록한 카드는 ${PETMANAGER_SERVICE_NAME} 이용요금 결제수단으로 사용됩니다.`,
-      `카드 등록은 PG사의 보안창을 통해 진행되며, ${PETMANAGER_SERVICE_NAME}는 카드번호 전체를 직접 저장하지 않습니다.`,
-    ];
-  }
-
-  return [
-    "선택한 요금제는 등록된 카드로 매월 자동 결제됩니다.",
-    "알림톡 발송 기능은 선택한 요금제의 이용 정책에 따라 제공됩니다.",
-    `등록한 카드는 ${PETMANAGER_SERVICE_NAME} 이용요금 결제수단으로 사용됩니다.`,
-    `카드 등록은 PG사의 보안창을 통해 진행되며, ${PETMANAGER_SERVICE_NAME}는 카드번호 전체를 직접 저장하지 않습니다.`,
-  ];
-}
-
 function PreviewSection({
   step,
   title,
@@ -217,7 +200,6 @@ export function OwnerBillingProcessPreview() {
                 planLabel={planLabel}
                 billingCycleLabel={getBillingCycleLabel(selectedPlan)}
                 nextBillingDateLabel={nextBillingDate}
-                consentLines={getConsentLines(selectedPlan)}
                 agreed={agreed}
                 onAgreeChange={setAgreed}
                 onContinue={() => undefined}

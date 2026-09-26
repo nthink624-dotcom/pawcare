@@ -106,7 +106,7 @@ test("owner billing consumers use the active shop single-monthly subscription AP
   assert.doesNotMatch(page, /fetchApiJsonWithAuth<OwnerSubscriptionSummary>\("\/api\/subscription"/);
   assert.doesNotMatch(page, /shops\[0\]/);
   assert.doesNotMatch(screen, /requestOwnerOneTimePayment|usesOneTimePayment|handleOneTimePayment/);
-  assert.match(screen, /매월 29,000원이 자동 결제됩니다/);
+  assert.match(screen, /checkboxLabel=\{`월 \$\{won\(selectedBillingAmount\.monthlyTotalAmount\)\} 자동결제와 KCP·포트원 카드 처리를 확인했습니다\.`\}/);
 });
 
 test("billing page cold mount fetches a fresh authenticated shop summary without focus and gates registration", async () => {

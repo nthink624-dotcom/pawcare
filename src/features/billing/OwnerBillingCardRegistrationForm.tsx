@@ -5,6 +5,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { AppButton } from "@/components/ui/app-button";
 import { LEGAL_OPERATOR_NAME, LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
+import { cn } from "@/lib/utils";
 
 export type OwnerBillingCardCredentials = {
   cardNumber: string;
@@ -27,6 +28,7 @@ function onlyDigits(value: string) {
 }
 
 export function OwnerBillingCardRegistrationForm({
+  variant = "page",
   planLabel,
   amountLabel,
   loading = false,
@@ -34,6 +36,7 @@ export function OwnerBillingCardRegistrationForm({
   onBack,
   onSubmit,
 }: {
+  variant?: "page" | "modal";
   planLabel: string;
   amountLabel: string;
   loading?: boolean;
@@ -107,26 +110,31 @@ export function OwnerBillingCardRegistrationForm({
   }
 
   return (
-    <main className="owner-font pm-owner-web min-h-screen w-full bg-[var(--bg)] px-4 py-6 text-[var(--ink)] sm:px-6 lg:px-8 lg:py-8">
-      <div className="mx-auto w-full max-w-[720px]">
+    <div
+      className={cn(
+        "owner-font pm-owner-web w-full text-[var(--ink)]",
+        variant === "page" ? "min-h-screen bg-[var(--bg)] px-4 py-6 sm:px-6 lg:px-8 lg:py-8" : "bg-white p-4 sm:p-6",
+      )}
+    >
+      <div className={cn("w-full", variant === "page" && "mx-auto max-w-[720px]")}>
       <button
         type="button"
         onClick={onBack}
         disabled={loading}
-        className="inline-flex h-10 items-center gap-1.5 rounded-[8px] px-1 text-[14px] font-medium text-[#4e5f59] transition hover:bg-[#eef3f0] disabled:opacity-50"
+        className="inline-flex h-11 items-center gap-1.5 rounded-[8px] px-2 text-[14px] font-medium text-[#4e5f59] transition hover:bg-[#eef3f0] disabled:opacity-50"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         이전 단계
       </button>
 
-      <section className="mt-3 rounded-[14px] border border-[var(--bd)] bg-white px-5 py-6 sm:px-6">
+      <section className={cn("mt-3 bg-white px-1 pb-1 pt-3 sm:px-2", variant === "page" && "rounded-[14px] border border-[var(--bd)] px-5 py-6 sm:px-6")}>
         <div className="flex items-start gap-3">
           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[#edf6f2] text-[#1f6b5b]">
             <CreditCard className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <p className="text-[12px] font-medium text-[#396457]">정기결제</p>
-            <h1 className="mt-1 text-[23px] font-semibold text-[#173b33]">카드 등록</h1>
+            <h1 id="owner-billing-card-registration-title" className="mt-1 text-[23px] font-semibold text-[#173b33]">카드 등록</h1>
           </div>
         </div>
 
@@ -135,10 +143,10 @@ export function OwnerBillingCardRegistrationForm({
           <span className="text-right text-[14px] font-semibold text-[#1d2925]">{planLabel} · {amountLabel}</span>
         </div>
 
-        <p className="mt-4 border-l-[3px] border-[#1f6b5b] bg-[#f4f8f6] px-3 py-2.5 text-[12px] leading-5 text-[#51615b]">
-          {LEGAL_SERVICE_NAME}는 {LEGAL_OPERATOR_NAME}가 운영합니다. 카드 명세서와 결제대행 과정에는{" "}
-          {LEGAL_OPERATOR_NAME}로 표시될 수 있습니다.
-        </p>
+        <div className="flex items-center justify-between gap-4 border-b border-[#e8e1d7] py-3.5 text-[13px]">
+          <span className="text-[#766f66]">카드 명세서</span>
+          <span className="font-semibold text-[#1d2925]">{LEGAL_OPERATOR_NAME}</span>
+        </div>
 
         <form className="mt-5 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
           <label className="grid gap-2">
@@ -236,6 +244,6 @@ export function OwnerBillingCardRegistrationForm({
         </form>
       </section>
       </div>
-    </main>
+    </div>
   );
 }

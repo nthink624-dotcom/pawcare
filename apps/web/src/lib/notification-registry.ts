@@ -32,6 +32,7 @@ export type AlimtalkTemplateAlias =
   | "grooming_started"
   | "grooming_almost_done"
   | "grooming_completed"
+  | "grooming_completed_without_report"
   | "revisit_notice"
   | "birthday_greeting";
 
@@ -46,6 +47,7 @@ export type AlimtalkTemplateConfigKey =
   | "templateGroomingStarted"
   | "templateGroomingAlmostDone"
   | "templateGroomingCompleted"
+  | "templateGroomingCompletedWithoutReport"
   | "templateRevisitNotice"
   | "templateBirthdayGreeting";
 
@@ -201,12 +203,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "grooming_almost_done_enabled",
     guardianSettingKey: "grooming_almost_done_enabled",
     notes: null,
-    draftBody: [
-      "[#{매장명}]",
-      "#{반려동물명} 미용을 마무리하고 있어요.",
-      "",
-      "#{픽업안내}",
-    ].join("\n"),
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.grooming_almost_done.body,
   },
   {
     type: "grooming_completed",
@@ -220,16 +217,21 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "grooming_completed_enabled",
     guardianSettingKey: "grooming_completed_enabled",
     notes: null,
-    draftBody: [
-      "[#{매장명}]",
-      "#{반려동물명} 미용이 완료되었습니다.",
-      "",
-      "오늘 사진과 케어리포트를 아래에서 바로 확인하실 수 있어요.",
-      "편하신 시간에 픽업 부탁드립니다.",
-      "",
-      "케어리포트 링크",
-      "#{예약 확인 링크}",
-    ].join("\n"),
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.grooming_completed.body,
+  },
+  {
+    type: "grooming_completed",
+    title: "미용 완료 - 케어리포트 없음",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "예약 상태가 completed가 되고 최종 발행된 케어리포트가 없을 때 발송",
+    dispatchSource: "src/server/owner-mutations.ts",
+    templateAlias: "grooming_completed_without_report",
+    templateConfigKey: "templateGroomingCompletedWithoutReport",
+    shopSettingKey: "grooming_completed_enabled",
+    guardianSettingKey: "grooming_completed_enabled",
+    notes: "케어리포트가 최종 발행된 경우에는 grooming_completed 템플릿을 사용",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.grooming_completed_without_report.body,
   },
   {
     type: "revisit_notice",
@@ -306,6 +308,7 @@ export const ACTIVE_ALIMTALK_TEMPLATE_ALIASES: readonly AlimtalkTemplateAlias[] 
   "grooming_started",
   "grooming_almost_done",
   "grooming_completed",
+  "grooming_completed_without_report",
   "revisit_notice",
 ];
 
@@ -342,6 +345,16 @@ export function getNotificationTitle(type: NotificationType) {
 
 export function getNotificationDraftBody(type: NotificationType) {
   return getNotificationRegistryItem(type)?.draftBody ?? null;
+}
+
+export function getNotificationDraftBodyByAlias(alias: AlimtalkTemplateAlias) {
+  return ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === alias)?.draftBody ?? null;
+}
+
+export function renderNotificationTemplateAliasBody(alias: AlimtalkTemplateAlias, values: NotificationTemplateVariables) {
+  const template = getNotificationDraftBodyByAlias(alias);
+  if (!template) return null;
+  return fillNotificationTemplate(template, values);
 }
 
 export function renderNotificationTemplateBody(type: NotificationType, values: NotificationTemplateVariables) {

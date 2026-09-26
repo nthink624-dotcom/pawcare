@@ -61,6 +61,7 @@ export const serverEnv = {
   alimtalkTemplateGroomingStarted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_STARTED),
   alimtalkTemplateGroomingAlmostDone: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE),
   alimtalkTemplateGroomingCompleted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED),
+  alimtalkTemplateGroomingCompletedWithoutReport: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED_WITHOUT_REPORT),
   alimtalkTemplateRevisitNotice: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_REVISIT_NOTICE),
   alimtalkTemplateBirthdayGreeting: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BIRTHDAY_GREETING),
   firebaseServiceAccountJson: readOptionalSecret(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
@@ -133,6 +134,7 @@ export function getConfiguredAlimtalkTemplateKey(alias: string | null | undefine
     templateGroomingStarted: serverEnv.alimtalkTemplateGroomingStarted ?? null,
     templateGroomingAlmostDone: serverEnv.alimtalkTemplateGroomingAlmostDone ?? null,
     templateGroomingCompleted: serverEnv.alimtalkTemplateGroomingCompleted ?? null,
+    templateGroomingCompletedWithoutReport: serverEnv.alimtalkTemplateGroomingCompletedWithoutReport ?? null,
     templateRevisitNotice: serverEnv.alimtalkTemplateRevisitNotice ?? null,
     templateBirthdayGreeting: serverEnv.alimtalkTemplateBirthdayGreeting ?? null,
   } as const;

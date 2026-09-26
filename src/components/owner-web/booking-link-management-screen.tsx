@@ -23,6 +23,7 @@ function buildPublicBookingUrl(shopId: string) {
 }
 
 const naverDirectionsText = "간편 예약은 홈페이지 링크를 눌러주세요.";
+const smartPlaceUrl = "https://smartplace.naver.com/";
 
 export default function BookingLinkManagementScreen({
   initialData,
@@ -67,8 +68,17 @@ export default function BookingLinkManagementScreen({
                   className={`${OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
                 >
                   <Copy className="h-4 w-4" />
-                  {copiedTarget === "url" ? "복사됨" : "링크 복사"}
+                  {copiedTarget === "url" ? "복사됨" : "예약 링크 복사"}
                 </button>
+                <a
+                  href={smartPlaceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`${OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  스마트플레이스 열기
+                </a>
                 <a
                   href={bookingUrl}
                   target="_blank"
@@ -116,6 +126,7 @@ export default function BookingLinkManagementScreen({
                 <BookingLinkNaverGuide
                   bookingUrl={bookingUrl}
                   directionsText={naverDirectionsText}
+                  smartPlaceUrl={smartPlaceUrl}
                   copied={copiedTarget === "naverDirections"}
                   onCopy={() => void handleCopy(naverDirectionsText, "naverDirections")}
                 />

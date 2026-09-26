@@ -3,25 +3,25 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const pcRegistryPath = new URL("../../src/lib/notification-registry.ts", import.meta.url);
-const mobileRegistryPath = new URL("../../../petmanager-app/src/lib/notification-registry.ts", import.meta.url);
+const mobileRegistryPath = new URL("../../../mobile/src/lib/notification-registry.ts", import.meta.url);
+const sharedContractPath = new URL("../../../shared/contracts/alimtalk.ts", import.meta.url);
 
 test("PC와 모바일 알림톡 registry는 고객 흐름의 공통 템플릿 alias를 유지한다", async () => {
-  const [pc, mobile] = await Promise.all([
+  const [pc, mobile, shared] = await Promise.all([
     readFile(pcRegistryPath, "utf8"),
     readFile(mobileRegistryPath, "utf8"),
+    readFile(sharedContractPath, "utf8"),
   ]);
   const aliases = [
     "booking_confirmed",
-    "booking_manage_link_requested",
     "booking_cancelled",
-    "booking_time_proposed",
-    "booking_rescheduled_confirmed",
+    "appointment_reminder_10m",
     "visit_schedule_notice",
     "visit_reminder_notice",
-    "appointment_reminder_10m",
     "grooming_started",
     "grooming_almost_done",
     "grooming_completed",
+    "grooming_completed_without_report",
     "revisit_notice",
   ];
 
@@ -30,9 +30,13 @@ test("PC와 모바일 알림톡 registry는 고객 흐름의 공통 템플릿 al
     assert.match(mobile, new RegExp(`"${alias}"`), `mobile ${alias}`);
   }
 
+  assert.match(shared, /#\{보호자명\} 보호자님/);
+  assert.match(shared, /#\{서비스명\}/);
+  assert.match(shared, /#\{픽업예상시간\}분 후에 완료될 예정이에요/);
+  assert.match(shared, /예뻐진 모습과/);
+  assert.match(shared, /믿고 맡겨주셔서 감사해요/);
+
   for (const registry of [pc, mobile]) {
-    assert.match(registry, /제안 일정: #\{제안일시\}/);
-    assert.match(registry, /방문 전 준비사항: #\{방문준비사항\}/);
     assert.match(registry, /케어리포트/);
     assert.match(registry, /마지막 방문: #\{마지막방문일\}/);
     assert.doesNotMatch(registry, /\(방긋\)/);

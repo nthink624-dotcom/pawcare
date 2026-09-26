@@ -663,7 +663,6 @@ export default function CustomerBookingPage({
           serviceId: usesPreviewSlots ? undefined : firstVisit.serviceId,
           previewDurationMinutes: selectedDurationMinutes ?? (usesPreviewSlots ? (firstVisit.serviceId === CUSTOM_SERVICE_ID ? 120 : 30) : undefined),
           staffId: firstVisit.staffId || null,
-          fullSlots: true,
           includeStaffAvailability: true,
         });
         if (!active) return;

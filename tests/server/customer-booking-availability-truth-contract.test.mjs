@@ -89,7 +89,7 @@ describe("customer booking availability truth", () => {
     );
   });
 
-  it("keeps customer date labels, disabled staff cards, and full slots on server-authoritative paths", () => {
+  it("keeps customer date labels, disabled staff cards, and AI-ranked slots on server-authoritative paths", () => {
     const route = fs.readFileSync(new URL("../../src/app/api/availability/route.ts", import.meta.url), "utf8");
     const page = fs.readFileSync(new URL("../../src/components/customer/customer-booking-page.tsx", import.meta.url), "utf8");
     const flow = fs.readFileSync(new URL("../../src/components/customer/customer-first-visit-claude-flow.tsx", import.meta.url), "utf8");
@@ -98,7 +98,8 @@ describe("customer booking availability truth", () => {
     assert.match(route, /includeStaffAvailability/);
     assert.match(route, /fullSlots/);
     assert.match(page, /dates:\s*dateOptions\.map/);
-    assert.match(page, /fullSlots:\s*true/);
+    assert.doesNotMatch(page, /fullSlots:\s*true/);
+    assert.match(page, /includeStaffAvailability:\s*true/);
     assert.match(flow, /disabled=\{availability !== true\}/);
     assert.match(flow, /disabled=\{!firstVisit\.date \|\| isUnavailable \|\| isChecking/);
     assert.doesNotMatch(flow, /shuffleStaffMembers/);

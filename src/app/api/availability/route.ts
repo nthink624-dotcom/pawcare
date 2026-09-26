@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const slots = slotsForDate(date);
+    const slots = Array.from(new Set(slotsForDate(date)));
     const baselineRecommendedSlots = computeRecommendedAvailableSlots({
       date,
       availableSlots: slots,

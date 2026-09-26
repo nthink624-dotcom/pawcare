@@ -161,6 +161,7 @@ function validLocalConfig(overrides: Record<string, unknown> = {}) {
     templateGroomingStarted: "",
     templateGroomingAlmostDone: "",
     templateGroomingCompleted: "",
+    templateGroomingCompletedWithoutReport: "",
     templateRevisitNotice: "",
     templateBirthdayGreeting: "",
     ...overrides,

@@ -225,6 +225,7 @@ function getAppTemplateConfigValues(): Record<AlimtalkTemplateConfigKey, string>
     templateGroomingStarted: serverEnv.alimtalkTemplateGroomingStarted || "",
     templateGroomingAlmostDone: serverEnv.alimtalkTemplateGroomingAlmostDone || "",
     templateGroomingCompleted: serverEnv.alimtalkTemplateGroomingCompleted || "",
+    templateGroomingCompletedWithoutReport: serverEnv.alimtalkTemplateGroomingCompletedWithoutReport || "",
     templateRevisitNotice: serverEnv.alimtalkTemplateRevisitNotice || "",
     templateBirthdayGreeting: serverEnv.alimtalkTemplateBirthdayGreeting || "",
   };
@@ -422,6 +423,7 @@ export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Prom
 
   const message = fillTemplateDraft(spec.draftBody, {
     매장명: input.shopName?.trim() || `${PETMANAGER_SERVICE_NAME} 테스트 매장`,
+    보호자명: input.recipientName?.trim() || "홍길동",
     반려동물명: input.petName?.trim() || "우유",
     예약일시: input.appointmentDateTime?.trim() || "2026-05-04(월) 14:00",
     서비스명: input.serviceName?.trim() || "전체 미용",

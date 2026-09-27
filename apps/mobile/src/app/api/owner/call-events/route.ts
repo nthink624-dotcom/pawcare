@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 
 function parseLimit(value: string | null) {
   const parsed = Number.parseInt(value ?? "50", 10);
-  if (!Number.isFinite(parsed)) return 50;
-  return Math.max(1, Math.min(100, parsed));
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(100, parsed)) : 50;
 }
 
 function isCatchCallLinkSchemaMissing(error: { code?: string | null; message?: string | null } | null) {
@@ -16,13 +15,9 @@ function isCatchCallLinkSchemaMissing(error: { code?: string | null; message?: s
 
 export async function GET(request: NextRequest) {
   try {
-    const shopId = request.nextUrl.searchParams.get("shopId")?.trim() ?? "";
-    if (!shopId) throw new OwnerApiError("매장 정보가 필요합니다.", 400);
-
-    const owner = await requireOwnerShop(request, shopId);
-    assertOwnerOrManager(owner);
+    const owner = await requireOwnerShop(request, request.nextUrl.searchParams.get("shopId") ?? undefined);
     const admin = getSupabaseAdmin();
-    if (!admin) throw new OwnerApiError("콜아이디 데이터를 확인할 수 없습니다.", 503);
+    if (!admin) return NextResponse.json({ message: "캐치콜 데이터베이스 설정을 확인해 주세요." }, { status: 503 });
 
     let query = admin
       .from("call_events")
@@ -30,11 +25,8 @@ export async function GET(request: NextRequest) {
       .eq("shop_id", owner.shopId)
       .order("occurred_at", { ascending: false })
       .limit(parseLimit(request.nextUrl.searchParams.get("limit")));
-
     const matchStatus = request.nextUrl.searchParams.get("matchStatus")?.trim();
-    if (matchStatus && ["matched", "unmatched", "ambiguous"].includes(matchStatus)) {
-      query = query.eq("match_status", matchStatus);
-    }
+    if (matchStatus && ["matched", "unmatched", "ambiguous"].includes(matchStatus)) query = query.eq("match_status", matchStatus);
 
     let result = await query;
     if (result.error && isCatchCallLinkSchemaMissing(result.error)) {
@@ -45,31 +37,28 @@ export async function GET(request: NextRequest) {
         .order("occurred_at", { ascending: false })
         .limit(parseLimit(request.nextUrl.searchParams.get("limit"))) as typeof result;
     }
-    if (result.error) throw new OwnerApiError("콜아이디 기록을 확인하지 못했습니다.", 500);
-
+    if (result.error) return NextResponse.json({ message: "캐치콜 기록을 확인하지 못했습니다." }, { status: 500 });
     return NextResponse.json({
       events: (result.data ?? []).map((row) => {
         const matchedGuardian = Array.isArray(row.matched_guardian) ? row.matched_guardian[0] : row.matched_guardian;
         return {
-        id: row.id,
-        integrationId: row.integration_id,
-        providerEventId: row.provider_event_id,
-        eventType: row.event_type,
-        direction: row.direction,
-        phoneTail: row.phone_tail,
-        occurredAt: row.occurred_at,
-        matchStatus: row.match_status,
-        appointmentId: row.appointment_id,
-        reservationStatus: row.reservation_status,
-        notificationStatus: row.notification_status,
-        matchedGuardian: matchedGuardian
-          ? { id: matchedGuardian.id, name: matchedGuardian.name }
-          : null,
+          id: row.id,
+          integrationId: row.integration_id,
+          providerEventId: row.provider_event_id,
+          eventType: row.event_type,
+          direction: row.direction,
+          phoneTail: row.phone_tail,
+          occurredAt: row.occurred_at,
+          matchStatus: row.match_status,
+          appointmentId: row.appointment_id,
+          reservationStatus: row.reservation_status,
+          notificationStatus: row.notification_status,
+          matchedGuardian: matchedGuardian ? { id: matchedGuardian.id, name: matchedGuardian.name } : null,
         };
       }),
     });
   } catch (error) {
     if (error instanceof OwnerApiError) return NextResponse.json({ message: error.message }, { status: error.status });
-    return NextResponse.json({ message: "콜아이디 기록을 확인하지 못했습니다." }, { status: 500 });
+    return NextResponse.json({ message: "캐치콜 기록을 확인하지 못했습니다." }, { status: 500 });
   }
 }

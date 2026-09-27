@@ -18,7 +18,9 @@ if (-not $NativeConfigPath) {
   $NativeConfigPath = Join-Path $NativeRootPath "assets\capacitor.config.json"
 }
 
-$forbiddenReleaseReference = '(?i)(localhost|127\.0\.0\.1|:(3000|3100)(?=[/\\?#"''\s]|$))'
+# Match local development endpoints, not safe hostname comparisons used by
+# native validation code (for example: "localhost".equals(uri.getHost())).
+$forbiddenReleaseReference = '(?i)((?:https?|ws)://(?:localhost|127\.0\.0\.1)(?::\d+)?|(?:localhost|127\.0\.0\.1):(?:3000|3100)|:(3000|3100)(?=[/\\?#"''\s]|$))'
 $textAssetExtensions = @(".css", ".html", ".java", ".js", ".json", ".kt", ".properties", ".txt", ".xml")
 
 function ConvertTo-ProductionHttpsUri {

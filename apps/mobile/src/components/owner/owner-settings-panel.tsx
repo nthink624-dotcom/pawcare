@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, Phone, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, Phone, PhoneCall, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
@@ -9,6 +9,7 @@ import { runOwnerPlayUpdateAction, useOwnerPlayUpdateSnapshot } from "@/componen
 import OwnerAccountDeletionPanel from "@/components/owner/owner-account-deletion-panel";
 import OwnerSettingsOverview, { type OwnerSettingsOverviewGroup } from "@/components/owner/owner-settings-overview";
 import OwnerSupportPanel from "@/components/owner/owner-support-panel";
+import OwnerCatchCallPanel from "@/components/owner/owner-catch-call-panel";
 import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
 import MobileAiPriceGuideFixture, { type PriceGuideSessionState } from "@/components/auth/mobile-ai-price-guide-fixture";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
@@ -61,7 +62,7 @@ type SaveFeedback = {
   description?: string;
 };
 
-type SettingsScreen = "shop" | "closures" | "price" | "notifications" | "appNotifications" | "staff" | "support" | "legal" | "account" | null;
+type SettingsScreen = "shop" | "closures" | "price" | "notifications" | "appNotifications" | "catchcall" | "staff" | "support" | "legal" | "account" | null;
 type StaffProfileDraft = {
   name: string;
   displayName: string;
@@ -1403,12 +1404,15 @@ export default function OwnerSettingsPanel({
     />
   );
 
+  const catchCallSection = <OwnerCatchCallPanel data={data} onBack={() => updateActiveScreen(null)} />;
+
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     shop: { title: "매장 기본 정보", content: shopSection },
     closures: { title: "영업·예약 시간", content: closuresSection },
     price: { title: "서비스 요금 설정", content: priceGuideSection },
     notifications: { title: "고객 알림톡", content: notificationsSection },
     appNotifications: { title: "내 앱 알림", content: appNotificationsSection },
+    catchcall: { title: "캐치콜", content: catchCallSection },
     staff: { title: "직원 관리", content: staffSection },
     support: { title: "1:1 문의", content: supportSection },
     legal: { title: "약관 및 정책", content: legalSection },
@@ -1423,10 +1427,11 @@ export default function OwnerSettingsPanel({
     const isShopScreen = effectiveActiveScreen === "shop";
     const isClosuresScreen = effectiveActiveScreen === "closures";
     const isStaffScreen = effectiveActiveScreen === "staff";
+    const isCatchCallScreen = effectiveActiveScreen === "catchcall";
 
     return (
       <section className="space-y-4 p-4">
-        {isShopScreen || isClosuresScreen || isStaffScreen ? (
+        {isShopScreen || isClosuresScreen || isStaffScreen || isCatchCallScreen ? (
           screenMap[effectiveActiveScreen].content
         ) : (
           <div className={`overflow-hidden border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-soft)] ${isClosuresScreen ? "rounded-[16px]" : "rounded-[10px]"}`}>
@@ -1562,6 +1567,7 @@ export default function OwnerSettingsPanel({
     {
       title: "알림·고객 응대",
       items: [
+        { key: "catchcall", icon: PhoneCall, title: "캐치콜", badge: "통화 예약", onClick: () => updateActiveScreen("catchcall") },
         { key: "notifications", icon: Bell, title: "고객 알림톡", onClick: () => updateActiveScreen("notifications") },
         { key: "appNotifications", icon: BellRing, title: "내 앱 알림", onClick: () => updateActiveScreen("appNotifications") },
         { key: "feedback", icon: MessageSquarePlus, title: "문의·도움", triggerRef: feedbackTriggerRef, testerEmphasis: isTesterFeedback, onClick: onOpenFeedback ?? (() => updateActiveScreen("support")) },

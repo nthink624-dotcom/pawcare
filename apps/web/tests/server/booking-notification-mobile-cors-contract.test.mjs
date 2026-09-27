@@ -16,6 +16,7 @@ const {
 } = await import("../../src/server/owner-mobile-cors.ts");
 
 const exactOrigin = "http://127.0.0.1:3100";
+const productionOrigin = "https://app.petmanager.co.kr";
 const foreignOrigin = "https://foreign.example";
 
 function request(origin, method = "GET") {
@@ -42,6 +43,14 @@ test("booking notification snapshot applies mobile CORS without changing its aut
 
   const getResponse = ownerMobileCorsJson(request(exactOrigin), { notifications: [] });
   assert.equal(getResponse.headers.get("access-control-allow-origin"), exactOrigin);
+
+  const productionPreflight = ownerMobileCorsPreflight(request(productionOrigin, "OPTIONS"));
+  assert.equal(productionPreflight.status, 204);
+  assert.equal(productionPreflight.headers.get("access-control-allow-origin"), productionOrigin);
+  assert.equal(productionPreflight.headers.get("access-control-allow-headers"), "Authorization, Content-Type, Accept");
+
+  const productionGet = ownerMobileCorsJson(request(productionOrigin), { notifications: [] });
+  assert.equal(productionGet.headers.get("access-control-allow-origin"), productionOrigin);
 
   const foreignPreflight = ownerMobileCorsPreflight(request(foreignOrigin, "OPTIONS"));
   const foreignGet = ownerMobileCorsJson(request(foreignOrigin), { notifications: [] });

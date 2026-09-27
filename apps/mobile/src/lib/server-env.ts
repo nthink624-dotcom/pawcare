@@ -71,10 +71,16 @@ export const serverEnv = {
   notificationCronSecret: process.env.NOTIFICATION_CRON_SECRET,
   adminSetupKey: readOptionalSecret(process.env.ADMIN_SETUP_KEY),
   adminSessionSecret: readOptionalSecret(process.env.ADMIN_SESSION_SECRET),
+  callIdWebhookHashSecret: readOptionalSecret(process.env.CALL_ID_WEBHOOK_HASH_SECRET),
+  callIdPhoneHmacSecret: readOptionalSecret(process.env.CALL_ID_PHONE_HMAC_SECRET),
 };
 
 export function hasSupabaseServerEnv() {
   return Boolean(serverEnv.supabaseUrl && serverEnv.supabasePublishableKey && serverEnv.supabaseServiceRoleKey);
+}
+
+export function hasCallIdServerEnv() {
+  return Boolean(serverEnv.callIdWebhookHashSecret && serverEnv.callIdPhoneHmacSecret);
 }
 
 export function getSupabaseServerRuntimeStage() {

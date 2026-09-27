@@ -304,7 +304,7 @@ export type Appointment = {
   actual_completed_at?: string | null;
   visit_reminder_offset_minutes?: number;
   pickup_ready_eta_minutes?: number;
-  source: "owner" | "customer";
+  source: "owner" | "customer" | "catchcall";
   customer_visit_type?: "first_visit" | "revisit" | null;
   discount_coupon_ids?: string[];
   discount_coupon_names?: string[];

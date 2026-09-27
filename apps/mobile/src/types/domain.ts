@@ -292,7 +292,7 @@ export type Appointment = {
   actual_completed_at?: string | null;
   visit_reminder_offset_minutes?: number;
   pickup_ready_eta_minutes?: number;
-  source: "owner" | "customer";
+  source: "owner" | "customer" | "catchcall";
   customer_visit_type?: CustomerVisitType | null;
   created_at: string;
   updated_at: string;

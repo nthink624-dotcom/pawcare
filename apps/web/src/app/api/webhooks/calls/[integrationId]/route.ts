@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { hasCallIdServerEnv, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
   CALL_DIRECTIONS,
@@ -15,6 +15,7 @@ import {
   sanitizeCallMetadata,
   secureHashEquals,
 } from "@/server/call-id";
+import { finalizeCatchCallEndedEvent } from "@/server/catch-call";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const callPayloadSchema = z.object({
@@ -34,6 +35,7 @@ const callPayloadSchema = z.object({
 export async function POST(request: NextRequest, context: { params: Promise<{ integrationId: string }> }) {
   try {
     if (!hasSupabaseServerEnv()) return NextResponse.json({ ok: false, message: "콜아이디 서버 설정이 없습니다." }, { status: 503 });
+    if (!hasCallIdServerEnv()) return NextResponse.json({ ok: false, message: "CALL_ID secrets are not configured." }, { status: 503 });
     const rawBody = await request.text();
     if (Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES) {
       return NextResponse.json({ ok: false, message: "웹훅 본문이 너무 큽니다." }, { status: 413 });
@@ -130,12 +132,23 @@ export async function POST(request: NextRequest, context: { params: Promise<{ in
       return NextResponse.json({ ok: false, message: "콜아이디 이벤트를 저장하지 못했습니다." }, { status: 500 });
     }
 
+    const endedReservation = payload.eventType === "ended"
+      ? await finalizeCatchCallEndedEvent({
+          admin,
+          shopId: integrationResult.data.shop_id,
+          integrationId,
+          providerCallId: sanitizeCallMetadata(payload.metadata).providerCallId ?? "",
+          endedEventId: inserted.data?.[0]?.id ?? "",
+        })
+      : null;
+
     return NextResponse.json({
       ok: true,
       accepted: true,
       replayed: false,
       eventId: inserted.data?.[0]?.id ?? null,
       matchStatus,
+      reservationNotificationStatus: endedReservation?.status ?? "not_requested",
     });
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ ok: false, message: "콜아이디 이벤트 형식을 확인해 주세요." }, { status: 400 });

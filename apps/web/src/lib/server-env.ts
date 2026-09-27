@@ -135,6 +135,10 @@ export function hasSupabaseServerEnv() {
   return Boolean(serverEnv.supabaseUrl && serverEnv.supabasePublishableKey && serverEnv.supabaseServiceRoleKey);
 }
 
+export function hasCallIdServerEnv() {
+  return Boolean(serverEnv.callIdWebhookHashSecret && serverEnv.callIdPhoneHmacSecret);
+}
+
 export function getSupabaseServerRuntimeStage() {
   if (process.env.VERCEL_ENV === "preview") return "preview" as const;
   if (process.env.VERCEL_ENV === "production") return "production" as const;

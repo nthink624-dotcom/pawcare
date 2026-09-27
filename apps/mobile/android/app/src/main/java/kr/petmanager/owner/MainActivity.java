@@ -20,6 +20,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(OwnerSpeechRecognitionPlugin.class);
         registerPlugin(OwnerBackNavigationPlugin.class);
         registerPlugin(OwnerPlayUpdatePlugin.class);
+        registerPlugin(OwnerCallScreeningPlugin.class);
         super.onCreate(savedInstanceState);
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {

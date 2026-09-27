@@ -6,6 +6,10 @@ const OWNER_MOBILE_ALLOWED_ORIGINS = new Set([
   "http://localhost:3100",
   "http://127.0.0.1:3100",
   "capacitor://localhost",
+  // Production Android shell and API origins.
+  "https://app.petmanager.co.kr",
+  "https://www.petmanager.co.kr",
+  "https://petmanager.co.kr",
 ]);
 const READ_ONLY_METHODS = "GET, OPTIONS";
 const READ_ONLY_HEADERS = "Authorization, Content-Type, Accept";

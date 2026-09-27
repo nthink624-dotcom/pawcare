@@ -174,7 +174,7 @@ function getAppointmentNotificationReason(result: Awaited<ReturnType<typeof disp
   return null;
 }
 
-async function dispatchAppointmentNotificationWithLogs(params: {
+export async function dispatchAppointmentNotificationWithLogs(params: {
   shopId: string;
   appointment: Pick<Appointment, "id" | "guardian_id" | "pet_id">;
   type: AppointmentStatusNotificationType;
@@ -939,7 +939,7 @@ export async function createAppointment(input: unknown) {
     const store = getMutableStore();
     store.appointments = [...store.appointments, appointment];
     setMockStore(store);
-    if (appointment.status === "confirmed") {
+    if (appointment.status === "confirmed" && appointment.source !== "catchcall") {
       await dispatchAppointmentNotificationWithLogs({
         shopId: appointment.shop_id,
         appointment,
@@ -953,7 +953,7 @@ export async function createAppointment(input: unknown) {
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const createdAppointment = await createAppointmentWithDatabaseGuard(supabase, appointment);
 
-  if (createdAppointment.status === "confirmed") {
+  if (createdAppointment.status === "confirmed" && createdAppointment.source !== "catchcall") {
     await dispatchAppointmentNotificationWithLogs({
       shopId: createdAppointment.shop_id,
       appointment: createdAppointment,

@@ -566,7 +566,7 @@ function getAppointmentNotificationReason(result: Awaited<ReturnType<typeof disp
   return null;
 }
 
-async function dispatchAppointmentNotificationWithLogs(params: {
+export async function dispatchAppointmentNotificationWithLogs(params: {
   shopId: string;
   appointment: Pick<Appointment, "id" | "guardian_id" | "pet_id">;
   type: AppointmentStatusNotificationType;

@@ -103,6 +103,7 @@ import {
 } from "@/lib/owner-appointment-visit-weight";
 import { keepStableStaffProfileUrls } from "@/lib/owner-mobile-staff-refresh-stability";
 import { addOwnerAndroidBackButtonListener } from "@/lib/owner-mobile-back-navigation";
+import { getOwnerCallScreeningStatus, isOwnerCallScreeningAvailable } from "@/lib/owner-call-screening";
 import { flattenAppointmentGuardianPetPairs } from "@/lib/owner-appointment-guardian-pet-pairs";
 import {
   dedupeAuthoritativeAppointments,
@@ -129,7 +130,7 @@ import type { Appointment, AppointmentStatus, BootstrapPayload, BootstrapStaffMe
 
 type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
-type SettingsEntryScreen = "shop" | "closures" | "price" | "notifications" | "appNotifications" | "staff" | "support" | "legal" | "account" | null;
+type SettingsEntryScreen = "shop" | "closures" | "price" | "notifications" | "appNotifications" | "catchcall" | "staff" | "support" | "legal" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
 type MobileAppRole = "owner" | "staff";
 type HomeStaffFilterKey = "all" | "unassigned" | string;
@@ -232,6 +233,7 @@ const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, stri
   price: "서비스 요금 설정",
   notifications: "고객 알림톡",
   appNotifications: "내 앱 알림",
+  catchcall: "캐치콜",
   staff: "직원 관리",
   support: "1:1 문의",
   legal: "약관 및 정책",
@@ -819,6 +821,30 @@ function OwnerAppContent({
       active = false;
     };
   }, [appRole, currentStaffId, data.appointments, data.shop.id, isOwnerDemo, pendingPhotoAccountId]);
+
+  useEffect(() => {
+    if (isOwnerDemo || isStaffApp || typeof window === "undefined" || !isOwnerCallScreeningAvailable()) return;
+
+    const onboardingKey = `petmanager:catchcall-onboarding:${data.shop.id}`;
+    if (window.localStorage.getItem(onboardingKey)) return;
+    window.localStorage.setItem(onboardingKey, "shown");
+
+    let active = true;
+    void getOwnerCallScreeningStatus()
+      .then((status) => {
+        if (!active || !status.available || status.enabled) return;
+        setActiveTab("settings");
+        setSettingsEntryScreen("catchcall");
+      })
+      .catch(() => {
+        // The settings panel remains available if the native status check
+        // cannot complete during a WebView resume.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [data.shop.id, isOwnerDemo, isStaffApp]);
 
   useEffect(() => {
     if (isOwnerDemo || !pendingPhotoAccountId || typeof window === "undefined") return;

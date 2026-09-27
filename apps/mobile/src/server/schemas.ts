@@ -12,7 +12,7 @@ export const appointmentInputSchema = z.object({
   appointmentDate: z.string(),
   appointmentTime: z.string(),
   memo: z.string().default(""),
-  source: z.enum(["owner", "customer"]).default("customer"),
+  source: z.enum(["owner", "customer", "catchcall"]).default("customer"),
   visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).optional(),
   pickupReadyEtaMinutes: z.coerce.number().int().min(0).max(180).optional(),
 });

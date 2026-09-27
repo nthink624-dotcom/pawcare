@@ -1,4 +1,4 @@
--- Provider-neutral caller ID foundation. Apply only after a separately approved
+-- Provider-neutral caller ID foundation. Applied after an approved
 -- development/production database change. Raw phone numbers and call payloads
 -- are deliberately not stored.
 

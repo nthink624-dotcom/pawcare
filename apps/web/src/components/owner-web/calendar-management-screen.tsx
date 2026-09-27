@@ -898,7 +898,7 @@ type DailyBooking = {
   discountSnapshot?: Record<string, unknown> | null;
   visitReminderOffsetMinutes?: number;
   pickupReadyEtaMinutes?: number;
-  source?: "owner" | "customer";
+  source?: "owner" | "customer" | "catchcall";
   previousStart?: number;
   previousDuration?: number;
   changeAcknowledged?: boolean;

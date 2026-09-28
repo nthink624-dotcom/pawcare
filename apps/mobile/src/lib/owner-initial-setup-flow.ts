@@ -16,14 +16,13 @@ export function hasSetupCheckpoint(bootstrap: BootstrapPayload) {
 }
 
 export function readSetupCheckpoint(key: string, readiness: SetupReadiness): SetupStep {
-  try {
-    const step = window.sessionStorage.getItem(key);
-    if (step === "complete") return readiness.completed ? "complete" : "hours";
-    if (step === "hours") return "hours";
-    if (step === "staff") return readiness.steps.hours ? "staff" : "hours";
-    if (step === "pricing") return !readiness.steps.hours ? "hours" : !readiness.steps.staff ? "staff" : "pricing";
-  } catch { /* Navigation hints are optional, never entitlement state. */ }
-  return "hours";
+  // Server readiness is canonical. The session checkpoint is only a local
+  // navigation hint and must not restart a later incomplete step at hours.
+  if (readiness.completed) return "complete";
+  if (readiness.nextStep) return readiness.nextStep;
+  if (!readiness.steps.hours) return "hours";
+  if (!readiness.steps.staff) return "staff";
+  return "pricing";
 }
 
 export function writeSetupCheckpoint(key: string, step: SetupStep) {

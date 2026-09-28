@@ -57,7 +57,8 @@ test("first signup alone opens the wizard; a saved checkpoint never blocks the o
   assert.match(setupFlow, /advance\("pricing"\)/);
   assert.match(setupFlow, /await reloadSetup/);
   assert.equal(setupFlow.match(/await reloadSetup/g)?.length, 1, "intermediate saves must not wait for a second bootstrap request");
-  assert.match(setupFlow, /void reloadSetup[\s\S]*저장은 완료됐지만 최신 상태를 확인하지 못했어요/);
+  assert.doesNotMatch(setupFlow, /verifySavedStepInBackground/);
+  assert.doesNotMatch(setupFlow, /저장은 완료됐지만 최신 상태를 확인하지 못했어요/);
   assert.match(setupFlow, /fresh.initialSetupReadiness.completed/);
   assert.match(setupFlow, /매장 시작하기/);
   assert.doesNotMatch(setupFlow, /PC 오너 화면/);
@@ -94,21 +95,18 @@ test("login continuation rejects protocol-relative and backslash paths and no lo
 
 const setupLib = await readFile(new URL("../src/lib/owner-initial-setup-flow.ts", import.meta.url), "utf8");
 
-test("checkpoint resumes only after canonical prerequisites; defaults never skip first setup", async () => {
+test("checkpoint resumes from canonical nextStep instead of restarting saved setup", async () => {
   const { readSetupCheckpoint } = await importFunction(setupLib.replace("export function readSetupCheckpoint", "function readSetupCheckpoint"), "readSetupCheckpoint", "setup.ts");
   let stored = null;
   globalThis.window = { sessionStorage: { getItem: () => stored } };
-  const ready = { steps: { hours: true, staff: true, pricing: true }, completed: true };
-  assert.equal(readSetupCheckpoint("a", ready), "hours");
-  stored = "pricing";
-  assert.equal(readSetupCheckpoint("a", ready), "pricing");
-  assert.equal(readSetupCheckpoint("a", { ...ready, steps: { ...ready.steps, hours: false } }), "hours");
-  assert.equal(readSetupCheckpoint("a", { ...ready, steps: { ...ready.steps, staff: false } }), "staff");
-  stored = "complete";
+  const ready = { steps: { hours: true, staff: true, pricing: true }, completed: true, nextStep: null };
   assert.equal(readSetupCheckpoint("a", ready), "complete");
-  assert.equal(readSetupCheckpoint("a", { ...ready, completed: false }), "hours");
+  stored = "pricing";
+  assert.equal(readSetupCheckpoint("a", { steps: { hours: true, staff: true, pricing: false }, completed: false, nextStep: "pricing" }), "pricing");
+  assert.equal(readSetupCheckpoint("a", { steps: { hours: true, staff: false, pricing: false }, completed: false, nextStep: "staff" }), "staff");
+  assert.equal(readSetupCheckpoint("a", { steps: { hours: false, staff: false, pricing: false }, completed: false, nextStep: "hours" }), "hours");
   stored = "unknown";
-  assert.equal(readSetupCheckpoint("a", ready), "hours");
+  assert.equal(readSetupCheckpoint("a", { steps: { hours: true, staff: true, pricing: false }, completed: false, nextStep: "pricing" }), "pricing");
   delete globalThis.window;
 });
 

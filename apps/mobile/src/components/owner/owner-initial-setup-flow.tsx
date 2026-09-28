@@ -50,25 +50,9 @@ function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { boots
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
-  const readbackGeneration = useRef(0);
   const verifiedStaffDraft = useRef<string | null>(null);
   const advance = (next: SetupStep) => { writeSetupCheckpoint(key, next); setStep(next); setError(""); };
   const pause = () => { if (!lock.current && !uploadLock.current && step !== "complete") { writeSetupCheckpoint(key, step); onDefer(); } };
-
-  function verifySavedStepInBackground(savedStep: "hours" | "staff") {
-    const generation = ++readbackGeneration.current;
-    void reloadSetup(bootstrap.shop.id).then((fresh) => {
-      if (generation !== readbackGeneration.current) return;
-      setSavedStaffIds(fresh.staffMembers.map((member) => member.id));
-      if (!fresh.initialSetupReadiness.steps[savedStep]) {
-        setError("저장은 완료됐지만 저장 상태를 확인하지 못했어요. 이전 단계로 돌아가 다시 확인해 주세요.");
-        return;
-      }
-      if (savedStep === "staff") setDraft((current) => current ?? readBootstrapPriceGuideState(fresh.services));
-    }).catch(() => {
-      if (generation === readbackGeneration.current) setError("저장은 완료됐지만 최신 상태를 확인하지 못했어요. 입력 내용은 유지됩니다.");
-    });
-  }
 
   function saveTemporaryHours() {
     if (lock.current) return;
@@ -108,15 +92,14 @@ function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { boots
           role: member.role ?? "직원", position: member.position ?? "직원",
         })) });
       }
-      if (step === "hours") { clearHoursDraft(key); setDraftNotice(""); advance("staff"); verifySavedStepInBackground("hours"); }
-      else { verifiedStaffDraft.current = JSON.stringify(staff); setSavedStaffIds(staff.map((member) => member.id)); advance("pricing"); verifySavedStepInBackground("staff"); }
+      if (step === "hours") { clearHoursDraft(key); setDraftNotice(""); advance("staff"); }
+      else { verifiedStaffDraft.current = JSON.stringify(staff); setSavedStaffIds(staff.map((member) => member.id)); advance("pricing"); }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "설정을 저장하지 못했어요."); }
     finally { lock.current = false; setBusy(false); }
   }
 
   async function verifyComplete() {
     if (lock.current) return;
-    readbackGeneration.current += 1;
     lock.current = true; setBusy(true); setError("");
     try {
       const fresh = await reloadSetup(bootstrap.shop.id);
@@ -132,7 +115,7 @@ function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { boots
       presentation="modal" setupFlow shopId={bootstrap.shop.id} ownerBottomNavigation={false}
       initialRows={draft?.rows ?? null} initialDocument={draft?.document ?? null} initialServiceId={draft?.serviceId ?? null} initialResumeMode={draft?.resumeMode}
       onComplete={(_rows, state) => { if (state) setDraft(state); writeOwnerPriceGuideSessionDraft(priceGuideKey, null); void verifyComplete(); }}
-      onExit={(_rows, state) => { setDraft(state ?? null); writeOwnerPriceGuideSessionDraft(priceGuideKey, state ?? null); advance("staff"); }}
+      onExit={(_rows, state) => { setDraft(state ?? null); writeOwnerPriceGuideSessionDraft(priceGuideKey, state ?? null); advance("pricing"); }}
     />}
   </SetupModal>;
 

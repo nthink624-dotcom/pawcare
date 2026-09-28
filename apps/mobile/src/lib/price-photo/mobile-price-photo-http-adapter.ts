@@ -107,18 +107,17 @@ function stageError(stage: MobilePricePhotoFailureStage, error: unknown): never 
   throw new MobilePricePhotoStageError(stage);
 }
 
-function readFileAsBase64(file: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error ?? new Error("Could not read upload file."));
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      const comma = result.indexOf(",");
-      if (comma < 0) return reject(new Error("Could not encode upload file."));
-      resolve(result.slice(comma + 1));
-    };
-    reader.readAsDataURL(file);
-  });
+async function readFileAsBase64(file: Blob): Promise<string> {
+  // Android WebView can leave FileReader.readAsDataURL pending for a Blob
+  // created by canvas.toBlob. Reading the in-memory Blob buffer avoids that
+  // content-URI/FileReader path entirely.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
 }
 
 function uploadJsonWithWebViewXhr<T>(input: {

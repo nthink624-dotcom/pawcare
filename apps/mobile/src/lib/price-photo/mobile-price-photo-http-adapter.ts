@@ -439,7 +439,10 @@ export function createMobilePricePhotoHttpAdapter(options: {
 
       try {
         if (intent.upload.method === "SERVER_PROXY" || intent.upload.provider === "server") {
-          await pcUpload("/api/owner/media/upload", uploadFile, {
+          // Android WebView can resolve a File-backed fetch without emitting
+          // the request. Send the already-compressed bytes as an ArrayBuffer
+          // so the server receives a plain image body consistently.
+          await pcUpload("/api/owner/media/upload", await uploadFile.arrayBuffer(), {
             "Content-Type": uploadFile.type,
             "X-PetManager-Shop-Id": options.shopId,
             "X-PetManager-Media-Asset-Id": reference,

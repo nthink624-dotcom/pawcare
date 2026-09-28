@@ -649,13 +649,19 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     if (duplicate.data) throw new OwnerApiError("이미 처리 중인 요금표 사진 요청입니다.", 409);
   }
 
-  const signedUpload = await runMediaUploadIntentStage("MEDIA_SIGNING_FAILED", () =>
-    createMediaSignedUploadUrl({
-      bucket: MEDIA_BUCKET,
-      path: storagePath,
-      contentType,
-    }), intentDiagnostic,
-  );
+  // Android WebView can fail before a direct R2 request is observable. Price-guide
+  // sources are already compressed and transient, so relay just this mobile path
+  // through the authenticated server upload route instead of exposing a signed URL.
+  const useOwnerMobileServerUpload = uploadedFrom === "owner_mobile" && mediaKind === "price_guide_source";
+  const signedUpload = useOwnerMobileServerUpload
+    ? null
+    : await runMediaUploadIntentStage("MEDIA_SIGNING_FAILED", () =>
+        createMediaSignedUploadUrl({
+          bucket: MEDIA_BUCKET,
+          path: storagePath,
+          contentType,
+        }), intentDiagnostic,
+      );
 
   const insertPayload = {
     id: mediaAssetId,
@@ -751,15 +757,47 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     upload: {
       bucket: MEDIA_BUCKET,
       path: storagePath,
-      provider: signedUpload.provider,
-      signedUrl: signedUpload.signedUrl,
-      token: signedUpload.token,
-      method: signedUpload.method,
-      headers: signedUpload.headers,
+      provider: useOwnerMobileServerUpload ? "server" : signedUpload!.provider,
+      signedUrl: useOwnerMobileServerUpload ? undefined : signedUpload!.signedUrl,
+      token: useOwnerMobileServerUpload ? null : signedUpload!.token,
+      method: useOwnerMobileServerUpload ? "SERVER_PROXY" : signedUpload!.method,
+      headers: useOwnerMobileServerUpload ? {} : signedUpload!.headers,
       maxBytes: OWNER_MEDIA_MAX_COMPRESSED_UPLOAD_BYTES,
-      expiresInSeconds: signedUpload.expiresInSeconds,
+      expiresInSeconds: signedUpload?.expiresInSeconds ?? null,
     },
   };
+}
+
+export async function uploadOwnerMediaFile(owner: OwnerContext, input: {
+  mediaAssetId: string;
+  file: File;
+}) {
+  const admin = getAdmin();
+  const mediaAssetId = requiredUuid(input.mediaAssetId, "mediaAssetId");
+  const byteSize = input.file.size;
+  const contentType = normalizeContentType(input.file.type);
+  if (!allowedContentTypes.has(contentType)) throw new OwnerApiError("Unsupported media content type.", 400);
+  if (!byteSize || byteSize > OWNER_MEDIA_MAX_COMPRESSED_UPLOAD_BYTES) {
+    throw new OwnerApiError("Image is too large. Compress it before upload.", 413);
+  }
+  const existing = await admin
+    .from("media_assets")
+    .select("id, shop_id, bucket, storage_path, status, deleted_at, content_type")
+    .eq("id", mediaAssetId)
+    .eq("shop_id", owner.shopId)
+    .maybeSingle();
+  if (existing.error) throw new OwnerApiError(existing.error.message, 500);
+  if (!existing.data || existing.data.deleted_at) throw new OwnerApiError("Media asset was not found.", 404);
+  if (existing.data.status !== "uploading") throw new OwnerApiError("Media asset is not uploadable.", 409);
+  if (existing.data.content_type !== contentType) throw new OwnerApiError("Media content type does not match the upload intent.", 400);
+
+  const result = await admin.storage.from(existing.data.bucket).upload(
+    existing.data.storage_path,
+    Buffer.from(await input.file.arrayBuffer()),
+    { contentType, upsert: false },
+  );
+  if (result.error) throw new OwnerApiError(result.error.message, 502);
+  return { mediaAssetId, byteSize, contentType };
 }
 
 export async function completeOwnerMediaUpload(owner: OwnerContext, input: CompleteUploadInput) {

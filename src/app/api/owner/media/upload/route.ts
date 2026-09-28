@@ -8,11 +8,27 @@ const WRITE_CORS = { methods: "POST, OPTIONS" };
 
 export async function POST(request: NextRequest) {
   try {
-    const form = await request.formData();
-    const shopId = typeof form.get("shopId") === "string" ? form.get("shopId") as string : undefined;
-    const mediaAssetId = typeof form.get("mediaAssetId") === "string" ? form.get("mediaAssetId") as string : "";
-    const file = form.get("file");
-    if (!(file instanceof File)) throw new OwnerApiError("Media file is required.", 400);
+    const contentType = request.headers.get("content-type") ?? "";
+    let shopId: string | undefined;
+    let mediaAssetId = "";
+    let file: File;
+    if (contentType.includes("application/json")) {
+      const body = (await request.json()) as Record<string, unknown>;
+      shopId = typeof body.shopId === "string" ? body.shopId : undefined;
+      mediaAssetId = typeof body.mediaAssetId === "string" ? body.mediaAssetId : "";
+      const fileBase64 = typeof body.fileBase64 === "string" ? body.fileBase64 : "";
+      const suppliedContentType = typeof body.contentType === "string" ? body.contentType : "";
+      if (!fileBase64 || !suppliedContentType) throw new OwnerApiError("Media file is required.", 400);
+      const bytes = Buffer.from(fileBase64, "base64");
+      file = new File([bytes], typeof body.fileName === "string" ? body.fileName : "price-guide.webp", { type: suppliedContentType });
+    } else {
+      const form = await request.formData();
+      shopId = typeof form.get("shopId") === "string" ? form.get("shopId") as string : undefined;
+      mediaAssetId = typeof form.get("mediaAssetId") === "string" ? form.get("mediaAssetId") as string : "";
+      const formFile = form.get("file");
+      if (!(formFile instanceof File)) throw new OwnerApiError("Media file is required.", 400);
+      file = formFile;
+    }
     const owner = await requireOwnerShop(request, shopId);
     const result = await uploadOwnerMediaFile(owner, { mediaAssetId, file });
     return ownerMobileCorsJson(request, result, undefined, WRITE_CORS);

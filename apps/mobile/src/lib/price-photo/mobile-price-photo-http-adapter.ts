@@ -348,13 +348,13 @@ export function createMobilePricePhotoHttpAdapter(options: {
     if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
     return responseJson<T>(await fetchImpl(`${origin}${path}`, { ...init, headers, credentials: "omit" }));
   };
-  const pcUpload = async <T>(path: string, form: FormData, signal: AbortSignal) => {
+  const pcUpload = async <T>(path: string, body: Record<string, unknown>, signal: AbortSignal) => {
     const token = await accessToken();
     if (!token) throw new MobilePricePhotoAuthenticationError();
     const response = await fetchImpl(`${origin}${path}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
       credentials: "omit",
       signal,
     });
@@ -439,11 +439,19 @@ export function createMobilePricePhotoHttpAdapter(options: {
 
       try {
         if (intent.upload.method === "SERVER_PROXY") {
-          const form = new FormData();
-          form.append("shopId", options.shopId);
-          form.append("mediaAssetId", reference);
-          form.append("file", uploadFile, uploadFile.name);
-          await pcUpload("/api/owner/media/upload", form, context.signal);
+          const bytes = new Uint8Array(await uploadFile.arrayBuffer());
+          let binary = "";
+          const chunkSize = 0x8000;
+          for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+          }
+          await pcUpload("/api/owner/media/upload", {
+            shopId: options.shopId,
+            mediaAssetId: reference,
+            fileName: uploadFile.name,
+            contentType: uploadFile.type,
+            fileBase64: btoa(binary),
+          }, context.signal);
         } else if (intent.upload.signedUrl && intent.upload.method === "PUT") {
           const uploaded = await fetchImpl(intent.upload.signedUrl, { method: "PUT", headers: { "Content-Type": uploadFile.type, ...(intent.upload.headers ?? {}) }, body: uploadFile, signal: context.signal });
           if (!uploaded.ok) throw new MobilePricePhotoStageError("upload");

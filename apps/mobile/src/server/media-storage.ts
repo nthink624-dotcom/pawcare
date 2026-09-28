@@ -32,10 +32,19 @@ const AWS_REGION = "auto";
 const AWS_SERVICE = "s3";
 const UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
 
+function hasCompleteR2Config() {
+  return Boolean(
+    process.env.R2_ACCOUNT_ID?.trim() &&
+      process.env.R2_ACCESS_KEY_ID?.trim() &&
+      process.env.R2_SECRET_ACCESS_KEY?.trim(),
+  );
+}
+
 function getMediaStorageProvider(): StorageProvider {
-  return process.env.MEDIA_STORAGE_PROVIDER === "r2" || process.env.VERCEL_ENV === "production"
-    ? "r2"
-    : "supabase";
+  const r2Requested = process.env.MEDIA_STORAGE_PROVIDER === "r2" || process.env.VERCEL_ENV === "production";
+  // Keep private uploads available during a partially configured R2 rollout.
+  // Production still uses R2 whenever all required credentials are present.
+  return r2Requested && hasCompleteR2Config() ? "r2" : "supabase";
 }
 
 function getMediaStorageProviderForPath(path: string): StorageProvider {

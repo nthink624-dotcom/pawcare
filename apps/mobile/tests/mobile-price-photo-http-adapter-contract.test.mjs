@@ -33,8 +33,17 @@ const matrixModule = transpile(matrixSource, (specifier) => {
   if (specifier === "./mobile-price-photo-adapter") return coordinatorModule;
   throw new Error(`unexpected import: ${specifier}`);
 });
+const compressionModule = {
+  compressImageForPetmanager: async (file) => ({
+    file,
+    width: 100,
+    height: 100,
+    sourceByteSize: file.size,
+  }),
+};
 const adapterModule = transpile(source, (specifier) => {
   if (specifier === "@/lib/api") return { getAccessTokenWithRecovery: async () => "token" };
+  if (specifier === "@/lib/media/client-image-compression") return compressionModule;
   if (specifier === "@/lib/supabase/client") return { getSupabaseBrowserClient: () => null };
   if (specifier === "./mobile-price-photo-cleanup") return cleanupModule;
   if (specifier === "./mobile-price-photo-adapter") return coordinatorModule;

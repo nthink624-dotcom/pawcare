@@ -1,5 +1,6 @@
 import { getAccessTokenWithRecovery } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { compressImageForPetmanager } from "@/lib/media/client-image-compression";
 
 import type {
   MobilePriceAnalysis,
@@ -372,6 +373,13 @@ export function createMobilePricePhotoHttpAdapter(options: {
   return {
     async uploadTransientPhoto(file, context) {
       await cleanupRegistry.retryPending();
+      let compressed: Awaited<ReturnType<typeof compressImageForPetmanager>>;
+      try {
+        compressed = await compressImageForPetmanager(file);
+      } catch (error) {
+        stageError("upload_intent", error);
+      }
+      const uploadFile = compressed.file;
       const clientCorrelationId = crypto.randomUUID();
       const requestCorrelationFingerprint = await createRequestFingerprint(clientCorrelationId);
       let intent: UploadIntent;
@@ -380,8 +388,8 @@ export function createMobilePricePhotoHttpAdapter(options: {
           method: "POST",
           signal: context.signal,
           body: JSON.stringify({
-            shopId: options.shopId, originalFileName: file.name, contentType: file.type, byteSize: file.size,
-            sourceByteSize: file.size, width: null, height: null, mediaKind: "price_guide_source", visibility: "private",
+            shopId: options.shopId, originalFileName: uploadFile.name, contentType: uploadFile.type, byteSize: uploadFile.size,
+            sourceByteSize: compressed.sourceByteSize, width: compressed.width, height: compressed.height, mediaKind: "price_guide_source", visibility: "private",
             retentionPolicy: "transient", uploadedFrom: "owner_mobile",
             clientCorrelationId,
             requestCorrelationFingerprint,
@@ -410,19 +418,19 @@ export function createMobilePricePhotoHttpAdapter(options: {
 
       try {
         if (intent.upload.method === "PUT" && intent.upload.signedUrl) {
-          const uploaded = await fetchImpl(intent.upload.signedUrl, { method: "PUT", headers: { "Content-Type": file.type, ...(intent.upload.headers ?? {}) }, body: file, signal: context.signal });
+          const uploaded = await fetchImpl(intent.upload.signedUrl, { method: "PUT", headers: { "Content-Type": uploadFile.type, ...(intent.upload.headers ?? {}) }, body: uploadFile, signal: context.signal });
           if (!uploaded.ok) throw new MobilePricePhotoStageError("upload");
         } else {
           const supabase = getSupabaseBrowserClient();
           if (!supabase || !intent.upload.token) throw new MobilePricePhotoStageError("upload");
-          const uploaded = await supabase.storage.from(intent.upload.bucket).uploadToSignedUrl(intent.upload.path, intent.upload.token, file, { contentType: file.type, upsert: false });
+          const uploaded = await supabase.storage.from(intent.upload.bucket).uploadToSignedUrl(intent.upload.path, intent.upload.token, uploadFile, { contentType: uploadFile.type, upsert: false });
           if (uploaded.error) throw new MobilePricePhotoStageError("upload");
         }
 
         try {
           await pcRequest("/api/owner/media/complete", {
             method: "POST", signal: context.signal,
-            body: JSON.stringify({ shopId: options.shopId, mediaAssetId: reference, byteSize: file.size, width: null, height: null }),
+            body: JSON.stringify({ shopId: options.shopId, mediaAssetId: reference, byteSize: uploadFile.size, width: compressed.width, height: compressed.height }),
           });
         } catch (error) {
           stageError("complete", error);

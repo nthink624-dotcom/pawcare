@@ -69,6 +69,15 @@ export async function POST(request: NextRequest) {
           : null,
     });
 
+    if (body.mediaKind === "price_guide_source") {
+      console.log(JSON.stringify({
+        event: "price_guide_photo_upload_transport",
+        provider: result.upload.provider,
+        method: result.upload.method,
+        hasSignedUrl: Boolean(result.upload.signedUrl),
+      }));
+    }
+
     if (requestCorrelationFingerprint) {
       reportPriceGuidePhotoLifecycle({
         requestCorrelationFingerprint,

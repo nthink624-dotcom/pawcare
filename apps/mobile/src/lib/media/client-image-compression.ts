@@ -18,6 +18,7 @@ export type PetmanagerCompressedImage = {
   width: number;
   height: number;
   sourceByteSize: number;
+  base64?: string;
 };
 
 export type PetmanagerCompressedImageVariant = PetmanagerCompressedImage & {
@@ -134,6 +135,7 @@ async function renderCompressedBlob(params: {
 
   return {
     blob,
+    base64: canvas.toDataURL(params.outputType, params.quality).split(",", 2)[1] ?? "",
     width: size.width,
     height: size.height,
   };
@@ -155,7 +157,7 @@ export async function compressImageForPetmanagerFromSession(
     { maxLongEdge: 960, quality: 0.48 },
   ];
 
-  let best: { blob: Blob; width: number; height: number } | null = null;
+  let best: { blob: Blob; base64: string; width: number; height: number } | null = null;
 
   for (const attempt of attempts) {
     const compressed = await renderCompressedBlob({
@@ -182,6 +184,7 @@ export async function compressImageForPetmanagerFromSession(
     width: best.width,
     height: best.height,
     sourceByteSize: file.size,
+    base64: best.base64,
   };
 }
 

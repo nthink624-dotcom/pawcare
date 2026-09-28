@@ -108,9 +108,7 @@ function stageError(stage: MobilePricePhotoFailureStage, error: unknown): never 
 }
 
 async function readFileAsBase64(file: Blob): Promise<string> {
-  // Android WebView can leave FileReader.readAsDataURL pending for a Blob
-  // created by canvas.toBlob. Reading the in-memory Blob buffer avoids that
-  // content-URI/FileReader path entirely.
+  // Fallback for callers that do not have the canvas-produced base64.
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = "";
   const chunkSize = 0x8000;
@@ -511,7 +509,7 @@ export function createMobilePricePhotoHttpAdapter(options: {
             mediaAssetId: reference,
             fileName: uploadFile.name,
             contentType: uploadFile.type,
-            fileBase64: await readFileAsBase64(uploadFile),
+            fileBase64: compressed.base64 ?? await readFileAsBase64(uploadFile),
             }),
             signal: context.signal,
           });

@@ -420,9 +420,31 @@ export function createMobilePricePhotoHttpAdapter(options: {
       cleanupRegistry.acquire(reference);
 
       try {
-        if (intent.upload.method === "PUT" && intent.upload.signedUrl) {
+        if (intent.upload.signedUrl && intent.upload.method === "PUT") {
           const uploaded = await fetchImpl(intent.upload.signedUrl, { method: "PUT", headers: { "Content-Type": uploadFile.type, ...(intent.upload.headers ?? {}) }, body: uploadFile, signal: context.signal });
           if (!uploaded.ok) throw new MobilePricePhotoStageError("upload");
+        } else if (intent.upload.signedUrl && intent.upload.method === "SUPABASE_SIGNED_UPLOAD") {
+          // Use the signed URL returned by the API directly. The Supabase SDK's
+          // uploadToSignedUrl path can hang in Android WebView while uploading a
+          // File-backed FormData body and does not accept the coordinator signal.
+          const timeoutController = new AbortController();
+          const abortUpload = () => timeoutController.abort();
+          const timeoutId = window.setTimeout(abortUpload, 45_000);
+          context.signal.addEventListener("abort", abortUpload, { once: true });
+          try {
+            const body = new FormData();
+            body.append("cacheControl", "3600");
+            body.append("", uploadFile);
+            const uploaded = await fetchImpl(intent.upload.signedUrl, {
+              method: "PUT",
+              body,
+              signal: timeoutController.signal,
+            });
+            if (!uploaded.ok) throw new MobilePricePhotoStageError("upload");
+          } finally {
+            window.clearTimeout(timeoutId);
+            context.signal.removeEventListener("abort", abortUpload);
+          }
         } else {
           const supabase = getSupabaseBrowserClient();
           if (!supabase || !intent.upload.token) throw new MobilePricePhotoStageError("upload");

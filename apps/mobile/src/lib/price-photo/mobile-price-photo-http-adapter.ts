@@ -107,6 +107,20 @@ function stageError(stage: MobilePricePhotoFailureStage, error: unknown): never 
   throw new MobilePricePhotoStageError(stage);
 }
 
+function readFileAsBase64(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read upload file."));
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      const comma = result.indexOf(",");
+      if (comma < 0) return reject(new Error("Could not encode upload file."));
+      resolve(result.slice(comma + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export function getMobilePricePhotoRecoveryMessage(error: unknown) {
   if (!(error instanceof MobilePricePhotoStageError)) {
     return "사진 분석을 완료하지 못했습니다. 사진을 다시 선택해 주세요.";
@@ -439,15 +453,16 @@ export function createMobilePricePhotoHttpAdapter(options: {
 
       try {
         if (intent.upload.method === "SERVER_PROXY" || intent.upload.provider === "server") {
-          // Android WebView can resolve a File-backed fetch without emitting
-          // the request. Send the already-compressed bytes as an ArrayBuffer
-          // so the server receives a plain image body consistently.
-          await pcUpload("/api/owner/media/upload", await uploadFile.arrayBuffer(), {
-            "Content-Type": uploadFile.type,
-            "X-PetManager-Shop-Id": options.shopId,
-            "X-PetManager-Media-Asset-Id": reference,
-            "X-PetManager-File-Name": uploadFile.name,
-          }, context.signal);
+          // Android WebView can fail before emitting a request for File and
+          // ArrayBuffer bodies. The authenticated PC proxy accepts JSON and
+          // decodes the already-compressed image on the server.
+          await pcUpload("/api/owner/media/upload", {
+            shopId: options.shopId,
+            mediaAssetId: reference,
+            fileName: uploadFile.name,
+            contentType: uploadFile.type,
+            fileBase64: await readFileAsBase64(uploadFile),
+          }, { "Content-Type": "application/json" }, context.signal);
         } else if (intent.upload.signedUrl && intent.upload.method === "PUT") {
           const uploaded = await fetchImpl(intent.upload.signedUrl, { method: "PUT", headers: { "Content-Type": uploadFile.type, ...(intent.upload.headers ?? {}) }, body: uploadFile, signal: context.signal });
           if (!uploaded.ok) throw new MobilePricePhotoStageError("upload");

@@ -47,7 +47,7 @@ function hasCompleteR2Config() {
 }
 
 function getMediaStorageProvider(): StorageProvider {
-  const r2Requested = process.env.MEDIA_STORAGE_PROVIDER === "r2" || process.env.VERCEL_ENV === "production";
+  const r2Requested = process.env.MEDIA_STORAGE_PROVIDER === "r2";
   // Keep private media uploads available during a partially configured R2
   // rollout. Once all R2 credentials are present, production continues to use
   // the R2 path exactly as before; without them, Supabase Storage is the safe

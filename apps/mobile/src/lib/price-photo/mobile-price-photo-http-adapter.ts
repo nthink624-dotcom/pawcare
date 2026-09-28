@@ -438,7 +438,7 @@ export function createMobilePricePhotoHttpAdapter(options: {
       cleanupRegistry.acquire(reference);
 
       try {
-        if (intent.upload.method === "SERVER_PROXY") {
+        if (intent.upload.method === "SERVER_PROXY" || intent.upload.provider === "server") {
           await pcUpload("/api/owner/media/upload", uploadFile, {
             "Content-Type": uploadFile.type,
             "X-PetManager-Shop-Id": options.shopId,

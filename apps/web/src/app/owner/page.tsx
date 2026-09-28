@@ -319,11 +319,14 @@ export default function OwnerPage() {
         setData(bootstrap);
         window.performance.mark("petmanager:owner-login:owner-usable");
         backgroundRefreshReadyAtRef.current = Date.now() + 5000;
-        void loadBootstrap(resolvedShopId, "full").then((fullBootstrap) => {
-          if (active) setData(fullBootstrap);
-        }).catch(() => {
-          // Essential data is already authorized and usable; retry deferred data on the normal refresh cycle.
-        });
+        const fullBootstrapTimer = window.setTimeout(() => {
+          if (!active) return;
+          void loadBootstrap(resolvedShopId, "full").then((fullBootstrap) => {
+            if (active) setData(fullBootstrap);
+          }).catch(() => {
+            // Essential data is already authorized and usable; retry deferred data on the normal refresh cycle.
+          });
+        }, 1200);
         void loadSubscription().catch(() => {
           // The bootstrap endpoint already validated access. Keep the home visible if this secondary summary misses.
         });

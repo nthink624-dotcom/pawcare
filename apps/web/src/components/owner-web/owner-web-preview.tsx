@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
-import CalendarManagementScreen, { type OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
+import type { OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import OwnerInitialSetupGuide from "@/components/owner-web/owner-initial-setup-guide";
 import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
@@ -43,6 +43,11 @@ function OwnerScreenLoading() {
     </div>
   );
 }
+
+const CalendarManagementScreen = dynamic(
+  () => import("@/components/owner-web/calendar-management-screen"),
+  { loading: OwnerScreenLoading },
+);
 
 const BookingLinkManagementScreen = dynamic(
   () => import("@/components/owner-web/booking-link-management-screen"),
@@ -465,6 +470,19 @@ export default function OwnerWebPreview({
     }
   }
 
+  function applyLocallyConfirmedInitialSetupStep(step: OwnerInitialSetupStepKey) {
+    const current = ownerDataRef.current;
+    const readiness = deriveOwnerInitialSetupReadiness({
+      shop: current.shop,
+      services: current.services,
+      persistedStaffMembers: current.staffMembers,
+    });
+    if (!readiness.steps[step]) return readiness;
+    const nextData = { ...current, initialSetupReadiness: readiness };
+    applyOwnerData(nextData, true);
+    return readiness;
+  }
+
   function handleOwnerDataChange(nextData: BootstrapPayload) {
     if (nextData === ownerDataRef.current) return;
     // Ordinary child updates (including the customer screen's local bootstrap)
@@ -508,9 +526,17 @@ export default function OwnerWebPreview({
           verifyAcknowledged: (acknowledged) => hasAcknowledgedStaffPreferences(nextStaff, acknowledged.staffMembers),
           applyAcknowledged: (acknowledged) => {
             if (ownerDataRef.current.shop.id !== shopId) return;
-            const acknowledgedOwnerData = { ...ownerDataRef.current, staffMembers: acknowledged.staffMembers };
+            const acknowledgedOwnerData = {
+              ...ownerDataRef.current,
+              staffMembers: acknowledged.staffMembers,
+              initialSetupReadiness: deriveOwnerInitialSetupReadiness({
+                shop: ownerDataRef.current.shop,
+                services: ownerDataRef.current.services,
+                persistedStaffMembers: acknowledged.staffMembers,
+              }),
+            };
             setLiveStaffMembers(acknowledged.staffMembers);
-            applyOwnerData(acknowledgedOwnerData);
+            applyOwnerData(acknowledgedOwnerData, true);
           },
           refresh: () => fetchApiJsonWithAuth<BootstrapPayload>(
             `/api/bootstrap?shopId=${encodeURIComponent(shopId)}&phase=essential`,
@@ -599,16 +625,36 @@ export default function OwnerWebPreview({
   ) {
     setInitialSetupSyncError(null);
     try {
-      const refreshed = canonicalBootstrap
-        ? canonicalBootstrap
-        : await refreshInitialSetupReadiness();
+      let refreshed: BootstrapPayload;
+      try {
+        refreshed = canonicalBootstrap ?? await refreshInitialSetupReadiness();
+      } catch {
+        const locallyConfirmed = applyLocallyConfirmedInitialSetupStep(step);
+        if (locallyConfirmed.steps[step]) {
+          // The write already succeeded. A transient verification miss must not
+          // make the owner repeat a successful setup action.
+          void refreshInitialSetupReadiness().catch(() => undefined);
+          return;
+        }
+        throw new Error("저장된 설정에서 필수 항목을 확인하지 못했어요.");
+      }
       if (canonicalBootstrap) {
         if (canonicalBootstrap.shop.id !== ownerDataRef.current.shop.id) {
           throw new Error("다른 매장의 설정 결과는 적용할 수 없습니다.");
         }
         applyOwnerData(canonicalBootstrap, true);
       }
-      const readiness = getBootstrapOwnerInitialSetupReadiness(refreshed);
+      let readiness = getBootstrapOwnerInitialSetupReadiness(refreshed);
+      if (!readiness.steps[step] && !canonicalBootstrap) {
+        // Some writes become visible to the read path a moment after the
+        // mutation response. Give the authoritative check one short retry.
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+        const retried = await refreshInitialSetupReadiness().catch(() => null);
+        if (retried) {
+          refreshed = retried;
+          readiness = getBootstrapOwnerInitialSetupReadiness(refreshed);
+        }
+      }
       if (!readiness.steps[step]) {
         setInitialSetupSyncError("저장된 설정에서 필수 항목을 확인하지 못했어요. 입력값을 확인한 뒤 다시 저장해 주세요.");
         return;
@@ -621,7 +667,7 @@ export default function OwnerWebPreview({
         }).catch(() => undefined);
       }
     } catch {
-      setInitialSetupSyncError("저장은 요청했지만 최신 설정 상태를 확인하지 못했어요. 입력값은 유지되니 다시 저장해 주세요.");
+      setInitialSetupSyncError("저장된 설정에서 필수 항목을 확인하지 못했어요. 입력값을 확인한 뒤 다시 저장해 주세요.");
     }
   }
 

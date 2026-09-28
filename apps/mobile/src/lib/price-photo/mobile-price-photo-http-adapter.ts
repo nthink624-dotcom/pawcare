@@ -375,7 +375,10 @@ export function createMobilePricePhotoHttpAdapter(options: {
       await cleanupRegistry.retryPending();
       let compressed: Awaited<ReturnType<typeof compressImageForPetmanager>>;
       try {
-        compressed = await compressImageForPetmanager(file);
+        // Some Android WebViews report WebP support but return a much larger
+        // fallback blob for canvas.toBlob. JPEG keeps this upload under the
+        // server's 2 MB compressed-media limit for price-guide photos.
+        compressed = await compressImageForPetmanager(file, { outputType: "image/jpeg" });
       } catch (error) {
         stageError("upload_intent", error);
       }

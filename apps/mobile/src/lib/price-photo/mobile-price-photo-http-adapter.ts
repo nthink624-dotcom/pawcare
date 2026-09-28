@@ -378,7 +378,13 @@ export function createMobilePricePhotoHttpAdapter(options: {
         // Some Android WebViews report WebP support but return a much larger
         // fallback blob for canvas.toBlob. JPEG keeps this upload under the
         // server's 2 MB compressed-media limit for price-guide photos.
-        compressed = await compressImageForPetmanager(file, { outputType: "image/jpeg" });
+        compressed = await compressImageForPetmanager(file, {
+          // Keep canvas JPEG work small enough for Android WebView before the
+          // upload-intent request; the original 1600px pass could stall here.
+          maxLongEdge: 960,
+          quality: 0.48,
+          outputType: "image/jpeg",
+        });
       } catch (error) {
         stageError("upload_intent", error);
       }

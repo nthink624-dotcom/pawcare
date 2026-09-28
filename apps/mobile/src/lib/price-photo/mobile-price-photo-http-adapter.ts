@@ -30,7 +30,7 @@ type UploadIntent = {
     assetFingerprint?: string | null;
     objectLifecycleFingerprint?: string | null;
   } | null;
-  upload: { bucket: string; path: string; signedUrl?: string; token?: string | null; method?: string; headers?: Record<string, string> };
+  upload: { bucket: string; path: string; provider?: string; signedUrl?: string; token?: string | null; method?: string; headers?: Record<string, string> };
 };
 type ImportResponse = {
   document: MobilePriceGuideV2;

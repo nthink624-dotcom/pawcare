@@ -1,5 +1,4 @@
 import { getAccessTokenWithRecovery } from "@/lib/api";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { compressImageForPetmanager } from "@/lib/media/client-image-compression";
 
 import type {
@@ -349,6 +348,18 @@ export function createMobilePricePhotoHttpAdapter(options: {
     if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
     return responseJson<T>(await fetchImpl(`${origin}${path}`, { ...init, headers, credentials: "omit" }));
   };
+  const pcUpload = async <T>(path: string, form: FormData, signal: AbortSignal) => {
+    const token = await accessToken();
+    if (!token) throw new MobilePricePhotoAuthenticationError();
+    const response = await fetchImpl(`${origin}${path}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+      credentials: "omit",
+      signal,
+    });
+    return responseJson<T>(response);
+  };
 
   const cleanupRegistry = createTransientCleanupRegistry(async (reference) => {
     const binding = cleanupBindingByReference.get(reference);
@@ -427,7 +438,13 @@ export function createMobilePricePhotoHttpAdapter(options: {
       cleanupRegistry.acquire(reference);
 
       try {
-        if (intent.upload.signedUrl && intent.upload.method === "PUT") {
+        if (intent.upload.method === "SERVER_PROXY") {
+          const form = new FormData();
+          form.append("shopId", options.shopId);
+          form.append("mediaAssetId", reference);
+          form.append("file", uploadFile, uploadFile.name);
+          await pcUpload("/api/owner/media/upload", form, context.signal);
+        } else if (intent.upload.signedUrl && intent.upload.method === "PUT") {
           const uploaded = await fetchImpl(intent.upload.signedUrl, { method: "PUT", headers: { "Content-Type": uploadFile.type, ...(intent.upload.headers ?? {}) }, body: uploadFile, signal: context.signal });
           if (!uploaded.ok) throw new MobilePricePhotoStageError("upload");
         } else if (intent.upload.signedUrl && intent.upload.method === "SUPABASE_SIGNED_UPLOAD") {
@@ -453,10 +470,7 @@ export function createMobilePricePhotoHttpAdapter(options: {
             context.signal.removeEventListener("abort", abortUpload);
           }
         } else {
-          const supabase = getSupabaseBrowserClient();
-          if (!supabase || !intent.upload.token) throw new MobilePricePhotoStageError("upload");
-          const uploaded = await supabase.storage.from(intent.upload.bucket).uploadToSignedUrl(intent.upload.path, intent.upload.token, uploadFile, { contentType: uploadFile.type, upsert: false });
-          if (uploaded.error) throw new MobilePricePhotoStageError("upload");
+          throw new MobilePricePhotoStageError("upload");
         }
 
         try {

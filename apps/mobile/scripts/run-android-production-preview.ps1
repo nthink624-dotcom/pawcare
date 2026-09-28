@@ -6,7 +6,7 @@ $productionOrigin = if ($env:CAPACITOR_PRODUCTION_SERVER_URL) {
 } else {
   "https://app.petmanager.co.kr"
 }
-$serverUrl = $productionOrigin + "/login"
+$serverUrl = $productionOrigin + "/owner/mobile"
 $apiBaseUrl = if ($env:CAPACITOR_PRODUCTION_API_BASE_URL) {
   $env:CAPACITOR_PRODUCTION_API_BASE_URL.TrimEnd("/")
 } else {

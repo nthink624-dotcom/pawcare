@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [string]$ExpectedServerUrl = "https://app.petmanager.co.kr/login",
+  [string]$ExpectedServerUrl = "https://app.petmanager.co.kr/owner/mobile",
   [string]$ExpectedApiBaseUrl = "https://www.petmanager.co.kr",
   [string]$NativeRootPath,
   [string]$NativeConfigPath,
@@ -152,9 +152,9 @@ if (-not $SkipLiveCheck) {
   $client = [System.Net.Http.HttpClient]::new($handler)
   $client.Timeout = [TimeSpan]::FromSeconds(20)
   try {
-    $loginResponse = $client.GetAsync($serverUri).GetAwaiter().GetResult()
-    if ([int]$loginResponse.StatusCode -ne 200) {
-      throw "Release login returned HTTP $([int]$loginResponse.StatusCode)."
+    $appResponse = $client.GetAsync($serverUri).GetAwaiter().GetResult()
+    if ([int]$appResponse.StatusCode -ne 200) {
+      throw "Release mobile app returned HTTP $([int]$appResponse.StatusCode)."
     }
 
     $ownerUri = [Uri]::new($serverUri, "/owner/mobile")

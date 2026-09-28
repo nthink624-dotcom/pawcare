@@ -10,7 +10,7 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const checkerPath = path.join(projectRoot, "scripts", "assert-android-release-endpoints.ps1");
 const productionServerOrigin = "https://app.petmanager.co.kr";
 const productionApiOrigin = "https://www.petmanager.co.kr";
-const productionServerUrl = `${productionServerOrigin}/login`;
+const productionServerUrl = `${productionServerOrigin}/owner/mobile`;
 const powershell = process.platform === "win32" ? "powershell.exe" : "pwsh";
 
 const source = (relativePath) => readFile(path.join(projectRoot, relativePath), "utf8");
@@ -55,7 +55,7 @@ test("Android release keeps the mobile shell on app origin and uses the canonica
   assert.match(previewScript, /https:\/\/www\.petmanager\.co\.kr/);
   assert.doesNotMatch(releaseScript, /petmanager-app\.vercel\.app/);
   assert.doesNotMatch(previewScript, /petmanager-app\.vercel\.app/);
-  assert.match(localScript, /http:\/\/127\.0\.0\.1:3100\/login/);
+  assert.match(localScript, /http:\/\/127\.0\.0\.1:3100\/owner\/mobile/);
   assert.match(localScript, /CAPACITOR_BUILD_MODE = "development"/);
   assert.match(checkerScript, /base\/assets\/capacitor\.config\.json/);
   assert.match(checkerScript, /localhost\|127\\\.0\\\.0\\\.1/);
@@ -91,7 +91,7 @@ test("release endpoint checker accepts canonical config and rejects local releas
     await rm(path.join(assetsRoot, "runtime.js"), { force: true });
     await writeFile(
       configPath,
-      JSON.stringify({ server: { url: "http://127.0.0.1:3100/login", cleartext: true } }),
+      JSON.stringify({ server: { url: "http://127.0.0.1:3100/owner/mobile", cleartext: true } }),
       "utf8",
     );
     const localServer = runChecker(fixtureRoot, configPath);

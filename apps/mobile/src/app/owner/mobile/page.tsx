@@ -464,16 +464,22 @@ export default function OwnerMobilePage() {
         // A previously selected shop is only a performance hint. Start its
         // authenticated bootstrap in parallel, then accept it only after the
         // current membership list confirms the same shop ID.
-        const cachedBootstrapRequest = storedShopId
-          ? fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
-              `/api/bootstrap?shopId=${encodeURIComponent(storedShopId)}&phase=launch`,
-              { cache: "no-store" },
-            ).then(
-              (payload) => ({ ok: true as const, payload }),
-              (error) => ({ ok: false as const, error }),
-            )
-          : null;
-        const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops");
+        // The launch snapshot and the membership list do not depend on each
+        // other. Starting both requests together removes the previous
+        // auth -> shops -> bootstrap waterfall from the first mobile paint.
+        // When no shop has been selected yet, the owner API resolves the
+        // first accessible shop and still returns a canonical shop boundary.
+        const launchBootstrapRequest = fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
+          storedShopId
+            ? `/api/bootstrap?shopId=${encodeURIComponent(storedShopId)}&phase=launch`
+            : "/api/bootstrap?phase=launch",
+          { cache: "no-store" },
+        ).then(
+          (payload) => ({ ok: true as const, payload }),
+          (error) => ({ ok: false as const, error }),
+        );
+        const shopsRequest = fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops");
+        const [shops, launchBootstrap] = await Promise.all([shopsRequest, launchBootstrapRequest]);
         if (!active) return;
         const resolvedShopId =
           (storedShopId && shops.some((shop) => shop.id === storedShopId) ? storedShopId : shops[0]?.id) ?? null;
@@ -494,18 +500,13 @@ export default function OwnerMobilePage() {
           window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
         }
 
-        const cachedBootstrap = storedShopId === resolvedShopId && cachedBootstrapRequest
-          ? await cachedBootstrapRequest
-          : null;
-        if (cachedBootstrap && !cachedBootstrap.ok) {
-          throw cachedBootstrap.error;
-        }
-        const bootstrap = cachedBootstrap?.ok
-          ? cachedBootstrap.payload
-          : await fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
-              `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}&phase=launch`,
-              { cache: "no-store" },
-            );
+        const bootstrap =
+          launchBootstrap.ok && launchBootstrap.payload.shop?.id === resolvedShopId
+            ? launchBootstrap.payload
+            : await fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
+                `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}&phase=launch`,
+                { cache: "no-store" },
+              );
         if (!active) return;
 
         const canonicalBootstrap = assertOwnerBootstrapPayload(bootstrap, resolvedShopId, {

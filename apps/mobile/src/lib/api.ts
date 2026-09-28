@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { buildMobileApiUrl, getMobileApiOrigin } from "@/lib/env";
+import { readOwnerAuthTokenCache, setCurrentOwnerAccessToken } from "@/lib/auth/owner-auth-handoff";
 import type { BootstrapPayload } from "@/types/domain";
 
 export type PublicBootstrapPayload = Pick<
@@ -75,6 +76,12 @@ export async function getPublicBootstrap(shopId?: string) {
 }
 
 export async function getAccessTokenWithRecovery() {
+  const cachedAccessToken = readOwnerAuthTokenCache();
+  if (cachedAccessToken) {
+    setCurrentOwnerAccessToken(cachedAccessToken);
+    return cachedAccessToken;
+  }
+
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
     throw new Error("Supabase 연결을 확인할 수 없습니다.");

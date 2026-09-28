@@ -456,13 +456,13 @@ export function createMobilePricePhotoHttpAdapter(options: {
           // Android WebView can fail before emitting a request for File and
           // ArrayBuffer bodies. The authenticated PC proxy accepts JSON and
           // decodes the already-compressed image on the server.
-          await pcUpload("/api/owner/media/upload", {
+          await pcUpload("/api/owner/media/upload", JSON.stringify({
             shopId: options.shopId,
             mediaAssetId: reference,
             fileName: uploadFile.name,
             contentType: uploadFile.type,
             fileBase64: await readFileAsBase64(uploadFile),
-          }, { "Content-Type": "application/json" }, context.signal);
+          }), { "Content-Type": "application/json" }, context.signal);
         } else if (intent.upload.signedUrl && intent.upload.method === "PUT") {
           const uploaded = await fetchImpl(intent.upload.signedUrl, { method: "PUT", headers: { "Content-Type": uploadFile.type, ...(intent.upload.headers ?? {}) }, body: uploadFile, signal: context.signal });
           if (!uploaded.ok) throw new MobilePricePhotoStageError("upload");

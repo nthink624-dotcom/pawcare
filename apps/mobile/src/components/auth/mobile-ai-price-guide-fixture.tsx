@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import SetupModal from "@/components/ui/setup-modal";
 import MobilePriceGuideMatrix from "@/components/auth/mobile-price-guide-matrix";
+import { getMobileApiOrigin } from "@/lib/env";
 import { canUseExternalCameraApps, captureWithAndroidCameraApp } from "@/lib/media/external-camera";
 import { createMobilePriceGuideSkeleton } from "@/lib/price-photo/mobile-price-guide-matrix";
 import { createMobilePricePhotoCoordinator, type MobilePriceGuideV2, type MobilePriceKind } from "@/lib/price-photo/mobile-price-photo-adapter";
@@ -128,8 +129,12 @@ export default function MobileAiPriceGuideFixture({
 
   useEffect(() => {
     if (!shopId) return;
-    const backendOrigin = process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (!backendOrigin) {
+    let backendOrigin: string;
+    try {
+      // Keep this flow on the canonical API origin. The mobile Vercel project
+      // also serves the UI, but media/AI writes belong to the web API project.
+      backendOrigin = getMobileApiOrigin();
+    } catch {
       coordinatorRef.current = null;
       return;
     }

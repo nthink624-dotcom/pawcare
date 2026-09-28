@@ -77,11 +77,22 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
-        if (!blob) {
-          reject(new Error("Could not compress image."));
+        if (blob) {
+          resolve(blob);
           return;
         }
-        resolve(blob);
+        // Some Android WebViews return null from toBlob for a canvas output
+        // type even though toDataURL supports the same encoder.
+        try {
+          const dataUrl = canvas.toDataURL(type, quality);
+          const comma = dataUrl.indexOf(",");
+          if (comma < 0) throw new Error("Invalid canvas data URL.");
+          const binary = atob(dataUrl.slice(comma + 1));
+          const bytes = Uint8Array.from(binary, (value) => value.charCodeAt(0));
+          resolve(new Blob([bytes], { type }));
+        } catch {
+          reject(new Error("Could not compress image."));
+        }
       },
       type,
       quality,

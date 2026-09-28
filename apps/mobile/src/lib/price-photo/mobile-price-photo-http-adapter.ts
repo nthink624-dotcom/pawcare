@@ -121,6 +121,52 @@ function readFileAsBase64(file: Blob): Promise<string> {
   });
 }
 
+function uploadJsonWithWebViewXhr<T>(input: {
+  url: string;
+  token: string;
+  body: string;
+  signal: AbortSignal;
+}): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      input.signal.removeEventListener("abort", abort);
+      callback();
+    };
+    const abort = () => {
+      xhr.abort();
+      finish(() => reject(new DOMException("The operation was aborted.", "AbortError")));
+    };
+
+    xhr.open("POST", input.url, true);
+    xhr.setRequestHeader("Authorization", `Bearer ${input.token}`);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.timeout = 45_000;
+    xhr.onload = () => {
+      finish(() => {
+        const response = new Response(xhr.responseText, {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          headers: { "Content-Type": xhr.getResponseHeader("Content-Type") ?? "application/json" },
+        });
+        void responseJson<T>(response).then(resolve, reject);
+      });
+    };
+    xhr.onerror = () => finish(() => reject(new Error("Could not upload media.")));
+    xhr.ontimeout = () => finish(() => reject(new Error("Media upload timed out.")));
+    xhr.onabort = () => finish(() => reject(new DOMException("The operation was aborted.", "AbortError")));
+    input.signal.addEventListener("abort", abort, { once: true });
+    if (input.signal.aborted) {
+      abort();
+      return;
+    }
+    xhr.send(input.body);
+  });
+}
+
 export function getMobilePricePhotoRecoveryMessage(error: unknown) {
   if (!(error instanceof MobilePricePhotoStageError)) {
     return "사진 분석을 완료하지 못했습니다. 사진을 다시 선택해 주세요.";
@@ -456,13 +502,20 @@ export function createMobilePricePhotoHttpAdapter(options: {
           // Android WebView can fail before emitting a request for File and
           // ArrayBuffer bodies. The authenticated PC proxy accepts JSON and
           // decodes the already-compressed image on the server.
-          await pcUpload("/api/owner/media/upload", JSON.stringify({
+          const token = await accessToken();
+          if (!token) throw new MobilePricePhotoAuthenticationError();
+          await uploadJsonWithWebViewXhr({
+            url: `${origin}/api/owner/media/upload`,
+            token,
+            body: JSON.stringify({
             shopId: options.shopId,
             mediaAssetId: reference,
             fileName: uploadFile.name,
             contentType: uploadFile.type,
             fileBase64: await readFileAsBase64(uploadFile),
-          }), { "Content-Type": "application/json" }, context.signal);
+            }),
+            signal: context.signal,
+          });
         } else if (intent.upload.signedUrl && intent.upload.method === "PUT") {
           const uploaded = await fetchImpl(intent.upload.signedUrl, { method: "PUT", headers: { "Content-Type": uploadFile.type, ...(intent.upload.headers ?? {}) }, body: uploadFile, signal: context.signal });
           if (!uploaded.ok) throw new MobilePricePhotoStageError("upload");

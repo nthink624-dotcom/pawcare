@@ -12,7 +12,12 @@ export async function POST(request: NextRequest) {
     let shopId: string | undefined;
     let mediaAssetId = "";
     let file: File;
-    if (contentType.includes("application/json")) {
+    if (contentType.startsWith("image/")) {
+      shopId = request.headers.get("x-petmanager-shop-id") ?? undefined;
+      mediaAssetId = request.headers.get("x-petmanager-media-asset-id") ?? "";
+      const bytes = Buffer.from(await request.arrayBuffer());
+      file = new File([bytes], request.headers.get("x-petmanager-file-name") ?? "price-guide.webp", { type: contentType });
+    } else if (contentType.includes("application/json")) {
       const body = (await request.json()) as Record<string, unknown>;
       shopId = typeof body.shopId === "string" ? body.shopId : undefined;
       mediaAssetId = typeof body.mediaAssetId === "string" ? body.mediaAssetId : "";

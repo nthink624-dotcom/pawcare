@@ -31,6 +31,9 @@ public class OwnerCallScreeningService extends CallScreeningService {
         if (handle == null) return;
         String callerNumber = handle.getSchemeSpecificPart();
         if (callerNumber == null || callerNumber.trim().isEmpty()) return;
+        // Only process phone numbers synced from this shop's PetManager customers.
+        // Personal and unknown calls are still allowed normally and never uploaded.
+        if (!OwnerCallScreeningStore.isAllowedCallerNumber(this, callerNumber)) return;
 
         try {
             JSONObject config = OwnerCallScreeningStore.getConfig(this);
@@ -53,6 +56,7 @@ public class OwnerCallScreeningService extends CallScreeningService {
             activeCall.put("activeCallerNumber", callerNumber);
             activeCall.put("activeAnswered", false);
             OwnerCallScreeningStore.configure(this, activeCall);
+            OwnerCallNotification.showIncoming(this, providerCallId, callerNumber);
 
             new Thread(() -> OwnerCallScreeningTransport.sendOrQueue(this, event), "petmanager-call-upload").start();
         } catch (Exception ignored) {

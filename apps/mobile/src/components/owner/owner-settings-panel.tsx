@@ -34,6 +34,7 @@ import {
   getPublicLegalTelHref,
 } from "@/lib/legal/public-legal-links";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes } from "@/lib/utils";
+import type { OwnerCallReservationAction } from "@/lib/owner-call-screening";
 import type { BootstrapPayload, BootstrapStaffMember, BusinessHours } from "@/types/domain";
 
 type SettingsPanelProps = {
@@ -52,6 +53,7 @@ type SettingsPanelProps = {
   onOpenFeedback?: () => void;
   feedbackTriggerRef?: RefObject<HTMLButtonElement | null>;
   isTesterFeedback?: boolean;
+  pendingReservationAction?: OwnerCallReservationAction | null;
 };
 
 type MobileAppRole = "owner" | "staff";
@@ -252,6 +254,7 @@ export default function OwnerSettingsPanel({
   onOpenFeedback,
   feedbackTriggerRef,
   isTesterFeedback = false,
+  pendingReservationAction = null,
 }: SettingsPanelProps) {
   const appUpdateState = useOwnerPlayUpdateSnapshot();
   const initialAddressParts = parseShopAddressParts(data.shop.address);
@@ -1404,7 +1407,7 @@ export default function OwnerSettingsPanel({
     />
   );
 
-  const catchCallSection = <OwnerCatchCallPanel data={data} onBack={() => updateActiveScreen(null)} />;
+  const catchCallSection = <OwnerCatchCallPanel data={data} pendingReservationAction={pendingReservationAction} />;
 
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     shop: { title: "매장 기본 정보", content: shopSection },

@@ -1,7 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+
+const CALL_EVENTS_CORS = { methods: "GET, OPTIONS" } as const;
+
+function responseMessage(request: NextRequest, message: string, status: number) {
+  return ownerMobileCorsJson(request, { message }, { status }, CALL_EVENTS_CORS);
+}
 
 function parseLimit(value: string | null) {
   const parsed = Number.parseInt(value ?? "50", 10);
@@ -47,7 +54,7 @@ export async function GET(request: NextRequest) {
     }
     if (result.error) throw new OwnerApiError("콜아이디 기록을 확인하지 못했습니다.", 500);
 
-    return NextResponse.json({
+    return ownerMobileCorsJson(request, {
       events: (result.data ?? []).map((row) => {
         const matchedGuardian = Array.isArray(row.matched_guardian) ? row.matched_guardian[0] : row.matched_guardian;
         return {
@@ -67,9 +74,13 @@ export async function GET(request: NextRequest) {
           : null,
         };
       }),
-    });
+    }, undefined, CALL_EVENTS_CORS);
   } catch (error) {
-    if (error instanceof OwnerApiError) return NextResponse.json({ message: error.message }, { status: error.status });
-    return NextResponse.json({ message: "콜아이디 기록을 확인하지 못했습니다." }, { status: 500 });
+    if (error instanceof OwnerApiError) return responseMessage(request, error.message, error.status);
+    return responseMessage(request, "콜아이디 기록을 확인하지 못했습니다.", 500);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return ownerMobileCorsPreflight(request, CALL_EVENTS_CORS);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Store } from "lucide-react";
 
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import { Switch } from "@/components/ui/switch";
@@ -251,19 +251,10 @@ export function CustomerDetailHistoryPagination({
   );
 }
 
-function getShopInitials(name: string) {
-  const compact = name.replace(/\s+/g, "");
-  return compact.slice(0, 2) || "펫";
-}
-
-export function ShopAvatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
-  if (imageUrl) {
-    return <img src={imageUrl} alt={`${name} 대표 이미지`} className="h-9 w-9 shrink-0 rounded-full border border-[#dce4ef] object-cover shadow-[0_2px_8px_rgba(15,23,42,0.05)]" />;
-  }
-
+export function ShopAvatar({ name }: { name: string; imageUrl?: string | null }) {
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dce4ef] bg-[#f8fafc] text-[12px] font-medium tracking-[-0.03em] text-[#475569] shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
-      {getShopInitials(name)}
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dce4ef] bg-[#f8fafc] text-[#475569] shadow-[0_2px_8px_rgba(15,23,42,0.05)]" aria-label={`${name} 매장 아이콘`}>
+      <Store className="h-4 w-4" aria-hidden="true" />
     </div>
   );
 }

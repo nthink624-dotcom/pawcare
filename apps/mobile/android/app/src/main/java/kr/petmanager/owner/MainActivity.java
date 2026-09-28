@@ -1,5 +1,6 @@
 package kr.petmanager.owner;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 
@@ -22,6 +23,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(OwnerPlayUpdatePlugin.class);
         registerPlugin(OwnerCallScreeningPlugin.class);
         super.onCreate(savedInstanceState);
+        handleCallIntent(getIntent());
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -31,6 +33,28 @@ public class MainActivity extends BridgeActivity {
             }
         });
 
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleCallIntent(intent);
+    }
+
+    private void handleCallIntent(Intent intent) {
+        if (intent != null && OwnerCallNotification.ACTION_ADD_RESERVATION.equals(intent.getAction())) {
+            OwnerCallScreeningStore.setPendingReservationAction(
+                this,
+                intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID),
+                intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER)
+            );
+            OwnerCallNotification.cancel(this, intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID));
+        }
+        PluginHandle handle = getBridge() == null ? null : getBridge().getPlugin("OwnerCallScreening");
+        if (handle != null && handle.getInstance() instanceof OwnerCallScreeningPlugin) {
+            ((OwnerCallScreeningPlugin) handle.getInstance()).handleReservationIntent(intent);
+        }
     }
 
     private boolean dismissKeyboardIfVisible() {

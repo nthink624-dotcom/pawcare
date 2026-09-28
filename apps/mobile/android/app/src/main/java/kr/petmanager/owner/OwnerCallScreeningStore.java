@@ -11,7 +11,6 @@ import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
-import java.security.SecureRandom;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -69,6 +68,67 @@ final class OwnerCallScreeningStore {
 
     static synchronized JSONObject getConfig(Context context) {
         return readObject(context, CONFIG_KEY);
+    }
+
+    static synchronized void setPendingReservationAction(Context context, String providerCallId, String callerNumber) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        try {
+            config.put("pendingReservationProviderCallId", providerCallId == null ? "" : providerCallId);
+            config.put("pendingReservationCallerNumber", callerNumber == null ? "" : callerNumber);
+        } catch (Exception ignored) {
+            return;
+        }
+        writeObject(context, CONFIG_KEY, config);
+    }
+
+    static synchronized JSONObject getPendingReservationAction(Context context) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        JSONObject action = new JSONObject();
+        try {
+            String providerCallId = config.optString("pendingReservationProviderCallId", "").trim();
+            String callerNumber = config.optString("pendingReservationCallerNumber", "").trim();
+            action.put("pending", !providerCallId.isEmpty() || !callerNumber.isEmpty());
+            action.put("providerCallId", providerCallId);
+            action.put("callerNumber", callerNumber);
+        } catch (Exception ignored) {
+            return new JSONObject();
+        }
+        return action;
+    }
+
+    static synchronized void clearPendingReservationAction(Context context) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        config.remove("pendingReservationProviderCallId");
+        config.remove("pendingReservationCallerNumber");
+        writeObject(context, CONFIG_KEY, config);
+    }
+
+    static synchronized void setAllowedPhoneNumbers(Context context, JSONArray phoneNumbers) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        try {
+            config.put("allowedPhoneNumbers", phoneNumbers == null ? new JSONArray() : phoneNumbers);
+        } catch (Exception ignored) {
+            return;
+        }
+        writeObject(context, CONFIG_KEY, config);
+    }
+
+    static synchronized boolean isAllowedCallerNumber(Context context, String callerNumber) {
+        String normalized = normalizePhoneNumber(callerNumber);
+        if (normalized.isEmpty()) return false;
+        JSONArray allowed = readObject(context, CONFIG_KEY).optJSONArray("allowedPhoneNumbers");
+        if (allowed == null) return false;
+        for (int index = 0; index < allowed.length(); index += 1) {
+            if (normalized.equals(normalizePhoneNumber(allowed.optString(index, "")))) return true;
+        }
+        return false;
+    }
+
+    private static String normalizePhoneNumber(String value) {
+        if (value == null) return "";
+        String digits = value.replaceAll("[^0-9]", "");
+        if (digits.startsWith("82") && digits.length() >= 10) return "0" + digits.substring(2);
+        return digits;
     }
 
     static synchronized void enqueue(Context context, JSONObject event) {
@@ -138,8 +198,13 @@ final class OwnerCallScreeningStore {
     private static String encrypt(String plaintext) {
         try {
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, getKey(), new GCMParameterSpec(128, randomNonce()));
+            // Let AndroidKeyStore generate the GCM IV. Android 16 rejects
+            // caller-provided IVs for keys whose purpose includes encryption.
+            cipher.init(Cipher.ENCRYPT_MODE, getKey());
             byte[] nonce = cipher.getIV();
+            if (nonce == null || nonce.length == 0) {
+                throw new IllegalStateException("call screening storage returned no encryption IV");
+            }
             byte[] ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
             byte[] combined = new byte[nonce.length + ciphertext.length];
             System.arraycopy(nonce, 0, combined, 0, nonce.length);
@@ -159,12 +224,6 @@ final class OwnerCallScreeningStore {
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.DECRYPT_MODE, getKey(), new GCMParameterSpec(128, nonce));
         return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
-    }
-
-    private static byte[] randomNonce() {
-        byte[] nonce = new byte[12];
-        new SecureRandom().nextBytes(nonce);
-        return nonce;
     }
 
     private static SecretKey getKey() throws Exception {

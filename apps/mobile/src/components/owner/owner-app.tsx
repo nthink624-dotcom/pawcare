@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, Store, UserRound, type LucideIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
@@ -103,7 +103,14 @@ import {
 } from "@/lib/owner-appointment-visit-weight";
 import { keepStableStaffProfileUrls } from "@/lib/owner-mobile-staff-refresh-stability";
 import { addOwnerAndroidBackButtonListener } from "@/lib/owner-mobile-back-navigation";
-import { getOwnerCallScreeningStatus, isOwnerCallScreeningAvailable } from "@/lib/owner-call-screening";
+import {
+  addOwnerCallReservationActionListener,
+  getOwnerCallReservationAction,
+  getOwnerCallScreeningStatus,
+  isOwnerCallScreeningAvailable,
+  syncOwnerCallScreeningPhoneAllowlist,
+  type OwnerCallReservationAction,
+} from "@/lib/owner-call-screening";
 import { flattenAppointmentGuardianPetPairs } from "@/lib/owner-appointment-guardian-pet-pairs";
 import {
   dedupeAuthoritativeAppointments,
@@ -562,6 +569,7 @@ function OwnerAppContent({
     () => new Set(),
   );
   const [settingsEntryScreen, setSettingsEntryScreen] = useState<SettingsEntryScreen>(null);
+  const [pendingCallReservationAction, setPendingCallReservationAction] = useState<OwnerCallReservationAction | null>(null);
   const [guideScreen, setGuideScreen] = useState<OwnerGuideScreen>(null);
   const [isShopPickerOpen, setIsShopPickerOpen] = useState(false);
   const [pendingShopProfileEditId, setPendingShopProfileEditId] = useState<string | null>(null);
@@ -845,6 +853,41 @@ function OwnerAppContent({
       active = false;
     };
   }, [data.shop.id, isOwnerDemo, isStaffApp]);
+
+  useEffect(() => {
+    if (isOwnerDemo || isStaffApp || typeof window === "undefined" || !isOwnerCallScreeningAvailable()) return;
+    let active = true;
+
+    const openCatchCallReservation = (action: OwnerCallReservationAction) => {
+      if (!active || !action.pending) return;
+      setPendingCallReservationAction(action);
+      setActiveTab("settings");
+      setSettingsEntryScreen("catchcall");
+    };
+
+    void getOwnerCallReservationAction().then(openCatchCallReservation).catch(() => undefined);
+    let removeListener: (() => Promise<void>) | null = null;
+    void addOwnerCallReservationActionListener(openCatchCallReservation).then((remove) => {
+      if (!active) {
+        void remove?.();
+        return;
+      }
+      removeListener = remove;
+    });
+
+    return () => {
+      active = false;
+      void removeListener?.();
+    };
+  }, [isOwnerDemo, isStaffApp]);
+
+  useEffect(() => {
+    if (isOwnerDemo || isStaffApp || !isOwnerCallScreeningAvailable()) return;
+    const phoneAllowlist = data.guardians
+      .filter((guardian) => !guardian.deleted_at && guardian.phone.trim())
+      .map((guardian) => guardian.phone.trim());
+    void syncOwnerCallScreeningPhoneAllowlist(phoneAllowlist).catch(() => undefined);
+  }, [data.guardians, isOwnerDemo, isStaffApp]);
 
   useEffect(() => {
     if (isOwnerDemo || !pendingPhotoAccountId || typeof window === "undefined") return;
@@ -2906,13 +2949,7 @@ function OwnerAppContent({
                     className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-[8px] bg-transparent text-left"
                   >
                     <div className="flex min-h-[30px] min-w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-[#eaf1fc] text-[#174ea6]">
-                      {currentOwnedShop.heroImageUrl ? (
-                        <img src={currentOwnedShop.heroImageUrl} alt={`${currentOwnedShop.name} 대표 이미지`} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-[12px] font-semibold tracking-[-0.03em]">
-                          {currentOwnedShop.name.slice(0, 2)}
-                        </div>
-                      )}
+                      <Store className="h-4 w-4" aria-hidden="true" />
                     </div>
                     <p className="min-w-0 max-w-[172px] text-[18px] font-semibold tracking-[-0.01em] text-[#0f172a] [overflow-wrap:anywhere]">{currentOwnedShop.name}</p>
                     <ChevronDown className="h-4 w-4 shrink-0 text-[#94a3b8]" />
@@ -3602,7 +3639,7 @@ function OwnerAppContent({
           </section>
         )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} pendingReservationAction={pendingCallReservationAction} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
       </main>
 
       {!isStaffApp && !modal ? (
@@ -5737,6 +5774,7 @@ function SettingsPanel({
   userEmail,
   subscriptionSummary,
   onActiveScreenChange,
+  pendingReservationAction = null,
   appRole = "owner",
   currentStaffId = null,
   onOpenFeedback,
@@ -5745,6 +5783,7 @@ function SettingsPanel({
 }: {
   data: BootstrapPayload;
   initialScreen?: SettingsEntryScreen;
+  pendingReservationAction?: OwnerCallReservationAction | null;
   onSave: (payload: unknown, options?: { errorFallbackMessage?: string }) => Promise<void> | void;
   onSaveCustomerPageSettings: (payload: unknown) => void;
   onSaveStaff: (payload: unknown) => void;
@@ -5771,6 +5810,7 @@ function SettingsPanel({
       userEmail={userEmail}
       subscriptionSummary={subscriptionSummary}
       onActiveScreenChange={onActiveScreenChange}
+      pendingReservationAction={pendingReservationAction}
       appRole={appRole}
       currentStaffId={currentStaffId}
       onOpenFeedback={onOpenFeedback}

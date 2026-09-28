@@ -6,10 +6,15 @@ import { getMobileApiOrigin } from "@/lib/env";
 type OwnerCallScreeningPlugin = {
   getStatus(): Promise<{ available: boolean; enabled: boolean; phoneStateGranted: boolean; deviceId: string }>;
   requestPhoneStateAccess(): Promise<{ granted: boolean }>;
+  requestNotificationAccess(): Promise<{ granted: boolean }>;
   requestRole(): Promise<{ enabled: boolean }>;
   configure(options: { shopId: string; integrationId: string; apiOrigin: string; accessToken: string }): Promise<{ configured: boolean }>;
+  setPhoneAllowlist(options: { phoneNumbers: string[] }): Promise<{ configured: boolean }>;
   getPendingEvents(): Promise<{ events: Array<Record<string, unknown>> }>;
   acknowledgeEvents(options: { eventIds: string[] }): Promise<void>;
+  getPendingReservationAction(): Promise<{ pending: boolean; providerCallId: string; callerNumber: string }>;
+  clearPendingReservationAction(): Promise<void>;
+  addListener(eventName: "reservationAction", listenerFunc: (action: { pending: boolean; providerCallId: string; callerNumber: string }) => void): Promise<{ remove: () => Promise<void> }>;
 };
 
 const OwnerCallScreening = registerPlugin<OwnerCallScreeningPlugin>("OwnerCallScreening");
@@ -28,7 +33,36 @@ export async function requestOwnerCallScreeningRole() {
   return OwnerCallScreening.requestRole();
 }
 
-export async function configureOwnerCallScreening(shopId: string) {
+export type OwnerCallReservationAction = {
+  pending: boolean;
+  providerCallId: string;
+  callerNumber: string;
+};
+
+export async function requestOwnerCallNotificationAccess() {
+  if (!isOwnerCallScreeningAvailable()) return { granted: false };
+  return OwnerCallScreening.requestNotificationAccess();
+}
+
+export async function getOwnerCallReservationAction(): Promise<OwnerCallReservationAction> {
+  if (!isOwnerCallScreeningAvailable()) return { pending: false, providerCallId: "", callerNumber: "" };
+  return OwnerCallScreening.getPendingReservationAction();
+}
+
+export async function clearOwnerCallReservationAction() {
+  if (!isOwnerCallScreeningAvailable()) return;
+  await OwnerCallScreening.clearPendingReservationAction();
+}
+
+export async function addOwnerCallReservationActionListener(
+  listener: (action: OwnerCallReservationAction) => void,
+) {
+  if (!isOwnerCallScreeningAvailable()) return null;
+  const handle = await OwnerCallScreening.addListener("reservationAction", listener);
+  return () => handle.remove();
+}
+
+export async function configureOwnerCallScreening(shopId: string, phoneNumbers: string[]) {
   if (!isOwnerCallScreeningAvailable()) return { available: false, enabled: false };
   const status = await OwnerCallScreening.getStatus();
   if (!status.deviceId) throw new Error("Android 통화 확인 장치 정보를 만들지 못했습니다.");
@@ -43,9 +77,16 @@ export async function configureOwnerCallScreening(shopId: string) {
     apiOrigin: getMobileApiOrigin(),
     accessToken,
   });
+  await OwnerCallScreening.setPhoneAllowlist({ phoneNumbers });
   await OwnerCallScreening.requestPhoneStateAccess();
+  await OwnerCallScreening.requestNotificationAccess();
   await syncOwnerCallScreeningEvents(shopId);
   return { available: status.available, enabled: status.enabled };
+}
+
+export async function syncOwnerCallScreeningPhoneAllowlist(phoneNumbers: string[]) {
+  if (!isOwnerCallScreeningAvailable()) return;
+  await OwnerCallScreening.setPhoneAllowlist({ phoneNumbers });
 }
 
 export async function syncOwnerCallScreeningEvents(shopId: string) {

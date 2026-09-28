@@ -1,21 +1,26 @@
 "use client";
 
-import { ChevronLeft, PhoneCall, RefreshCw } from "lucide-react";
+import { PhoneCall, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { InfoTip } from "@/components/owner/owner-app-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   configureOwnerCallScreening,
   getOwnerCallScreeningStatus,
   isOwnerCallScreeningAvailable,
   requestOwnerCallScreeningRole,
+  syncOwnerCallScreeningPhoneAllowlist,
   syncOwnerCallScreeningEvents,
+  clearOwnerCallReservationAction,
+  type OwnerCallReservationAction,
 } from "@/lib/owner-call-screening";
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
 
 type CatchCallEvent = {
   id: string;
+  providerEventId: string;
   eventType: "incoming" | "missed" | "answered" | "ended";
   direction: "inbound" | "outbound";
   phoneTail: string;
@@ -28,6 +33,20 @@ type CatchCallEvent = {
 };
 
 type CatchCallResponse = { events: CatchCallEvent[] };
+
+function getCatchCallErrorMessage(error: unknown, fallback: string) {
+  const rawMessage = error instanceof Error ? error.message : "";
+  const normalizedMessage = rawMessage.toLowerCase();
+  if (
+    error instanceof TypeError ||
+    normalizedMessage.includes("failed to fetch") ||
+    normalizedMessage.includes("load failed") ||
+    normalizedMessage.includes("networkerror")
+  ) {
+    return "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+  }
+  return rawMessage || fallback;
+}
 
 const eventLabels: Record<CatchCallEvent["eventType"], string> = {
   incoming: "수신",
@@ -61,10 +80,10 @@ function eventStatusLabel(event: CatchCallEvent) {
 
 export default function OwnerCatchCallPanel({
   data,
-  onBack,
+  pendingReservationAction = null,
 }: {
   data: BootstrapPayload;
-  onBack: () => void;
+  pendingReservationAction?: OwnerCallReservationAction | null;
 }) {
   const [events, setEvents] = useState<CatchCallEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -88,6 +107,10 @@ export default function OwnerCatchCallPanel({
     [data.pets, guardianId],
   );
   const services = useMemo(() => data.services.filter((service) => service.is_active), [data.services]);
+  const phoneAllowlist = useMemo(
+    () => data.guardians.filter((guardian) => !guardian.deleted_at && guardian.phone.trim()).map((guardian) => guardian.phone.trim()),
+    [data.guardians],
+  );
   const selectedPet = guardianPets.find((pet) => pet.id === petId) ?? null;
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
 
@@ -100,10 +123,20 @@ export default function OwnerCatchCallPanel({
         `/api/owner/call-events?shopId=${encodeURIComponent(data.shop.id)}&limit=30`,
         { cache: "no-store" },
       );
-      setEvents(response.events ?? []);
+      const nextEvents = response.events ?? [];
+      setEvents(nextEvents);
+      if (pendingReservationAction?.pending) {
+        const target = nextEvents.find(
+          (event) => event.providerEventId === `${pendingReservationAction.providerCallId}:incoming` && event.matchStatus === "matched" && !event.appointmentId,
+        );
+        if (target) {
+          selectEvent(target);
+          await clearOwnerCallReservationAction();
+        }
+      }
       setMessage(null);
     } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "통화 기록을 불러오지 못했습니다." });
+      setMessage({ type: "error", text: getCatchCallErrorMessage(error, "통화 기록을 불러오지 못했습니다.") });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -112,16 +145,17 @@ export default function OwnerCatchCallPanel({
 
   useEffect(() => {
     void loadEvents();
+    void syncOwnerCallScreeningPhoneAllowlist(phoneAllowlist).catch(() => undefined);
     void getOwnerCallScreeningStatus().then((status) => setCallScreeningStatus(status));
     // The shop is the only external input for this panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.shop.id]);
+  }, [data.shop.id, pendingReservationAction?.providerCallId, phoneAllowlist]);
 
   async function enableAutomaticCallScreening() {
     setConfiguringCallScreening(true);
     setMessage(null);
     try {
-      await configureOwnerCallScreening(data.shop.id);
+      await configureOwnerCallScreening(data.shop.id, phoneAllowlist);
       const status = await getOwnerCallScreeningStatus();
       if (status.available && !status.enabled) await requestOwnerCallScreeningRole();
       const nextStatus = await getOwnerCallScreeningStatus();
@@ -129,11 +163,11 @@ export default function OwnerCatchCallPanel({
       setMessage({
         type: nextStatus.enabled ? "success" : "error",
         text: nextStatus.enabled
-          ? "자동 통화 확인이 켜졌어요. 전화가 오면 고객 정보를 자동으로 연결합니다."
+          ? "자동 통화 확인이 켜졌어요. 등록된 고객 전화만 자동으로 연결합니다."
           : "Android 설정에서 펫매니저를 통화 확인 앱으로 선택해 주세요.",
       });
     } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "자동 통화 확인을 켜지 못했습니다." });
+      setMessage({ type: "error", text: getCatchCallErrorMessage(error, "자동 통화 확인을 켜지 못했습니다.") });
     } finally {
       setConfiguringCallScreening(false);
     }
@@ -184,38 +218,14 @@ export default function OwnerCatchCallPanel({
       setSelectedEventId(null);
       await loadEvents(false);
     } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "통화 예약을 저장하지 못했습니다." });
+      setMessage({ type: "error", text: getCatchCallErrorMessage(error, "통화 예약을 저장하지 못했습니다.") });
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <section className="space-y-4" aria-labelledby="catch-call-title">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] text-[#64748b] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
-          aria-label="설정으로 돌아가기"
-        >
-          <ChevronLeft className="size-5" aria-hidden="true" />
-        </button>
-        <div className="min-w-0 flex-1">
-          <h2 id="catch-call-title" className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#15213b]">캐치콜</h2>
-          <p className="mt-1 text-[13px] leading-5 text-[#64748b]">전화 중 확인한 예약을 바로 일정에 남겨요.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void loadEvents(false)}
-          disabled={refreshing || loading}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] border border-[#e8edf3] bg-white text-[#64748b] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:opacity-50"
-          aria-label="통화 기록 새로고침"
-        >
-          <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
-        </button>
-      </div>
-
+    <section className="space-y-4" aria-label="캐치콜">
       {message ? (
         <p
           role={message.type === "error" ? "alert" : "status"}
@@ -228,15 +238,17 @@ export default function OwnerCatchCallPanel({
       ) : null}
 
       <div className="rounded-[14px] border border-[#dfe7f1] bg-white p-4">
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#eef4ff] text-[#2f6fd6]">
             <PhoneCall className="size-5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <h3 className="text-[16px] font-semibold leading-6 text-[#15213b]">자동 통화 확인</h3>
-            <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
-              전화가 오면 보호자를 자동으로 찾아 예약 화면에 연결합니다. 전화는 차단하지 않습니다.
-            </p>
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-[16px] font-semibold leading-6 text-[#15213b]">자동 통화 확인</h3>
+              <InfoTip ariaLabel="자동 통화 확인 도움말" popoverClassName="!left-1/2 !right-auto !-translate-x-1/2 w-[240px]">
+                펫매니저에 등록된 고객 전화만 자동으로 찾아 예약 화면에 연결합니다. 개인 전화는 기록하지 않습니다.
+              </InfoTip>
+            </div>
           </div>
         </div>
         {callScreeningStatus?.enabled ? (
@@ -309,7 +321,15 @@ export default function OwnerCatchCallPanel({
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-[16px] font-semibold leading-6 text-[#15213b]">최근 통화</h3>
-          <span className="text-[13px] leading-5 text-[#64748b]">번호 끝 4자리만 표시</span>
+          <button
+            type="button"
+            onClick={() => void loadEvents(false)}
+            disabled={refreshing || loading}
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] border border-[#e8edf3] bg-white text-[#64748b] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:opacity-50"
+            aria-label="통화 기록 새로고침"
+          >
+            <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
+          </button>
         </div>
         {loading ? <div className="rounded-[14px] border border-[#e8edf3] bg-white px-4 py-6 text-center text-[14px] text-[#64748b]">통화 기록을 불러오는 중입니다.</div> : null}
         {!loading && events.length === 0 && !message ? <div className="rounded-[14px] border border-[#e8edf3] bg-white px-4 py-6 text-center text-[14px] leading-5 text-[#64748b]">아직 들어온 통화가 없습니다.</div> : null}

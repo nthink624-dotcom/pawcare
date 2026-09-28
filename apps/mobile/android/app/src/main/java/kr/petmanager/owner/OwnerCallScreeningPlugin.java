@@ -23,7 +23,10 @@ import org.json.JSONObject;
 
 @CapacitorPlugin(
     name = "OwnerCallScreening",
-    permissions = { @Permission(alias = "phoneState", strings = { Manifest.permission.READ_PHONE_STATE }) }
+    permissions = {
+        @Permission(alias = "phoneState", strings = { Manifest.permission.READ_PHONE_STATE }),
+        @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS })
+    }
 )
 public class OwnerCallScreeningPlugin extends Plugin {
     private static final int ROLE_REQUEST_CODE = 9172;
@@ -45,6 +48,22 @@ public class OwnerCallScreeningPlugin extends Plugin {
             return;
         }
         requestPermissionForAlias("phoneState", call, "phoneStatePermissionCallback");
+    }
+
+    @PluginMethod
+    public void requestNotificationAccess(PluginCall call) {
+        if (Build.VERSION.SDK_INT < 33 || getPermissionState("notifications") == com.getcapacitor.PermissionState.GRANTED) {
+            call.resolve(new JSObject().put("granted", true));
+            return;
+        }
+        requestPermissionForAlias("notifications", call, "notificationPermissionCallback");
+    }
+
+    @PermissionCallback
+    private void notificationPermissionCallback(PluginCall call) {
+        boolean granted = Build.VERSION.SDK_INT < 33 || getPermissionState("notifications") == com.getcapacitor.PermissionState.GRANTED;
+        if (granted) call.resolve(new JSObject().put("granted", true));
+        else call.reject("캐치콜 수신 알림 권한을 허용해 주세요.", "NOTIFICATION_PERMISSION_DENIED");
     }
 
     @PermissionCallback
@@ -104,6 +123,17 @@ public class OwnerCallScreeningPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setPhoneAllowlist(PluginCall call) {
+        JSONArray phoneNumbers = call.getArray("phoneNumbers");
+        if (phoneNumbers == null) {
+            call.reject("고객 번호 목록을 확인해 주세요.", "CALL_SCREENING_ALLOWLIST_INVALID");
+            return;
+        }
+        OwnerCallScreeningStore.setAllowedPhoneNumbers(getContext(), phoneNumbers);
+        call.resolve(new JSObject().put("configured", true));
+    }
+
+    @PluginMethod
     public void getPendingEvents(PluginCall call) {
         call.resolve(new JSObject().put("events", OwnerCallScreeningStore.getPending(getContext())));
     }
@@ -117,6 +147,35 @@ public class OwnerCallScreeningPlugin extends Plugin {
         }
         OwnerCallScreeningStore.acknowledge(getContext(), eventIds);
         call.resolve();
+    }
+
+    @PluginMethod
+    public void getPendingReservationAction(PluginCall call) {
+        JSONObject pending = OwnerCallScreeningStore.getPendingReservationAction(getContext());
+        JSObject response = new JSObject();
+        response.put("pending", pending.optBoolean("pending", false));
+        response.put("providerCallId", pending.optString("providerCallId", ""));
+        response.put("callerNumber", pending.optString("callerNumber", ""));
+        call.resolve(response);
+    }
+
+    @PluginMethod
+    public void clearPendingReservationAction(PluginCall call) {
+        OwnerCallScreeningStore.clearPendingReservationAction(getContext());
+        call.resolve();
+    }
+
+    void handleReservationIntent(Intent intent) {
+        if (intent == null || !OwnerCallNotification.ACTION_ADD_RESERVATION.equals(intent.getAction())) return;
+        String providerCallId = intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID);
+        String callerNumber = intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER);
+        OwnerCallScreeningStore.setPendingReservationAction(getContext(), providerCallId, callerNumber);
+        OwnerCallNotification.cancel(getContext(), providerCallId);
+        JSObject action = new JSObject();
+        action.put("pending", true);
+        action.put("providerCallId", providerCallId == null ? "" : providerCallId);
+        action.put("callerNumber", callerNumber == null ? "" : callerNumber);
+        notifyListeners("reservationAction", action);
     }
 
     private boolean isRoleAvailable() {

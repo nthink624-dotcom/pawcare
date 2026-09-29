@@ -2927,7 +2927,7 @@ function OwnerAppContent({
               setModal({ type: "appointment", appointment });
             }
           }}
-          className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+12px)] z-[70] flex w-[calc(100%-32px)] max-w-[398px] -translate-x-1/2 items-center justify-between gap-3 rounded-[8px] border border-[#cfe0d9] bg-white px-4 py-3 text-left shadow-[0_8px_24px_rgba(15,23,42,0.14)]"
+          className="fixed left-1/2 top-[calc(var(--pm-safe-top)+12px)] z-[70] flex w-[calc(100%-32px)] max-w-[398px] -translate-x-1/2 items-center justify-between gap-3 rounded-[8px] border border-[#cfe0d9] bg-white px-4 py-3 text-left shadow-[0_8px_24px_rgba(15,23,42,0.14)]"
         >
           <span className="min-w-0">
             <span className="block text-[16px] font-semibold text-[var(--text)]">새 예약이 접수되었습니다.</span>
@@ -2937,7 +2937,7 @@ function OwnerAppContent({
         </button>
       ) : null}
       {!isCustomerDetailView && activeTab !== "book" ? (
-      <header className={cn("sticky top-0 z-20 border-b border-[#edf1f5] bg-white px-4", isHomeTab ? "pb-0 pt-3" : "py-3")}>
+      <header className={cn("sticky top-0 z-20 border-b border-[#edf1f5] bg-white px-4", isHomeTab ? "pb-0 pt-[calc(var(--pm-safe-top)+12px)]" : "pb-3 pt-[calc(var(--pm-safe-top)+12px)]")}>
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             {isHomeTab ? (
@@ -3010,7 +3010,7 @@ function OwnerAppContent({
           isHomeTab && !isCustomerDetailView
             ? "min-h-0 overflow-hidden pb-0"
             : activeTab === "book"
-              ? "mb-[calc(env(safe-area-inset-bottom)+60px)] min-h-0 overflow-y-auto overscroll-y-contain pb-0"
+              ? "mb-[calc(var(--pm-safe-bottom)+60px)] min-h-0 overflow-y-auto overscroll-y-contain pb-0"
               : "overflow-y-auto pb-24",
           activeTab === "customers" && !selectedGuardian && "bg-[#f6f9fc]",
         )}
@@ -3018,7 +3018,7 @@ function OwnerAppContent({
         {error && <div className="mx-4 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         {activeTab === "home" && (
-          <section className="flex h-full min-h-0 flex-col gap-2 bg-[#f6f9fc] px-2.5 pb-[calc(env(safe-area-inset-bottom)+128px)] pt-2">
+          <section className="flex h-full min-h-0 flex-col gap-2 bg-[#f6f9fc] px-2.5 pb-[calc(var(--pm-safe-bottom)+128px)] pt-2">
             {isOnboardingIncomplete ? (
               <Panel title="예약 오픈 전 체크리스트" action={`${onboardingTasks.length}단계 남음`}>
                 <div className="space-y-2.5">
@@ -3319,7 +3319,7 @@ function OwnerAppContent({
           </section>
         )}
         {activeTab === "customers" && !selectedGuardian && isCustomerListEditing && filteredGuardians.length > 0 ? (
-          <div className="fixed bottom-[74px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-[rgba(248,246,242,0.96)] px-4 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-3 backdrop-blur">
+          <div className="fixed bottom-[74px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-[rgba(248,246,242,0.96)] px-4 pb-[calc(var(--pm-safe-bottom)+8px)] pt-3 backdrop-blur">
             <ActionButton disabled={selectedGuardianCount === 0 || saving} onClick={deleteSelectedGuardians}>
               선택한 고객 삭제
             </ActionButton>
@@ -3672,7 +3672,7 @@ function OwnerAppContent({
         />
       ) : null}
 
-      <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white/95 px-2.5 pb-[calc(env(safe-area-inset-bottom)+2px)] pt-1 backdrop-blur-xl">
+      <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white/95 px-2.5 pb-[calc(var(--pm-safe-bottom)+2px)] pt-1 backdrop-blur-xl">
         <div className="grid grid-cols-4 gap-1">
             {tabItems.map((item) => {
               const Icon = item.icon;
@@ -5749,7 +5749,7 @@ function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: stri
           </ul>
         </div>
         <div
-          className={`pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+24px)] z-[70] flex justify-center px-6 transition-all duration-200 ${
+          className={`pointer-events-none fixed inset-x-0 bottom-[calc(var(--pm-safe-bottom)+24px)] z-[70] flex justify-center px-6 transition-all duration-200 ${
             copied ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
           }`}
           aria-live="polite"

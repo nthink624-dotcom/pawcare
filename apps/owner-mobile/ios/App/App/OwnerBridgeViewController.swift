@@ -67,18 +67,11 @@ final class OwnerBridgeViewController: CAPBridgeViewController {
             (document.head || root).appendChild(style);
           }
           style.textContent = `
-            .pm-mobile-owner {
-              padding-top: \(top)px !important;
-              padding-bottom: \(bottom)px !important;
-            }
             .pm-mobile-owner > header {
-              top: \(top)px !important;
-            }
-            .pm-mobile-owner > main {
-              padding-bottom: calc(4.25rem + \(bottom)px) !important;
+              padding-top: calc(var(--pm-safe-top) + 12px) !important;
             }
             .pm-mobile-owner > nav {
-              padding-bottom: calc(\(bottom)px + 2px) !important;
+              padding-bottom: calc(var(--pm-safe-bottom) + 2px) !important;
             }
           `;
         })();

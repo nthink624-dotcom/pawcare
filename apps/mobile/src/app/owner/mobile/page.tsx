@@ -204,7 +204,7 @@ function getOwnerMobileLoadFailure(error: unknown): OwnerMobileLoadFailure {
 function OwnerMobileLoadingScreen({ message }: { message: string }) {
   return (
     <div
-      className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f7f8fa] px-4 pt-4"
+      className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f7f8fa] px-4 pt-[calc(var(--pm-safe-top)+16px)] pb-[calc(var(--pm-safe-bottom)+24px)]"
       aria-busy="true"
       aria-live="polite"
     >
@@ -245,7 +245,7 @@ function OwnerMobileFailureScreen({
   onRetry: () => void;
 }) {
   return (
-    <main className="owner-font mx-auto flex min-h-screen w-full max-w-[430px] items-center bg-[#f7f8fa] px-5 py-8 text-[#15213b]">
+    <main className="owner-font mx-auto flex min-h-screen w-full max-w-[430px] items-center bg-[#f7f8fa] px-5 pt-[calc(var(--pm-safe-top)+32px)] pb-[calc(var(--pm-safe-bottom)+32px)] text-[#15213b]">
       <section
         className="w-full rounded-[14px] border border-[#e8edf3] bg-white px-5 py-5"
         role="alert"

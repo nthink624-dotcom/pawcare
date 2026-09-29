@@ -23,6 +23,6 @@ test("owner mobile keeps iPhone notch and home-indicator space in the web and na
   assert.match(bridge, /contentInsetAdjustmentBehavior = \.never/);
   assert.match(bridge, /pm-ios-safe-area-style/);
   assert.match(bridge, /--pm-safe-top/);
-  assert.ok(bridge.includes("padding-top: \\(top)px !important"));
-  assert.ok(bridge.includes("padding-bottom: calc(\\(bottom)px + 2px) !important"));
+  assert.ok(bridge.includes("padding-top: calc(var(--pm-safe-top) + 12px) !important"));
+  assert.ok(bridge.includes("padding-bottom: calc(var(--pm-safe-bottom) + 2px) !important"));
 });

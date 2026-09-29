@@ -61,26 +61,24 @@ function priceDisplayLabel(row: MobilePriceGuideRow) {
 
 function PriceDurationCell({
   row,
-  editing,
+  editingField,
   onStartEdit,
   onChange,
   onAdvance,
 }: {
   row: MobilePriceGuideRow;
-  editing: boolean;
-  onStartEdit: () => void;
+  editingField: "price" | "duration" | null;
+  onStartEdit: (field: "price" | "duration") => void;
   onChange: (patch: Partial<MobilePriceGuideRow>) => void;
   onAdvance: () => void;
 }) {
   const durationInputRef = useRef<HTMLInputElement>(null);
-  if (!editing) {
+  if (!editingField) {
     return (
-      <button type="button" onClick={onStartEdit} className="min-h-11 w-full rounded-[8px] px-2 py-2 text-left text-[16px] font-medium leading-6 tabular-nums text-slate-900 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-600" aria-label={`${compactCellLabel(row)}. 가격과 예상시간 수정`} data-mobile-price-duration-cell>
-        <span className="grid grid-cols-[minmax(0,1fr)_76px] items-center gap-1.5" data-mobile-price-left-time-right>
-          <span className={`min-w-0 truncate whitespace-nowrap ${row.priceMinKrw === null ? "text-slate-500" : "text-slate-900"}`} data-price-side="left">{priceDisplayLabel(row)}</span>
-          <span className={`min-w-0 whitespace-nowrap border-l border-slate-200 pl-2 ${row.durationMinutes === null ? "text-slate-500" : "text-slate-900"}`} data-duration-side="right">{row.durationMinutes === null ? "미정" : `${row.durationMinutes}분`}</span>
-        </span>
-      </button>
+      <div className="grid grid-cols-[minmax(0,1fr)_76px] items-center gap-1.5" data-mobile-price-duration-cell data-mobile-price-left-time-right>
+        <button type="button" onClick={() => onStartEdit("price")} className="min-h-11 min-w-0 rounded-[8px] px-2 py-2 text-left text-[16px] font-medium leading-6 tabular-nums text-slate-900 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-600"><span className={`block min-w-0 truncate whitespace-nowrap ${row.priceMinKrw === null ? "text-slate-500" : "text-slate-900"}`} data-price-side="left">{priceDisplayLabel(row)}</span></button>
+        <button type="button" onClick={() => onStartEdit("duration")} className="min-h-11 min-w-0 rounded-[8px] px-2 text-left text-[16px] font-medium leading-6 tabular-nums outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-600" aria-label={`${row.durationMinutes === null ? "미정" : `${row.durationMinutes}분`} 예상시간 수정`}><span className={`block min-w-0 whitespace-nowrap border-l border-slate-200 pl-2 ${row.durationMinutes === null ? "text-slate-500" : "text-slate-900"}`} data-duration-side="right">{row.durationMinutes === null ? "미정" : `${row.durationMinutes}분`}</span></button>
+      </div>
     );
   }
 
@@ -88,14 +86,14 @@ function PriceDurationCell({
     <div className="grid grid-cols-2 gap-1.5" data-mobile-price-duration-cell data-mobile-price-duration-edit>
       <label className="min-w-0">
         <span className="sr-only">가격</span>
-        <input autoFocus data-mobile-price-cell enterKeyHint="next" value={row.priceMinKrw ?? ""} inputMode="numeric" min={0} max={MAX_SERVICE_PRICE_KRW} placeholder="미정" className={`${inputClass} tabular-nums`} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); durationInputRef.current?.focus(); } }} onChange={(event) => {
+        <input autoFocus={editingField === "price"} data-mobile-price-cell enterKeyHint="next" value={row.priceMinKrw ?? ""} inputMode="numeric" min={0} max={MAX_SERVICE_PRICE_KRW} placeholder="미정" className={`${inputClass} tabular-nums`} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); durationInputRef.current?.focus(); } }} onChange={(event) => {
           const priceMinKrw = nullableInteger(event.target.value);
           onChange({ priceMinKrw, ...(priceMinKrw !== null && row.priceKind === "unknown" ? { priceKind: "fixed" as const } : {}) });
         }} />
       </label>
       <label className="min-w-0">
         <span className="sr-only">예상시간</span>
-        <input ref={durationInputRef} data-mobile-duration-cell enterKeyHint="next" value={row.durationMinutes ?? ""} inputMode="numeric" min={1} max={1440} placeholder="미정" className={`${inputClass} tabular-nums`} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance(); } }} onChange={(event) => onChange({ durationMinutes: nullableInteger(event.target.value) })} />
+        <input ref={durationInputRef} autoFocus={editingField === "duration"} data-mobile-duration-cell enterKeyHint="next" value={row.durationMinutes ?? ""} inputMode="numeric" min={1} max={1440} placeholder="미정" className={`${inputClass} tabular-nums`} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance(); } }} onChange={(event) => onChange({ durationMinutes: nullableInteger(event.target.value) })} />
       </label>
       {row.priceKind === "range" ? (
         <label className="col-span-2 min-w-0">
@@ -103,6 +101,94 @@ function PriceDurationCell({
           <input value={row.priceMaxKrw ?? ""} inputMode="numeric" min={0} max={MAX_SERVICE_PRICE_KRW} placeholder="최대 가격" className={`${inputClass} tabular-nums`} onChange={(event) => onChange({ priceMaxKrw: nullableInteger(event.target.value) })} />
         </label>
       ) : null}
+    </div>
+  );
+}
+
+type MobileDurationTarget = {
+  weightIndex: number;
+  label: string;
+  minKg: number | null;
+  maxKg: number | null;
+  durationMinutes: number | null;
+};
+
+function durationFromWeightRule(target: MobileDurationTarget, baseMinutes: number, stepKg: 2 | 3) {
+  const anchorKg = target.maxKg ?? target.minKg;
+  if (!Number.isFinite(anchorKg) || anchorKg === null || anchorKg < 0) return null;
+  const minutes = baseMinutes + Math.ceil(Math.max(0, anchorKg - 2) / stepKg) * 10;
+  return Number.isInteger(minutes) && minutes >= 15 && minutes <= 480 ? minutes : null;
+}
+
+function MobileServiceDurationDialog({
+  groupName,
+  serviceName,
+  targets,
+  onClose,
+  onApply,
+}: {
+  groupName: string;
+  serviceName: string;
+  targets: MobileDurationTarget[];
+  onClose: () => void;
+  onApply: (updates: Array<{ weightIndex: number; durationMinutes: number }>) => void;
+}) {
+  const [baseMinutes, setBaseMinutes] = useState("");
+  const [stepKg, setStepKg] = useState<2 | 3>(2);
+  const [values, setValues] = useState<Record<number, string>>(() => Object.fromEntries(targets.map((target) => [target.weightIndex, target.durationMinutes === null ? "" : String(target.durationMinutes)])));
+  const [error, setError] = useState("");
+
+  function calculate() {
+    const parsedBaseMinutes = Number(baseMinutes);
+    if (!Number.isInteger(parsedBaseMinutes) || parsedBaseMinutes < 15 || parsedBaseMinutes > 480) {
+      setError("2kg 이하 기준 시간을 15~480분으로 입력해 주세요.");
+      return;
+    }
+    const nextValues: Record<number, string> = {};
+    for (const target of targets) {
+      const durationMinutes = durationFromWeightRule(target, parsedBaseMinutes, stepKg);
+      if (durationMinutes === null) {
+        setError("체중 구간을 확인한 뒤 다시 계산해 주세요.");
+        return;
+      }
+      nextValues[target.weightIndex] = String(durationMinutes);
+    }
+    setValues(nextValues);
+    setError("");
+  }
+
+  function apply() {
+    const updates: Array<{ weightIndex: number; durationMinutes: number }> = [];
+    for (const target of targets) {
+      const value = values[target.weightIndex]?.trim();
+      if (!value) continue;
+      const durationMinutes = Number(value);
+      if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 480) {
+        setError("예상시간은 15~480분 사이의 정수로 입력해 주세요.");
+        return;
+      }
+      if (durationMinutes !== target.durationMinutes) updates.push({ weightIndex: target.weightIndex, durationMinutes });
+    }
+    onApply(updates);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4" role="dialog" aria-modal="true" aria-label={`${groupName} ${serviceName} 예상시간 설정`} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="max-h-[calc(100dvh-32px)] w-full max-w-md overflow-y-auto rounded-[14px] border border-slate-200 bg-white p-4 text-slate-900 shadow-xl" data-mobile-price-guide-service-duration-dialog>
+        <header className="flex items-center justify-between gap-2"><h2 className="text-[20px] font-semibold leading-7">{groupName} · {serviceName}</h2><button type="button" onClick={onClose} className={iconClass} aria-label="예상시간 설정 닫기"><X size={20} aria-hidden="true" /></button></header>
+        <section className="mt-4 rounded-[10px] border border-slate-200 bg-slate-50 p-3" aria-label="체중별 예상시간 자동 설정" data-mobile-price-guide-weight-duration-rule>
+          <p className="text-[16px] font-medium leading-6">체중별 시간 자동 설정</p>
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+            <label className="min-w-0 text-[16px] leading-6"><span className="block text-slate-600">2kg 이하 기준 시간</span><span className="mt-1 flex items-center gap-2"><input aria-label="2kg 이하 기준 시간" type="number" inputMode="numeric" min={15} max={480} step={5} value={baseMinutes} onChange={(event) => { setBaseMinutes(event.target.value); setError(""); }} placeholder="예: 40" className={inputClass} /><span>분</span></span></label>
+            <label className="text-[16px] leading-6"><span className="block text-slate-600">증가 간격</span><select aria-label="체중 증가 간격" value={stepKg} onChange={(event) => setStepKg(Number(event.target.value) as 2 | 3)} className="mt-1 h-11 rounded-[8px] border border-slate-300 bg-white px-2 text-[16px] font-medium leading-6"><option value={2}>2kg마다</option><option value={3}>3kg마다</option></select></label>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-[16px] leading-6 text-slate-600">선택한 간격마다 10분씩 추가돼요.</p><button type="button" onClick={calculate} className={actionClass}>계산해서 채우기</button></div>
+        </section>
+        <div className="mt-4 space-y-3">{targets.map((target) => <label key={target.weightIndex} className="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-3 text-[16px] leading-6"><span>{target.label || "체중 구간 입력"}</span><span className="flex items-center gap-2"><input aria-label={`${target.label || "체중 구간"} 예상시간`} type="number" inputMode="numeric" min={15} max={480} step={1} value={values[target.weightIndex] ?? ""} onChange={(event) => { setValues((current) => ({ ...current, [target.weightIndex]: event.target.value })); setError(""); }} placeholder="미정" className={inputClass} /><span>분</span></span></label>)}</div>
+        {error ? <p role="alert" className="mt-3 text-[16px] leading-6 text-[#9a5e4e]">{error}</p> : null}
+        <footer className="mt-5 grid grid-cols-2 gap-3"><button type="button" onClick={onClose} className="min-h-11 rounded-[10px] border border-slate-300 text-[16px] font-medium leading-6 text-slate-700">취소</button><button type="button" onClick={apply} className="min-h-11 rounded-[10px] bg-[#111a30] text-[16px] font-medium leading-6 text-white">적용</button></footer>
+      </div>
     </div>
   );
 }
@@ -177,8 +263,9 @@ export default function MobilePriceGuideMatrix({ document, onChange }: { documen
   const [editingGroup, setEditingGroup] = useState<number | null>(null);
   const [editingService, setEditingService] = useState<string | null>(null);
   const [editingWeight, setEditingWeight] = useState<string | null>(null);
-  const [editingCell, setEditingCell] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<{ key: string; field: "price" | "duration" } | null>(null);
   const [breedGroup, setBreedGroup] = useState<number | null>(null);
+  const [durationSetupTarget, setDurationSetupTarget] = useState<{ groupIndex: number; serviceIndex: number } | null>(null);
 
   function removeWeightBand(groupIndex: number, weightIndex: number) {
     const group = groups[groupIndex];
@@ -213,7 +300,7 @@ export default function MobilePriceGuideMatrix({ document, onChange }: { documen
                 {group.serviceNames.map((serviceName, serviceIndex) => {
                   const serviceKey = `${groupIndex}:${serviceIndex}`;
                   return <th key={`service-${serviceIndex}`} className="w-[188px] border-b border-r border-slate-200 px-2 py-0">
-                    {editingService === serviceKey ? <div className="flex items-start gap-1"><label className="min-w-0 flex-1"><span className="sr-only">서비스명</span><input autoFocus value={serviceName} placeholder="서비스명 입력" className={`${inputClass} text-center font-medium`} onChange={(event) => onChange(updateMobilePriceGuideService(document, groupIndex, serviceIndex, event.target.value))} /></label>{group.serviceNames.length > 1 ? <button type="button" className={iconClass} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 열 삭제`} onClick={() => { setEditingService(null); onChange(removeMobilePriceGuideService(document, groupIndex, serviceIndex)); }}><Trash2 size={17} aria-hidden="true" /></button> : null}</div> : <button type="button" className="inline-flex min-h-11 w-full items-center justify-center rounded-[8px] px-2 text-center text-[16px] font-medium leading-6 text-slate-900 outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => setEditingService(serviceKey)} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 이름 수정`} data-mobile-price-guide-service-subheaders>{serviceName || <span className="text-slate-500">서비스명 입력</span>}</button>}
+                    {editingService === serviceKey ? <div className="flex items-start gap-1"><label className="min-w-0 flex-1"><span className="sr-only">서비스명</span><input autoFocus value={serviceName} placeholder="서비스명 입력" className={`${inputClass} text-center font-medium`} onChange={(event) => onChange(updateMobilePriceGuideService(document, groupIndex, serviceIndex, event.target.value))} /></label>{group.serviceNames.length > 1 ? <button type="button" className={iconClass} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 열 삭제`} onClick={() => { setEditingService(null); onChange(removeMobilePriceGuideService(document, groupIndex, serviceIndex)); }}><Trash2 size={17} aria-hidden="true" /></button> : null}</div> : <div className="flex items-center gap-1"><button type="button" className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-[8px] px-2 text-center text-[16px] font-medium leading-6 text-slate-900 outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => setEditingService(serviceKey)} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 이름 수정`} data-mobile-price-guide-service-subheaders>{serviceName || <span className="text-slate-500">서비스명 입력</span>}</button><button type="button" className="min-h-11 shrink-0 rounded-[8px] px-2 text-[16px] font-medium leading-6 text-slate-600 outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => setDurationSetupTarget({ groupIndex, serviceIndex })} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 예상시간 설정`} data-mobile-price-guide-service-duration-trigger>시간</button></div>}
                   </th>;
                 })}
               </tr></thead>
@@ -225,14 +312,15 @@ export default function MobilePriceGuideMatrix({ document, onChange }: { documen
                   </div></th>
                   {group.serviceNames.map((serviceName, serviceIndex) => {
                     const cellKey = `${groupIndex}:${weightIndex}:${serviceIndex}`;
-                    return <td key={`${serviceName}-${weightIndex}`} className="border-b border-r border-slate-200 p-1 align-top"><PriceDurationCell row={group.cells[weightIndex][serviceIndex]} editing={editingCell === cellKey} onStartEdit={() => setEditingCell(cellKey)} onChange={(patch) => onChange(updateMobilePriceGuideCell(document, groupIndex, weightIndex, serviceIndex, patch))} onAdvance={() => {
+                    const editingField = editingCell?.key === cellKey ? editingCell.field : null;
+                    return <td key={`${serviceName}-${weightIndex}`} className="border-b border-r border-slate-200 p-1 align-top"><PriceDurationCell row={group.cells[weightIndex][serviceIndex]} editingField={editingField} onStartEdit={(field) => setEditingCell({ key: cellKey, field })} onChange={(patch) => onChange(updateMobilePriceGuideCell(document, groupIndex, weightIndex, serviceIndex, patch))} onAdvance={() => {
                       const nextWeightIndex = weightIndex + 1;
                       const nextCellKey = nextWeightIndex < group.weightBands.length
                         ? `${groupIndex}:${nextWeightIndex}:${serviceIndex}`
                         : serviceIndex + 1 < group.serviceNames.length
                           ? `${groupIndex}:0:${serviceIndex + 1}`
                           : null;
-                      setEditingCell(nextCellKey);
+                      setEditingCell(nextCellKey ? { key: nextCellKey, field: "duration" } : null);
                     }} /></td>;
                   })}
                 </tr>;
@@ -244,6 +332,30 @@ export default function MobilePriceGuideMatrix({ document, onChange }: { documen
       ))}
       <button type="button" className={actionClass} onClick={() => onChange(addMobilePriceGuideGroup(document))}><Plus size={16} aria-hidden="true" /> 분류 추가</button>
       <MobilePriceGuideExtras document={document} onChange={onChange} />
+      {durationSetupTarget && groups[durationSetupTarget.groupIndex] ? (() => {
+        const group = groups[durationSetupTarget.groupIndex];
+        const serviceIndex = durationSetupTarget.serviceIndex;
+        return <MobileServiceDurationDialog
+          key={`${durationSetupTarget.groupIndex}:${serviceIndex}`}
+          groupName={group.sourceLabel || "요금표"}
+          serviceName={group.serviceNames[serviceIndex] || `서비스 ${serviceIndex + 1}`}
+          targets={group.weightBands.map((band, weightIndex) => ({
+            weightIndex,
+            label: band.label,
+            minKg: band.minKg,
+            maxKg: band.maxKg,
+            durationMinutes: group.cells[weightIndex][serviceIndex]?.durationMinutes ?? null,
+          }))}
+          onClose={() => setDurationSetupTarget(null)}
+          onApply={(updates) => {
+            let nextDocument = document;
+            for (const update of updates) {
+              nextDocument = updateMobilePriceGuideCell(nextDocument, durationSetupTarget.groupIndex, update.weightIndex, serviceIndex, { durationMinutes: update.durationMinutes });
+            }
+            onChange(nextDocument);
+          }}
+        />;
+      })() : null}
       {preservedRows.length ? <details className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2" data-mobile-preserved-price-guide><summary className="min-h-11 cursor-pointer py-2 text-[16px] font-medium leading-6 text-slate-700">표에 배치되지 않은 기존 항목 {preservedRows.length}개 보존됨</summary><p className="text-[16px] leading-6 text-slate-600">자동으로 지우거나 다른 서비스로 추정하지 않았습니다.</p><ul className="mt-2 text-[16px] leading-6 text-slate-700">{preservedRows.map((row, index) => <li key={row.sourceItemId ?? index}>· {row.serviceName ?? "서비스명 확인 필요"} · {compactCellLabel(row)}</li>)}</ul></details> : null}
       {breedGroup !== null && groups[breedGroup] ? <MobileBreedDialog initialBreeds={groups[breedGroup].breedNames} unavailableBreeds={groups.flatMap((group, index) => index === breedGroup ? [] : group.breedNames)} onClose={() => setBreedGroup(null)} onSave={(breedNames) => { onChange(updateMobilePriceGuideGroup(document, breedGroup, { breedNames })); setBreedGroup(null); }} /> : null}
     </div>

@@ -1,12 +1,28 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { registerHooks } from "node:module";
+import { resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-import {
+const sourceRoot = fileURLToPath(new URL("../../src/", import.meta.url));
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (!specifier.startsWith("@/")) return nextResolve(specifier, context);
+    const sourcePath = resolve(sourceRoot, specifier.slice(2));
+    const candidate = [sourcePath, `${sourcePath}.ts`, `${sourcePath}.tsx`, resolve(sourcePath, "index.ts"), resolve(sourcePath, "index.tsx")]
+      .find((path) => existsSync(path));
+    if (!candidate) return nextResolve(specifier, context);
+    return { url: pathToFileURL(candidate).href, shortCircuit: true };
+  },
+});
+
+const {
   applyWeightDurationUpdates,
   isValidWeightDurationRule,
   proposeWeightDuration,
   proposeWeightDurations,
-} from "../../src/lib/price-guide-weight-duration-proposal.ts";
+} = await import("../../src/lib/price-guide-weight-duration-proposal.ts");
 
 const rule = { baseKg: 2, baseMinutes: 30, stepKg: 2, incrementMinutes: 10 };
 const target = (rowIndex, minKg, maxKg, durationMinutes = null) => ({ rowIndex, minKg, maxKg, durationMinutes });
@@ -15,8 +31,7 @@ test("weight-duration proposals use canonical maxKg boundaries without reading l
   assert.deepEqual(proposeWeightDurations([target(0, null, 2), target(1, null, 4), target(2, null, 6), target(3, null, 8)], rule).map((item) => item.previewDurationMinutes), [30, 40, 50, 60]);
   assert.equal(proposeWeightDuration(target(3, 1.2, 2.1), rule).previewDurationMinutes, 40, "decimal maxKg uses ceil");
   const open = proposeWeightDuration(target(4, 8, null), rule);
-  assert.equal(open.needsDirectInput, true);
-  assert.equal(open.reason, "직접 입력");
+  assert.equal(open.previewDurationMinutes, 60, "open-ended bands start from their lower boundary");
   assert.equal(proposeWeightDuration(target(5, null, null), rule).needsDirectInput, true);
   const mismatched = proposeWeightDuration(target(6, 8, 4), rule);
   assert.equal(mismatched.needsDirectInput, true);

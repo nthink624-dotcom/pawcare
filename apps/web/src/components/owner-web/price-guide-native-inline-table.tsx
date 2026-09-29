@@ -44,7 +44,7 @@ type ValidationIssue = {
 
 // PRICE_GUIDE_UI_HARD_CONTRACT: 16/24 only; price left + duration right on one nowrap row.
 const inputClass = "h-11 min-w-0 w-full rounded-[8px] border border-[#cbd5e1] bg-white px-2.5 !text-[16px] font-normal !leading-6 text-[#172033] outline-none placeholder:text-[#94a3b8] focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20";
-const cellButtonClass = "min-h-11 w-full min-w-0 rounded-[8px] px-2.5 py-2 text-left !text-[16px] !font-normal !leading-6 text-[#334155] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]";
+const cellButtonClass = "min-h-11 w-full min-w-0 rounded-[8px] px-2.5 py-2 text-left !text-[16px] !font-medium !leading-6 text-[#334155] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]";
 const actionClass = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[8px] border border-[#cbd5e1] bg-white px-3 !text-[16px] !font-medium !leading-6 text-[#42536a] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
 const iconButtonClass = "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] hover:bg-[#f1f5f9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
 
@@ -102,21 +102,20 @@ function PriceDurationInlineCell({
   priceIssue?: ValidationIssue;
   durationIssue?: ValidationIssue;
   forceInputId?: string;
-  onEditStart: () => void;
+  onEditStart: (field: "price" | "duration") => void;
   onChange: (patch: Partial<PriceGuideV2Row>, fields: string[]) => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editingField, setEditingField] = useState<"price" | "duration" | null>(null);
   const minPriceId = rowInputId(rowIndex, "priceMinKrw");
   const maxPriceId = rowInputId(rowIndex, "priceMaxKrw");
   const durationId = rowInputId(rowIndex, "durationMinutes");
-  const isEditing = editing || Boolean(forceInputId);
+  const isEditing = editingField !== null || Boolean(forceInputId);
 
   return (
     <div
       data-price-guide-price-duration-cell={rowIndex}
-      onFocusCapture={() => setEditing(true)}
       onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setEditing(false);
+        if (!event.currentTarget.contains(event.relatedTarget)) setEditingField(null);
       }}
     >
       {isEditing ? (
@@ -125,7 +124,7 @@ function PriceDurationInlineCell({
             <label htmlFor={minPriceId} className="sr-only">가격</label>
             <input
               id={minPriceId}
-              autoFocus={forceInputId !== durationId && forceInputId !== maxPriceId}
+              autoFocus={editingField === "price" || (editingField === null && forceInputId !== durationId && forceInputId !== maxPriceId)}
               value={row.priceMinKrw ?? ""}
               inputMode="numeric"
               onChange={(event) => onChange({ priceMinKrw: nullableInteger(event.target.value) }, ["priceMinKrw"])}
@@ -153,7 +152,7 @@ function PriceDurationInlineCell({
             <label htmlFor={durationId} className="sr-only">예상시간</label>
             <input
               id={durationId}
-              autoFocus={forceInputId === durationId}
+              autoFocus={editingField === "duration" || (editingField === null && forceInputId === durationId)}
               value={row.durationMinutes ?? ""}
               inputMode="numeric"
               onChange={(event) => onChange({ durationMinutes: nullableInteger(event.target.value) }, ["durationMinutes"])}
@@ -168,21 +167,14 @@ function PriceDurationInlineCell({
           </div>
         </div>
       ) : (
-        <button
-          id={minPriceId}
-          type="button"
-          onClick={() => {
-            onEditStart();
-            setEditing(true);
-          }}
-          className={`${cellButtonClass} whitespace-nowrap`}
-          aria-label={`${compactPriceDurationLabel(row)}. 가격과 예상시간 수정`}
-        >
-          <span className="grid grid-cols-[minmax(0,1fr)_88px] items-center gap-1.5" data-price-left-time-right="true">
-            <span className={`min-w-0 truncate whitespace-nowrap text-[16px] font-medium leading-6 tabular-nums ${row.priceMinKrw === null ? "text-[#7a8798]" : "text-[#172033]"}`} data-price-side="left">{priceDisplayLabel(row)}</span>
-            <span className={`min-w-0 whitespace-nowrap border-l border-[#e2e8f0] pl-2 text-[16px] font-medium leading-6 tabular-nums ${row.durationMinutes === null ? "text-[#7a8798]" : "text-[#172033]"}`} data-duration-side="right">{row.durationMinutes === null ? "미정" : `${row.durationMinutes}분`}</span>
-          </span>
-        </button>
+        <div className="grid grid-cols-[minmax(0,1fr)_88px] items-center gap-1.5" data-price-left-time-right="true">
+          <button id={minPriceId} type="button" onClick={() => { onEditStart("price"); setEditingField("price"); }} className={`${cellButtonClass} min-w-0 truncate whitespace-nowrap text-[16px] font-medium leading-6 tabular-nums !px-2.5`} aria-label={`${priceDisplayLabel(row)} 가격 수정`} data-price-side="left">
+            {priceDisplayLabel(row)}
+          </button>
+          <button id={`${durationId}-trigger`} type="button" onClick={() => { onEditStart("duration"); setEditingField("duration"); }} className={`${cellButtonClass} min-w-0 whitespace-nowrap border-l border-[#e2e8f0] text-[16px] font-medium leading-6 tabular-nums !px-2 !text-left`} aria-label={`${row.durationMinutes === null ? "미정" : `${row.durationMinutes}분`} 예상시간 수정`} data-duration-side="right">
+            {row.durationMinutes === null ? "미정" : `${row.durationMinutes}분`}
+          </button>
+        </div>
       )}
     </div>
   );

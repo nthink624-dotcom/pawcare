@@ -346,7 +346,7 @@ test("direct, saved, and photo review share one service-column table with inline
   const tableStart = nativeTable.indexOf("export default function PriceGuideNativeInlineTable");
   assert.ok(combinedCellStart >= 0 && tableStart > combinedCellStart);
   const combinedCell = nativeTable.slice(combinedCellStart, tableStart);
-  assert.match(combinedCell, /const \[editing, setEditing\] = useState\(false\)/);
+  assert.match(combinedCell, /const \[editingField, setEditingField\] = useState<"price" \| "duration" \| null>\(null\)/);
   assert.match(combinedCell, /data-price-guide-price-duration-cell=\{rowIndex\}/);
   assert.match(combinedCell, /data-price-guide-inline-edit="price-duration"/);
   assert.match(combinedCell, /grid-cols-\[minmax\(0,1fr\)_88px\]/);
@@ -362,6 +362,8 @@ test("direct, saved, and photo review share one service-column table with inline
     assert.match(combinedCell, new RegExp(field));
   }
   assert.match(combinedCell, /compactPriceDurationLabel\(row\)/);
+  assert.match(combinedCell, /onEditStart\("price"\); setEditingField\("price"\)/);
+  assert.match(combinedCell, /onEditStart\("duration"\); setEditingField\("duration"\)/);
   assert.doesNotMatch(nativeTable, /function PriceInlineCell|function DurationInlineCell|data-price-guide-price-cell|data-price-guide-duration-cell/);
   assert.match(nativeTable, /<PriceDurationInlineCell[\s\S]*onEditStart=\{startIndependentCellEdit\}/);
   assert.match(nativeTable, /addDirectPriceGuideService/);

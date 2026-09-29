@@ -15,9 +15,10 @@ export function isValidWeightDurationRule(rule: WeightDurationRule) {
 
 export function proposeWeightDuration(target: WeightDurationTarget, rule: WeightDurationRule): WeightDurationProposal {
   if (!isValidWeightDurationRule(rule)) return { ...target, proposedDurationMinutes: null, previewDurationMinutes: target.durationMinutes, needsDirectInput: true, reason: "기준값을 확인해 주세요." };
-  if (target.maxKg === null || !Number.isFinite(target.maxKg) || target.maxKg < 0) return { ...target, proposedDurationMinutes: null, previewDurationMinutes: target.durationMinutes, needsDirectInput: true, reason: "직접 입력" };
-  if (target.minKg !== null && (!Number.isFinite(target.minKg) || target.minKg < 0 || target.minKg > target.maxKg)) return { ...target, proposedDurationMinutes: null, previewDurationMinutes: target.durationMinutes, needsDirectInput: true, reason: "체중 확인" };
-  const proposedDurationMinutes = rule.baseMinutes + Math.ceil(Math.max(0, target.maxKg - rule.baseKg) / rule.stepKg) * rule.incrementMinutes;
+  const anchorKg = target.maxKg ?? target.minKg;
+  if (anchorKg === null || !Number.isFinite(anchorKg) || anchorKg < 0) return { ...target, proposedDurationMinutes: null, previewDurationMinutes: target.durationMinutes, needsDirectInput: true, reason: "체중 확인" };
+  if (target.minKg !== null && (!Number.isFinite(target.minKg) || target.minKg < 0 || (target.maxKg !== null && target.minKg > target.maxKg))) return { ...target, proposedDurationMinutes: null, previewDurationMinutes: target.durationMinutes, needsDirectInput: true, reason: "체중 확인" };
+  const proposedDurationMinutes = rule.baseMinutes + Math.ceil(Math.max(0, anchorKg - rule.baseKg) / rule.stepKg) * rule.incrementMinutes;
   if (!isConfirmedPriceGuideDuration(proposedDurationMinutes)) return { ...target, proposedDurationMinutes: null, previewDurationMinutes: target.durationMinutes, needsDirectInput: true, reason: "직접 입력" };
   return { ...target, proposedDurationMinutes, previewDurationMinutes: isConfirmedPriceGuideDuration(target.durationMinutes) ? target.durationMinutes : proposedDurationMinutes, needsDirectInput: false, reason: null };
 }

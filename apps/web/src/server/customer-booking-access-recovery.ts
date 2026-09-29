@@ -9,6 +9,7 @@ import type { Appointment } from "@/types/domain";
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const PHONE_REQUEST_LIMIT = 3;
 const IP_REQUEST_LIMIT = 10;
+const SHOP_REQUEST_LIMIT = 30;
 
 type RateLimitStore = Map<string, number[]>;
 
@@ -35,6 +36,17 @@ function consumeRateLimit(key: string, limit: number, now = Date.now()) {
 
   active.push(now);
   store.set(key, active);
+
+  // Keep the per-instance fallback bounded when the endpoint is probed with
+  // many distinct values. The production primitive remains the follow-up
+  // required for multi-instance enforcement.
+  if (store.size > 2048) {
+    for (const [candidateKey, timestamps] of store) {
+      if (timestamps.length === 0 || now - timestamps[timestamps.length - 1] >= RATE_LIMIT_WINDOW_MS) {
+        store.delete(candidateKey);
+      }
+    }
+  }
   return true;
 }
 
@@ -46,15 +58,17 @@ function canManageAppointment(appointment: Appointment) {
   return minutesFromTime(appointment.appointment_time) > currentMinutesInTimeZone();
 }
 
-export function checkCustomerBookingAccessRecoveryRateLimit(input: { phone: string; clientIp: string }) {
+export function checkCustomerBookingAccessRecoveryRateLimit(input: { shopId?: string; phone: string; clientIp: string }) {
   const normalizedPhone = phoneNormalize(input.phone).slice(0, 11);
   const normalizedIp = input.clientIp.trim() || "unknown";
+  const normalizedShop = input.shopId?.trim() || "unknown";
   const ipAllowed = consumeRateLimit(`ip:${hashRateLimitValue(normalizedIp)}`, IP_REQUEST_LIMIT);
   const phoneAllowed = consumeRateLimit(
     `phone:${hashRateLimitValue(normalizedPhone || "invalid")}`,
     PHONE_REQUEST_LIMIT,
   );
-  return ipAllowed && phoneAllowed;
+  const shopAllowed = consumeRateLimit(`shop:${hashRateLimitValue(normalizedShop)}`, SHOP_REQUEST_LIMIT);
+  return ipAllowed && phoneAllowed && shopAllowed;
 }
 
 export async function requestCustomerBookingAccessLink(input: { shopId: string; phone: string }) {

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { serverEnv } from "@/lib/server-env";
+import { logOperationalEvent } from "@/lib/observability";
 import {
   buildMarketingKpiSnapshot,
   type MarketingAppointmentRow,
@@ -262,8 +263,9 @@ function chunk<T>(values: T[], size: number) {
 
 function logSourceError(source: string, error: unknown) {
   const queryError = error as QueryError | null | undefined;
-  console.error(`[marketing-kpi] ${source} query failed`, {
-    code: queryError?.code ?? "unknown",
-    message: queryError?.message ?? "unknown error",
+  logOperationalEvent("marketing_kpi.failed", {
+    operation: "marketing_kpi_snapshot",
+    code: `${source}:${queryError?.code ?? "unknown"}`.slice(0, 120),
+    status: 500,
   });
 }

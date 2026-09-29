@@ -50,11 +50,12 @@ test("terminal media cleanup is provider-aware, exact-path, residue-checked, and
   const route = read("src/app/api/owner/account-deletion/route.ts");
   const storage = read("src/server/media-storage.ts");
 
-  assert.match(storage, /process\.env\.MEDIA_STORAGE_PROVIDER === "r2"/);
+  assert.match(storage, /configured === "r2"/);
   assert.match(storage, /method: "DELETE"/);
   assert.match(storage, /response\.status !== 404/);
   assert.match(storage, /method: "HEAD"/);
   assert.match(storage, /if \(response\.status === 404\) continue/);
+  assert.match(storage, /if \(supabasePaths\.length === 0\) return true/);
   assert.match(route, /new Map<string, Set<string>>\(\)/);
   assert.match(route, /Media storage target is incomplete/);
   assert.match(route, /Media storage residue detected/);

@@ -67,11 +67,6 @@ function formatAlimtalkAppointmentDate(date: string) {
   return shortDate(date).replace("/", "월 ").replace("(", "일(");
 }
 
-function getPhoneTail(value: string | null | undefined) {
-  const normalized = phoneNormalize(value ?? "");
-  return normalized ? normalized.slice(-4) : null;
-}
-
 function logNotificationSkipped(params: {
   reason: string;
   type: NotificationType;
@@ -352,13 +347,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const service =
     appointment ? bootstrap.services.find((item) => item.id === appointment.service_id) ?? null : null;
   const target = input.type === "owner_booking_requested" || (input.channel ?? "alimtalk") === "in_app" ? "owner" : "guardian";
-  const initialPhoneTail = getPhoneTail(input.recipientPhone) ?? getPhoneTail(guardian?.phone ?? null);
-
   console.log("[notification-dispatch] called", {
     type: input.type,
     appointmentId: input.appointmentId ?? appointment?.id ?? null,
     target,
-    phoneTail: initialPhoneTail,
   });
 
   if (input.skipIfExists && hasExistingNotification(bootstrap.notifications, input)) {

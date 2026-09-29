@@ -1,9 +1,9 @@
-import { Gift, Home, MessageCircle, MessageSquareText, PanelsTopLeft, Store } from "lucide-react";
+import { BellRing, ClipboardCheck, Gift, Home, MessageCircle, MessageSquareText, PanelsTopLeft, Store } from "lucide-react";
 import Link from "next/link";
 
 import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 
-type AdminSection = "home" | "owners" | "pilotBenefits" | "marketing" | "support" | "testerFeedback";
+type AdminSection = "home" | "owners" | "pilotBenefits" | "marketing" | "support" | "notifications" | "audit" | "testerFeedback";
 
 const ADMIN_SECTIONS = [
   { id: "home", href: "/admin", label: "홈", icon: Home },
@@ -11,6 +11,8 @@ const ADMIN_SECTIONS = [
   { id: "pilotBenefits", href: "/admin/pilot-benefits", label: "파일럿 혜택", icon: Gift },
   { id: "marketing", href: "/admin/marketing", label: "워크룸", icon: PanelsTopLeft },
   { id: "support", href: "/admin/support", label: "고객 문의", icon: MessageCircle },
+  { id: "notifications", href: "/admin/notifications", label: "알림 실패", icon: BellRing },
+  { id: "audit", href: "/admin/audit", label: "감사 로그", icon: ClipboardCheck },
   { id: "testerFeedback", href: "/admin/tester-feedback", label: "테스터 피드백", icon: MessageSquareText },
 ] as const;
 

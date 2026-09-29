@@ -25,6 +25,7 @@ import {
   OWNER_SIGNUP_TERMS_VERSION,
 } from "@/lib/auth/owner-signup-terms";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
+import { logOperationalEvent } from "@/lib/observability";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
@@ -54,8 +55,12 @@ function isValidShopPhone(value: string) {
 }
 
 function logSignupIssue(stage: string, error: unknown) {
-  const message = error instanceof Error ? error.message : typeof error === "string" ? error : JSON.stringify(error);
-  console.error("[owner-signup]", stage, message);
+  void error;
+  logOperationalEvent("auth.signup.failed", {
+    operation: "owner_signup",
+    code: stage.trim().slice(0, 120) || "unknown_stage",
+    status: 500,
+  });
 }
 
 function buildSignupPayloadHash(payload: SignupRequestPayload) {

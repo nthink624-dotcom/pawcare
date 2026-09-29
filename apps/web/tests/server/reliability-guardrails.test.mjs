@@ -538,6 +538,10 @@ test("customer reservation management requires an appointment-scoped signed link
   assert.match(recoveryRoute, /"Retry-After": "900"/);
   assert.match(recoveryService, /PHONE_REQUEST_LIMIT = 3/);
   assert.match(recoveryService, /IP_REQUEST_LIMIT = 10/);
+  assert.match(recoveryService, /SHOP_REQUEST_LIMIT = 30/);
+  assert.match(recoveryService, /shopId\?: string/);
+  assert.match(recoveryRoute, /shopId, phone, clientIp/);
+  assert.match(recoveryService, /store\.size > 2048/);
   assert.doesNotMatch(recoveryService, /type: "booking_manage_link_requested"/);
   assert.doesNotMatch(recoveryService, /await dispatchNotification\(/);
   assert.doesNotMatch(bookingPage, /profile: "1"/);

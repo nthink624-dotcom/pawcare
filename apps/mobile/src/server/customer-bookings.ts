@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { computeAvailableSlots } from "@/lib/availability";
+import { logOperationalEvent } from "@/lib/observability";
 import {
   addDate,
   currentDateInTimeZone,
@@ -479,9 +480,10 @@ export async function createCustomerBooking(input: unknown) {
   } catch (error) {
     // The appointment has already been committed. Do not make a customer retry
     // a valid booking solely because the owner-alert record could not be saved.
-    console.warn("[customer-bookings] owner booking alert dispatch failed", {
-      appointmentId: appointment.id,
-      reason: error instanceof Error ? error.message : String(error),
+    logOperationalEvent("customer_booking_alert.failed", {
+      operation: "owner_booking_alert",
+      code: "dispatch_failed",
+      status: 502,
     });
   }
 

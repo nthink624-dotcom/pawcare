@@ -2,7 +2,7 @@
   "name": "@petmanager/mobile",
   "private": true,
   "scripts": {
-    "prebuild": "npm run test:price-guide-core",
+    "prebuild": "npm run test:price-guide-core && npm run test:readiness",
     "dev": "next dev",
     "dev:frontend": "next dev",
     "dev:backend": "npm --prefix ../../backend run dev",
@@ -31,6 +31,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:price-guide-core": "node --test tests/mobile-price-photo-http-adapter-contract.test.mjs tests/mobile-price-guide-matrix-contract.test.mjs",
+    "test:readiness": "node --test tests/mobile-readiness-contract.test.mjs tests/mobile-alimtalk-provider-log-security.test.mjs",
     "typecheck:backend": "npm --prefix ../../backend run typecheck"
   },
   "dependencies": {

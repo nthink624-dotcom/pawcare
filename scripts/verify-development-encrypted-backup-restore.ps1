@@ -8,7 +8,8 @@ param(
   [string]$RemoteDatabase = "postgres",
   [int]$LocalPort = 55441,
   [string]$EncryptedBackupPath = "",
-  [string]$ProtectedKeyPath = ""
+  [string]$ProtectedKeyPath = "",
+  [switch]$Preflight
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,9 +49,20 @@ function Assert-TaskTempPath {
 
 function Get-Sha256Hex {
   param([byte[]]$Bytes)
-  $hash = [Security.Cryptography.SHA256]::HashData($Bytes)
-  try { return [Convert]::ToHexString($hash).ToLowerInvariant() }
-  finally { [Array]::Clear($hash, 0, $hash.Length) }
+  $sha = [Security.Cryptography.SHA256]::Create()
+  try {
+    $hash = $sha.ComputeHash($Bytes)
+    try { return ([BitConverter]::ToString($hash) -replace '-', '').ToLowerInvariant() }
+    finally { [Array]::Clear($hash, 0, $hash.Length) }
+  }
+  finally { $sha.Dispose() }
+}
+
+function Get-Sha256Bytes {
+  param([byte[]]$Bytes)
+  $sha = [Security.Cryptography.SHA256]::Create()
+  try { return ,$sha.ComputeHash($Bytes) }
+  finally { $sha.Dispose() }
 }
 
 function Get-FileSha256Hex {
@@ -457,24 +469,76 @@ function Get-DatabaseFingerprint {
   return Convert-ToFingerprintSummary -Text $text
 }
 
+function Get-BackupAssociatedData {
+  return ,([Text.Encoding]::UTF8.GetBytes("PM_ATOMIC_SIGNUP_R1|qefxdtmdtvnzgupmjlom|schemas=auth,private,public,supabase_migrations|pg_dump=18.4|cipher=PMDUMP02"))
+}
+
+function New-RandomBytes {
+  param([int]$Length)
+  $bytes = [byte[]]::new($Length)
+  $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+  try { $rng.GetBytes($bytes) }
+  finally { $rng.Dispose() }
+  return ,$bytes
+}
+
+function Join-ByteArrays {
+  param([byte[][]]$Arrays)
+  $length = 0
+  foreach ($array in $Arrays) { if ($array) { $length += $array.Length } }
+  $joined = [byte[]]::new($length)
+  $offset = 0
+  foreach ($array in $Arrays) {
+    if (-not $array) { continue }
+    [Buffer]::BlockCopy($array, 0, $joined, $offset, $array.Length)
+    $offset += $array.Length
+  }
+  return ,$joined
+}
+
+function Get-BackupAuthenticationTag {
+  param([byte[]]$Key, [byte[]]$Data)
+  $hmac = [Security.Cryptography.HMACSHA256]::new($Key)
+  try { return ,$hmac.ComputeHash($Data) }
+  finally { $hmac.Dispose() }
+}
+
+function Test-ConstantTimeBytesEqual {
+  param([byte[]]$Left, [byte[]]$Right)
+  if (-not $Left -or -not $Right -or $Left.Length -ne $Right.Length) { return $false }
+  $difference = 0
+  for ($index = 0; $index -lt $Left.Length; $index++) { $difference = $difference -bor ($Left[$index] -bxor $Right[$index]) }
+  return $difference -eq 0
+}
+
 function Write-EncryptedArchive {
   param([byte[]]$ArchiveBytes, [string]$ArchivePath, [string]$KeyPath)
-  $aad = [Text.Encoding]::UTF8.GetBytes("PM_ATOMIC_SIGNUP_R1|qefxdtmdtvnzgupmjlom|schemas=auth,private,public,supabase_migrations|pg_dump=18.4")
-  $entropy = [Security.Cryptography.SHA256]::HashData($aad)
-  $key = [Security.Cryptography.RandomNumberGenerator]::GetBytes(32)
-  $nonce = [Security.Cryptography.RandomNumberGenerator]::GetBytes(12)
-  $tag = [byte[]]::new(16)
-  $ciphertext = [byte[]]::new($ArchiveBytes.Length)
-  $magic = [Text.Encoding]::ASCII.GetBytes("PMDUMP01")
+  $aad = Get-BackupAssociatedData
+  $entropy = Get-Sha256Bytes -Bytes $aad
+  $key = New-RandomBytes -Length 32
+  $iv = New-RandomBytes -Length 16
+  $tag = $null
+  $ciphertext = $null
+  $magic = [Text.Encoding]::ASCII.GetBytes("PMDUMP02")
+  $tagInput = $null
+  $payload = $null
+  $aes = $null
   try {
-    $aes = [Security.Cryptography.AesGcm]::new($key, 16)
-    try { $aes.Encrypt($nonce, $ArchiveBytes, $ciphertext, $tag, $aad) }
-    finally { $aes.Dispose() }
-    $payload = [byte[]]::new($magic.Length + $nonce.Length + $tag.Length + $ciphertext.Length)
+    $aes = [Security.Cryptography.AesManaged]::new()
+    $aes.Mode = [Security.Cryptography.CipherMode]::CBC
+    $aes.Padding = [Security.Cryptography.PaddingMode]::PKCS7
+    $aes.Key = $key
+    $aes.IV = $iv
+    $encryptor = $aes.CreateEncryptor()
+    try { $ciphertext = $encryptor.TransformFinalBlock($ArchiveBytes, 0, $ArchiveBytes.Length) }
+    finally { $encryptor.Dispose() }
+    $tagInput = Join-ByteArrays -Arrays @($aad, $magic, $iv, $ciphertext)
+    $tag = Get-BackupAuthenticationTag -Key $key -Data $tagInput
+    $payload = [byte[]]::new($magic.Length + $iv.Length + $tag.Length + $ciphertext.Length)
     [Buffer]::BlockCopy($magic, 0, $payload, 0, $magic.Length)
-    [Buffer]::BlockCopy($nonce, 0, $payload, $magic.Length, $nonce.Length)
-    [Buffer]::BlockCopy($tag, 0, $payload, $magic.Length + $nonce.Length, $tag.Length)
-    [Buffer]::BlockCopy($ciphertext, 0, $payload, $magic.Length + $nonce.Length + $tag.Length, $ciphertext.Length)
+    [Buffer]::BlockCopy($iv, 0, $payload, $magic.Length, $iv.Length)
+    [Buffer]::BlockCopy($tag, 0, $payload, $magic.Length + $iv.Length, $tag.Length)
+    [Buffer]::BlockCopy($ciphertext, 0, $payload, $magic.Length + $iv.Length + $tag.Length, $ciphertext.Length)
     [IO.File]::WriteAllBytes($ArchivePath, $payload)
     Set-OwnerOnlyAcl -Path $ArchivePath
     $protectedKey = [Security.Cryptography.ProtectedData]::Protect(
@@ -491,7 +555,8 @@ function Write-EncryptedArchive {
     }
   }
   finally {
-    foreach ($buffer in @($aad, $entropy, $key, $nonce, $tag, $ciphertext, $magic)) {
+    if ($aes) { $aes.Dispose() }
+    foreach ($buffer in @($aad, $entropy, $key, $iv, $tag, $ciphertext, $magic, $tagInput)) {
       if ($buffer) { [Array]::Clear($buffer, 0, $buffer.Length) }
     }
     if ($payload) { [Array]::Clear($payload, 0, $payload.Length) }
@@ -501,35 +566,54 @@ function Write-EncryptedArchive {
 function Read-EncryptedArchive {
   param([string]$ArchivePath, [string]$KeyPath)
   $payload = [IO.File]::ReadAllBytes($ArchivePath)
-  $aad = [Text.Encoding]::UTF8.GetBytes("PM_ATOMIC_SIGNUP_R1|qefxdtmdtvnzgupmjlom|schemas=auth,private,public,supabase_migrations|pg_dump=18.4")
-  $entropy = [Security.Cryptography.SHA256]::HashData($aad)
-  $expectedMagic = [Text.Encoding]::ASCII.GetBytes("PMDUMP01")
+  $aad = Get-BackupAssociatedData
+  $entropy = Get-Sha256Bytes -Bytes $aad
+  $expectedMagic = [Text.Encoding]::ASCII.GetBytes("PMDUMP02")
   $protectedKey = [IO.File]::ReadAllBytes($KeyPath)
   $key = $null
+  $actualMagic = $null
+  $iv = $null
+  $tag = $null
+  $ciphertext = $null
+  $tagInput = $null
+  $expectedTag = $null
+  $plaintext = $null
+  $aes = $null
   try {
-    if ($payload.Length -lt 36) { throw "Encrypted archive is truncated" }
+    if ($payload.Length -lt 56) { throw "Encrypted archive is truncated" }
     $actualMagic = [byte[]]::new(8)
     [Buffer]::BlockCopy($payload, 0, $actualMagic, 0, 8)
-    if (-not [Security.Cryptography.CryptographicOperations]::FixedTimeEquals($expectedMagic, $actualMagic)) {
+    if (-not (Test-ConstantTimeBytesEqual -Left $expectedMagic -Right $actualMagic)) {
       throw "Encrypted archive magic mismatch"
     }
-    $nonce = [byte[]]::new(12)
-    $tag = [byte[]]::new(16)
-    $ciphertext = [byte[]]::new($payload.Length - 36)
-    [Buffer]::BlockCopy($payload, 8, $nonce, 0, 12)
-    [Buffer]::BlockCopy($payload, 20, $tag, 0, 16)
-    [Buffer]::BlockCopy($payload, 36, $ciphertext, 0, $ciphertext.Length)
+    $iv = [byte[]]::new(16)
+    $tag = [byte[]]::new(32)
+    $ciphertext = [byte[]]::new($payload.Length - 56)
+    [Buffer]::BlockCopy($payload, 8, $iv, 0, $iv.Length)
+    [Buffer]::BlockCopy($payload, 24, $tag, 0, $tag.Length)
+    [Buffer]::BlockCopy($payload, 56, $ciphertext, 0, $ciphertext.Length)
     $key = [Security.Cryptography.ProtectedData]::Unprotect(
       $protectedKey, $entropy, [Security.Cryptography.DataProtectionScope]::CurrentUser
     )
-    $plaintext = [byte[]]::new($ciphertext.Length)
-    $aes = [Security.Cryptography.AesGcm]::new($key, 16)
-    try { $aes.Decrypt($nonce, $ciphertext, $tag, $plaintext, $aad) }
-    finally { $aes.Dispose() }
+    $tagInput = Join-ByteArrays -Arrays @($aad, $expectedMagic, $iv, $ciphertext)
+    $expectedTag = Get-BackupAuthenticationTag -Key $key -Data $tagInput
+    try {
+      if (-not (Test-ConstantTimeBytesEqual -Left $expectedTag -Right $tag)) { throw "Encrypted archive authentication failed" }
+    }
+    finally { if ($expectedTag) { [Array]::Clear($expectedTag, 0, $expectedTag.Length) } }
+    $aes = [Security.Cryptography.AesManaged]::new()
+    $aes.Mode = [Security.Cryptography.CipherMode]::CBC
+    $aes.Padding = [Security.Cryptography.PaddingMode]::PKCS7
+    $aes.Key = $key
+    $aes.IV = $iv
+    $decryptor = $aes.CreateDecryptor()
+    try { $plaintext = $decryptor.TransformFinalBlock($ciphertext, 0, $ciphertext.Length) }
+    finally { $decryptor.Dispose() }
     return ,$plaintext
   }
   finally {
-    foreach ($buffer in @($payload, $aad, $entropy, $expectedMagic, $actualMagic, $protectedKey, $key, $nonce, $tag, $ciphertext)) {
+    if ($aes) { $aes.Dispose() }
+    foreach ($buffer in @($payload, $aad, $entropy, $expectedMagic, $actualMagic, $protectedKey, $key, $iv, $tag, $ciphertext, $tagInput, $expectedTag)) {
       if ($buffer) { [Array]::Clear($buffer, 0, $buffer.Length) }
     }
   }
@@ -550,6 +634,63 @@ try {
   if (-not ($RemoteUser -match [regex]::Escape($expectedProjectRef))) {
     throw "Development project ref is missing from the pooler user"
   }
+
+  if ($Preflight) {
+    Add-Type -AssemblyName System.Security
+    $requiredTools = @("pg_dump.exe", "pg_restore.exe", "initdb.exe", "pg_ctl.exe", "psql.exe")
+    foreach ($tool in $requiredTools) {
+      if (-not (Test-Path -LiteralPath (Join-Path $PgBin $tool))) { throw "Required tool is missing: $tool" }
+    }
+    $probePlaintext = [Text.Encoding]::UTF8.GetBytes("petmanager backup preflight")
+    $probeKey = New-RandomBytes -Length 32
+    $probeIv = New-RandomBytes -Length 16
+    $probeCiphertext = $null
+    $probeRoundtrip = $null
+    $probeRestored = $null
+    $probeAes = $null
+    $preflightArchivePath = Join-Path $tempRoot ("petmanager-dev-preflight-" + $runId + ".pmdump")
+    $preflightKeyPath = $preflightArchivePath + ".key.dpapi"
+    try {
+      $probeAes = [Security.Cryptography.AesManaged]::new()
+      $probeAes.Mode = [Security.Cryptography.CipherMode]::CBC
+      $probeAes.Padding = [Security.Cryptography.PaddingMode]::PKCS7
+      $probeAes.Key = $probeKey
+      $probeAes.IV = $probeIv
+      $probeEncryptor = $probeAes.CreateEncryptor()
+      try { $probeCiphertext = $probeEncryptor.TransformFinalBlock($probePlaintext, 0, $probePlaintext.Length) }
+      finally { $probeEncryptor.Dispose() }
+      $probeTagInput = Join-ByteArrays -Arrays @((Get-BackupAssociatedData), $probeIv, $probeCiphertext)
+      $probeTag = Get-BackupAuthenticationTag -Key $probeKey -Data $probeTagInput
+      $probeDecryptor = $probeAes.CreateDecryptor()
+      try { $probeRoundtrip = $probeDecryptor.TransformFinalBlock($probeCiphertext, 0, $probeCiphertext.Length) }
+      finally { $probeDecryptor.Dispose() }
+      if (-not (Test-ConstantTimeBytesEqual -Left $probePlaintext -Right $probeRoundtrip)) { throw "Backup encryption preflight roundtrip failed" }
+      [void](Write-EncryptedArchive -ArchiveBytes $probePlaintext -ArchivePath $preflightArchivePath -KeyPath $preflightKeyPath)
+      $probeRestored = Read-EncryptedArchive -ArchivePath $preflightArchivePath -KeyPath $preflightKeyPath
+      if (-not (Test-ConstantTimeBytesEqual -Left $probePlaintext -Right $probeRestored)) { throw "Backup file format preflight roundtrip failed" }
+    }
+    finally {
+      if ($probeAes) { $probeAes.Dispose() }
+      foreach ($buffer in @($probePlaintext, $probeKey, $probeIv, $probeCiphertext, $probeRoundtrip, $probeRestored, $probeTagInput, $probeTag)) {
+        if ($buffer) { [Array]::Clear($buffer, 0, $buffer.Length) }
+      }
+      foreach ($pathToRemove in @($preflightArchivePath, $preflightKeyPath)) {
+        if (Test-Path -LiteralPath $pathToRemove) { Remove-Item -LiteralPath $pathToRemove -Force }
+      }
+    }
+    [pscustomobject]@{
+      Status = "PM_DEV_ENCRYPTED_BACKUP_PREFLIGHT_PASS"
+      Target = "petmanager-dev:$expectedProjectRef"
+      Encryption = "AES-CBC+HMAC-SHA256"
+      ArchiveFormat = "PMDUMP02"
+      FileRoundtrip = $true
+      PgBin = $PgBin
+      RemoteWrites = 0
+      NetworkAccess = "none"
+    } | ConvertTo-Json -Depth 3
+    return
+  }
+
   if (-not (Test-Path -LiteralPath $SecretPath)) { throw "DPAPI secret is missing" }
   if (-not (Test-Path -LiteralPath $CaPath)) { throw "Supabase CA certificate is missing" }
   if ((Get-FileSha256Hex -Path $CaPath) -ne $expectedCaSha256) { throw "Supabase CA certificate checksum mismatch" }

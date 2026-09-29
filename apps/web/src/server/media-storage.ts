@@ -54,7 +54,9 @@ function hasCompleteR2Config() {
 }
 
 function getMediaStorageProvider(): StorageProvider {
-  const r2Requested = process.env.MEDIA_STORAGE_PROVIDER === "r2" || process.env.VERCEL_ENV === "production";
+  const configured = process.env.MEDIA_STORAGE_PROVIDER?.trim().toLowerCase();
+  if (configured === "supabase") return "supabase";
+  const r2Requested = configured === "r2" || (!configured && process.env.VERCEL_ENV === "production");
   // Keep private media uploads available during a partially configured R2
   // rollout. Once all R2 credentials are present, production continues to use
   // the R2 path exactly as before; without them, Supabase Storage is the safe
@@ -63,7 +65,8 @@ function getMediaStorageProvider(): StorageProvider {
 }
 
 function getMediaStorageProviderForPath(path: string): StorageProvider {
-  if (/^(?:transient|retained)\/supabase\//.test(path)) return "supabase";
+  const explicitProvider = path.match(/^(?:transient|retained)\/(supabase|r2)\//)?.[1];
+  if (explicitProvider === "supabase" || explicitProvider === "r2") return explicitProvider;
   if (/^(?:transient|retained)\/shops\//.test(path) || path.startsWith("shops/")) {
     return getMediaStorageProvider();
   }
@@ -188,7 +191,7 @@ export function getMediaStorageInfo() {
 }
 
 export async function createMediaSignedUploadUrl(input: CreateSignedUploadUrlInput) {
-  if (getMediaStorageProvider() === "r2") {
+  if (getMediaStorageProviderForPath(input.path) === "r2") {
     return {
       provider: "r2" as const,
       bucket: input.bucket,
@@ -320,6 +323,8 @@ export async function verifyMediaStorageObjectsAbsent(input: RemoveObjectsInput)
     if (response.ok) return false;
     throw new Error("R2 media cleanup verification failed.");
   }
+
+  if (supabasePaths.length === 0) return true;
 
   const admin = getSupabaseStorageAdmin();
   for (const path of supabasePaths) {

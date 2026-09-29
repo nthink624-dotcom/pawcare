@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { logOperationalEvent } from "@/lib/observability";
 import {
   DevelopmentTestOwnerError,
   assertDevelopmentTestOwnerRequest,
@@ -17,7 +18,11 @@ function safeErrorResponse(error: unknown) {
     );
   }
 
-  console.error("[dev-test-owner] unexpected_failure");
+  logOperationalEvent("dev_test_owner.failed", {
+    operation: "dev_test_owner",
+    code: "unexpected_failure",
+    status: 500,
+  });
   return NextResponse.json(
     { ready: false, code: "unexpected_failure", message: "검수용 테스트 오너를 준비하지 못했습니다." },
     { status: 500 },

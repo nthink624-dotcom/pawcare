@@ -4,9 +4,9 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 import { getAppErrorEscapeContext } from "@/lib/app-error-context";
+import { logOperationalEvent } from "@/lib/observability";
 
 export default function AppError({
-  error,
   reset,
 }: {
   error: Error & { digest?: string };
@@ -16,12 +16,14 @@ export default function AppError({
   const escapeContext = getAppErrorEscapeContext(pathname);
 
   useEffect(() => {
-    console.error("[petmanager-ui] recovered from a route error", {
-      message: error.message,
-      digest: error.digest,
-      path: pathname,
+    // [petmanager-ui] route errors are recorded without exposing the original error.
+    logOperationalEvent("ui.route_error_recovered", {
+      route: pathname,
+      status: 500,
+      operation: "ui_error_boundary",
+      code: "route_error",
     });
-  }, [error, pathname]);
+  }, [pathname]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] px-5 py-10">

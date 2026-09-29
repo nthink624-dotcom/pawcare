@@ -1,6 +1,7 @@
 import { Webhook } from "@portone/server-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
+import { logOperationalEvent } from "@/lib/observability";
 import { requireServerSecret, serverEnv, ServerEnvError } from "@/lib/server-env";
 import { syncOwnerAlimtalkCreditPurchaseFromPayment } from "@/server/owner-alimtalk-credit-purchase";
 import { OwnerBillingError, syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";
@@ -77,7 +78,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
     }
 
-    const message = error instanceof Error ? error.message : "포트원 웹훅을 처리하지 못했습니다.";
-    return NextResponse.json({ ok: false, message }, { status: 500 });
+    logOperationalEvent("payment_webhook.failed", {
+      operation: "portone_webhook",
+      code: "unexpected_processing_failure",
+      status: 500,
+    });
+    return NextResponse.json(
+      { ok: false, message: "Payment webhook processing failed." },
+      { status: 500 },
+    );
   }
 }

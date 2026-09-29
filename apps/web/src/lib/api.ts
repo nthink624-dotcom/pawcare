@@ -199,6 +199,20 @@ export async function fetchApiJsonWithBearer<T>(input: string, accessToken: stri
   });
 }
 
+export async function fetchApiResponseWithBearer(input: string, accessToken: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  const hasFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (!headers.has("Content-Type") && !hasFormDataBody) {
+    headers.set("Content-Type", "application/json");
+  }
+  headers.set("Authorization", `Bearer ${accessToken}`);
+
+  return fetch(buildApiUrl(input), {
+    ...init,
+    headers,
+  });
+}
+
 export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
   const accessToken = await getAccessTokenWithRecovery();
   try {
@@ -212,4 +226,15 @@ export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit)
     const retryAccessToken = await refreshAccessTokenForRetry();
     return fetchApiJsonWithBearer<T>(input, retryAccessToken, init);
   }
+}
+
+export async function fetchApiResponseWithAuth(input: string, init?: RequestInit) {
+  const accessToken = await getAccessTokenWithRecovery();
+  let response = await fetchApiResponseWithBearer(input, accessToken, init);
+  if (response.status !== 401) return response;
+
+  clearOwnerAccessTokenCache();
+  const retryAccessToken = await refreshAccessTokenForRetry();
+  response = await fetchApiResponseWithBearer(input, retryAccessToken, init);
+  return response;
 }

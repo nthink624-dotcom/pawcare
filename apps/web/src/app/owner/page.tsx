@@ -256,9 +256,10 @@ export default function OwnerPage() {
         setAccessToken(ownerAccess.accessToken);
 
         const storedShopId = readCurrentOwnerShopId();
-        const loadSubscription = async () => {
+        const loadSubscription = async (shopId: string | null | undefined = resolvedShopId) => {
+          const query = shopId ? `?shopId=${encodeURIComponent(shopId)}` : "";
           const subscription = await withOwnerLoadTimeout(
-            fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
+            fetchApiJsonWithAuth<OwnerSubscriptionSummary>(`/api/subscription${query}`, { cache: "no-store" }),
             "구독 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
           );
           if (active) {
@@ -381,9 +382,10 @@ export default function OwnerPage() {
       if (Date.now() < backgroundRefreshReadyAtRef.current) return;
 
       try {
-        const nextSubscription = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
-          cache: "no-store",
-        });
+        const nextSubscription = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
+          `/api/subscription?shopId=${encodeURIComponent(selectedShopId)}`,
+          { cache: "no-store" },
+        );
         if (!active) return;
 
         writeOwnerBillingSummaryCache(nextSubscription);

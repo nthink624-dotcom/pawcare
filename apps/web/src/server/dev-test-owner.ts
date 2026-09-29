@@ -78,10 +78,17 @@ type ShopRow = {
   owner_user_id: string | null;
 };
 
+type SubscriptionRow = {
+  subscription_status: string | null;
+  trial_ends_at: string | null;
+  current_period_ends_at: string | null;
+};
+
 type TestOwnerSnapshot = {
   user: User | null;
   profile: OwnerProfileRow | null;
   shop: ShopRow | null;
+  subscription: SubscriptionRow | null;
   subscriptionExists: boolean;
   membershipExists: boolean;
   ownerStaffExists: boolean;
@@ -262,6 +269,7 @@ async function readSnapshot(
       user: null,
       profile: null,
       shop: null,
+      subscription: null,
       subscriptionExists: false,
       membershipExists: false,
       ownerStaffExists: false,
@@ -276,6 +284,7 @@ async function readSnapshot(
       user,
       profile,
       shop: null,
+      subscription: null,
       subscriptionExists: false,
       membershipExists: false,
       ownerStaffExists: false,
@@ -285,7 +294,11 @@ async function readSnapshot(
   }
 
   const [subscription, membership, staff, services, credits] = await Promise.all([
-    admin.from("owner_subscriptions").select("user_id").eq("user_id", user.id).maybeSingle(),
+    admin
+      .from("owner_subscriptions")
+      .select("subscription_status,trial_ends_at,current_period_ends_at")
+      .eq("user_id", user.id)
+      .maybeSingle<SubscriptionRow>(),
     admin
       .from("owner_shop_memberships")
       .select("owner_user_id")
@@ -307,6 +320,7 @@ async function readSnapshot(
     user,
     profile,
     shop,
+    subscription: subscription.data ?? null,
     subscriptionExists: Boolean(subscription.data),
     membershipExists: Boolean(membership.data),
     ownerStaffExists: Boolean(staff.data),
@@ -398,6 +412,51 @@ async function insertMissingShop(
   });
   assertQuery(result.error, "shop_insert_failed");
   return { id: shopId, owner_user_id: userId } satisfies ShopRow;
+}
+
+async function refreshExpiredDevelopmentSubscription(
+  admin: SupabaseClient,
+  userId: string,
+  now: string,
+  trialEndsAt: string,
+) {
+  const result = await admin
+    .from("owner_subscriptions")
+    .select("subscription_status,trial_ends_at,current_period_ends_at")
+    .eq("user_id", userId)
+    .maybeSingle<SubscriptionRow>();
+  assertQuery(result.error, "subscription_lookup_failed");
+
+  const subscription = result.data;
+  if (!subscription) return false;
+
+  const activeUntil = subscription.current_period_ends_at ?? subscription.trial_ends_at;
+  const hasFutureAccess = activeUntil ? new Date(activeUntil).getTime() > Date.now() : false;
+  const isBlocked = subscription.subscription_status === "past_due" || subscription.subscription_status === "expired";
+  if (hasFutureAccess && !isBlocked) return false;
+
+  const update = await admin
+    .from("owner_subscriptions")
+    .update({
+      trial_started_at: now,
+      trial_ends_at: trialEndsAt,
+      next_billing_at: null,
+      payment_method_exists: false,
+      payment_method_label: null,
+      subscription_status: "trialing",
+      cancel_at_period_end: false,
+      last_payment_status: "none",
+      last_payment_failed_at: null,
+      last_payment_at: null,
+      last_payment_id: null,
+      billing_issue_id: null,
+      current_period_started_at: null,
+      current_period_ends_at: null,
+      updated_at: now,
+    })
+    .eq("user_id", userId);
+  assertQuery(update.error, "subscription_refresh_failed");
+  return true;
 }
 
 async function ensureCredentialSession(
@@ -509,6 +568,8 @@ export async function ensureDevelopmentTestOwner(): Promise<DevelopmentTestOwner
       updated_at: now,
     });
     assertQuery(subscriptionInsert.error, "subscription_insert_failed");
+    changed.push("subscription");
+  } else if (await refreshExpiredDevelopmentSubscription(admin, user.id, now, trialEndsAt)) {
     changed.push("subscription");
   }
 

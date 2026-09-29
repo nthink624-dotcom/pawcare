@@ -1,0 +1,29 @@
+{
+  "readAt": "2026-09-29",
+  "scope": "read-only Vercel project, deployment, runtime-log, and endpoint readback",
+  "projects": {
+    "web": {
+      "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
+      "projectName": "petmanager",
+      "deploymentId": "dpl_D6KvYyZLDPUSZV5BCfQ5SBydiUQ3",
+      "deploymentState": "READY",
+      "commitSha": "b73f1012d0f5e02e57970cc1ea22ea2167651fba",
+      "aliases": ["www.petmanager.co.kr", "petmanager.co.kr"],
+      "runtimeLogCountsLast24h": { "200": 10 },
+      "runtimeErrorClustersLast24h": [],
+      "endpointSmoke": { "healthz": 404, "readyz": 404 }
+    },
+    "mobile": {
+      "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
+      "projectName": "petmanager-app",
+      "deploymentId": "dpl_BwPvBzxo8efeH8j4uhScqJMyrgMo",
+      "deploymentState": "READY",
+      "commitSha": "b73f1012d0f5e02e57970cc1ea22ea2167651fba",
+      "aliases": ["app.petmanager.co.kr"],
+      "runtimeLogCountsLast24h": { "200": 1 },
+      "runtimeErrorClustersLast24h": [],
+      "endpointSmoke": { "healthz": 404, "readyz": 404 }
+    }
+  },
+  "interpretation": "Both production aliases point to READY deployments, but those deployments predate the local health/readiness routes; redeploy is required before endpoint smoke can pass."
+}

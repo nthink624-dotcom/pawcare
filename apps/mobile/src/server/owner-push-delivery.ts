@@ -4,6 +4,7 @@ import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
 
 import { buildOwnerBookingRequestedPushPayload } from "@/lib/owner-push-payload";
+import { logOperationalEvent } from "@/lib/observability";
 import { hasFirebaseMessagingServerEnv, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/utils";
@@ -128,14 +129,22 @@ async function deactivateToken(tokenId: string) {
 
 export async function sendOwnerBookingRequestedPush(input: OwnerBookingPushInput): Promise<OwnerPushDeliveryResult> {
   if (!hasFirebaseMessagingServerEnv()) {
-    console.info("[owner-push] FCM send skipped: Firebase server credentials are not configured.");
+    logOperationalEvent("owner_push.skipped", {
+      operation: "fcm_delivery",
+      code: "missing_credentials",
+      status: 503,
+    });
     return { configured: false, attempted: 0, sent: 0, failed: 0, deactivated: 0 };
   }
 
   const admin = getSupabaseAdmin();
   const messaging = getMessagingClient();
   if (!admin || !messaging) {
-    console.warn("[owner-push] FCM send skipped: Firebase or Supabase server client is unavailable.");
+    logOperationalEvent("owner_push.skipped", {
+      operation: "fcm_delivery",
+      code: "server_client_unavailable",
+      status: 503,
+    });
     return { configured: false, attempted: 0, sent: 0, failed: 0, deactivated: 0 };
   }
 
@@ -150,7 +159,11 @@ export async function sendOwnerBookingRequestedPush(input: OwnerBookingPushInput
     .is("staff_member_id", null);
 
   if (tokensResult.error) {
-    console.warn("[owner-push] FCM token lookup failed", { reason: tokensResult.error.message });
+    logOperationalEvent("owner_push.failed", {
+      operation: "fcm_token_lookup",
+      code: "token_lookup_failed",
+      status: 500,
+    });
     return { configured: true, attempted: 0, sent: 0, failed: 0, deactivated: 0 };
   }
 
@@ -213,21 +226,13 @@ export async function sendOwnerBookingRequestedPush(input: OwnerBookingPushInput
       if (shouldDeactivateToken(error) && (await deactivateToken(token.id))) {
         deactivated += 1;
       }
-      console.warn("[owner-push] FCM delivery failed", {
-        tokenId: token.id,
-        reason: error instanceof Error ? error.message : String(error),
+      logOperationalEvent("owner_push.failed", {
+        operation: "fcm_delivery",
+        code: shouldDeactivateToken(error) ? "invalid_token" : "delivery_failed",
+        status: 502,
       });
     }
   }
-
-  console.info("[owner-push] FCM delivery result", {
-    shopId: input.appointment.shop_id,
-    appointmentId: input.appointment.id,
-    attempted: tokens.length,
-    sent,
-    failed,
-    deactivated,
-  });
 
   return { configured: true, attempted: tokens.length, sent, failed, deactivated };
 }

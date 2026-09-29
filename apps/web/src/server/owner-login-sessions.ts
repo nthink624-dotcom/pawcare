@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import type { NextRequest, NextResponse } from "next/server";
 
+import { logOperationalEvent } from "@/lib/observability";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 export const OWNER_LOGIN_SESSION_COOKIE = "petmanager_owner_login_session";
@@ -130,15 +131,20 @@ export async function recordOwnerLoginSession(input: LoginSessionInput, sessionT
 
     if (result.error) {
       if (!isMissingLoginSessionTableError(result.error)) {
-        console.warn("[auth/login] login session record failed", {
-          code: result.error.code,
-          message: result.error.message,
+        logOperationalEvent("auth.login_session.failed", {
+          operation: "login_session_record",
+          code: "insert_failed",
+          status: 500,
         });
       }
       return { sessionTrackingId };
     }
-  } catch (error) {
-    console.warn("[auth/login] login session record skipped", error);
+  } catch {
+    logOperationalEvent("auth.login_session.failed", {
+      operation: "login_session_record",
+      code: "unexpected_error",
+      status: 500,
+    });
   }
 
   return { sessionTrackingId };

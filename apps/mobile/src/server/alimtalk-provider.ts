@@ -2,6 +2,8 @@
 
 type AlimtalkMetadata = Record<string, string | boolean | number | null | undefined>;
 
+import { logOperationalEvent } from "@/lib/observability";
+
 type SendAlimtalkInput = {
   to: string;
   message: string;
@@ -47,11 +49,6 @@ function extractProviderMessageId(responseBody: unknown) {
   return null;
 }
 
-function getPhoneTail(value: string | null | undefined) {
-  const normalized = (value ?? "").replace(/\D/g, "");
-  return normalized ? normalized.slice(-4) : null;
-}
-
 function getRelayUrlParts(relayUrl: string | null | undefined) {
   if (!relayUrl) {
     return {
@@ -74,24 +71,15 @@ function getRelayUrlParts(relayUrl: string | null | undefined) {
   }
 }
 
-function getBodyPreview(body: unknown) {
-  if (typeof body === "string") {
-    return body.slice(0, 500);
-  }
-
-  try {
-    return JSON.stringify(body).slice(0, 500);
-  } catch {
-    return "[unserializable]";
-  }
-}
-
 export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<SendAlimtalkResult> {
+  const requestId = crypto.randomUUID();
   const { relayUrlHost, relayUrlPathname } = getRelayUrlParts(serverEnv.alimtalkRelayUrl);
   const hasRelayUrl = Boolean(serverEnv.alimtalkRelayUrl);
   const hasRelaySecret = Boolean(serverEnv.alimtalkRelaySecret);
 
   console.log("[alimtalk-provider] env check", {
+    eventCode: "ALIMTALK_RELAY_CONFIGURATION_CHECKED",
+    requestId,
     hasRelayUrl,
     hasRelaySecret,
     relayUrlHost,
@@ -100,9 +88,10 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
 
   if (serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret) {
     console.log("[alimtalk-provider] relay fetch start", {
+      eventCode: "ALIMTALK_RELAY_REQUEST_STARTED",
+      requestId,
       relayUrlHost,
-      templateAlias: input.templateAlias ?? null,
-      phoneTail: getPhoneTail(input.to),
+      relayUrlPathname,
     });
 
     try {
@@ -111,6 +100,7 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
         headers: {
           "Content-Type": "application/json",
           "x-relay-secret": serverEnv.alimtalkRelaySecret,
+          "x-request-id": requestId,
         },
         body: JSON.stringify({
           to: input.to,
@@ -132,9 +122,13 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
       const relayBody = relayContentType.includes("application/json") ? await relayResponse.json() : await relayResponse.text();
 
       console.log("[alimtalk-provider] relay fetch response", {
+        eventCode: "ALIMTALK_RELAY_RESPONSE_RECEIVED",
+        requestId,
+        relayRequestId: relayResponse.headers.get("x-request-id"),
+        relayUrlHost,
+        relayUrlPathname,
         status: relayResponse.status,
         ok: relayResponse.ok,
-        bodyPreview: getBodyPreview(relayBody),
       });
 
       if (!relayResponse.ok) {
@@ -160,9 +154,10 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
         responseBody: relayBody,
       };
     } catch (error) {
-      console.error("[alimtalk-provider] relay fetch error", {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack ?? null : null,
+      logOperationalEvent("alimtalk.relay_request_failed", {
+        requestId,
+        operation: "relay_request",
+        code: "request_failed",
       });
       throw error;
     }

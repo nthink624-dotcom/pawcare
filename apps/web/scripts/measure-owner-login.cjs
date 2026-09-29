@@ -1,8 +1,11 @@
 const { chromium } = require("@playwright/test");
 
 const baseUrl = (process.env.OWNER_LOGIN_SMOKE_BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
-const email = process.env.OWNER_LOGIN_E2E_EMAIL || process.env.OWNER_LOGIN_SMOKE_EMAIL || "devowner@petmanager.test";
-const password = process.env.OWNER_LOGIN_E2E_PASSWORD || process.env.OWNER_LOGIN_SMOKE_PASSWORD || "test1234";
+const email = process.env.OWNER_LOGIN_E2E_EMAIL || process.env.OWNER_LOGIN_SMOKE_EMAIL;
+const password = process.env.OWNER_LOGIN_E2E_PASSWORD || process.env.OWNER_LOGIN_SMOKE_PASSWORD;
+if (!email || !password) {
+  throw new Error("Owner login measurement requires OWNER_LOGIN_E2E_EMAIL/OWNER_LOGIN_E2E_PASSWORD or the OWNER_LOGIN_SMOKE_* equivalents.");
+}
 const warmRuns = Number(process.env.OWNER_LOGIN_WARM_RUNS || 20);
 const coldRuns = Number(process.env.OWNER_LOGIN_COLD_RUNS || 5);
 

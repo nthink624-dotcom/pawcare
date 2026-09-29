@@ -35,6 +35,8 @@ test("Alimtalk provider logs expose only fixed, non-sensitive diagnostics", () =
 
 test("Relay payload, authentication header, and response interpretation stay intact", () => {
   assert.match(source, /"x-relay-secret": serverEnv\.alimtalkRelaySecret/);
+  assert.match(source, /"x-request-id": requestId/);
+  assert.match(source, /const requestId = crypto\.randomUUID\(\)/);
   assert.match(source, /to: input\.to/);
   assert.match(source, /message: input\.message/);
   assert.match(source, /templateAlias: relayTemplateKey \? null : input\.templateAlias \?\? null/);

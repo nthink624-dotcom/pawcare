@@ -198,9 +198,27 @@ test("stateless relay security contract", async (t) => {
       provider: "ssodaa",
       configured: true,
     });
+    assert.match(String(response.headers["x-request-id"] ?? ""), /^[A-Za-z0-9._:-]{1,128}$/);
     assert.equal(response.text.includes("relay-test-secret"), false);
     assert.equal(response.text.includes("cwd"), false);
     assert.equal(response.text.includes("length"), false);
+  });
+
+  await t.test("request correlation header is bounded and echoed", async () => {
+    const response = await requestRelay({
+      path: "/health",
+      headers: { "x-request-id": "alimtalk-test-42" },
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers["x-request-id"], "alimtalk-test-42");
+
+    const invalid = await requestRelay({
+      path: "/health",
+      headers: { "x-request-id": "bad value with spaces" },
+    });
+    assert.equal(invalid.status, 200);
+    assert.notEqual(invalid.headers["x-request-id"], "bad value with spaces");
+    assert.match(String(invalid.headers["x-request-id"] ?? ""), /^[A-Za-z0-9._:-]{1,128}$/);
   });
 
   await t.test("protected send rejects missing relay authentication", async () => {

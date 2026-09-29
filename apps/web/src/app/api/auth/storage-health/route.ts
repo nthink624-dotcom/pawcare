@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
+import { logOperationalEvent } from "@/lib/observability";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -68,13 +69,21 @@ export async function POST(request: NextRequest) {
     });
 
     if (eventResult.error && !isIgnorableAdminEventError(eventResult.error)) {
-      console.error("[auth/storage-health] failed to record admin event", eventResult.error);
+      logOperationalEvent("auth.storage_health.failed", {
+        operation: "storage_health_event",
+        code: "admin_event_insert_failed",
+        status: 500,
+      });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     if (!(error instanceof z.ZodError)) {
-      console.error("[auth/storage-health] unexpected error", error);
+      logOperationalEvent("auth.storage_health.failed", {
+        operation: "storage_health_event",
+        code: "unexpected_error",
+        status: 500,
+      });
     }
     return NextResponse.json({ success: true });
   }

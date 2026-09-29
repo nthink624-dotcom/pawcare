@@ -6,6 +6,12 @@ const npxPrefixArgs = process.platform === "win32" ? ["D:\\Node\\node_modules\\n
 const envFile = process.argv.find((arg) => arg.startsWith("--local="))?.slice("--local=".length) || ".env.local";
 const targetEnvironment = process.argv.find((arg) => arg.startsWith("--environment="))?.slice("--environment=".length) || "production";
 const removeEmpty = process.argv.includes("--remove-empty");
+const dryRun = process.argv.includes("--dry-run");
+const onlyTemplates = process.argv.includes("--only-templates");
+const approval = process.env.PETMANAGER_VERCEL_ENV_CONFIRMATION || "";
+const changeReason = (process.env.PETMANAGER_VERCEL_ENV_CHANGE_REASON || "").trim();
+const projectId = process.env.PETMANAGER_VERCEL_PROJECT_ID || "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO";
+const scopeId = process.env.PETMANAGER_VERCEL_SCOPE_ID || "team_049eK6zsAwMJwZnQjREjDc6X";
 
 const keys = [
   "ALIMTALK_SENDER_KEY",
@@ -68,12 +74,34 @@ function runVercel(args, options = {}) {
   };
 }
 
+function projectArgs() {
+  return ["--scope", scopeId, "--project", projectId];
+}
+
+function assertApprovedWrite() {
+  if (dryRun) return;
+  if (approval !== targetEnvironment) {
+    throw new Error(
+      `Refusing Vercel ${targetEnvironment} env write. Set PETMANAGER_VERCEL_ENV_CONFIRMATION=${targetEnvironment} only after explicit approval.`,
+    );
+  }
+  if (changeReason.length < 10) {
+    throw new Error(
+      "Refusing Vercel env write. Set PETMANAGER_VERCEL_ENV_CHANGE_REASON with a concrete reason (10+ characters).",
+    );
+  }
+}
+
+assertApprovedWrite();
+
 const envValues = parseEnv(envFile);
 const changed = [];
 const removed = [];
 const skipped = [];
 
-for (const key of keys) {
+const syncKeys = onlyTemplates ? keys.filter((key) => key.startsWith("ALIMTALK_TEMPLATE_")) : keys;
+
+for (const key of syncKeys) {
   const value = envValues[key] || "";
   if (!value) {
     if (!removeEmpty) {
@@ -81,7 +109,12 @@ for (const key of keys) {
       continue;
     }
 
-    const removeResult = runVercel(["env", "rm", key, targetEnvironment, "--yes"]);
+    if (dryRun) {
+      removed.push(key);
+      continue;
+    }
+
+    const removeResult = runVercel(["env", "rm", key, targetEnvironment, "--yes", ...projectArgs()]);
     if (
       !removeResult.ok &&
       !/not found|does not exist|no environment variable/i.test(`${removeResult.stdout}\n${removeResult.stderr}`)
@@ -96,6 +129,11 @@ for (const key of keys) {
     continue;
   }
 
+  if (dryRun) {
+    changed.push(`${key}(${value.length})`);
+    continue;
+  }
+
   const sensitivityFlag = sensitiveKeys.has(key) ? "--sensitive" : "--no-sensitive";
   const addResult = runVercel([
     "env",
@@ -107,6 +145,7 @@ for (const key of keys) {
     "--yes",
     "--force",
     sensitivityFlag,
+    ...projectArgs(),
   ]);
 
   if (!addResult.ok) {
@@ -119,7 +158,7 @@ for (const key of keys) {
   changed.push(`${key}(${value.length})`);
 }
 
-console.log(`Synced ${changed.length} Alimtalk env values to Vercel ${targetEnvironment}.`);
+console.log(`${dryRun ? "DRY_RUN" : "Synced"} ${changed.length} Alimtalk env values for Vercel ${targetEnvironment}.`);
 for (const item of changed) console.log(`SET ${item}`);
 for (const key of removed) console.log(`REMOVE ${key}`);
 for (const key of skipped) console.log(`SKIP ${key}: empty locally`);

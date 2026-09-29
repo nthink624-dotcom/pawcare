@@ -9,6 +9,7 @@ import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { isBookingWithinCanonicalWindow } from "@/lib/booking-last-start-cutoff";
 import { defaultBookingAvailableEndTime, defaultBookingAvailableStartTime, normalizeBookingAvailableTime } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+import { logOperationalEvent } from "@/lib/observability";
 import { preparePriceGuideForStorage } from "@/lib/price-guide-core";
 import {
   coerceEnabledShopNotificationSettings,
@@ -224,10 +225,18 @@ async function persistAppointmentChangeEvent(event: AppointmentChangeEvent) {
   const { error } = await supabase.from("appointment_change_events").insert(event);
   if (error) {
     if (isMissingAppointmentChangeEventsError(error)) {
-      console.warn("[owner-mutations] appointment_change_events table is not ready; skipped history event");
+      logOperationalEvent("appointment_history.skipped", {
+        operation: "appointment_change_event",
+        code: "table_unavailable",
+        status: 503,
+      });
       return;
     }
-    console.warn("[owner-mutations] appointment change history insert failed", error.message);
+    logOperationalEvent("appointment_history.failed", {
+      operation: "appointment_change_event",
+      code: "insert_failed",
+      status: 500,
+    });
   }
 }
 
@@ -574,10 +583,10 @@ export async function dispatchAppointmentNotificationWithLogs(params: {
   mediaAssetIds?: string[];
   force?: boolean;
 }) {
-  console.log("[appointments-api] notification dispatch start", {
-    appointmentId: params.appointment.id,
-    notificationType: params.type,
-    target: "guardian",
+  logOperationalEvent("appointment_notification.started", {
+    operation: "notification_dispatch",
+    code: params.type,
+    status: 202,
   });
 
   try {
@@ -592,20 +601,19 @@ export async function dispatchAppointmentNotificationWithLogs(params: {
       ...(params.skipIfExists ? { skipIfExists: true } : {}),
     });
 
-    console.log("[appointments-api] notification dispatch result", {
-      appointmentId: params.appointment.id,
-      notificationType: params.type,
-      ok: result.notification.status !== "failed",
-      reason: getAppointmentNotificationReason(result),
+    const notificationReason = getAppointmentNotificationReason(result);
+    logOperationalEvent("appointment_notification.completed", {
+      operation: "notification_dispatch",
+      code: result.notification.status === "failed" ? "failed" : notificationReason === "skipped" ? "skipped" : notificationReason === "already exists" ? "already_exists" : "sent",
+      status: result.notification.status === "failed" ? 502 : 200,
     });
 
     return result;
-  } catch (error) {
-    console.log("[appointments-api] notification dispatch result", {
-      appointmentId: params.appointment.id,
-      notificationType: params.type,
-      ok: false,
-      reason: error instanceof Error ? error.message : String(error),
+  } catch {
+    logOperationalEvent("appointment_notification.failed", {
+      operation: "notification_dispatch",
+      code: "dispatch_failed",
+      status: 502,
     });
     return null;
   }
@@ -2666,7 +2674,11 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
       .eq("shop_id", resolvedAppointment.shop_id)
       .eq("appointment_id", resolvedAppointment.id);
     if (draftCleanup.error && !draftCleanup.error.message.includes("grooming_record_drafts")) {
-      console.warn("[owner-mutations] grooming draft cleanup failed", draftCleanup.error.message);
+      logOperationalEvent("grooming_draft_cleanup.failed", {
+        operation: "grooming_draft_cleanup",
+        code: "delete_failed",
+        status: 500,
+      });
     }
   }
 
@@ -2723,7 +2735,11 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
           })
           .eq("id", completedGroomingRecordId);
         if (notificationLink.error) {
-          console.warn("[owner-mutations] grooming record notification link failed", notificationLink.error.message);
+          logOperationalEvent("grooming_notification_link.failed", {
+            operation: "grooming_record_notification_link",
+            code: "update_failed",
+            status: 500,
+          });
         }
       }
     }, options);

@@ -1,6 +1,7 @@
 import { buildDefaultOwnerServices, buildDefaultOwnerStaffMembers } from "@/lib/owner-default-setup";
 import { getOwnerPlanIncludedAlimtalkCredits } from "@/lib/billing/owner-plans";
 import { OWNER_TRIAL_DAYS } from "@/lib/billing/owner-subscription";
+import { logOperationalEvent } from "@/lib/observability";
 import { resetShopAlimtalkIncludedCredits } from "@/server/alimtalk-credit-service";
 
 type SupabaseWriter = {
@@ -72,7 +73,11 @@ export async function insertOwnerDefaultSetup(
       }
 
       if (isMissingStaffMembersTableError(staffInsert.error)) {
-        console.error("[owner-signup] staff-members-table-missing", staffInsert.error.message);
+        logOperationalEvent("auth.signup.failed", {
+          operation: "owner_default_setup",
+          code: "staff_members_table_missing",
+          status: 503,
+        });
         return;
       }
 

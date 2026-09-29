@@ -12,6 +12,7 @@ import {
   resolveAlimtalkTemplateKey,
   serverEnv,
 } from "@/lib/server-env";
+import { logOperationalEvent } from "@/lib/observability";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
 import {
@@ -93,11 +94,6 @@ function normalizePhone(value: string) {
 
 function formatAlimtalkAppointmentDate(date: string) {
   return shortDate(date).replace("/", "월 ").replace("(", "일(");
-}
-
-function getPhoneTail(value: string | null | undefined) {
-  const normalized = phoneNormalize(value ?? "");
-  return normalized ? normalized.slice(-4) : null;
 }
 
 function logNotificationSkipped(params: {
@@ -714,13 +710,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const service =
     appointment ? bootstrap.services.find((item) => item.id === appointment.service_id) ?? null : null;
   const target = input.type === "owner_booking_requested" || (input.channel ?? "alimtalk") === "in_app" ? "owner" : "guardian";
-  const initialPhoneTail = getPhoneTail(input.recipientPhone) ?? getPhoneTail(guardian?.phone ?? null);
-
   console.log("[notification-dispatch] called", {
     type: input.type,
     appointmentId: input.appointmentId ?? appointment?.id ?? null,
     target,
-    phoneTail: initialPhoneTail,
   });
 
   if (input.skipIfExists && hasExistingNotification(bootstrap.notifications, input)) {
@@ -1034,10 +1027,11 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
               },
             });
             creditRefunded = true;
-          } catch (refundError) {
-            console.error("[notification-dispatch] alimtalk credit refund failed", {
-              message: refundError instanceof Error ? refundError.message : String(refundError),
-              sourceEventId: creditReservation.eventId,
+          } catch {
+            logOperationalEvent("notification.credit_refund_failed", {
+              operation: "credit_refund",
+              status: 500,
+              code: "refund_failed",
             });
           }
         }
@@ -1152,10 +1146,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       .update({ notification_id: result.data.id })
       .eq("id", creditReservation.eventId);
     if (creditEventResult.error) {
-      console.error("[notification-dispatch] alimtalk credit event notification link failed", {
-        message: creditEventResult.error.message,
-        creditEventId: creditReservation.eventId,
-        notificationId: result.data.id,
+      logOperationalEvent("notification.credit_event_link_failed", {
+        operation: "credit_event_link",
+        status: 500,
+        code: "link_failed",
       });
     }
   }

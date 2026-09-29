@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { logOperationalEvent } from "@/lib/observability";
 import {
   checkCustomerBookingAccessRecoveryRateLimit,
   requestCustomerBookingAccessLink,
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message }, { status: 409 });
     }
   }
-  const allowed = checkCustomerBookingAccessRecoveryRateLimit({ phone, clientIp: getClientIp(request) });
+  const allowed = checkCustomerBookingAccessRecoveryRateLimit({ shopId, phone, clientIp: getClientIp(request) });
 
   if (!allowed) {
     return NextResponse.json(
@@ -45,9 +46,10 @@ export async function POST(request: NextRequest) {
     try {
       await requestCustomerBookingAccessLink({ shopId, phone });
     } catch (error) {
-      console.error("[customer-booking-access-link] recovery dispatch failed", {
-        shopId,
-        reason: error instanceof Error ? error.message : String(error),
+      logOperationalEvent("customer_booking_access_link.failed", {
+        operation: "access_link_recovery",
+        code: "dispatch_failed",
+        status: 502,
       });
     }
   }

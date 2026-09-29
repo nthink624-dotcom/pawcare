@@ -45,4 +45,9 @@ test("60-day policy, cleanup schedule, migration, provider routing, and public n
   assert.match(cleanupRoute, /export async function GET[\s\S]*runCleanup\(request, false\)/);
   assert.match(mediaStorage, /transient\|retained[\s\S]*supabase/);
   assert.match(mediaStorage, /Mobile uploads created before lifecycle prefixes/);
+  assert.match(mediaStorage, /configured === "supabase"\) return "supabase"/);
+  assert.match(mediaStorage, /!configured && process\.env\.VERCEL_ENV === "production"/);
+  assert.match(mediaStorage, /explicitProvider/);
+  assert.match(mediaStorage, /getMediaStorageProviderForPath\(input\.path\) === "r2"/);
+  assert.match(mediaService, /lifecyclePrefix\}\/\$\{provider\}/);
 });

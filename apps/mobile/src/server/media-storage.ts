@@ -41,19 +41,26 @@ function hasCompleteR2Config() {
 }
 
 function getMediaStorageProvider(): StorageProvider {
-  const r2Requested = process.env.MEDIA_STORAGE_PROVIDER === "r2" || process.env.VERCEL_ENV === "production";
+  const configured = process.env.MEDIA_STORAGE_PROVIDER?.trim().toLowerCase();
+  if (configured === "supabase") return "supabase";
+  const r2Requested = configured === "r2" || (!configured && process.env.VERCEL_ENV === "production");
   // Keep private uploads available during a partially configured R2 rollout.
   // Production still uses R2 whenever all required credentials are present.
   return r2Requested && hasCompleteR2Config() ? "r2" : "supabase";
 }
 
 function getMediaStorageProviderForPath(path: string): StorageProvider {
-  if (/^(?:transient|retained)\/supabase\//.test(path)) return "supabase";
+  const explicitProvider = path.match(/^(?:transient|retained)\/(supabase|r2)\//)?.[1];
+  if (explicitProvider === "supabase" || explicitProvider === "r2") return explicitProvider;
   if (/^(?:transient|retained)\/shops\//.test(path) || path.startsWith("shops/")) {
     return getMediaStorageProvider();
   }
   // Mobile uploads created before the R2 cutover used <shopId>/... in Supabase Storage.
   return "supabase";
+}
+
+export function getMediaStorageInfo() {
+  return { provider: getMediaStorageProvider() };
 }
 
 function getSupabaseStorageAdmin() {
@@ -147,7 +154,7 @@ function buildR2SignedUrl(params: {
 }
 
 export async function createMediaSignedUploadUrl(input: CreateSignedUploadUrlInput) {
-  if (getMediaStorageProvider() === "r2") {
+  if (getMediaStorageProviderForPath(input.path) === "r2") {
     return {
       provider: "r2" as const,
       bucket: input.bucket,

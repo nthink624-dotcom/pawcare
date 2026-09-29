@@ -2,6 +2,8 @@
 
 export type AlimtalkMetadata = Record<string, string | boolean | number | null | undefined>;
 
+import { logOperationalEvent } from "@/lib/observability";
+
 export type AlimtalkMediaAttachment = {
   attachmentId?: string | null;
   mediaAssetId?: string | null;
@@ -124,6 +126,7 @@ function normalizeButtons(value: AlimtalkButton[] | null | undefined) {
 }
 
 export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<SendAlimtalkResult> {
+  const requestId = crypto.randomUUID();
   const { relayUrlHost, relayUrlPathname } = getRelayUrlParts(serverEnv.alimtalkRelayUrl);
   const hasRelayUrl = Boolean(serverEnv.alimtalkRelayUrl);
   const hasRelaySecret = Boolean(serverEnv.alimtalkRelaySecret);
@@ -132,6 +135,7 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
 
   console.log("[alimtalk-provider] relay configuration checked", {
     eventCode: "ALIMTALK_RELAY_CONFIGURATION_CHECKED",
+    requestId,
     configured: hasRelayUrl && hasRelaySecret,
     relayUrlHost,
     relayUrlPathname,
@@ -149,6 +153,7 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
 
     console.log("[alimtalk-provider] relay request started", {
       eventCode: "ALIMTALK_RELAY_REQUEST_STARTED",
+      requestId,
       relayUrlHost,
       relayUrlPathname,
     });
@@ -159,6 +164,7 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
         headers: {
           "Content-Type": "application/json",
           "x-relay-secret": serverEnv.alimtalkRelaySecret,
+          "x-request-id": requestId,
         },
         body: JSON.stringify({
           to: input.to,
@@ -183,6 +189,8 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
 
       console.log("[alimtalk-provider] relay response received", {
         eventCode: "ALIMTALK_RELAY_RESPONSE_RECEIVED",
+        requestId,
+        relayRequestId: relayResponse.headers.get("x-request-id"),
         relayUrlHost,
         relayUrlPathname,
         status: relayResponse.status,
@@ -212,10 +220,11 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
         responseBody: relayBody,
       };
     } catch (error) {
-      console.error("[alimtalk-provider] relay request failed", {
-        eventCode: "ALIMTALK_RELAY_REQUEST_FAILED",
-        relayUrlHost,
-        relayUrlPathname,
+      logOperationalEvent("alimtalk.relay_request_failed", {
+        requestId,
+        operation: "relay_request",
+        provider: "ssodaa-relay",
+        code: "request_failed",
       });
       throw error;
     }

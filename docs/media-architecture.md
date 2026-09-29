@@ -13,6 +13,7 @@ Owner-facing notices are defined in `docs/media-owner-notice-copy.md`.
 - Production photo storage can use Cloudflare R2 by setting `MEDIA_STORAGE_PROVIDER=r2`.
 - Store database metadata in `media_assets`.
 - Store `bucket` and `storage_path`, not signed URLs.
+- New objects record a provider marker in the path (`transient|retained/<provider>/...`). This keeps reads, cleanup, and account deletion tied to the provider that created the object; legacy paths without the marker use the configured provider fallback.
 - Signed URLs are short-lived API responses only.
 - Keep image metadata out of `notifications.metadata` except for small provider-specific snapshots.
 - Do not proxy media files through Vercel routes. Vercel should only verify permissions, create database rows, and issue short-lived upload/download instructions.

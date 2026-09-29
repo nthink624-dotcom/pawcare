@@ -130,3 +130,12 @@ test("implementation never reseeds, deletes, or returns test-owner credentials",
   assert.doesNotMatch(loginSource, /result\.password|setPassword\(result\.password\)/);
   assert.doesNotMatch(smokeSource, /test1234|DEFAULT_PASSWORD/);
 });
+
+test("development test-owner repair refreshes expired access without changing production behavior", async () => {
+  const source = await readFile(new URL("../../src/server/dev-test-owner.ts", import.meta.url), "utf8");
+
+  assert.match(source, /refreshExpiredDevelopmentSubscription/);
+  assert.match(source, /subscription_status: "trialing"/);
+  assert.match(source, /trial_ends_at: trialEndsAt/);
+  assert.match(source, /assertDevelopmentTestOwnerTarget/);
+});

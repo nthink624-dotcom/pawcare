@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+import { logOperationalEvent } from "@/lib/observability";
 import { nowIso } from "@/lib/utils";
 import { notifyAdminOwnerSupportRequest } from "@/server/admin-support-email";
 import { createMediaSignedReadUrl } from "@/server/media-storage";
@@ -482,8 +483,12 @@ export async function createOwnerSupportRequest(input: {
       }
 
       const supportRequest = mapSupportRequest(legacyResult.data);
-      void notifyAdminOwnerSupportRequest(supportRequest).catch((error) => {
-        console.error("[owner-support] admin email notification failed", error);
+      void notifyAdminOwnerSupportRequest(supportRequest).catch(() => {
+        logOperationalEvent("admin_support_email.failed", {
+          operation: "admin_support_email",
+          code: "dispatch_failed",
+          status: 502,
+        });
       });
 
       return supportRequest;
@@ -530,8 +535,12 @@ export async function createOwnerSupportRequest(input: {
 
   const attachments = await fetchAttachmentsByRequestIds([result.data.id]);
   const supportRequest = mapSupportRequest(result.data, messages, attachments.get(result.data.id) ?? []);
-  void notifyAdminOwnerSupportRequest(supportRequest).catch((error) => {
-    console.error("[owner-support] admin email notification failed", error);
+  void notifyAdminOwnerSupportRequest(supportRequest).catch(() => {
+    logOperationalEvent("admin_support_email.failed", {
+      operation: "admin_support_email",
+      code: "dispatch_failed",
+      status: 502,
+    });
   });
 
   return supportRequest;

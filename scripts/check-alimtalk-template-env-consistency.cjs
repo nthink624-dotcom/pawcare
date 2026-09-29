@@ -24,12 +24,22 @@ const TEMPLATE_KEYS = [
 const RELAY_KEYS = ["ALIMTALK_RELAY_URL", "ALIMTALK_RELAY_ADMIN_URL", "ALIMTALK_RELAY_SECRET"];
 const PROFILE_KEYS = ["ALIMTALK_SENDER_KEY"];
 const SENSITIVE_PULL_KEYS = new Set(["ALIMTALK_RELAY_SECRET", "ALIMTALK_SENDER_KEY"]);
+const OPTIONAL_TEMPLATE_KEYS = new Set([
+  "ALIMTALK_TEMPLATE_BOOKING_RECEIVED",
+  "ALIMTALK_TEMPLATE_BOOKING_REJECTED",
+  "ALIMTALK_TEMPLATE_BOOKING_MANAGE_LINK_REQUESTED",
+  "ALIMTALK_TEMPLATE_GROOMING_COMPLETED_WITHOUT_REPORT",
+  "ALIMTALK_TEMPLATE_REVISIT_NOTICE",
+  "ALIMTALK_TEMPLATE_BIRTHDAY_GREETING",
+]);
 const args = new Set(process.argv.slice(2));
 const shouldPullVercel = args.has("--pull-vercel-production");
 const localEnvFile = process.argv.find((arg) => arg.startsWith("--local="))?.slice("--local=".length) || ".env.local";
 const productionEnvFile =
   process.argv.find((arg) => arg.startsWith("--production="))?.slice("--production=".length) ||
   (shouldPullVercel ? ".tmp-alimtalk-vercel-production.env" : ".env.vercel-production.local");
+const vercelProjectId = process.env.PETMANAGER_VERCEL_PROJECT_ID || "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO";
+const vercelScopeId = process.env.PETMANAGER_VERCEL_SCOPE_ID || "team_049eK6zsAwMJwZnQjREjDc6X";
 
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -83,7 +93,25 @@ function printGroup(title, keys, localValues, productionValues) {
 
   keys.forEach((key) => {
     const status = valueStatus(key, localValues[key], productionValues[key]);
-    const isIssue = status !== "same" && status !== "both-missing" && status !== "present-sensitive";
+    const isAllowedEnvironmentDifference =
+      RELAY_KEYS.includes(key) &&
+      key !== "ALIMTALK_RELAY_SECRET" &&
+      (() => {
+        try {
+          const localUrl = new URL(localValues[key] || "");
+          const productionUrl = new URL(productionValues[key] || "");
+          return ["127.0.0.1", "localhost", "::1"].includes(localUrl.hostname) && productionUrl.protocol === "https:";
+        } catch {
+          return false;
+        }
+      })();
+    const isAllowedOptionalProductionValue = OPTIONAL_TEMPLATE_KEYS.has(key) && status === "local-missing";
+    const isIssue =
+      status !== "same" &&
+      status !== "both-missing" &&
+      status !== "present-sensitive" &&
+      !isAllowedEnvironmentDifference &&
+      !isAllowedOptionalProductionValue;
     hasIssue ||= isIssue;
     console.log(`${isIssue ? "ERROR" : "OK"} ${key}: ${status}`);
   });
@@ -95,11 +123,11 @@ function pullVercelProductionEnv(targetFile) {
   try {
     if (process.platform === "win32") {
       const escapedTarget = targetFile.replace(/"/g, '\\"');
-      execSync(`npx.cmd vercel env pull "${escapedTarget}" --environment=production --yes`, { stdio: "ignore" });
+      execSync(`npx.cmd vercel env pull "${escapedTarget}" --environment=production --yes --scope "${vercelScopeId}" --project "${vercelProjectId}"`, { stdio: "ignore" });
       return;
     }
 
-    execFileSync("npx", ["vercel", "env", "pull", targetFile, "--environment=production", "--yes"], {
+    execFileSync("npx", ["vercel", "env", "pull", targetFile, "--environment=production", "--yes", "--scope", vercelScopeId, "--project", vercelProjectId], {
       stdio: "ignore",
     });
   } catch (error) {

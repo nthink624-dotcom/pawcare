@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, MapPin, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, Download, KeyRound, LogOut, MapPin, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
@@ -17,6 +17,7 @@ import { bookingCloseGraceMinuteOptions, normalizeBookingCloseGraceMinutes } fro
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { defaultStaffProfileMessage } from "@/lib/staff-display";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
+import { fetchApiResponseWithAuth } from "@/lib/api";
 import type { BootstrapPayload, BootstrapStaffMember, BusinessHours, Service } from "@/types/domain";
 
 type SettingsPanelProps = {
@@ -256,9 +257,47 @@ export default function OwnerSettingsPanel({
     mapShopNotificationSettingsState(data.shop.notification_settings),
   );
   const [isNotificationSettingsDirty, setIsNotificationSettingsDirty] = useState(false);
+  const [dataExporting, setDataExporting] = useState(false);
+  const [dataExportFeedback, setDataExportFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
 
   const activeScreen = onActiveScreenChange ? (initialScreen ?? null) : localActiveScreen;
   const accountEmail = userEmail?.trim() || null;
+
+  const handleDataExport = async () => {
+    if (dataExporting) return;
+    setDataExporting(true);
+    setDataExportFeedback({ type: "idle", message: "" });
+    try {
+      const response = await fetchApiResponseWithAuth(`/api/owner/data-export?shopId=${encodeURIComponent(data.shop.id)}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        let message = "데이터 내보내기를 완료하지 못했어요.";
+        try {
+          const body = (await response.json()) as { message?: unknown };
+          if (typeof body.message === "string" && body.message.trim()) message = body.message;
+        } catch {
+          // Keep the safe fallback message when the server did not return JSON.
+        }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = response.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "petmanager-data-export.json";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+      setDataExportFeedback({ type: "success", message: "매장 데이터를 파일로 저장했어요." });
+    } catch (error) {
+      setDataExportFeedback({ type: "error", message: error instanceof Error ? error.message : "데이터 내보내기를 완료하지 못했어요." });
+    } finally {
+      setDataExporting(false);
+    }
+  };
 
   useEffect(() => {
     setIsNotificationSettingsDirty(false);
@@ -1252,6 +1291,10 @@ export default function OwnerSettingsPanel({
       <div className="divide-y divide-[var(--border)]">
           {accountEmail ? <AccountRow icon={UserRound} label="로그인 이메일" value={accountEmail} /> : null}
         <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
+        <AccountActionRow icon={Download} label={dataExporting ? "데이터 파일 준비 중..." : "내 데이터 다운로드"} onClick={handleDataExport} disabled={dataExporting} tone="neutral" />
+        {dataExportFeedback.message ? <p className={`px-1 py-2 text-[13px] leading-5 ${dataExportFeedback.type === "error" ? "text-[#b42318]" : "text-[var(--accent)]"}`} role={dataExportFeedback.type === "error" ? "alert" : "status"}>{dataExportFeedback.message}</p> : null}
+        <AccountRow href="/privacy" icon={UserRound} label="개인정보처리방침" />
+        <AccountRow href="/account-deletion" icon={LogOut} label="계정 삭제 요청" />
         <AccountActionRow icon={LogOut} label={loggingOut ? "로그아웃 중..." : "로그아웃"} onClick={onLogout} disabled={loggingOut} />
       </div>
     </SettingsCard>
@@ -1998,18 +2041,20 @@ function AccountActionRow({
   label,
   onClick,
   disabled,
+  tone = "danger",
 }: {
   icon: LucideIcon;
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  tone?: "danger" | "neutral";
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex min-h-[52px] w-full items-center justify-between gap-3 px-1 py-2.5 text-left text-[#c43d3d] disabled:opacity-50"
+      className={`flex min-h-[52px] w-full items-center justify-between gap-3 px-1 py-2.5 text-left disabled:opacity-50 ${tone === "danger" ? "text-[#c43d3d]" : "text-[var(--text)]"}`}
     >
       <div className="flex min-w-0 items-center gap-3">
         <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />

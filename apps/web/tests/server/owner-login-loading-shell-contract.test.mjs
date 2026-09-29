@@ -22,3 +22,9 @@ test("owner login loading shell uses one accessible content plane without changi
   assert.match(ownerPage, /min-h-11[\s\S]{0,320}focus-visible:outline/);
   assert.doesNotMatch(ownerPage, /max-w-\[430px\] bg-\[#faf7f2\]/);
 });
+
+test("owner billing refreshes are scoped to the selected shop", () => {
+  assert.match(ownerPage, /const loadSubscription = async \(shopId: string \| null \| undefined = resolvedShopId\)/);
+  assert.match(ownerPage, /`\/api\/subscription\$\{query\}`/);
+  assert.match(ownerPage, /`\/api\/subscription\?shopId=\$\{encodeURIComponent\(selectedShopId\)\}`/);
+});

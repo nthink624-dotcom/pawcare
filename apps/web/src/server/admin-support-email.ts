@@ -1,10 +1,6 @@
+import { logOperationalEvent } from "@/lib/observability";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 import type { OwnerSupportRequestItem } from "@/server/owner-support-requests";
-
-type ResendEmailResponse = {
-  id?: string;
-  message?: string;
-};
 
 function readRecipientEmails() {
   const raw = process.env.ADMIN_SUPPORT_NOTIFICATION_EMAILS ?? process.env.ADMIN_SUPPORT_NOTIFICATION_EMAIL ?? LEGAL_BUSINESS_INFO.customerServiceEmail;
@@ -65,7 +61,11 @@ export async function notifyAdminOwnerSupportRequest(request: OwnerSupportReques
     `${LEGAL_BUSINESS_INFO.serviceName} <onboarding@resend.dev>`;
 
   if (!apiKey || recipients.length === 0) {
-    console.warn("[admin-support-email] skipped: missing RESEND_API_KEY or recipient email");
+    logOperationalEvent("admin_support_email.skipped", {
+      operation: "admin_support_email",
+      code: "missing_email_env",
+      status: 503,
+    });
     return { sent: false, reason: "missing_email_env" as const };
   }
 
@@ -84,8 +84,12 @@ export async function notifyAdminOwnerSupportRequest(request: OwnerSupportReques
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as ResendEmailResponse | null;
-    console.error("[admin-support-email] failed", response.status, body?.message ?? response.statusText);
+    await response.json().catch(() => null);
+    logOperationalEvent("admin_support_email.failed", {
+      operation: "admin_support_email",
+      code: "provider_failed",
+      status: response.status,
+    });
     return { sent: false, reason: "provider_failed" as const };
   }
 

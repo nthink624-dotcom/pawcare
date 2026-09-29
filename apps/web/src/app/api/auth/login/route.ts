@@ -2,6 +2,7 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { isValidOwnerEmail, normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
+import { logOperationalEvent } from "@/lib/observability";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import {
@@ -245,7 +246,11 @@ export async function POST(request: NextRequest) {
     }
 
     const message = error instanceof Error ? error.message : undefined;
-    console.error("[auth/login] unexpected login error", error);
+    logOperationalEvent("auth.login.failed", {
+      operation: "owner_login",
+      code: message && /network|fetch/i.test(message) ? "provider_unavailable" : "unexpected_error",
+      status: 500,
+    });
     return NextResponse.json({ message: getLoginErrorMessage(message) }, { status: 400 });
   }
 }

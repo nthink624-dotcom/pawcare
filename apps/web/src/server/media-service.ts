@@ -342,7 +342,9 @@ function buildStoragePath(params: {
 }) {
   const ext = extensionForContentType(params.contentType);
   const directory = buildMediaStorageDirectory(params);
-  return `${directory}/original.${ext}`;
+  const [lifecyclePrefix, ...rest] = directory.split("/");
+  const provider = getMediaStorageInfo().provider;
+  return `${lifecyclePrefix}/${provider}/${rest.join("/")}/original.${ext}`;
 }
 
 async function recordMonthlyMediaUsage(params: {

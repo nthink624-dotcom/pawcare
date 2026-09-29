@@ -1,5 +1,5 @@
 import path from "node:path";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import fs from "node:fs";
 
@@ -28,6 +28,12 @@ const APPROVED_SSODAA_PATHS = new Set([
   "/kakao/template/list",
 ]);
 const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
+
+function normalizeRequestId(value: string | undefined) {
+  const candidate = value?.trim();
+  return candidate && REQUEST_ID_PATTERN.test(candidate) ? candidate : randomUUID();
+}
 
 function readBoundedMilliseconds(name: string, fallback: number, minimum: number, maximum: number) {
   const parsed = Number(process.env[name]);
@@ -1502,6 +1508,9 @@ function sanitizeTemplateDetail(detail: SsodaaTemplateDetail | null) {
 const app = express();
 app.disable("x-powered-by");
 app.use((request, response, next) => {
+  const rawRequestId = request.headers["x-request-id"];
+  const requestId = normalizeRequestId(Array.isArray(rawRequestId) ? rawRequestId[0] : rawRequestId);
+  response.setHeader("x-request-id", requestId);
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
   if (request.headers.origin) {

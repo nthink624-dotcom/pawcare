@@ -2,6 +2,7 @@
 
 import { computeAvailableSlots } from "@/lib/availability";
 import { coerceEnabledShopNotificationSettings, defaultGuardianNotificationSettings, normalizeBootstrapNotifications } from "@/lib/notification-settings";
+import { logOperationalEvent } from "@/lib/observability";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
@@ -130,7 +131,11 @@ async function persistAppointmentChangeEvent(params: {
   if (!supabase) return;
   const result = await supabase.from("appointment_change_events").insert(event);
   if (result.error) {
-    console.warn("[owner-mutations] appointment change event skipped", result.error.message);
+    logOperationalEvent("appointment_history.failed", {
+      operation: "appointment_change_event",
+      code: "insert_failed",
+      status: 500,
+    });
   }
 }
 
@@ -182,10 +187,10 @@ export async function dispatchAppointmentNotificationWithLogs(params: {
   mediaAssetIds?: string[];
   force?: boolean;
 }) {
-  console.log("[appointments-api] notification dispatch start", {
-    appointmentId: params.appointment.id,
-    notificationType: params.type,
-    target: "guardian",
+  logOperationalEvent("appointment_notification.started", {
+    operation: "notification_dispatch",
+    code: params.type,
+    status: 202,
   });
 
   try {
@@ -200,19 +205,19 @@ export async function dispatchAppointmentNotificationWithLogs(params: {
       ...(params.skipIfExists ? { skipIfExists: true } : {}),
     });
 
-    console.log("[appointments-api] notification dispatch result", {
-      appointmentId: params.appointment.id,
-      notificationType: params.type,
-      ok: result.notification.status !== "failed",
-      reason: getAppointmentNotificationReason(result),
+    const notificationReason = getAppointmentNotificationReason(result);
+    logOperationalEvent("appointment_notification.completed", {
+      operation: "notification_dispatch",
+      code: result.notification.status === "failed" ? "failed" : notificationReason === "skipped" ? "skipped" : notificationReason === "already exists" ? "already_exists" : "sent",
+      status: result.notification.status === "failed" ? 502 : 200,
     });
 
     return result;
   } catch {
-    console.warn("[appointments-api] notification dispatch failed after appointment commit", {
-      appointmentId: params.appointment.id,
-      notificationType: params.type,
-      reason: "dispatch_failed",
+    logOperationalEvent("appointment_notification.failed", {
+      operation: "notification_dispatch",
+      code: "dispatch_failed",
+      status: 502,
     });
     return null;
   }

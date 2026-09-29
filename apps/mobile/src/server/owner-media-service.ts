@@ -10,7 +10,7 @@ import {
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/utils";
 import { OwnerApiError } from "@/server/owner-api-auth";
-import { createMediaSignedReadUrl, createMediaSignedUploadUrl } from "@/server/media-storage";
+import { createMediaSignedReadUrl, createMediaSignedUploadUrl, getMediaStorageInfo } from "@/server/media-storage";
 import type {
   MediaAsset,
   MediaKind,
@@ -44,6 +44,7 @@ function buildMediaPath(params: {
   contentType: string;
   variantKey?: MediaVariantKey;
   retentionPolicy?: MediaRetentionPolicy;
+  storageProvider: "supabase" | "r2";
 }) {
   const date = new Date();
   const yyyy = String(date.getFullYear());
@@ -51,7 +52,11 @@ function buildMediaPath(params: {
   const ext = extensionFromContentType(params.contentType);
   const variant = params.variantKey ? `/variants/${params.variantKey}` : "";
   const lifecyclePrefix = params.retentionPolicy === "transient" ? "transient" : "retained";
-  return `${lifecyclePrefix}/shops/${params.shopId}/mobile/${yyyy}/${mm}/${params.mediaAssetId}${variant}/${params.mediaAssetId}.${ext}`;
+  return `${lifecyclePrefix}/${params.storageProvider}/shops/${params.shopId}/mobile/${yyyy}/${mm}/${params.mediaAssetId}${variant}/${params.mediaAssetId}.${ext}`;
+}
+
+function storageProviderForPath(path: string): "supabase" | "r2" {
+  return path.match(/^(?:transient|retained)\/(supabase|r2)\//)?.[1] as "supabase" | "r2" || getMediaStorageInfo().provider;
 }
 
 function getExpiresAt(retentionPolicy: MediaRetentionPolicy) {
@@ -108,6 +113,7 @@ export async function createMediaUploadIntent(
     mediaAssetId,
     contentType: input.contentType,
     retentionPolicy,
+    storageProvider: getMediaStorageInfo().provider,
   });
   const mediaAsset: MediaAsset = {
     id: mediaAssetId,
@@ -196,7 +202,7 @@ export async function createMediaVariantUploadIntent(
   const supabase = assertSupabase();
   const asset = await supabase
     .from("media_assets")
-    .select("id,shop_id,original_file_name,retention_policy")
+    .select("id,shop_id,original_file_name,retention_policy,storage_path")
     .eq("shop_id", context.shopId)
     .eq("id", input.mediaAssetId)
     .single();
@@ -208,6 +214,7 @@ export async function createMediaVariantUploadIntent(
     contentType: input.contentType,
     variantKey: input.variantKey,
     retentionPolicy: asset.data.retention_policy,
+    storageProvider: storageProviderForPath(asset.data.storage_path),
   });
 
   const upload = await createMediaSignedUploadUrl({
@@ -238,7 +245,7 @@ export async function completeMediaVariantUpload(
   const supabase = assertSupabase();
   const asset = await supabase
     .from("media_assets")
-    .select("id,shop_id,original_file_name,retention_policy")
+    .select("id,shop_id,original_file_name,retention_policy,storage_path")
     .eq("shop_id", context.shopId)
     .eq("id", input.mediaAssetId)
     .single();
@@ -250,6 +257,7 @@ export async function completeMediaVariantUpload(
     contentType: input.contentType,
     variantKey: input.variantKey,
     retentionPolicy: asset.data.retention_policy,
+    storageProvider: storageProviderForPath(asset.data.storage_path),
   });
   const now = nowIso();
   const row = {

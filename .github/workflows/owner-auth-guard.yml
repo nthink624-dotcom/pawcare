@@ -15,10 +15,6 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
-      OWNER_LOGIN_E2E_ID: ${{ secrets.OWNER_LOGIN_E2E_ID || 'devowner' }}
-      OWNER_LOGIN_E2E_PASSWORD: ${{ secrets.OWNER_LOGIN_E2E_PASSWORD || 'test1234' }}
-      OWNER_LOGIN_SMOKE_ID: ${{ secrets.OWNER_LOGIN_E2E_ID || 'devowner' }}
-      OWNER_LOGIN_SMOKE_PASSWORD: ${{ secrets.OWNER_LOGIN_E2E_PASSWORD || 'test1234' }}
       OWNER_LOGIN_SMOKE_BASE_URL: http://127.0.0.1:3000
       OWNER_LOGIN_SMOKE_ENABLED: ${{ secrets.OWNER_LOGIN_SMOKE_ENABLED || 'false' }}
     steps:
@@ -30,6 +26,40 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - run: npm run check:saas-readiness
+
+      - run: npm run check:release-tracked-files
+
+      - run: npm run check:migration-order
+
+      - run: npm run check:tenant-isolation
+
+      - run: npm run check:data-safety
+
+      - run: npm run check:privacy-operations
+
+      - run: npm run check:backup-recovery
+
+      - run: npm run check:environment-inventory
+
+      - run: npm run check:vercel-project:manifest
+
+      - run: npm run check:readback-evidence
+
+      - run: npm run test:deployment-routing
+
+      - run: npm run test:workspace
+
+      - run: npm run test:saas-readiness
+
+      - run: npm run test:mobile
+
+      - run: npm run check:owner-tenant-guards
+
+      - run: npm run check:media-architecture
+
+      - run: npm run check:media-recovery
 
       - run: npx playwright install chromium
 
@@ -54,3 +84,18 @@ jobs:
       - name: Skip owner login browser smoke
         if: env.OWNER_LOGIN_SMOKE_ENABLED != 'true'
         run: echo "Skipping owner login smoke/e2e. Set OWNER_LOGIN_SMOKE_ENABLED=true with a safe development Supabase to enable it."
+
+  alimtalk-relay-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/alimtalk-relay/package-lock.json
+
+      - run: npm ci --prefix backend/alimtalk-relay
+      - run: npm run typecheck --prefix backend/alimtalk-relay
+      - run: npm test --prefix backend/alimtalk-relay

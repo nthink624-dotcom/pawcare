@@ -597,6 +597,14 @@ When PC/backend changes any contract in this document:
 - An active payment/refund/dispute state must block deletion. A historical payment or dispute record without an approved legal basis and retention end date also blocks deletion; clients must show a neutral recovery message and must not delete around that block.
 - `data_deletion_audit` is a redacted backend event ledger. It must not store pre-delete JSON, raw identifiers, or actor identifiers.
 
+## Owner Data Export Contract
+
+- `GET /api/owner/data-export?shopId=...` requires a current bearer session and an explicit `shopId`; only the owner role for that exact shop may export data. Staff and manager memberships must fail closed.
+- The response is a private, no-store JSON attachment with a versioned envelope and allowlisted shop, guardian, pet, service, appointment, grooming-record, and notification fields. It must never select `*` or expose service-role credentials, authentication secrets, payment credentials, provider tokens, or internal audit rows.
+- Media binary objects are excluded from the first export contract. Media requests use the provider-aware media lifecycle and deletion process; adding media metadata or signed URLs requires a separate contract review.
+- The endpoint must not persist an export file, log bearer tokens or raw export payloads, or accept a client-supplied owner/user identifier. Tenant scope is derived from the authenticated user’s current shop access.
+- The endpoint applies a bounded per-owner rate limit and returns `429` with `Retry-After` before running the export queries when the limit is exceeded. The in-process limiter stores only a hash of the owner user id; a production-wide limiter should be added when the hosting account provides a shared rate-limit primitive.
+
 ## Signup Price Guide Security Meter Contract
 
 Price-guide image analysis uses two separate persistence classes.
@@ -709,3 +717,10 @@ Price-guide image analysis uses two separate persistence classes.
 - `POST /api/webhooks/calls/{integrationId}` authenticates the one-time setup token, rejects oversized or malformed bodies, normalizes Korean `+82` numbers, matches only active guardians in the integration's shop, and is idempotent on `(integration_id, provider_event_id)`.
 - `GET /api/owner/call-events?shopId=...` is owner/manager-only and returns only the call projection needed for an operations surface: last four digits, event status/time, match status, and matched guardian name/ID. Staff access is intentionally not included until the workflow and least-privilege review is complete.
 - This foundation is provider-neutral. The KT 통화매니저 adapter, phone-line onboarding, provider payload mapping, and production secret installation remain separate provider/account/deployment work. The migration is source-only until a separately approved database apply.
+
+## Admin notification failure retry
+
+- `GET /api/admin/notifications/failures` requires an active admin session and returns only bounded failure metadata; message bodies, recipient phone numbers, and provider payloads are not returned.
+- `POST /api/admin/notifications/failures` accepts only a UUID `notificationId` whose current status is `failed`. The server reloads the current shop, appointment, guardian, pet, and media relations before dispatching; client-supplied recipient data is not trusted.
+- Retries preserve the original failed row, record `retryOfNotificationId` on the new notification, use the normal notification settings and dedupe guard, and write an `owner_activity_events` audit row with no message or phone payload.
+- A retry result remains an explicit `failed`, `queued`, `sent`, or `skipped` state. Automatic customer re-delivery is never performed by the failure-list endpoint.

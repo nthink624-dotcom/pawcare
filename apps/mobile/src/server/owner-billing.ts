@@ -3,6 +3,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 import { env } from "@/lib/env";
+import { logOperationalEvent } from "@/lib/observability";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import {
@@ -535,7 +536,11 @@ async function upsertPaymentLedgerEntry(payload: {
     if (isMissingRelationError(selectResult.error)) {
       return;
     }
-    console.error("owner_payment_ledger read failed", selectResult.error);
+    logOperationalEvent("billing.payment_ledger_read_failed", {
+      operation: "payment_ledger_read",
+      status: 500,
+      code: "query_failed",
+    });
     return;
   }
 
@@ -585,7 +590,11 @@ async function upsertPaymentLedgerEntry(payload: {
     .upsert(upsertPayload, { onConflict: "payment_id" });
 
   if (upsertResult.error && !isMissingRelationError(upsertResult.error)) {
-    console.error("owner_payment_ledger upsert failed", upsertResult.error);
+    logOperationalEvent("billing.payment_ledger_upsert_failed", {
+      operation: "payment_ledger_upsert",
+      status: 500,
+      code: "query_failed",
+    });
   }
 }
 
@@ -640,7 +649,11 @@ async function recordBillingEvent(payload: {
   });
 
   if (insertResult.error && !isMissingRelationError(insertResult.error)) {
-    console.error("owner_billing_events insert failed", insertResult.error);
+    logOperationalEvent("billing.event_insert_failed", {
+      operation: "billing_event_insert",
+      status: 500,
+      code: "query_failed",
+    });
   }
 
   if (payload.paymentId) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { isValidOwnerEmail, normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
+import { logOperationalEvent } from "@/lib/observability";
 import {
   EMAIL_CONFIRMATION_MESSAGE,
   mapOwnerEmailConfirmationError,
@@ -40,7 +41,11 @@ export async function POST(request: NextRequest) {
       .maybeSingle<{ user_id: string }>();
 
     if (profileResult.error) {
-      console.error("[owner-email-confirmation] profile lookup failed", profileResult.error.message);
+      logOperationalEvent("auth.email_confirmation.failed", {
+        operation: "owner_email_confirmation",
+        code: "profile_lookup_failed",
+        status: 502,
+      });
       return NextResponse.json({ message: "인증 메일 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 400 });
     }
 
@@ -50,7 +55,11 @@ export async function POST(request: NextRequest) {
 
     const userResult = await supabase.auth.admin.getUserById(profileResult.data.user_id);
     if (userResult.error || !userResult.data.user) {
-      console.error("[owner-email-confirmation] auth user lookup failed", userResult.error?.message);
+      logOperationalEvent("auth.email_confirmation.failed", {
+        operation: "owner_email_confirmation",
+        code: "auth_user_lookup_failed",
+        status: 502,
+      });
       return NextResponse.json({ message: "인증 메일 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 400 });
     }
 

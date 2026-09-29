@@ -55,6 +55,11 @@ try {
     "enable row level security",
     "Shop identity change audit must have RLS enabled.",
   );
+  assertIncludes(
+    "supabase/migrations/20260929131500_revoke_policyless_browser_grants.sql",
+    "revoke all on table public.%I from anon, authenticated",
+    "Policy-less RLS tables must not retain inherited browser grants.",
+  );
   assertOwnerWithdrawalSafety();
   assertIncludes(
     "src/server/bootstrap.ts",

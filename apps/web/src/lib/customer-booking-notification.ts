@@ -1,3 +1,5 @@
+import { logOperationalEvent } from "@/lib/observability";
+
 type CustomerBookingNotificationIdentity = {
   appointmentId?: string | null;
   type?: string;
@@ -8,7 +10,12 @@ type NotificationFailureLogger = (message: string, context: Record<string, unkno
 export async function deliverCustomerBookingNotificationSafely<TInput extends CustomerBookingNotificationIdentity, TResult>(
   input: TInput,
   deliver: (payload: TInput) => Promise<TResult>,
-  logFailure: NotificationFailureLogger = (message, context) => console.error(message, context),
+  logFailure: NotificationFailureLogger = () =>
+    logOperationalEvent("customer_booking_notification.failed", {
+      operation: "notification_dispatch",
+      code: "dispatch_failed",
+      status: 502,
+    }),
 ) {
   try {
     return await deliver(input);

@@ -139,6 +139,10 @@ test("the server binds request identity to its normalized payload and persists n
 
   assert.match(mutations, /getServiceSavePayloadHash/);
   assert.match(mutations, /owner_service_save_requests/);
+  assert.match(
+    mutations,
+    /서비스명·가격 입력에는 문제가 없습니다\. 운영 DB의 서비스 저장 요청 기록을 사용할 수 없어 저장하지 못했습니다\./,
+  );
   assert.match(mutations, /priorRequest\.payload_hash !== payloadHash/);
   assert.match(mutations, /operation === "create"/);
   assert.match(mutations, /Scope ownership before consuming a request id/);

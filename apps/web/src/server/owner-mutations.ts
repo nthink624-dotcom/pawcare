@@ -1071,7 +1071,10 @@ export async function upsertService(input: unknown) {
       payload_hash: payloadHash,
     });
     if (claimError && claimError.code !== "23505") {
-      throw new OwnerApiError("서비스 저장 구성을 확인해 주세요.", 503);
+      throw new OwnerApiError(
+        "서비스명·가격 입력에는 문제가 없습니다. 운영 DB의 서비스 저장 요청 기록을 사용할 수 없어 저장하지 못했습니다. 입력한 내용은 반영되지 않았습니다.",
+        503,
+      );
     }
     if (claimError?.code === "23505") {
       const { data: priorRequest, error: priorRequestError } = await supabase

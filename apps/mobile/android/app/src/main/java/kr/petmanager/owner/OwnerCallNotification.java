@@ -64,7 +64,7 @@ final class OwnerCallNotification {
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .setAutoCancel(true)
+            .setOngoing(true)
             .setOnlyAlertOnce(true)
             .addAction(new NotificationCompat.Action.Builder(0, "예약 추가", reservationPendingIntent).build())
             .addAction(new NotificationCompat.Action.Builder(0, "전화만 받기", dismissPendingIntent).build())

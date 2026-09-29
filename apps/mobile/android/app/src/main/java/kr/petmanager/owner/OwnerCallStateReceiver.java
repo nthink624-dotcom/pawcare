@@ -39,7 +39,6 @@ public class OwnerCallStateReceiver extends BroadcastReceiver {
         if (providerCallId.isEmpty() || callerNumber.isEmpty()) return;
 
         if (STATE_OFFHOOK.equals(state)) {
-            OwnerCallNotification.cancel(context, providerCallId);
             try {
                 JSONObject active = new JSONObject();
                 active.put("activeAnswered", true);
@@ -54,7 +53,6 @@ public class OwnerCallStateReceiver extends BroadcastReceiver {
         if (STATE_IDLE.equals(state)) {
             boolean answered = config.optBoolean("activeAnswered", false);
             sendEvent(context, answered ? "ended" : "missed", providerCallId, callerNumber);
-            OwnerCallNotification.cancel(context, providerCallId);
             OwnerCallScreeningStore.clearActiveCall(context);
         }
     }

@@ -33,6 +33,7 @@ test("Android automatic CatchCall adapter allows calls before asynchronous uploa
   const receiver = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallStateReceiver.java");
   const plugin = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningPlugin.java");
   const store = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningStore.java");
+  const notification = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallNotification.java");
   assert.match(manifest, /android\.telecom\.CallScreeningService/);
   assert.match(manifest, /android\.intent\.action\.PHONE_STATE/);
   assert.match(manifest, /android\.permission\.READ_CALL_LOG/);
@@ -48,6 +49,8 @@ test("Android automatic CatchCall adapter allows calls before asynchronous uploa
   assert.match(plugin, /public void setEnabled/);
   assert.match(store, /callCaptureEnabled/);
   assert.match(store, /AES\/GCM\/NoPadding/);
+  assert.match(notification, /setOngoing\(true\)/);
+  assert.doesNotMatch(receiver, /OwnerCallNotification\.cancel\(context, providerCallId\)/);
   assert.doesNotMatch(service, /System\.out|Log\.d|Log\.i/);
 });
 

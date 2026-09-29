@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { buildServiceDurationRecommendations } from "../../src/lib/service-duration-recommendations.ts";
+import { buildPetDurationRecommendations, buildServiceDurationRecommendations } from "../../src/lib/service-duration-recommendations.ts";
+import { summarizeDurationMinutes } from "../../src/lib/duration-statistics.ts";
 import { parseDataImportFile } from "../../src/server/data-import-parser.ts";
 import { buildProfitabilityPayload } from "../../src/server/profitability-analytics.ts";
 
@@ -52,6 +53,10 @@ test("profitability identifies a delayed low-hourly-revenue breed and weight seg
   assert.match(payload.priceRecommendations[0].segmentLabel, /말티즈 6kg.*전체 미용/);
   assert.equal(payload.priceRecommendations[0].averageDelayMinutes, 20);
   assert.ok(payload.priceRecommendations[0].recommendedPrice > payload.priceRecommendations[0].currentAveragePrice);
+  assert.equal(payload.durationSummary.shop.sampleCount, 7);
+  assert.equal(payload.durationSummary.shop.averageMinutes, 81);
+  assert.equal(payload.durationSummary.shop.medianMinutes, 60);
+  assert.equal(payload.durationSummary.shop.recommendedMinutes, 60);
   assert.match(payload.insights[0].description, /시간당 매출/);
 });
 
@@ -88,6 +93,7 @@ test("service duration recommendation uses only corroborated completed work grou
   const validRecords = validMinutes.map((minutes, index) => ({
     id: `record-valid-${index}`,
     appointment_id: `valid-${index}`,
+    pet_id: "pet-a",
     service_id: "service-a",
     actual_duration_minutes: minutes,
     pet_weight_snapshot: 5.2,
@@ -126,7 +132,38 @@ test("service duration recommendation uses only corroborated completed work grou
     weightLabel: "5kg",
     sampleCount: 3,
     observedAverageMinutes: 90,
+    observedMedianMinutes: 90,
+    recommendedMinutes: 90,
   }]);
+
+  assert.deepEqual(buildPetDurationRecommendations({
+    shopId: "shop-a",
+    records: [...validRecords, ...excludedRecords],
+    appointments: [...validAppointments, ...excludedAppointments],
+    services: [{ id: "service-a", name: "전체 미용" }],
+    pets: [{ id: "pet-a", name: "몽이" }],
+  }), [{
+    key: "pet-a|service-a",
+    petId: "pet-a",
+    petName: "몽이",
+    serviceId: "service-a",
+    serviceName: "전체 미용",
+    sampleCount: 3,
+    observedAverageMinutes: 90,
+    observedMedianMinutes: 90,
+    recommendedMinutes: 90,
+  }]);
+});
+
+test("duration statistics keep the arithmetic average visible but use the median for estimates", () => {
+  const stats = summarizeDurationMinutes([60, 65, 70, 75, 240]);
+
+  assert.equal(stats.sampleCount, 5);
+  assert.equal(stats.averageMinutes, 102);
+  assert.equal(stats.medianMinutes, 70);
+  assert.equal(stats.recommendedMinutes, 70);
+  assert.equal(stats.minimumMinutes, 60);
+  assert.equal(stats.maximumMinutes, 240);
 });
 
 test("service duration recommendation requires three records in the same service and weight group", () => {

@@ -12,6 +12,7 @@ import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/ow
 import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { resolveDurationEstimate, summarizeDurationMinutes } from "@/lib/duration-statistics";
 import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
 import { normalizePetBiteLevel } from "@/lib/pet-bite-level";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
@@ -21,6 +22,7 @@ import type {
   CustomerGradeOverride,
   Guardian,
   GuardianNotificationSettings,
+  GroomingRecord,
   MediaAsset,
   Notification,
   NotificationStatus,
@@ -164,6 +166,38 @@ function formatPetProfile(pet: Pick<Pet, "breed" | "weight" | "notes">) {
 
   if (parts.length > 0) return parts.join(" · ");
   return pet.notes?.replace(/^고객 입력:\s*/, "").trim() || "견종/몸무게 미입력";
+}
+
+function durationStatsForRecords(records: GroomingRecord[], predicate: (record: GroomingRecord) => boolean) {
+  return summarizeDurationMinutes(
+    records.filter(predicate).map((record) => record.actual_duration_minutes),
+  );
+}
+
+function durationEstimateForPetService(data: BootstrapPayload, pet: Pet | null, serviceId: string) {
+  const petStats = durationStatsForRecords(
+    data.groomingRecords,
+    (record) => record.pet_id === pet?.id && record.service_id === serviceId,
+  );
+  const serviceWeightStats = durationStatsForRecords(
+    data.groomingRecords,
+    (record) =>
+      record.service_id === serviceId &&
+      typeof pet?.weight === "number" &&
+      typeof record.pet_weight_snapshot === "number" &&
+      Math.round(record.pet_weight_snapshot) === Math.round(pet.weight),
+  );
+  const serviceStats = durationStatsForRecords(
+    data.groomingRecords,
+    (record) => record.service_id === serviceId,
+  );
+  const baselineMinutes = data.services.find((service) => service.id === serviceId)?.duration_minutes ?? null;
+  return resolveDurationEstimate({
+    baselineMinutes,
+    petStats,
+    serviceWeightStats,
+    serviceStats,
+  });
 }
 
 function formatNotificationDateTime(value: string | null | undefined) {
@@ -772,6 +806,7 @@ export default function CustomerManagementScreen({
     setReservationSaving(true);
     setReservationError("");
     try {
+      const durationEstimate = durationEstimateForPetService(bootstrapData, pet, service.id);
       const appointment = await postOwnerAppointment({
         shopId: initialData.shop.id,
         guardianId: guardian.id,
@@ -780,6 +815,7 @@ export default function CustomerManagementScreen({
         staffId: reservationDraft.staffId || null,
         appointmentDate: reservationDraft.date,
         appointmentTime: reservationDraft.time,
+        durationMinutes: durationEstimate.minutes ?? service.duration_minutes,
         memo: reservationDraft.memo,
         source: "owner",
       });
@@ -1537,6 +1573,16 @@ function CustomerReservationModal({
   const selectedPet = pets.find((pet) => pet.id === draft.petId) ?? pets[0] ?? null;
   const services = data.services.filter((service) => service.is_active);
   const selectedService = data.services.find((service) => service.id === draft.serviceId) ?? services[0] ?? data.services[0] ?? null;
+  const durationEstimate = selectedService
+    ? durationEstimateForPetService(data, selectedPet, selectedService.id)
+    : { minutes: null, source: "baseline" as const, stats: null };
+  const durationSourceLabel = durationEstimate.source === "pet"
+    ? "이 반려동물 실제 기록"
+    : durationEstimate.source === "service_weight"
+      ? "비슷한 체중의 업체 기록"
+      : durationEstimate.source === "service"
+        ? "업체 서비스 기록"
+        : "서비스 기본 설정";
 
   function patchDraft(patch: Partial<CustomerReservationDraft>) {
     onDraftChange({ ...draft, ...patch });
@@ -1610,6 +1656,16 @@ function CustomerReservationModal({
               ))}
             </select>
           </label>
+
+          <div className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2.5" data-testid="owner-reservation-duration-estimate">
+            <p className="text-[14px] font-medium leading-5 text-[#334155]">
+              다음 예상시간 {durationEstimate.minutes === null ? "미정" : `${durationEstimate.minutes}분`}
+            </p>
+            <p className="mt-0.5 text-[13px] leading-5 text-[#64748b]">
+              {durationSourceLabel}
+              {durationEstimate.stats ? ` ${durationEstimate.stats.sampleCount}건 · 평균 ${durationEstimate.stats.averageMinutes}분 · 중앙값 ${durationEstimate.stats.medianMinutes}분` : " · 실제 기록이 3건 이상이면 자동으로 맞춥니다."}
+            </p>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <label className="block">

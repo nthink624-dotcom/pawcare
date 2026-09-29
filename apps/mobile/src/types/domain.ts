@@ -321,6 +321,9 @@ export type GroomingRecord = {
   style_notes: string;
   memo: string;
   price_paid: number;
+  actual_duration_minutes?: number | null;
+  expected_duration_minutes?: number | null;
+  pet_weight_snapshot?: number | null;
   groomed_at: string;
   created_at: string;
   updated_at: string;

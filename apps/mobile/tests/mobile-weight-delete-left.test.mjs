@@ -69,7 +69,7 @@ test("confirm removes exactly one weight band using existing helper once and res
 test("sticky weight cells contain sibling 44px delete controls, no trailing management column", () => {
   const h = harness(false, matrix.addMobilePriceGuideWeightBand(matrix.createMobilePriceGuideSkeleton(), 0));
   for (const cell of h.cells()) {
-    assert.match(cell.props.className, /sticky left-0 z-10/); assert.match(cell.props.className, /bg-white/); assert.match(cell.props.className, /w-px whitespace-nowrap/);
+    assert.match(cell.props.className, /sticky left-0 z-0/); assert.match(cell.props.className, /bg-white/); assert.match(cell.props.className, /w-px whitespace-nowrap/);
     const buttons = h.nodes(cell).filter(node => node.type === "button"); assert.equal(buttons.length, 2);
     const trash = buttons.find(node => "data-mobile-weight-delete" in node.props); assert.match(trash.props.className, /size-11 shrink-0/);
     assert.ok(buttons.every(button => !h.nodes(button.props.children ?? null).some(node => node.type === "button")));
@@ -78,7 +78,7 @@ test("sticky weight cells contain sibling 44px delete controls, no trailing mana
     const header = h.nodes(table).find(node => node.type === "thead");
     assert.equal(h.nodes(header).filter(node => node.type === "th").length, 2);
     assert.equal(table.props.style.minWidth, "284px");
-    const sticky = h.nodes(header).find(node => node.type === "th"); assert.match(sticky.props.className, /sticky left-0 z-20/); assert.match(sticky.props.className, /bg-slate-50/);
+    const sticky = h.nodes(header).find(node => node.type === "th"); assert.match(sticky.props.className, /sticky left-0 z-10/); assert.match(sticky.props.className, /bg-slate-50/);
     for (const row of h.nodes(table).filter(node => node.type === "tbody").flatMap(node => h.nodes(node).filter(child => child.type === "tr"))) assert.equal(h.nodes(row).filter(node => node.type === "td").length, 1);
   }
 });

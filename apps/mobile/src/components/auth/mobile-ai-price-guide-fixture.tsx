@@ -38,10 +38,6 @@ export type PriceGuideSessionState = {
 
 type Mode = "method" | "choose" | "consent" | "analyzing" | "review" | "manual" | "recovery";
 
-const OWNER_BOTTOM_NAV_CLEARANCE_PX = 64;
-const PRICE_GUIDE_FOOTER_HEIGHT_PX = 72;
-const PRICE_GUIDE_CONTENT_GAP_PX = 16;
-
 const fixtureRows: PriceGuideDraftRow[] = [
   { id: "fixture-bath", name: "목욕", price: "25000", durationMinutes: "45" },
   { id: "fixture-cut", name: "전체 미용", price: "55000", durationMinutes: "90" },
@@ -105,7 +101,6 @@ export default function MobileAiPriceGuideFixture({
   const [document, setDocument] = useState<MobilePriceGuideV2 | null>(initialDocumentValue);
   const [persistedServiceId, setPersistedServiceId] = useState<string | null>(initialServiceId);
   const [isDirty, setIsDirty] = useState(false);
-  const [keyboardInset, setKeyboardInset] = useState(0);
   const [analysisError, setAnalysisError] = useState(false);
   const [authRecoveryRequired, setAuthRecoveryRequired] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -152,19 +147,6 @@ export default function MobileAiPriceGuideFixture({
   };
 
   useEffect(() => purgePhoto, []);
-
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    if (!viewport) return;
-    const updateInset = () => setKeyboardInset(Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop));
-    updateInset();
-    viewport.addEventListener("resize", updateInset);
-    viewport.addEventListener("scroll", updateInset);
-    return () => {
-      viewport.removeEventListener("resize", updateInset);
-      viewport.removeEventListener("scroll", updateInset);
-    };
-  }, []);
 
   const requestExit = useCallback(() => {
     if (saving || openingCamera || mode === "analyzing") return;
@@ -365,17 +347,8 @@ export default function MobileAiPriceGuideFixture({
 
   const inModal = presentation === "modal";
   const reviewModeActive = (mode === "review" || mode === "manual") && Boolean(document);
-  const ownerBottomNavClearance = ownerBottomNavigation ? OWNER_BOTTOM_NAV_CLEARANCE_PX : 0;
-  const footerBottomInset = keyboardInset > 0 ? keyboardInset : ownerBottomNavClearance;
-  const reviewContentStyle = reviewModeActive && !inModal ? {
-    paddingBottom: `calc(env(safe-area-inset-bottom) + ${footerBottomInset + PRICE_GUIDE_FOOTER_HEIGHT_PX + PRICE_GUIDE_CONTENT_GAP_PX}px)`,
-  } : undefined;
-  const footerStyle = {
-    bottom: `calc(env(safe-area-inset-bottom) + ${footerBottomInset}px)`,
-  };
-
   return (
-    <section className={`mx-auto w-full min-w-0 max-w-[430px] ${inModal ? "flex max-h-[calc(100dvh-48px)] flex-col bg-white" : mode === "method" ? "bg-[#f4f5f7] py-4" : mode === selectionMode ? "min-h-dvh bg-white" : ""}`} aria-label={mode === "method" ? "요금표 등록 방식" : "요금표 사진 검토"} style={reviewContentStyle} data-price-guide-review-content={reviewModeActive ? "active" : undefined}>
+    <section className={`mx-auto w-full min-w-0 max-w-[430px] ${inModal ? "flex max-h-[calc(100dvh-48px)] flex-col bg-white" : mode === "method" ? "bg-[#f4f5f7] py-4" : mode === selectionMode ? "min-h-dvh bg-white" : ""}`} aria-label={mode === "method" ? "요금표 등록 방식" : "요금표 사진 검토"} data-price-guide-review-content={reviewModeActive ? "active" : undefined}>
       <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" tabIndex={-1} aria-hidden="true" className="sr-only" onChange={selectPhoto} />
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" tabIndex={-1} aria-hidden="true" className="sr-only" onChange={selectPhoto} />
 
@@ -420,7 +393,7 @@ export default function MobileAiPriceGuideFixture({
         <div className={`min-w-0 max-w-full space-y-4 px-4 pt-2 ${inModal ? "min-h-0 flex-1 overflow-y-auto pb-4" : ""}`} ref={invalidRef}>{mode === "manual" && <button type="button" className="min-h-11 rounded-[10px] border border-blue-200 bg-blue-50 px-3 text-[14px] font-medium text-blue-700" onClick={() => fileInputRef.current?.click()}>사진으로 다시 불러오기</button>}<MobilePriceGuideMatrix document={document} onChange={(next) => { setDocument({ ...next, source: next.source === "manual" ? "manual" : "owner_corrected" }); setIsDirty(true); setActionError(""); }} />{actionError && <p role="alert" className="rounded-[10px] bg-rose-50 p-3 text-[14px] font-medium text-rose-700">{actionError}</p>}</div>
       )}
 
-      {(reviewModeActive || (setupFlow && mode === "method")) && <footer className={`${inModal ? "shrink-0" : "fixed inset-x-0 z-30 mx-auto max-w-[430px]"} border-t border-slate-200 bg-white px-5 py-3`} style={inModal ? undefined : footerStyle} data-price-guide-review-footer><div className={setupFlow ? "grid gap-3" : "flex gap-3"} style={setupFlow ? { gridTemplateColumns: "minmax(0,35fr) minmax(0,65fr)" } : undefined}><button type="button" disabled={saving || openingCamera} className="min-h-12 flex-1 rounded-[10px] border border-slate-200 bg-white text-[16px] font-medium text-slate-700 disabled:opacity-50" onClick={setupFlow ? requestExit : saveDraftAndExit}>{setupFlow ? "이전" : "임시 저장"}</button><button type="button" disabled={saving || !document} className="min-h-12 flex-[1.4] rounded-[10px] bg-[#111a30] px-3 text-[16px] font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300" onClick={() => void save()}>{saving ? "저장 중..." : "저장하기"}</button></div></footer>}
+      {(reviewModeActive || (setupFlow && mode === "method")) && <footer className={`mx-4 mb-4 border-t border-slate-200 bg-white px-1 pt-4 ${inModal ? "shrink-0" : ""}`} data-price-guide-review-footer><div className={setupFlow ? "grid gap-3" : "flex gap-3"} style={setupFlow ? { gridTemplateColumns: "minmax(0,35fr) minmax(0,65fr)" } : undefined}><button type="button" disabled={saving || openingCamera} className="min-h-12 flex-1 rounded-[10px] border border-slate-200 bg-white text-[16px] font-medium text-slate-700 disabled:opacity-50" onClick={setupFlow ? requestExit : saveDraftAndExit}>{setupFlow ? "이전" : "임시 저장"}</button><button type="button" disabled={saving || !document} className="min-h-12 flex-[1.4] rounded-[10px] bg-[#111a30] px-3 text-[16px] font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300" onClick={() => void save()}>{saving ? "저장 중..." : "저장하기"}</button></div></footer>}
 
       {discardOpen && <SetupModal label="작성 중인 내용" onCancel={() => setDiscardOpen(false)}><div className="w-full bg-white p-5"><h2 className="auth-type-section-title text-slate-900">작성 중인 내용이 있어요</h2><div className="mt-5 grid gap-2"><button type="button" className="min-h-11 rounded-[10px] border border-slate-200 text-[16px] font-medium text-slate-700" onClick={() => setDiscardOpen(false)}>계속 작성</button><button type="button" className="min-h-11 rounded-[10px] bg-[#111a30] text-[16px] font-medium text-white" onClick={saveDraftAndExit}>임시 저장 후 나가기</button><button type="button" className="min-h-11 rounded-[10px] text-[16px] font-medium text-[#9a5e4e]" onClick={requestDiscard}>작성 내용 삭제</button></div></div></SetupModal>}
       {discardConfirmOpen && <SetupModal label="작성 내용 삭제 확인" onCancel={() => setDiscardConfirmOpen(false)}><div className="w-full bg-white p-5"><h2 className="auth-type-section-title text-slate-900">작성 내용을 삭제할까요?</h2><div className="mt-5 grid gap-2"><button type="button" className="min-h-11 rounded-[10px] border border-slate-200 text-[16px] font-medium text-slate-700" onClick={() => setDiscardConfirmOpen(false)}>계속 작성</button><button type="button" className="min-h-11 rounded-[10px] text-[16px] font-medium text-[#9a5e4e]" onClick={confirmDiscard}>작성 내용 삭제</button></div></div></SetupModal>}

@@ -81,18 +81,11 @@ test("signup fallback remains local while owner mode uses the concrete adapter",
   assert.doesNotMatch(fixture, /from ["'](?:openai|@openai)|responses\.create|gpt-5/i);
 });
 
-test("review save footer clears owner navigation, Android safe area, and the visual keyboard", () => {
-  assert.match(fixture, /const OWNER_BOTTOM_NAV_CLEARANCE_PX = 64/);
-  assert.match(fixture, /ownerBottomNavigation = Boolean\(shopId\)/);
-  assert.match(fixture, /const ownerBottomNavClearance = ownerBottomNavigation \? OWNER_BOTTOM_NAV_CLEARANCE_PX : 0/);
-  assert.match(fixture, /const footerBottomInset = keyboardInset > 0 \? keyboardInset : ownerBottomNavClearance/);
-  assert.match(fixture, /bottom: `calc\(env\(safe-area-inset-bottom\) \+ \$\{footerBottomInset\}px\)`/);
-  assert.match(fixture, /paddingBottom: `calc\(env\(safe-area-inset-bottom\) \+ \$\{footerBottomInset \+ PRICE_GUIDE_FOOTER_HEIGHT_PX \+ PRICE_GUIDE_CONTENT_GAP_PX\}px\)`/);
+test("review save actions follow the editable table instead of covering it", () => {
   assert.match(fixture, /data-price-guide-review-content=\{reviewModeActive \? "active" : undefined\}/);
-  assert.match(fixture, /<footer className="fixed inset-x-0 z-30[^\"]*bg-white[^\"]*py-3" style=\{footerStyle\} data-price-guide-review-footer>/);
-  assert.doesNotMatch(fixture, /<footer className="[^"]*bottom-0/);
-  assert.match(fixture, />임시 저장<\/button>/);
-  assert.match(fixture, /saving \? "저장 중\.\.\." : "저장하기"/);
+  assert.match(fixture, /<footer className=\{`mx-4 mb-4 border-t border-slate-200 bg-white px-1 pt-4 \$\{inModal \? "shrink-0" : ""\}`\} data-price-guide-review-footer>/);
+  assert.doesNotMatch(fixture, /fixed inset-x-0 z-30 mx-auto max-w-\[430px\]/);
+  assert.doesNotMatch(fixture, /keyboardInset|footerBottomInset|reviewContentStyle|footerStyle/);
   assert.doesNotMatch(fixture, /서비스에 저장하기|나중에 하기|검토 내용 임시 유지/);
 });
 
@@ -114,8 +107,6 @@ test("service price surfaces remove duplicate helper copy without weakening cons
   assert.match(fixture, /비식별 파생 이미지를 OpenAI로 전송/);
   assert.match(fixture, /원본 사진에 고객 이름, 전화번호 등 개인정보가 보이지 않는지 다시 확인/);
   assert.match(fixture, /role="alert"/);
-  assert.match(fixture, />임시 저장<\/button>/);
-  assert.match(fixture, /saving \? "저장 중\.\.\." : "저장하기"/);
 });
 
 test("direct price guide keeps explicit local drafts and a quiet confirmed discard path", () => {
@@ -192,7 +183,7 @@ test("one canonical matrix owns dynamic service, group, breed, weight, price and
   assert.match(matrix, /min-w-\[72px\] whitespace-nowrap !text-\[16px\] !leading-6/);
   assert.match(matrix, /className=\{`\$\{actionClass\} !text-\[16px\] !leading-6`\}/);
   assert.doesNotMatch(matrix, /다른 분류에 배정된 품종은 목록에 나오지 않습니다/);
-  assert.match(fixture, /mx-auto w-full min-w-0 max-w-\[430px\][^>]*style=\{reviewContentStyle\}/);
+  assert.match(fixture, /mx-auto w-full min-w-0 max-w-\[430px\][^>]*data-price-guide-review-content/);
 });
 
 test("the document stays shrinkable while the matrix contains its accessible labels and horizontal overflow", () => {
@@ -207,10 +198,16 @@ test("the document stays shrinkable while the matrix contains its accessible lab
   assert.match(extras, /data-mobile-price-guide-extras/);
   assert.match(extras, /추가 서비스·요금/);
   assert.match(extras, /amountKrw/);
-  assert.match(fixture, /mx-auto w-full min-w-0 max-w-\[430px\][^>]*style=\{reviewContentStyle\}/);
+  assert.match(fixture, /mx-auto w-full min-w-0 max-w-\[430px\][^>]*data-price-guide-review-content/);
   assert.match(fixture, /min-w-0 max-w-full space-y-4 px-4 pt-2/);
   assert.doesNotMatch(matrix, /data-mobile-price-guide-matrix[^>]*(?:overflow-x-hidden|overflow-x-clip)/);
   assert.doesNotMatch(fixture, /max-w-\[430px\][^\"]*(?:overflow-x-hidden|overflow-x-clip)/);
+});
+
+test("weight labels stay below the sticky service-settings title", () => {
+  assert.match(matrix, /sticky left-0 z-10 w-px whitespace-nowrap bg-slate-50/);
+  assert.match(matrix, /sticky left-0 z-0 w-px whitespace-nowrap border-b border-r/);
+  assert.doesNotMatch(matrix, /sticky left-0 z-20 w-px whitespace-nowrap bg-slate-50/);
 });
 
 test("authentication preflight shows one login recovery and purges the preview", () => {

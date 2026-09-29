@@ -186,8 +186,10 @@ test("photo analysis keeps one source-file boundary, secrets server-only, and st
   assert.doesNotMatch(client, /OPENAI_API_KEY|process\.env|Authorization:\s*`Bearer/);
   assert.match(serverEnv, /openaiPriceGuideEnabled: process\.env\.OPENAI_PRICE_GUIDE_ENABLED === "true"/);
   assert.match(serverEnv, /openaiApiKey: readOptionalSecret\(process\.env\.OPENAI_API_KEY\)/);
+  assert.match(serverEnv, /OPENAI_PRICE_GUIDE_MODEL/);
   assert.match(envExample, /OPENAI_PRICE_GUIDE_ENABLED=false/);
   assert.match(envExample, /OPENAI_API_KEY=/);
+  assert.match(envExample, /OPENAI_PRICE_GUIDE_MODEL=gpt-5\.6-luna/);
   assert.doesNotMatch(envExample, /NEXT_PUBLIC_OPENAI/);
 
   assert.match(route, /extractPriceGuideFromImages/);
@@ -204,7 +206,8 @@ test("photo analysis keeps one source-file boundary, secrets server-only, and st
   assert.match(privacy, /webp\(\{ lossless: true/);
   assert.doesNotMatch(privacy, /content_crop|HEADER_REDACTION_RATIO|FOOTER_REDACTION_RATIO|cropOffsets|\.extract\(/);
   assert.match(server, /https:\/\/api\.openai\.com\/v1\/responses/);
-  assert.match(server, /PRICE_GUIDE_VISION_MODEL = "gpt-5\.6-luna"/);
+  assert.match(server, /PRICE_GUIDE_VISION_MODEL = serverEnv\.openaiVisionModel/);
+  assert.match(server, /"gpt-6-luna": \{ input: 0\.1, output: 0\.5 \}/);
   assert.match(server, /parsePriceGuideResponsesPayload/);
   assert.match(server, /function expandProviderPriceGuideRows/);
   assert.match(server, /const groupIndex = readProviderCoordinate\(row\.g/);

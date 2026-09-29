@@ -187,8 +187,12 @@ test("photo price guide normalization does not invent rows when no weight band i
 
 test("Vision metering uses provider usage and fails closed when usage or model pricing is unknown", () => {
   assert.equal(
-    calculatePriceGuideProviderCostMicroUsd(PRICE_GUIDE_VISION_MODEL, { inputTokens: 10_000, outputTokens: 2_000 }),
+    calculatePriceGuideProviderCostMicroUsd("gpt-5.6-luna", { inputTokens: 10_000, outputTokens: 2_000 }),
     4_400,
+  );
+  assert.equal(
+    calculatePriceGuideProviderCostMicroUsd("gpt-6-luna", { inputTokens: 10_000, outputTokens: 2_000 }),
+    2_000,
   );
   assert.equal(
     calculatePriceGuideProviderCostMicroUsd(PRICE_GUIDE_VISION_MODEL, null),

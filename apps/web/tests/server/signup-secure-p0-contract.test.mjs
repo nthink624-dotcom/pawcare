@@ -90,9 +90,10 @@ test("Vision 비용은 13,000 micro-USD를 예약하고 provider usage 또는 fa
   assert.match(provider, /PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD\s*=\s*13_000/);
   assert.match(provider, /usage\.input_tokens|input_tokens/);
   assert.match(provider, /usage\.output_tokens|output_tokens/);
-  assert.match(provider, /PRICE_GUIDE_VISION_MODEL = "gpt-5\.6-luna"/);
-  assert.match(provider, /usage\.inputTokens \* 0\.2/);
-  assert.match(provider, /usage\.outputTokens \* 1\.2/);
+  assert.match(provider, /PRICE_GUIDE_VISION_MODEL = serverEnv\.openaiVisionModel/);
+  assert.match(provider, /usage\.inputTokens \* rates\.input/);
+  assert.match(provider, /usage\.outputTokens \* rates\.output/);
+  assert.match(provider, /"gpt-6-luna": \{ input: 0\.1, output: 0\.5 \}/);
   assert.match(route, /estimatedCostMicroUsd:\s*fixtureMode \? 0 : PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD/);
   assert.match(route, /actualCostMicroUsd:\s*fixtureMode \? 0 : actualCostMicroUsd \|\| PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD/);
   assert.doesNotMatch(route, /ESTIMATED_REQUEST_COST_MICRO_USD\s*=\s*1_200/);

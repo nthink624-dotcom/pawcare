@@ -23,7 +23,7 @@ import {
 
 const openAiResponsesUrl = "https://api.openai.com/v1/responses";
 
-export const PRICE_GUIDE_VISION_MODEL = "gpt-5.6-luna" as const;
+export const PRICE_GUIDE_VISION_MODEL = serverEnv.openaiVisionModel;
 
 export const PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD = 13_000;
 export const PRICE_GUIDE_PROVIDER_TIMEOUT_MS = 60_000;
@@ -36,16 +36,24 @@ export type PriceGuideProviderUsage = {
   outputTokens: number;
 };
 
+const PRICE_GUIDE_VISION_COST_PER_MILLION_TOKENS = {
+  "gpt-5.6-luna": { input: 0.2, output: 1.2 },
+  "gpt-6-luna": { input: 0.1, output: 0.5 },
+} as const;
+
 export function calculatePriceGuideProviderCostMicroUsd(
   model: string,
   usage: PriceGuideProviderUsage | null,
 ) {
-  if (!usage || model !== PRICE_GUIDE_VISION_MODEL) {
+  const rates = PRICE_GUIDE_VISION_COST_PER_MILLION_TOKENS[
+    model as keyof typeof PRICE_GUIDE_VISION_COST_PER_MILLION_TOKENS
+  ];
+  if (!usage || !rates) {
     return PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD;
   }
-  // gpt-5.6-luna: $0.20 / 1M input tokens, $1.20 / 1M output tokens.
+  // Model rates are in USD per 1M input/output tokens.
   // micro-USD arithmetic: tokens * USD-per-million.
-  const measured = Math.ceil((usage.inputTokens * 0.2) + (usage.outputTokens * 1.2));
+  const measured = Math.ceil((usage.inputTokens * rates.input) + (usage.outputTokens * rates.output));
   if (!Number.isSafeInteger(measured) || measured < 0) {
     return PRICE_GUIDE_VISION_CONSERVATIVE_MAX_COST_MICRO_USD;
   }

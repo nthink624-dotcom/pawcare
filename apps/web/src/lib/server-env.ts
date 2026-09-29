@@ -18,6 +18,21 @@ function readOptionalSecret(value: string | undefined) {
   return trimmed ? trimmed : undefined;
 }
 
+const OPENAI_PRICE_GUIDE_VISION_MODELS = ["gpt-5.6-luna", "gpt-6-luna"] as const;
+export type OpenAiPriceGuideVisionModel = (typeof OPENAI_PRICE_GUIDE_VISION_MODELS)[number];
+
+function readOpenAiPriceGuideVisionModel(): OpenAiPriceGuideVisionModel {
+  const configured = process.env.OPENAI_PRICE_GUIDE_MODEL?.trim();
+  if (!configured) return "gpt-5.6-luna";
+  if ((OPENAI_PRICE_GUIDE_VISION_MODELS as readonly string[]).includes(configured)) {
+    return configured as OpenAiPriceGuideVisionModel;
+  }
+  throw new ServerEnvError(
+    "OPENAI_PRICE_GUIDE_MODEL must be one of: gpt-5.6-luna, gpt-6-luna.",
+    503,
+  );
+}
+
 export function requireServerSecret(value: string | undefined, name: string) {
   const normalized = readOptionalSecret(value);
   if (!normalized) {
@@ -105,7 +120,7 @@ export const serverEnv = {
   deepseekModel: readOptionalSecret(process.env.DEEPSEEK_MODEL) ?? "deepseek-v4-flash",
   openaiPriceGuideEnabled: process.env.OPENAI_PRICE_GUIDE_ENABLED === "true",
   openaiApiKey: readOptionalSecret(process.env.OPENAI_API_KEY),
-  openaiVisionModel: "gpt-5.6-luna",
+  openaiVisionModel: readOpenAiPriceGuideVisionModel(),
   signupPriceGuideTokenSecret: readOptionalSecret(
     process.env.SIGNUP_PRICE_GUIDE_TOKEN_SECRET || process.env.AUTH_FLOW_SECRET,
   ),

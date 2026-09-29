@@ -1,14 +1,14 @@
 {
-  "readAt": "2026-09-29",
-  "scope": "read-only Supabase MCP readback; no migrations or data writes",
+  "readAt": "2026-09-30",
+  "scope": "Supabase migration, ACL, advisor, and project readback after approved rollout",
   "projects": {
     "development": {
       "name": "petmanager-dev",
       "ref": "qefxdtmdtvnzgupmjlom",
       "status": "ACTIVE_HEALTHY",
       "region": "ap-southeast-2",
-      "migrationCount": 146,
-      "lastMigration": "20260926204624",
+      "migrationCount": 166,
+      "lastMigration": "20260929131500",
       "securityAdvisors": {
         "rls_enabled_no_policy": { "level": "INFO", "count": 78 },
         "auth_leaked_password_protection": { "level": "WARN", "count": 1 }
@@ -24,8 +24,8 @@
       "ref": "ysxykikqnneuhypybjry",
       "status": "ACTIVE_HEALTHY",
       "region": "ap-southeast-1",
-      "migrationCount": 121,
-      "lastMigration": "20260928124710",
+      "migrationCount": 166,
+      "lastMigration": "20260929131500",
       "securityAdvisors": {
         "rls_enabled_no_policy": { "level": "INFO", "count": 67 },
         "auth_leaked_password_protection": { "level": "WARN", "count": 1 }
@@ -34,7 +34,7 @@
         "tableCount": 83,
         "tablesWithoutRls": 0,
         "tablesWithoutPolicies": 67,
-        "browserTableGrantRows": { "anon": 224, "authenticated": 224 }
+      "browserTableGrantRows": { "anon": 0, "authenticated": 0 }
       },
       "performanceAdvisors": {
         "unindexed_foreign_keys": { "level": "INFO", "count": 115 },
@@ -44,8 +44,8 @@
     }
   },
   "followUps": [
-    "Enable leaked-password protection in the Supabase Auth settings after owner approval.",
-    "Apply and read back the policyless-browser-grant revocation migration only after production approval; RLS is enabled on all 83 public tables, but 67 have no policies and still retain browser table grant rows.",
+    "Enable leaked-password protection in the Supabase Auth settings or through the authenticated Management API.",
+    "RLS is enabled on all 83 public tables; server-only policyless tables retain no anon/authenticated browser grants after the approved revocation migration.",
     "Review duplicate-index migrations before applying them to production.",
     "Reconcile migration drift only with an explicit production change reason and readback."
   ]

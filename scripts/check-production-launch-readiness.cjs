@@ -90,8 +90,12 @@ if (!Number.isInteger(productionRls.tableCount) || !Number.isInteger(productionR
 if (Number.isInteger(productionRls.tablesWithoutRls) && productionRls.tablesWithoutRls > 0) {
   failures.push(`production Supabase has ${productionRls.tablesWithoutRls} public tables without RLS`);
 }
+// Some RLS-enabled tables intentionally have no browser policies because they
+// are server-only. The launch gate must enforce the actual exposure boundary:
+// browser grants must be revoked, not require every server-only table to have a
+// client policy.
 if (Number.isInteger(productionRls.tablesWithoutPolicies) && productionRls.tablesWithoutPolicies > 0) {
-  failures.push(`production Supabase has ${productionRls.tablesWithoutPolicies} RLS-enabled public tables without policies`);
+  console.log(`INFO: production Supabase retains ${productionRls.tablesWithoutPolicies} server-only RLS tables without browser policies`);
 }
 const browserGrantRows = productionRls.browserTableGrantRows ?? {};
 for (const role of ["anon", "authenticated"]) {

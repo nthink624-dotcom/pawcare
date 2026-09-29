@@ -1,29 +1,29 @@
 {
-  "readAt": "2026-09-29",
-  "scope": "read-only Vercel project, deployment, runtime-log, and endpoint readback",
+  "readAt": "2026-09-30",
+  "scope": "Vercel project, deployment alias, runtime-log, and endpoint readback after approved release",
   "projects": {
     "web": {
       "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
       "projectName": "petmanager",
-      "deploymentId": "dpl_D6KvYyZLDPUSZV5BCfQ5SBydiUQ3",
+      "deploymentId": "dpl_A4gnu9xa5PVCY4kJZrDGi2UkjbWt",
       "deploymentState": "READY",
-      "commitSha": "b73f1012d0f5e02e57970cc1ea22ea2167651fba",
+      "commitSha": "2e1de1fc006f05105f43b60ba35356549ced111a",
       "aliases": ["www.petmanager.co.kr", "petmanager.co.kr"],
       "runtimeLogCountsLast24h": { "200": 10 },
       "runtimeErrorClustersLast24h": [],
-      "endpointSmoke": { "healthz": 404, "readyz": 404 }
+      "endpointSmoke": { "healthz": 200, "readyz": 200 }
     },
     "mobile": {
       "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
       "projectName": "petmanager-app",
-      "deploymentId": "dpl_BwPvBzxo8efeH8j4uhScqJMyrgMo",
+      "deploymentId": "dpl_2Eb53G9T5HP4uefMw7cuUyKkn1os",
       "deploymentState": "READY",
-      "commitSha": "b73f1012d0f5e02e57970cc1ea22ea2167651fba",
+      "commitSha": "2e1de1fc006f05105f43b60ba35356549ced111a",
       "aliases": ["app.petmanager.co.kr"],
       "runtimeLogCountsLast24h": { "200": 1 },
       "runtimeErrorClustersLast24h": [],
-      "endpointSmoke": { "healthz": 404, "readyz": 404 }
+      "endpointSmoke": { "healthz": 200, "readyz": 200 }
     }
   },
-  "interpretation": "Both production aliases point to READY deployments, but those deployments predate the local health/readiness routes; redeploy is required before endpoint smoke can pass."
+  "interpretation": "Both production aliases point to READY deployments from the same release. Web and mobile health/readiness endpoint smoke returned HTTP 200. The mobile custom domain alias was explicitly assigned to the current production deployment after verification."
 }

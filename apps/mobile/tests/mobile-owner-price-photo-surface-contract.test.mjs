@@ -144,10 +144,14 @@ test("price and duration are independent matrix cells with canonical bounds", ()
   assert.match(matrix, /data-mobile-price-guide-service-subheaders/);
   assert.match(matrix, /data-mobile-price-guide-service-duration-trigger/);
   assert.match(matrix, /data-mobile-price-guide-service-duration-dialog/);
+  assert.match(matrix, /data-mobile-price-duration-quick-trigger/);
+  assert.match(matrix, /data-mobile-price-guide-duration-quick-options/);
+  assert.match(matrix, /function chooseQuickBase\(minutes: number\)/);
+  assert.match(matrix, /\[20, 30, 40, 50, 60, 75, 90\]/);
   assert.match(matrix, /2kg마다<\/option><option value=\{3\}>3kg마다<\/option>/);
   assert.match(matrix, /선택한 간격마다 10분씩 추가돼요/);
   assert.match(matrix, /onStartEdit\("price"\)/);
-  assert.match(matrix, /onStartEdit\("duration"\)/);
+  assert.match(matrix, /onOpenDurationSetup=\{\(\) => setDurationSetupTarget\(\{ groupIndex, serviceIndex \}\)\}/);
   assert.match(matrix, /text-\[16px\] font-medium leading-6 tabular-nums/);
   assert.match(matrix, /truncate whitespace-nowrap/);
   assert.match(matrix, /min-w-0 whitespace-nowrap border-l/);

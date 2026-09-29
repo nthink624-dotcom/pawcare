@@ -47,6 +47,7 @@ workflows:
           grep -Fq 'appId: "kr.petmanager.owner"' "$APP_DIR/capacitor.config.ts"
           grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = kr.petmanager.owner;' "$PROJECT_PATH/project.pbxproj"
           grep -Fq 'OwnerBridgeViewController.swift in Sources' "$PROJECT_PATH/project.pbxproj"
+          grep -Fq 'pm-ios-safe-area-style' "$CM_BUILD_DIR/$OWNER_MOBILE_DIR/ios/App/App/OwnerBridgeViewController.swift"
           grep -Fq 'name = App;' "$PROJECT_PATH/project.pbxproj"
 
       - name: Install locked Node dependencies and type-check

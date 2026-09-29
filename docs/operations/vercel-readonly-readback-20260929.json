@@ -5,9 +5,9 @@
     "web": {
       "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
       "projectName": "petmanager",
-      "deploymentId": "dpl_A4gnu9xa5PVCY4kJZrDGi2UkjbWt",
+      "deploymentId": "dpl_A2jozKKeeANtx2CPew8v8ACfXwNm",
       "deploymentState": "READY",
-      "commitSha": "2e1de1fc006f05105f43b60ba35356549ced111a",
+      "commitSha": "340435202c83f3e85a5c517eb310f1d92802e4b5",
       "aliases": ["www.petmanager.co.kr", "petmanager.co.kr"],
       "runtimeLogCountsLast24h": { "200": 10 },
       "runtimeErrorClustersLast24h": [],
@@ -16,9 +16,9 @@
     "mobile": {
       "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
       "projectName": "petmanager-app",
-      "deploymentId": "dpl_2Eb53G9T5HP4uefMw7cuUyKkn1os",
+      "deploymentId": "dpl_2L1mKjgm87zaeCjiSBZsWH41wesv",
       "deploymentState": "READY",
-      "commitSha": "2e1de1fc006f05105f43b60ba35356549ced111a",
+      "commitSha": "340435202c83f3e85a5c517eb310f1d92802e4b5",
       "aliases": ["app.petmanager.co.kr"],
       "runtimeLogCountsLast24h": { "200": 1 },
       "runtimeErrorClustersLast24h": [],

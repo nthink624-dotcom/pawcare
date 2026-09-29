@@ -202,6 +202,10 @@ test("the document stays shrinkable while the matrix contains its accessible lab
   assert.match(extras, /data-mobile-price-guide-extras/);
   assert.match(extras, /추가 서비스·요금/);
   assert.match(extras, /amountKrw/);
+  assert.match(extras, /text-\[16px\] font-medium leading-6/);
+  assert.match(extras, /shrink-0 items-center justify-center[^\n]*whitespace-nowrap/);
+  assert.doesNotMatch(extras, /가위컷, 얼굴컷 추가, 호텔처럼 표 밖에 적힌 항목입니다/);
+  assert.doesNotMatch(extras, /text-\[(?:11|12|13|14)px\]/);
   assert.match(fixture, /mx-auto w-full min-w-0 max-w-\[430px\][^>]*data-price-guide-review-content/);
   assert.match(fixture, /min-w-0 max-w-full space-y-4 px-4 pt-2/);
   assert.doesNotMatch(matrix, /data-mobile-price-guide-matrix[^>]*(?:overflow-x-hidden|overflow-x-clip)/);

@@ -47,17 +47,18 @@ begin
 end
 $$;
 
-revoke all on function public.increment_shop_media_usage(text, date, integer, bigint, integer, bigint)
-  from public, anon, authenticated;
-alter function public.increment_shop_media_usage(text, date, integer, bigint, integer, bigint)
-  set search_path = pg_catalog, public;
-
-alter view public.shop_alimtalk_credit_summaries
-  set (security_invoker = true);
-revoke all on table public.shop_alimtalk_credit_summaries from public, anon, authenticated;
-
 do $$
 begin
+  if to_regprocedure('public.increment_shop_media_usage(text,date,integer,bigint,integer,bigint)') is not null then
+    execute 'revoke all on function public.increment_shop_media_usage(text, date, integer, bigint, integer, bigint) from public, anon, authenticated';
+    execute 'alter function public.increment_shop_media_usage(text, date, integer, bigint, integer, bigint) set search_path = pg_catalog, public';
+  end if;
+
+  if to_regclass('public.shop_alimtalk_credit_summaries') is not null then
+    execute 'alter view public.shop_alimtalk_credit_summaries set (security_invoker = true)';
+    execute 'revoke all on table public.shop_alimtalk_credit_summaries from public, anon, authenticated';
+  end if;
+
   if to_regprocedure('public.create_appointment_with_capacity_lock(uuid,text,uuid,uuid,text,date,time,text,text,text,timestamptz,timestamptz,text,timestamptz,timestamptz)') is not null then
     execute 'revoke all on function public.create_appointment_with_capacity_lock(uuid, text, uuid, uuid, text, date, time, text, text, text, timestamptz, timestamptz, text, timestamptz, timestamptz) from public, anon, authenticated';
   end if;

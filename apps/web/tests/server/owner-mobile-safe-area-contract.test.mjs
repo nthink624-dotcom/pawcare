@@ -13,6 +13,7 @@ test("owner mobile keeps iPhone notch and home-indicator space in the web and na
   ]);
 
   assert.match(layout, /viewportFit: "cover"/);
+  assert.match(layout, /<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" \/>/);
   assert.match(globals, /--pm-native-safe-top: 0px;/);
   assert.match(globals, /--pm-safe-top: max\(env\(safe-area-inset-top, 0px\), var\(--pm-native-safe-top\)\)/);
   assert.match(globals, /\.pm-mobile-owner \{[\s\S]*padding-top: var\(--pm-safe-top\);[\s\S]*padding-bottom: var\(--pm-safe-bottom\);/);

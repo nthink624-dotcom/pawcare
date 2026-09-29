@@ -78,6 +78,8 @@ export default function ServiceDurationRecommendationPanel({
                 </p>
                 <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
                   실제 평균 <span className="font-semibold text-[#2563eb]">{recommendation.observedAverageMinutes}분</span>
+                  {" · "}중앙값 {recommendation.observedMedianMinutes}분
+                  {" · "}예상 기준 <span className="font-semibold text-[#2f7d6d]">{recommendation.recommendedMinutes}분</span>
                   {" · "}완료 {recommendation.sampleCount}건
                 </p>
               </li>

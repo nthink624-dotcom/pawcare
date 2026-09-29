@@ -1,4 +1,5 @@
 import { currentDateInTimeZone, formatClockTime, minutesFromTime, won } from "@/lib/utils";
+import { EMPTY_DURATION_STATS, summarizeDurationMinutes, type DurationStats } from "@/lib/duration-statistics";
 import type {
   Appointment,
   AppointmentStatus,
@@ -37,6 +38,7 @@ export type CustomerDetailModel = {
   recentAppointments: Appointment[];
   recentGroomingRecords: GroomingRecord[];
   recentNotifications: Notification[];
+  shopDurationStatsByService: Map<string, DurationStats>;
   latestGroomingRecord: GroomingRecord | null;
   recentVisitLabel: string;
   lastAppointmentStatusLabel: string;
@@ -58,6 +60,32 @@ export function getPetGroomingRecords(data: BootstrapPayload, petId: string) {
   return data.groomingRecords
     .filter((record) => record.pet_id === petId)
     .sort((first, second) => second.groomed_at.localeCompare(first.groomed_at));
+}
+
+export function getPetServiceDurationStats(pet: CustomerDetailPet | null | undefined, serviceId: string) {
+  if (!pet) return EMPTY_DURATION_STATS;
+  return summarizeDurationMinutes(
+    pet.groomingRecords
+      .filter((record) => record.service_id === serviceId)
+      .map((record) => record.actual_duration_minutes),
+  );
+}
+
+function buildShopDurationStatsByService(records: GroomingRecord[]) {
+  const grouped = new Map<string, unknown[]>();
+  for (const record of records) {
+    grouped.set(record.service_id, [
+      ...(grouped.get(record.service_id) ?? []),
+      record.actual_duration_minutes,
+    ]);
+  }
+
+  return new Map(
+    Array.from(grouped.entries()).map(([serviceId, values]) => [
+      serviceId,
+      summarizeDurationMinutes(values),
+    ] as const),
+  );
 }
 
 export function getLatestGroomingRecord(records: GroomingRecord[]) {
@@ -134,6 +162,7 @@ export function buildCustomerDetailFromBootstrap(
     recentAppointments: appointments.slice(0, 5),
     recentGroomingRecords: groomingRecords.slice(0, 5),
     recentNotifications: notifications.slice(0, 5),
+    shopDurationStatsByService: buildShopDurationStatsByService(data.groomingRecords),
     latestGroomingRecord,
     recentVisitLabel: latestGroomingRecord
       ? formatTimestampDateTime(latestGroomingRecord.groomed_at)

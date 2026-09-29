@@ -96,6 +96,7 @@ import { getTodayBookingCustomerGradeLabel } from "@/lib/today-booking-customer-
 import { canUseTesterFeedback, resolveTesterFeedbackAppVersion, type TesterFeedbackCategory, type TesterFeedbackScreenKey } from "@/lib/tester-feedback";
 import { sharedOwnerFeedbackAdapter } from "@/lib/owner-feedback-adapter";
 import { getMobileGroomingStartTiming } from "@/lib/mobile-grooming-start-policy";
+import { getGroomingDurationEstimate } from "@/lib/grooming-duration-estimates";
 import { matchesCanonicalCustomerFilter, type OwnerCustomerFilter } from "@/lib/owner-customer-filter";
 import {
   ownerAppointmentVisitWeightTransport,
@@ -4880,6 +4881,22 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
 
   const selectedPet = data.pets.find((item) => item.id === selectedPetId);
   const selectedGuardian = selectedPet ? data.guardians.find((item) => item.id === selectedPet.guardian_id) : undefined;
+  const selectedService = data.services.find((item) => item.id === serviceId);
+  const durationEstimate = selectedService
+    ? getGroomingDurationEstimate({
+        appointments: data.appointments,
+        groomingRecords: data.groomingRecords,
+        service: selectedService,
+        pet: selectedPet,
+      })
+    : { minutes: null, source: "baseline" as const, stats: null };
+  const durationSourceLabel = durationEstimate.source === "pet"
+    ? "이 반려동물 실제 기록"
+    : durationEstimate.source === "service_weight"
+      ? "비슷한 체중의 업체 기록"
+      : durationEstimate.source === "service"
+        ? "업체 서비스 실제 기록"
+        : "서비스 기본 설정";
   const selectableServices = useMemo(
     () =>
       data.services
@@ -4895,6 +4912,7 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
   const slots = computeAvailableSlots({
     date,
     serviceId,
+    durationMinutesOverride: durationEstimate.minutes ?? selectedService?.duration_minutes,
     shop: data.shop,
     services: selectableServices,
     appointments: data.appointments,
@@ -4953,6 +4971,7 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
               staffId: selectedStaffId,
               appointmentDate: date,
               appointmentTime: time,
+              durationMinutes: durationEstimate.minutes ?? selectedService?.duration_minutes,
               memo,
               source: "owner",
             })
@@ -5063,6 +5082,17 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
                 ))}
               </div>
             )}
+            {selectedService ? (
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5" data-testid="mobile-owner-duration-estimate">
+                <p className="text-sm font-semibold">다음 예상시간 {durationEstimate.minutes ?? selectedService.duration_minutes}분</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                  {durationSourceLabel}
+                  {durationEstimate.stats
+                    ? ` ${durationEstimate.stats.sampleCount}건 · 평균 ${durationEstimate.stats.averageMinutes}분 · 중앙값 ${durationEstimate.stats.medianMinutes}분`
+                    : " · 실제 기록이 3건 이상이면 자동으로 맞춰요."}
+                </p>
+              </div>
+            ) : null}
           </>
         ) : null}
 

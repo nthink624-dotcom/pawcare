@@ -27,6 +27,10 @@ function hours(value: number) {
   return `${(value / 60).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간`;
 }
 
+function duration(value: number | null) {
+  return value === null ? "-" : `${Math.round(value)}분`;
+}
+
 function MetricCard({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div className="min-w-0 bg-white px-4 py-4">
@@ -131,9 +135,10 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
           <EmptyState />
         ) : payload ? (
           <>
-            <section data-profitability-kpi-strip className="grid grid-cols-1 gap-px border-b border-[#e8edf3] bg-[#e8edf3] sm:grid-cols-2 xl:grid-cols-5">
+            <section data-profitability-kpi-strip className="grid grid-cols-1 gap-px border-b border-[#e8edf3] bg-[#e8edf3] sm:grid-cols-2 xl:grid-cols-6">
               <MetricCard label="실수령 매출" value={won(payload.summary.netRevenue)} sub={`할인 전 ${won(payload.summary.grossRevenue)}`} />
               <MetricCard label="시간당 매출" value={won(payload.summary.hourlyRevenue)} sub={`실제 작업 ${hours(payload.summary.actualWorkMinutes)}`} />
+              <MetricCard label="업체 평균 실제시간" value={duration(payload.durationSummary.shop.averageMinutes)} sub={`중앙값 ${duration(payload.durationSummary.shop.medianMinutes)} · ${payload.durationSummary.shop.sampleCount}건`} />
               <MetricCard label="평균 예상 차이" value={minutes(payload.summary.averageDelayMinutes)} sub="실제시간 - 예상시간" />
               <MetricCard label="분석 완료 건" value={`${payload.summary.timedCount}건`} sub={`전체 완료 ${payload.summary.completedCount}건`} />
               <MetricCard label="할인 영향" value={`-${won(payload.summary.discountAmount)}`} sub="할인 전후 수익에 반영" />
@@ -155,6 +160,51 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
                   </div>
                 ))}
               </div>
+            </section>
+
+            <section data-profitability-section="duration-summary" className="border-b border-[#e8edf3] px-4 py-5">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h2 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#172033]">실제 미용시간 평균</h2>
+                  <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">표본이 3건 이상이면 중앙값을 다음 예상시간의 기준으로 사용합니다.</p>
+                </div>
+                <span className="text-[12px] font-medium leading-[18px] text-[#64748b]">업체 전체 {payload.durationSummary.shop.sampleCount}건</span>
+              </div>
+              {payload.durationSummary.services.length === 0 ? (
+                <div className="border-t border-[#e8edf3] px-2 py-6 text-center text-[14px] font-normal leading-5 text-[#64748b]">실제 시작·완료 시간이 있는 기록이 아직 없습니다.</div>
+              ) : (
+                <div className="grid gap-2 border-t border-[#e8edf3] pt-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {payload.durationSummary.services.map((service) => (
+                    <div key={service.serviceId} className="rounded-[10px] border border-[#e8edf3] bg-[#fbfcfd] px-3 py-3">
+                      <p className="truncate text-[14px] font-medium leading-5 text-[#253044]">{service.serviceName}</p>
+                      <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">표본 {service.sampleCount}건 · 평균 {duration(service.averageMinutes)} · 중앙값 {duration(service.medianMinutes)}</p>
+                      <p className="mt-1 text-[13px] font-medium leading-5 text-[#2f7d6d]">다음 예상 기준 {duration(service.recommendedMinutes)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section data-profitability-section="pet-duration-recommendations" className="border-b border-[#e8edf3] px-4 py-5">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h2 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#172033]">반려동물별 예상시간</h2>
+                  <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">같은 반려동물의 유효한 완료 기록 3건부터 다음 예약 예상에 사용할 수 있습니다.</p>
+                </div>
+              </div>
+              {payload.petDurationRecommendations.length === 0 ? (
+                <div className="border-t border-[#e8edf3] px-2 py-6 text-center text-[14px] font-normal leading-5 text-[#64748b]">반려동물별 예상시간을 만들 만큼 유효한 기록이 아직 없습니다.</div>
+              ) : (
+                <div className="grid gap-2 border-t border-[#e8edf3] pt-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {payload.petDurationRecommendations.slice(0, 12).map((recommendation) => (
+                    <div key={recommendation.key} className="rounded-[10px] border border-[#e8edf3] bg-[#fbfcfd] px-3 py-3">
+                      <p className="truncate text-[14px] font-medium leading-5 text-[#253044]">{recommendation.petName} · {recommendation.serviceName}</p>
+                      <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">표본 {recommendation.sampleCount}건 · 평균 {recommendation.observedAverageMinutes}분 · 중앙값 {recommendation.observedMedianMinutes}분</p>
+                      <p className="mt-1 text-[13px] font-medium leading-5 text-[#2f7d6d]">다음 예상 기준 {recommendation.recommendedMinutes}분</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section data-profitability-section="staff" className="border-b border-[#e8edf3] px-4 py-5">

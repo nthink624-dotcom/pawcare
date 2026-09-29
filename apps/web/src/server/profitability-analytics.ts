@@ -1,6 +1,13 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { buildServiceDurationRecommendations } from "@/lib/service-duration-recommendations";
+import {
+  buildPetDurationRecommendations,
+  buildServiceDurationRecommendations,
+} from "@/lib/service-duration-recommendations";
+import { summarizeDurationMinutes } from "@/lib/duration-statistics";
 import type {
+  DurationServiceSummary,
+  DurationSummary,
+  PetDurationRecommendation,
   PriceRecommendation,
   ProfitabilityPayload,
   ProfitabilityRange,
@@ -15,6 +22,8 @@ const RANGE_DAYS: Record<ProfitabilityRange, number> = { "30d": 30, "90d": 90, "
 
 export type ProfitabilityObservation = {
   id: string;
+  petId: string | null;
+  petName: string | null;
   serviceId: string;
   serviceName: string;
   staffId: string | null;
@@ -245,9 +254,48 @@ function buildPriceRecommendations(
     .sort((left, right) => left.benchmarkGapPercent - right.benchmarkGapPercent);
 }
 
+function buildDurationSummary(observations: ProfitabilityObservation[]): DurationSummary {
+  const shopStats = summarizeDurationMinutes(
+    observations.map((observation) => observation.actualMinutes),
+  );
+  const grouped = new Map<string, ProfitabilityObservation[]>();
+
+  for (const observation of observations) {
+    grouped.set(
+      observation.serviceId,
+      [...(grouped.get(observation.serviceId) ?? []), observation],
+    );
+  }
+
+  const services = Array.from(grouped.values())
+    .map<DurationServiceSummary>((rows) => {
+      const stats = summarizeDurationMinutes(rows.map((row) => row.actualMinutes));
+      return {
+        serviceId: rows[0].serviceId,
+        serviceName: rows[0].serviceName,
+        sampleCount: stats.sampleCount,
+        averageMinutes: stats.averageMinutes,
+        medianMinutes: stats.medianMinutes,
+        recommendedMinutes: stats.recommendedMinutes,
+      };
+    })
+    .sort((left, right) => right.sampleCount - left.sampleCount || left.serviceName.localeCompare(right.serviceName, "ko"));
+
+  return {
+    shop: {
+      sampleCount: shopStats.sampleCount,
+      averageMinutes: shopStats.averageMinutes,
+      medianMinutes: shopStats.medianMinutes,
+      recommendedMinutes: shopStats.recommendedMinutes,
+    },
+    services,
+  };
+}
+
 export function buildProfitabilityPayload(params: {
   observations: ProfitabilityObservation[];
   durationRecommendations?: ProfitabilityPayload["durationRecommendations"];
+  petDurationRecommendations?: PetDurationRecommendation[];
   range: ProfitabilityRange;
   from: string;
   to: string;
@@ -264,6 +312,7 @@ export function buildProfitabilityPayload(params: {
   const segments = buildSegmentMetrics(params.observations, benchmark);
   const staff = buildStaffMetrics(params.observations);
   const priceRecommendations = buildPriceRecommendations(segments, params.observations, benchmark);
+  const durationSummary = buildDurationSummary(params.observations);
   const insights: ProfitabilityPayload["insights"] = [];
 
   const leadingRecommendation = priceRecommendations[0];
@@ -329,6 +378,8 @@ export function buildProfitabilityPayload(params: {
     staff,
     priceRecommendations: priceRecommendations.slice(0, 10),
     durationRecommendations: params.durationRecommendations ?? [],
+    petDurationRecommendations: params.petDurationRecommendations ?? [],
+    durationSummary,
     dataQuality: {
       recordsWithoutActualTime: params.observations.filter((row) => !row.actualMinutes).length,
       recordsWithoutExpectedTime: params.observations.filter((row) => !row.expectedMinutes).length,
@@ -400,7 +451,7 @@ export async function loadProfitabilityPayload(shopId: string, range: Profitabil
       .gte("appointment_date", from)
       .lte("appointment_date", to)
       .limit(5000),
-    supabase.from("pets").select("id,breed,weight").eq("shop_id", shopId).limit(5000),
+    supabase.from("pets").select("id,name,breed,weight").eq("shop_id", shopId).limit(5000),
     supabase.from("services").select("id,name,duration_minutes").eq("shop_id", shopId).limit(1000),
     supabase.from("staff_members").select("id,name,display_name").eq("shop_id", shopId).limit(1000),
     supabase
@@ -442,6 +493,8 @@ export async function loadProfitabilityPayload(shopId: string, range: Profitabil
 
     return {
       id: record.id,
+      petId: record.pet_id,
+      petName: pet?.name ?? null,
       serviceId: record.service_id,
       serviceName: record.service_name_snapshot?.trim() || service?.name || "서비스 미입력",
       staffId: record.staff_id ?? null,
@@ -467,8 +520,21 @@ export async function loadProfitabilityPayload(shopId: string, range: Profitabil
     appointments: appointmentRows,
     services: serviceRowsForDuration,
   });
+  const petDurationRecommendations = buildPetDurationRecommendations({
+    records: recordRows as GroomingRecordRow[],
+    appointments: appointmentRows,
+    services: serviceRowsForDuration,
+    pets: Array.from(pets.entries()).map(([id, pet]) => ({ id, name: pet.name ?? "반려동물" })),
+  });
 
-  return buildProfitabilityPayload({ observations, durationRecommendations, range, from, to });
+  return buildProfitabilityPayload({
+    observations,
+    durationRecommendations,
+    petDurationRecommendations,
+    range,
+    from,
+    to,
+  });
 }
 
 export function buildDemoProfitabilityPayload(range: ProfitabilityRange) {
@@ -476,6 +542,8 @@ export function buildDemoProfitabilityPayload(range: ProfitabilityRange) {
   const demo: ProfitabilityObservation[] = [
     ...Array.from({ length: 5 }, (_, index) => ({
       id: `maltese-${index}`,
+      petId: `demo-pet-maltese-${index % 2}`,
+      petName: index % 2 === 0 ? "몽이" : "보리",
       serviceId: "full-groom",
       serviceName: "전체 미용",
       staffId: "staff-owner",
@@ -490,6 +558,8 @@ export function buildDemoProfitabilityPayload(range: ProfitabilityRange) {
     })),
     ...Array.from({ length: 4 }, (_, index) => ({
       id: `poodle-${index}`,
+      petId: "demo-pet-poodle",
+      petName: "코코",
       serviceId: "bath-cut",
       serviceName: "목욕 + 부분정리",
       staffId: "staff-assistant",
@@ -504,6 +574,8 @@ export function buildDemoProfitabilityPayload(range: ProfitabilityRange) {
     })),
     ...Array.from({ length: 3 }, (_, index) => ({
       id: `pomeranian-${index}`,
+      petId: "demo-pet-pomeranian",
+      petName: "차이",
       serviceId: "bath",
       serviceName: "목욕",
       staffId: "staff-assistant",
@@ -517,5 +589,29 @@ export function buildDemoProfitabilityPayload(range: ProfitabilityRange) {
       netRevenue: index === 2 ? 45000 : 50000,
     })),
   ];
-  return buildProfitabilityPayload({ observations: demo, range, from, to });
+  const petDurationRecommendations: PetDurationRecommendation[] = [
+    {
+      key: "demo-pet-poodle|bath-cut",
+      petId: "demo-pet-poodle",
+      petName: "코코",
+      serviceId: "bath-cut",
+      serviceName: "목욕 + 부분정리",
+      sampleCount: 4,
+      observedAverageMinutes: 71,
+      observedMedianMinutes: 71,
+      recommendedMinutes: 70,
+    },
+    {
+      key: "demo-pet-pomeranian|bath",
+      petId: "demo-pet-pomeranian",
+      petName: "차이",
+      serviceId: "bath",
+      serviceName: "목욕",
+      sampleCount: 3,
+      observedAverageMinutes: 63,
+      observedMedianMinutes: 63,
+      recommendedMinutes: 65,
+    },
+  ];
+  return buildProfitabilityPayload({ observations: demo, petDurationRecommendations, range, from, to });
 }

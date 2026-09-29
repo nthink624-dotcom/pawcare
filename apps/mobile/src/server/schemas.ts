@@ -11,6 +11,7 @@ export const appointmentInputSchema = z.object({
   customServiceName: z.string().optional().default(""),
   appointmentDate: z.string(),
   appointmentTime: z.string(),
+  durationMinutes: z.coerce.number().int().min(15).max(24 * 60).optional(),
   memo: z.string().default(""),
   source: z.enum(["owner", "customer", "catchcall"]).default("customer"),
   visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).optional(),

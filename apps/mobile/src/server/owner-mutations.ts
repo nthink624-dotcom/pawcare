@@ -39,6 +39,14 @@ function toTimestampString(date: string, time: string) {
   return `${date}T${normalizedTime}.000Z`;
 }
 
+function getActualGroomingDurationMinutes(startedAt: string | null | undefined, completedAt: string | null | undefined) {
+  if (!startedAt || !completedAt) return null;
+  const started = new Date(startedAt).getTime();
+  const completed = new Date(completedAt).getTime();
+  if (!Number.isFinite(started) || !Number.isFinite(completed) || completed < started) return null;
+  return Math.min(Math.max(Math.round((completed - started) / 60_000), 0), 24 * 60);
+}
+
 function getRejectionReason(payload: {
   rejectionReasonTemplate?: string;
   rejectionReasonCustom?: string;
@@ -897,9 +905,11 @@ export async function createAppointment(input: unknown) {
     throw new Error("담당자 정보를 찾을 수 없습니다.");
   }
 
+  const durationMinutes = payload.durationMinutes ?? service.duration_minutes;
   const availableSlots = computeAvailableSlots({
     date: payload.appointmentDate,
     serviceId: service.id,
+    durationMinutesOverride: durationMinutes,
     shop: data.shop,
     services: data.services,
     appointments: staffId
@@ -912,7 +922,7 @@ export async function createAppointment(input: unknown) {
   }
 
   const status = "confirmed";
-  const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
+  const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, durationMinutes);
   const appointment: Appointment = {
     id: randomUUID(),
     shop_id: payload.shopId,
@@ -983,21 +993,28 @@ export async function updateAppointmentStatus(input: unknown) {
 
     if (payload.status === "completed" && !store.groomingRecords.some((record) => record.appointment_id === appointment.id)) {
       const service = store.services.find((item) => item.id === appointment.service_id);
+      const pet = store.pets.find((item) => item.id === appointment.pet_id);
       store.groomingRecords = [
         {
           id: randomUUID(),
           shop_id: appointment.shop_id,
           guardian_id: appointment.guardian_id,
           pet_id: appointment.pet_id,
-        service_id: appointment.service_id,
-        appointment_id: appointment.id,
-        style_notes: appointment.memo,
-        memo: "",
-        price_paid: service?.price ?? 0,
-        groomed_at: toTimestampString(appointment.appointment_date, appointment.appointment_time),
-        created_at: nowIso(),
-        updated_at: nowIso(),
-      },
+          service_id: appointment.service_id,
+          appointment_id: appointment.id,
+          style_notes: appointment.memo,
+          memo: "",
+          price_paid: service?.price ?? 0,
+          actual_duration_minutes: getActualGroomingDurationMinutes(
+            appointment.actual_started_at,
+            appointment.actual_completed_at,
+          ),
+          expected_duration_minutes: service?.duration_minutes ?? null,
+          pet_weight_snapshot: pet?.weight ?? null,
+          groomed_at: appointment.actual_completed_at ?? toTimestampString(appointment.appointment_date, appointment.appointment_time),
+          created_at: nowIso(),
+          updated_at: nowIso(),
+        },
         ...store.groomingRecords,
       ];
     }
@@ -1099,6 +1116,7 @@ export async function updateAppointmentStatus(input: unknown) {
     if (!existingRecord.data?.id) {
       const bootstrap = await getBootstrap(resolvedAppointment.shop_id);
       const service = bootstrap.services.find((item) => item.id === resolvedAppointment.service_id);
+      const pet = bootstrap.pets.find((item) => item.id === resolvedAppointment.pet_id);
 
       const { error: recordError } = await supabase.from("grooming_records").insert({
         id: randomUUID(),
@@ -1110,6 +1128,12 @@ export async function updateAppointmentStatus(input: unknown) {
         style_notes: resolvedAppointment.memo,
         memo: "",
         price_paid: service?.price ?? 0,
+        actual_duration_minutes: getActualGroomingDurationMinutes(
+          resolvedAppointment.actual_started_at,
+          resolvedAppointment.actual_completed_at,
+        ),
+        expected_duration_minutes: service?.duration_minutes ?? null,
+        pet_weight_snapshot: pet?.weight ?? null,
         groomed_at: resolvedAppointment.actual_completed_at ?? statusChangedAt,
         created_at: statusChangedAt,
         updated_at: statusChangedAt,

@@ -12,6 +12,7 @@ import {
   formatPhoneNumber,
   getAppointmentStatusMeta,
   getNotificationStatusMeta,
+  getPetServiceDurationStats,
   getServiceDuration,
   getServiceName,
   splitNotes,
@@ -1018,6 +1019,15 @@ function UpcomingAppointmentCard({ detail, onViewAll }: { detail: CustomerDetail
   }
   const meta = getAppointmentStatusMeta(appointment.status);
   const customerRequest = appointment.memo?.trim() ?? "";
+  const petStats = getPetServiceDurationStats(detail.selectedPet, appointment.service_id);
+  const shopStats = detail.shopDurationStatsByService.get(appointment.service_id);
+  const baselineMinutes = getServiceDuration(detail.servicesById, appointment.service_id);
+  const estimatedMinutes = petStats.recommendedMinutes ?? shopStats?.recommendedMinutes ?? baselineMinutes;
+  const estimateSource = petStats.recommendedMinutes
+    ? `이 반려동물 실제 기록 ${petStats.sampleCount}건`
+    : shopStats?.recommendedMinutes
+      ? `업체 서비스 평균 ${shopStats.sampleCount}건`
+      : "서비스 기본 설정";
   return (
     <SectionCard title="다가오는 예약" action={<SmallButton label="전체보기" onClick={onViewAll} />}>
       <div className="px-3.5 py-3">
@@ -1029,9 +1039,14 @@ function UpcomingAppointmentCard({ detail, onViewAll }: { detail: CustomerDetail
           <Badge className={meta.className}>{meta.label}</Badge>
         </div>
         <div className="mt-2 grid grid-cols-2 gap-3 text-[16px] text-[#64748b]">
-          <span>예상 소요시간: {formatDuration(getServiceDuration(detail.servicesById, appointment.service_id))}</span>
+          <span>다음 예상시간: {formatDuration(estimatedMinutes)}</span>
           <span>담당자: 미지정</span>
         </div>
+        <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
+          {estimateSource}
+          {petStats.averageMinutes !== null ? ` · 반려동물 평균 ${petStats.averageMinutes}분` : ""}
+          {shopStats?.averageMinutes !== null && shopStats?.averageMinutes !== undefined ? ` · 업체 평균 ${shopStats.averageMinutes}분` : ""}
+        </p>
         <AppointmentActualTimes appointment={appointment} className="mt-2" />
         {customerRequest ? (
           <div className="mt-2 line-clamp-2 rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 text-[16px] leading-6 text-[#334155]">

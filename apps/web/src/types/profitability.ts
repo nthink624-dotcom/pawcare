@@ -72,6 +72,39 @@ export type ServiceDurationRecommendation = {
   weightLabel: string;
   sampleCount: number;
   observedAverageMinutes: number;
+  observedMedianMinutes: number;
+  recommendedMinutes: number;
+};
+
+export type PetDurationRecommendation = {
+  key: string;
+  petId: string;
+  petName: string;
+  serviceId: string;
+  serviceName: string;
+  sampleCount: number;
+  observedAverageMinutes: number;
+  observedMedianMinutes: number;
+  recommendedMinutes: number;
+};
+
+export type DurationServiceSummary = {
+  serviceId: string;
+  serviceName: string;
+  sampleCount: number;
+  averageMinutes: number | null;
+  medianMinutes: number | null;
+  recommendedMinutes: number | null;
+};
+
+export type DurationSummary = {
+  shop: {
+    sampleCount: number;
+    averageMinutes: number | null;
+    medianMinutes: number | null;
+    recommendedMinutes: number | null;
+  };
+  services: DurationServiceSummary[];
 };
 
 export type ProfitabilityPayload = {
@@ -96,6 +129,8 @@ export type ProfitabilityPayload = {
   staff: StaffProfitabilityMetric[];
   priceRecommendations: PriceRecommendation[];
   durationRecommendations: ServiceDurationRecommendation[];
+  petDurationRecommendations: PetDurationRecommendation[];
+  durationSummary: DurationSummary;
   dataQuality: {
     recordsWithoutActualTime: number;
     recordsWithoutExpectedTime: number;

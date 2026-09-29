@@ -77,7 +77,7 @@ test("sticky weight cells contain sibling 44px delete controls, no trailing mana
   for (const table of h.nodes().filter(node => node.type === "table")) {
     const header = h.nodes(table).find(node => node.type === "thead");
     assert.equal(h.nodes(header).filter(node => node.type === "th").length, 2);
-    assert.equal(table.props.style.minWidth, "284px");
+    assert.equal(table.props.style.minWidth, "252px");
     const sticky = h.nodes(header).find(node => node.type === "th"); assert.match(sticky.props.className, /sticky left-0 z-10/); assert.match(sticky.props.className, /bg-slate-50/);
     for (const row of h.nodes(table).filter(node => node.type === "tbody").flatMap(node => h.nodes(node).filter(child => child.type === "tr"))) assert.equal(h.nodes(row).filter(node => node.type === "td").length, 1);
   }

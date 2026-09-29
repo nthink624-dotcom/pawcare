@@ -135,7 +135,7 @@ test("canonical requery state keeps the full document and persisted identity acr
 });
 
 test("price and duration are independent matrix cells with canonical bounds", () => {
-  assert.match(matrix, /PRICE_GUIDE_UI_HARD_CONTRACT: 16\/24 only; price left \+ duration right on one nowrap row/);
+  assert.match(matrix, /PRICE_GUIDE_UI_HARD_CONTRACT: 16\/24 only; compact geometry and centered price \+ duration share one nowrap row/);
   assert.match(matrix, /data-mobile-price-cell/);
   assert.match(matrix, /data-mobile-price-duration-cell/);
   assert.match(matrix, /data-mobile-price-left-time-right/);
@@ -152,13 +152,16 @@ test("price and duration are independent matrix cells with canonical bounds", ()
   assert.match(matrix, /선택한 간격마다 10분씩 추가돼요/);
   assert.match(matrix, /onStartEdit\("price"\)/);
   assert.match(matrix, /onOpenDurationSetup=\{\(\) => setDurationSetupTarget\(\{ groupIndex, serviceIndex \}\)\}/);
-  assert.match(matrix, /text-\[16px\] font-medium leading-6 tabular-nums/);
-  assert.match(matrix, /truncate whitespace-nowrap/);
-  assert.match(matrix, /min-w-0 whitespace-nowrap border-l/);
-  assert.match(matrix, /items-center[^\n]*text-\[16px\] font-medium leading-6[^\n]*data-mobile-price-guide-service-subheaders/);
+  assert.match(matrix, /grid-cols-\[minmax\(0,1fr\)_64px\] items-center gap-0/);
+  assert.match(matrix, /text-center text-\[16px\] font-normal leading-6 tabular-nums/);
+  assert.match(matrix, /truncate whitespace-nowrap text-center/);
+  assert.match(matrix, /items-center justify-center whitespace-nowrap border-l/);
+  assert.match(matrix, /items-center[^\n]*text-center text-\[16px\] font-medium leading-6[^\n]*data-mobile-price-guide-service-subheaders/);
+  assert.match(matrix, /text-center align-middle text-\[16px\] font-medium leading-6 text-slate-600">몸무게/);
+  assert.match(matrix, /data-mobile-weight-cell><div className="flex min-w-0 items-center">/);
   assert.match(matrix, /className="sr-only">가격/);
   assert.match(matrix, /className="sr-only">예상시간/);
-  assert.doesNotMatch(matrix, /text-\[(?:11|12|14)px\]/);
+  assert.doesNotMatch(matrix.slice(matrix.indexOf("function PriceDurationCell"), matrix.indexOf("function MobileServiceDurationDialog")), /text-\[(?:11|12|13|14)px\]/);
   assert.match(matrix, /if \(row\.priceMinKrw === null\) return "미정"/);
   assert.match(matrix, /row\.durationMinutes === null \? "미정"/);
   assert.match(matrix, /inputMode="numeric"/);

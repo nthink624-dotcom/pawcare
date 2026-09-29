@@ -218,7 +218,10 @@ export default function OwnerCatchCallPanel({
     try {
       const nextEnabled = !callScreeningStatus.active;
       if (nextEnabled) {
-        await configureOwnerCallScreening(data.shop.id, phoneAllowlist);
+        // The device is already configured when the switch is visible. Re-enabling
+        // should only restore the local capture flag instead of repeating the
+        // server setup flow and waiting on the setup endpoint again.
+        await setOwnerCallScreeningEnabled(true);
       } else {
         await setOwnerCallScreeningEnabled(false);
       }

@@ -21,6 +21,7 @@ import {
   createMediaSignedUploadUrl,
   getMediaStorageInfo,
   removeMediaStorageObjects,
+  uploadMediaStorageObject,
   verifyMediaStorageObjectsAbsent,
 } from "@/server/media-storage";
 import { runMediaUploadIntentStage } from "@/server/media-upload-intent-errors";
@@ -791,12 +792,17 @@ export async function uploadOwnerMediaFile(owner: OwnerContext, input: {
   if (existing.data.status !== "uploading") throw new OwnerApiError("Media asset is not uploadable.", 409);
   if (existing.data.content_type !== contentType) throw new OwnerApiError("Media content type does not match the upload intent.", 400);
 
-  const result = await admin.storage.from(existing.data.bucket).upload(
-    existing.data.storage_path,
-    Buffer.from(await input.file.arrayBuffer()),
-    { contentType, upsert: false },
-  );
-  if (result.error) throw new OwnerApiError(result.error.message, 502);
+  const body = Buffer.from(await input.file.arrayBuffer());
+  try {
+    await uploadMediaStorageObject({
+      bucket: existing.data.bucket,
+      path: existing.data.storage_path,
+      contentType,
+      body,
+    });
+  } finally {
+    body.fill(0);
+  }
   return { mediaAssetId, byteSize, contentType };
 }
 

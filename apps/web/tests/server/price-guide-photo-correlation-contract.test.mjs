@@ -177,7 +177,9 @@ test("PC and server source enforce correlation-before-intent, credentials omit, 
   assert.match(importRoute, /cleanupProofs: input\.cleanupProofs/);
   assert.match(importRoute, /cleanupReceipt/);
   assert.match(mediaService, /verifyMediaStorageObjectsAbsent/);
+  assert.match(mediaService, /uploadMediaStorageObject/);
   assert.match(mediaService, /remainingAssetsResult[\s\S]*remainingVariantsResult/);
   assert.match(mediaStorage, /method: "HEAD"[\s\S]*response\.status === 404/);
+  assert.match(mediaStorage, /export async function uploadMediaStorageObject[\s\S]*getMediaStorageProviderForPath\(input\.path\) === "r2"/);
   assert.doesNotMatch([client, component, uploadIntentRoute, importRoute].join("\n"), /console\.(?:log|info|warn|error)\([^)]*(?:clientCorrelationId|cleanupProof|mediaAssetId)/);
 });

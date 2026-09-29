@@ -24,6 +24,13 @@ type RemoveObjectsInput = {
   paths: string[];
 };
 
+type UploadMediaStorageObjectInput = {
+  bucket: string;
+  path: string;
+  contentType: string;
+  body: Buffer;
+};
+
 type R2Config = {
   accountId: string;
   accessKeyId: string;
@@ -236,6 +243,37 @@ export async function createMediaSignedReadUrl(input: CreateSignedReadUrlInput) 
   }
 
   return signedUrl.data.signedUrl;
+}
+
+/**
+ * Upload through the configured private-media provider. This is used by the
+ * owner-mobile proxy, where the phone cannot safely upload to R2 directly.
+ */
+export async function uploadMediaStorageObject(input: UploadMediaStorageObjectInput) {
+  if (getMediaStorageProviderForPath(input.path) === "r2") {
+    const signedUrl = buildR2SignedUrl({
+      method: "PUT",
+      bucket: input.bucket,
+      path: input.path,
+      expiresInSeconds: 15 * 60,
+    });
+    const response = await fetch(signedUrl, {
+      method: "PUT",
+      headers: { "Content-Type": input.contentType },
+      body: new Uint8Array(input.body),
+    });
+    if (!response.ok) {
+      throw new OwnerApiError(`R2 media upload failed: ${response.status}`, 502);
+    }
+    return;
+  }
+
+  const admin = getSupabaseStorageAdmin();
+  const result = await admin.storage.from(input.bucket).upload(input.path, input.body, {
+    contentType: input.contentType,
+    upsert: false,
+  });
+  if (result.error) throw new OwnerApiError(result.error.message, 502);
 }
 
 export async function removeMediaStorageObjects(input: RemoveObjectsInput) {

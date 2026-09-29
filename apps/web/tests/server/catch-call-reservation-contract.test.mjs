@@ -33,9 +33,13 @@ test("Android automatic CatchCall adapter allows calls before asynchronous uploa
   const store = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningStore.java");
   assert.match(manifest, /android\.telecom\.CallScreeningService/);
   assert.match(manifest, /android\.intent\.action\.PHONE_STATE/);
+  assert.match(manifest, /android\.permission\.READ_CALL_LOG/);
   assert.match(service, /respondToCall\(callDetails, response\)/);
   assert.match(service, /setDisallowCall\(false\)/);
-  assert.match(service, /activeProviderCallId/);
+  assert.match(service, /createIncomingEvent/);
+  assert.match(receiver, /STATE_RINGING/);
+  assert.match(receiver, /TelephonyManager\.EXTRA_INCOMING_NUMBER/);
+  assert.match(store, /activeProviderCallId/);
   assert.match(receiver, /answered \? "ended" : "missed"/);
   assert.match(receiver, /event\.put\("eventType", eventType\)/);
   assert.match(store, /AES\/GCM\/NoPadding/);

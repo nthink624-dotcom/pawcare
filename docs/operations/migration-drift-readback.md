@@ -100,3 +100,28 @@ The exact development dry-run set is:
 20260929130000_remove_redundant_notification_index.sql
 20260929131500_revoke_policyless_browser_grants.sql
 ```
+
+## Current superseding readback (2026-09-30)
+
+The historical snapshots above describe the state before the approved rollout.
+They are retained for audit context. The current linked Supabase readback is:
+
+- Production `ysxykikqnneuhypybjry`: local and remote migration histories match
+  through `20260929131500`; the approved `--include-all` rollout applied the
+  44 migrations listed by the guarded dry-run.
+- Development `qefxdtmdtvnzgupmjlom`: local and remote migration histories match
+  through `20260929131500`; the approved reconciliation applied the 20
+  migrations listed by the guarded dry-run.
+- `supabase/verification/verify_policyless_rls_acl.sql` returns
+  `policyless_rls_with_browser_grants = 0` and `status = PASS` on both
+  projects.
+- No migration history repair command was used. Remote-only SQL was fetched
+  after a recoverable copy of the migration directory; the preserved copies are
+  outside the repository at
+  `D:\petmanager-migrations-before-prod-fetch-20260930` and
+  `D:\petmanager-migrations-fetched-prod-20260930`.
+
+The remaining Supabase advisor warning is the account-level Auth setting
+`auth_leaked_password_protection`. It must be enabled in the Supabase Auth
+settings (or through the authenticated Management API) before the production
+launch gate can pass; it is not a database migration.

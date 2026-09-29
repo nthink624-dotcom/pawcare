@@ -164,3 +164,11 @@ npm run check:backup-recovery
 
 - 웹 `petmanager`와 모바일 `petmanager-app`의 최근 24시간 runtime error cluster를 read-only로 조회함.
 - 두 프로젝트 모두 집계된 runtime error가 없었음. 이는 오류 알림 destination, 보존기간, health/readiness route의 운영 배포까지 완료했다는 뜻은 아니며, 다음 readback 시점의 관측 결과로만 기록함.
+
+## Current superseding SaaS readiness readback (2026-09-30)
+
+- The approved operations bundle is committed and pushed to `master`.
+- Both Vercel production projects are deployed from the same current release; `/api/healthz` and `/api/readyz` return HTTP 200 for web and mobile.
+- Production and development Supabase migration histories match the repository through `20260929131500`; the policyless-browser-grant ACL check is `PASS` with zero browser grants on both projects.
+- Production Vercel Alimtalk and PortOne environment readbacks pass with the web/mobile project IDs explicitly guarded; local loopback relay configuration is not promoted to production.
+- The launch gate remains conditional only on the Supabase Auth `password_hibp_enabled` account setting. Database, code, deployment, endpoint, and ACL checks are otherwise green.

@@ -24,3 +24,10 @@
 - `apps/web` 변경을 `petmanager-app`으로 배포하거나 `apps/mobile` 변경을 `petmanager`로 배포하지 않는다.
 - 운영 Supabase를 개발 CLI의 기본 대상처럼 사용하지 않는다. 운영 DB 변경은 `verify-supabase-cli-target.cjs`의 명시적 확인과 대표 승인 후에만 실행한다.
 - Vercel·Supabase·R2·결제·알림톡의 실제 설정을 확인하지 않은 상태에서 운영 완료로 표시하지 않는다.
+
+## Current superseding inventory readback (2026-09-30)
+
+- Vercel remains intentionally split: `apps/web` deploys only to `petmanager` (`www.petmanager.co.kr`) and `apps/mobile` deploys only to `petmanager-app` (`app.petmanager.co.kr`). Both latest production deployments are `READY`; both health and readiness endpoints return HTTP 200.
+- Supabase production and development migration histories match the repository through `20260929131500`; the policyless-browser-grant ACL verification is `PASS` with zero browser grant rows on both targets.
+- Production Alimtalk and PortOne environment readbacks pass with explicit project targeting. The local loopback relay URL was not copied into production.
+- The only current Supabase advisor warning is account-level leaked-password protection, which still requires the Auth settings change.

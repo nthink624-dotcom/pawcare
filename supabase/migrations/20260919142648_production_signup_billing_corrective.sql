@@ -1,10 +1,8 @@
 -- PM_DB_RELEASE_CORRECTIVE_20260919
 -- Generated from the verified corrective draft after local full-chain tests.
--- This file is intentionally transaction-boundary free: the approved production
--- application wrapper owns the one atomic transaction with its prerequisite chain.
-
-lock table public.owner_subscriptions in share row exclusive mode;
-lock table public.owner_payment_ledger in share row exclusive mode;
+-- The migration runner owns the transaction boundary. A direct LOCK TABLE is
+-- intentionally omitted because the Supabase Management API may execute this
+-- migration outside an explicit transaction on some environments.
 
 alter table public.owner_subscriptions
   drop constraint if exists owner_subscriptions_single_monthly_contract_check,

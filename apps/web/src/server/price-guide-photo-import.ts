@@ -414,6 +414,26 @@ function providerErrorCode(payload: unknown) {
   return [code, type].find((value): value is string => typeof value === "string")?.toLowerCase() ?? "";
 }
 
+const SAFE_PROVIDER_ERROR_CODES = new Set([
+  "insufficient_quota",
+  "billing_hard_limit_reached",
+  "usage_limit_reached",
+  "invalid_api_key",
+  "invalid_request_error",
+  "model_not_found",
+  "unsupported_parameter",
+]);
+
+function reportPriceGuideProviderHttpRejection(status: number, providerCode: string) {
+  // Keep production diagnosis useful without logging the image, request body,
+  // API key, or an arbitrary upstream error message.
+  console.info(JSON.stringify({
+    event: "price_guide_provider_http_rejected",
+    status,
+    providerCode: SAFE_PROVIDER_ERROR_CODES.has(providerCode) ? providerCode : "other",
+  }));
+}
+
 function normalizeRetryAfter(value: string | null | undefined) {
   const seconds = Number.parseInt(value ?? "", 10);
   return Number.isSafeInteger(seconds) && seconds > 0 ? Math.min(seconds, 300) : 30;
@@ -425,6 +445,7 @@ export function classifyPriceGuideProviderHttpError(
   retryAfter?: string | null,
 ) {
   const code = providerErrorCode(payload);
+  reportPriceGuideProviderHttpRejection(status, code);
   if (status === 429 && ["insufficient_quota", "billing_hard_limit_reached", "usage_limit_reached"].includes(code)) {
     return new PriceGuidePhotoImportError(
       "VISION_QUOTA_EXCEEDED",

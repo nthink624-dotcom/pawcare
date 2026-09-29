@@ -1,4 +1,4 @@
-# PetManager Owner Mobile Shell
+# 넘친데이 펫매니저 모바일 셸
 
 This app is a separate Capacitor shell that loads the canonical owner mobile route inside a native iOS/Android container.
 

@@ -7,7 +7,7 @@ const ownerShell = buildOwnerShellConfig(process.env.OWNER_MOBILE_WEB_URL);
 
 const config: CapacitorConfig = {
   appId: "kr.petmanager.owner",
-  appName: "PetManager Owner",
+  appName: "넘친데이 펫매니저",
   webDir: "www",
   server: ownerShell.url
     ? {

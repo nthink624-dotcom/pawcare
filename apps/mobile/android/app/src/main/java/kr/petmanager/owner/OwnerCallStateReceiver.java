@@ -23,6 +23,7 @@ public class OwnerCallStateReceiver extends BroadcastReceiver {
         if (!ACTION_PHONE_STATE.equals(intent.getAction())) return;
         String state = intent.getStringExtra(EXTRA_STATE);
         if (state == null) return;
+        if (!OwnerCallScreeningStore.isEnabled(context)) return;
 
         if (STATE_RINGING.equals(state)) {
             String incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);

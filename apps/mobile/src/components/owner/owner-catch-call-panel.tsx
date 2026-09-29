@@ -10,6 +10,7 @@ import {
   getOwnerCallScreeningStatus,
   isOwnerCallScreeningAvailable,
   requestOwnerCallLogAccess,
+  setOwnerCallScreeningEnabled,
   requestOwnerCallScreeningRole,
   syncOwnerCallScreeningPhoneAllowlist,
   syncOwnerCallScreeningEvents,
@@ -100,6 +101,7 @@ export default function OwnerCatchCallPanel({
   const [callScreeningStatus, setCallScreeningStatus] = useState<{
     available: boolean;
     enabled: boolean;
+    active: boolean;
     phoneStateGranted: boolean;
     callLogGranted: boolean;
   } | null>(null);
@@ -206,6 +208,33 @@ export default function OwnerCatchCallPanel({
     }
   }
 
+  async function toggleAutomaticCallScreening() {
+    if (!callScreeningStatus?.enabled) {
+      await enableAutomaticCallScreening();
+      return;
+    }
+    setConfiguringCallScreening(true);
+    setMessage(null);
+    try {
+      const nextEnabled = !callScreeningStatus.active;
+      if (nextEnabled) {
+        await configureOwnerCallScreening(data.shop.id, phoneAllowlist);
+      } else {
+        await setOwnerCallScreeningEnabled(false);
+      }
+      const nextStatus = await getOwnerCallScreeningStatus();
+      setCallScreeningStatus(nextStatus);
+      setMessage({
+        type: "success",
+        text: nextStatus.active ? "캐치콜을 켰어요." : "캐치콜을 껐어요. 일반 전화만 받을 수 있습니다.",
+      });
+    } catch (error) {
+      setMessage({ type: "error", text: getCatchCallErrorMessage(error, "캐치콜 상태를 변경하지 못했습니다.") });
+    } finally {
+      setConfiguringCallScreening(false);
+    }
+  }
+
   function selectEvent(event: CatchCallEvent) {
     if (!event.matchedGuardian || event.appointmentId) return;
     const firstPet = data.pets.find((pet) => pet.guardian_id === event.matchedGuardian?.id);
@@ -285,7 +314,23 @@ export default function OwnerCatchCallPanel({
           </div>
         </div>
         {callScreeningStatus?.enabled ? (
-          <p className="mt-3 rounded-[10px] bg-[#f5fbf8] px-3 py-2.5 text-[13px] font-medium leading-5 text-[#1f6b5b]">자동 통화 확인이 켜져 있습니다.</p>
+          <div className="mt-3 rounded-[10px] bg-[#f5fbf8] px-3 py-2.5 text-[#1f6b5b]">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[13px] font-medium leading-5">캐치콜 자동 감지</p>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={callScreeningStatus.active}
+                aria-label="캐치콜 자동 감지 켜기 또는 끄기"
+                onClick={() => void toggleAutomaticCallScreening()}
+                disabled={configuringCallScreening}
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${callScreeningStatus.active ? "bg-[#2563eb]" : "bg-[#cbd5e1]"}`}
+              >
+                <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${callScreeningStatus.active ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+            </div>
+            <p className="mt-1 text-[12px] leading-5 text-[#457867]">{callScreeningStatus.active ? "등록 고객 전화가 캐치콜로 감지됩니다." : "꺼져 있어 일반 전화만 받을 수 있습니다."}</p>
+          </div>
         ) : callScreeningStatus?.available ? (
           <button type="button" onClick={() => void enableAutomaticCallScreening()} disabled={configuringCallScreening} className="mt-3 min-h-12 w-full rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium text-white disabled:opacity-50">
             {configuringCallScreening ? "연결 준비 중..." : "자동 통화 확인 켜기"}

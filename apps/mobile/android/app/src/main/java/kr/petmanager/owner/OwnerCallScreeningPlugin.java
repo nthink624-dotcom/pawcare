@@ -37,6 +37,7 @@ public class OwnerCallScreeningPlugin extends Plugin {
         JSObject response = new JSObject();
         response.put("available", isRoleAvailable());
         response.put("enabled", isRoleHeld());
+        response.put("active", OwnerCallScreeningStore.isEnabled(getContext()));
         response.put("phoneStateGranted", getPermissionState("phoneState") == com.getcapacitor.PermissionState.GRANTED);
         response.put("callLogGranted", getPermissionState("callLog") == com.getcapacitor.PermissionState.GRANTED);
         response.put("deviceId", OwnerCallScreeningStore.getOrCreateDeviceId(getContext()));
@@ -68,6 +69,18 @@ public class OwnerCallScreeningPlugin extends Plugin {
             return;
         }
         requestPermissionForAlias("notifications", call, "notificationPermissionCallback");
+    }
+
+    @PluginMethod
+    public void setEnabled(PluginCall call) {
+        boolean enabled = call.getBoolean("enabled", false);
+        OwnerCallScreeningStore.setEnabled(getContext(), enabled);
+        if (!enabled) {
+            JSONObject config = OwnerCallScreeningStore.getConfig(getContext());
+            OwnerCallNotification.cancel(getContext(), config.optString("activeProviderCallId", ""));
+            OwnerCallScreeningStore.clearActiveCall(getContext());
+        }
+        call.resolve(new JSObject().put("enabled", enabled));
     }
 
     @PermissionCallback
@@ -133,6 +146,7 @@ public class OwnerCallScreeningPlugin extends Plugin {
             values.put("integrationId", integrationId);
             values.put("apiOrigin", apiOrigin);
             values.put("accessToken", accessToken);
+            values.put("callCaptureEnabled", true);
             OwnerCallScreeningStore.configure(getContext(), values);
             call.resolve(new JSObject().put("configured", true));
         } catch (Exception error) {

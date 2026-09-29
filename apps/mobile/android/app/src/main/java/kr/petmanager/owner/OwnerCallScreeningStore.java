@@ -61,6 +61,23 @@ final class OwnerCallScreeningStore {
         writeObject(context, CONFIG_KEY, config);
     }
 
+    static synchronized boolean isEnabled(Context context) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        if (config.has("callCaptureEnabled")) return config.optBoolean("callCaptureEnabled", false);
+        return !config.optString("shopId", "").trim().isEmpty()
+            && !config.optString("integrationId", "").trim().isEmpty();
+    }
+
+    static synchronized void setEnabled(Context context, boolean enabled) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        try {
+            config.put("callCaptureEnabled", enabled);
+        } catch (Exception ignored) {
+            return;
+        }
+        writeObject(context, CONFIG_KEY, config);
+    }
+
     static synchronized void clearActiveCall(Context context) {
         JSONObject config = readObject(context, CONFIG_KEY);
         config.remove("activeProviderCallId");
@@ -133,6 +150,7 @@ final class OwnerCallScreeningStore {
      * method so a Samsung device cannot produce duplicate incoming events.
      */
     static synchronized JSONObject createIncomingEvent(Context context, String callerNumber) {
+        if (!isEnabled(context)) return null;
         if (!isAllowedCallerNumber(context, callerNumber)) return null;
 
         JSONObject config = readObject(context, CONFIG_KEY);

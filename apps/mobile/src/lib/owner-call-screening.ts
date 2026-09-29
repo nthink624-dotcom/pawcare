@@ -4,10 +4,11 @@ import { fetchApiJsonWithAuth, getAccessTokenWithRecovery } from "@/lib/api";
 import { getMobileApiOrigin } from "@/lib/env";
 
 type OwnerCallScreeningPlugin = {
-  getStatus(): Promise<{ available: boolean; enabled: boolean; phoneStateGranted: boolean; callLogGranted: boolean; deviceId: string }>;
+  getStatus(): Promise<{ available: boolean; enabled: boolean; active: boolean; phoneStateGranted: boolean; callLogGranted: boolean; deviceId: string }>;
   requestPhoneStateAccess(): Promise<{ granted: boolean }>;
   requestCallLogAccess(): Promise<{ granted: boolean }>;
   requestNotificationAccess(): Promise<{ granted: boolean }>;
+  setEnabled(options: { enabled: boolean }): Promise<{ enabled: boolean }>;
   requestRole(): Promise<{ enabled: boolean }>;
   configure(options: { shopId: string; integrationId: string; apiOrigin: string; accessToken: string }): Promise<{ configured: boolean }>;
   setPhoneAllowlist(options: { phoneNumbers: string[] }): Promise<{ configured: boolean }>;
@@ -25,7 +26,7 @@ export function isOwnerCallScreeningAvailable() {
 }
 
 export async function getOwnerCallScreeningStatus() {
-  if (!isOwnerCallScreeningAvailable()) return { available: false, enabled: false, phoneStateGranted: false, callLogGranted: false, deviceId: "" };
+  if (!isOwnerCallScreeningAvailable()) return { available: false, enabled: false, active: false, phoneStateGranted: false, callLogGranted: false, deviceId: "" };
   return OwnerCallScreening.getStatus();
 }
 
@@ -48,6 +49,11 @@ export async function requestOwnerCallNotificationAccess() {
 export async function requestOwnerCallLogAccess() {
   if (!isOwnerCallScreeningAvailable()) return { granted: false };
   return OwnerCallScreening.requestCallLogAccess();
+}
+
+export async function setOwnerCallScreeningEnabled(enabled: boolean) {
+  if (!isOwnerCallScreeningAvailable()) return { enabled: false };
+  return OwnerCallScreening.setEnabled({ enabled });
 }
 
 export async function getOwnerCallReservationAction(): Promise<OwnerCallReservationAction> {

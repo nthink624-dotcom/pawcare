@@ -31,6 +31,7 @@ test("Android automatic CatchCall adapter allows calls before asynchronous uploa
   const manifest = await read("../../apps/mobile/android/app/src/main/AndroidManifest.xml");
   const service = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningService.java");
   const receiver = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallStateReceiver.java");
+  const plugin = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningPlugin.java");
   const store = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningStore.java");
   assert.match(manifest, /android\.telecom\.CallScreeningService/);
   assert.match(manifest, /android\.intent\.action\.PHONE_STATE/);
@@ -43,6 +44,9 @@ test("Android automatic CatchCall adapter allows calls before asynchronous uploa
   assert.match(store, /activeProviderCallId/);
   assert.match(receiver, /answered \? "ended" : "missed"/);
   assert.match(receiver, /event\.put\("eventType", eventType\)/);
+  assert.match(plugin, /response\.put\("active", OwnerCallScreeningStore\.isEnabled/);
+  assert.match(plugin, /public void setEnabled/);
+  assert.match(store, /callCaptureEnabled/);
   assert.match(store, /AES\/GCM\/NoPadding/);
   assert.doesNotMatch(service, /System\.out|Log\.d|Log\.i/);
 });

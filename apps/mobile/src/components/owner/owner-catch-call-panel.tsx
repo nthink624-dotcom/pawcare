@@ -9,6 +9,7 @@ import {
   configureOwnerCallScreening,
   getOwnerCallScreeningStatus,
   isOwnerCallScreeningAvailable,
+  requestOwnerCallLogAccess,
   requestOwnerCallScreeningRole,
   syncOwnerCallScreeningPhoneAllowlist,
   syncOwnerCallScreeningEvents,
@@ -96,7 +97,12 @@ export default function OwnerCatchCallPanel({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [callScreeningStatus, setCallScreeningStatus] = useState<{ available: boolean; enabled: boolean } | null>(null);
+  const [callScreeningStatus, setCallScreeningStatus] = useState<{
+    available: boolean;
+    enabled: boolean;
+    phoneStateGranted: boolean;
+    callLogGranted: boolean;
+  } | null>(null);
   const [configuringCallScreening, setConfiguringCallScreening] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -146,10 +152,37 @@ export default function OwnerCatchCallPanel({
   useEffect(() => {
     void loadEvents();
     void syncOwnerCallScreeningPhoneAllowlist(phoneAllowlist).catch(() => undefined);
-    void getOwnerCallScreeningStatus().then((status) => setCallScreeningStatus(status));
+    void getOwnerCallScreeningStatus().then(async (status) => {
+      setCallScreeningStatus(status);
+      if (status.available && status.enabled && !status.callLogGranted) {
+        try {
+          await requestOwnerCallLogAccess();
+          setCallScreeningStatus(await getOwnerCallScreeningStatus());
+        } catch {
+          // The panel renders a retry button when Android keeps the permission denied.
+        }
+      }
+    });
     // The shop is the only external input for this panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.shop.id, pendingReservationAction?.providerCallId, phoneAllowlist]);
+
+  async function retryCallLogPermission() {
+    setMessage(null);
+    try {
+      const result = await requestOwnerCallLogAccess();
+      const nextStatus = await getOwnerCallScreeningStatus();
+      setCallScreeningStatus(nextStatus);
+      setMessage({
+        type: result.granted ? "success" : "error",
+        text: result.granted
+          ? "통화 기록 권한이 허용됐습니다. 이제 등록 고객의 수신 전화를 감지할 수 있습니다."
+          : "통화 기록 권한이 필요합니다. Android 설정에서 권한을 허용해 주세요.",
+      });
+    } catch (error) {
+      setMessage({ type: "error", text: getCatchCallErrorMessage(error, "통화 기록 권한을 허용하지 못했습니다.") });
+    }
+  }
 
   async function enableAutomaticCallScreening() {
     setConfiguringCallScreening(true);

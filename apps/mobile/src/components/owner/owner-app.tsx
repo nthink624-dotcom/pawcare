@@ -834,13 +834,13 @@ function OwnerAppContent({
     if (isOwnerDemo || isStaffApp || typeof window === "undefined" || !isOwnerCallScreeningAvailable()) return;
 
     const onboardingKey = `petmanager:catchcall-onboarding:${data.shop.id}`;
-    if (window.localStorage.getItem(onboardingKey)) return;
-    window.localStorage.setItem(onboardingKey, "shown");
+    const onboardingWasShown = window.localStorage.getItem(onboardingKey) === "shown";
 
     let active = true;
     void getOwnerCallScreeningStatus()
       .then((status) => {
-        if (!active || !status.available || status.enabled) return;
+        if (!active || !status.available || (status.enabled && status.callLogGranted) || (!status.enabled && onboardingWasShown)) return;
+        if (!status.enabled && !onboardingWasShown) window.localStorage.setItem(onboardingKey, "shown");
         setActiveTab("settings");
         setSettingsEntryScreen("catchcall");
       })

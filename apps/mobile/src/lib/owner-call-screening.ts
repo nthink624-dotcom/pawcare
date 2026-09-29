@@ -45,6 +45,11 @@ export async function requestOwnerCallNotificationAccess() {
   return OwnerCallScreening.requestNotificationAccess();
 }
 
+export async function requestOwnerCallLogAccess() {
+  if (!isOwnerCallScreeningAvailable()) return { granted: false };
+  return OwnerCallScreening.requestCallLogAccess();
+}
+
 export async function getOwnerCallReservationAction(): Promise<OwnerCallReservationAction> {
   if (!isOwnerCallScreeningAvailable()) return { pending: false, providerCallId: "", callerNumber: "" };
   return OwnerCallScreening.getPendingReservationAction();

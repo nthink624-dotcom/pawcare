@@ -24,6 +24,7 @@ test("owner mobile opens CatchCall onboarding once when Android screening is ava
   assert.match(app, /setActiveTab\("settings"\)/);
   assert.match(app, /setSettingsEntryScreen\("catchcall"\)/);
   assert.match(app, /status\.enabled/);
+  assert.match(app, /status\.callLogGranted/);
 });
 
 test("Android automatic CatchCall adapter allows calls before asynchronous upload", async () => {
@@ -98,5 +99,7 @@ test("mobile CatchCall UI keeps the reservation flow and phone privacy visible",
   assert.match(panel, /\/api\/owner\/call-events\?shopId=/);
   assert.match(panel, /\/api\/owner\/call-events\/\$\{selectedEvent\.id\}\/reservation/);
   assert.match(panel, /010-\*\*\*\*-/);
+  assert.match(panel, /requestOwnerCallLogAccess/);
+  assert.match(panel, /callLogGranted/);
   assert.match(panel, /캐치콜/);
 });

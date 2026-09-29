@@ -1,4 +1,7 @@
 const PLACEHOLDER_HOSTS = new Set(["example.com", "www.example.com"]);
+const PUBLIC_SITE_HOST = "www.petmanager.co.kr";
+
+export const CANONICAL_OWNER_MOBILE_WEB_URL = "https://app.petmanager.co.kr/owner/mobile";
 
 export type OwnerShellConfig = {
   url: string | null;
@@ -35,6 +38,19 @@ export function buildOwnerShellConfig(rawValue: string | undefined | null): Owne
       allowNavigation: [],
       cleartext: false,
     };
+  }
+
+  if (parsed.hostname === PUBLIC_SITE_HOST) {
+    throw new Error(
+      `OWNER_MOBILE_WEB_URL must point directly to ${CANONICAL_OWNER_MOBILE_WEB_URL}; ` +
+        `do not use https://${PUBLIC_SITE_HOST}.`,
+    );
+  }
+
+  if (parsed.hostname === "app.petmanager.co.kr" && parsed.pathname === "/") {
+    throw new Error(
+      `OWNER_MOBILE_WEB_URL must include the owner route: ${CANONICAL_OWNER_MOBILE_WEB_URL}.`,
+    );
   }
 
   return {

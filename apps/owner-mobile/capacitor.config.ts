@@ -3,7 +3,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 import { buildOwnerShellConfig } from "./src/config/owner-web";
 
-const ownerShell = buildOwnerShellConfig(process.env.OWNER_WEB_URL);
+const ownerShell = buildOwnerShellConfig(process.env.OWNER_MOBILE_WEB_URL);
 
 const config: CapacitorConfig = {
   appId: "kr.petmanager.owner",

@@ -89,6 +89,63 @@ test("read and write keep imported service columns exactly as declared by the ph
   assert.equal(matrix.readPreservedMobilePriceGuideRows(roundTrip).length, 0);
 });
 
+test("legacy upper-bound-only photo bands become continuous weight ranges without losing prices", () => {
+  const document = {
+    schemaVersion: 2,
+    source: "ai_imported",
+    overallNote: null,
+    tableGroups: [{
+      sourceLabel: "Legacy",
+      species: "dog",
+      breedNames: [],
+      sizeClass: "all",
+      weightBands: [
+        { label: "~ 3kg", minKg: null, maxKg: 3, note: null },
+        { label: "~ 5kg", minKg: null, maxKg: 5, note: null },
+        { label: "~ 7kg", minKg: null, maxKg: 7, note: null },
+      ],
+      serviceNames: ["Bath"],
+      note: null,
+    }],
+    rows: [3, 5, 7].map((maxKg, index) => ({
+      sourceItemId: `legacy-${maxKg}`,
+      serviceName: "Bath",
+      species: "dog",
+      breedNames: [],
+      breedGroup: "Legacy",
+      sizeClass: "all",
+      minKg: null,
+      maxKg,
+      weightBandLabel: `~ ${maxKg}kg`,
+      priceKind: "fixed",
+      priceMinKrw: 15_000 + index * 5_000,
+      priceMaxKrw: null,
+      durationMinutes: 20 + index * 10,
+      note: null,
+    })),
+    surcharges: [],
+    aiReview: [{ targetId: "rows:1", field: "priceMinKrw", reason: "legacy", status: "unresolved" }],
+  };
+
+  const groups = matrix.readMobilePriceGuideMatrix(document);
+  assert.deepEqual(groups[0].weightBands.map((band) => ({ label: band.label, minKg: band.minKg, maxKg: band.maxKg })), [
+    { label: "3kg 이하", minKg: null, maxKg: 3 },
+    { label: "3~5kg", minKg: 3, maxKg: 5 },
+    { label: "5~7kg", minKg: 5, maxKg: 7 },
+  ]);
+  assert.deepEqual(groups[0].cells.map((cells) => cells[0].priceMinKrw), [15_000, 20_000, 25_000]);
+
+  const persisted = matrix.writeMobilePriceGuideMatrix(document, groups);
+  assert.equal(persisted.rows.length, 3);
+  assert.equal(matrix.readPreservedMobilePriceGuideRows(persisted).length, 0);
+  assert.deepEqual(persisted.rows.map((row) => ({ label: row.weightBandLabel, minKg: row.minKg, maxKg: row.maxKg })), [
+    { label: "3kg 이하", minKg: null, maxKg: 3 },
+    { label: "3~5kg", minKg: 3, maxKg: 5 },
+    { label: "5~7kg", minKg: 5, maxKg: 7 },
+  ]);
+  assert.equal(persisted.aiReview[0].targetId, "rows:1");
+});
+
 test("photo 2 style services remain source ordered and can be added, renamed, and removed", () => {
   const document = {
     schemaVersion: 2,

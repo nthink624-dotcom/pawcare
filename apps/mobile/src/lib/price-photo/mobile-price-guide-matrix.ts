@@ -73,7 +73,7 @@ function mappedMobilePriceGuideRowIndexes(document: MobilePriceGuideV2, groups: 
         && rowServiceKey === normalizedKey(serviceName)
         && row.species === group.species
         && (row.breedGroup?.trim() || "요금표") === (group.sourceLabel.trim() || "요금표")
-        && (weightLabel(row) === band.label || (row.minKg === band.minKg && row.maxKg === band.maxKg));
+        && isSameWeightCoordinate(row, band);
     });
     if (!coordinateCell) return;
     claimedCells.add(`${coordinateCell.groupIndex}:${coordinateCell.weightIndex}:${coordinateCell.serviceIndex}`);
@@ -97,6 +97,44 @@ function weightLabel(row: Pick<MobilePriceGuideRow, "weightBandLabel" | "minKg" 
   if (row.maxKg !== null) return `${row.maxKg}kg 이하`;
   if (row.minKg !== null) return `${row.minKg}kg 이상`;
   return row.sizeClass === "all" ? "전체 체급" : "";
+}
+
+function upperBoundOnlyKg(label: string) {
+  const match = /^~\s*(\d+(?:\.\d+)?)\s*kg$/i.exec(label.trim());
+  return match ? Number(match[1]) : null;
+}
+
+function isSameWeightCoordinate(
+  row: Pick<MobilePriceGuideRow, "weightBandLabel" | "minKg" | "maxKg" | "sizeClass">,
+  band: MobilePriceGuideWeightBand,
+) {
+  if (weightLabel(row) === band.label || (row.minKg === band.minKg && row.maxKg === band.maxKg)) return true;
+
+  // Earlier photo imports expressed every band as an upper bound such as "~ 3kg".
+  // Match that legacy coordinate while upgrading it to an actual continuous range.
+  const legacyMaxKg = upperBoundOnlyKg(weightLabel(row));
+  return legacyMaxKg !== null && row.minKg === null && band.maxKg === legacyMaxKg;
+}
+
+function normalizeUpperBoundOnlyWeightBands(weightBands: MobilePriceGuideWeightBand[]) {
+  const parsed = weightBands.map((band) => ({ ...band, parsedMaxKg: upperBoundOnlyKg(band.label) }));
+  if (!parsed.length || !parsed.every((band) => band.minKg === null && band.parsedMaxKg !== null && band.parsedMaxKg === band.maxKg)) {
+    return weightBands.map((band) => ({ ...band }));
+  }
+  if (parsed.some((band, index) => index > 0 && (band.parsedMaxKg ?? 0) <= (parsed[index - 1].parsedMaxKg ?? 0))) {
+    return weightBands.map((band) => ({ ...band }));
+  }
+
+  return parsed.map(({ parsedMaxKg, ...band }, index) => {
+    const maxKg = parsedMaxKg!;
+    const minKg = index === 0 ? null : parsed[index - 1].parsedMaxKg!;
+    return {
+      ...band,
+      label: minKg === null ? `${maxKg}kg 이하` : `${minKg}~${maxKg}kg`,
+      minKg,
+      maxKg,
+    };
+  });
 }
 
 function createWeightBand(maxKg: number | null = null, minKg: number | null = null): MobilePriceGuideWeightBand {
@@ -193,7 +231,8 @@ function derivedGroups(document: MobilePriceGuideV2): MobilePriceGuideTableGroup
 export function readMobilePriceGuideMatrix(document: MobilePriceGuideV2): MobilePriceGuideMatrixGroup[] {
   const groups = document.tableGroups?.length ? document.tableGroups : derivedGroups(document);
   return groups.map((group) => {
-    const weightBands = group.weightBands.map((band) => ({ ...band }));
+    const sourceWeightBands = group.weightBands.map((band) => ({ ...band }));
+    const weightBands = normalizeUpperBoundOnlyWeightBands(sourceWeightBands);
     const groupRows = document.rows.filter((row) => (
       (row.breedGroup?.trim() || "요금표") === (group.sourceLabel.trim() || "요금표")
       && row.species === group.species
@@ -204,10 +243,11 @@ export function readMobilePriceGuideMatrix(document: MobilePriceGuideV2): Mobile
       breedNames: [...group.breedNames],
       weightBands,
       serviceNames,
-      cells: weightBands.map((band) => serviceNames.map((serviceName) => {
+      cells: weightBands.map((band, weightIndex) => serviceNames.map((serviceName) => {
+        const sourceBand = sourceWeightBands[weightIndex];
         const existing = groupRows.find((row) => (
           normalizedKey(row.serviceName) === normalizedKey(serviceName)
-          && (weightLabel(row) === band.label || (row.minKg === band.minKg && row.maxKg === band.maxKg))
+          && (isSameWeightCoordinate(row, sourceBand) || isSameWeightCoordinate(row, band))
         ));
         return existing ? { ...existing, breedNames: [...existing.breedNames] } : createCell(group, band, serviceName);
       })),
@@ -268,10 +308,12 @@ export function writeMobilePriceGuideMatrix(
           && normalizedKey(row.serviceName) === previousServiceKey
           && row.species === previousRow.species
           && (row.breedGroup?.trim() || "요금표") === (previousRow.breedGroup?.trim() || "요금표")
-          && (
-            weightLabel(row) === weightLabel(previousRow)
-            || (row.minKg === previousRow.minKg && row.maxKg === previousRow.maxKg)
-          ))
+          && isSameWeightCoordinate(row, {
+            label: weightLabel(previousRow),
+            minKg: previousRow.minKg,
+            maxKg: previousRow.maxKg,
+            note: null,
+          }))
     ));
     return nextRowIndex < 0 ? [] : [{ ...review, targetId: `rows:${nextRowIndex}` }];
   });

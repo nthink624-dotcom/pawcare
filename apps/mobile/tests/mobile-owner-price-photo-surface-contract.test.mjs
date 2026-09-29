@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const settings = await readFile(new URL("../src/components/owner/owner-settings-panel.tsx", import.meta.url), "utf8");
+const ownerApp = await readFile(new URL("../src/components/owner/owner-app.tsx", import.meta.url), "utf8");
 const fixture = await readFile(new URL("../src/components/auth/mobile-ai-price-guide-fixture.tsx", import.meta.url), "utf8");
 const matrix = await readFile(new URL("../src/components/auth/mobile-price-guide-matrix.tsx", import.meta.url), "utf8");
 const extras = await readFile(new URL("../src/components/auth/mobile-price-guide-extras.tsx", import.meta.url), "utf8");
@@ -93,6 +94,12 @@ test("review save footer clears owner navigation, Android safe area, and the vis
   assert.match(fixture, />임시 저장<\/button>/);
   assert.match(fixture, /saving \? "저장 중\.\.\." : "저장하기"/);
   assert.doesNotMatch(fixture, /서비스에 저장하기|나중에 하기|검토 내용 임시 유지/);
+});
+
+test("service price editing keeps one screen title and suppresses the floating quick menu", () => {
+  assert.doesNotMatch(fixture, /분석한 요금표 확인/);
+  assert.doesNotMatch(fixture, /요금표 가져오기 닫기/);
+  assert.match(ownerApp, /isSuppressed=\{isTesterFeedbackHubOpen \|\| settingsEntryScreen === "price"\}/);
 });
 
 test("service price surfaces remove duplicate helper copy without weakening consent or recovery", () => {

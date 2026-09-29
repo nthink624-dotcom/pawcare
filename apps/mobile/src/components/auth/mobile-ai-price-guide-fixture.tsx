@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Camera, ImagePlus, LoaderCircle, X } from "lucide-react";
+import { ArrowLeft, Camera, ImagePlus, LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import SetupModal from "@/components/ui/setup-modal";
@@ -417,7 +417,7 @@ export default function MobileAiPriceGuideFixture({
       )}
 
       {(mode === "review" || mode === "manual") && document && (
-        <div className={`min-w-0 max-w-full space-y-4 px-4 pt-2 ${inModal ? "min-h-0 flex-1 overflow-y-auto pb-4" : ""}`} ref={invalidRef}><header className="flex items-center justify-between gap-3"><h2 className="auth-type-section-title min-w-0 text-slate-900">{mode === "manual" ? "서비스 직접 입력" : "분석한 요금표 확인"}</h2><button type="button" aria-label="요금표 가져오기 닫기" className="grid size-11 shrink-0 place-items-center rounded-full text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={requestExit}><X size={22} /></button></header>{mode === "manual" && <button type="button" className="min-h-11 rounded-[10px] border border-blue-200 bg-blue-50 px-3 text-[14px] font-medium text-blue-700" onClick={() => fileInputRef.current?.click()}>사진으로 다시 불러오기</button>}<MobilePriceGuideMatrix document={document} onChange={(next) => { setDocument({ ...next, source: next.source === "manual" ? "manual" : "owner_corrected" }); setIsDirty(true); setActionError(""); }} />{actionError && <p role="alert" className="rounded-[10px] bg-rose-50 p-3 text-[14px] font-medium text-rose-700">{actionError}</p>}</div>
+        <div className={`min-w-0 max-w-full space-y-4 px-4 pt-2 ${inModal ? "min-h-0 flex-1 overflow-y-auto pb-4" : ""}`} ref={invalidRef}>{mode === "manual" && <button type="button" className="min-h-11 rounded-[10px] border border-blue-200 bg-blue-50 px-3 text-[14px] font-medium text-blue-700" onClick={() => fileInputRef.current?.click()}>사진으로 다시 불러오기</button>}<MobilePriceGuideMatrix document={document} onChange={(next) => { setDocument({ ...next, source: next.source === "manual" ? "manual" : "owner_corrected" }); setIsDirty(true); setActionError(""); }} />{actionError && <p role="alert" className="rounded-[10px] bg-rose-50 p-3 text-[14px] font-medium text-rose-700">{actionError}</p>}</div>
       )}
 
       {(reviewModeActive || (setupFlow && mode === "method")) && <footer className={`${inModal ? "shrink-0" : "fixed inset-x-0 z-30 mx-auto max-w-[430px]"} border-t border-slate-200 bg-white px-5 py-3`} style={inModal ? undefined : footerStyle} data-price-guide-review-footer><div className={setupFlow ? "grid gap-3" : "flex gap-3"} style={setupFlow ? { gridTemplateColumns: "minmax(0,35fr) minmax(0,65fr)" } : undefined}><button type="button" disabled={saving || openingCamera} className="min-h-12 flex-1 rounded-[10px] border border-slate-200 bg-white text-[16px] font-medium text-slate-700 disabled:opacity-50" onClick={setupFlow ? requestExit : saveDraftAndExit}>{setupFlow ? "이전" : "임시 저장"}</button><button type="button" disabled={saving || !document} className="min-h-12 flex-[1.4] rounded-[10px] bg-[#111a30] px-3 text-[16px] font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300" onClick={() => void save()}>{saving ? "저장 중..." : "저장하기"}</button></div></footer>}

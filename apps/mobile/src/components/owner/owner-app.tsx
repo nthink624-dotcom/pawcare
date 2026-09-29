@@ -3646,7 +3646,7 @@ function OwnerAppContent({
         <OwnerContextActionMenu
           ref={ownerContextMenuTriggerRef}
           isOpen={isOwnerContextMenuOpen}
-          isSuppressed={isTesterFeedbackHubOpen}
+          isSuppressed={isTesterFeedbackHubOpen || settingsEntryScreen === "price"}
           isTester={isTesterFeedback}
           scheduleAppearance={activeTab === "home" || activeTab === "book" || activeTab === "customers" || activeTab === "settings"}
           onOpenChange={setIsOwnerContextMenuOpen}

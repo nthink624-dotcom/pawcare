@@ -61,12 +61,14 @@ function priceDisplayLabel(row: MobilePriceGuideRow) {
 
 function PriceDurationCell({
   row,
+  editing: _editing,
   editingField,
   onStartEdit,
   onChange,
   onAdvance,
 }: {
   row: MobilePriceGuideRow;
+  editing?: boolean;
   editingField: "price" | "duration" | null;
   onStartEdit: (field: "price" | "duration") => void;
   onChange: (patch: Partial<MobilePriceGuideRow>) => void;
@@ -313,7 +315,7 @@ export default function MobilePriceGuideMatrix({ document, onChange }: { documen
                   {group.serviceNames.map((serviceName, serviceIndex) => {
                     const cellKey = `${groupIndex}:${weightIndex}:${serviceIndex}`;
                     const editingField = editingCell?.key === cellKey ? editingCell.field : null;
-                    return <td key={`${serviceName}-${weightIndex}`} className="border-b border-r border-slate-200 p-1 align-top"><PriceDurationCell row={group.cells[weightIndex][serviceIndex]} editingField={editingField} onStartEdit={(field) => setEditingCell({ key: cellKey, field })} onChange={(patch) => onChange(updateMobilePriceGuideCell(document, groupIndex, weightIndex, serviceIndex, patch))} onAdvance={() => {
+                    return <td key={`${serviceName}-${weightIndex}`} className="border-b border-r border-slate-200 p-1 align-top"><PriceDurationCell row={group.cells[weightIndex][serviceIndex]} editing={editingField !== null} editingField={editingField} onStartEdit={(field) => setEditingCell({ key: cellKey, field })} onChange={(patch) => onChange(updateMobilePriceGuideCell(document, groupIndex, weightIndex, serviceIndex, patch))} onAdvance={() => {
                       const nextWeightIndex = weightIndex + 1;
                       const nextCellKey = nextWeightIndex < group.weightBands.length
                         ? `${groupIndex}:${nextWeightIndex}:${serviceIndex}`

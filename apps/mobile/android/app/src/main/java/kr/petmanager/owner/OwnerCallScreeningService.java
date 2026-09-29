@@ -1,16 +1,12 @@
 package kr.petmanager.owner;
 
+import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
 import android.telecom.Call;
 import android.telecom.CallScreeningService;
 
 import org.json.JSONObject;
-
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-import java.util.UUID;
 
 public class OwnerCallScreeningService extends CallScreeningService {
     @Override
@@ -31,38 +27,22 @@ public class OwnerCallScreeningService extends CallScreeningService {
         if (handle == null) return;
         String callerNumber = handle.getSchemeSpecificPart();
         if (callerNumber == null || callerNumber.trim().isEmpty()) return;
-        // Only process phone numbers synced from this shop's PetManager customers.
-        // Personal and unknown calls are still allowed normally and never uploaded.
-        if (!OwnerCallScreeningStore.isAllowedCallerNumber(this, callerNumber)) return;
+        handleIncoming(this, callerNumber);
+    }
 
+    static void handleIncoming(Context context, String callerNumber) {
         try {
-            JSONObject config = OwnerCallScreeningStore.getConfig(this);
-            JSONObject event = new JSONObject();
-            event.put("shopId", config.optString("shopId", ""));
-            event.put("integrationId", config.optString("integrationId", ""));
-            String providerCallId = UUID.randomUUID().toString();
-            event.put("providerEventId", providerCallId + ":incoming");
-            event.put("eventType", "incoming");
-            event.put("direction", "inbound");
-            event.put("callerNumber", callerNumber);
-            event.put("occurredAt", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(new Date()));
-            JSONObject metadata = new JSONObject();
-            metadata.put("providerCallId", providerCallId);
-            metadata.put("deviceId", OwnerCallScreeningStore.getOrCreateDeviceId(this));
-            event.put("metadata", metadata);
+            JSONObject event = OwnerCallScreeningStore.createIncomingEvent(context, callerNumber);
+            if (event == null) return;
+            JSONObject metadata = event.optJSONObject("metadata");
+            String providerCallId = metadata == null ? "" : metadata.optString("providerCallId", "");
+            if (providerCallId.isEmpty()) return;
+            OwnerCallNotification.showIncoming(context, providerCallId, callerNumber);
 
-            JSONObject activeCall = new JSONObject();
-            activeCall.put("activeProviderCallId", providerCallId);
-            activeCall.put("activeCallerNumber", callerNumber);
-            activeCall.put("activeAnswered", false);
-            OwnerCallScreeningStore.configure(this, activeCall);
-            OwnerCallNotification.showIncoming(this, providerCallId, callerNumber);
-
-            new Thread(() -> OwnerCallScreeningTransport.sendOrQueue(this, event), "petmanager-call-upload").start();
+            new Thread(() -> OwnerCallScreeningTransport.sendOrQueue(context, event), "petmanager-call-upload").start();
         } catch (Exception ignored) {
             // The call has already been allowed. A malformed local event must
             // never interfere with the system phone flow.
         }
     }
-
 }

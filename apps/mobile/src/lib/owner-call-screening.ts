@@ -4,8 +4,9 @@ import { fetchApiJsonWithAuth, getAccessTokenWithRecovery } from "@/lib/api";
 import { getMobileApiOrigin } from "@/lib/env";
 
 type OwnerCallScreeningPlugin = {
-  getStatus(): Promise<{ available: boolean; enabled: boolean; phoneStateGranted: boolean; deviceId: string }>;
+  getStatus(): Promise<{ available: boolean; enabled: boolean; phoneStateGranted: boolean; callLogGranted: boolean; deviceId: string }>;
   requestPhoneStateAccess(): Promise<{ granted: boolean }>;
+  requestCallLogAccess(): Promise<{ granted: boolean }>;
   requestNotificationAccess(): Promise<{ granted: boolean }>;
   requestRole(): Promise<{ enabled: boolean }>;
   configure(options: { shopId: string; integrationId: string; apiOrigin: string; accessToken: string }): Promise<{ configured: boolean }>;
@@ -24,7 +25,7 @@ export function isOwnerCallScreeningAvailable() {
 }
 
 export async function getOwnerCallScreeningStatus() {
-  if (!isOwnerCallScreeningAvailable()) return { available: false, enabled: false, phoneStateGranted: false, deviceId: "" };
+  if (!isOwnerCallScreeningAvailable()) return { available: false, enabled: false, phoneStateGranted: false, callLogGranted: false, deviceId: "" };
   return OwnerCallScreening.getStatus();
 }
 
@@ -79,6 +80,7 @@ export async function configureOwnerCallScreening(shopId: string, phoneNumbers: 
   });
   await OwnerCallScreening.setPhoneAllowlist({ phoneNumbers });
   await OwnerCallScreening.requestPhoneStateAccess();
+  await OwnerCallScreening.requestCallLogAccess();
   await OwnerCallScreening.requestNotificationAccess();
   await syncOwnerCallScreeningEvents(shopId);
   return { available: status.available, enabled: status.enabled };

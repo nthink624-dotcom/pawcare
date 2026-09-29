@@ -3,6 +3,7 @@ package kr.petmanager.owner;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.telephony.TelephonyManager;
 
 import org.json.JSONObject;
 
@@ -13,6 +14,7 @@ import java.util.Locale;
 public class OwnerCallStateReceiver extends BroadcastReceiver {
     private static final String ACTION_PHONE_STATE = "android.intent.action.PHONE_STATE";
     private static final String EXTRA_STATE = "state";
+    private static final String STATE_RINGING = "RINGING";
     private static final String STATE_OFFHOOK = "OFFHOOK";
     private static final String STATE_IDLE = "IDLE";
 
@@ -21,6 +23,15 @@ public class OwnerCallStateReceiver extends BroadcastReceiver {
         if (!ACTION_PHONE_STATE.equals(intent.getAction())) return;
         String state = intent.getStringExtra(EXTRA_STATE);
         if (state == null) return;
+
+        if (STATE_RINGING.equals(state)) {
+            String incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
+            if (incomingNumber != null && !incomingNumber.trim().isEmpty()) {
+                OwnerCallScreeningService.handleIncoming(context, incomingNumber);
+            }
+            return;
+        }
+
         JSONObject config = OwnerCallScreeningStore.getConfig(context);
         String providerCallId = config.optString("activeProviderCallId", "").trim();
         String callerNumber = config.optString("activeCallerNumber", "").trim();

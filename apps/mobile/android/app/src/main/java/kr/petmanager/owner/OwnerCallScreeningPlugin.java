@@ -25,6 +25,7 @@ import org.json.JSONObject;
     name = "OwnerCallScreening",
     permissions = {
         @Permission(alias = "phoneState", strings = { Manifest.permission.READ_PHONE_STATE }),
+        @Permission(alias = "callLog", strings = { Manifest.permission.READ_CALL_LOG }),
         @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS })
     }
 )
@@ -37,6 +38,7 @@ public class OwnerCallScreeningPlugin extends Plugin {
         response.put("available", isRoleAvailable());
         response.put("enabled", isRoleHeld());
         response.put("phoneStateGranted", getPermissionState("phoneState") == com.getcapacitor.PermissionState.GRANTED);
+        response.put("callLogGranted", getPermissionState("callLog") == com.getcapacitor.PermissionState.GRANTED);
         response.put("deviceId", OwnerCallScreeningStore.getOrCreateDeviceId(getContext()));
         call.resolve(response);
     }
@@ -48,6 +50,15 @@ public class OwnerCallScreeningPlugin extends Plugin {
             return;
         }
         requestPermissionForAlias("phoneState", call, "phoneStatePermissionCallback");
+    }
+
+    @PluginMethod
+    public void requestCallLogAccess(PluginCall call) {
+        if (getPermissionState("callLog") == com.getcapacitor.PermissionState.GRANTED) {
+            call.resolve(new JSObject().put("granted", true));
+            return;
+        }
+        requestPermissionForAlias("callLog", call, "callLogPermissionCallback");
     }
 
     @PluginMethod
@@ -71,6 +82,13 @@ public class OwnerCallScreeningPlugin extends Plugin {
         boolean granted = getPermissionState("phoneState") == com.getcapacitor.PermissionState.GRANTED;
         if (granted) call.resolve(new JSObject().put("granted", true));
         else call.reject("?꾪솕 ?곹깭瑜?媛먯? ?꾩슂??沅뚰븳???덉슜?댁빞 ?⑸땲??", "PHONE_STATE_PERMISSION_DENIED");
+    }
+
+    @PermissionCallback
+    private void callLogPermissionCallback(PluginCall call) {
+        boolean granted = getPermissionState("callLog") == com.getcapacitor.PermissionState.GRANTED;
+        if (granted) call.resolve(new JSObject().put("granted", true));
+        else call.reject("Call log permission is required for Samsung incoming-call fallback.", "CALL_LOG_PERMISSION_DENIED");
     }
 
     @PluginMethod

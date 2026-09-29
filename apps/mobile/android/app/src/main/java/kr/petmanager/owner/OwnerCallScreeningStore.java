@@ -11,10 +11,13 @@ import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
+import java.text.SimpleDateFormat;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Date;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -122,6 +125,46 @@ final class OwnerCallScreeningStore {
             if (normalized.equals(normalizePhoneNumber(allowed.optString(index, "")))) return true;
         }
         return false;
+    }
+
+    /**
+     * Creates the single incoming event for a call and records its active state.
+     * Both the platform screening service and PHONE_STATE fallback use this
+     * method so a Samsung device cannot produce duplicate incoming events.
+     */
+    static synchronized JSONObject createIncomingEvent(Context context, String callerNumber) {
+        if (!isAllowedCallerNumber(context, callerNumber)) return null;
+
+        JSONObject config = readObject(context, CONFIG_KEY);
+        if (!config.optString("activeProviderCallId", "").trim().isEmpty()) return null;
+
+        String shopId = config.optString("shopId", "").trim();
+        String integrationId = config.optString("integrationId", "").trim();
+        if (shopId.isEmpty() || integrationId.isEmpty()) return null;
+
+        String providerCallId = UUID.randomUUID().toString();
+        try {
+            JSONObject event = new JSONObject();
+            event.put("shopId", shopId);
+            event.put("integrationId", integrationId);
+            event.put("providerEventId", providerCallId + ":incoming");
+            event.put("eventType", "incoming");
+            event.put("direction", "inbound");
+            event.put("callerNumber", callerNumber);
+            event.put("occurredAt", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(new Date()));
+            JSONObject metadata = new JSONObject();
+            metadata.put("providerCallId", providerCallId);
+            metadata.put("deviceId", getOrCreateDeviceId(context));
+            event.put("metadata", metadata);
+
+            config.put("activeProviderCallId", providerCallId);
+            config.put("activeCallerNumber", callerNumber);
+            config.put("activeAnswered", false);
+            writeObject(context, CONFIG_KEY, config);
+            return event;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static String normalizePhoneNumber(String value) {

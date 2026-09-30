@@ -22,8 +22,58 @@ function readJson(relativePath) {
 const manifest = readJson("docs/operations/vercel-project-targets.json");
 const supabase = readJson("docs/operations/supabase-readonly-readback-20260929.json");
 const vercel = readJson("docs/operations/vercel-readonly-readback-20260929.json");
-
+const recovery = readJson("docs/operations/saas-recovery-readback-20261001.json");
+const tenantIsolation = readJson("docs/operations/tenant-isolation-readback-20261001.json");
+const browserAcl = readJson("docs/operations/supabase-browser-grants-readback-20261001.json");
 const isReadbackDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+if (!isReadbackDate(recovery?.readAt)) {
+  failures.push("recovery readback evidence must include an ISO calendar readAt date");
+}
+for (const [name, status] of [
+  ["database restore drill", recovery?.database?.restoreDrill?.status],
+  ["media restore drill", recovery?.media?.restoreDrill?.status],
+]) {
+  if (!["PASS", "NOT_RUN", "BLOCKED"].includes(status)) failures.push(`${name} status is missing or invalid`);
+}
+for (const key of ["dailyBackupsEnabled", "pitrEnabled", "encryptedOffsiteBackupEnabled"]) {
+  if (typeof recovery?.database?.protection?.[key] !== "boolean") {
+    failures.push(`recovery readback database protection field is missing: ${key}`);
+  }
+}
+if (typeof recovery?.media?.objectRecovery?.configured !== "boolean") {
+  failures.push("recovery readback media object recovery configuration is missing");
+}
+if (!isReadbackDate(tenantIsolation?.readAt)) {
+  failures.push("tenant-isolation readback evidence must include an ISO calendar readAt date");
+}
+if (![
+  "PASS",
+  "NOT_RUN",
+  "BLOCKED",
+].includes(tenantIsolation?.developmentFixture?.status)) {
+  failures.push("development tenant-isolation fixture status is missing or invalid");
+}
+if (tenantIsolation?.developmentFixture?.status === "PASS" &&
+    tenantIsolation?.developmentFixture?.cleanupResidue !== 0) {
+  failures.push("passing tenant-isolation fixture must confirm zero cleanup residue");
+}
+for (const [target, expectedRef] of [
+  ["development", "qefxdtmdtvnzgupmjlom"],
+  ["production", "ysxykikqnneuhypybjry"],
+]) {
+  const entry = browserAcl?.projects?.[target];
+  if (entry?.projectRef !== expectedRef ||
+      entry?.browserGrantRows?.anon !== 0 ||
+      entry?.browserGrantRows?.authenticated !== 0 ||
+      entry?.publicTablesWithoutRls !== 0) {
+    failures.push(`${target} Supabase browser grant readback is missing, mismatched, or not clean`);
+  }
+}
+if (!isReadbackDate(browserAcl?.readAt)) {
+  failures.push("Supabase browser-grant readback evidence must include an ISO calendar readAt date");
+}
+
 if (!isReadbackDate(supabase?.readAt) || !isReadbackDate(vercel?.readAt)) {
   failures.push("readback evidence must include an ISO calendar readAt date");
 } else if (supabase.readAt !== vercel.readAt) {

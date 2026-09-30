@@ -12,7 +12,7 @@ PetManager uses `shop_id` as the tenant boundary. Owner API routes must resolve 
 
 The acquisition and tester-feedback fixtures create uniquely marked rows in the development project, attempt a foreign-tenant operation, assert that it is denied, and remove the rows in reverse dependency order. They must be run only with the exact development project ref and one-time protected credentials. They never target production and must finish with a zero-residue check.
 
-The fixture definitions are not proof that a run occurred. Before launch, execute the approved fixture against an isolated development/test dataset, retain only the aggregate pass/fail result, and record the run date and project ref in the readiness evidence. Do not copy customer data into a test fixture.
+The fixture definitions are not proof that a run occurred. Before launch, execute the approved fixture against the development project, retain only the aggregate pass/fail result, and record the run date and project ref in `tenant-isolation-readback-20261001.json`. The production launch gate requires a passing result and zero residue. Do not copy customer data into a test fixture.
 
 ## Failure response
 

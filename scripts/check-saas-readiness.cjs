@@ -71,6 +71,9 @@ requireFile("docs/operations/migration-drift-readback.md", "migration drift read
 requireFile("docs/operations/supabase-readonly-readback-20260929.json", "Supabase read-only readback");
 requireFile("docs/operations/vercel-readonly-readback-20260929.json", "Vercel read-only readback");
 requireFile("docs/operations/backup-restore-readback-20260929.md", "backup and restore readback");
+requireFile("docs/operations/saas-recovery-readback-20261001.json", "dated database and media recovery readback");
+requireFile("docs/operations/tenant-isolation-readback-20261001.json", "dated tenant-isolation fixture readback");
+requireFile("docs/operations/supabase-browser-grants-readback-20261001.json", "dated Supabase browser-grant readback");
 requireFile("scripts/check-environment-inventory.cjs", "environment inventory guard");
 requireFile("scripts/check-vercel-project-target.cjs", "Vercel project target guard");
 requireFile("scripts/check-production-endpoints.cjs", "production endpoint smoke guard");
@@ -350,7 +353,7 @@ requireText(
   "Vercel Alimtalk environment dry-run mode",
 );
 
-warn("Production backup/PITR, R2 retention, monitoring, billing webhooks, and alert destinations require account readback.");
+warn("Current production readback shows no database backup/PITR and no verified R2 recovery configuration; production launch remains blocked pending protection and restore drills.");
 warn("A static check cannot prove tenant isolation or recovery; run focused tests and a restore drill before launch.");
 
 if (failures.length > 0) {

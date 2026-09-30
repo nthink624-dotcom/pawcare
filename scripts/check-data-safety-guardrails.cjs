@@ -60,6 +60,16 @@ try {
     "revoke all on table public.%I from anon, authenticated",
     "Policy-less RLS tables must not retain inherited browser grants.",
   );
+  assertIncludes(
+    "supabase/migrations/20260930151901_revoke_owner_push_tokens_browser_grants.sql",
+    "from public, anon, authenticated",
+    "Push token grants must be revoked from browser roles and PUBLIC.",
+  );
+  assertIncludes(
+    "supabase/verification/verify_public_browser_table_grants.sql",
+    "has_table_privilege",
+    "Read-only public browser table grant verification is missing.",
+  );
   assertOwnerWithdrawalSafety();
   assertIncludes(
     "src/server/bootstrap.ts",

@@ -34,6 +34,9 @@ The gate requires all of the following:
 - The Supabase production readback has no unresolved security WARN for leaked-password protection.
 - The Supabase production readback confirms public-table RLS metadata and has no policyless browser grants remaining.
 - The Vercel production readback has the required Alimtalk and PortOne payment environment values.
+- Production has at least one verified database protection path (daily backup, PITR, or encrypted off-site backup) and a passing isolated database restore drill.
+- Production media object recovery/retention is configured and an isolated media restore drill passes; Vercel R2 environment-variable presence alone is not proof.
+- The current development cross-tenant fixture passes and verifies zero leftover test rows; contract tests alone are not runtime database proof.
 - The readback evidence is updated after the deployment and endpoint smoke.
 
 The command performs GET/read-only checks only. It does not push code, create a deployment, apply a migration, or change an account setting.

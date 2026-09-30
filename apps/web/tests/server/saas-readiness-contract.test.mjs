@@ -74,6 +74,38 @@ test("production launch blocks policyless Supabase browser exposure", async () =
   assert.match(launchGate, /public table grant rows/);
 });
 
+test("production launch blocks when database or media recovery is unverified", async () => {
+  const launchGate = await read("../../scripts/check-production-launch-readiness.cjs");
+  const readbackCheck = await read("../../scripts/check-readback-evidence.cjs");
+
+  assert.match(launchGate, /dailyBackupsEnabled/);
+  assert.match(launchGate, /pitrEnabled/);
+  assert.match(launchGate, /encryptedOffsiteBackupEnabled/);
+  assert.match(launchGate, /database restore drill is not verified/);
+  assert.match(launchGate, /production media object retention\/recovery configuration is not verified/);
+  assert.match(launchGate, /production media restore drill is not verified/);
+  assert.match(readbackCheck, /saas-recovery-readback-20261001\.json/);
+});
+
+test("production launch blocks until the live development tenant-isolation fixture passes cleanly", async () => {
+  const launchGate = await read("../../scripts/check-production-launch-readiness.cjs");
+  const readbackCheck = await read("../../scripts/check-readback-evidence.cjs");
+
+  assert.match(launchGate, /tenant-isolation-readback-20261001\.json/);
+  assert.match(launchGate, /development cross-tenant isolation fixture has not passed with zero cleanup residue/);
+  assert.match(readbackCheck, /tenant-isolation readback evidence must include an ISO calendar readAt date/);
+  assert.match(readbackCheck, /passing tenant-isolation fixture must confirm zero cleanup residue/);
+});
+
+test("production launch uses the latest read-only browser-grant result for production", async () => {
+  const launchGate = await read("../../scripts/check-production-launch-readiness.cjs");
+  const readbackCheck = await read("../../scripts/check-readback-evidence.cjs");
+
+  assert.match(launchGate, /supabase-browser-grants-readback-20261001\.json/);
+  assert.match(launchGate, /latest production Supabase browser table-grant readback is not clean/);
+  assert.match(readbackCheck, /\$\{target\} Supabase browser grant readback is missing, mismatched, or not clean/);
+});
+
 test("post-deploy verification requires an explicit release and reuses the launch gate", async () => {
   const rootPackage = await read("../../package.json");
   const postdeploy = await read("../../scripts/check-postdeploy-release.cjs");

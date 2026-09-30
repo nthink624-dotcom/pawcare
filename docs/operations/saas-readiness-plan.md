@@ -17,9 +17,10 @@
 | --- | --- | --- |
 | 환경 분리 | 부분 완료 | `check:supabase-cli-target:dev`, 운영 ref 확인 가드가 있다. Vercel·Supabase 운영 프로젝트의 실제 변수와 migration drift는 readback 후 승인된 순차 적용이 필요 |
 | DB·RLS·삭제 보호 | 개발 DB 검증 완료, 운영 검증 필요 | `check:data-safety`와 `supabase/verification/verify_public_table_rls.sql`이 있다. 2026-09-29 개발 DB의 public 테이블 전체 RLS가 확인됐다. 운영 결과는 별도 read-only 실행 필요 |
+| 테넌트 격리 | 코드·계약 검사 통과, 실제 개발 DB 교차 매장 fixture 미실행 | owner API 41개 guard와 신뢰성 테스트 168개가 통과했지만 실제 개발 DB fixture는 보호된 일회용 자격증명이 없어 실행되지 않았다. 결과는 `tenant-isolation-readback-20261001.json`에 기록하며 운영 런치 게이트가 PASS와 잔여 데이터 0을 요구 |
 | 인증·세션 | 부분 완료 | `check:owner-auth-guards`와 복구 스모크가 있다. 만료 세션, 탈퇴 직후 토큰, 다른 매장 접근 회귀 테스트를 릴리스 게이트로 고정 |
-| 미디어 | 부분 완료 | `check:media-architecture`가 있다. Cloudflare R2의 공개 범위, 삭제·보존·백업·비용 알림은 계정 readback 필요 |
-| 백업·복구 | 미확인 | 개발용 암호화 dump 복구 검증 스크립트는 있으나 운영 daily/PITR 활성화와 분기별 복구 기록은 확인 필요 |
+| 미디어 | 부분 완료, 운영 복구 미확인 | `check:media-architecture`와 Vercel R2 변수 존재는 확인했다. R2 계정의 실제 접근, 객체 보존/복구 설정, 격리 복구 훈련은 미검증이며 `saas-recovery-readback-20261001.json`에 기록 |
+| 백업·복구 | 운영 준비 미완료 | 2026-10-01 Supabase readback에서 조직 플랜 FREE, 사용 가능한 자동 백업 0건, PITR 비활성 확인. 운영 DB 복구 훈련도 미실행. 복구 경로와 복구 리허설이 통과하기 전 production launch gate 차단 |
 | 결제 | 코드 검증 강화, 운영 검증 필요 | 구독·billing key·서명 검증·이벤트 제한·결제 ID 기반 동기화 계약과 웹훅 오류 경계 테스트가 있다. 운영 키, 웹훅 등록, 멱등성 재처리, 정산 대사는 실환경 검증 필요 |
 | 알림·비동기 작업 | 부분 완료 | 알림톡 계약·환경 검사와 실패 목록·수동 재처리 화면이 있다. 공용 작업 큐·대량 재처리와 실제 provider readback은 남아 있음 |
 | 관측성·지원 | 부분 완료 | `/api/healthz`·`/api/readyz`, 요청 상관관계 ID, production endpoint smoke gate, 감사 로그 검색, 고객 지원 runbook과 계약 테스트가 있다. 오류 알림 채널과 실제 route 배포 readback은 남아 있음 |

@@ -79,10 +79,16 @@ function readJson(relativePath) {
 
 const supabase = readJson("docs/operations/supabase-readonly-readback-20260929.json");
 const vercel = readJson("docs/operations/vercel-readonly-readback-20260929.json");
+const recovery = readJson("docs/operations/saas-recovery-readback-20261001.json");
+const browserAcl = readJson("docs/operations/supabase-browser-grants-readback-20261001.json");
 const productionSecurity = supabase?.projects?.production?.securityAdvisors ?? {};
 const productionRls = supabase?.projects?.production?.publicTableRlsReadback ?? {};
 if (productionSecurity.auth_leaked_password_protection?.level === "WARN") {
   failures.push("production Supabase leaked-password protection is still WARN");
+}
+if (browserAcl?.projects?.production?.browserGrantRows?.anon !== 0 ||
+    browserAcl?.projects?.production?.browserGrantRows?.authenticated !== 0) {
+  failures.push("latest production Supabase browser table-grant readback is not clean");
 }
 if (!Number.isInteger(productionRls.tableCount) || !Number.isInteger(productionRls.tablesWithoutRls) || !Number.isInteger(productionRls.tablesWithoutPolicies)) {
   failures.push("production Supabase RLS metadata readback is missing or incomplete");
@@ -111,6 +117,27 @@ if (vercel?.projects?.web?.commitSha !== expectedRelease || vercel?.projects?.mo
 for (const target of ["web", "mobile"]) {
   const smoke = vercel?.projects?.[target]?.endpointSmoke;
   if (smoke?.healthz !== 200 || smoke?.readyz !== 200) failures.push(`${target} readback endpoint smoke is not 200/200`);
+}
+
+const databaseRecovery = recovery?.database ?? {};
+if (databaseRecovery.protection?.dailyBackupsEnabled !== true &&
+    databaseRecovery.protection?.pitrEnabled !== true &&
+    databaseRecovery.protection?.encryptedOffsiteBackupEnabled !== true) {
+  failures.push("production database has no verified daily backup, PITR, or encrypted off-site backup protection");
+}
+if (databaseRecovery.restoreDrill?.status !== "PASS") {
+  failures.push("production database restore drill is not verified");
+}
+const mediaRecovery = recovery?.media ?? {};
+if (mediaRecovery.objectRecovery?.configured !== true) {
+  failures.push("production media object retention/recovery configuration is not verified");
+}
+if (mediaRecovery.restoreDrill?.status !== "PASS") {
+  failures.push("production media restore drill is not verified");
+}
+const tenantIsolation = readJson("docs/operations/tenant-isolation-readback-20261001.json");
+if (tenantIsolation?.developmentFixture?.status !== "PASS" || tenantIsolation?.developmentFixture?.cleanupResidue !== 0) {
+  failures.push("development cross-tenant isolation fixture has not passed with zero cleanup residue");
 }
 
 if (failures.length > 0) {

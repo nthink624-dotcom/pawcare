@@ -1,0 +1,45 @@
+{
+  "readAt": "2026-10-01",
+  "scope": "Read-only effective table-privilege and RLS metadata query across public schema; no row data returned",
+  "projects": {
+    "development": {
+      "name": "petmanager-dev",
+      "projectRef": "qefxdtmdtvnzgupmjlom",
+      "migrationCount": 167,
+      "lastMigration": "20260930151901",
+      "publicTablesWithoutRls": 0,
+      "browserGrantRows": {
+        "anon": 0,
+        "authenticated": 0
+      },
+      "ownerPushTokens": {
+        "rlsEnabled": true,
+        "anonHasAnyTablePrivilege": false,
+        "authenticatedHasAnyTablePrivilege": false,
+        "serviceRoleCanSelectInsertUpdateDelete": true
+      }
+    },
+    "production": {
+      "name": "petmanager",
+      "projectRef": "ysxykikqnneuhypybjry",
+      "migrationCount": 166,
+      "lastMigration": "20260929131500",
+      "publicTablesWithoutRls": 0,
+      "browserGrantRows": {
+        "anon": 0,
+        "authenticated": 0
+      },
+      "ownerPushTokens": {
+        "rlsEnabled": true,
+        "anonHasAnyTablePrivilege": false,
+        "authenticatedHasAnyTablePrivilege": false,
+        "serviceRoleCanSelectInsertUpdateDelete": true
+      }
+    }
+  },
+  "developmentFindingAndResolution": {
+    "finding": "Before migration 20260930151901, owner_push_tokens had effective table privileges for anon and authenticated.",
+    "resolution": "Revoked all table privileges from PUBLIC, anon, and authenticated; preserved service_role privileges.",
+    "postMigrationVerification": "Zero browser-grant rows across all public tables in both projects."
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "readAt": "2026-10-01",
+  "scope": "Read-only SaaS database and media recovery readiness; no account or data writes",
+  "database": {
+    "provider": "Supabase",
+    "organizationPlan": "FREE",
+    "protection": {
+      "dailyBackupsEnabled": false,
+      "pitrEnabled": false,
+      "encryptedOffsiteBackupEnabled": false,
+      "availableBackups": 0,
+      "source": "Supabase organization and backups read-only readback"
+    },
+    "restoreDrill": {
+      "status": "NOT_RUN",
+      "reason": "No production backup is available to restore; no production data was exported"
+    }
+  },
+  "media": {
+    "provider": "Cloudflare R2",
+    "runtimeEnvironmentVariablesPresent": {
+      "web": true,
+      "mobile": true
+    },
+    "objectRecovery": {
+      "configured": false,
+      "status": "UNVERIFIED",
+      "reason": "R2 account readback unavailable; lifecycle, versioning, retention, and restore permissions were not confirmed"
+    },
+    "restoreDrill": {
+      "status": "NOT_RUN",
+      "reason": "R2 object inventory and recovery settings are unverified"
+    }
+  },
+  "productionLaunchGate": {
+    "expectedRelease": "89695c8df4f6168088dba283cd657d7928611c42",
+    "status": "BLOCKED",
+    "readAt": "2026-10-01",
+    "verified": [
+      "web and mobile production health/readiness endpoints returned HTTP 200",
+      "production Supabase RLS has zero public tables without RLS and zero anon/authenticated table grants",
+      "production Alimtalk and PortOne environment readbacks passed"
+    ],
+    "remainingBlockers": [
+      "Supabase leaked-password protection remains WARN",
+      "database backup protection and isolated restore drill are not verified",
+      "media object recovery configuration and isolated restore drill are not verified",
+      "development cross-tenant fixture has not passed with zero cleanup residue"
+    ]
+  },
+  "interpretation": "Production recovery is not ready. Vercel environment variable presence does not prove R2 credentials, lifecycle policy, retention, or object restoration work."
+}

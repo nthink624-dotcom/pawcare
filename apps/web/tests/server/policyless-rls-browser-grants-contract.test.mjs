@@ -10,6 +10,14 @@ const verification = await readFile(
   new URL("../../../../supabase/verification/verify_policyless_rls_acl.sql", import.meta.url),
   "utf8",
 );
+const ownerPushMigration = await readFile(
+  new URL("../../../../supabase/migrations/20260930151901_revoke_owner_push_tokens_browser_grants.sql", import.meta.url),
+  "utf8",
+);
+const allBrowserGrantsVerification = await readFile(
+  new URL("../../../../supabase/verification/verify_public_browser_table_grants.sql", import.meta.url),
+  "utf8",
+);
 
 function normalized(sql) {
   return sql.replace(/--.*$/gm, "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -38,4 +46,16 @@ test("policyless RLS verification fails closed until browser grants reach zero",
   assert.match(sql, /not exists \( select 1 from pg_policies/);
   assert.match(sql, /grantee in \('anon', 'authenticated'\)/);
   assert.match(sql, /when count\(\*\) = 0 then 'pass' else 'pending_migration'/);
+});
+
+test("push-token API table has only server-role privileges and a read-only audit query covers all public tables", () => {
+  const migrationSql = normalized(ownerPushMigration);
+  assert.match(migrationSql, /revoke all privileges on table public\.owner_push_tokens from public, anon, authenticated/);
+  assert.match(migrationSql, /grant all privileges on table public\.owner_push_tokens to service_role/);
+  assert.doesNotMatch(migrationSql, /\b(drop|delete|truncate|alter table)\b/);
+
+  const verificationSql = normalized(allBrowserGrantsVerification);
+  assert.match(verificationSql, /has_table_privilege\(r\.rolname, c\.oid, 'truncate'\)/);
+  assert.match(verificationSql, /r\.rolname in \('anon', 'authenticated'\)/);
+  assert.match(verificationSql, /n\.nspname = 'public'/);
 });

@@ -1,5 +1,5 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { buildMobileApiUrl, getMobileApiOrigin } from "@/lib/env";
+import { buildAppSameOriginApiUrl, buildMobileApiUrl, getMobileApiOrigin } from "@/lib/env";
 import { readOwnerAuthTokenCache, setCurrentOwnerAccessToken } from "@/lib/auth/owner-auth-handoff";
 import type { BootstrapPayload } from "@/types/domain";
 
@@ -27,10 +27,10 @@ export class ApiRequestError extends Error {
   }
 }
 
-async function fetchApiJsonAtUrl<T>(url: string, init?: RequestInit) {
+async function fetchApiJsonAtUrl<T>(url: string, init?: RequestInit, credentials: RequestCredentials = "omit") {
   const response = await fetch(url, {
     ...init,
-    credentials: "omit",
+    credentials,
     redirect: "error",
   });
   const contentType = response.headers.get("content-type") || "";
@@ -62,6 +62,10 @@ async function fetchApiJsonAtUrl<T>(url: string, init?: RequestInit) {
 
 export async function fetchApiJson<T>(input: string, init?: RequestInit) {
   return fetchApiJsonAtUrl<T>(buildApiUrl(input), init);
+}
+
+export async function fetchAppApiJson<T>(input: string, init?: RequestInit) {
+  return fetchApiJsonAtUrl<T>(buildAppSameOriginApiUrl(input), init, "same-origin");
 }
 
 export async function getPublicBootstrap(shopId?: string) {

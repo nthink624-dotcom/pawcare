@@ -26,6 +26,7 @@ function declarationText(sourceText, name, fileName) {
 async function importMobileApiBoundaryHarness(envSource, apiSource) {
   const moduleSource = [
     'const env = { apiBaseUrl: "", siteUrl: "http://localhost:3000" };',
+    'const window = { location: { origin: "http://127.0.0.1:3100", protocol: "http:", hostname: "127.0.0.1" } };',
     'let runtimeStage = "development";',
     "function getSupabaseRuntimeStage() { return runtimeStage; }",
     declarationText(envSource, "DEVELOPMENT_API_ORIGINS", "env.ts"),
@@ -40,6 +41,7 @@ async function importMobileApiBoundaryHarness(envSource, apiSource) {
     declarationText(envSource, "assertMobileApiPathnameStage", "env.ts"),
     declarationText(envSource, "assertSafeMobileApiPathname", "env.ts"),
     declarationText(envSource, "buildMobileApiUrl", "env.ts"),
+    declarationText(envSource, "buildAppSameOriginApiUrl", "env.ts"),
     "function buildApiUrl(path) { return buildMobileApiUrl(path); }",
     "let tokenReads = 0;",
     "const requests = [];",
@@ -73,7 +75,8 @@ async function importMobileApiBoundaryHarness(envSource, apiSource) {
     }`,
     declarationText(apiSource, "fetchApiJsonAtUrl", "api.ts"),
     declarationText(apiSource, "fetchApiJsonWithAuth", "api.ts"),
-    "export { buildMobileApiUrl, fetchApiJsonWithAuth };",
+    declarationText(apiSource, "fetchAppApiJson", "api.ts"),
+    "export { buildMobileApiUrl, buildAppSameOriginApiUrl, fetchApiJsonWithAuth, fetchAppApiJson };",
     "export function configureHarness(apiBaseUrl, stage) { env.apiBaseUrl = apiBaseUrl; runtimeStage = stage; }",
     "export function readHarnessState() { return { tokenReads, requests: [...requests] }; }",
   ].join("\n");
@@ -114,7 +117,8 @@ test("mobile API client fails closed to an allowlisted origin before attaching a
 
   assert.match(apiSource, /return buildMobileApiUrl\(path\)/);
   assert.doesNotMatch(apiSource, /\^https\?:\\\/\\\//);
-  assert.match(apiSource, /credentials: "omit"/);
+  assert.match(apiSource, /credentials: RequestCredentials = "omit"/);
+  assert.match(apiSource, /credentials,\s*redirect: "error"/);
   assert.match(apiSource, /redirect: "error"/);
 
   const authFunction = apiSource.slice(apiSource.indexOf("export async function fetchApiJsonWithAuth"));
@@ -260,6 +264,53 @@ test("production API defaults to the canonical www origin when no build override
     harness.buildMobileApiUrl("/api/bootstrap?scope=public"),
     "https://www.petmanager.co.kr/api/bootstrap?scope=public",
   );
+});
+
+test("admin app API stays on the loaded app origin and uses only same-origin cookies", async () => {
+  const [envSource, apiSource] = await Promise.all([
+    source("src/lib/env.ts"),
+    source("src/lib/api.ts"),
+  ]);
+  const harness = await importMobileApiBoundaryHarness(envSource, apiSource);
+
+  assert.equal(
+    harness.buildAppSameOriginApiUrl("/api/admin/alimtalk/relay?mode=read"),
+    "http://127.0.0.1:3100/api/admin/alimtalk/relay?mode=read",
+  );
+  assert.deepEqual(await harness.fetchAppApiJson("/api/admin/alimtalk/relay"), { ok: true });
+  assert.deepEqual(harness.readHarnessState().requests.at(-1), {
+    url: "http://127.0.0.1:3100/api/admin/alimtalk/relay",
+    method: "GET",
+    body: null,
+    authorization: null,
+    contentType: null,
+    qaHeader: null,
+    credentials: "same-origin",
+    redirect: "error",
+  });
+
+  for (const input of [
+    "https://attacker.invalid/api/admin/alimtalk/relay",
+    "//attacker.invalid/api/admin/alimtalk/relay",
+    "/api/../admin/alimtalk/relay",
+  ]) {
+    const before = harness.readHarnessState();
+    assert.throws(() => harness.buildAppSameOriginApiUrl(input));
+    assert.deepEqual(harness.readHarnessState(), before);
+  }
+});
+
+test("mobile admin Alimtalk relay screen targets same-origin app routes", async () => {
+  const [apiSource, screenSource] = await Promise.all([
+    source("src/lib/api.ts"),
+    source("src/components/admin/admin-alimtalk-screen.tsx"),
+  ]);
+
+  assert.match(apiSource, /export async function fetchAppApiJson/);
+  assert.match(screenSource, /import \{ fetchAppApiJson \} from "@\/lib\/api"/);
+  assert.equal((screenSource.match(/fetchAppApiJson</g) ?? []).length, 3);
+  assert.doesNotMatch(screenSource, /fetchApiJson</);
+  assert.match(screenSource, /\/api\/admin\/alimtalk\/relay\/templates/);
 });
 
 test("public bootstrap projects only public shop, service, and price-guide data", async () => {

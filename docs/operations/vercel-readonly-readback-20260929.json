@@ -5,9 +5,9 @@
     "web": {
       "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
       "projectName": "petmanager",
-      "deploymentId": "dpl_A2jozKKeeANtx2CPew8v8ACfXwNm",
+      "deploymentId": "dpl_26KcrUAZEf1g1nSxB5yKBMoWV5mm",
       "deploymentState": "READY",
-      "commitSha": "340435202c83f3e85a5c517eb310f1d92802e4b5",
+      "commitSha": "89695c8df4f6168088dba283cd657d7928611c42",
       "aliases": ["www.petmanager.co.kr", "petmanager.co.kr"],
       "runtimeLogCountsLast24h": { "200": 10 },
       "runtimeErrorClustersLast24h": [],
@@ -16,14 +16,14 @@
     "mobile": {
       "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
       "projectName": "petmanager-app",
-      "deploymentId": "dpl_2L1mKjgm87zaeCjiSBZsWH41wesv",
+      "deploymentId": "dpl_7y6JfDnBVAFxGZPqc2T5E9aF9Rd1",
       "deploymentState": "READY",
-      "commitSha": "340435202c83f3e85a5c517eb310f1d92802e4b5",
+      "commitSha": "89695c8df4f6168088dba283cd657d7928611c42",
       "aliases": ["app.petmanager.co.kr"],
       "runtimeLogCountsLast24h": { "200": 1 },
       "runtimeErrorClustersLast24h": [],
       "endpointSmoke": { "healthz": 200, "readyz": 200 }
     }
   },
-  "interpretation": "Both production aliases point to READY deployments from the same release. Web and mobile health/readiness endpoint smoke returned HTTP 200. The mobile custom domain alias was explicitly assigned to the current production deployment after verification."
+  "interpretation": "Both production aliases point to READY deployments from the same release. Web and mobile health/readiness endpoint smoke returned HTTP 200 after the Git-triggered production deployment."
 }

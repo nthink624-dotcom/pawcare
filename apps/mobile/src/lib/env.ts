@@ -163,6 +163,35 @@ export function buildMobileApiUrl(path: string) {
   return url.toString();
 }
 
+export function buildAppSameOriginApiUrl(path: string) {
+  if (typeof window === "undefined") {
+    throw new Error("앱 화면에서만 같은 출처 API를 호출할 수 있습니다.");
+  }
+
+  const origin = window.location.origin;
+  const isLoopback = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (window.location.protocol !== "https:" && !isLoopback) {
+    throw new Error("앱 API는 HTTPS 또는 로컬 개발 주소에서만 호출할 수 있습니다.");
+  }
+
+  const pathnameEnd = path.search(/[?#]/);
+  const rawPathname = pathnameEnd === -1 ? path : path.slice(0, pathnameEnd);
+  assertSafeMobileApiPathname(rawPathname, origin);
+
+  let url: URL;
+  try {
+    url = new URL(path, `${origin}/`);
+  } catch {
+    throw new Error("API 요청 경로를 확인해 주세요.");
+  }
+  if (url.origin !== origin) {
+    throw new Error("같은 출처의 API 경로만 요청할 수 있습니다.");
+  }
+  assertSafeMobileApiPathname(url.pathname, origin);
+
+  return url.toString();
+}
+
 export function hasSupabaseBrowserEnv() {
   return Boolean(env.supabaseUrl && env.supabasePublishableKey);
 }

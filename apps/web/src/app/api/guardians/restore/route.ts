@@ -1,8 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { restoreGuardians } from "@/server/owner-mutations";
+import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+
+const RESTORE_GUARDIANS_CORS = { methods: "POST, OPTIONS" };
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,13 +14,17 @@ export async function POST(request: NextRequest) {
     assertOwnerOrManager(owner);
     await assertOwnerInitialSetupComplete(owner.shopId);
     const result = await restoreGuardians({ ...body, shopId: owner.shopId });
-    return NextResponse.json(result);
+    return ownerMobileCorsJson(request, result, undefined, RESTORE_GUARDIANS_CORS);
   } catch (error) {
     if (error instanceof OwnerApiError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return ownerMobileCorsJson(request, { message: error.message }, { status: error.status }, RESTORE_GUARDIANS_CORS);
     }
 
     const message = error instanceof Error ? error.message : "고객 복구에 실패했습니다.";
-    return NextResponse.json({ message }, { status: 400 });
+    return ownerMobileCorsJson(request, { message }, { status: 400 }, RESTORE_GUARDIANS_CORS);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return ownerMobileCorsPreflight(request, RESTORE_GUARDIANS_CORS);
 }

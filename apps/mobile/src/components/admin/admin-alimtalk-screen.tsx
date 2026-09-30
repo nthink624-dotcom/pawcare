@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import AdminAlimtalkActivitySections from "@/components/admin/admin-alimtalk-activity-sections";
 import AdminAlimtalkRuntimePanel from "@/components/admin/admin-alimtalk-runtime-panel";
-import { fetchApiJson } from "@/lib/api";
+import { fetchAppApiJson } from "@/lib/api";
 import type {
   AdminNotificationActivity,
   AppAlimtalkConfig,
@@ -141,7 +141,7 @@ export default function AdminAlimtalkScreen({
   async function loadRelayConfig() {
     setLoading(true);
     try {
-      const response = await fetchApiJson<RelayAdminConfigResponse>("/api/admin/alimtalk/relay", {
+      const response = await fetchAppApiJson<RelayAdminConfigResponse>("/api/admin/alimtalk/relay", {
         cache: "no-store",
       });
       setRelayConfig(response.config);
@@ -157,7 +157,7 @@ export default function AdminAlimtalkScreen({
   async function loadRelayTemplates() {
     setLoadingTemplates(true);
     try {
-      const response = await fetchApiJson<RelayTemplateCatalogResponse>("/api/admin/alimtalk/relay/templates", {
+      const response = await fetchAppApiJson<RelayTemplateCatalogResponse>("/api/admin/alimtalk/relay/templates", {
         cache: "no-store",
       });
       setRelayTemplateItems(response.items);
@@ -185,7 +185,7 @@ export default function AdminAlimtalkScreen({
 
     setSaving(true);
     try {
-      const response = await fetchApiJson<RelayAdminConfigResponse>("/api/admin/alimtalk/relay", {
+      const response = await fetchAppApiJson<RelayAdminConfigResponse>("/api/admin/alimtalk/relay", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

@@ -1,10 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { dispatchNotification } from "@/server/notification-dispatch";
 import type { ChannelType, NotificationType } from "@/types/domain";
+import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+
+const NOTIFICATION_WRITE_CORS = { methods: "POST, OPTIONS" };
+
+function notificationJson(request: NextRequest, body: unknown, init?: ResponseInit) {
+  return ownerMobileCorsJson(request, body, init, NOTIFICATION_WRITE_CORS);
+}
 
 function normalizePhone(value: string) {
   return value.replace(/[^0-9]/g, "");
@@ -21,7 +28,7 @@ export async function POST(request: NextRequest) {
     const requestedShopId = body?.shopId as string | undefined;
 
     if (!requestedShopId) {
-      return NextResponse.json({ message: "매장 정보가 필요합니다." }, { status: 400 });
+      return notificationJson(request, { message: "매장 정보가 필요합니다." }, { status: 400 });
     }
 
     if (hasSupabaseServerEnv()) {
@@ -36,11 +43,12 @@ export async function POST(request: NextRequest) {
     const hasLinkedRecipient = Boolean(body?.appointmentId || body?.guardianId || body?.petId);
 
     if (!message && !hasLinkedRecipient) {
-      return NextResponse.json({ message: "알림 내용을 입력해 주세요." }, { status: 400 });
+      return notificationJson(request, { message: "알림 내용을 입력해 주세요." }, { status: 400 });
     }
 
     if (channel !== "in_app" && !hasLinkedRecipient) {
-      return NextResponse.json(
+      return notificationJson(
+        request,
         { message: "알림톡은 예약, 고객, 반려동물 정보와 연결된 수신자에게만 보낼 수 있습니다. 임의 번호 발송은 차단했어요." },
         { status: 400 },
       );
@@ -70,7 +78,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (result.notification.status === "failed") {
-      return NextResponse.json(
+      return notificationJson(
+        request,
         {
           message: result.notification.fail_reason || "알림톡 발송에 실패했습니다.",
           notification: result.notification,
@@ -80,7 +89,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (result.notification.status === "skipped") {
-      return NextResponse.json(
+      return notificationJson(
+        request,
         {
           message: result.notification.fail_reason || "알림톡 발송이 조건에 의해 건너뛰어졌습니다.",
           notification: result.notification,
@@ -89,13 +99,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(result.notification);
+    return notificationJson(request, result.notification);
   } catch (error) {
     if (error instanceof OwnerApiError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return notificationJson(request, { message: error.message }, { status: error.status });
     }
 
     const message = error instanceof Error ? error.message : "알림 발송을 처리하지 못했습니다.";
-    return NextResponse.json({ message }, { status: 500 });
+    return notificationJson(request, { message }, { status: 500 });
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return ownerMobileCorsPreflight(request, NOTIFICATION_WRITE_CORS);
 }

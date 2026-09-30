@@ -12,7 +12,8 @@
     "sync:ios": "cap sync ios",
     "open:android": "cap open android",
     "open:ios": "cap open ios",
-    "doctor": "cap doctor"
+    "doctor": "cap doctor",
+    "test:config": "node --experimental-strip-types --test tests/owner-web-config.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",

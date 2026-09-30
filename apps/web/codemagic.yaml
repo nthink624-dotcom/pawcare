@@ -16,7 +16,7 @@ workflows:
         bundle_identifier: kr.co.petmanager.owner
       vars:
         OWNER_MOBILE_DIR: "apps/owner-mobile"
-        OWNER_WEB_URL: "https://www.petmanager.co.kr"
+        OWNER_MOBILE_WEB_URL: "https://app.petmanager.co.kr/owner/mobile"
         BUNDLE_ID: "kr.co.petmanager.owner"
         XCODE_PROJECT: "apps/owner-mobile/ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
@@ -43,7 +43,7 @@ workflows:
           test -f "$APP_DIR/package-lock.json"
           test -f "$APP_DIR/capacitor.config.ts"
           test -d "$PROJECT_PATH"
-          test "$OWNER_WEB_URL" = "https://www.petmanager.co.kr"
+          test "$OWNER_MOBILE_WEB_URL" = "https://app.petmanager.co.kr/owner/mobile"
           grep -Fq 'appId: "kr.co.petmanager.owner"' "$APP_DIR/capacitor.config.ts"
           grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = kr.co.petmanager.owner;' "$PROJECT_PATH/project.pbxproj"
           grep -Fq 'name = App;' "$PROJECT_PATH/project.pbxproj"
@@ -71,7 +71,7 @@ workflows:
           const generatedConfig = JSON.parse(
             fs.readFileSync("ios/App/App/capacitor.config.json", "utf8"),
           );
-          const expectedUrl = new URL(process.env.OWNER_WEB_URL).href;
+          const expectedUrl = new URL(process.env.OWNER_MOBILE_WEB_URL).href;
           const actualUrl = generatedConfig.server?.url
             ? new URL(generatedConfig.server.url).href
             : null;
@@ -80,7 +80,7 @@ workflows:
             throw new Error("Generated Capacitor appId does not match BUNDLE_ID.");
           }
           if (actualUrl !== expectedUrl) {
-            throw new Error("Generated Capacitor server URL does not match OWNER_WEB_URL.");
+            throw new Error("Generated Capacitor server URL does not match OWNER_MOBILE_WEB_URL.");
           }
           NODE
 

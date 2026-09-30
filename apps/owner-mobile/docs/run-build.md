@@ -10,10 +10,10 @@ This project wraps the existing owner admin web page in a separate Capacitor she
 2. Add the owner admin URL:
 
 ```env
-OWNER_WEB_URL=https://your-owner-admin-url.example.com
+OWNER_MOBILE_WEB_URL=https://app.petmanager.co.kr/owner/mobile
 ```
 
-If `OWNER_WEB_URL` is blank, the app shows the local shell-ready placeholder screen.
+The production native shell URL is always `https://app.petmanager.co.kr/owner/mobile`. If `OWNER_MOBILE_WEB_URL` is blank, the app shows the local shell-ready placeholder screen.
 
 ## 3. Install dependencies
 

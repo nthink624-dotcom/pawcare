@@ -50,10 +50,15 @@
   --danger: #9a5e4e;
   --peach-soft: #f6eee3;
   --shadow-soft: 0 10px 30px rgba(35, 35, 31, 0.035);
-  --pm-safe-top: env(safe-area-inset-top, 0px);
-  --pm-safe-right: env(safe-area-inset-right, 0px);
-  --pm-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --pm-safe-left: env(safe-area-inset-left, 0px);
+  /* Native iOS can provide a measured fallback when WKWebView does not expose env(). */
+  --pm-native-safe-top: 0px;
+  --pm-native-safe-right: 0px;
+  --pm-native-safe-bottom: 0px;
+  --pm-native-safe-left: 0px;
+  --pm-safe-top: max(env(safe-area-inset-top, 0px), var(--pm-native-safe-top));
+  --pm-safe-right: max(env(safe-area-inset-right, 0px), var(--pm-native-safe-right));
+  --pm-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--pm-native-safe-bottom));
+  --pm-safe-left: max(env(safe-area-inset-left, 0px), var(--pm-native-safe-left));
   --pm-scrollbar-thumb: rgba(145, 154, 168, 0.46);
   --pm-scrollbar-thumb-hover: rgba(96, 112, 128, 0.68);
   --pm-scrollbar-track: transparent;

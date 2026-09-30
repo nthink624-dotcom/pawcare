@@ -53,6 +53,11 @@
   --pm-safe-left: max(env(safe-area-inset-left), var(--pm-native-safe-left));
 }
 
+:root[data-pm-native-platform="android"] {
+  --pm-native-safe-top: 0px;
+  --pm-safe-top: 0px;
+}
+
 html {
   background: var(--background);
   overflow-y: scroll;

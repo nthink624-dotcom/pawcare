@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
+import NativeSafeAreaPlatform from "@/components/platform/native-safe-area-platform";
 import {
   PETMANAGER_BRAND_MARK_PATH,
   PETMANAGER_PUBLIC_SITE_URL,
@@ -43,7 +44,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
-      <body className="owner-font">{children}</body>
+      <body className="owner-font">
+        <NativeSafeAreaPlatform />
+        {children}
+      </body>
     </html>
   );
 }

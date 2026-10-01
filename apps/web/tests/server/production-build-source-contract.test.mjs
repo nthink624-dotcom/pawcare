@@ -29,5 +29,26 @@ test("production build source gate requires the declared Git commit and a clean 
   assert.ok(validateProductionBuildSource({ ...cleanSource, gitStatus: "?? dev-only-file.ts\n" })
     .some((failure) => failure.includes("uncommitted or untracked")));
   assert.ok(validateProductionBuildSource({ ...cleanSource, repositoryRoot: "" })
-    .some((failure) => failure.includes("verifiable PetManager Git checkout")));
+    .some((failure) => failure.includes("configured PetManager GitHub master release")));
+});
+
+test("Vercel Git builds without a local .git directory must match the connected GitHub master", () => {
+  const remoteGitSource = {
+    ...cleanSource,
+    vercelGitProvider: "github",
+    vercelGitRepoOwner: "nthink624-dotcom",
+    vercelGitRepoSlug: "pawcare",
+    vercelGitCommitRef: "master",
+    repositoryRoot: "",
+    gitHead: "",
+    gitStatus: null,
+  };
+
+  assert.deepEqual(validateProductionBuildSource(remoteGitSource), []);
+  assert.ok(validateProductionBuildSource({ ...remoteGitSource, vercelGitRepoSlug: "another-repo" })
+    .some((failure) => failure.includes("configured PetManager GitHub master release")));
+  assert.ok(validateProductionBuildSource({ ...remoteGitSource, vercelGitCommitRef: "feature/test" })
+    .some((failure) => failure.includes("configured PetManager GitHub master release")));
+  assert.ok(validateProductionBuildSource({ ...remoteGitSource, vercelGitCommitSha: "" })
+    .some((failure) => failure.includes("VERCEL_GIT_COMMIT_SHA")));
 });

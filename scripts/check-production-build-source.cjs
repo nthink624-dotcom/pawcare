@@ -7,6 +7,10 @@ function validateProductionBuildSource({
   vercel,
   vercelEnv,
   vercelGitCommitSha,
+  vercelGitProvider,
+  vercelGitRepoOwner,
+  vercelGitRepoSlug,
+  vercelGitCommitRef,
   repositoryRoot,
   gitHead,
   gitStatus,
@@ -17,14 +21,23 @@ function validateProductionBuildSource({
   if (!/^[0-9a-f]{40}$/i.test(vercelGitCommitSha ?? "")) {
     failures.push("Vercel production build has no valid VERCEL_GIT_COMMIT_SHA; use a Git-backed release.");
   }
-  if (!repositoryRoot || path.resolve(repositoryRoot) !== root) {
-    failures.push("Vercel production build source has no verifiable PetManager Git checkout.");
-  }
-  if (!/^[0-9a-f]{40}$/i.test(gitHead ?? "") || gitHead !== vercelGitCommitSha) {
-    failures.push("Vercel production build source does not match its declared Git commit.");
-  }
-  if (gitStatus !== "") {
-    failures.push("Vercel production build source has uncommitted or untracked files.");
+  if (repositoryRoot) {
+    if (path.resolve(repositoryRoot) !== root) {
+      failures.push("Vercel production build source has no verifiable PetManager Git checkout.");
+    }
+    if (!/^[0-9a-f]{40}$/i.test(gitHead ?? "") || gitHead !== vercelGitCommitSha) {
+      failures.push("Vercel production build source does not match its declared Git commit.");
+    }
+    if (gitStatus !== "") {
+      failures.push("Vercel production build source has uncommitted or untracked files.");
+    }
+  } else if (
+    vercelGitProvider !== "github"
+    || vercelGitRepoOwner !== "nthink624-dotcom"
+    || vercelGitRepoSlug !== "pawcare"
+    || vercelGitCommitRef !== "master"
+  ) {
+    failures.push("Vercel production build source is not the configured PetManager GitHub master release.");
   }
   return failures;
 }
@@ -51,6 +64,10 @@ if (require.main === module) {
       vercel,
       vercelEnv,
       vercelGitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA,
+      vercelGitProvider: process.env.VERCEL_GIT_PROVIDER,
+      vercelGitRepoOwner: process.env.VERCEL_GIT_REPO_OWNER,
+      vercelGitRepoSlug: process.env.VERCEL_GIT_REPO_SLUG,
+      vercelGitCommitRef: process.env.VERCEL_GIT_COMMIT_REF,
       repositoryRoot: topLevel.status === 0 ? topLevel.stdout.trim() : "",
       gitHead: head.status === 0 ? head.stdout.trim() : "",
       gitStatus: status.status === 0 ? status.stdout : null,
@@ -61,7 +78,7 @@ if (require.main === module) {
       for (const failure of failures) console.error(`- ${failure}`);
       process.exit(1);
     }
-    console.log("Production build source check: PASS (clean Git-backed release)");
+    console.log("Production build source check: PASS (verified Git-backed master release)");
   }
 }
 

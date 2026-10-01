@@ -87,6 +87,8 @@
     "media:schema-rest-check": "npm run media:schema-rest-check --workspace=@petmanager/web",
     "android:sync": "npm run cap:sync:android --workspace=@petmanager/mobile",
     "android:open": "npm run cap:open:android --workspace=@petmanager/mobile",
+    "ios:sync": "npm run cap:sync:ios --workspace=@petmanager/mobile",
+    "ios:open": "npm run cap:open:ios --workspace=@petmanager/mobile",
     "android:build": "npm exec --workspace=@petmanager/mobile -- cap build android",
     "lint": "npm run lint --workspace=@petmanager/web",
     "lint:mobile": "npm run lint --workspace=@petmanager/mobile",

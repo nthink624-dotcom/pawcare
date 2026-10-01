@@ -13,12 +13,12 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: kr.co.petmanager.owner
+        bundle_identifier: kr.petmanager.owner
       vars:
-        OWNER_MOBILE_DIR: "apps/owner-mobile"
-        OWNER_MOBILE_WEB_URL: "https://app.petmanager.co.kr/owner/mobile"
-        BUNDLE_ID: "kr.co.petmanager.owner"
-        XCODE_PROJECT: "apps/owner-mobile/ios/App/App.xcodeproj"
+        MOBILE_APP_DIR: "apps/mobile"
+        CAPACITOR_SERVER_URL: "https://app.petmanager.co.kr/owner/mobile"
+        BUNDLE_ID: "kr.petmanager.owner"
+        XCODE_PROJECT: "apps/mobile/ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
         APP_STORE_APPLE_ID: "6811699450"
       node: 24
@@ -31,21 +31,23 @@ workflows:
         - $HOME/Library/Caches/org.swift.swiftpm
 
     scripts:
-      - name: Validate canonical owner-mobile inputs
+      - name: Validate canonical mobile inputs
         script: |
           #!/usr/bin/env bash
           set -euo pipefail
 
-          APP_DIR="$CM_BUILD_DIR/$OWNER_MOBILE_DIR"
+          APP_DIR="$CM_BUILD_DIR/$MOBILE_APP_DIR"
           PROJECT_PATH="$CM_BUILD_DIR/$XCODE_PROJECT"
 
           test -f "$APP_DIR/package.json"
-          test -f "$APP_DIR/package-lock.json"
+          test -f "$CM_BUILD_DIR/package-lock.json"
           test -f "$APP_DIR/capacitor.config.ts"
           test -d "$PROJECT_PATH"
-          test "$OWNER_MOBILE_WEB_URL" = "https://app.petmanager.co.kr/owner/mobile"
-          grep -Fq 'appId: "kr.co.petmanager.owner"' "$APP_DIR/capacitor.config.ts"
-          grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = kr.co.petmanager.owner;' "$PROJECT_PATH/project.pbxproj"
+          test "$CAPACITOR_SERVER_URL" = "https://app.petmanager.co.kr/owner/mobile"
+          grep -Fq 'appId: "kr.petmanager.owner"' "$APP_DIR/capacitor.config.ts"
+          grep -Fq '"@capacitor/ios": "^8.4.2"' "$APP_DIR/package.json"
+          grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = kr.petmanager.owner;' "$PROJECT_PATH/project.pbxproj"
+          grep -Fq 'pm-ios-safe-area-style' "$CM_BUILD_DIR/$MOBILE_APP_DIR/ios/App/App/OwnerBridgeViewController.swift"
           grep -Fq 'name = App;' "$PROJECT_PATH/project.pbxproj"
 
       - name: Install locked Node dependencies and type-check
@@ -53,25 +55,25 @@ workflows:
           #!/usr/bin/env bash
           set -euo pipefail
 
-          cd "$CM_BUILD_DIR/$OWNER_MOBILE_DIR"
+          cd "$CM_BUILD_DIR"
           npm ci --no-audit --no-fund
-          npm exec tsc -- --noEmit
+          npm exec --workspace=@petmanager/mobile -- tsc --noEmit
 
       - name: Sync Capacitor iOS with the production owner URL
         script: |
           #!/usr/bin/env bash
           set -euo pipefail
 
-          cd "$CM_BUILD_DIR/$OWNER_MOBILE_DIR"
-          npm run sync:ios
+          cd "$CM_BUILD_DIR"
+          npm run ios:sync
 
           node <<'NODE'
           const fs = require("node:fs");
 
           const generatedConfig = JSON.parse(
-            fs.readFileSync("ios/App/App/capacitor.config.json", "utf8"),
+            fs.readFileSync(`${process.env.MOBILE_APP_DIR}/ios/App/App/capacitor.config.json`, "utf8"),
           );
-          const expectedUrl = new URL(process.env.OWNER_MOBILE_WEB_URL).href;
+          const expectedUrl = new URL(process.env.CAPACITOR_SERVER_URL).href;
           const actualUrl = generatedConfig.server?.url
             ? new URL(generatedConfig.server.url).href
             : null;
@@ -80,7 +82,7 @@ workflows:
             throw new Error("Generated Capacitor appId does not match BUNDLE_ID.");
           }
           if (actualUrl !== expectedUrl) {
-            throw new Error("Generated Capacitor server URL does not match OWNER_MOBILE_WEB_URL.");
+            throw new Error("Generated Capacitor server URL does not match CAPACITOR_SERVER_URL.");
           }
           NODE
 
@@ -108,7 +110,7 @@ workflows:
           #!/usr/bin/env bash
           set -euo pipefail
 
-          cd "$CM_BUILD_DIR/$OWNER_MOBILE_DIR/ios/App"
+          cd "$CM_BUILD_DIR/$MOBILE_APP_DIR/ios/App"
           xcode-project use-profiles
 
       - name: Increment the App Store Connect build number
@@ -116,7 +118,7 @@ workflows:
           #!/usr/bin/env bash
           set -euo pipefail
 
-          cd "$CM_BUILD_DIR/$OWNER_MOBILE_DIR/ios/App"
+          cd "$CM_BUILD_DIR/$MOBILE_APP_DIR/ios/App"
           LATEST_BUILD_NUMBER="$(
             app-store-connect get-latest-build-number \
               "$APP_STORE_APPLE_ID" \
@@ -149,7 +151,7 @@ workflows:
           #!/usr/bin/env bash
           set -euo pipefail
 
-          cd "$CM_BUILD_DIR/$OWNER_MOBILE_DIR/ios/App"
+          cd "$CM_BUILD_DIR/$MOBILE_APP_DIR/ios/App"
           xcode-project build-ipa \
             --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
@@ -157,7 +159,7 @@ workflows:
           test -n "$(find build/ios/ipa -maxdepth 1 -type f -name '*.ipa' -print -quit)"
 
     artifacts:
-      - apps/owner-mobile/ios/App/build/ios/ipa/*.ipa
+      - apps/mobile/ios/App/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
 

@@ -1,8 +1,8 @@
-# Owner Mobile Shell Run & Build
+# Legacy Owner Mobile Shell Run & Build
 
 ## 1. Purpose
 
-This project wraps the existing owner admin web page in a separate Capacitor shell. It does not modify the main web app.
+This directory contains a legacy Capacitor shell. The canonical app, including iOS, is `apps/mobile`.
 
 ## 2. Configure the target URL
 
@@ -22,24 +22,22 @@ cd apps/owner-mobile
 npm install
 ```
 
-## 4. Generate native projects
+## 4. Generate the legacy Android project
 
 ```bash
 npm run sync
 ```
 
-If Android and iOS platform folders have not been created yet, run:
+If the Android platform folder has not been created yet, run:
 
 ```bash
 npx cap add android
-npx cap add ios
 ```
 
 ## 5. Open native projects
 
 ```bash
 npm run open:android
-npm run open:ios
 ```
 
 ## 6. Current shell scope
@@ -49,11 +47,13 @@ npm run open:ios
 - includes a placeholder asset staging folder for icon and splash work
 - reserves a native-bridge structure for back button, external link, and telephone link handling
 
+For iOS development, use the canonical project under `apps/mobile/ios` and run `npm run ios:sync` from the repository root.
+
 ## 7. Next implementation step
 
-After the final owner URL is confirmed, the next pass should:
+For this legacy shell, after the final owner URL is confirmed, the next pass should:
 
 - add Android WebView back handling
-- add Android/iOS external link interception
+- add Android external link interception
 - add `tel:` link handoff to the device dialer
-- validate login session persistence inside the app container
+- validate login session persistence inside the Android app container

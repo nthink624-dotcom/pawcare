@@ -9,12 +9,12 @@ const capacitorBuildMode = process.env.CAPACITOR_BUILD_MODE?.trim().toLowerCase(
 const defaultServerUrl = "https://app.petmanager.co.kr/owner/mobile";
 
 if (capacitorBuildMode === "development" && !configuredServerUrl) {
-  throw new Error("CAPACITOR_SERVER_URL is required for Android development sync.");
+  throw new Error("CAPACITOR_SERVER_URL is required for mobile development sync.");
 }
 
 if (capacitorBuildMode === "release") {
   if (!configuredServerUrl) {
-    throw new Error("CAPACITOR_SERVER_URL is required for an Android release sync.");
+    throw new Error("CAPACITOR_SERVER_URL is required for a mobile release sync.");
   }
 
   const releaseServerUrl = new URL(configuredServerUrl);
@@ -26,7 +26,7 @@ if (capacitorBuildMode === "release") {
     releaseServerUrl.port === "3000" ||
     releaseServerUrl.port === "3100"
   ) {
-    throw new Error("Android release server URL must use a production HTTPS endpoint.");
+    throw new Error("Mobile release server URL must use a production HTTPS endpoint.");
   }
 }
 

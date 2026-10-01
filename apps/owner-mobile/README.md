@@ -1,7 +1,10 @@
-# 넘친데이 펫매니저 모바일 셸
+# PetManager Owner Mobile Legacy Shell
 
-This app is a separate Capacitor shell that loads the canonical owner mobile route inside a native iOS/Android container.
+The canonical Capacitor app is `apps/mobile` and owns the active Android and iOS projects:
 
-The native shell start URL is `https://app.petmanager.co.kr/owner/mobile`. Set `OWNER_MOBILE_WEB_URL` in a local `.env` file to this direct route when you are ready to test. Do not use the public-site root `https://www.petmanager.co.kr`; it redirects to the app host and can leave the iOS WebView blank.
+- Android: `apps/mobile/android`
+- iOS: `apps/mobile/ios`
 
-See [docs/run-build.md](./docs/run-build.md) for setup, sync, and build steps.
+`apps/owner-mobile` is retained only as a legacy shell. Do not add or regenerate an iOS project here. Use `npm run ios:sync` and `npm run ios:open` from the repository root for iOS work.
+
+See [docs/run-build.md](./docs/run-build.md) for legacy-shell notes.

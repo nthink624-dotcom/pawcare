@@ -35,7 +35,7 @@ npm run build:mobile
 - 설치/빌드 캐시는 OneDrive 밖의 이 저장소에서만 만든다.
 - 웹과 모바일의 화면/네이티브 기능은 구분한다. 코드 저장소를 합치는 것이 두 실행물을 하나로 만드는 것은 아니다.
 - 공통 화면 부품은 apps/shared/components로 뺀다. 현재 일반 버튼, 입력창, 입력 항목, 뒤로가기 버튼 4종을 공유한다. 웹·모바일별 기존 스타일은 보존한다.
-- `apps/owner-mobile`은 기존 iOS 셸과 연결된 별도 경로다. Android 모바일 원본과 동일하다고 가정해서 덮어쓰거나 삭제하지 않았다.
+- `apps/mobile`은 Android와 iOS 네이티브 셸을 함께 소유한다 (`apps/mobile/android`, `apps/mobile/ios`). `apps/owner-mobile`은 기존 Android 셸 보존용이며 iOS 정본으로 사용하지 않는다.
 - 원래 환경/서명 파일은 보호된 원본에 보존한다. 실행 환경은 앱별 `.env.local`을 사용하며, 공유 환경 정본 `D:\petmanager-shared\env`는 아직 이동하지 않았다.
 
 ## 이력과 복구

@@ -4,8 +4,7 @@ node_modules
 .vercel
 .git
 
-# Native Android project and generated artifacts are not part of the Next.js deployment.
-android
+# Generated native build artifacts are not part of the Next.js deployment.
 capacitor-web
 
 # Device-test browser profile, captures, and local runtime logs.

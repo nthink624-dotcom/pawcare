@@ -4,7 +4,8 @@ node_modules
 .vercel
 .git
 
-# Generated native build artifacts are not part of the Next.js deployment.
+# The Vercel project deploys the mobile web app; Android is built separately.
+android
 capacitor-web
 
 # Device-test browser profile, captures, and local runtime logs.

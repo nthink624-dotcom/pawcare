@@ -113,14 +113,34 @@ test("mobile server errors are persisted to the shared admin error inbox without
 test("disabled CatchCall keeps queued phone events local instead of syncing them", async () => {
   const source = await read("src/lib/owner-call-screening.ts");
   const sync = source.slice(source.indexOf("export async function syncOwnerCallScreeningEvents"));
-  const transport = await read("android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningTransport.java");
-  const plugin = await read("android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningPlugin.java");
-  const setEnabled = plugin.slice(plugin.indexOf("public void setEnabled("), plugin.indexOf("@PermissionCallback", plugin.indexOf("public void setEnabled(")));
 
   assert.match(sync, /const status = await OwnerCallScreening\.getStatus\(\)/);
   assert.match(sync, /if \(!status\.enabled \|\| !status\.active\) return \{ sent: 0 \}/);
   assert.ok(sync.indexOf("if (!status.enabled || !status.active)") < sync.indexOf("getPendingEvents()"));
   assert.ok(sync.indexOf("if (!status.enabled || !status.active)") < sync.indexOf('fetchApiJsonWithAuth("/api/owner/call-events/android/events"'));
+});
+
+test("Android CatchCall transport respects the opt-in state", async (t) => {
+  const readNative = async (path) => {
+    try {
+      return await read(path);
+    } catch (error) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
+  };
+  const [transport, plugin] = await Promise.all([
+    readNative("android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningTransport.java"),
+    readNative("android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningPlugin.java"),
+  ]);
+
+  if (!transport || !plugin) {
+    t.skip("Android native sources are intentionally excluded from the Vercel web deployment.");
+    return;
+  }
+
+  const setEnabled = plugin.slice(plugin.indexOf("public void setEnabled("), plugin.indexOf("@PermissionCallback", plugin.indexOf("public void setEnabled(")));
+
   assert.match(transport, /if \(!OwnerCallScreeningStore\.isEnabled\(context\)\) return;/);
   assert.match(setEnabled, /clearActiveCall\(getContext\(\)\)/);
   assert.match(setEnabled, /clearPendingReservationAction\(getContext\(\)\)/);

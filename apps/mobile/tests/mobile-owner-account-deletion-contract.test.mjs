@@ -23,7 +23,7 @@ test("deletion requires explicit confirmation, current password, and one idempot
 });
 
 test("embedded privacy copy keeps canonical parity and conservative Data Safety boundaries", () => {
-  assert.match(privacy, /시행일자: 2026년 9월 10일/);
+  assert.match(privacy, /시행일자: 2026년 9월 21일/);
   assert.match(privacy, /https:\/\/www\.petmanager\.co\.kr\/privacy/);
   assert.match(privacy, /Android 앱은 PC·서버에서 확정된 플랜/);
   assert.match(privacy, /FCM 등록 토큰/);

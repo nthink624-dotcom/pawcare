@@ -2,7 +2,8 @@
   "name": "@petmanager/mobile",
   "private": true,
   "scripts": {
-    "prebuild": "npm run test:price-guide-core && npm run test:readiness",
+    "prebuild": "node ../../scripts/check-production-build-source.cjs && npm run test:price-guide-core && npm run test:readiness",
+    "predeploy": "node ../../scripts/check-predeploy-release.cjs",
     "dev": "next dev",
     "dev:frontend": "next dev",
     "dev:backend": "npm --prefix ../../backend run dev",

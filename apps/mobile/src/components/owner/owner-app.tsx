@@ -105,12 +105,18 @@ import {
 import { keepStableStaffProfileUrls } from "@/lib/owner-mobile-staff-refresh-stability";
 import { addOwnerAndroidBackButtonListener } from "@/lib/owner-mobile-back-navigation";
 import {
+  addOwnerIncomingCallChoiceListener,
   addOwnerCallReservationActionListener,
+  answerOwnerIncomingCall,
+  clearOwnerIncomingCallChoice,
+  endOwnerIncomingCall,
+  getOwnerIncomingCallChoice,
   getOwnerCallReservationAction,
   getOwnerCallScreeningStatus,
   isOwnerCallScreeningAvailable,
   syncOwnerCallScreeningPhoneAllowlist,
   type OwnerCallReservationAction,
+  type OwnerIncomingCallChoice,
 } from "@/lib/owner-call-screening";
 import { flattenAppointmentGuardianPetPairs } from "@/lib/owner-appointment-guardian-pet-pairs";
 import {
@@ -571,6 +577,7 @@ function OwnerAppContent({
   );
   const [settingsEntryScreen, setSettingsEntryScreen] = useState<SettingsEntryScreen>(null);
   const [pendingCallReservationAction, setPendingCallReservationAction] = useState<OwnerCallReservationAction | null>(null);
+  const [pendingIncomingCallChoice, setPendingIncomingCallChoice] = useState<OwnerIncomingCallChoice | null>(null);
   const [guideScreen, setGuideScreen] = useState<OwnerGuideScreen>(null);
   const [isShopPickerOpen, setIsShopPickerOpen] = useState(false);
   const [pendingShopProfileEditId, setPendingShopProfileEditId] = useState<string | null>(null);
@@ -840,7 +847,7 @@ function OwnerAppContent({
     let active = true;
     void getOwnerCallScreeningStatus()
       .then((status) => {
-        if (!active || !status.available || (status.enabled && status.callLogGranted) || (!status.enabled && onboardingWasShown)) return;
+        if (!active || !status.available || status.enabled || onboardingWasShown) return;
         if (!status.enabled && !onboardingWasShown) window.localStorage.setItem(onboardingKey, "shown");
         setActiveTab("settings");
         setSettingsEntryScreen("catchcall");
@@ -881,6 +888,56 @@ function OwnerAppContent({
       void removeListener?.();
     };
   }, [isOwnerDemo, isStaffApp]);
+
+  useEffect(() => {
+    if (isOwnerDemo || isStaffApp || typeof window === "undefined" || !isOwnerCallScreeningAvailable()) return;
+    let active = true;
+
+    const openIncomingCallChoice = (choice: OwnerIncomingCallChoice) => {
+      if (!active || !choice.pending) return;
+      setPendingIncomingCallChoice(choice);
+      setActiveTab("settings");
+      setSettingsEntryScreen("catchcall");
+    };
+
+    void getOwnerIncomingCallChoice().then(openIncomingCallChoice).catch(() => undefined);
+    let removeListener: (() => Promise<void>) | null = null;
+    void addOwnerIncomingCallChoiceListener(openIncomingCallChoice).then((remove) => {
+      if (!active) {
+        void remove?.();
+        return;
+      }
+      removeListener = remove;
+    });
+
+    return () => {
+      active = false;
+      void removeListener?.();
+    };
+  }, [isOwnerDemo, isStaffApp]);
+
+  const chooseIncomingCallReservation = () => {
+    if (!pendingIncomingCallChoice?.pending) return;
+    setPendingCallReservationAction(pendingIncomingCallChoice);
+    setPendingIncomingCallChoice(null);
+    void clearOwnerIncomingCallChoice();
+  };
+
+  const answerIncomingCall = async () => {
+    const choice = pendingIncomingCallChoice;
+    if (!choice?.pending) return;
+    setPendingIncomingCallChoice(null);
+    await answerOwnerIncomingCall(choice.providerCallId);
+    await clearOwnerIncomingCallChoice();
+  };
+
+  const endIncomingCall = async () => {
+    const choice = pendingIncomingCallChoice;
+    if (!choice?.pending) return;
+    setPendingIncomingCallChoice(null);
+    await endOwnerIncomingCall(choice.providerCallId);
+    await clearOwnerIncomingCallChoice();
+  };
 
   useEffect(() => {
     if (isOwnerDemo || isStaffApp || !isOwnerCallScreeningAvailable()) return;
@@ -3640,7 +3697,7 @@ function OwnerAppContent({
           </section>
         )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} pendingReservationAction={pendingCallReservationAction} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} pendingReservationAction={pendingCallReservationAction} incomingCallChoice={pendingIncomingCallChoice} onIncomingCallReservation={chooseIncomingCallReservation} onIncomingCallAnswer={() => void answerIncomingCall()} onIncomingCallEnd={() => void endIncomingCall()} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
       </main>
 
       {!isStaffApp && !modal ? (
@@ -5805,6 +5862,10 @@ function SettingsPanel({
   subscriptionSummary,
   onActiveScreenChange,
   pendingReservationAction = null,
+  incomingCallChoice = null,
+  onIncomingCallReservation,
+  onIncomingCallAnswer,
+  onIncomingCallEnd,
   appRole = "owner",
   currentStaffId = null,
   onOpenFeedback,
@@ -5814,6 +5875,10 @@ function SettingsPanel({
   data: BootstrapPayload;
   initialScreen?: SettingsEntryScreen;
   pendingReservationAction?: OwnerCallReservationAction | null;
+  incomingCallChoice?: OwnerIncomingCallChoice | null;
+  onIncomingCallReservation?: () => void;
+  onIncomingCallAnswer?: () => void;
+  onIncomingCallEnd?: () => void;
   onSave: (payload: unknown, options?: { errorFallbackMessage?: string }) => Promise<void> | void;
   onSaveCustomerPageSettings: (payload: unknown) => void;
   onSaveStaff: (payload: unknown) => void;
@@ -5841,6 +5906,10 @@ function SettingsPanel({
       subscriptionSummary={subscriptionSummary}
       onActiveScreenChange={onActiveScreenChange}
       pendingReservationAction={pendingReservationAction}
+      incomingCallChoice={incomingCallChoice}
+      onIncomingCallReservation={onIncomingCallReservation}
+      onIncomingCallAnswer={onIncomingCallAnswer}
+      onIncomingCallEnd={onIncomingCallEnd}
       appRole={appRole}
       currentStaffId={currentStaffId}
       onOpenFeedback={onOpenFeedback}

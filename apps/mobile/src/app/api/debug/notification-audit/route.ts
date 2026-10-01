@@ -112,6 +112,13 @@ async function fetchRelayDiagnostics(relayUrl: string, relaySecret: string | nul
 }
 
 export async function GET(request: Request) {
+  if (process.env.NODE_ENV === "production") {
+    return new Response(null, {
+      status: 404,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
   const relayUrl = serverEnv.alimtalkRelayUrl;
   const relaySecret = serverEnv.alimtalkRelaySecret;
   const { relayHost, relayPathname } = getRelayUrlParts(relayUrl);

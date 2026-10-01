@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { computeAvailableSlots } from "@/lib/availability";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import {
   addDate,
   currentDateInTimeZone,

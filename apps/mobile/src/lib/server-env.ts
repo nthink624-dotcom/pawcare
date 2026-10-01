@@ -1,5 +1,10 @@
 import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
 
+import {
+  isAllowedPetManagerDevelopmentSupabaseProject,
+  isPetManagerProductionSupabaseProject,
+} from "@petmanager/shared/contracts/supabase-environment";
+
 export class ServerEnvError extends Error {
   constructor(
     message: string,
@@ -33,6 +38,8 @@ export const serverEnv = {
     process.env.SUPABASE_ENV_NAME ||
     (process.env.VERCEL_ENV === "production" ? "production" : "development"),
   allowProdSupabaseInDev: process.env.ALLOW_PROD_SUPABASE_IN_DEV === "true",
+  allowedDevSupabaseRefs:
+    process.env.ALLOWED_DEV_SUPABASE_REFS || process.env.NEXT_PUBLIC_ALLOWED_DEV_SUPABASE_REFS || "",
   authFlowSecret: readOptionalSecret(process.env.AUTH_FLOW_SECRET),
   bookingAccessSecret: readOptionalSecret(process.env.BOOKING_ACCESS_SECRET),
   portoneStoreId: readOptionalSecret(process.env.PORTONE_STORE_ID || process.env.NEXT_PUBLIC_PORTONE_STORE_ID),
@@ -89,12 +96,22 @@ export function getSupabaseServerRuntimeStage() {
   return "development" as const;
 }
 
+function isRemoteSupabaseUrl(value: string | undefined) {
+  return /^https:\/\/[a-z0-9]+\.supabase\.co/i.test(value ?? "");
+}
+
+function isAllowedDevSupabaseRef(value: string | undefined) {
+  return isAllowedPetManagerDevelopmentSupabaseProject(serverEnv.supabaseUrl, serverEnv.allowedDevSupabaseRefs);
+}
+
 export function isUnsafeProdSupabaseServerEnv() {
-  return (
-    getSupabaseServerRuntimeStage() !== "production" &&
-    serverEnv.supabaseEnvName === "production" &&
-    !serverEnv.allowProdSupabaseInDev
-  );
+  const runtimeStage = getSupabaseServerRuntimeStage();
+  if (runtimeStage === "production") {
+    return !isPetManagerProductionSupabaseProject(serverEnv.supabaseEnvName, serverEnv.supabaseUrl);
+  }
+  if (serverEnv.allowProdSupabaseInDev) return false;
+  if (serverEnv.supabaseEnvName === "production") return true;
+  return isRemoteSupabaseUrl(serverEnv.supabaseUrl) && !isAllowedDevSupabaseRef(serverEnv.supabaseUrl);
 }
 
 export function hasPortoneServerEnv() {

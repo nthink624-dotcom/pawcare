@@ -1,18 +1,15 @@
 const SAFE_CONTEXT_KEYS = new Set([
   "requestId",
-  "route",
   "status",
   "operation",
   "code",
 ]);
 
-type OperationalContext = Record<string, string | number | boolean | null | undefined>;
+export type OperationalContext = Record<string, string | number | boolean | null | undefined>;
 
-const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
-
-export function getRequestId(request?: Request) {
-  const candidate = request?.headers.get("x-request-id")?.trim();
-  return candidate && REQUEST_ID_PATTERN.test(candidate) ? candidate : crypto.randomUUID();
+export function getRequestId(_request?: Request) {
+  // Never trust a caller-provided correlation ID; it can contain identifying data.
+  return crypto.randomUUID();
 }
 
 export function getReleaseId() {

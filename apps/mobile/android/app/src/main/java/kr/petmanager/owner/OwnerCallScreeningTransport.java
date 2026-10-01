@@ -13,6 +13,7 @@ final class OwnerCallScreeningTransport {
     private OwnerCallScreeningTransport() {}
 
     static void sendOrQueue(Context context, JSONObject event) {
+        if (!OwnerCallScreeningStore.isEnabled(context)) return;
         JSONObject config = OwnerCallScreeningStore.getConfig(context);
         String apiOrigin = config.optString("apiOrigin", "").trim();
         String accessToken = config.optString("accessToken", "").trim();

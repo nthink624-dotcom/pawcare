@@ -1,4 +1,8 @@
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+import {
+  isAllowedPetManagerDevelopmentSupabaseProject,
+  isPetManagerProductionSupabaseProject,
+} from "@petmanager/shared/contracts/supabase-environment";
 
 export const env = {
   appName: process.env.NEXT_PUBLIC_APP_NAME || PETMANAGER_SERVICE_NAME,
@@ -12,6 +16,7 @@ export const env = {
     process.env.NEXT_PUBLIC_SUPABASE_ENV_NAME ||
     ((process.env.NEXT_PUBLIC_SITE_URL || "").includes("petmanager.co.kr") ? "production" : "development"),
   allowProdSupabaseInDev: process.env.NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV === "true",
+  allowedDevSupabaseRefs: process.env.NEXT_PUBLIC_ALLOWED_DEV_SUPABASE_REFS || "",
   portoneStoreId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID,
   portoneIdentityUnifiedChannelKey:
     process.env.NEXT_PUBLIC_PORTONE_IDENTITY_UNIFIED_CHANNEL_KEY ||
@@ -244,6 +249,20 @@ export function getSupabaseRuntimeStage() {
   return "production" as const;
 }
 
+function isRemoteSupabaseUrl(value: string | undefined) {
+  return /^https:\/\/[a-z0-9]+\.supabase\.co/i.test(value ?? "");
+}
+
+function isAllowedDevSupabaseRef(value: string | undefined) {
+  return isAllowedPetManagerDevelopmentSupabaseProject(env.supabaseUrl, env.allowedDevSupabaseRefs);
+}
+
 export function isUnsafeProdSupabaseBrowserEnv() {
-  return getSupabaseRuntimeStage() !== "production" && env.supabaseEnvName === "production" && !env.allowProdSupabaseInDev;
+  const runtimeStage = getSupabaseRuntimeStage();
+  if (runtimeStage === "production") {
+    return !isPetManagerProductionSupabaseProject(env.supabaseEnvName, env.supabaseUrl);
+  }
+  if (env.allowProdSupabaseInDev) return false;
+  if (env.supabaseEnvName === "production") return true;
+  return isRemoteSupabaseUrl(env.supabaseUrl) && !isAllowedDevSupabaseRef(env.supabaseUrl);
 }

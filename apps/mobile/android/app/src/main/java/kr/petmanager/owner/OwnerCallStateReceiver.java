@@ -3,7 +3,6 @@ package kr.petmanager.owner;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.telephony.TelephonyManager;
 
 import org.json.JSONObject;
 
@@ -26,10 +25,8 @@ public class OwnerCallStateReceiver extends BroadcastReceiver {
         if (!OwnerCallScreeningStore.isEnabled(context)) return;
 
         if (STATE_RINGING.equals(state)) {
-            String incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
-            if (incomingNumber != null && !incomingNumber.trim().isEmpty()) {
-                OwnerCallScreeningService.handleIncoming(context, incomingNumber);
-            }
+            // OwnerInCallService captures the caller handle without requiring
+            // broad access to the device call log.
             return;
         }
 

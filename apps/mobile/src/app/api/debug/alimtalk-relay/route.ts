@@ -22,6 +22,13 @@ type DebugResult = {
 };
 
 export async function GET() {
+  if (process.env.NODE_ENV === "production") {
+    return new Response(null, {
+      status: 404,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
   const relayUrl = process.env.ALIMTALK_RELAY_URL;
   const relaySecret = process.env.ALIMTALK_RELAY_SECRET;
 

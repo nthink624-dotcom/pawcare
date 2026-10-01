@@ -86,6 +86,10 @@ final class OwnerCallScreeningStore {
         writeObject(context, CONFIG_KEY, config);
     }
 
+    static synchronized String getActiveProviderCallId(Context context) {
+        return readObject(context, CONFIG_KEY).optString("activeProviderCallId", "").trim();
+    }
+
     static synchronized JSONObject getConfig(Context context) {
         return readObject(context, CONFIG_KEY);
     }
@@ -120,6 +124,39 @@ final class OwnerCallScreeningStore {
         JSONObject config = readObject(context, CONFIG_KEY);
         config.remove("pendingReservationProviderCallId");
         config.remove("pendingReservationCallerNumber");
+        writeObject(context, CONFIG_KEY, config);
+    }
+
+    static synchronized void setPendingIncomingCallChoice(Context context, String providerCallId, String callerNumber) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        try {
+            config.put("pendingIncomingProviderCallId", providerCallId == null ? "" : providerCallId);
+            config.put("pendingIncomingCallerNumber", callerNumber == null ? "" : callerNumber);
+        } catch (Exception ignored) {
+            return;
+        }
+        writeObject(context, CONFIG_KEY, config);
+    }
+
+    static synchronized JSONObject getPendingIncomingCallChoice(Context context) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        JSONObject action = new JSONObject();
+        try {
+            String providerCallId = config.optString("pendingIncomingProviderCallId", "").trim();
+            String callerNumber = config.optString("pendingIncomingCallerNumber", "").trim();
+            action.put("pending", !providerCallId.isEmpty() || !callerNumber.isEmpty());
+            action.put("providerCallId", providerCallId);
+            action.put("callerNumber", callerNumber);
+        } catch (Exception ignored) {
+            return new JSONObject();
+        }
+        return action;
+    }
+
+    static synchronized void clearPendingIncomingCallChoice(Context context) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        config.remove("pendingIncomingProviderCallId");
+        config.remove("pendingIncomingCallerNumber");
         writeObject(context, CONFIG_KEY, config);
     }
 

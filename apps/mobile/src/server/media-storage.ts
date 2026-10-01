@@ -42,11 +42,21 @@ function hasCompleteR2Config() {
 
 function getMediaStorageProvider(): StorageProvider {
   const configured = process.env.MEDIA_STORAGE_PROVIDER?.trim().toLowerCase();
-  if (configured === "supabase") return "supabase";
-  const r2Requested = configured === "r2" || (!configured && process.env.VERCEL_ENV === "production");
-  // Keep private uploads available during a partially configured R2 rollout.
-  // Production still uses R2 whenever all required credentials are present.
-  return r2Requested && hasCompleteR2Config() ? "r2" : "supabase";
+  const isProduction = process.env.VERCEL_ENV === "production";
+  if (configured && configured !== "r2" && configured !== "supabase") {
+    throw new OwnerApiError("MEDIA_STORAGE_PROVIDER must be set to r2 before media can be uploaded.", 503);
+  }
+  if (configured === "supabase") {
+    if (isProduction) {
+      throw new OwnerApiError("Production media storage must use Cloudflare R2.", 503);
+    }
+    return "supabase";
+  }
+  const r2Requested = configured === "r2" || (!configured && isProduction);
+  if (r2Requested && !hasCompleteR2Config()) {
+    throw new OwnerApiError("Cloudflare R2 media storage is not fully configured.", 503);
+  }
+  return r2Requested ? "r2" : "supabase";
 }
 
 function getMediaStorageProviderForPath(path: string): StorageProvider {

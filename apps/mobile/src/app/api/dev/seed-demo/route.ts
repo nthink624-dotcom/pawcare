@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { seedDemoDataForShop } from "@/server/demo-seed";
 
 export async function POST() {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
     return NextResponse.json({ message: "개발 환경에서만 사용할 수 있습니다." }, { status: 404 });
   }
 

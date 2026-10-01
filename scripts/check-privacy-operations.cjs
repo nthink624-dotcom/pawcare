@@ -24,6 +24,21 @@ const deletionPage = read("apps/web/src/app/account-deletion/page.tsx");
 const deletionRoute = read("apps/web/src/app/api/owner/account-deletion/route.ts");
 const exportRoute = read("apps/web/src/app/api/owner/data-export/route.ts");
 const policy = read("apps/web/src/lib/legal/privacy-policy.ts");
+const mobilePolicy = read("apps/mobile/src/lib/legal/privacy-policy.ts");
+const mobileCallScreening = read("apps/mobile/src/lib/owner-call-screening.ts");
+const nativeCallTransport = read("apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningTransport.java");
+
+const callSyncStart = mobileCallScreening.indexOf("export async function syncOwnerCallScreeningEvents");
+const callSync = callSyncStart >= 0 ? mobileCallScreening.slice(callSyncStart) : "";
+const inactiveSyncGuard = "if (!status.enabled || !status.active) return { sent: 0 };";
+if (!callSync.includes(inactiveSyncGuard) || callSync.indexOf(inactiveSyncGuard) > callSync.indexOf("getPendingEvents()")) {
+  failures.push("disabled CatchCall must not read or send its encrypted pending queue (apps/mobile/src/lib/owner-call-screening.ts)");
+}
+requireText(
+  "apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningTransport.java",
+  "if (!OwnerCallScreeningStore.isEnabled(context)) return;",
+  "disabled CatchCall must not send or enqueue new native events",
+);
 
 if (privacyPage) {
   requireText("apps/web/src/app/privacy/page.tsx", "PUBLIC_PRIVACY_POLICY", "privacy page must render the canonical policy");
@@ -43,7 +58,23 @@ for (const [text, label] of [
   ["account-deletion", "public deletion route disclosure"],
   ["backup purge SLA", "provider backup deletion boundary disclosure"],
 ]) {
-  if (policy && !policy.includes(text)) failures.push(`${label} (apps/web/src/lib/legal/privacy-policy.ts)`);
+if (policy && !policy.includes(text)) failures.push(`${label} (apps/web/src/lib/legal/privacy-policy.ts)`);
+}
+
+for (const [relativePath, source] of [
+  ["apps/web/src/lib/legal/privacy-policy.ts", policy],
+  ["apps/mobile/src/lib/legal/privacy-policy.ts", mobilePolicy],
+]) {
+  for (const [text, label] of [
+    ["Android 캐치콜", "Android CatchCall feature disclosure"],
+    ["수신 전화번호", "incoming phone-number processing disclosure"],
+    ["보호자 매칭", "phone-number matching purpose disclosure"],
+    ["암호화된 기기 저장소", "encrypted local queue disclosure"],
+    ["최대 50건", "pending event queue bound disclosure"],
+    ["로그아웃", "CatchCall logout retention disclosure"],
+  ]) {
+    if (source && !source.includes(text)) failures.push(`${label} (${relativePath})`);
+  }
 }
 
 for (const [text, label] of [

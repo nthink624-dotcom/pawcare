@@ -37,7 +37,9 @@ public class OwnerCallScreeningService extends CallScreeningService {
             JSONObject metadata = event.optJSONObject("metadata");
             String providerCallId = metadata == null ? "" : metadata.optString("providerCallId", "");
             if (providerCallId.isEmpty()) return;
-            OwnerCallNotification.showIncoming(context, providerCallId, callerNumber);
+            if (!OwnerInCallService.isDefaultDialer(context)) {
+                OwnerCallNotification.showIncoming(context, providerCallId, callerNumber);
+            }
 
             new Thread(() -> OwnerCallScreeningTransport.sendOrQueue(context, event), "petmanager-call-upload").start();
         } catch (Exception ignored) {
@@ -45,4 +47,5 @@ public class OwnerCallScreeningService extends CallScreeningService {
             // never interfere with the system phone flow.
         }
     }
+
 }

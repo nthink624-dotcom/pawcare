@@ -8,7 +8,7 @@ let browserClient: ReturnType<typeof createBrowserClient> | null = null;
 function assertSafeBrowserSupabaseEnv() {
   if (isUnsafeProdSupabaseBrowserEnv()) {
     throw new Error(
-      "Local or preview environments cannot use production Supabase unless NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV=true is set.",
+      "Supabase 프로젝트가 실행 환경과 일치하지 않습니다. 개발·운영 프로젝트 URL과 환경 이름을 확인해 주세요.",
     );
   }
 }

@@ -5,7 +5,7 @@ import { ServerEnvError, isUnsafeProdSupabaseServerEnv, serverEnv } from "@/lib/
 function assertSafeSupabaseEnvironment() {
   if (isUnsafeProdSupabaseServerEnv()) {
     throw new ServerEnvError(
-      "로컬/프리뷰 환경에서 운영 Supabase를 사용할 수 없습니다. 개발용 Supabase로 바꾸거나 ALLOW_PROD_SUPABASE_IN_DEV=true 로 명시적으로 허용해 주세요.",
+      "Supabase 프로젝트가 실행 환경과 일치하지 않습니다. 개발·운영 프로젝트 URL과 환경 이름을 확인해 주세요.",
       503,
     );
   }

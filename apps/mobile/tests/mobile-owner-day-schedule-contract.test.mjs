@@ -6,6 +6,8 @@ import ts from "typescript";
 import vm from "node:vm";
 
 const schedulePath = new URL("../src/components/owner/owner-booking-day-schedule.tsx", import.meta.url);
+const safeAreaPlatformPath = new URL("../src/components/platform/native-safe-area-platform.tsx", import.meta.url);
+const globalsPath = new URL("../src/app/globals.css", import.meta.url);
 const lanesPath = new URL("../src/lib/owner-schedule-lanes.ts", import.meta.url);
 const identityPath = new URL("../src/lib/staff-schedule-identity.ts", import.meta.url);
 const reservationDateDisplayPath = new URL("../src/lib/reservation-date-display.ts", import.meta.url);
@@ -212,7 +214,8 @@ test("unassigned is rendered once only when its lane exists and stale staff fail
 });
 
 test("schedule fixes the time rail and scrolls staff headers with their boards", () => {
-  assert.match(schedule, /data-testid="reservation-date-navigation" className="sticky top-\[env\(safe-area-inset-top\)\] z-40/);
+  assert.match(schedule, /data-testid="reservation-date-navigation" className="sticky top-0 z-40 border-b/);
+  assert.match(schedule, /paddingTop: "calc\(max\(var\(--pm-safe-top\), var\(--pm-android-statusbar-inset, 0px\)\) \+ 4px\)"/);
   assert.match(schedule, /className="relative flex h-16 w-full items-center justify-start gap-2 border-b border-b-\[#d8dee7\]/);
   assert.match(schedule, /data-testid="time-header"/);
   assert.match(schedule, /data-testid="time-rail"/);
@@ -257,6 +260,25 @@ test("schedule fixes the time rail and scrolls staff headers with their boards",
   assert.match(schedule, /data-testid="time-header" className="flex h-16 items-center justify-center border-b border-\[#d8dee7\] bg-white text-\[13px\] font-medium leading-5 text-\[#42526a\]">시간<\/div>/);
   assert.doesNotMatch(schedule, /data-testid="time-header"[^>]+(?:rounded|bg-\[#f1f3f7\])/);
   assert.match(schedule, /data-testid="time-rail" className="relative bg-white"/);
+});
+
+test("native Android headers use the measured system status-bar inset", async () => {
+  const [platform, globals] = await Promise.all([
+    readFile(safeAreaPlatformPath, "utf8"),
+    readFile(globalsPath, "utf8"),
+  ]);
+  assert.match(platform, /Capacitor\.isNativePlatform\(\)/);
+  assert.match(platform, /const platform = Capacitor\.getPlatform\(\);[\s\S]*root\.dataset\.pmNativePlatform = platform/);
+  assert.match(globals, /--pm-safe-top:\s*env\(safe-area-inset-top, 0px\)/);
+  assert.match(globals, /:root\[data-pm-native-platform="android"\]\s*\{\s*--pm-safe-top:\s*0px/);
+  assert.match(platform, /OwnerSystemBars\.getStatusBarInset\(\)/);
+  assert.match(platform, /root\.style\.setProperty\("--pm-safe-top", inset\)/);
+  assert.match(platform, /--pm-android-statusbar-inset/);
+  const nativeSystemBars = await readFile(new URL("../android/app/src/main/java/kr/petmanager/owner/OwnerSystemBarsPlugin.java", import.meta.url), "utf8");
+  assert.match(nativeSystemBars, /Type\.statusBars\(\)/);
+  const mainActivity = await readFile(new URL("../android/app/src/main/java/kr/petmanager/owner/MainActivity.java", import.meta.url), "utf8");
+  assert.match(mainActivity, /setStatusBarColor\(Color\.WHITE\)/);
+  assert.match(mainActivity, /setAppearanceLightStatusBars\(true\)/);
 });
 
 test("one saved staff owns the full available lane width without synthetic choices", () => {

@@ -49,6 +49,10 @@ test("Android release keeps the mobile shell on app origin and uses the canonica
 
   assert.match(capacitorConfig, /CAPACITOR_BUILD_MODE/);
   assert.match(capacitorConfig, /capacitorBuildMode === "release"/);
+  assert.match(capacitorConfig, /capacitorBuildMode === "development"/);
+  assert.match(capacitorConfig, /https:\/\/app\.petmanager\.co\.kr\/owner\/mobile/);
+  assert.match(capacitorConfig, /const serverUrl = configuredServerUrl \|\| defaultServerUrl/);
+  assert.match(capacitorConfig, /server:\s*\{\s*url: serverUrl/s);
   assert.match(releaseScript, /https:\/\/app\.petmanager\.co\.kr/);
   assert.match(releaseScript, /https:\/\/www\.petmanager\.co\.kr/);
   assert.match(previewScript, /https:\/\/app\.petmanager\.co\.kr/);

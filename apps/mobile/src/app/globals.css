@@ -47,6 +47,7 @@
   --pm-native-safe-right: 0px;
   --pm-native-safe-bottom: 0px;
   --pm-native-safe-left: 0px;
+  --pm-safe-top: env(safe-area-inset-top, 0px);
   --pm-safe-top: max(env(safe-area-inset-top), var(--pm-native-safe-top));
   --pm-safe-right: max(env(safe-area-inset-right), var(--pm-native-safe-right));
   --pm-safe-bottom: max(env(safe-area-inset-bottom), var(--pm-native-safe-bottom));
@@ -54,8 +55,8 @@
 }
 
 :root[data-pm-native-platform="android"] {
-  --pm-native-safe-top: 0px;
   --pm-safe-top: 0px;
+  --pm-native-safe-top: 0px;
 }
 
 html {

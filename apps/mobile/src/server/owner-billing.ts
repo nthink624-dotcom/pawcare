@@ -3,7 +3,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 import { env } from "@/lib/env";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import {

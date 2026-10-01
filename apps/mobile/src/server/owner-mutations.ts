@@ -2,7 +2,7 @@
 
 import { computeAvailableSlots } from "@/lib/availability";
 import { coerceEnabledShopNotificationSettings, defaultGuardianNotificationSettings, normalizeBootstrapNotifications } from "@/lib/notification-settings";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";

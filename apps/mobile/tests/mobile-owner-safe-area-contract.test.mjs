@@ -8,16 +8,20 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const source = (relativePath) => readFile(path.join(projectRoot, relativePath), "utf8");
 
 test("mobile owner layout declares iPhone viewport and safe-area contracts", async () => {
-  const [layout, globals, ownerApp] = await Promise.all([
+  const [layout, globals, ownerApp, platform] = await Promise.all([
     source("src/app/layout.tsx"),
     source("src/app/globals.css"),
     source("src/components/owner/owner-app.tsx"),
+    source("src/components/platform/native-safe-area-platform.tsx"),
   ]);
 
   assert.match(layout, /viewportFit:\s*["']cover["']/);
   assert.match(globals, /--pm-native-safe-top:\s*0px/);
   assert.match(globals, /--pm-safe-top:\s*max\(env\(safe-area-inset-top\), var\(--pm-native-safe-top\)\)/);
   assert.match(globals, /--pm-safe-bottom:\s*max\(env\(safe-area-inset-bottom\), var\(--pm-native-safe-bottom\)\)/);
+  assert.match(platform, /OwnerSystemBars\.getStatusBarInset\(\)/);
+  assert.match(platform, /root\.style\.setProperty\("--pm-native-safe-top", inset\)/);
+  assert.match(platform, /root\.style\.setProperty\("--pm-safe-top", inset\)/);
   assert.match(ownerApp, /pt-\[calc\(var\(--pm-safe-top\)\+12px\)\]/);
   assert.match(ownerApp, /pb-\[calc\(var\(--pm-safe-bottom\)\+2px\)\]/);
   assert.match(ownerApp, /pb-\[calc\(var\(--pm-safe-bottom\)\+128px\)\]/);

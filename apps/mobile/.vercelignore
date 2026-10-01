@@ -16,7 +16,10 @@ artifacts
 # Local secrets and transient test data.
 .env
 .env.local
+.env.*
 .env.*.local
+**/.env
+**/.env.*
 .local-secrets
 coverage
 dist

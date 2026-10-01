@@ -353,8 +353,8 @@ export default function OwnerBookingDaySchedule(props: Props) {
 
   return (
     <section className="min-w-0 overflow-hidden bg-white text-[#172033]">
-      <header data-testid="reservation-date-navigation" className="sticky top-[env(safe-area-inset-top)] z-40 border-b border-[#e8edf3] bg-white">
-        <div className="flex min-h-[52px] items-center justify-between gap-3 px-4 pt-1">
+      <header data-testid="reservation-date-navigation" className="sticky top-0 z-40 border-b border-[#e8edf3] bg-white">
+        <div className="flex min-h-[52px] items-center justify-between gap-3 px-4" style={{ paddingTop: "calc(max(var(--pm-safe-top), var(--pm-android-statusbar-inset, 0px)) + 4px)" }}>
           <button type="button" aria-label={`${dateLabel} ${selectedWeekdayLabel}요일 날짜 선택`} onClick={onOpenDatePicker} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">
             <span data-testid="date-primary" className="whitespace-nowrap text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#172033] [font-variant-numeric:tabular-nums]">{dateLabel}</span>
             <span data-testid="weekday-label" className="whitespace-nowrap text-[14px] font-medium leading-5 text-[#64748b]">{selectedWeekdayLabel}</span>

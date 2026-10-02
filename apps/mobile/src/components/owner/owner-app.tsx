@@ -1,7 +1,8 @@
 "use client";
 
 import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, Store, UserRound, type LucideIcon } from "lucide-react";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import { type ReactNode, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 
 import {
   ActionButton,
@@ -1093,6 +1094,8 @@ function OwnerAppContent({
     }
   }
 
+  const refreshSilentlyFromEffect = useEffectEvent(refreshSilently);
+
   async function reconcileAfterAppointmentMutation() {
     const pendingRefresh = refreshInFlightRef.current;
     if (pendingRefresh) {
@@ -1808,7 +1811,7 @@ function OwnerAppContent({
         !isShopPickerOpen;
 
       if (!canSync) return;
-      void refreshSilently();
+      void refreshSilentlyFromEffect();
     };
 
     const intervalId = window.setInterval(syncIfIdle, 15000);
@@ -3024,7 +3027,7 @@ function OwnerAppContent({
                   </button>
                   {!isStaffApp ? <HomeHeaderStaffSelect options={homeStaffFilterOptions} value={homeStaffFilter} onChange={setHomeStaffFilter} staffCount={data.staffMembers.length} /> : null}
                 </div>
-                <div className="mt-3 border-t border-[#edf1f5]">
+                <div className="border-t border-[#edf1f5]">
                   <HomeScheduleTabs
                     tabs={homeScheduleTabs}
                     activeKey={homeFocusedSection}
@@ -4069,8 +4072,8 @@ function HomeScheduleTabs({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="mt-3 flex h-11 items-center justify-between gap-3 border-b border-[#edf1f5] px-0.5">
-      <div className="flex min-w-0 items-center gap-4">
+    <div className="flex h-14 items-center justify-between gap-2 border-b border-[#edf1f5] px-0.5">
+      <div className="flex min-w-0 items-center gap-2">
         {tabs.map((tab) => {
           const active = tab.key === activeKey;
           return (
@@ -4078,7 +4081,7 @@ function HomeScheduleTabs({
               key={tab.key}
               type="button"
             className={cn(
-              "flex h-11 shrink-0 items-center gap-[5px] border-b-2 px-0.5 text-[14px] font-medium leading-5 tracking-[-0.01em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+              "flex h-14 shrink-0 items-center gap-[5px] border-b-2 px-0.5 text-[14px] font-medium leading-5 tracking-[-0.01em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
               active ? "border-[#2f6fd6] text-[#0f172a]" : "border-transparent text-[#64748b]",
               )}
               onClick={() => onChange(tab.key)}
@@ -4507,10 +4510,13 @@ function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string
           {items.map(({ item, signedUrl }) => (
             signedUrl ? (
               <a key={item.mediaAsset.id} href={signedUrl} target="_blank" rel="noreferrer" className="group min-h-11 overflow-hidden rounded-[12px] border border-[var(--border)] bg-[#f8fafc]">
-                <div className="aspect-[4/3] overflow-hidden bg-[#eef2f6]">
-                  <img
+                <div className="relative aspect-[4/3] overflow-hidden bg-[#eef2f6]">
+                  <Image
                     src={signedUrl}
                     alt={getAppointmentMediaKindLabel(item.mediaAsset.media_kind)}
+                    fill
+                    sizes="(max-width: 640px) 50vw, 320px"
+                    unoptimized
                     className="h-full w-full object-cover transition group-active:scale-[0.99]"
                     onError={() => signedUrlRecoveryRef.current?.enqueue(item.mediaAsset.id, signedUrl)}
                   />
@@ -5583,7 +5589,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                   aria-label="프로필 이미지 변경"
                 >
                   {heroImageUrl ? (
-                    <img src={heroImageUrl} alt={`${name || data.shop.name} 프로필`} className="h-full w-full object-cover" />
+                    <Image src={heroImageUrl} alt={`${name || data.shop.name} 프로필`} fill sizes="60px" unoptimized className="object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-[#f4f5f4] text-[#9ea4a1]">
                       <UserRound className="h-7 w-7" strokeWidth={1.8} />
@@ -5824,7 +5830,7 @@ function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: stri
             <p className="text-sm font-semibold text-[var(--text)]">QR 코드</p>
           </div>
           <div className="mt-3 flex justify-center rounded-[16px] bg-white p-4">
-            <img src={qrImageUrl} alt="고객 예약 QR 코드" className="h-[168px] w-[168px]" />
+            <Image src={qrImageUrl} alt="고객 예약 QR 코드" width={168} height={168} unoptimized className="h-[168px] w-[168px]" />
           </div>
           <a
             href={qrImageUrl}
@@ -6500,6 +6506,8 @@ function MobilePhotoStatusSheet({
     }
   }
 
+  const openCameraFromEffect = useEffectEvent(openCamera);
+
   function captureCameraPhoto() {
     const video = videoRef.current;
     const videoWidth = video?.videoWidth ?? 0;
@@ -6538,7 +6546,7 @@ function MobilePhotoStatusSheet({
   useEffect(() => {
     if (!action.autoOpenCamera || uploading) return;
     const timer = window.setTimeout(() => {
-      void openCamera();
+      void openCameraFromEffect();
     }, 150);
     return () => window.clearTimeout(timer);
   }, [action.appointmentId, action.autoOpenCamera, uploading]);

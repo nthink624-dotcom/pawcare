@@ -312,7 +312,7 @@ export default function OwnerCatchCallPanel({
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
               <div className="flex items-start gap-2">
-                <h3 className="min-w-0 flex-1 text-[18px] font-semibold leading-6 tracking-[-0.03em] text-[#172b4d]">전화 응대부터 예약 정리까지 한곳에서</h3>
+                <h3 className="min-w-0 flex-1 text-[18px] font-semibold leading-6 tracking-[-0.03em] text-[#172b4d]">전화와 예약을 한곳에서</h3>
                 <InfoTip ariaLabel="캐치콜 도움말" popoverClassName="!left-1/2 !right-auto !-translate-x-1/2 w-[240px]">
                   등록 고객은 예약 기록으로 연결하고, 새 번호는 신규고객으로 등록할 수 있어요. 새 번호는 저장하기 전까지 서버로 보내지 않아요.
                 </InfoTip>

@@ -56,6 +56,7 @@
 
 :root[data-pm-native-platform="android"] {
   --pm-native-safe-top: 0px;
+  --pm-android-statusbar-inset: 28px;
 }
 
 :root[data-pm-native-platform="android"] .pm-mobile-sheet[data-safe-area-padding="true"] {

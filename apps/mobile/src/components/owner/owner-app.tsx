@@ -4069,7 +4069,7 @@ function HomeScheduleTabs({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="mt-3 flex items-end border-b border-[#edf1f5] px-0.5">
+    <div className="mt-3 flex items-center border-b border-[#edf1f5] px-0.5">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {tabs.map((tab) => {
           const active = tab.key === activeKey;
@@ -4078,7 +4078,7 @@ function HomeScheduleTabs({
               key={tab.key}
               type="button"
             className={cn(
-              "relative top-px flex min-h-11 shrink-0 items-center gap-[5px] border-b-2 pb-[11px] text-[14px] font-medium tracking-[-0.01em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+              "flex h-11 shrink-0 items-center gap-[5px] border-b-2 text-[14px] font-medium tracking-[-0.01em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
               active ? "border-[#2f6fd6] text-[#0f172a]" : "border-transparent text-[#64748b]",
               )}
               onClick={() => onChange(tab.key)}
@@ -4090,9 +4090,9 @@ function HomeScheduleTabs({
           );
         })}
       </div>
-      {trailing ? <div className="relative top-px mb-[5px] shrink-0">{trailing}</div> : null}
+      {trailing ? <div className="flex h-11 shrink-0 items-center">{trailing}</div> : null}
       {onAdd ? (
-        <div className="relative top-px shrink-0 border-b-2 border-transparent pb-[7px]">
+        <div className="flex h-11 shrink-0 items-center border-b-2 border-transparent">
           <button
             type="button"
             className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#d8e4f5] bg-white text-[#2f6fd6] transition hover:bg-[#f4f8ff]"

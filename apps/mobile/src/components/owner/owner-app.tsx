@@ -4069,8 +4069,8 @@ function HomeScheduleTabs({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="mt-3 flex items-center border-b border-[#edf1f5] px-0.5">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="mt-3 flex items-center justify-between gap-1 border-b border-[#edf1f5] px-0.5">
+      <div className="inline-flex h-11 shrink-0 items-center gap-0.5 rounded-[12px] bg-[#f1f4f8]">
         {tabs.map((tab) => {
           const active = tab.key === activeKey;
           return (
@@ -4078,21 +4078,21 @@ function HomeScheduleTabs({
               key={tab.key}
               type="button"
             className={cn(
-              "flex h-11 shrink-0 items-center gap-[5px] border-b-2 text-[14px] font-medium tracking-[-0.01em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
-              active ? "border-[#2f6fd6] text-[#0f172a]" : "border-transparent text-[#64748b]",
+              "flex h-11 shrink-0 items-center gap-[5px] rounded-[10px] px-1.5 text-[14px] font-medium tracking-[-0.01em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+              active ? "bg-white text-[#0f172a] shadow-[0_0_0_1px_#e3e9f0]" : "text-[#64748b]",
               )}
               onClick={() => onChange(tab.key)}
               aria-pressed={active}
             >
               <span className="whitespace-nowrap text-center">{tab.label}</span>
-              <span className={cn("text-[14px] font-medium", active ? "text-[#2f6fd6]" : "text-[#64748b]")}>{tab.count}</span>
+              <span className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[12px] font-medium leading-4", active ? "bg-[#edf3fd] text-[#2f6fd6]" : "bg-[#e8edf2] text-[#64748b]")}>{tab.count}</span>
             </button>
           );
         })}
       </div>
       {trailing ? <div className="flex h-11 shrink-0 items-center">{trailing}</div> : null}
       {onAdd ? (
-        <div className="flex h-11 shrink-0 items-center border-b-2 border-transparent">
+        <div className="flex h-11 shrink-0 items-center">
           <button
             type="button"
             className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#d8e4f5] bg-white text-[#2f6fd6] transition hover:bg-[#f4f8ff]"

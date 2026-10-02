@@ -1,5 +1,11 @@
 # Local-only browser profiles, screenshots, and test artifacts must never be
 # uploaded as deployment source files.
+# Local environment files must never be uploaded, including plain .env files
+# from shared workspace directories outside the app root.
+.env
+.env.*
+**/.env
+**/.env.*
 tmp/
 output/
 artifacts/

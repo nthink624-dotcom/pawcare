@@ -55,7 +55,6 @@
 }
 
 :root[data-pm-native-platform="android"] {
-  --pm-safe-top: 0px;
   --pm-native-safe-top: 0px;
 }
 

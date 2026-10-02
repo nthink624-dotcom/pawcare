@@ -5052,7 +5052,7 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
   const sheetTitle = step === "service" ? "서비스 선택" : step === "schedule" ? "날짜 / 시간 선택" : step === "memo" ? "메모" : "새 예약 추가";
 
   return (
-    <Sheet title={sheetTitle} onClose={onClose} footer={footer}>
+    <Sheet title={sheetTitle} onClose={onClose} footer={footer} safeAreaPadding>
       <div className="space-y-4">
         {step === "customer" ? (
           <div className="space-y-3">
@@ -5224,7 +5224,7 @@ function NewCustomerForm({ shopId, saving, onClose, onSave, initialPhone = "" }:
   const canSave = !saving && guardianName.trim() && phone.trim() && pets.every((pet) => pet.name.trim() && pet.breed.trim());
 
   return (
-    <Sheet title="새 고객" onClose={onClose}>
+    <Sheet title="새 고객" onClose={onClose} safeAreaPadding>
       <div className="space-y-5">
         <section>
           <p className="text-[16px] font-semibold leading-6 tracking-[-0.01em] text-[var(--text)]">보호자 정보</p>

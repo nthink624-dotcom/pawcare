@@ -56,8 +56,7 @@ type SettingsPanelProps = {
   pendingReservationAction?: OwnerCallReservationAction | null;
   incomingCallChoice?: OwnerIncomingCallChoice | null;
   onIncomingCallReservation?: () => void;
-  onIncomingCallAnswer?: () => void;
-  onIncomingCallEnd?: () => void;
+  onIncomingCallNewCustomer?: () => void;
 };
 
 type MobileAppRole = "owner" | "staff";
@@ -261,8 +260,7 @@ export default function OwnerSettingsPanel({
   pendingReservationAction = null,
   incomingCallChoice = null,
   onIncomingCallReservation,
-  onIncomingCallAnswer,
-  onIncomingCallEnd,
+  onIncomingCallNewCustomer,
 }: SettingsPanelProps) {
   const appUpdateState = useOwnerPlayUpdateSnapshot();
   const initialAddressParts = parseShopAddressParts(data.shop.address);
@@ -1421,8 +1419,7 @@ export default function OwnerSettingsPanel({
       pendingReservationAction={pendingReservationAction}
       incomingCallChoice={incomingCallChoice}
       onIncomingCallReservation={onIncomingCallReservation}
-      onIncomingCallAnswer={onIncomingCallAnswer}
-      onIncomingCallEnd={onIncomingCallEnd}
+      onIncomingCallNewCustomer={onIncomingCallNewCustomer}
     />
   );
 

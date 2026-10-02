@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, Store, UserRound, type LucideIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -107,9 +107,8 @@ import { addOwnerAndroidBackButtonListener } from "@/lib/owner-mobile-back-navig
 import {
   addOwnerIncomingCallChoiceListener,
   addOwnerCallReservationActionListener,
-  answerOwnerIncomingCall,
+  clearOwnerCallReservationAction,
   clearOwnerIncomingCallChoice,
-  endOwnerIncomingCall,
   getOwnerIncomingCallChoice,
   getOwnerCallReservationAction,
   getOwnerCallScreeningStatus,
@@ -211,7 +210,7 @@ type ModalState =
   | { type: "appointment"; appointment: Appointment }
   | { type: "edit-shop-profile" }
   | { type: "new-appointment"; petId?: string }
-  | { type: "new-customer" }
+  | { type: "new-customer"; initialPhone?: string }
   | { type: "add-pet"; guardianId: string }
   | { type: "edit-record"; record: GroomingRecord }
   | { type: "stat"; kind: "today" | "completed" | "cancel_change" }
@@ -868,6 +867,12 @@ function OwnerAppContent({
 
     const openCatchCallReservation = (action: OwnerCallReservationAction) => {
       if (!active || !action.pending) return;
+      if (!action.providerCallId && action.callerNumber) {
+        setActiveTab("customers");
+        setModal({ type: "new-customer", initialPhone: action.callerNumber });
+        void clearOwnerCallReservationAction();
+        return;
+      }
       setPendingCallReservationAction(action);
       setActiveTab("settings");
       setSettingsEntryScreen("catchcall");
@@ -895,6 +900,12 @@ function OwnerAppContent({
 
     const openIncomingCallChoice = (choice: OwnerIncomingCallChoice) => {
       if (!active || !choice.pending) return;
+      if (choice.action === "new-customer") {
+        setActiveTab("customers");
+        setModal({ type: "new-customer", initialPhone: choice.callerNumber });
+        void clearOwnerIncomingCallChoice();
+        return;
+      }
       setPendingIncomingCallChoice(choice);
       setActiveTab("settings");
       setSettingsEntryScreen("catchcall");
@@ -918,25 +929,24 @@ function OwnerAppContent({
 
   const chooseIncomingCallReservation = () => {
     if (!pendingIncomingCallChoice?.pending) return;
+    if (!pendingIncomingCallChoice.providerCallId && pendingIncomingCallChoice.callerNumber) {
+      setActiveTab("customers");
+      setModal({ type: "new-customer", initialPhone: pendingIncomingCallChoice.callerNumber });
+      setPendingIncomingCallChoice(null);
+      void clearOwnerIncomingCallChoice();
+      return;
+    }
     setPendingCallReservationAction(pendingIncomingCallChoice);
     setPendingIncomingCallChoice(null);
     void clearOwnerIncomingCallChoice();
   };
 
-  const answerIncomingCall = async () => {
+  const chooseIncomingCallNewCustomer = () => {
     const choice = pendingIncomingCallChoice;
     if (!choice?.pending) return;
+    setModal({ type: "new-customer", initialPhone: choice.callerNumber });
     setPendingIncomingCallChoice(null);
-    await answerOwnerIncomingCall(choice.providerCallId);
-    await clearOwnerIncomingCallChoice();
-  };
-
-  const endIncomingCall = async () => {
-    const choice = pendingIncomingCallChoice;
-    if (!choice?.pending) return;
-    setPendingIncomingCallChoice(null);
-    await endOwnerIncomingCall(choice.providerCallId);
-    await clearOwnerIncomingCallChoice();
+    void clearOwnerIncomingCallChoice();
   };
 
   useEffect(() => {
@@ -3697,7 +3707,7 @@ function OwnerAppContent({
           </section>
         )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} pendingReservationAction={pendingCallReservationAction} incomingCallChoice={pendingIncomingCallChoice} onIncomingCallReservation={chooseIncomingCallReservation} onIncomingCallAnswer={() => void answerIncomingCall()} onIncomingCallEnd={() => void endIncomingCall()} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} pendingReservationAction={pendingCallReservationAction} incomingCallChoice={pendingIncomingCallChoice} onIncomingCallReservation={chooseIncomingCallReservation} onIncomingCallNewCustomer={chooseIncomingCallNewCustomer} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
       </main>
 
       {!isStaffApp && !modal ? (
@@ -3790,7 +3800,7 @@ function OwnerAppContent({
         </div>
       </nav>
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} initialPhone={modal.initialPhone} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
         if (isOwnerDemo) {
           setModal(null);
           return;
@@ -5193,9 +5203,9 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
   );
 }
 
-function NewCustomerForm({ shopId, saving, onClose, onSave }: { shopId: string; saving: boolean; onClose: () => void; onSave: (guardianPayload: { shopId: string; name: string; phone: string; memo: string }, petPayloads: Array<{ shopId: string; name: string; breed: string; birthday: string | null; weight: null; age: null; notes: string; groomingCycleWeeks: number }>) => void }) {
+function NewCustomerForm({ shopId, saving, onClose, onSave, initialPhone = "" }: { shopId: string; saving: boolean; onClose: () => void; initialPhone?: string; onSave: (guardianPayload: { shopId: string; name: string; phone: string; memo: string }, petPayloads: Array<{ shopId: string; name: string; breed: string; birthday: string | null; weight: null; age: null; notes: string; groomingCycleWeeks: number }>) => void }) {
   const [guardianName, setGuardianName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(initialPhone);
   const [memo, setMemo] = useState("");
   const [pets, setPets] = useState([{ id: crypto.randomUUID(), name: "", breed: "", birthday: "" }]);
 
@@ -5864,8 +5874,7 @@ function SettingsPanel({
   pendingReservationAction = null,
   incomingCallChoice = null,
   onIncomingCallReservation,
-  onIncomingCallAnswer,
-  onIncomingCallEnd,
+  onIncomingCallNewCustomer,
   appRole = "owner",
   currentStaffId = null,
   onOpenFeedback,
@@ -5877,8 +5886,7 @@ function SettingsPanel({
   pendingReservationAction?: OwnerCallReservationAction | null;
   incomingCallChoice?: OwnerIncomingCallChoice | null;
   onIncomingCallReservation?: () => void;
-  onIncomingCallAnswer?: () => void;
-  onIncomingCallEnd?: () => void;
+  onIncomingCallNewCustomer?: () => void;
   onSave: (payload: unknown, options?: { errorFallbackMessage?: string }) => Promise<void> | void;
   onSaveCustomerPageSettings: (payload: unknown) => void;
   onSaveStaff: (payload: unknown) => void;
@@ -5908,8 +5916,7 @@ function SettingsPanel({
       pendingReservationAction={pendingReservationAction}
       incomingCallChoice={incomingCallChoice}
       onIncomingCallReservation={onIncomingCallReservation}
-      onIncomingCallAnswer={onIncomingCallAnswer}
-      onIncomingCallEnd={onIncomingCallEnd}
+      onIncomingCallNewCustomer={onIncomingCallNewCustomer}
       appRole={appRole}
       currentStaffId={currentStaffId}
       onOpenFeedback={onOpenFeedback}

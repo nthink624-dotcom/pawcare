@@ -32,6 +32,13 @@ public class OwnerCallScreeningService extends CallScreeningService {
 
     static void handleIncoming(Context context, String callerNumber) {
         try {
+            if (!OwnerCallScreeningStore.isEnabled(context)) return;
+            if (!OwnerCallScreeningStore.isAllowedCallerNumber(context, callerNumber)) {
+                // Unknown callers get a local-only alert. Their number is not added to
+                // the call-event queue or sent to the server unless the owner registers them.
+                OwnerCallNotification.showIncoming(context, "", callerNumber, false);
+                return;
+            }
             JSONObject event = OwnerCallScreeningStore.createIncomingEvent(context, callerNumber);
             if (event == null) return;
             JSONObject metadata = event.optJSONObject("metadata");

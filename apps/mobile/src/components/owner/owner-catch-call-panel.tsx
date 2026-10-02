@@ -138,9 +138,13 @@ export default function OwnerCatchCallPanel({
     [data.pets, guardianId],
   );
   const services = useMemo(() => data.services.filter((service) => service.is_active), [data.services]);
+  const phoneAllowlistKey = data.guardians
+    .filter((guardian) => !guardian.deleted_at && guardian.phone.trim())
+    .map((guardian) => guardian.phone.trim())
+    .join("\u001f");
   const phoneAllowlist = useMemo(
-    () => data.guardians.filter((guardian) => !guardian.deleted_at && guardian.phone.trim()).map((guardian) => guardian.phone.trim()),
-    [data.guardians],
+    () => phoneAllowlistKey ? phoneAllowlistKey.split("\u001f") : [],
+    [phoneAllowlistKey],
   );
   const selectedPet = guardianPets.find((pet) => pet.id === petId) ?? null;
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
@@ -183,7 +187,7 @@ export default function OwnerCatchCallPanel({
     });
     // The shop is the only external input for this panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.shop.id, pendingReservationAction?.providerCallId, phoneAllowlist]);
+  }, [data.shop.id, pendingReservationAction?.providerCallId, phoneAllowlistKey]);
 
   async function enableAutomaticCallScreening() {
     setConfiguringCallScreening(true);
@@ -303,17 +307,17 @@ export default function OwnerCatchCallPanel({
         </p>
       ) : null}
 
-      <div className="relative overflow-hidden rounded-[24px] border border-[#dce7f1] bg-gradient-to-br from-[#f4f8ff] via-white to-[#eef8f5] p-5 shadow-[0_8px_24px_rgba(28,48,77,0.06)]">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-14 size-40 rounded-full bg-[#dceaff]/60 blur-2xl" />
+      <div className="relative rounded-[24px] border border-[#dce7f1] bg-gradient-to-br from-[#f4f8ff] via-white to-[#eef8f5] p-5 shadow-[0_8px_24px_rgba(28,48,77,0.06)]">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[24px]"><div className="absolute -right-10 -top-14 size-40 rounded-full bg-[#dceaff]/60 blur-2xl" /></div>
         <div className="relative">
           <div className="flex items-start gap-3.5">
             <span className="grid size-12 shrink-0 place-items-center rounded-[17px] bg-[#172b4d] text-white">
               <PhoneCall className="size-[21px]" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
-              <div className="flex items-start gap-2">
-                <h3 className="min-w-0 flex-1 text-[18px] font-semibold leading-6 tracking-[-0.03em] text-[#172b4d]">전화와 예약을 한곳에서</h3>
-                <InfoTip ariaLabel="캐치콜 도움말" popoverClassName="!left-1/2 !right-auto !-translate-x-1/2 w-[240px]">
+              <div className="flex items-center gap-1.5">
+                <h3 className="min-w-0 flex-1 text-[15px] font-semibold leading-5 tracking-[-0.03em] text-[#172b4d]">등록 고객 전화 확인</h3>
+                <InfoTip ariaLabel="캐치콜 도움말" className="z-20 shrink-0" popoverClassName="!left-auto !right-0 !top-7 !translate-x-0 w-[min(240px,calc(100vw-80px))]">
                   등록 고객은 예약 기록으로 연결하고, 새 번호는 신규고객으로 등록할 수 있어요. 새 번호는 저장하기 전까지 서버로 보내지 않아요.
                 </InfoTip>
               </div>
@@ -328,7 +332,7 @@ export default function OwnerCatchCallPanel({
                 disabled={configuringCallScreening}
                 className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${callScreeningStatus.active ? "bg-[#31856e]" : "bg-[#c3cbd5]"}`}
               >
-                <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${callScreeningStatus.active ? "translate-x-6" : "translate-x-1"}`} />
+                <span className={`absolute left-1 top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${callScreeningStatus.active ? "translate-x-5" : "translate-x-0"}`} />
               </button>
             ) : null}
           </div>

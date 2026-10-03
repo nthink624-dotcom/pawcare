@@ -133,7 +133,7 @@ export function CalendarToolbar({
             onClick={onAddSchedule}
             className={cn(
               OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
-              "!bg-[#2563eb] !text-[16px] !font-medium !leading-6 !tracking-[-0.005em] hover:!bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+              "!appearance-none !border-0 !outline-none !bg-[#2563eb] !text-[16px] !font-medium !leading-6 !tracking-[-0.005em] hover:!bg-[#1d4ed8] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
             )}
           >
             <CalendarPlus className="h-4 w-4" aria-hidden="true" />

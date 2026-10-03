@@ -80,15 +80,20 @@ export default function MobilePriceGuideExtras({ document, onChange }: { documen
             const key = `${index}:${field}`;
             const rawValue = item[field];
             const display = field === "amountKrw" ? rawValue === null ? "미정" : `${Number(rawValue).toLocaleString("ko-KR")}원` : field === "percent" ? rawValue === null ? "미정" : `${rawValue}%` : rawValue || placeholder;
-            return <div key={field} className={`min-w-0 ${className ?? ""}`}>
+            const content = <>
               <span className="block px-2.5 text-[16px] font-medium leading-6 text-slate-600">{label}</span>
               {activeField === key ? <label><span className="sr-only">추가 서비스·요금 {index + 1} {label}</span><input autoFocus value={rawValue ?? ""} inputMode={field === "amountKrw" ? "numeric" : field === "percent" ? "decimal" : undefined} className={`${inputClass} mt-1 tabular-nums`} placeholder={placeholder} onChange={(event) => update(index, field, event.target.value)} /></label> : <button type="button" className={`${fieldButtonClass} ${rawValue === null ? "text-slate-500" : ""}`} onClick={() => setActiveField(key)} aria-label={`추가 서비스·요금 ${index + 1} ${label} 수정`}>{display}</button>}
-            </div>;
+            </>;
+            return field === "condition"
+              ? <div key={field} className="col-span-2 grid grid-cols-[minmax(0,1fr)_44px] items-end gap-2">
+                  <div className="min-w-0">{content}</div>
+                  <button type="button" className={iconClass} aria-label={`추가 서비스·요금 ${index + 1} 삭제`} onClick={() => {
+                    setActiveField(null);
+                    emit({ ...document, surcharges: document.surcharges.filter((_, itemIndex) => itemIndex !== index), aiReview: removeReviews(document, index) });
+                  }}><Trash2 size={17} aria-hidden="true" /></button>
+                </div>
+              : <div key={field} className={`min-w-0 ${className ?? ""}`}>{content}</div>;
           })}
-          <div className="col-span-2 flex justify-end"><button type="button" className={iconClass} aria-label={`추가 서비스·요금 ${index + 1} 삭제`} onClick={() => {
-            setActiveField(null);
-            emit({ ...document, surcharges: document.surcharges.filter((_, itemIndex) => itemIndex !== index), aiReview: removeReviews(document, index) });
-          }}><Trash2 size={17} aria-hidden="true" /></button></div>
         </div>)}
       </div> : null}
     </section>

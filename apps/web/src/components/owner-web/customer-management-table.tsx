@@ -9,6 +9,7 @@ export type CustomerManagementTableRow = {
   registeredAt: string;
   name: string;
   phone: string;
+  customerGrade: "신규" | "일반" | "단골";
   recentVisitDate: string | null;
   pets: Array<{ name: string; birthday: string | null }>;
 };
@@ -94,6 +95,7 @@ export default function CustomerManagementTable({
               <th className="w-[100px] px-2 py-0 text-left font-medium">
                 <button type="button" onClick={onSortByName} className="inline-flex min-h-11 items-center text-left hover:text-[#1f6b5b]">고객명</button>
               </th>
+              <th className="px-2 py-0 text-left font-medium">고객 등급</th>
               <th className="px-2 py-0 text-left font-medium">연락처</th>
               <th className="px-2 py-0 text-left font-medium">반려동물 이름</th>
               <th className="px-2 py-0 text-left font-medium">반려동물 나이</th>
@@ -123,6 +125,7 @@ export default function CustomerManagementTable({
                   {deleteMode ? <td className="px-2"><SelectionControl checked={checked} onToggle={() => onToggleDelete(row.id)} /></td> : null}
                   <td className="truncate px-2 tabular-nums">{row.registeredAt}</td>
                   <td className="truncate px-2 font-medium text-[#17243c]">{row.name}</td>
+                  <td className="px-2"><span className={cn("inline-flex min-h-6 items-center rounded-full border px-2 text-[12px] font-medium leading-[18px]", row.customerGrade === "단골" ? "border-[#d6e8e2] bg-[#f3faf7] text-[#1f6b5b]" : "border-[#e2e8f0] bg-[#f8fafc] text-[#475569]")}>{row.customerGrade}</span></td>
                   <td className="truncate px-2 tabular-nums">{formatPhoneNumber(row.phone)}</td>
                   <td className="truncate px-2">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</td>
                   <td className="truncate px-2">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</td>
@@ -143,7 +146,10 @@ export default function CustomerManagementTable({
                 {deleteMode ? <SelectionControl checked={checked} onToggle={() => onToggleDelete(row.id)} /> : null}
                 <button type="button" onClick={() => onOpen(row.id)} className="min-h-11 min-w-0 flex-1 text-left">
                   <span className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 break-keep text-[14px] font-medium leading-5 text-[#17243c] [overflow-wrap:anywhere]">{row.name}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 break-keep text-[14px] font-medium leading-5 text-[#17243c] [overflow-wrap:anywhere]">{row.name}</span>
+                      <span className={cn("inline-flex min-h-6 shrink-0 items-center rounded-full border px-2 text-[12px] font-medium leading-[18px]", row.customerGrade === "단골" ? "border-[#d6e8e2] bg-[#f3faf7] text-[#1f6b5b]" : "border-[#e2e8f0] bg-[#f8fafc] text-[#475569]")}>{row.customerGrade}</span>
+                    </span>
                     <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" />
                   </span>
                   <span className="mt-1 block truncate text-[14px] leading-5 font-normal text-[#475569]">{formatPhoneNumber(row.phone)}</span>

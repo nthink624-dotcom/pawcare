@@ -572,14 +572,24 @@ export default function CustomerManagementScreen({
   const displayedCustomerIds = useMemo(() => displayedCustomers.map((row) => row.id), [displayedCustomers]);
   const managementTableRows = useMemo<CustomerManagementTableRow[]>(() => {
     const guardianById = new Map(bootstrapData.guardians.map((guardian) => [guardian.id, guardian]));
-    return displayedCustomers.map((row) => ({
-      id: row.id,
-      registeredAt: guardianById.get(row.id)?.created_at?.slice(0, 10) || "미등록",
-      name: row.name,
-      phone: row.phone,
-      recentVisitDate: row.recentVisitDate,
-      pets: row.petDetails.map((pet) => ({ name: pet.name, birthday: pet.birthday })),
-    }));
+    return displayedCustomers.map((row) => {
+      const guardian = guardianById.get(row.id);
+      const gradeOverride = guardian?.customer_grade_override;
+      const customerGrade = gradeOverride === "loyal"
+        ? "단골"
+        : gradeOverride === "normal" || gradeOverride === "attention" || row.recentVisitDate
+          ? "일반"
+          : "신규";
+      return {
+        id: row.id,
+        registeredAt: guardian?.created_at?.slice(0, 10) || "미등록",
+        name: row.name,
+        phone: row.phone,
+        customerGrade,
+        recentVisitDate: row.recentVisitDate,
+        pets: row.petDetails.map((pet) => ({ name: pet.name, birthday: pet.birthday })),
+      };
+    });
   }, [bootstrapData.guardians, displayedCustomers]);
   const allDisplayedCustomersSelected =
     displayedCustomerIds.length > 0 && displayedCustomerIds.every((id) => selectedDeleteIds.includes(id));

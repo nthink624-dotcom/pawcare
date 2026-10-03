@@ -85,17 +85,18 @@ export default function CustomerManagementTable({
   return (
     <>
       <div className="hidden h-full overflow-auto lg:block">
-        <table className="w-max min-w-[680px] table-fixed border-collapse text-[14px] leading-5">
+        <table className="w-full min-w-[720px] table-fixed border-collapse text-[14px] leading-5">
           <thead className="sticky top-0 z-10 bg-[#f4f5f3] text-[#4f5a64]">
             <tr className="border-b border-[#dbe2ea]">
-              {deleteMode ? <th className="w-14 px-2 py-3" aria-label="선택" /> : null}
-              <th className="w-[92px] px-2 py-3 text-left font-medium">등록일</th>
-              <th className="w-[100px] px-2 py-3 text-left font-medium">
-                <button type="button" onClick={onSortByName} className="min-h-11 text-left hover:text-[#1f6b5b]">고객명</button>
+              {deleteMode ? <th className="w-14 px-2 py-0" aria-label="선택" /> : null}
+              <th className="w-[112px] px-2 py-0 text-left font-medium">등록일</th>
+              <th className="w-[100px] px-2 py-0 text-left font-medium">
+                <button type="button" onClick={onSortByName} className="inline-flex min-h-11 items-center text-left hover:text-[#1f6b5b]">고객명</button>
               </th>
-              <th className="w-[140px] px-2 py-3 text-left font-medium">연락처</th>
-              <th className="w-[180px] px-2 py-3 text-left font-medium">반려동물 이름</th>
-              <th className="w-[120px] px-2 py-3 text-left font-medium">반려동물 나이</th>
+              <th className="w-[140px] px-2 py-0 text-left font-medium">연락처</th>
+              <th className="w-[180px] px-2 py-0 text-left font-medium">반려동물 이름</th>
+              <th className="w-[120px] px-2 py-0 text-left font-medium">반려동물 나이</th>
+              <th className="w-auto px-2 py-0" aria-hidden="true" />
             </tr>
           </thead>
           <tbody>
@@ -124,6 +125,7 @@ export default function CustomerManagementTable({
                   <td className="truncate px-2 tabular-nums">{formatPhoneNumber(row.phone)}</td>
                   <td className="truncate px-2">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</td>
                   <td className="truncate px-2">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</td>
+                  <td aria-hidden="true" />
                 </tr>
               );
             })}

@@ -577,16 +577,9 @@ export default function CustomerManagementScreen({
       registeredAt: guardianById.get(row.id)?.created_at?.slice(0, 10) || "미등록",
       name: row.name,
       phone: row.phone,
-      pets: row.pets,
-      shopName: bootstrapData.shop.name || "미등록",
-      memo: row.memo,
-      alertEnabled: row.alertEnabled,
-      appointmentCount: row.appointmentCount,
-      groomingCount: row.groomingCount,
-      noshowCount: row.noshowCount,
-      customerGradeOverride: guardianById.get(row.id)?.customer_grade_override ?? null,
+      pets: row.petDetails.map((pet) => ({ name: pet.name, birthday: pet.birthday })),
     }));
-  }, [bootstrapData.guardians, bootstrapData.shop.name, displayedCustomers]);
+  }, [bootstrapData.guardians, displayedCustomers]);
   const allDisplayedCustomersSelected =
     displayedCustomerIds.length > 0 && displayedCustomerIds.every((id) => selectedDeleteIds.includes(id));
 

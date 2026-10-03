@@ -295,7 +295,7 @@ export default function DiscountCouponEditor({
                 type="button"
                 disabled={disabled}
                 onClick={() => onDelete(coupon.id)}
-                className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:opacity-40"
+                className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:opacity-40"
                 aria-label={`${coupon.owner_label ?? coupon.name} 삭제`}
               >
                 <Trash2 className="h-4.5 w-4.5" />
@@ -482,7 +482,7 @@ function ToggleChip({ label, active, disabled, onClick }: { label: string; activ
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "relative inline-flex h-10 items-center justify-center rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] disabled:opacity-40",
+        "relative inline-flex h-10 items-center justify-center rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition disabled:opacity-40",
         active
           ? "border-[#1677ff] bg-[#1677ff] text-white hover:border-[#0e65d8] hover:bg-[#0e65d8]"
           : "border-[#e8edf3] bg-white text-[#334155] hover:border-[#cbd5e1] hover:bg-[#f8fbff]",

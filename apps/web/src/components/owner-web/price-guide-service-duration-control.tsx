@@ -68,7 +68,7 @@ export default function PriceGuideServiceDurationControl({ serviceName, groupNam
       시간 설정<ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
     </button>
     {open && typeof document !== "undefined" ? createPortal(
-      <dialog ref={dialogRef} aria-label={`${groupName} ${serviceName} 예상시간`} onCancel={event => { event.preventDefault(); event.stopPropagation(); close(); }} className="fixed inset-0 m-auto max-h-[calc(100dvh-32px)] w-[calc(100%-32px)] max-w-md overflow-y-auto rounded-[14px] border border-[#dbe2ea] bg-white p-4 text-[#172033] shadow-xl backdrop:bg-black/30" data-price-guide-service-duration-dialog="true">
+      <dialog ref={dialogRef} aria-label={`${groupName} ${serviceName} 예상시간`} onCancel={event => { event.preventDefault(); event.stopPropagation(); close(); }} className="owner-font pm-owner-web fixed inset-0 m-auto max-h-[calc(100dvh-32px)] w-[calc(100%-32px)] max-w-md overflow-y-auto rounded-[14px] border border-[#dbe2ea] bg-white p-4 text-[#172033] shadow-xl backdrop:bg-black/30" data-price-guide-service-duration-dialog="true">
         <header className="flex items-center justify-between gap-2"><h3 className="text-[20px] font-semibold leading-7">{groupName} · {serviceName}</h3><button type="button" onClick={close} aria-label="예상시간 설정 닫기" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px]"><X size={20} aria-hidden /></button></header>
         <section className="mt-4 rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] p-3" aria-label="체중별 예상시간 자동 설정" data-price-guide-weight-duration-rule>
           <p className="text-[16px] font-medium leading-6">체중별 시간 자동 설정</p>

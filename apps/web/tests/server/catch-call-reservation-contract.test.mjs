@@ -24,7 +24,7 @@ test("owner mobile opens CatchCall onboarding once when Android screening is ava
   assert.match(app, /setActiveTab\("settings"\)/);
   assert.match(app, /setSettingsEntryScreen\("catchcall"\)/);
   assert.match(app, /status\.enabled/);
-  assert.match(app, /status\.callLogGranted/);
+  assert.doesNotMatch(app, /status\.callLogGranted/);
 });
 
 test("Android automatic CatchCall adapter allows calls before asynchronous upload", async () => {
@@ -36,7 +36,7 @@ test("Android automatic CatchCall adapter allows calls before asynchronous uploa
   const notification = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallNotification.java");
   assert.match(manifest, /android\.telecom\.CallScreeningService/);
   assert.match(manifest, /android\.intent\.action\.PHONE_STATE/);
-  assert.match(manifest, /android\.permission\.READ_CALL_LOG/);
+  assert.doesNotMatch(manifest, /android\.permission\.READ_CALL_LOG/);
   assert.match(service, /respondToCall\(callDetails, response\)/);
   assert.match(service, /setDisallowCall\(false\)/);
   assert.match(service, /createIncomingEvent/);
@@ -106,7 +106,7 @@ test("mobile CatchCall UI keeps the reservation flow and phone privacy visible",
   assert.match(panel, /\/api\/owner\/call-events\?shopId=/);
   assert.match(panel, /\/api\/owner\/call-events\/\$\{selectedEvent\.id\}\/reservation/);
   assert.match(panel, /010-\*\*\*\*-/);
-  assert.match(panel, /requestOwnerCallLogAccess/);
-  assert.match(panel, /callLogGranted/);
+  assert.match(panel, /configureOwnerCallScreening/);
+  assert.doesNotMatch(panel, /requestOwnerCallLogAccess|callLogGranted/);
   assert.match(panel, /캐치콜/);
 });

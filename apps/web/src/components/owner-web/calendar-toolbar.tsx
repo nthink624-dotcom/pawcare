@@ -2,7 +2,7 @@
 
 import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
 
-import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
+import { OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { StableAvatar } from "@/components/owner-web/stable-avatar";
 import { SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { cn } from "@/lib/utils";
@@ -60,7 +60,7 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, -dateStep))}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
             aria-label="이전 날짜"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -68,14 +68,14 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={() => onDateChange(currentDateInTimeZone())}
-            className="inline-flex h-11 min-w-[158px] items-center justify-center rounded-[8px] px-3 text-[16px] font-semibold tracking-[-0.015em] text-[#172033] transition hover:bg-[#f8fafc]"
+            className="relative inline-flex h-10 min-w-[158px] items-center justify-center rounded-[8px] px-3 text-[16px] font-semibold tracking-[-0.015em] text-[#172033] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-[#f8fafc]"
           >
             {formatSchedulePickerRelativeLabel(selectedDate, shop)}
           </button>
           <button
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, dateStep))}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
             aria-label="다음 날짜"
           >
             <ChevronRight className="h-4 w-4" />
@@ -121,7 +121,7 @@ export function CalendarToolbar({
                   ...visibleStaff.map((option) => ({ value: option.key, label: option.name })),
                 ]}
                 className="w-[164px]"
-                buttonClassName="!h-11"
+                buttonClassName="!h-10"
                 labelClassName="text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]"
                 valueClassName="text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#111827]"
                 menuClassName="w-[164px] min-w-0"
@@ -132,8 +132,8 @@ export function CalendarToolbar({
             type="button"
             onClick={onAddSchedule}
             className={cn(
-              OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
-              "!appearance-none !border-0 !outline-none !min-w-[136px] !px-5 !bg-[#2563eb] !text-[16px] !font-medium !leading-6 !tracking-[-0.005em] hover:!bg-[#1d4ed8] focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+              OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
+              "!min-w-[136px] !px-5 !text-[16px] !leading-6 !tracking-[-0.005em] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
             )}
           >
             <CalendarPlus className="h-[18px] w-[18px]" aria-hidden="true" />

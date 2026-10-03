@@ -3,7 +3,10 @@
 import BenefitManagementTable from "@/components/owner-web/benefit-management-table";
 import type { DiscountCouponPreset } from "@/components/owner-web/discount-coupon-editor";
 import BenefitRegistrationForm from "@/components/owner-web/benefit-registration-form";
-import { OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
+import {
+  OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
+  OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+} from "@/components/owner-web/owner-web-action-button-styles";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { cn } from "@/lib/utils";
@@ -31,7 +34,7 @@ type Props = {
 };
 
 const tabClassName =
-  "benefit-management-tab relative inline-flex h-11 items-center justify-center rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full";
+  "benefit-management-tab relative inline-flex h-10 items-center justify-center rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition before:absolute before:inset-x-0 before:-inset-y-0.5 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full";
 
 export default function BenefitsManagementPanel({
   view,
@@ -65,7 +68,7 @@ export default function BenefitsManagementPanel({
               className={cn(
                 tabClassName,
                 view === "register"
-                  ? "border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8] after:bg-[#1d4ed8] hover:bg-[#dbeafe]"
+                  ? "border-[#1677ff] bg-[#eff6ff] text-[#1677ff] after:bg-[#1677ff] hover:bg-[#dbeafe]"
                   : "border-[#e8edf3] bg-white text-[#475569] after:bg-transparent hover:border-[#cbd5e1] hover:bg-[#f8fafc] hover:text-[#15213b]",
               )}
             >
@@ -81,7 +84,7 @@ export default function BenefitsManagementPanel({
               className={cn(
                 tabClassName,
                 view === "manage"
-                  ? "border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8] after:bg-[#1d4ed8] hover:bg-[#dbeafe]"
+                  ? "border-[#1677ff] bg-[#eff6ff] text-[#1677ff] after:bg-[#1677ff] hover:bg-[#dbeafe]"
                   : "border-[#e8edf3] bg-white text-[#475569] after:bg-transparent hover:border-[#cbd5e1] hover:bg-[#f8fafc] hover:text-[#15213b]",
               )}
             >
@@ -93,7 +96,10 @@ export default function BenefitsManagementPanel({
             type="button"
             onClick={onReload}
             disabled={!dirty}
-            className={cn(OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS, "!text-[16px] !leading-6")}
+            className={cn(
+              OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+              "!text-[16px] !leading-6",
+            )}
           >
             저장된 내용 불러오기
           </button>
@@ -137,7 +143,10 @@ export default function BenefitsManagementPanel({
             <button
               type="button"
               onClick={onCancelRegistration}
-              className="min-h-11 max-w-full rounded-[8px] border border-[#e8edf3] bg-white px-5 py-2 text-[16px] font-medium leading-6 whitespace-normal [word-break:keep-all] text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+              className={cn(
+                OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+                "max-w-full rounded-[8px] px-5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+              )}
             >
               취소
             </button>
@@ -145,7 +154,10 @@ export default function BenefitsManagementPanel({
               type="button"
               disabled={!canRegister}
               onClick={onRegister}
-              className="min-h-11 max-w-full rounded-[8px] border border-[#1d4ed8] bg-[#1d4ed8] px-5 py-2 text-[16px] font-medium leading-6 whitespace-normal [word-break:keep-all] text-white transition hover:border-[#1e40af] hover:bg-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-[#e8edf3] disabled:bg-[#f1f3f7] disabled:text-[#94a3b8]"
+              className={cn(
+                OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
+                "max-w-full rounded-[8px] px-5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-[#e8edf3] disabled:bg-[#f1f3f7] disabled:text-[#94a3b8]",
+              )}
             >
               혜택 등록
             </button>

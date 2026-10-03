@@ -4,6 +4,10 @@ import { Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import DiscountCouponEditor from "@/components/owner-web/discount-coupon-editor";
+import {
+  OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
+  OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+} from "@/components/owner-web/owner-web-action-button-styles";
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { formatDiscountCouponValue } from "@/lib/discount-coupons";
 import { cn } from "@/lib/utils";
@@ -195,7 +199,10 @@ export default function BenefitManagementTable({
         <div className="flex min-w-0 flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-2 xl:col-span-1">
           <button
             type="submit"
-            className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[6px] border border-[#1d4ed8] bg-[#1d4ed8] px-4 py-2 text-[16px]! font-medium! leading-6! whitespace-normal [word-break:keep-all] text-white transition hover:border-[#1e40af] hover:bg-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+            className={cn(
+              OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
+              "min-w-0 flex-1 rounded-[6px] px-4 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+            )}
           >
             <Search className="h-4 w-4" />
             조회
@@ -203,7 +210,10 @@ export default function BenefitManagementTable({
           <button
             type="button"
             onClick={resetFilters}
-            className="inline-flex min-h-11 min-w-max flex-none items-center justify-center gap-1.5 rounded-[6px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px]! font-medium! leading-6! whitespace-normal [word-break:keep-all] text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c8ba5] focus-visible:ring-offset-2"
+            className={cn(
+              OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+              "min-w-max flex-none rounded-[6px] px-3 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+            )}
           >
             <RotateCcw className="h-4 w-4" />
             초기화
@@ -220,14 +230,20 @@ export default function BenefitManagementTable({
             type="button"
             disabled={selectedCount === 0}
             onClick={deleteSelected}
-            className="inline-flex min-h-11 min-w-max flex-none items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3.5 py-2 text-center text-[16px]! font-medium! leading-6! whitespace-normal [word-break:keep-all] text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c8ba5] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+            className={cn(
+              OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+              "min-w-max flex-none rounded-[8px] px-3.5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] text-center focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40",
+            )}
           >
             선택 삭제{selectedCount > 0 ? ` (${selectedCount})` : ""}
           </button>
           <button
             type="button"
             onClick={onOpenRegister}
-            className="inline-flex min-h-11 min-w-max flex-none items-center justify-center gap-1.5 rounded-[8px] border border-[#1d4ed8] bg-[#1d4ed8] px-3.5 py-2 text-center text-[16px]! font-medium! leading-6! whitespace-normal [word-break:keep-all] text-white transition hover:border-[#1e40af] hover:bg-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+            className={cn(
+              OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
+              "min-w-max flex-none rounded-[8px] px-3.5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] text-center focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+            )}
           >
             <Plus className="h-4 w-4" />
             새 혜택 등록
@@ -314,7 +330,7 @@ export default function BenefitManagementTable({
                       <button
                         type="button"
                         onClick={() => setEditingCouponId((current) => current === coupon.id ? null : coupon.id)}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#475569] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
                         title="수정"
                         aria-label={`${coupon.owner_label || coupon.name} 수정`}
                       >
@@ -323,14 +339,17 @@ export default function BenefitManagementTable({
                       <button
                         type="button"
                         onClick={() => onToggleEnabled(coupon.id)}
-                        className="h-11 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px]! font-medium! leading-6! text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+                        className={cn(
+                          OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+                          "rounded-[7px] px-2.5 !text-[16px] !leading-6 focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+                        )}
                       >
                         {coupon.enabled ? "중지" : "재사용"}
                       </button>
                       <button
                         type="button"
                         onClick={() => deleteOne(coupon)}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] border border-[#ead6dc] bg-white text-[#a04455] transition hover:bg-[#fffafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-[7px] border border-[#ead6dc] bg-white text-[#a04455] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-[#fffafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
                         title="삭제"
                         aria-label={`${coupon.owner_label || coupon.name} 삭제`}
                       >

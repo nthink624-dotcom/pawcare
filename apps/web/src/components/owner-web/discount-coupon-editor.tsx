@@ -4,6 +4,10 @@ import { BadgePercent, CalendarDays, ChevronDown, Trash2 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { buildDiscountServiceScopeOptions } from "@/components/owner-web/discount-service-scope";
+import {
+  OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
+  OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+} from "@/components/owner-web/owner-web-action-button-styles";
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { cn } from "@/lib/utils";
 import type { CustomerDiscountCoupon } from "@/types/domain";
@@ -152,7 +156,7 @@ export default function DiscountCouponEditor({
             type="button"
             disabled={disabled}
             onClick={() => (onAddPreset ? onAddPreset("first_visit") : onAdd())}
-            className="inline-flex min-h-11 items-center rounded-[8px] border border-[#334155] bg-[#334155] px-3 text-[14px]! font-medium! leading-5! text-white transition hover:bg-[#1f2937] disabled:opacity-40"
+            className={cn(OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS, "rounded-[8px] px-3 disabled:opacity-40")}
           >
             첫 방문 혜택 만들기
           </button>
@@ -160,7 +164,7 @@ export default function DiscountCouponEditor({
             type="button"
             disabled={disabled}
             onClick={() => (onAddPreset ? onAddPreset("revisit") : onAdd())}
-            className="inline-flex min-h-11 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]! font-medium! leading-5! text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-40"
+            className={cn(OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS, "rounded-[8px] px-3 disabled:opacity-40")}
           >
             재방문 혜택
           </button>
@@ -168,7 +172,7 @@ export default function DiscountCouponEditor({
             type="button"
             disabled={disabled}
             onClick={() => (onAddPreset ? onAddPreset("all") : onAdd())}
-            className="inline-flex min-h-11 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]! font-medium! leading-5! text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-40"
+            className={cn(OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS, "rounded-[8px] px-3 disabled:opacity-40")}
           >
             상시 혜택
           </button>
@@ -176,7 +180,7 @@ export default function DiscountCouponEditor({
             type="button"
             disabled={disabled}
             onClick={() => (onAddPreset ? onAddPreset("custom") : onAdd())}
-            className="inline-flex min-h-11 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]! font-medium! leading-5! text-[#334155] transition hover:bg-[#f8fafc] disabled:opacity-40"
+            className={cn(OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS, "rounded-[8px] px-3 disabled:opacity-40")}
           >
             직접 설정
           </button>
@@ -281,7 +285,7 @@ export default function DiscountCouponEditor({
               <button
                 type="button"
                 onClick={() => toggleCollapsed(coupon.id)}
-                className="inline-flex h-11 w-[96px] items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]! font-medium! leading-5! text-[#334155] transition hover:bg-[#f8fafc]"
+                className={cn(OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS, "w-[96px] rounded-[8px] px-3")}
                 aria-expanded={!collapsed}
               >
                 {collapsed ? "펼치기" : "접기"}
@@ -291,7 +295,7 @@ export default function DiscountCouponEditor({
                 type="button"
                 disabled={disabled}
                 onClick={() => onDelete(coupon.id)}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:opacity-40"
+                className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:opacity-40"
                 aria-label={`${coupon.owner_label ?? coupon.name} 삭제`}
               >
                 <Trash2 className="h-4.5 w-4.5" />
@@ -477,12 +481,11 @@ function ToggleChip({ label, active, disabled, onClick }: { label: string; activ
       disabled={disabled}
       onClick={onClick}
       aria-pressed={active}
-      style={!active ? { backgroundColor: "#475569", borderColor: "#475569" } : undefined}
       className={cn(
-        "h-11 rounded-[8px] border px-4 text-[14px]! font-medium! leading-5! transition disabled:opacity-40",
+        "relative inline-flex h-10 items-center justify-center rounded-[8px] border px-4 text-[14px] font-medium leading-5 transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] disabled:opacity-40",
         active
-          ? "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]"
-          : "border-[#475569]! bg-[#475569]! text-white hover:border-[#334155]! hover:bg-[#334155]!",
+          ? "border-[#1677ff] bg-[#1677ff] text-white hover:border-[#0e65d8] hover:bg-[#0e65d8]"
+          : "border-[#e8edf3] bg-white text-[#334155] hover:border-[#cbd5e1] hover:bg-[#f8fbff]",
       )}
     >
       {label}

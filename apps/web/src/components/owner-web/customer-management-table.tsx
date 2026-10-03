@@ -86,7 +86,7 @@ export default function CustomerManagementTable({
 
   return (
     <>
-      <div className="hidden h-full overflow-auto lg:block">
+      <div className="hidden h-full overflow-auto xl:block">
         <table className="w-full min-w-[720px] table-fixed border-collapse text-[14px] leading-5">
           <thead className="sticky top-0 z-10 bg-[#f4f5f3] text-[#4f5a64]">
             <tr className="border-b border-[#dbe2ea]">
@@ -137,7 +137,7 @@ export default function CustomerManagementTable({
         </table>
       </div>
 
-      <div className="h-full space-y-2 overflow-y-auto p-3 lg:hidden">
+      <div className="h-full space-y-2 overflow-y-auto p-3 xl:hidden">
         {rows.map((row) => {
           const checked = selectedDeleteIds.includes(row.id);
           return (

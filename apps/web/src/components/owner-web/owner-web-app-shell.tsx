@@ -106,7 +106,7 @@ const ownerWebFlushCoreScreens = new Set<OwnerWebScreenKey>([
 function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey; active: boolean }) {
   return (
     <span
-      className={cn("block h-5 w-5 shrink-0 transition-colors", active ? "bg-[var(--acc)]" : "bg-[#9aa3af]")}
+      className={cn("block h-5 w-5 shrink-0 transition-colors", active ? "bg-[var(--acc)]" : "bg-[#64748b]")}
       style={
         {
           WebkitMaskImage: `url(${screenIconPaths[screen]})`,
@@ -215,17 +215,17 @@ export default function OwnerWebAppShell({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-5 pb-4 pt-1">
-          <div className="space-y-5">
+          <div className="space-y-4">
             {ownerWebSidebarGroups.map((group, groupIndex) => (
-              <div key={group.label} className={cn(groupIndex > 0 && "border-t border-dashed border-[#e1e5ec] pt-5")}>
-                <p className="mb-2.5 px-1 text-[16px] font-medium leading-6 text-[#8f98a6]">
+              <div key={group.label} className={cn(groupIndex > 0 && "border-t border-dashed border-[#e1e5ec] pt-4")}>
+                <p className="mb-2 px-3 text-[12px] font-medium leading-[18px] text-[#64748b]">
                   {group.label}
                 </p>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {group.items.map((screen) => {
                     const active = activeScreen === screen.key;
                     const itemClassName = cn(
-                      "relative flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
+                      "pm-owner-nav-item relative flex h-10 min-h-10 w-full items-center gap-2.5 rounded-[8px] px-3 text-left text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
                       active &&
                         "bg-[#eff6ff] text-[var(--acc)] shadow-none hover:bg-[#eff6ff] hover:text-[var(--acc)]",
                     );

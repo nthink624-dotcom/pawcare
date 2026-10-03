@@ -9,6 +9,7 @@ export type CustomerManagementTableRow = {
   registeredAt: string;
   name: string;
   phone: string;
+  recentVisitDate: string | null;
   pets: Array<{ name: string; birthday: string | null }>;
 };
 
@@ -96,6 +97,7 @@ export default function CustomerManagementTable({
               <th className="px-2 py-0 text-left font-medium">연락처</th>
               <th className="px-2 py-0 text-left font-medium">반려동물 이름</th>
               <th className="px-2 py-0 text-left font-medium">반려동물 나이</th>
+              <th className="px-2 py-0 text-left font-medium">최근 방문일</th>
             </tr>
           </thead>
           <tbody>
@@ -124,6 +126,7 @@ export default function CustomerManagementTable({
                   <td className="truncate px-2 tabular-nums">{formatPhoneNumber(row.phone)}</td>
                   <td className="truncate px-2">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</td>
                   <td className="truncate px-2">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</td>
+                  <td className="truncate px-2 tabular-nums">{row.recentVisitDate || "미방문"}</td>
                 </tr>
               );
             })}
@@ -150,6 +153,7 @@ export default function CustomerManagementTable({
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">등록일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.registeredAt}</dd></div>
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 이름</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</dd></div>
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 나이</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</dd></div>
+                <div className="min-w-0"><dt className="font-medium text-[#64748b]">최근 방문일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentVisitDate || "미방문"}</dd></div>
               </dl>
             </article>
           );

@@ -293,7 +293,7 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
     const recentRecord = groomingRecords[0];
     const recentCompletedAppointment = [...guardianAppointments]
       .reverse()
-      .find((appointment) => appointment.appointment_date < today || appointment.status === "completed");
+      .find((appointment) => appointment.status === "completed");
     const recentRecordTime = getTimestampParts(recentRecord?.groomed_at);
     const recentVisitDate = recentRecordTime.date || recentCompletedAppointment?.appointment_date || null;
     const recentVisit = recentRecordTime.date
@@ -577,6 +577,7 @@ export default function CustomerManagementScreen({
       registeredAt: guardianById.get(row.id)?.created_at?.slice(0, 10) || "미등록",
       name: row.name,
       phone: row.phone,
+      recentVisitDate: row.recentVisitDate,
       pets: row.petDetails.map((pet) => ({ name: pet.name, birthday: pet.birthday })),
     }));
   }, [bootstrapData.guardians, displayedCustomers]);

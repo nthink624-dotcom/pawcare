@@ -93,10 +93,9 @@ export default function CustomerManagementTable({
               <th className="w-[100px] px-2 py-0 text-left font-medium">
                 <button type="button" onClick={onSortByName} className="inline-flex min-h-11 items-center text-left hover:text-[#1f6b5b]">고객명</button>
               </th>
-              <th className="w-[140px] px-2 py-0 text-left font-medium">연락처</th>
-              <th className="w-[180px] px-2 py-0 text-left font-medium">반려동물 이름</th>
-              <th className="w-[120px] px-2 py-0 text-left font-medium">반려동물 나이</th>
-              <th className="w-auto px-2 py-0" aria-hidden="true" />
+              <th className="px-2 py-0 text-left font-medium">연락처</th>
+              <th className="px-2 py-0 text-left font-medium">반려동물 이름</th>
+              <th className="px-2 py-0 text-left font-medium">반려동물 나이</th>
             </tr>
           </thead>
           <tbody>
@@ -125,7 +124,6 @@ export default function CustomerManagementTable({
                   <td className="truncate px-2 tabular-nums">{formatPhoneNumber(row.phone)}</td>
                   <td className="truncate px-2">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</td>
                   <td className="truncate px-2">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</td>
-                  <td aria-hidden="true" />
                 </tr>
               );
             })}

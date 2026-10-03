@@ -1405,3 +1405,117 @@ textarea {
   min-height: 44px;
   font-size: 16px !important;
 }
+
+/* Owner web controls share a 40px visual size. Calendar cells, booking/staff
+   cards, switches and customer/Naver previews keep their own content sizing. */
+.pm-owner-web :is(button, a):is(
+  .pm-owner-action, [role="tab"],
+  [class~="h-8"], [class~="h-9"], [class~="h-10"], [class~="h-11"],
+  [class~="h-12"], [class~="h-14"], [class~="min-h-10"],
+  [class~="min-h-11"], [class~="min-h-12"],
+  [class~="h-[40px]"], [class~="h-[44px]"], [class~="h-[48px]"],
+  [class~="h-[52px]"], [class~="h-[56px]"], [class~="min-h-[44px]"],
+  [class~="min-h-[48px]"], [class~="min-h-[56px]"]
+):not(:where(
+  .pm-owner-sidebar *, [data-booking-id], [data-staff-identity-card],
+  [role="switch"], [role="checkbox"], [data-owner-control-size="content"],
+  [data-booking-link-channel="naver"] *, [data-customer-phone-preview-frame] *
+)) {
+  height: 40px !important;
+  min-height: 40px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+
+  & > :is(svg, span[aria-hidden="true"]) {
+    width: 16px !important;
+    height: 16px !important;
+    flex-shrink: 0;
+  }
+}
+
+.pm-owner-web :is(button, a):is(
+  [class~="w-8"], [class~="w-9"], [class~="w-10"], [class~="w-11"],
+  [class~="w-12"]
+):not(:where(.pm-owner-sidebar *, [data-booking-id], [data-staff-identity-card],
+  [role="switch"], [data-owner-control-size="content"], [data-booking-link-channel="naver"] *,
+  [data-customer-phone-preview-frame] *)) {
+  width: 40px !important;
+  min-width: 40px;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Normalize primary action colors, including older dark/green action classes.
+   Destructive reds, selected pale surfaces and status colors remain semantic. */
+.pm-owner-web :is(button, a):is(
+  [class~="bg-[#1677ff]"], [class~="bg-[#2563eb]"], [class~="bg-[#316fe8]"],
+  [class~="bg-[#2877e6]"], [class~="bg-[#2f6bd4]"], [class~="bg-[#2f6fd6]"],
+  [class~="bg-[#2f7866]"], [class~="bg-[#1f6b5b]"], [class~="bg-[#5570F1]"],
+  [class~="bg-[#111827]"], [class~="bg-[#111a30]"], [class~="bg-[#0f172a]"],
+  [class~="bg-[#334155]"], [class~="bg-[var(--acc)]"],
+  [class~="bg-[var(--acc-dk)]"], [class~="bg-[var(--accent)]"],
+  [class~="bg-blue-600"], [class~="bg-indigo-600"]
+):not(:where(.pm-owner-sidebar *, [data-booking-id], [data-staff-identity-card],
+  [role="switch"], [data-owner-control-size="content"],
+  [data-booking-link-channel="naver"] *, [data-customer-phone-preview-frame] *)) {
+  background-color: var(--acc) !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.pm-owner-web :is(button, a):is(
+  [class~="bg-[#1677ff]"], [class~="bg-[#2563eb]"], [class~="bg-[#316fe8]"],
+  [class~="bg-[#2877e6]"], [class~="bg-[#2f6bd4]"], [class~="bg-[#2f6fd6]"],
+  [class~="bg-[#2f7866]"], [class~="bg-[#1f6b5b]"], [class~="bg-[#5570F1]"],
+  [class~="bg-[#111827]"], [class~="bg-[#111a30]"], [class~="bg-[#0f172a]"],
+  [class~="bg-[#334155]"], [class~="bg-[var(--acc)]"],
+  [class~="bg-[var(--acc-dk)]"], [class~="bg-[var(--accent)]"],
+  [class~="bg-blue-600"], [class~="bg-indigo-600"]
+):not(:where(.pm-owner-sidebar *, [data-booking-id], [data-staff-identity-card],
+  [role="switch"], [data-owner-control-size="content"],
+  [data-booking-link-channel="naver"] *, [data-customer-phone-preview-frame] *)):hover:not(:disabled) {
+  background-color: var(--acc-dk) !important;
+}
+
+.pm-owner-web :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select):not(:where([data-booking-link-channel="naver"] *, [data-customer-phone-preview-frame] *)) {
+  height: 40px !important;
+  min-height: 40px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+/* Search icons and text are one field, rather than a 40px input inside a
+   taller wrapper. The wrapper owns its border and keyboard focus. */
+.pm-owner-web :is(label, div):is(.flex, .inline-flex):has(> input:not([type="checkbox"]):not([type="radio"])):is(
+  [class~="h-10"], [class~="h-11"], [class~="h-12"], [class~="min-h-11"]
+) {
+  height: 40px !important;
+  min-height: 40px !important;
+  border-radius: 8px !important;
+}
+
+.pm-owner-web :is(label, div):is(.flex, .inline-flex):has(> input):is(
+  [class~="h-10"], [class~="h-11"], [class~="h-12"], [class~="min-h-11"]
+) > input {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.pm-owner-web :is(button, a, input, select):focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+.pm-owner-web button:disabled:not(:where(.pm-owner-sidebar *)) {
+  cursor: default;
+  opacity: 0.55;
+}

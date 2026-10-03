@@ -301,6 +301,7 @@ function ToggleSwitch({
       type="button"
       aria-pressed={checked}
       aria-label={label}
+      data-owner-control-size="content"
       onClick={onChange}
       className={cn(
         "relative inline-flex translate-y-px shrink-0 items-center rounded-full align-middle transition",

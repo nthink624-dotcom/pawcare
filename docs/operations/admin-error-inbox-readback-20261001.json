@@ -1,0 +1,36 @@
+{
+  "readAt": "2026-10-01",
+  "scope": "Admin-only operational error inbox delivery verification",
+  "status": "UNVERIFIED",
+  "route": "/admin/operational-errors",
+  "developmentDatabase": {
+    "projectRef": "qefxdtmdtvnzgupmjlom",
+    "migrationVersion": "20261001120000",
+    "schemaReadback": "PASS",
+    "rlsEnabled": true,
+    "anonSelect": false,
+    "authenticatedSelect": false,
+    "serviceRoleSelect": true,
+    "serviceRoleInsert": true,
+    "rowCount": 0,
+    "retentionTriggerPresent": true,
+    "apiDeliveryTest": "NOT_RUN"
+  },
+  "projects": {
+    "web": {
+      "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
+      "testDelivery": "NOT_RUN",
+      "testedAt": null,
+      "testEventId": null,
+      "releaseSha": null
+    },
+    "mobile": {
+      "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
+      "testDelivery": "NOT_RUN",
+      "testedAt": null,
+      "testEventId": null,
+      "releaseSha": null
+    }
+  },
+  "interpretation": "The development migration and schema readback passed. The app-level delivery test is not run. Production migration, deployment, and event readback from each Vercel project have not been performed."
+}

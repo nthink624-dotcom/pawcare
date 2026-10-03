@@ -11,7 +11,7 @@ const verification = await readFile(
   "utf8",
 );
 const ownerPushMigration = await readFile(
-  new URL("../../../../supabase/migrations/20260930151901_revoke_owner_push_tokens_browser_grants.sql", import.meta.url),
+  new URL("../../../../supabase/migrations/20261002145432_revoke_owner_push_tokens_browser_grants.sql", import.meta.url),
   "utf8",
 );
 const allBrowserGrantsVerification = await readFile(

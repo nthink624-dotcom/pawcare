@@ -1,0 +1,51 @@
+{
+  "readAt": "2026-10-01",
+  "scope": "Read-only Supabase project, migration, advisor, RLS and browser-grant readback",
+  "projects": {
+    "development": {
+      "name": "petmanager-dev",
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "status": "ACTIVE_HEALTHY",
+      "region": "ap-southeast-2",
+      "migrationCount": 167,
+      "lastMigration": "20260930151901",
+      "securityAdvisors": {
+        "rls_enabled_no_policy": { "level": "INFO", "count": 78 },
+        "auth_leaked_password_protection": { "level": "WARN", "count": 1 }
+      },
+      "performanceAdvisors": {
+        "unindexed_foreign_keys": { "level": "INFO", "count": 137 },
+        "unused_index": { "level": "INFO", "count": 57 }
+      },
+      "publicTableRlsReadback": {
+        "tableCount": 92,
+        "tablesWithoutRls": 0,
+        "tablesWithoutPolicies": 75,
+        "browserTableGrantRows": { "anon": 0, "authenticated": 0 }
+      }
+    },
+    "production": {
+      "name": "petmanager",
+      "ref": "ysxykikqnneuhypybjry",
+      "status": "ACTIVE_HEALTHY",
+      "region": "ap-southeast-1",
+      "migrationCount": 166,
+      "lastMigration": "20260929131500",
+      "securityAdvisors": {
+        "rls_enabled_no_policy": { "level": "INFO", "count": 79 },
+        "auth_leaked_password_protection": { "level": "WARN", "count": 1 }
+      },
+      "performanceAdvisors": {
+        "unindexed_foreign_keys": { "level": "INFO", "count": 136 },
+        "unused_index": { "level": "INFO", "count": 79 }
+      },
+      "publicTableRlsReadback": {
+        "tableCount": 92,
+        "tablesWithoutRls": 0,
+        "tablesWithoutPolicies": 76,
+        "browserTableGrantRows": { "anon": 0, "authenticated": 0 }
+      }
+    }
+  },
+  "interpretation": "Both projects are ACTIVE_HEALTHY. Development is one migration ahead of production (20260930151901); no production migration was applied. All 92 public tables on both projects have RLS enabled and both anon/authenticated effective browser table grant counts are zero. Leaked-password protection remains WARN on both projects."
+}

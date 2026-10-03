@@ -1,0 +1,28 @@
+{
+  "readAt": "2026-10-01",
+  "scope": "Read-only production runtime error and alert-route readback",
+  "source": "Connected Vercel tools; grouped production runtime logs for the prior 24 hours",
+  "projects": {
+    "web": {
+      "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
+      "runtimeErrorCountLast24h": 0,
+      "alerting": {
+        "status": "UNVERIFIED",
+        "destinationConfigured": null,
+        "testDelivery": "NOT_RUN",
+        "reason": "The connected Vercel tools expose runtime logs and grouped errors but not log-drain or error-alert destination inventory; no destination or test receipt was read back"
+      }
+    },
+    "mobile": {
+      "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
+      "runtimeErrorCountLast24h": 0,
+      "alerting": {
+        "status": "UNVERIFIED",
+        "destinationConfigured": null,
+        "testDelivery": "NOT_RUN",
+        "reason": "The connected Vercel tools expose runtime logs and grouped errors but not log-drain or error-alert destination inventory; no destination or test receipt was read back"
+      }
+    }
+  },
+  "interpretation": "Zero grouped runtime error/fatal entries in the prior 24 hours does not prove that future failures will notify an operator. Both production alert routes and test delivery remain unverified. No alerting configuration was changed."
+}

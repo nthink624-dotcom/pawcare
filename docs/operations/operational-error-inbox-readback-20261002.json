@@ -1,0 +1,77 @@
+{
+  "verifiedAt": "2026-10-02",
+  "scope": "Read-only production schema check and local operational-error inbox contract test",
+  "localImplementation": {
+    "migrationFile": "supabase/migrations/20261001120000_add_admin_operational_error_events.sql",
+    "routeFile": "apps/web/src/app/api/admin/operational-errors/route.ts",
+    "contractTests": {
+      "status": "PASS",
+      "passed": 2,
+      "failed": 0,
+      "asserted": [
+        "admin session required",
+        "bounded seven-day listing",
+        "no raw error details or customer identifiers returned",
+        "server-only fail-open persistence",
+        "RLS enabled and anon/authenticated table access revoked",
+        "30-day and 5,000-row retention bounds"
+      ]
+    },
+    "gitState": "route and migration are untracked local files; not committed or deployed"
+  },
+  "productionReadback": {
+    "projectRef": "ysxykikqnneuhypybjry",
+    "migrationVersion": "20261001120000",
+    "migrationApplied": false,
+    "operationalErrorEventsTableExists": false,
+    "remoteWrites": 0
+  },
+  "retentionCleanup": {
+    "localImplementation": {
+      "route": "/api/cron/operational-errors/cleanup",
+      "scheduleUtc": "40 18 * * *",
+      "retentionDays": 30,
+      "authorization": "Vercel scheduled requests require CRON_SECRET bearer token; NOTIFICATION_CRON_SECRET alone is not injected by Vercel",
+      "contractTestStatus": "PASS"
+    },
+    "productionReadback": {
+      "status": "UNVERIFIED",
+      "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
+      "migrationApplied": false,
+      "vercelCronSecretConfigured": true,
+      "vercelCronSecretReadback": {
+        "projectSlug": "petmanager",
+        "environment": "Production",
+        "variableName": "CRON_SECRET",
+        "present": true,
+        "valueRevealed": false,
+        "verifiedAt": "2026-10-02T20:51:53+09:00",
+        "source": "Vercel dashboard environment-variable list"
+      },
+      "scheduledJobReadback": {
+        "globalCronJobsEnabled": true,
+        "operationalErrorCleanupConfigured": false,
+        "verifiedAt": "2026-10-02T20:55:21+09:00",
+        "source": "Vercel dashboard project settings > Cron Jobs",
+        "productionJobs": [
+          {
+            "path": "/api/media/cleanup-expired?dryRun=false",
+            "scheduleUtc": "20 18 * * *"
+          },
+          {
+            "path": "/api/notifications/visit-reminders",
+            "scheduleUtc": "0 0 * * *"
+          }
+        ]
+      },
+      "lastInvocation": {
+        "status": "NOT_RUN",
+        "testedAt": null,
+        "httpStatus": null,
+        "deletedCount": null,
+        "releaseSha": null
+      }
+    }
+  },
+  "interpretation": "The production CRON_SECRET variable is present, but the 30-day cleanup job is not in the Vercel production cron list, the production operational_error_events table is absent, and no cleanup invocation has been verified. Production alert persistence and retention cleanup are therefore not operational. Applying the migration and deploying the route requires separate approval; neither was performed."
+}

@@ -1,0 +1,34 @@
+{
+  "readAt": "2026-10-01",
+  "source": "Authenticated Vercel REST API project metadata and project-domain readback after the explicitly approved root-directory update",
+  "projects": {
+    "web": {
+      "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
+      "projectName": "petmanager",
+      "rootDirectory": "apps/web",
+      "sourceFilesOutsideRootDirectory": true,
+      "domains": [
+        "petmanager.co.kr",
+        "www.petmanager.co.kr"
+      ]
+    },
+    "mobile": {
+      "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
+      "projectName": "petmanager-app",
+      "rootDirectory": "apps/mobile",
+      "sourceFilesOutsideRootDirectory": true,
+      "domains": [
+        "app.petmanager.co.kr",
+        "petmanager-app.vercel.app"
+      ]
+    }
+  },
+  "update": {
+    "project": "petmanager-app",
+    "previousRootDirectory": null,
+    "rootDirectory": "apps/mobile",
+    "sourceFilesOutsideRootDirectory": true,
+    "deploymentTriggered": false,
+    "takesEffectOnNextDeployment": true
+  }
+}

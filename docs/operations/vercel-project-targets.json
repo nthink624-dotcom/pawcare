@@ -3,12 +3,14 @@
     "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
     "projectName": "petmanager",
     "rootDirectory": "apps/web",
+    "sourceFilesOutsideRootDirectory": true,
     "productionDomain": "https://www.petmanager.co.kr"
   },
   "mobile": {
     "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
     "projectName": "petmanager-app",
     "rootDirectory": "apps/mobile",
+    "sourceFilesOutsideRootDirectory": true,
     "productionDomain": "https://app.petmanager.co.kr"
   }
 }

@@ -792,21 +792,31 @@ export function DailyScheduleGrid({
                                   onSelectStaff(booking.staffKey || firstStaffKey);
                                 }}
                                 className={cn(
-                                  "absolute z-20 box-border flex min-h-11 items-center justify-start overflow-hidden rounded-[9px] border border-l-[3px] px-2.5 py-1.5 text-left text-[12px] font-medium leading-[18px] text-[#334155] shadow-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+                                  "absolute z-20 box-border flex min-h-11 items-start justify-start overflow-hidden rounded-[9px] border border-l-[3px] px-3 py-2 text-left text-[12px] font-medium leading-[18px] text-[#334155] shadow-none outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
                                   selected && "!border-[#bcd5fa] ring-1 ring-[#bcd5fa]",
                                 )}
                                 style={{
                                   ...bookingLayoutStyle,
                                   top: getBookingTop(booking.start, scheduleDisplayLayout),
+                                  height: bookingHeight,
                                   backgroundColor: completedBooking ? identityTone.mutedBackground : identityTone.background,
                                   borderColor: identityTone.border,
                                   borderLeftColor: identityTone.accent,
                                 }}
                               >
-                                <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap tabular-nums">
-                                  <span className="flex min-w-0 flex-col">
-                                  <span className="text-[12px] leading-[18px] text-[#64748b]">예약</span>
-                                  <span className="leading-[18px]">{booking.scheduledTimeLabel ?? timeLabel}</span>
+                                <span className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-0.5">
+                                  <span className="min-w-0 truncate text-[14px] font-medium leading-5" style={{ color: identityTone.text }}>
+                                    {booking.pet}{booking.customer ? ` · ${booking.customer}` : ""}
+                                  </span>
+                                  <span className="justify-self-end whitespace-nowrap text-[12px] font-medium leading-5 tabular-nums text-[#526174]">
+                                    {booking.scheduledTimeLabel ?? timeLabel}
+                                  </span>
+                                  <span className="col-span-2 flex min-w-0 items-center gap-1.5">
+                                    <span className={cn("shrink-0 rounded-full border px-1.5 text-[11px] font-medium leading-[18px]", statusPillClass)}>{statusLabel}</span>
+                                    <span className="min-w-0 truncate text-[12px] leading-[18px] text-[#56687b]">{booking.service || "서비스 미지정"}</span>
+                                  </span>
+                                  <span className="col-span-2 min-w-0 truncate text-[12px] leading-[18px] text-[#56687b]" title={requestNoteText} data-booking-request-note={requestNote ? "present" : "empty"}>
+                                    <span className="font-medium text-[#475569]">메모</span>{" "}{requestNote || "없음"}
                                   </span>
                                 </span>
                               </button>

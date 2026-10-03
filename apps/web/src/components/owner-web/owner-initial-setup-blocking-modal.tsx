@@ -75,7 +75,7 @@ export default function OwnerInitialSetupBlockingModal({
   if (!open || !portalTarget) return null;
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-0 z-[100]" data-testid="owner-initial-setup-blocking-layer">
+    <div className="owner-font pm-owner-web pointer-events-none fixed inset-0 z-[100]" data-testid="owner-initial-setup-blocking-layer">
       <div
         className="pointer-events-auto absolute inset-0 bg-[#0f172a]/35"
         data-testid="owner-initial-setup-blocking-backdrop"

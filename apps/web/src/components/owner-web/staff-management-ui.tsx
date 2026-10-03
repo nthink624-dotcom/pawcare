@@ -766,7 +766,7 @@ export function StaffModal({ title, children, footer, onClose }: { title: string
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/28 px-4 py-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" onClick={onClose}>
+    <div className="owner-font pm-owner-web fixed inset-0 z-[100] overflow-y-auto bg-slate-900/28 px-4 py-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" onClick={onClose}>
       <div className="flex min-h-full items-center justify-center">
         <div
           role="dialog"

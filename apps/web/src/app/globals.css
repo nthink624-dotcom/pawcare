@@ -1417,7 +1417,7 @@ textarea {
   [class~="h-[52px]"], [class~="h-[56px]"], [class~="min-h-[44px]"],
   [class~="min-h-[48px]"], [class~="min-h-[56px]"]
 ):not(:where(
-  .pm-owner-sidebar *, [data-booking-id], [data-staff-identity-card],
+  [data-booking-id], [data-staff-identity-card],
   [role="switch"], [role="checkbox"], [data-owner-control-size="content"],
   [data-booking-link-channel="naver"] *, [data-customer-phone-preview-frame] *
 )) {
@@ -1440,7 +1440,7 @@ textarea {
 .pm-owner-web :is(button, a):is(
   [class~="w-8"], [class~="w-9"], [class~="w-10"], [class~="w-11"],
   [class~="w-12"]
-):not(:where(.pm-owner-sidebar *, [data-booking-id], [data-staff-identity-card],
+):not(:where([data-booking-id], [data-staff-identity-card],
   [role="switch"], [data-owner-control-size="content"], [data-booking-link-channel="naver"] *,
   [data-customer-phone-preview-frame] *)) {
   width: 40px !important;

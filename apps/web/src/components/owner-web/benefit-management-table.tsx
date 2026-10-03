@@ -330,7 +330,7 @@ export default function BenefitManagementTable({
                       <button
                         type="button"
                         onClick={() => setEditingCouponId((current) => current === coupon.id ? null : coupon.id)}
-                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#475569] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
+                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
                         title="수정"
                         aria-label={`${coupon.owner_label || coupon.name} 수정`}
                       >
@@ -349,7 +349,7 @@ export default function BenefitManagementTable({
                       <button
                         type="button"
                         onClick={() => deleteOne(coupon)}
-                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-[7px] border border-[#ead6dc] bg-white text-[#a04455] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-[#fffafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
+                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-[7px] border border-[#ead6dc] bg-white text-[#a04455] transition hover:bg-[#fffafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
                         title="삭제"
                         aria-label={`${coupon.owner_label || coupon.name} 삭제`}
                       >

@@ -60,7 +60,7 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, -dateStep))}
-            className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
             aria-label="이전 날짜"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -68,14 +68,14 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={() => onDateChange(currentDateInTimeZone())}
-            className="relative inline-flex h-10 min-w-[158px] items-center justify-center rounded-[8px] px-3 text-[16px] font-semibold tracking-[-0.015em] text-[#172033] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-[#f8fafc]"
+            className="relative inline-flex h-10 min-w-[158px] items-center justify-center rounded-[8px] px-3 text-[16px] font-semibold tracking-[-0.015em] text-[#172033] transition hover:bg-[#f8fafc]"
           >
             {formatSchedulePickerRelativeLabel(selectedDate, shop)}
           </button>
           <button
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, dateStep))}
-            className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
             aria-label="다음 날짜"
           >
             <ChevronRight className="h-4 w-4" />

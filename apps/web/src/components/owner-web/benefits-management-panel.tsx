@@ -34,7 +34,7 @@ type Props = {
 };
 
 const tabClassName =
-  "benefit-management-tab relative inline-flex h-10 items-center justify-center rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition before:absolute before:inset-x-0 before:-inset-y-0.5 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full";
+  "benefit-management-tab relative inline-flex h-10 items-center justify-center rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full";
 
 export default function BenefitsManagementPanel({
   view,

@@ -175,10 +175,6 @@ function SocialIcon({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-function CardSectionTitle({ children }: { children: ReactNode }) {
-  return <h3 className="mb-3 text-[20px] leading-7 font-semibold tracking-[-0.02em] text-[#181b21]">{children}</h3>;
-}
-
 function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="border-t border-[#e5e7eb] py-3 first:border-t-0 first:pt-0 last:pb-0">
@@ -648,9 +644,6 @@ export default function ShopInfoSettingsPanel({
                   title="기본 정보"
                   hideHeader
                 >
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <h3 className="text-[18px] font-semibold leading-[26px] tracking-[-0.02em] text-[#181b21]">기본 정보</h3>
-                </div>
                 {feedbackMessage ? (
                   <div className="mb-4 rounded-[10px] border border-[#f0c7ce] bg-[#fff7f8] px-3 py-2 text-[14px] leading-5 text-[#a04455]">
                     {feedbackMessage}
@@ -950,7 +943,6 @@ export default function ShopInfoSettingsPanel({
                   title="프로필 관리"
                   hideHeader
                 >
-                <CardSectionTitle>프로필 관리</CardSectionTitle>
                 {staffProfileFeedback ? (
                   <div
                     className={cn(
@@ -1057,7 +1049,6 @@ export default function ShopInfoSettingsPanel({
                     title="영업 시간"
                     hideHeader
                   >
-                    <CardSectionTitle>영업 시간</CardSectionTitle>
                     <div className="min-w-0 w-full max-w-full [overflow-wrap:anywhere]">{children}</div>
                   </PanelCard>
                 </div>

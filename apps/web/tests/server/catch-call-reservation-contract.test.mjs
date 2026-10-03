@@ -30,6 +30,7 @@ test("owner mobile opens CatchCall onboarding once when Android screening is ava
 test("Android automatic CatchCall adapter allows calls before asynchronous upload", async () => {
   const manifest = await read("../../apps/mobile/android/app/src/main/AndroidManifest.xml");
   const service = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningService.java");
+  const inCallService = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerInCallService.java");
   const receiver = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallStateReceiver.java");
   const plugin = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningPlugin.java");
   const store = await read("../../apps/mobile/android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningStore.java");
@@ -41,7 +42,7 @@ test("Android automatic CatchCall adapter allows calls before asynchronous uploa
   assert.match(service, /setDisallowCall\(false\)/);
   assert.match(service, /createIncomingEvent/);
   assert.match(receiver, /STATE_RINGING/);
-  assert.match(receiver, /TelephonyManager\.EXTRA_INCOMING_NUMBER/);
+  assert.match(inCallService, /call\.getDetails\(\)\.getHandle\(\)/);
   assert.match(store, /activeProviderCallId/);
   assert.match(receiver, /answered \? "ended" : "missed"/);
   assert.match(receiver, /event\.put\("eventType", eventType\)/);

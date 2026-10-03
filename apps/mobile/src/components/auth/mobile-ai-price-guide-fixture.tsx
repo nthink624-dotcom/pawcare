@@ -56,6 +56,26 @@ function draftRows(document: MobilePriceGuideV2): PriceGuideDraftRow[] {
   }));
 }
 
+function canAutoSavePriceGuideDocument(document: MobilePriceGuideV2) {
+  let hasSaveableService = false;
+  for (const row of document.rows) {
+    const hasValidMinimum = Number.isInteger(row.priceMinKrw) && row.priceMinKrw! >= 0 && row.priceMinKrw! <= 100_000_000;
+    if (row.priceKind === "unknown") {
+      if (row.priceMaxKrw !== null || (row.priceMinKrw !== null && !hasValidMinimum)) return false;
+      continue;
+    }
+    if (!hasValidMinimum) return false;
+    if (row.priceKind === "range") {
+      if (!Number.isInteger(row.priceMaxKrw) || row.priceMaxKrw! < row.priceMinKrw! || row.priceMaxKrw! > 100_000_000) return false;
+    } else if (row.priceMaxKrw !== null) {
+      return false;
+    }
+    const duration = row.durationMinutes;
+    if (row.serviceName?.trim() && Number.isInteger(duration) && duration! >= 1 && duration! <= 1_440) hasSaveableService = true;
+  }
+  return hasSaveableService;
+}
+
 function documentFromInitialRows(rows: PriceGuideDraftRow[]) {
   return createManualPriceDocument(rows.map((row, rowIndex) => ({
     clientId: row.id,
@@ -79,6 +99,7 @@ export default function MobileAiPriceGuideFixture({
   initialServiceId = null,
   initialResumeMode,
   onComplete,
+  onAutoSave,
   onExit,
   shopId,
   ownerBottomNavigation = Boolean(shopId),
@@ -90,6 +111,7 @@ export default function MobileAiPriceGuideFixture({
   initialServiceId?: string | null;
   initialResumeMode?: "manual" | "review";
   onComplete: (rows: PriceGuideDraftRow[], state?: PriceGuideSessionState) => void;
+  onAutoSave?: (rows: PriceGuideDraftRow[], state: PriceGuideSessionState) => void;
   onExit: (rows: PriceGuideDraftRow[] | null, state?: PriceGuideSessionState | null) => void;
   shopId?: string;
   ownerBottomNavigation?: boolean;
@@ -105,6 +127,8 @@ export default function MobileAiPriceGuideFixture({
   const [authRecoveryRequired, setAuthRecoveryRequired] = useState(false);
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
+  const [autoSaveRequest, setAutoSaveRequest] = useState(0);
   const [openingCamera, setOpeningCamera] = useState(false);
   const [privacyPrompt, setPrivacyPrompt] = useState(false);
   const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
@@ -119,6 +143,15 @@ export default function MobileAiPriceGuideFixture({
   const coordinatorRef = useRef<ReturnType<typeof createMobilePricePhotoCoordinator> | null>(null);
   const initialDocumentRef = useRef(initialDocumentValue);
   const initialServiceIdRef = useRef(initialServiceId);
+  const persistedServiceIdRef = useRef(initialServiceId);
+  const editRevisionRef = useRef(0);
+  const autoSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const lastAutoSaveRequestRef = useRef(0);
+  const autoSaveExitRef = useRef(false);
+  const autoSaveCallbackRef = useRef(onAutoSave);
+  const onExitRef = useRef(onExit);
+  autoSaveCallbackRef.current = onAutoSave;
+  onExitRef.current = onExit;
   const realMode = Boolean(shopId);
   const selectionMode: Extract<Mode, "method" | "choose"> = shopId ? "method" : "choose";
 
@@ -148,8 +181,85 @@ export default function MobileAiPriceGuideFixture({
 
   useEffect(() => purgePhoto, []);
 
+  const reviewModeActive = (mode === "review" || mode === "manual") && Boolean(document);
+
+  useEffect(() => {
+    if (!realMode || !reviewModeActive || !document || !isDirty) return;
+    if (!canAutoSavePriceGuideDocument(document)) {
+      setAutoSaveStatus("pending");
+      return;
+    }
+    const revision = editRevisionRef.current;
+    const snapshot = document;
+    const immediate = autoSaveRequest !== lastAutoSaveRequestRef.current;
+    lastAutoSaveRequestRef.current = autoSaveRequest;
+    const timer = window.setTimeout(() => {
+      const job = autoSaveQueueRef.current.catch(() => undefined).then(async () => {
+        if (revision !== editRevisionRef.current) return;
+        const coordinator = coordinatorRef.current;
+        if (!coordinator) {
+          setAutoSaveStatus("error");
+          setActionError("저장 연결을 확인하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.");
+          if (revision === editRevisionRef.current) autoSaveExitRef.current = false;
+          return;
+        }
+        setSaving(true);
+        setAutoSaveStatus("saving");
+        setActionError("");
+        try {
+          const persisted = await coordinator.saveAndRequery(snapshot, persistedServiceIdRef.current);
+          persistedServiceIdRef.current = persisted.serviceId;
+          setPersistedServiceId(persisted.serviceId);
+          const persistedRows = draftRows(persisted.document);
+          const persistedState: PriceGuideSessionState = { rows: persistedRows, document: persisted.document, serviceId: persisted.serviceId, resumeMode: mode === "manual" ? "manual" : "review" };
+          if (revision === editRevisionRef.current) {
+            autoSaveCallbackRef.current?.(persistedRows, persistedState);
+            setDocument(persisted.document);
+            setIsDirty(false);
+            setAutoSaveStatus("saved");
+            setActionError("");
+            purgePhoto();
+            if (autoSaveExitRef.current) {
+              autoSaveExitRef.current = false;
+              setPendingAnalysisFile(null);
+              onExitRef.current(persistedRows, persistedState);
+            }
+          } else {
+            setAutoSaveStatus("pending");
+          }
+        } catch (error) {
+          if (revision === editRevisionRef.current) {
+            setAutoSaveStatus("error");
+            setActionError(error instanceof Error ? error.message : "자동 저장에 실패했어요. 다시 시도해 주세요.");
+          }
+          if (revision === editRevisionRef.current) autoSaveExitRef.current = false;
+        } finally {
+          setSaving(false);
+        }
+      });
+      autoSaveQueueRef.current = job;
+    }, immediate ? 0 : 700);
+    setAutoSaveStatus((status) => status === "saved" ? "pending" : status);
+    return () => window.clearTimeout(timer);
+  }, [autoSaveRequest, document, isDirty, mode, realMode, reviewModeActive]);
+
   const requestExit = useCallback(() => {
-    if (saving || openingCamera || mode === "analyzing") return;
+    if (saving) {
+      if (realMode) autoSaveExitRef.current = true;
+      return;
+    }
+    if (openingCamera || mode === "analyzing") return;
+    if (realMode && isDirty) {
+      if (!document || !canAutoSavePriceGuideDocument(document)) {
+        purgePhoto();
+        setPendingAnalysisFile(null);
+        onExit(document ? draftRows(document) : null, sessionFor(document));
+        return;
+      }
+      autoSaveExitRef.current = true;
+      setAutoSaveRequest((request) => request + 1);
+      return;
+    }
     if (setupFlow) {
       coordinatorRef.current?.cancel();
       purgePhoto();
@@ -164,7 +274,7 @@ export default function MobileAiPriceGuideFixture({
     purgePhoto();
     setPendingAnalysisFile(null);
     onExit(document ? draftRows(document) : null, sessionFor(document));
-  }, [document, isDirty, onExit, sessionFor, saving, openingCamera, mode, setupFlow]);
+  }, [document, isDirty, onExit, sessionFor, saving, openingCamera, mode, setupFlow, realMode]);
 
   useEffect(() => {
     const onOwnerMobileBackRequest = (event: Event) => {
@@ -345,12 +455,29 @@ export default function MobileAiPriceGuideFixture({
     }
   };
 
+  const finishSetup = () => {
+    if (!document || saving || isDirty || !canAutoSavePriceGuideDocument(document)) return;
+    const rows = draftRows(document);
+    onComplete(rows, { rows, document, serviceId: persistedServiceId, resumeMode: mode === "manual" ? "manual" : "review" });
+  };
+
+  const autoSaveStatusLabel = autoSaveStatus === "saving"
+    ? "자동 저장 중..."
+    : autoSaveStatus === "saved"
+      ? "자동 저장 완료"
+      : autoSaveStatus === "error"
+        ? "자동 저장에 실패했어요"
+        : document && canAutoSavePriceGuideDocument(document)
+          ? "수정하면 자동으로 저장돼요"
+          : "가격과 시간을 입력하면 자동 저장돼요";
+
   const inModal = presentation === "modal";
-  const reviewModeActive = (mode === "review" || mode === "manual") && Boolean(document);
   return (
     <section className={`mx-auto w-full min-w-0 max-w-[430px] ${inModal ? "flex max-h-[calc(100dvh-48px)] flex-col bg-white" : mode === "method" ? "bg-[#f4f5f7] py-4" : mode === selectionMode ? "min-h-dvh bg-white" : ""}`} aria-label={mode === "method" ? "요금표 등록 방식" : "요금표 사진 검토"} data-price-guide-review-content={reviewModeActive ? "active" : undefined}>
       <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" tabIndex={-1} aria-hidden="true" className="sr-only" onChange={selectPhoto} />
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" tabIndex={-1} aria-hidden="true" className="sr-only" onChange={selectPhoto} />
+
+      {reviewModeActive && realMode ? <div className="mx-4 mb-2 flex min-h-10 items-center justify-between gap-2 rounded-[8px] bg-white px-3" data-price-guide-autosave-status><p className="min-w-0 text-[14px] text-slate-500" role="status" aria-live="polite">{autoSaveStatusLabel}</p>{autoSaveStatus === "error" ? <button type="button" className="min-h-10 shrink-0 rounded-[8px] px-2 text-[14px] font-medium text-blue-700" onClick={() => setAutoSaveRequest((request) => request + 1)}>다시 시도</button> : null}</div> : null}
 
       {mode === "method" && <div className="mx-4 my-4 rounded-[16px] border border-slate-200 bg-white p-4 shadow-[0_4px_14px_rgba(15,23,42,0.06)]">
         <div className="space-y-3">
@@ -390,10 +517,10 @@ export default function MobileAiPriceGuideFixture({
       )}
 
       {(mode === "review" || mode === "manual") && document && (
-        <div className={`min-w-0 max-w-full space-y-4 px-4 pt-2 ${inModal ? "min-h-0 flex-1 overflow-y-auto pb-4" : ""}`} ref={invalidRef}>{mode === "manual" && <button type="button" className="min-h-11 rounded-[10px] border border-blue-200 bg-blue-50 px-3 text-[14px] font-medium text-blue-700" onClick={() => fileInputRef.current?.click()}>사진으로 다시 불러오기</button>}<MobilePriceGuideMatrix document={document} onChange={(next) => { setDocument({ ...next, source: next.source === "manual" ? "manual" : "owner_corrected" }); setIsDirty(true); setActionError(""); }} />{actionError && <p role="alert" className="rounded-[10px] bg-rose-50 p-3 text-[14px] font-medium text-rose-700">{actionError}</p>}</div>
+        <div className={`min-w-0 max-w-full space-y-4 px-4 pt-2 ${inModal ? "min-h-0 flex-1 overflow-y-auto pb-4" : ""}`} ref={invalidRef}>{mode === "manual" && <button type="button" className="min-h-11 rounded-[10px] border border-blue-200 bg-blue-50 px-3 text-[14px] font-medium text-blue-700" onClick={() => fileInputRef.current?.click()}>사진으로 다시 불러오기</button>}<MobilePriceGuideMatrix document={document} onChange={(next) => { editRevisionRef.current += 1; setAutoSaveStatus("pending"); setDocument({ ...next, source: next.source === "manual" ? "manual" : "owner_corrected" }); setIsDirty(true); setActionError(""); }} />{actionError && <p role="alert" className="rounded-[10px] bg-rose-50 p-3 text-[14px] font-medium text-rose-700">{actionError}</p>}</div>
       )}
 
-      {(reviewModeActive || (setupFlow && mode === "method")) && <footer className={`mx-4 mb-4 border-t border-slate-200 bg-white px-1 pt-4 ${inModal ? "shrink-0" : ""}`} data-price-guide-review-footer><div className={setupFlow ? "grid gap-3" : "flex gap-3"} style={setupFlow ? { gridTemplateColumns: "minmax(0,35fr) minmax(0,65fr)" } : undefined}><button type="button" disabled={saving || openingCamera} className="min-h-12 flex-1 rounded-[10px] border border-slate-200 bg-white text-[16px] font-medium text-slate-700 disabled:opacity-50" onClick={setupFlow ? requestExit : saveDraftAndExit}>{setupFlow ? "이전" : "임시 저장"}</button><button type="button" disabled={saving || !document} className="min-h-12 flex-[1.4] rounded-[10px] bg-[#111a30] px-3 text-[16px] font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300" onClick={() => void save()}>{saving ? "저장 중..." : "저장하기"}</button></div></footer>}
+      {reviewModeActive && realMode && setupFlow ? <footer className={`mx-4 mb-4 border-t border-slate-200 bg-white px-1 pt-3 ${inModal ? "shrink-0" : ""}`} data-price-guide-review-footer><div className="flex min-h-11 justify-end"><button type="button" disabled={!document || isDirty || saving || !canAutoSavePriceGuideDocument(document)} className="min-h-11 shrink-0 rounded-[8px] bg-[#111a30] px-4 text-[14px] font-medium text-white disabled:bg-slate-300" onClick={finishSetup}>완료</button></div></footer> : (!realMode && (reviewModeActive || (setupFlow && mode === "method"))) && <footer className={`mx-4 mb-4 border-t border-slate-200 bg-white px-1 pt-4 ${inModal ? "shrink-0" : ""}`} data-price-guide-review-footer><div className={setupFlow ? "grid gap-3" : "flex gap-3"} style={setupFlow ? { gridTemplateColumns: "minmax(0,35fr) minmax(0,65fr)" } : undefined}><button type="button" disabled={saving || openingCamera} className="min-h-12 flex-1 rounded-[10px] border border-slate-200 bg-white text-[16px] font-medium text-slate-700 disabled:opacity-50" onClick={setupFlow ? requestExit : saveDraftAndExit}>{setupFlow ? "이전" : "나가기"}</button><button type="button" disabled={saving || !document} className="min-h-12 flex-[1.4] rounded-[10px] bg-[#111a30] px-3 text-[16px] font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300" onClick={() => void save()}>{saving ? "저장 중..." : "완료"}</button></div></footer>}
 
       {discardOpen && <SetupModal label="작성 중인 내용" onCancel={() => setDiscardOpen(false)}><div className="w-full bg-white p-5"><h2 className="auth-type-section-title text-slate-900">작성 중인 내용이 있어요</h2><div className="mt-5 grid gap-2"><button type="button" className="min-h-11 rounded-[10px] border border-slate-200 text-[16px] font-medium text-slate-700" onClick={() => setDiscardOpen(false)}>계속 작성</button><button type="button" className="min-h-11 rounded-[10px] bg-[#111a30] text-[16px] font-medium text-white" onClick={saveDraftAndExit}>임시 저장 후 나가기</button><button type="button" className="min-h-11 rounded-[10px] text-[16px] font-medium text-[#9a5e4e]" onClick={requestDiscard}>작성 내용 삭제</button></div></div></SetupModal>}
       {discardConfirmOpen && <SetupModal label="작성 내용 삭제 확인" onCancel={() => setDiscardConfirmOpen(false)}><div className="w-full bg-white p-5"><h2 className="auth-type-section-title text-slate-900">작성 내용을 삭제할까요?</h2><div className="mt-5 grid gap-2"><button type="button" className="min-h-11 rounded-[10px] border border-slate-200 text-[16px] font-medium text-slate-700" onClick={() => setDiscardConfirmOpen(false)}>계속 작성</button><button type="button" className="min-h-11 rounded-[10px] text-[16px] font-medium text-[#9a5e4e]" onClick={confirmDiscard}>작성 내용 삭제</button></div></div></SetupModal>}

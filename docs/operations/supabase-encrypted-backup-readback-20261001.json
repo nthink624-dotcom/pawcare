@@ -1,0 +1,95 @@
+{
+  "completedAt": "2026-10-01",
+  "scope": "Production Supabase logical encrypted dump and isolated local restore verification; no remote writes",
+  "target": {
+    "provider": "Supabase",
+    "projectRef": "ysxykikqnneuhypybjry",
+    "plan": "FREE",
+    "serverPostgresVersion": "17.6",
+    "managedScheduledBackups": "NOT_INCLUDED_BY_PLAN"
+  },
+  "backup": {
+    "status": "UPLOADED_AND_READ_BACK",
+    "format": "PMDUMP02",
+    "encryption": "AES-CBC+HMAC-SHA256",
+    "schemas": [
+      "auth",
+      "pm_marketing_private",
+      "pm_signup_private",
+      "private",
+      "public",
+      "supabase_migrations"
+    ],
+    "bytes": 1072024,
+    "sha256": "9c306638d5ceef477cedbb100fdab1da74b495675827b58176e391b82def5876",
+    "driveFolder": "PetManager 암호화 백업",
+    "driveFileId": "1QeBFxaoGK61A1blykqJJ23XZ5WjYB12k",
+    "driveReadback": "Listed in approved folder; metadata reports matching file size",
+    "remoteWrites": 0
+  },
+  "recoveryKey": {
+    "path": "E:\\PetManagerRecovery\\petmanager-prod-20261001.key",
+    "bytes": 32,
+    "storage": "Unencrypted file on removable E: USB; intentionally not uploaded to Drive",
+    "secondDeviceReadback": "NOT_VERIFIED"
+  },
+  "restoreDrill": {
+    "status": "LOCAL_ISOLATED_POSTGRES_RESTORE_PASS_WITH_SCHEMA_TEXT_VARIANCE",
+    "restorePostgresVersion": "18.4",
+    "tables": 125,
+    "rows": 1226,
+    "sequences": 1,
+    "schemaObjects": 3387,
+    "postgresMajorVersionVariance": {
+      "status": "NINE_CHECK_CONSTRAINT_TEXT_FINGERPRINTS_DIFFER",
+      "semanticEquivalenceVerified": false,
+      "constraints": [
+        "marketing_acquisition_events_activation_rule_version_check",
+        "marketing_acquisition_events_event_key_check",
+        "marketing_acquisition_events_plan_code_check",
+        "marketing_acquisitions_utm_campaign_check",
+        "marketing_acquisitions_utm_content_check",
+        "marketing_acquisitions_utm_medium_check",
+        "marketing_acquisitions_utm_source_check",
+        "marketing_acquisitions_utm_term_check",
+        "tester_feedback_submissions_app_version_check"
+      ]
+    },
+    "separateSupabaseProjectRestore": "NOT_RUN",
+    "rpoMinutes": null,
+    "rtoMinutes": null
+  },
+  "offlineRestoreOnlyVerification": {
+    "status": "PASS",
+    "verifiedAt": "2026-10-01",
+    "target": "production",
+    "mode": "decrypt existing artifact and restore to a temporary local PostgreSQL cluster only",
+    "archiveBytes": 1072024,
+    "archiveSha256": "9c306638d5ceef477cedbb100fdab1da74b495675827b58176e391b82def5876",
+    "restorePostgresVersion": "18.4",
+    "tables": 125,
+    "sequences": 1,
+    "schemaObjects": 3387,
+    "validatedCheckConstraints": 371,
+    "postgresMajorVarianceConstraintsPresent": 9,
+    "postgresMajorVarianceConstraintsValidated": 9,
+    "constraintBehaviorMatrix": "PASS",
+    "constraintBehaviorProbeCount": 73,
+    "remoteReads": 0,
+    "remoteWrites": 0,
+    "networkAccess": "none",
+    "sourceArchiveModified": false,
+    "recoveryKeyModified": false,
+    "temporaryClusterCleanup": "PASS; PostgreSQL process exited, port 55441 closed, temporary cluster removed",
+    "sourceFingerprintComparison": "NOT_PERFORMED",
+    "semanticEquivalenceVerified": false,
+    "rpoMinutes": null,
+    "rtoMinutes": null
+  },
+  "remainingCaveats": [
+    "Managed Supabase backups and PITR are not included in the current FREE plan.",
+    "The nine CHECK constraint definitions were restored successfully but cross-major semantic equality was not independently verified.",
+    "The E: recovery key has not been tested from a second recovery device.",
+    "A database dump does not include Supabase Storage or Cloudflare R2 media objects."
+  ]
+}

@@ -236,6 +236,7 @@ public class OwnerCallScreeningPlugin extends Plugin {
         response.put("pending", pending.optBoolean("pending", false));
         response.put("providerCallId", pending.optString("providerCallId", ""));
         response.put("callerNumber", pending.optString("callerNumber", ""));
+        response.put("action", pending.optString("action", "choose"));
         call.resolve(response);
     }
 
@@ -282,14 +283,19 @@ public class OwnerCallScreeningPlugin extends Plugin {
     }
 
     void handleIncomingCallIntent(Intent intent) {
-        if (intent == null || !OwnerCallNotification.ACTION_INCOMING_CALL_CHOICE.equals(intent.getAction())) return;
+        if (intent == null) return;
+        String intentAction = intent.getAction();
+        if (!OwnerCallNotification.ACTION_INCOMING_CALL_CHOICE.equals(intentAction)
+            && !OwnerCallNotification.ACTION_REGISTER_CUSTOMER.equals(intentAction)) return;
         String providerCallId = intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID);
         String callerNumber = intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER);
-        OwnerCallScreeningStore.setPendingIncomingCallChoice(getContext(), providerCallId, callerNumber);
+        String actionName = OwnerCallNotification.ACTION_REGISTER_CUSTOMER.equals(intentAction) ? "new-customer" : "choose";
+        OwnerCallScreeningStore.setPendingIncomingCallChoice(getContext(), providerCallId, callerNumber, actionName);
         JSObject choice = new JSObject();
         choice.put("pending", true);
         choice.put("providerCallId", providerCallId == null ? "" : providerCallId);
         choice.put("callerNumber", callerNumber == null ? "" : callerNumber);
+        choice.put("action", actionName);
         notifyListeners("incomingCallChoice", choice);
     }
 

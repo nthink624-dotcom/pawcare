@@ -63,7 +63,7 @@ export function InfoTip({
       : "border-[#e2d8ce] text-[#6a6259] shadow-[0_12px_28px_rgba(35,35,31,0.12)]";
 
   return (
-    <span className="relative inline-flex h-5 w-5 items-center justify-center align-middle">
+    <span className={`relative inline-flex h-5 w-5 items-center justify-center align-middle ${className}`.trim()}>
       <button
         type="button"
         aria-label={ariaLabel}
@@ -212,6 +212,7 @@ export function Sheet({
         aria-modal={dialogLabel ? true : undefined}
         aria-label={dialogLabel}
         onKeyDown={keepFocusInDialog}
+        data-safe-area-padding={safeAreaPadding ? "true" : undefined}
         className={`pm-mobile-sheet flex max-h-[92vh] min-h-0 w-full max-w-[430px] flex-col overflow-hidden rounded-t-[24px] bg-white px-4 pt-4 shadow-[0_-18px_44px_rgba(15,23,42,0.16)] ${safeAreaPadding ? "pb-[calc(env(safe-area-inset-bottom)+20px)]" : "pb-5"}`}
         onClick={(event) => event.stopPropagation()}
       >

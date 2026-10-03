@@ -128,10 +128,15 @@ final class OwnerCallScreeningStore {
     }
 
     static synchronized void setPendingIncomingCallChoice(Context context, String providerCallId, String callerNumber) {
+        setPendingIncomingCallChoice(context, providerCallId, callerNumber, "choose");
+    }
+
+    static synchronized void setPendingIncomingCallChoice(Context context, String providerCallId, String callerNumber, String action) {
         JSONObject config = readObject(context, CONFIG_KEY);
         try {
             config.put("pendingIncomingProviderCallId", providerCallId == null ? "" : providerCallId);
             config.put("pendingIncomingCallerNumber", callerNumber == null ? "" : callerNumber);
+            config.put("pendingIncomingAction", "new-customer".equals(action) ? "new-customer" : "choose");
         } catch (Exception ignored) {
             return;
         }
@@ -147,6 +152,7 @@ final class OwnerCallScreeningStore {
             action.put("pending", !providerCallId.isEmpty() || !callerNumber.isEmpty());
             action.put("providerCallId", providerCallId);
             action.put("callerNumber", callerNumber);
+            action.put("action", config.optString("pendingIncomingAction", "choose"));
         } catch (Exception ignored) {
             return new JSONObject();
         }
@@ -157,6 +163,7 @@ final class OwnerCallScreeningStore {
         JSONObject config = readObject(context, CONFIG_KEY);
         config.remove("pendingIncomingProviderCallId");
         config.remove("pendingIncomingCallerNumber");
+        config.remove("pendingIncomingAction");
         writeObject(context, CONFIG_KEY, config);
     }
 

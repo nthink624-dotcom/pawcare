@@ -13,7 +13,7 @@ const ignore = require("ignore");
 const { MAX_RPO_MINUTES, MAX_RTO_MINUTES, validateRestoreDrill } = require("../../../../scripts/lib/recovery-objectives.cjs");
 const { validateLaunchReadbackConsistency } = require("../../../../scripts/lib/launch-readback-consistency.cjs");
 const { checkRestTable } = require("../../scripts/check-media-schema-rest.cjs");
-const { runProductionEndpointChecks } = require("../../../../scripts/check-production-endpoints.cjs");
+const { contractFailureReason, runProductionEndpointChecks } = require("../../../../scripts/check-production-endpoints.cjs");
 
 test("production Supabase connections require the exact production project and environment label", async () => {
   assert.equal(
@@ -114,6 +114,24 @@ test("automatic production endpoint check avoids the database-backed readiness r
   assert.ok(result.results.every(({ readiness }) => readiness.contract === "NOT_REQUESTED"));
 });
 
+test("production endpoint failure reports a safe reason without exposing response values", async () => {
+  const fetchImpl = async () => ({
+    status: 200,
+    headers: new Headers({ "x-request-id": "request-1" }),
+    text: async () => JSON.stringify({ status: "ok", requestId: "request-1", release: "unknown" }),
+  });
+
+  const result = await runProductionEndpointChecks({
+    targets: [{ name: "web", baseUrl: "https://web.example.invalid" }],
+    fetchImpl,
+  });
+
+  assert.equal(result.status, "FAIL");
+  assert.equal(result.results[0].health.failureReason, "RELEASE_UNKNOWN");
+  assert.doesNotMatch(JSON.stringify(result), /unknown/);
+  assert.equal(contractFailureReason({ status: null, error: "AbortError" }, 200), "REQUEST_FAILED");
+});
+
 test("routine predeploy avoids production endpoint probes while launch verification opts into readiness", async () => {
   const predeploy = await read("../../scripts/check-predeploy-release.cjs");
   const rootPackage = JSON.parse(await read("../../package.json"));
@@ -145,6 +163,7 @@ test("database-backed readiness is opt-in and skipped when release identity fail
   });
 
   assert.equal(result.status, "FAIL");
+  assert.equal(result.results[0].health.failureReason, "RELEASE_UNKNOWN");
   assert.deepEqual(requests, ["https://web.example.invalid/api/healthz"]);
   assert.equal(result.results[0].readiness.contract, "SKIPPED_HEALTH_GATE");
 });
@@ -202,28 +221,65 @@ test("manual development media schema probe uses HEAD and never consumes table r
 test("restore drill evidence must prove isolation and measured RPO/RTO within launch objectives", () => {
   const passingDrill = {
     status: "PASS",
-    completedAt: "2026-10-01T12:00:00.000Z",
+    recoverablePointAt: "2026-10-01T12:00:00.000Z",
+    incidentStartedAt: "2026-10-02T12:00:00.000Z",
+    serviceVerifiedAt: "2026-10-02T15:59:00.000Z",
+    completedAt: "2026-10-02T16:00:00.000Z",
     isolatedTargetVerified: true,
     rpoMinutes: MAX_RPO_MINUTES,
-    rtoMinutes: MAX_RTO_MINUTES,
+    rtoMinutes: MAX_RTO_MINUTES - 1,
     evidenceRef: "docs/operations/restore-drill-evidence.md",
   };
 
   assert.deepEqual(validateRestoreDrill("production database", passingDrill), []);
-  assert.ok(validateRestoreDrill("production database", { ...passingDrill, rpoMinutes: MAX_RPO_MINUTES + 1 }).some((failure) => failure.includes("RPO")));
-  assert.ok(validateRestoreDrill("production media", { ...passingDrill, rtoMinutes: MAX_RTO_MINUTES + 1 }).some((failure) => failure.includes("RTO")));
+  assert.ok(validateRestoreDrill("production database", { ...passingDrill, rpoMinutes: MAX_RPO_MINUTES - 1 }).some((failure) => failure.includes("RPO")));
+  assert.ok(validateRestoreDrill("production media", { ...passingDrill, rtoMinutes: MAX_RTO_MINUTES }).some((failure) => failure.includes("RTO")));
+  assert.ok(validateRestoreDrill("production database", { ...passingDrill, recoverablePointAt: "2026-09-30T12:00:00.000Z" }).some((failure) => failure.includes("RPO")));
+  assert.ok(validateRestoreDrill("production media", { ...passingDrill, serviceVerifiedAt: "2026-10-02T16:01:00.000Z" }).some((failure) => failure.includes("RTO")));
   assert.ok(validateRestoreDrill("production database", { ...passingDrill, isolatedTargetVerified: false }).some((failure) => failure.includes("isolated target")));
   assert.ok(validateRestoreDrill("production database", { ...passingDrill, evidenceRef: "" }).some((failure) => failure.includes("evidence reference")));
   assert.ok(validateRestoreDrill("production database", { ...passingDrill, completedAt: "not-a-date" }).some((failure) => failure.includes("timestamp")));
   assert.ok(validateRestoreDrill("production database", { ...passingDrill, completedAt: "2026-02-30T12:00:00.000Z" }).some((failure) => failure.includes("timestamp")));
 });
 
-test("saved launch blockers stay consistent with the dated production and recovery readbacks", async () => {
-  const recovery = JSON.parse(await read("../../docs/operations/saas-recovery-readback-20261001.json"));
-  const supabase = JSON.parse(await read("../../docs/operations/supabase-readonly-readback-20261001.json"));
-  const vercel = JSON.parse(await read("../../docs/operations/vercel-readonly-readback-20261001.json"));
-  const observability = JSON.parse(await read("../../docs/operations/vercel-observability-readback-20261001.json"));
-  const tenantIsolation = JSON.parse(await read("../../docs/operations/tenant-isolation-readback-20261001.json"));
+test("launch consistency detects missing blockers in synthetic readback fixtures", async () => {
+  const releaseSha = "a".repeat(40);
+  const recovery = {
+    database: {
+      protection: { dailyBackupsEnabled: false, pitrEnabled: false, encryptedOffsiteBackupEnabled: false },
+      restoreDrill: { status: "BLOCKED" },
+    },
+    media: {
+      runtimeEnvironmentReadback: { status: "UNVERIFIED" },
+      objectRecovery: { configured: false },
+      restoreDrill: { status: "NOT_RUN" },
+    },
+    priceGuideAi: { enabled: false, featureSetting: "false", apiKeyPresent: false, modelSupported: false, status: "UNVERIFIED" },
+    productionLaunchGate: {
+      expectedRelease: releaseSha,
+      status: "BLOCKED",
+      remainingBlockers: [
+        "Supabase leaked-password protection is not enabled",
+        "production database has no verified daily backup or PITR protection",
+        "production database restore drill is not verified",
+        "production media provider is not verified",
+        "production AI photo price-guide is not verified",
+        "production media object recovery is not configured",
+        "production media restore drill is not verified",
+        "production web error-alert destination is not verified",
+        "production mobile error-alert destination is not verified",
+      ],
+    },
+  };
+  const supabase = { projects: { production: { securityAdvisors: { auth_leaked_password_protection: { level: "WARN" } } } } };
+  const vercel = { projects: { web: { commitSha: releaseSha }, mobile: { commitSha: releaseSha } } };
+  const observability = {
+    projects: {
+      web: { alerting: { status: "UNVERIFIED", destinationConfigured: false, testDelivery: "NOT_RUN" } },
+      mobile: { alerting: { status: "UNVERIFIED", destinationConfigured: false, testDelivery: "NOT_RUN" } },
+    },
+  };
+  const tenantIsolation = { developmentFixture: { status: "PASS", cleanupResidue: 0 } };
   const current = {
     recovery,
     supabase,
@@ -434,8 +490,16 @@ test("production launch blocks when database or media recovery is unverified", a
 test("production launch blocks until the admin-only error inbox verifies web and mobile delivery", async () => {
   const launchGate = await read("../../scripts/check-production-launch-readiness.cjs");
   const readbackCheck = await read("../../scripts/check-readback-evidence.cjs");
-  const evidence = JSON.parse(await read("../../docs/operations/vercel-observability-readback-20261001.json"));
-  const adminInbox = JSON.parse(await read("../../docs/operations/admin-error-inbox-readback-20261001.json"));
+  const evidence = {
+    projects: {
+      web: { runtimeErrorCountLast24h: 0, alerting: { status: "UNVERIFIED" } },
+      mobile: { runtimeErrorCountLast24h: 0, alerting: { status: "UNVERIFIED" } },
+    },
+  };
+  const adminInbox = {
+    status: "UNVERIFIED",
+    projects: { web: { testDelivery: "NOT_RUN" }, mobile: { testDelivery: "NOT_RUN" } },
+  };
 
   assert.match(launchGate, /admin-error-inbox-readback-20261001\.json/);
   assert.match(launchGate, /admin-only operational error inbox is not verified/);
@@ -454,7 +518,7 @@ test("production launch blocks until the admin-only error inbox verifies web and
 test("production launch blocks a release that is not in local and remote master", async () => {
   const launchGate = await read("../../scripts/check-production-launch-readiness.cjs");
   const readbackCheck = await read("../../scripts/check-readback-evidence.cjs");
-  const evidence = JSON.parse(await read("../../docs/operations/vercel-readonly-readback-20261001.json"));
+  const evidence = { releaseRelationship: { masterContainsRelease: false, originMasterContainsRelease: false } };
 
   assert.match(launchGate, /production release is not verified as part of \$\{ref\}/);
   assert.doesNotMatch(launchGate, /ancestry readback does not match current Git refs/);
@@ -470,8 +534,8 @@ test("production launch blocks a release that is not in local and remote master"
 test("production launch verifies the deployed release schema against production migrations", async () => {
   const launchGate = await read("../../scripts/check-production-launch-readiness.cjs");
   const readbackCheck = await read("../../scripts/check-readback-evidence.cjs");
-  const vercel = JSON.parse(await read("../../docs/operations/vercel-readonly-readback-20261001.json"));
-  const supabase = JSON.parse(await read("../../docs/operations/supabase-readonly-readback-20261001.json"));
+  const vercel = { releaseRelationship: { latestMigrationInRelease: "20260929131500", productionReleaseSchemaAligned: true } };
+  const supabase = { projects: { production: { lastMigration: "20260929131500" } } };
 
   assert.match(launchGate, /production release migration history is not aligned/);
   assert.match(launchGate, /ls-tree/);

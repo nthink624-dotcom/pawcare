@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, MessageCircle, Phone, Send } from "lucide-react";
+import { BellRing, MessageCircle, Phone } from "lucide-react";
 import { useState } from "react";
 
 const notificationScenarios = [
@@ -86,19 +86,32 @@ export function AutomaticNotificationPreview() {
       </div>
 
       <div className="bg-[#eaf3ff] p-7 md:p-9">
-        <p className="flex items-center gap-2 text-[14px] font-semibold text-[#3775be]"><BellRing className="h-4 w-4" aria-hidden="true" /> 보호자에게 자동으로 전달되는 알림톡</p>
-        <div className="mx-auto mt-5 max-w-[360px] rounded-[20px] border border-[#cfe0f3] bg-white p-4 shadow-[0_16px_30px_rgba(47,86,129,0.12)]">
-          <div className="flex items-center gap-2 border-b border-[#e4edf7] pb-3 text-[13px] font-semibold text-[#475569]"><span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#ffe500] text-[11px]">●</span> 카카오 알림톡</div>
-          <div className="mt-3 rounded-2xl bg-[#f8fbff] p-4 text-[#172033]">
-            <p className="text-[12px] font-bold text-[#4279c5]">펫매니저</p>
-            <p className="mt-2 text-[14px] font-semibold leading-6">{selected.body}</p>
-            <p className="mt-3 text-right text-[11px] text-[#94a3b8]">{selected.sentAt}</p>
+        <p className="flex items-center gap-2 text-[14px] font-semibold text-[#3775be]"><BellRing className="h-4 w-4" aria-hidden="true" /> 보호자에게 도착하는 알림톡 예시</p>
+        <div className="mx-auto mt-5 min-h-[370px] max-w-[360px] rounded-[16px] bg-[#afc7d6] px-3.5 py-4">
+          <div className="flex items-center gap-2 pb-3 text-[12px] text-[#455a66]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-[#3775be]">펫</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold">펫매니저 <span aria-hidden="true">✓</span></span>
+              <span className="block text-[10px] text-[#607b8a]">알림톡</span>
+            </span>
+            <span aria-hidden="true" className="text-[19px] leading-none">⋮</span>
           </div>
-          <div className="mt-3 rounded-xl bg-[#eaf3ff] px-3 py-2.5 text-[12px] font-semibold text-[#4279c5]">
-            <p className="flex items-center justify-between gap-3"><span>{selected.title}</span><span className="flex shrink-0 items-center gap-1"><Send className="h-3 w-3" aria-hidden="true" /> 자동 발송</span></p>
-            <p className="mt-1 font-medium text-[#607b9b]">발송 조건 · {selected.trigger}</p>
+          <div className="ml-1 flex max-w-[300px] items-start gap-1.5">
+            <div className="min-w-0 flex-1 overflow-hidden rounded-[3px_12px_12px_12px] bg-white text-[#202124]">
+              <div className="flex items-center gap-1.5 bg-[#ffe500] px-3 py-2 text-[12px] font-medium">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#202124] text-[9px] text-[#ffe500]">●</span>
+                알림톡 도착
+              </div>
+              <div className="px-3 py-3.5">
+                <p className="whitespace-pre-line break-keep text-[13px] leading-[1.65]">{selected.body}</p>
+                <div className="mt-3 flex min-h-11 items-center justify-center border-t border-[#edf0f3] bg-[#f4f4f4] px-3 text-[13px] font-medium text-[#202124]">예약 확인</div>
+              </div>
+            </div>
+            <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#45413b] text-[8px] font-semibold text-white">k</span>
           </div>
+          <p className="ml-[54px] mt-1 text-[10px] text-[#607b8a]">오후 12:03</p>
         </div>
+        <p className="mx-auto mt-3 max-w-[360px] text-[12px] leading-5 text-[#607b9b]">{selected.title} · {selected.trigger} · {selected.sentAt}</p>
       </div>
     </div>
   );

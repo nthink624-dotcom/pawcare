@@ -12,8 +12,6 @@ import {
   isOwnerCallScreeningAvailable,
   setOwnerCallScreeningEnabled,
   requestOwnerCallScreeningRole,
-  requestOwnerDialerRole,
-  requestOwnerFullScreenIntentAccess,
   syncOwnerCallScreeningPhoneAllowlist,
   syncOwnerCallScreeningEvents,
   clearOwnerCallReservationAction,
@@ -104,15 +102,13 @@ export default function OwnerCatchCallPanel({
   pendingReservationAction = null,
   incomingCallChoice = null,
   onIncomingCallReservation,
-  onIncomingCallAnswer,
-  onIncomingCallEnd,
+  onIncomingCallNewCustomer,
 }: {
   data: BootstrapPayload;
   pendingReservationAction?: OwnerCallReservationAction | null;
   incomingCallChoice?: OwnerIncomingCallChoice | null;
   onIncomingCallReservation?: () => void;
-  onIncomingCallAnswer?: () => void;
-  onIncomingCallEnd?: () => void;
+  onIncomingCallNewCustomer?: () => void;
 }) {
   const [events, setEvents] = useState<CatchCallEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -129,8 +125,6 @@ export default function OwnerCatchCallPanel({
   const [callScreeningStatus, setCallScreeningStatus] = useState<{
     available: boolean;
     enabled: boolean;
-    dialerEnabled: boolean;
-    fullScreenIntentAllowed: boolean;
     active: boolean;
     phoneStateGranted: boolean;
   } | null>(null);
@@ -144,9 +138,13 @@ export default function OwnerCatchCallPanel({
     [data.pets, guardianId],
   );
   const services = useMemo(() => data.services.filter((service) => service.is_active), [data.services]);
+  const phoneAllowlistKey = data.guardians
+    .filter((guardian) => !guardian.deleted_at && guardian.phone.trim())
+    .map((guardian) => guardian.phone.trim())
+    .join("\u001f");
   const phoneAllowlist = useMemo(
-    () => data.guardians.filter((guardian) => !guardian.deleted_at && guardian.phone.trim()).map((guardian) => guardian.phone.trim()),
-    [data.guardians],
+    () => phoneAllowlistKey ? phoneAllowlistKey.split("\u001f") : [],
+    [phoneAllowlistKey],
   );
   const selectedPet = guardianPets.find((pet) => pet.id === petId) ?? null;
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
@@ -189,7 +187,7 @@ export default function OwnerCatchCallPanel({
     });
     // The shop is the only external input for this panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.shop.id, pendingReservationAction?.providerCallId, phoneAllowlist]);
+  }, [data.shop.id, pendingReservationAction?.providerCallId, phoneAllowlistKey]);
 
   async function enableAutomaticCallScreening() {
     setConfiguringCallScreening(true);
@@ -197,22 +195,16 @@ export default function OwnerCatchCallPanel({
     try {
       const initialStatus = await getOwnerCallScreeningStatus();
       if (!initialStatus.available) throw new Error("이 기기에서는 자동 통화 확인을 사용할 수 없습니다.");
-      if (!initialStatus.dialerEnabled) await requestOwnerDialerRole();
-      const dialerStatus = await getOwnerCallScreeningStatus();
-      if (!dialerStatus.dialerEnabled) {
-        throw new Error("펫매니저를 기본 전화 앱으로 설정해야 캐치콜을 켤 수 있습니다.");
-      }
       await configureOwnerCallScreening(data.shop.id, phoneAllowlist);
       const status = await getOwnerCallScreeningStatus();
       if (status.available && !status.enabled) await requestOwnerCallScreeningRole();
-      await requestOwnerFullScreenIntentAccess();
       const nextStatus = await getOwnerCallScreeningStatus();
       setCallScreeningStatus(nextStatus);
       setMessage({
-        type: nextStatus.enabled && nextStatus.dialerEnabled && nextStatus.fullScreenIntentAllowed ? "success" : "error",
-        text: nextStatus.enabled && nextStatus.dialerEnabled && nextStatus.fullScreenIntentAllowed
-          ? "펫매니저 통화 화면이 설정됐어요. 예약 추가, 통화 받기, 통화 끊기를 선택할 수 있습니다."
-          : "기본 전화 앱과 전체 화면 알림 설정을 확인해 주세요.",
+        type: nextStatus.enabled && nextStatus.active ? "success" : "error",
+        text: nextStatus.enabled && nextStatus.active
+          ? "캐치콜 알림을 켰어요. 기본 전화 앱은 그대로 사용할 수 있습니다."
+          : "전화 알림 권한을 확인해 주세요.",
       });
     } catch (error) {
       setMessage({ type: "error", text: getCatchCallErrorMessage(error, "자동 통화 확인을 켜지 못했습니다.") });
@@ -315,30 +307,22 @@ export default function OwnerCatchCallPanel({
         </p>
       ) : null}
 
-      <div className="rounded-[14px] border border-[#dfe7f1] bg-white p-4">
-        <div className="flex items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#eef4ff] text-[#2f6fd6]">
-            <PhoneCall className="size-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <h3 className="text-[16px] font-semibold leading-6 text-[#15213b]">자동 통화 확인</h3>
-              <InfoTip ariaLabel="자동 통화 확인 도움말" popoverClassName="!left-1/2 !right-auto !-translate-x-1/2 w-[240px]">
-                펫매니저에 등록된 고객 전화만 자동으로 찾아 예약 화면에 연결합니다. 개인 전화는 기록하지 않습니다.
-              </InfoTip>
-            </div>
-          </div>
-        </div>
-        {callScreeningStatus?.enabled ? (
-          <div className="mt-3 rounded-[10px] bg-[#f5fbf8] px-3 py-2.5 text-[#1f6b5b]">
-            {!callScreeningStatus.dialerEnabled || !callScreeningStatus.fullScreenIntentAllowed ? (
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-[8px] bg-white px-3 py-2 text-[14px] leading-5 text-[#64748b]">
-                <span>전화 화면 설정을 마치면 모든 전화의 기본 화면이 바뀝니다.</span>
-                <button type="button" onClick={() => void enableAutomaticCallScreening()} disabled={configuringCallScreening} className="min-h-11 rounded-[8px] bg-[#111a30] px-3 font-medium text-white disabled:opacity-50">설정하기</button>
+      <div className="relative rounded-[24px] border border-[#dce7f1] bg-gradient-to-br from-[#f4f8ff] via-white to-[#eef8f5] p-5 shadow-[0_8px_24px_rgba(28,48,77,0.06)]">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[24px]"><div className="absolute -right-10 -top-14 size-40 rounded-full bg-[#dceaff]/60 blur-2xl" /></div>
+        <div className="relative">
+          <div className="flex items-start gap-3.5">
+            <span className="grid size-12 shrink-0 place-items-center rounded-[17px] bg-[#172b4d] text-white">
+              <PhoneCall className="size-[21px]" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <div className="flex items-center gap-1.5">
+                <h3 className="min-w-0 flex-1 text-[15px] font-semibold leading-5 tracking-[-0.03em] text-[#172b4d]">등록 고객 전화 확인</h3>
+                <InfoTip ariaLabel="캐치콜 도움말" className="z-20 shrink-0" popoverClassName="!left-auto !right-0 !top-7 !translate-x-0 w-[min(240px,calc(100vw-80px))]">
+                  등록 고객은 예약 기록으로 연결하고, 새 번호는 신규고객으로 등록할 수 있어요. 새 번호는 저장하기 전까지 서버로 보내지 않아요.
+                </InfoTip>
               </div>
-            ) : null}
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[13px] font-medium leading-5">캐치콜 자동 감지</p>
+            </div>
+            {callScreeningStatus?.enabled ? (
               <button
                 type="button"
                 role="switch"
@@ -346,30 +330,22 @@ export default function OwnerCatchCallPanel({
                 aria-label="캐치콜 자동 감지 켜기 또는 끄기"
                 onClick={() => void toggleAutomaticCallScreening()}
                 disabled={configuringCallScreening}
-                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${callScreeningStatus.active ? "bg-[#2563eb]" : "bg-[#cbd5e1]"}`}
+                className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${callScreeningStatus.active ? "bg-[#31856e]" : "bg-[#c3cbd5]"}`}
               >
-                <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${callScreeningStatus.active ? "translate-x-6" : "translate-x-1"}`} />
+                <span className={`absolute left-1 top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${callScreeningStatus.active ? "translate-x-5" : "translate-x-0"}`} />
               </button>
-            </div>
-            <p className="mt-1 text-[12px] leading-5 text-[#457867]">{callScreeningStatus.active ? "등록 고객 전화가 캐치콜로 감지됩니다." : "캐치콜 기록은 꺼져 있지만 통화 화면은 펫매니저로 표시됩니다."}</p>
+            ) : null}
           </div>
-        ) : devicePlatform === "ios" ? (
-          <div className="mt-3 rounded-[10px] border border-[#e8edf3] bg-[#f8fafc] px-3 py-3">
-            <p className="text-[14px] font-medium leading-5 text-[#15213b]">iPhone에서는 일반 전화 화면에 펫매니저 버튼을 띄울 수 없어요.</p>
-            <p className="mt-1 text-[14px] leading-5 text-[#64748b]">통화 중 예약 추가·받기·끊기 선택은 지원되지 않습니다. 통화 후 펫매니저에서 예약을 등록하거나, 매장 전화 연동을 별도로 이용해 주세요.</p>
-          </div>
-        ) : callScreeningStatus?.available ? (
-          <>
-          <p className="mt-3 text-[14px] leading-5 text-[#64748b]">계속하면 모든 전화에 펫매니저 통화 화면이 표시됩니다. 기본 전화 앱 변경은 Android 확인 화면에서 선택해야 합니다.</p>
-          <button type="button" onClick={() => void enableAutomaticCallScreening()} disabled={configuringCallScreening} className="mt-3 min-h-12 w-full rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium text-white disabled:opacity-50">
-            {configuringCallScreening ? "연결 준비 중..." : "펫매니저 통화 화면 설정하기"}
-          </button>
-          </>
-        ) : devicePlatform === "android" ? (
-          <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-2.5 text-[14px] leading-5 text-[#64748b]">자동 통화 확인은 PetManager Android 앱에서 설정할 수 있습니다.</p>
-        ) : (
-          <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-2.5 text-[14px] leading-5 text-[#64748b]">자동 통화 확인은 지원되는 Android 휴대폰에서만 설정할 수 있습니다.</p>
-        )}
+          {callScreeningStatus?.enabled ? null : callScreeningStatus?.available ? (
+            <button type="button" onClick={() => void enableAutomaticCallScreening()} disabled={configuringCallScreening} className="mt-5 min-h-12 w-full rounded-2xl bg-[#172b4d] px-4 text-[15px] font-semibold text-white shadow-[0_5px_12px_rgba(23,43,77,0.16)] transition hover:bg-[#213a60] disabled:opacity-50">
+              {configuringCallScreening ? "연결 준비 중..." : "캐치콜 알림 켜기"}
+            </button>
+          ) : devicePlatform === "ios" ? (
+            <p className="mt-5 rounded-2xl border border-white/80 bg-white/75 px-4 py-3 text-[13px] leading-5 text-[#64748b]">iPhone에서는 일반 전화 위에 캐치콜 알림을 띄울 수 없습니다.</p>
+          ) : (
+            <p className="mt-5 rounded-2xl border border-white/80 bg-white/75 px-4 py-3 text-[13px] leading-5 text-[#64748b]">Android 앱에서 캐치콜 알림을 설정할 수 있습니다.</p>
+          )}
+        </div>
       </div>
 
       {incomingCallChoice?.pending && !selectedEvent ? (
@@ -379,21 +355,18 @@ export default function OwnerCatchCallPanel({
               <PhoneCall className="size-5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[16px] font-semibold leading-6 text-[#15213b]">등록 고객에게 전화가 왔어요</p>
+              <p className="text-[16px] font-semibold leading-6 text-[#15213b]">전화가 왔어요</p>
               <p className="mt-0.5 text-[14px] leading-5 text-[#52627a]">
                 {incomingCallChoice.callerNumber ? `010-****-${incomingCallChoice.callerNumber.slice(-4)}` : "전화번호 확인 중"}
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={onIncomingCallNewCustomer} className="min-h-12 rounded-[10px] border border-[#dfe7f1] bg-white px-2 text-[14px] font-medium text-[#15213b] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">
+              신규고객 등록
+            </button>
             <button type="button" onClick={onIncomingCallReservation} className="min-h-12 rounded-[10px] bg-[#2563eb] px-2 text-[14px] font-semibold text-white outline-none focus-visible:ring-2 focus-visible:ring-[#1d4ed8]">
-              예약 추가
-            </button>
-            <button type="button" onClick={onIncomingCallEnd} className="min-h-12 rounded-[10px] border border-[#e8b9b1] bg-white px-2 text-[14px] font-semibold text-[#9a5e4e] outline-none focus-visible:ring-2 focus-visible:ring-[#c56d5d]">
-              통화 종료
-            </button>
-            <button type="button" onClick={onIncomingCallAnswer} className="min-h-12 rounded-[10px] bg-[#111a30] px-2 text-[14px] font-semibold text-white outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">
-              통화 받기
+              예약접수
             </button>
           </div>
         </div>

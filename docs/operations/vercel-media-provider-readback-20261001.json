@@ -1,0 +1,32 @@
+{
+  "readAt": "2026-10-01",
+  "scope": "Read-only Vercel production media environment readback; secret values were not retained",
+  "sourceCommand": "npm run check:media-provider:vercel --workspace=@petmanager/web",
+  "projects": {
+    "web": {
+      "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
+      "projectName": "petmanager",
+      "configuredProvider": "r2",
+      "effectiveProvider": "r2",
+      "r2CredentialsComplete": true,
+      "bucketConfigured": true,
+      "endpoint": "default",
+      "status": "PASS"
+    },
+    "mobile": {
+      "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
+      "projectName": "petmanager-app",
+      "configuredProvider": "r2",
+      "effectiveProvider": "r2",
+      "r2CredentialsComplete": true,
+      "bucketConfigured": true,
+      "endpoint": "default",
+      "status": "PASS"
+    }
+  },
+  "vercelSettingsChanged": false,
+  "deploymentTriggered": false,
+  "deploymentEnvironmentSnapshot": "UNVERIFIED",
+  "existingMediaObjectProvider": "UNVERIFIED",
+  "r2RetentionLifecycleAndRestore": "UNVERIFIED"
+}

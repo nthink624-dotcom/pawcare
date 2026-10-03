@@ -46,6 +46,12 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) configureSystemBars();
+    }
+
+    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
@@ -57,8 +63,17 @@ public class MainActivity extends BridgeActivity {
             OwnerCallScreeningStore.setPendingIncomingCallChoice(
                 this,
                 intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID),
-                intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER)
+                intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER),
+                "choose"
             );
+        } else if (intent != null && OwnerCallNotification.ACTION_REGISTER_CUSTOMER.equals(intent.getAction())) {
+            OwnerCallScreeningStore.setPendingIncomingCallChoice(
+                this,
+                intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID),
+                intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER),
+                "new-customer"
+            );
+            OwnerCallNotification.cancel(this, intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID));
         } else if (intent != null && OwnerCallNotification.ACTION_ADD_RESERVATION.equals(intent.getAction())) {
             OwnerCallScreeningStore.setPendingReservationAction(
                 this,

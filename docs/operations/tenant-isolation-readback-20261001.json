@@ -12,9 +12,23 @@
   },
   "developmentFixture": {
     "targetProjectRef": "qefxdtmdtvnzgupmjlom",
-    "status": "NOT_RUN",
-    "cleanupResidue": null,
-    "reason": "A one-time protected credential file path was not supplied; the fixtures do not load .env.local or other ambient credentials"
+    "status": "PASS",
+    "cleanupResidue": 0,
+    "fixtures": [
+      {
+        "name": "acquisition",
+        "status": "PASS",
+        "runFingerprint": "9301ad496cb3f40b",
+        "cleanupResidue": 0
+      },
+      {
+        "name": "tester-feedback",
+        "status": "PASS",
+        "runFingerprint": "767f6c5ea0659db8",
+        "cleanupResidue": 0
+      }
+    ],
+    "credentialHandling": "Development service-role key was selected in process memory after ref/role validation, placed in ACL-restricted one-time OS-temp files, consumed by both fixtures, and not printed or committed"
   },
-  "interpretation": "Repository and contract checks pass, but runtime development-database cross-tenant behavior remains unverified until the guarded fixtures run and confirm zero residue."
+  "interpretation": "Repository and contract checks pass. Both guarded runtime development fixtures passed against the expected development ref and verified zero cleanup residue; production data was not targeted."
 }

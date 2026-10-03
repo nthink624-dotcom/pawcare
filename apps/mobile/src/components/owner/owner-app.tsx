@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, Store, UserRound, type LucideIcon } from "lucide-react";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import { type ReactNode, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 
 import {
   ActionButton,
@@ -107,9 +108,8 @@ import { addOwnerAndroidBackButtonListener } from "@/lib/owner-mobile-back-navig
 import {
   addOwnerIncomingCallChoiceListener,
   addOwnerCallReservationActionListener,
-  answerOwnerIncomingCall,
+  clearOwnerCallReservationAction,
   clearOwnerIncomingCallChoice,
-  endOwnerIncomingCall,
   getOwnerIncomingCallChoice,
   getOwnerCallReservationAction,
   getOwnerCallScreeningStatus,
@@ -211,7 +211,7 @@ type ModalState =
   | { type: "appointment"; appointment: Appointment }
   | { type: "edit-shop-profile" }
   | { type: "new-appointment"; petId?: string }
-  | { type: "new-customer" }
+  | { type: "new-customer"; initialPhone?: string }
   | { type: "add-pet"; guardianId: string }
   | { type: "edit-record"; record: GroomingRecord }
   | { type: "stat"; kind: "today" | "completed" | "cancel_change" }
@@ -868,6 +868,12 @@ function OwnerAppContent({
 
     const openCatchCallReservation = (action: OwnerCallReservationAction) => {
       if (!active || !action.pending) return;
+      if (!action.providerCallId && action.callerNumber) {
+        setActiveTab("customers");
+        setModal({ type: "new-customer", initialPhone: action.callerNumber });
+        void clearOwnerCallReservationAction();
+        return;
+      }
       setPendingCallReservationAction(action);
       setActiveTab("settings");
       setSettingsEntryScreen("catchcall");
@@ -895,6 +901,12 @@ function OwnerAppContent({
 
     const openIncomingCallChoice = (choice: OwnerIncomingCallChoice) => {
       if (!active || !choice.pending) return;
+      if (choice.action === "new-customer") {
+        setActiveTab("customers");
+        setModal({ type: "new-customer", initialPhone: choice.callerNumber });
+        void clearOwnerIncomingCallChoice();
+        return;
+      }
       setPendingIncomingCallChoice(choice);
       setActiveTab("settings");
       setSettingsEntryScreen("catchcall");
@@ -918,25 +930,24 @@ function OwnerAppContent({
 
   const chooseIncomingCallReservation = () => {
     if (!pendingIncomingCallChoice?.pending) return;
+    if (!pendingIncomingCallChoice.providerCallId && pendingIncomingCallChoice.callerNumber) {
+      setActiveTab("customers");
+      setModal({ type: "new-customer", initialPhone: pendingIncomingCallChoice.callerNumber });
+      setPendingIncomingCallChoice(null);
+      void clearOwnerIncomingCallChoice();
+      return;
+    }
     setPendingCallReservationAction(pendingIncomingCallChoice);
     setPendingIncomingCallChoice(null);
     void clearOwnerIncomingCallChoice();
   };
 
-  const answerIncomingCall = async () => {
+  const chooseIncomingCallNewCustomer = () => {
     const choice = pendingIncomingCallChoice;
     if (!choice?.pending) return;
+    setModal({ type: "new-customer", initialPhone: choice.callerNumber });
     setPendingIncomingCallChoice(null);
-    await answerOwnerIncomingCall(choice.providerCallId);
-    await clearOwnerIncomingCallChoice();
-  };
-
-  const endIncomingCall = async () => {
-    const choice = pendingIncomingCallChoice;
-    if (!choice?.pending) return;
-    setPendingIncomingCallChoice(null);
-    await endOwnerIncomingCall(choice.providerCallId);
-    await clearOwnerIncomingCallChoice();
+    void clearOwnerIncomingCallChoice();
   };
 
   useEffect(() => {
@@ -1082,6 +1093,8 @@ function OwnerAppContent({
       // Keep the current screen stable when background sync misses.
     }
   }
+
+  const refreshSilentlyFromEffect = useEffectEvent(refreshSilently);
 
   async function reconcileAfterAppointmentMutation() {
     const pendingRefresh = refreshInFlightRef.current;
@@ -1798,7 +1811,7 @@ function OwnerAppContent({
         !isShopPickerOpen;
 
       if (!canSync) return;
-      void refreshSilently();
+      void refreshSilentlyFromEffect();
     };
 
     const intervalId = window.setInterval(syncIfIdle, 15000);
@@ -3014,7 +3027,7 @@ function OwnerAppContent({
                   </button>
                   {!isStaffApp ? <HomeHeaderStaffSelect options={homeStaffFilterOptions} value={homeStaffFilter} onChange={setHomeStaffFilter} staffCount={data.staffMembers.length} /> : null}
                 </div>
-                <div className="mt-3 border-t border-[#edf1f5]">
+                <div className="border-t border-[#edf1f5]">
                   <HomeScheduleTabs
                     tabs={homeScheduleTabs}
                     activeKey={homeFocusedSection}
@@ -3697,7 +3710,7 @@ function OwnerAppContent({
           </section>
         )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} pendingReservationAction={pendingCallReservationAction} incomingCallChoice={pendingIncomingCallChoice} onIncomingCallReservation={chooseIncomingCallReservation} onIncomingCallAnswer={() => void answerIncomingCall()} onIncomingCallEnd={() => void endIncomingCall()} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} pendingReservationAction={pendingCallReservationAction} incomingCallChoice={pendingIncomingCallChoice} onIncomingCallReservation={chooseIncomingCallReservation} onIncomingCallNewCustomer={chooseIncomingCallNewCustomer} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
       </main>
 
       {!isStaffApp && !modal ? (
@@ -3790,7 +3803,7 @@ function OwnerAppContent({
         </div>
       </nav>
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} initialPhone={modal.initialPhone} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
         if (isOwnerDemo) {
           setModal(null);
           return;
@@ -4059,8 +4072,8 @@ function HomeScheduleTabs({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="mt-3 flex items-end border-b border-[#edf1f5] px-0.5">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="flex h-14 items-center justify-between gap-2 border-b border-[#edf1f5] px-0.5">
+      <div className="flex min-w-0 items-center gap-2">
         {tabs.map((tab) => {
           const active = tab.key === activeKey;
           return (
@@ -4068,21 +4081,21 @@ function HomeScheduleTabs({
               key={tab.key}
               type="button"
             className={cn(
-              "relative top-px flex min-h-11 shrink-0 items-center gap-[5px] border-b-2 pb-[11px] text-[14px] font-medium tracking-[-0.01em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+              "flex h-14 shrink-0 items-center gap-[5px] border-b-2 px-0.5 text-[14px] font-medium leading-5 tracking-[-0.01em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
               active ? "border-[#2f6fd6] text-[#0f172a]" : "border-transparent text-[#64748b]",
               )}
               onClick={() => onChange(tab.key)}
               aria-pressed={active}
             >
               <span className="whitespace-nowrap text-center">{tab.label}</span>
-              <span className={cn("text-[14px] font-medium", active ? "text-[#2f6fd6]" : "text-[#64748b]")}>{tab.count}</span>
+              <span className={cn("text-[13px] font-medium leading-5", active ? "text-[#2f6fd6]" : "text-[#64748b]")}>{tab.count}</span>
             </button>
           );
         })}
       </div>
-      {trailing ? <div className="relative top-px mb-[5px] shrink-0">{trailing}</div> : null}
+      {trailing ? <div className="shrink-0">{trailing}</div> : null}
       {onAdd ? (
-        <div className="relative top-px shrink-0 border-b-2 border-transparent pb-[7px]">
+        <div className="shrink-0">
           <button
             type="button"
             className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#d8e4f5] bg-white text-[#2f6fd6] transition hover:bg-[#f4f8ff]"
@@ -4497,10 +4510,13 @@ function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string
           {items.map(({ item, signedUrl }) => (
             signedUrl ? (
               <a key={item.mediaAsset.id} href={signedUrl} target="_blank" rel="noreferrer" className="group min-h-11 overflow-hidden rounded-[12px] border border-[var(--border)] bg-[#f8fafc]">
-                <div className="aspect-[4/3] overflow-hidden bg-[#eef2f6]">
-                  <img
+                <div className="relative aspect-[4/3] overflow-hidden bg-[#eef2f6]">
+                  <Image
                     src={signedUrl}
                     alt={getAppointmentMediaKindLabel(item.mediaAsset.media_kind)}
+                    fill
+                    sizes="(max-width: 640px) 50vw, 320px"
+                    unoptimized
                     className="h-full w-full object-cover transition group-active:scale-[0.99]"
                     onError={() => signedUrlRecoveryRef.current?.enqueue(item.mediaAsset.id, signedUrl)}
                   />
@@ -5042,7 +5058,7 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
   const sheetTitle = step === "service" ? "서비스 선택" : step === "schedule" ? "날짜 / 시간 선택" : step === "memo" ? "메모" : "새 예약 추가";
 
   return (
-    <Sheet title={sheetTitle} onClose={onClose} footer={footer}>
+    <Sheet title={sheetTitle} onClose={onClose} footer={footer} safeAreaPadding>
       <div className="space-y-4">
         {step === "customer" ? (
           <div className="space-y-3">
@@ -5193,9 +5209,9 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
   );
 }
 
-function NewCustomerForm({ shopId, saving, onClose, onSave }: { shopId: string; saving: boolean; onClose: () => void; onSave: (guardianPayload: { shopId: string; name: string; phone: string; memo: string }, petPayloads: Array<{ shopId: string; name: string; breed: string; birthday: string | null; weight: null; age: null; notes: string; groomingCycleWeeks: number }>) => void }) {
+function NewCustomerForm({ shopId, saving, onClose, onSave, initialPhone = "" }: { shopId: string; saving: boolean; onClose: () => void; initialPhone?: string; onSave: (guardianPayload: { shopId: string; name: string; phone: string; memo: string }, petPayloads: Array<{ shopId: string; name: string; breed: string; birthday: string | null; weight: null; age: null; notes: string; groomingCycleWeeks: number }>) => void }) {
   const [guardianName, setGuardianName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(initialPhone);
   const [memo, setMemo] = useState("");
   const [pets, setPets] = useState([{ id: crypto.randomUUID(), name: "", breed: "", birthday: "" }]);
 
@@ -5214,7 +5230,7 @@ function NewCustomerForm({ shopId, saving, onClose, onSave }: { shopId: string; 
   const canSave = !saving && guardianName.trim() && phone.trim() && pets.every((pet) => pet.name.trim() && pet.breed.trim());
 
   return (
-    <Sheet title="새 고객" onClose={onClose}>
+    <Sheet title="새 고객" onClose={onClose} safeAreaPadding>
       <div className="space-y-5">
         <section>
           <p className="text-[16px] font-semibold leading-6 tracking-[-0.01em] text-[var(--text)]">보호자 정보</p>
@@ -5573,7 +5589,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                   aria-label="프로필 이미지 변경"
                 >
                   {heroImageUrl ? (
-                    <img src={heroImageUrl} alt={`${name || data.shop.name} 프로필`} className="h-full w-full object-cover" />
+                    <Image src={heroImageUrl} alt={`${name || data.shop.name} 프로필`} fill sizes="60px" unoptimized className="object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-[#f4f5f4] text-[#9ea4a1]">
                       <UserRound className="h-7 w-7" strokeWidth={1.8} />
@@ -5814,7 +5830,7 @@ function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: stri
             <p className="text-sm font-semibold text-[var(--text)]">QR 코드</p>
           </div>
           <div className="mt-3 flex justify-center rounded-[16px] bg-white p-4">
-            <img src={qrImageUrl} alt="고객 예약 QR 코드" className="h-[168px] w-[168px]" />
+            <Image src={qrImageUrl} alt="고객 예약 QR 코드" width={168} height={168} unoptimized className="h-[168px] w-[168px]" />
           </div>
           <a
             href={qrImageUrl}
@@ -5864,8 +5880,7 @@ function SettingsPanel({
   pendingReservationAction = null,
   incomingCallChoice = null,
   onIncomingCallReservation,
-  onIncomingCallAnswer,
-  onIncomingCallEnd,
+  onIncomingCallNewCustomer,
   appRole = "owner",
   currentStaffId = null,
   onOpenFeedback,
@@ -5877,8 +5892,7 @@ function SettingsPanel({
   pendingReservationAction?: OwnerCallReservationAction | null;
   incomingCallChoice?: OwnerIncomingCallChoice | null;
   onIncomingCallReservation?: () => void;
-  onIncomingCallAnswer?: () => void;
-  onIncomingCallEnd?: () => void;
+  onIncomingCallNewCustomer?: () => void;
   onSave: (payload: unknown, options?: { errorFallbackMessage?: string }) => Promise<void> | void;
   onSaveCustomerPageSettings: (payload: unknown) => void;
   onSaveStaff: (payload: unknown) => void;
@@ -5908,8 +5922,7 @@ function SettingsPanel({
       pendingReservationAction={pendingReservationAction}
       incomingCallChoice={incomingCallChoice}
       onIncomingCallReservation={onIncomingCallReservation}
-      onIncomingCallAnswer={onIncomingCallAnswer}
-      onIncomingCallEnd={onIncomingCallEnd}
+      onIncomingCallNewCustomer={onIncomingCallNewCustomer}
       appRole={appRole}
       currentStaffId={currentStaffId}
       onOpenFeedback={onOpenFeedback}
@@ -6493,6 +6506,8 @@ function MobilePhotoStatusSheet({
     }
   }
 
+  const openCameraFromEffect = useEffectEvent(openCamera);
+
   function captureCameraPhoto() {
     const video = videoRef.current;
     const videoWidth = video?.videoWidth ?? 0;
@@ -6531,7 +6546,7 @@ function MobilePhotoStatusSheet({
   useEffect(() => {
     if (!action.autoOpenCamera || uploading) return;
     const timer = window.setTimeout(() => {
-      void openCamera();
+      void openCameraFromEffect();
     }, 150);
     return () => window.clearTimeout(timer);
   }, [action.appointmentId, action.autoOpenCamera, uploading]);

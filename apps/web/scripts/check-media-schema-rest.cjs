@@ -36,9 +36,9 @@ function maskRef(ref) {
   return `${ref.slice(0, 6)}...${ref.slice(-4)}`;
 }
 
-async function checkRestTable(baseUrl, serviceRoleKey, table) {
-  const response = await fetch(`${baseUrl}/rest/v1/${table}?select=*&limit=1`, {
-    method: "GET",
+async function checkRestTable(baseUrl, serviceRoleKey, table, fetchImpl = fetch) {
+  const response = await fetchImpl(`${baseUrl}/rest/v1/${table}?select=*&limit=1`, {
+    method: "HEAD",
     headers: {
       apikey: serviceRoleKey,
       Authorization: `Bearer ${serviceRoleKey}`,
@@ -47,19 +47,11 @@ async function checkRestTable(baseUrl, serviceRoleKey, table) {
 
   if (response.ok) return { table, exists: true, status: response.status, message: "OK" };
 
-  let message = "";
-  try {
-    const body = await response.json();
-    message = body.message || body.hint || body.details || "";
-  } catch {
-    message = await response.text();
-  }
-
   return {
     table,
     exists: false,
     status: response.status,
-    message: message.slice(0, 180),
+    message: `HTTP ${response.status}`,
   };
 }
 
@@ -157,7 +149,11 @@ async function main() {
   console.log("Development media schema appears reachable through REST.");
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}
+
+module.exports = { checkRestTable };

@@ -312,22 +312,21 @@ export default function MobilePriceGuideMatrix({ document, onChange }: { documen
           </div>
 
           <div className="relative w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain" data-mobile-price-guide-matrix-scroll>
-            <table className="w-max min-w-full table-auto border-collapse text-center" style={{ minWidth: `${84 + group.serviceNames.length * 168}px` }}>
+            <table className="w-max min-w-full table-auto border-collapse text-center" style={{ minWidth: `${96 + group.serviceNames.length * 168 + (group.weightBands.length > 1 ? 44 : 0)}px` }}>
               <thead><tr className="bg-slate-50">
-                <th className="sticky left-0 z-10 w-px whitespace-nowrap bg-slate-50 border-b border-r border-slate-200 px-1 py-0 text-center align-middle text-[16px] font-medium leading-6 text-slate-600">몸무게</th>
+                <th className="sticky left-0 z-10 w-[96px] min-w-[96px] bg-slate-50 border-b border-r border-slate-200 px-2 py-0 text-center align-middle text-[16px] font-medium leading-6 text-slate-600">몸무게</th>
                 {group.serviceNames.map((serviceName, serviceIndex) => {
                   const serviceKey = `${groupIndex}:${serviceIndex}`;
                   return <th key={`service-${serviceIndex}`} className="w-[168px] border-b border-r border-slate-200 px-1 py-0 text-center align-middle">
                     {editingService === serviceKey ? <div className="flex items-start gap-1"><label className="min-w-0 flex-1"><span className="sr-only">서비스명</span><input autoFocus value={serviceName} placeholder="서비스명 입력" className={`${inputClass} text-center font-medium`} onChange={(event) => onChange(updateMobilePriceGuideService(document, groupIndex, serviceIndex, event.target.value))} /></label>{group.serviceNames.length > 1 ? <button type="button" className={iconClass} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 열 삭제`} onClick={() => { setEditingService(null); onChange(removeMobilePriceGuideService(document, groupIndex, serviceIndex)); }}><Trash2 size={17} aria-hidden="true" /></button> : null}</div> : <div className="flex items-center gap-1"><button type="button" className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-[8px] px-1 text-center text-[16px] font-medium leading-6 text-slate-900 outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => setEditingService(serviceKey)} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 이름 수정`} data-mobile-price-guide-service-subheaders>{serviceName || <span className="text-slate-500">서비스명 입력</span>}</button><button type="button" className="min-h-11 shrink-0 rounded-[8px] px-1 text-center text-[16px] font-medium leading-6 text-slate-600 outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => setDurationSetupTarget({ groupIndex, serviceIndex })} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 예상시간 설정`} data-mobile-price-guide-service-duration-trigger>시간</button></div>}
                   </th>;
                 })}
+                {group.weightBands.length > 1 ? <th className="sticky right-0 z-20 w-11 min-w-11 border-b border-slate-200 bg-slate-50 p-0" aria-label="몸무게 구간 관리" /> : null}
               </tr></thead>
               <tbody>{group.weightBands.map((band, weightIndex) => {
                 const weightKey = `${groupIndex}:${weightIndex}`;
                 return <tr key={weightKey}>
-                  <th className="sticky left-0 z-0 w-px whitespace-nowrap border-b border-r border-slate-200 bg-white p-0 text-center align-middle" data-mobile-weight-cell><div className="flex min-w-0 items-center">{editingWeight === weightKey ? <label className="min-w-0 flex-1"><span className="sr-only">몸무게 기준</span><input autoFocus value={band.label} placeholder="예: 4kg" className={`${inputClass} text-center`} onChange={(event) => onChange(updateMobilePriceGuideWeightBand(document, groupIndex, weightIndex, event.target.value))} /></label> : <button type="button" className="min-h-11 min-w-0 flex-1 rounded-[8px] px-1 text-center text-[16px] font-medium leading-6 text-slate-800 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => setEditingWeight(weightKey)}>{band.label || "몸무게 입력"}{band.note ? <span className="mt-0.5 block text-[16px] font-normal leading-6 text-slate-500">{band.note}</span> : null}</button>}
-                    {group.weightBands.length > 1 ? <button type="button" className={iconClass} aria-label={`${group.sourceLabel || "분류"} ${band.label || "몸무게"} 삭제`} onClick={() => removeWeightBand(groupIndex, weightIndex)} data-mobile-weight-delete><Trash2 size={17} aria-hidden="true" /></button> : null}
-                  </div></th>
+                  <th className="sticky left-0 z-0 w-[96px] min-w-[96px] border-b border-r border-slate-200 bg-white p-0 text-center align-middle" data-mobile-weight-cell>{editingWeight === weightKey ? <label className="block min-w-0 px-1"><span className="sr-only">몸무게 기준</span><input autoFocus value={band.label} placeholder="예: 4kg" className={`${inputClass} text-center`} onChange={(event) => onChange(updateMobilePriceGuideWeightBand(document, groupIndex, weightIndex, event.target.value))} /></label> : <button type="button" className="min-h-11 w-full rounded-[8px] px-2 text-center text-[16px] font-medium leading-6 text-slate-800 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => setEditingWeight(weightKey)}>{band.label || "몸무게 입력"}{band.note ? <span className="mt-0.5 block text-[16px] font-normal leading-6 text-slate-500">{band.note}</span> : null}</button>}</th>
                   {group.serviceNames.map((serviceName, serviceIndex) => {
                     const cellKey = `${groupIndex}:${weightIndex}:${serviceIndex}`;
                     const editingField = editingCell?.key === cellKey ? editingCell.field : null;
@@ -341,6 +340,7 @@ export default function MobilePriceGuideMatrix({ document, onChange }: { documen
                       setEditingCell(nextCellKey ? { key: nextCellKey, field: "duration" } : null);
                     }} /></td>;
                   })}
+                  {group.weightBands.length > 1 ? <td className="sticky right-0 z-10 w-11 min-w-11 border-b border-slate-200 bg-white p-0 text-center align-middle"><button type="button" className={`${iconClass} mx-auto`} aria-label={`${group.sourceLabel || "분류"} ${band.label || "몸무게"} 삭제`} onClick={() => removeWeightBand(groupIndex, weightIndex)} data-mobile-weight-delete><Trash2 size={17} aria-hidden="true" /></button></td> : null}
                 </tr>;
               })}</tbody>
             </table>

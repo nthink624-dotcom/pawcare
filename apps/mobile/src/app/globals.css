@@ -55,8 +55,12 @@
 }
 
 :root[data-pm-native-platform="android"] {
-  --pm-safe-top: 0px;
   --pm-native-safe-top: 0px;
+  --pm-android-statusbar-inset: 28px;
+}
+
+:root[data-pm-native-platform="android"] .pm-mobile-sheet[data-safe-area-padding="true"] {
+  padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) + 20px), 68px);
 }
 
 html {

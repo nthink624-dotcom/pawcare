@@ -1,6 +1,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { validateBackupFreshness, validateSecondDeviceRecovery, validateRestoreDrill } = require("./lib/recovery-objectives.cjs");
+const { isOperationalErrorCleanupScheduled } = require("./lib/operational-error-cleanup-readiness.cjs");
 
 const root = path.resolve(__dirname, "..");
 const failures = [];
@@ -16,6 +18,26 @@ if (!/^[0-9a-f]{40}$/i.test(expectedRelease)) {
   process.exit(1);
 }
 
+const releaseCommitCheck = spawnSync("git", ["cat-file", "-e", `${expectedRelease}^{commit}`], {
+  cwd: root,
+  encoding: "utf8",
+  windowsHide: true,
+});
+const actualReleaseAncestry = {};
+if (releaseCommitCheck.status !== 0) {
+  failures.push("expected production release commit is not present in the local Git object database");
+} else {
+  for (const ref of ["master", "origin/master"]) {
+    const ancestry = spawnSync("git", ["merge-base", "--is-ancestor", expectedRelease, ref], {
+      cwd: root,
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    actualReleaseAncestry[ref] = ancestry.status === 0;
+    if (!actualReleaseAncestry[ref]) failures.push(`production release is not verified as part of ${ref}`);
+  }
+}
+
 const readbackEvidenceCheck = spawnSync(
   process.execPath,
   [path.join(root, "scripts/check-readback-evidence.cjs")],
@@ -29,7 +51,7 @@ if (readbackEvidenceCheck.status !== 0) {
 
 const endpointCheck = spawnSync(
   process.execPath,
-  [path.join(root, "scripts/check-production-endpoints.cjs"), "--expected-release", expectedRelease],
+  [path.join(root, "scripts/check-production-endpoints.cjs"), "--include-readiness", "--expected-release", expectedRelease],
   { cwd: root, encoding: "utf8", windowsHide: true },
 );
 if (endpointCheck.status !== 0) {
@@ -68,6 +90,28 @@ if (paymentCheck.status !== 0) {
   if (report) console.error(report);
 }
 
+const mediaProviderCheck = spawnSync(
+  process.execPath,
+  [path.join(webRoot, "scripts/check-media-provider-env-vercel.cjs"), "--pull-vercel-production"],
+  { cwd: webRoot, encoding: "utf8", windowsHide: true },
+);
+if (mediaProviderCheck.status !== 0) {
+  failures.push("production web/mobile media-provider configuration is unsupported or incomplete");
+  const report = `${mediaProviderCheck.stdout ?? ""}\n${mediaProviderCheck.stderr ?? ""}`.trim();
+  if (report) console.error(report);
+}
+
+const priceGuideAiCheck = spawnSync(
+  process.execPath,
+  [path.join(webRoot, "scripts/check-price-guide-ai-env-vercel.cjs"), "--pull-vercel-production"],
+  { cwd: webRoot, encoding: "utf8", windowsHide: true },
+);
+if (priceGuideAiCheck.status !== 0) {
+  failures.push("production AI photo price-guide environment is disabled, incomplete, or unsupported");
+  const report = `${priceGuideAiCheck.stdout ?? ""}\n${priceGuideAiCheck.stderr ?? ""}`.trim();
+  if (report) console.error(report);
+}
+
 function readJson(relativePath) {
   try {
     return JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"));
@@ -77,10 +121,14 @@ function readJson(relativePath) {
   }
 }
 
-const supabase = readJson("docs/operations/supabase-readonly-readback-20260929.json");
-const vercel = readJson("docs/operations/vercel-readonly-readback-20260929.json");
+const supabase = readJson("docs/operations/supabase-readonly-readback-20261001.json");
+const vercel = readJson("docs/operations/vercel-readonly-readback-20261001.json");
 const recovery = readJson("docs/operations/saas-recovery-readback-20261001.json");
+const encryptedBackup = readJson("docs/operations/supabase-encrypted-backup-readback-20261001.json");
 const browserAcl = readJson("docs/operations/supabase-browser-grants-readback-20261001.json");
+const observability = readJson("docs/operations/vercel-observability-readback-20261001.json");
+const adminErrorInbox = readJson("docs/operations/admin-error-inbox-readback-20261001.json");
+const operationalErrorInbox = readJson("docs/operations/operational-error-inbox-readback-20261002.json");
 const productionSecurity = supabase?.projects?.production?.securityAdvisors ?? {};
 const productionRls = supabase?.projects?.production?.publicTableRlsReadback ?? {};
 if (productionSecurity.auth_leaked_password_protection?.level === "WARN") {
@@ -114,26 +162,74 @@ for (const role of ["anon", "authenticated"]) {
 if (vercel?.projects?.web?.commitSha !== expectedRelease || vercel?.projects?.mobile?.commitSha !== expectedRelease) {
   failures.push("readback evidence does not show both Vercel projects on the expected release");
 }
+// The readback file stores the Git-ref relationship at the time it was
+// captured. Refs can advance afterward; current ancestry is verified directly
+// above and must not be rejected because that historical snapshot is stale.
+if (vercel?.releaseRelationship?.productionReleaseSchemaAligned !== true ||
+    vercel?.releaseRelationship?.latestMigrationInRelease !== supabase?.projects?.production?.lastMigration) {
+  failures.push("production release migration history is not aligned with the applied production database schema");
+}
+const releaseMigrationTree = spawnSync(
+  "git",
+  ["ls-tree", "-r", "--name-only", expectedRelease, "--", "supabase/migrations"],
+  { cwd: root, encoding: "utf8", windowsHide: true },
+);
+const releaseMigrationNames = (releaseMigrationTree.stdout ?? "")
+  .split(/\r?\n/)
+  .filter((file) => /^supabase\/migrations\/\d{14}_.+\.sql$/.test(file))
+  .sort();
+const latestReleaseMigration = releaseMigrationNames.at(-1)?.match(/(\d{14})_/)?.[1] ?? null;
+if (releaseMigrationTree.status !== 0 || !latestReleaseMigration ||
+    latestReleaseMigration !== supabase?.projects?.production?.lastMigration) {
+  failures.push("expected production release Git tree does not match the applied production database migration history");
+}
 for (const target of ["web", "mobile"]) {
   const smoke = vercel?.projects?.[target]?.endpointSmoke;
   if (smoke?.healthz !== 200 || smoke?.readyz !== 200) failures.push(`${target} readback endpoint smoke is not 200/200`);
 }
 
 const databaseRecovery = recovery?.database ?? {};
+failures.push(...validateBackupFreshness("production database", databaseRecovery.protection));
 if (databaseRecovery.protection?.dailyBackupsEnabled !== true &&
     databaseRecovery.protection?.pitrEnabled !== true &&
     databaseRecovery.protection?.encryptedOffsiteBackupEnabled !== true) {
   failures.push("production database has no verified daily backup, PITR, or encrypted off-site backup protection");
 }
-if (databaseRecovery.restoreDrill?.status !== "PASS") {
-  failures.push("production database restore drill is not verified");
+failures.push(...validateRestoreDrill("production database", databaseRecovery.restoreDrill));
+if (databaseRecovery.protection?.encryptedOffsiteBackupEnabled === true) {
+  failures.push(...validateSecondDeviceRecovery(
+    "production database",
+    databaseRecovery.protection?.encryptedOffsiteBackup,
+    root,
+    encryptedBackup?.backup?.sha256,
+  ));
 }
 const mediaRecovery = recovery?.media ?? {};
 if (mediaRecovery.objectRecovery?.configured !== true) {
   failures.push("production media object retention/recovery configuration is not verified");
 }
-if (mediaRecovery.restoreDrill?.status !== "PASS") {
-  failures.push("production media restore drill is not verified");
+failures.push(...validateRestoreDrill("production media", mediaRecovery.restoreDrill));
+if (adminErrorInbox?.status !== "VERIFIED" || adminErrorInbox?.route !== "/admin/operational-errors") {
+  failures.push("admin-only operational error inbox is not verified");
+}
+const cleanupReadback = operationalErrorInbox?.retentionCleanup?.productionReadback;
+const cleanupJobIsScheduled = isOperationalErrorCleanupScheduled(
+  cleanupReadback,
+  operationalErrorInbox?.retentionCleanup?.localImplementation,
+);
+if (cleanupReadback?.status !== "VERIFIED" ||
+    cleanupReadback?.migrationApplied !== true ||
+    cleanupReadback?.vercelCronSecretConfigured !== true ||
+    !cleanupJobIsScheduled ||
+    cleanupReadback?.lastInvocation?.status !== "PASS" ||
+    cleanupReadback?.lastInvocation?.httpStatus !== 200) {
+  failures.push("production operational error retention cleanup is not verified");
+}
+for (const target of ["web", "mobile"]) {
+  const delivery = adminErrorInbox?.projects?.[target];
+  if (delivery?.testDelivery !== "PASS" || !delivery?.testEventId || !delivery?.releaseSha) {
+    failures.push(`production ${target} admin error inbox delivery is not verified`);
+  }
 }
 const tenantIsolation = readJson("docs/operations/tenant-isolation-readback-20261001.json");
 if (tenantIsolation?.developmentFixture?.status !== "PASS" || tenantIsolation?.developmentFixture?.cleanupResidue !== 0) {

@@ -1,5 +1,9 @@
 import { NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
 import { requireHttpsTransportUrl } from "@/lib/https-transport-url";
+import {
+  isAllowedPetManagerDevelopmentSupabaseProject,
+  isPetManagerProductionSupabaseProject,
+} from "@petmanager/shared/contracts/supabase-environment";
 
 export class ServerEnvError extends Error {
   public status: number;
@@ -179,13 +183,15 @@ function parseAllowedSupabaseRefs(value: string | undefined) {
 }
 
 function isAllowedDevSupabaseRef(value: string | undefined) {
-  const ref = refFromSupabaseUrl(value);
-  return Boolean(ref && parseAllowedSupabaseRefs(serverEnv.allowedDevSupabaseRefs).has(ref));
+  return isAllowedPetManagerDevelopmentSupabaseProject(value, serverEnv.allowedDevSupabaseRefs);
 }
 
 export function isUnsafeProdSupabaseServerEnv() {
   const runtimeStage = getSupabaseServerRuntimeStage();
-  if (runtimeStage === "production" || serverEnv.allowProdSupabaseInDev) return false;
+  if (runtimeStage === "production") {
+    return !isPetManagerProductionSupabaseProject(serverEnv.supabaseEnvName, serverEnv.supabaseUrl);
+  }
+  if (serverEnv.allowProdSupabaseInDev) return false;
   if (serverEnv.supabaseEnvName === "production") return true;
   return isRemoteSupabaseUrl(serverEnv.supabaseUrl) && !isAllowedDevSupabaseRef(serverEnv.supabaseUrl);
 }

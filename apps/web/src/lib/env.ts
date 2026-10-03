@@ -1,4 +1,8 @@
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+import {
+  isAllowedPetManagerDevelopmentSupabaseProject,
+  isPetManagerProductionSupabaseProject,
+} from "@petmanager/shared/contracts/supabase-environment";
 
 export const env = {
   appName: process.env.NEXT_PUBLIC_APP_NAME || PETMANAGER_SERVICE_NAME,
@@ -90,13 +94,15 @@ function parseAllowedSupabaseRefs(value: string | undefined) {
 }
 
 function isAllowedDevSupabaseRef(value: string | undefined) {
-  const ref = refFromSupabaseUrl(value);
-  return Boolean(ref && parseAllowedSupabaseRefs(env.allowedDevSupabaseRefs).has(ref));
+  return isAllowedPetManagerDevelopmentSupabaseProject(value, env.allowedDevSupabaseRefs);
 }
 
 export function isUnsafeProdSupabaseBrowserEnv() {
   const runtimeStage = getSupabaseRuntimeStage();
-  if (runtimeStage === "production" || env.allowProdSupabaseInDev) return false;
+  if (runtimeStage === "production") {
+    return !isPetManagerProductionSupabaseProject(env.supabaseEnvName, env.supabaseUrl);
+  }
+  if (env.allowProdSupabaseInDev) return false;
   if (env.supabaseEnvName === "production") return true;
   return isRemoteSupabaseUrl(env.supabaseUrl) && !isAllowedDevSupabaseRef(env.supabaseUrl);
 }

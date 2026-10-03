@@ -6,6 +6,16 @@ on:
     branches:
       - master
       - main
+  workflow_dispatch:
+    inputs:
+      authorize_production_readback:
+        description: "Authorize the read-only full SaaS readiness check against production provider configuration."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
 
 jobs:
   owner-auth-guard:
@@ -13,7 +23,7 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ALLOWED_DEV_SUPABASE_REFS: ${{ vars.ALLOWED_DEV_SUPABASE_REFS }}
       NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
       OWNER_LOGIN_SMOKE_BASE_URL: http://127.0.0.1:3000
       OWNER_LOGIN_SMOKE_ENABLED: ${{ secrets.OWNER_LOGIN_SMOKE_ENABLED || 'false' }}
@@ -27,7 +37,13 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run check:saas-readiness
+      - name: Full SaaS readiness and production-provider readback
+        if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && inputs.authorize_production_readback
+        run: npm run check:saas-readiness
+
+      - name: Skip production-provider readback unless manually authorized on the default branch
+        if: github.event_name != 'workflow_dispatch' || inputs.authorize_production_readback != true || (github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main')
+        run: echo "Skipped production-provider readback; PR and push checks remain local-only."
 
       - run: npm run check:release-tracked-files
 
@@ -75,10 +91,19 @@ jobs:
 
       - name: Run owner login smoke
         if: env.OWNER_LOGIN_SMOKE_ENABLED == 'true'
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DEV_TEST_OWNER_EMAIL: ${{ secrets.DEV_TEST_OWNER_EMAIL }}
+          DEV_TEST_OWNER_PASSWORD: ${{ secrets.DEV_TEST_OWNER_PASSWORD }}
         run: npm run smoke:owner-login:with-server
 
       - name: Run owner login e2e
         if: env.OWNER_LOGIN_SMOKE_ENABLED == 'true'
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DEV_TEST_OWNER_EMAIL: ${{ secrets.DEV_TEST_OWNER_EMAIL }}
+          DEV_TEST_OWNER_PASSWORD: ${{ secrets.DEV_TEST_OWNER_PASSWORD }}
+          OWNER_LOGIN_E2E_EMAIL: ${{ secrets.DEV_TEST_OWNER_EMAIL }}
         run: npm run test:e2e:owner-login
 
       - name: Skip owner login browser smoke

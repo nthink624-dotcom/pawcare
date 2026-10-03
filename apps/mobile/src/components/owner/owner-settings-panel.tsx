@@ -1400,6 +1400,10 @@ export default function OwnerSettingsPanel({
       initialDocument={priceGuideState?.document ?? null}
       initialServiceId={priceGuideState?.serviceId ?? null}
       initialResumeMode={priceGuideState?.resumeMode}
+      onAutoSave={(_rows, state) => {
+        setPriceGuideState(state);
+        writeOwnerPriceGuideSessionDraft(priceGuideSessionKey, null);
+      }}
       onComplete={(_rows, state) => {
         setPriceGuideState(state ?? null);
         writeOwnerPriceGuideSessionDraft(priceGuideSessionKey, null);

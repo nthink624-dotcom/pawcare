@@ -114,6 +114,7 @@ function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { boots
     {busy ? <p role="status" className="p-5">저장 상태를 확인하고 있어요.</p> : <MobileAiPriceGuideFixture
       presentation="modal" setupFlow shopId={bootstrap.shop.id} ownerBottomNavigation={false}
       initialRows={draft?.rows ?? null} initialDocument={draft?.document ?? null} initialServiceId={draft?.serviceId ?? null} initialResumeMode={draft?.resumeMode}
+      onAutoSave={(_rows, state) => setDraft(state)}
       onComplete={(_rows, state) => { if (state) setDraft(state); writeOwnerPriceGuideSessionDraft(priceGuideKey, null); void verifyComplete(); }}
       onExit={(_rows, state) => { setDraft(state ?? null); writeOwnerPriceGuideSessionDraft(priceGuideKey, state ?? null); advance("pricing"); }}
     />}

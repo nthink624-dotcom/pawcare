@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchOwnerScheduleRange, replaceScheduleRangeInBootstrap } from "@/components/owner-web/calendar-owner-api";
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
-import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
+import { OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { isShopClosedOnDate } from "@/lib/availability";
@@ -823,7 +823,7 @@ export default function CalendarRecordsScreen({
             <button
               type="button"
               onClick={() => setMonthAnchor((current) => moveMonth(current, -1))}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff]"
               aria-label="이전 달"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -832,7 +832,7 @@ export default function CalendarRecordsScreen({
             <button
               type="button"
               onClick={() => setMonthAnchor((current) => moveMonth(current, 1))}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff]"
               aria-label="다음 달"
             >
               <ChevronRight className="h-4 w-4" />
@@ -844,7 +844,7 @@ export default function CalendarRecordsScreen({
                 setMonthAnchor(today);
                 openDate(today);
               }}
-              className="min-h-11 rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
+              className="relative inline-flex h-10 items-center justify-center rounded-[8px] border border-[#e8edf3] bg-white px-4 text-[14px] font-medium text-[#334155] transition after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:border-[#cbd5e1] hover:bg-[#f8fbff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff]"
             >
               오늘
             </button>
@@ -1054,8 +1054,8 @@ function GroomingDatePanel({
                 type="button"
                 onClick={onAddReservation}
                 className={cn(
-                  OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
-                  "!bg-[#2563eb] !text-white hover:!bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+                  OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
                 )}
               >
                 <CalendarPlus className="h-4 w-4" />
@@ -1225,7 +1225,7 @@ function GroomingRecordSheet({
                 <span>{item.status}</span>
               </div>
             </div>
-            <button type="button" onClick={onClose} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
+            <button type="button" onClick={onClose} className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#64748b] after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-[#f8fafc]" aria-label="닫기">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -1397,7 +1397,7 @@ function GroomingRecordSheet({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+              className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#64748b] after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] hover:bg-[#f8fafc]"
               aria-label="닫기"
             >
               <X className="h-5 w-5" />

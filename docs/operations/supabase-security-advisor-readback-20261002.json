@@ -1,0 +1,33 @@
+{
+  "readAt": "2026-10-02",
+  "capturedAt": "2026-10-02T07:41:38Z",
+  "source": "Supabase MCP get_advisors(type=security)",
+  "readOnly": true,
+  "projects": {
+    "development": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "securityAdvisors": {
+        "auth_leaked_password_protection": {
+          "level": "WARN",
+          "count": 1,
+          "findingObservedAt": null
+        }
+      }
+    },
+    "production": {
+      "ref": "ysxykikqnneuhypybjry",
+      "securityAdvisors": {
+        "auth_leaked_password_protection": {
+          "level": "WARN",
+          "count": 1,
+          "findingObservedAt": null
+        }
+      }
+    }
+  },
+  "limitations": [
+    "The advisor response did not include a per-finding observed_at timestamp.",
+    "This is not a full Auth configuration readback; password length and character requirements remain unverified.",
+    "No project configuration, plan, billing, database rows, or schema was changed or read."
+  ]
+}

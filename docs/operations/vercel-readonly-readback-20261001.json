@@ -1,0 +1,44 @@
+{
+  "readAt": "2026-10-01",
+  "scope": "Read-only Vercel production deployment, alias, runtime error and health/readiness readback",
+  "projects": {
+    "web": {
+      "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
+      "projectName": "petmanager",
+      "deploymentId": "dpl_4SrstC427TYvJHRNWjULi2qWhLKz",
+      "deploymentState": "READY",
+      "commitSha": "19916fbc126b0b4af74e44084e526f06979acbc9",
+      "commitShaSource": "production /api/healthz and /api/readyz responses; Vercel deployment metadata had no Git SHA",
+      "source": "cli",
+      "aliases": ["www.petmanager.co.kr", "petmanager.co.kr"],
+      "runtimeErrorCountsLast24h": { "error": 0, "fatal": 0 },
+      "endpointSmoke": { "healthz": 200, "readyz": 200, "releaseAndRequestIdMatch": true }
+    },
+    "mobile": {
+      "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
+      "projectName": "petmanager-app",
+      "deploymentId": "dpl_ACZrW48DezkBbpp9FGAjQf3ydU7E",
+      "deploymentState": "READY",
+      "commitSha": "19916fbc126b0b4af74e44084e526f06979acbc9",
+      "commitShaSource": "production /api/healthz and /api/readyz responses; Vercel deployment metadata had no Git SHA",
+      "source": "cli",
+      "aliases": ["app.petmanager.co.kr"],
+      "runtimeErrorCountsLast24h": { "error": 0, "fatal": 0 },
+      "endpointSmoke": { "healthz": 200, "readyz": 200, "releaseAndRequestIdMatch": true }
+    }
+  },
+  "releaseRelationship": {
+    "masterContainsRelease": false,
+    "originMasterContainsRelease": false,
+    "originMasterShaAtReadback": "b4db53022789b2b07cf1a4e8804e8ac0fe5309e3",
+    "latestMigrationInRelease": "20260929131500",
+    "productionDatabaseLastMigration": "20260929131500",
+    "productionReleaseSchemaAligned": true,
+    "latestMigrationInLocalMaster": "20260930151901",
+    "developmentDatabaseLastMigration": "20260930151901",
+    "releaseBranch": "codex/mobile-web-cors-fix-20261001",
+    "commitMessage": "fix: allow mobile owner mutations across app origin",
+    "interpretation": "Production currently serves a READY release from a commit that is not an ancestor of local or remote master. Its latest migration matches production's applied migration; master and development have one newer push-token privilege migration. The production catalog readback already shows zero browser grants, so no production migration was needed for this effective state. No rollback, merge, or deployment was performed. Reconcile the code release with master before claiming source-of-truth alignment."
+  },
+  "interpretation": "Both production aliases return HTTP 200 for health and readiness, and each response contains the same release SHA and request ID as its response header. The release SHA differs from the prior 2026-09-30 readback (89695c8df4f6168088dba283cd657d7928611c42). Zero grouped error/fatal runtime log entries were observed in the prior 24 hours; operator alert routing and test delivery are separately unverified."
+}

@@ -85,7 +85,7 @@ export default function CustomerManagementTable({
   return (
     <>
       <div className="hidden h-full overflow-auto lg:block">
-        <table className="w-full min-w-[680px] table-fixed border-collapse text-[14px] leading-5">
+        <table className="w-max min-w-[680px] table-fixed border-collapse text-[14px] leading-5">
           <thead className="sticky top-0 z-10 bg-[#f4f5f3] text-[#4f5a64]">
             <tr className="border-b border-[#dbe2ea]">
               {deleteMode ? <th className="w-14 px-2 py-3" aria-label="선택" /> : null}

@@ -67,7 +67,7 @@ export default function MobilePriceGuideExtras({ document, onChange }: { documen
   return (
     <section className="border-t border-slate-200 pt-3" aria-labelledby="mobile-price-guide-extras-title" data-mobile-price-guide-extras>
       <div className="flex items-center justify-between gap-3">
-        <h3 id="mobile-price-guide-extras-title" className="min-w-0 text-[16px] font-semibold leading-6 text-slate-900">추가 서비스·요금</h3>
+        <h3 id="mobile-price-guide-extras-title" className="min-w-0 text-[20px] font-semibold leading-7 text-slate-900">추가 서비스·요금</h3>
         <button type="button" className={actionClass} onClick={() => {
           const nextIndex = document.surcharges.length;
           emit({ ...document, surcharges: [...document.surcharges, { condition: null, amountKrw: null, percent: null, note: null }] });
@@ -81,10 +81,10 @@ export default function MobilePriceGuideExtras({ document, onChange }: { documen
             const rawValue = item[field];
             const display = field === "amountKrw" ? rawValue === null ? "미정" : `${Number(rawValue).toLocaleString("ko-KR")}원` : field === "percent" ? rawValue === null ? "미정" : `${rawValue}%` : rawValue || placeholder;
             const content = activeField === key
-              ? <><span className="block text-[14px] font-medium leading-5 text-slate-600">{label}</span><label><span className="sr-only">추가 서비스·요금 {index + 1} {label}</span><input autoFocus value={rawValue ?? ""} inputMode={field === "amountKrw" ? "numeric" : field === "percent" ? "decimal" : undefined} className={`${inputClass} mt-1 tabular-nums`} placeholder={placeholder} onChange={(event) => update(index, field, event.target.value)} /></label></>
+              ? <><span className="block text-[18px] font-medium leading-[26px] text-slate-600">{label}</span><label><span className="sr-only">추가 서비스·요금 {index + 1} {label}</span><input autoFocus value={rawValue ?? ""} inputMode={field === "amountKrw" ? "numeric" : field === "percent" ? "decimal" : undefined} className={`${inputClass} mt-1 tabular-nums`} placeholder={placeholder} onChange={(event) => update(index, field, event.target.value)} /></label></>
               : field === "condition"
-                ? <button type="button" title={`${label}: ${display}`} className={`${fieldButtonClass} flex-row items-center gap-2`} onClick={() => setActiveField(key)} aria-label={`추가 서비스·요금 ${index + 1} ${label} 수정`}><span className="shrink-0 text-[14px] font-medium leading-5 text-slate-600">{label}</span><span className="min-w-0 truncate text-[16px] font-medium leading-6 text-slate-900">{display}</span></button>
-                : <button type="button" title={`${label}: ${display}`} className={`${fieldButtonClass} flex-col items-start justify-center gap-0.5 ${rawValue === null ? "text-slate-500" : ""}`} onClick={() => setActiveField(key)} aria-label={`추가 서비스·요금 ${index + 1} ${label} 수정`}><span className="text-[14px] font-medium leading-5 text-slate-600">{label}</span><span className="w-full text-[14px] font-normal leading-5 text-slate-900 tabular-nums">{display}</span></button>;
+                ? <button type="button" title={`${label}: ${display}`} className={`${fieldButtonClass} flex-row items-center gap-2`} onClick={() => setActiveField(key)} aria-label={`추가 서비스·요금 ${index + 1} ${label} 수정`}><span className="shrink-0 text-[18px] font-medium leading-[26px] text-slate-600">{label}</span><span className="min-w-0 truncate text-[16px] font-normal leading-6 text-slate-900">{display}</span></button>
+                : <button type="button" title={`${label}: ${display}`} className={`${fieldButtonClass} flex-col items-start justify-center gap-0.5 ${rawValue === null ? "text-slate-500" : ""}`} onClick={() => setActiveField(key)} aria-label={`추가 서비스·요금 ${index + 1} ${label} 수정`}><span className="text-[18px] font-medium leading-[26px] text-slate-600">{label}</span><span className="w-full text-[16px] font-normal leading-6 text-slate-900 tabular-nums">{display}</span></button>;
             return field === "condition"
               ? <div key={field} className="col-span-3 grid grid-cols-[minmax(0,1fr)_44px] items-end gap-2">
                   <div className="min-w-0">{content}</div>

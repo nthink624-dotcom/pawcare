@@ -158,7 +158,7 @@ test("price and duration are independent matrix cells with canonical bounds", ()
   assert.match(matrix, /items-center justify-center whitespace-nowrap border-l/);
   assert.match(matrix, /items-center[^\n]*text-center text-\[16px\] font-medium leading-6[^\n]*data-mobile-price-guide-service-subheaders/);
   assert.match(matrix, /text-center align-middle text-\[16px\] font-medium leading-6 text-slate-600">몸무게/);
-  assert.match(matrix, /data-mobile-weight-cell><div className="flex min-w-0 items-center">/);
+  assert.match(matrix, /data-mobile-weight-cell>\{editingWeight === weightKey/);
   assert.match(matrix, /className="sr-only">가격/);
   assert.match(matrix, /className="sr-only">예상시간/);
   assert.doesNotMatch(matrix.slice(matrix.indexOf("function PriceDurationCell"), matrix.indexOf("function MobileServiceDurationDialog")), /text-\[(?:11|12|13|14)px\]/);
@@ -216,8 +216,9 @@ test("the document stays shrinkable while the matrix contains its accessible lab
 });
 
 test("weight labels stay below the sticky service-settings title", () => {
-  assert.match(matrix, /sticky left-0 z-10 w-px whitespace-nowrap bg-slate-50/);
-  assert.match(matrix, /sticky left-0 z-0 w-px whitespace-nowrap border-b border-r/);
+  assert.match(matrix, /sticky left-0 z-10 w-\[96px\] min-w-\[96px\] bg-slate-50/);
+  assert.match(matrix, /sticky left-0 z-0 w-\[96px\] min-w-\[96px\] border-b border-r/);
+  assert.match(matrix, /sticky right-0 z-10 w-11 min-w-11/);
   assert.doesNotMatch(matrix, /sticky left-0 z-20 w-px whitespace-nowrap bg-slate-50/);
 });
 

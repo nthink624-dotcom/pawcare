@@ -87,8 +87,8 @@ export default function CustomerManagementTable({
 
   return (
     <>
-      <div className="hidden h-full overflow-auto xl:block">
-        <table className="w-full min-w-[880px] table-fixed border-collapse text-center text-[14px] leading-5 [&_th]:align-middle [&_td]:align-middle">
+      <div className="hidden h-full overflow-auto md:block">
+        <table className="w-full min-w-[1000px] table-fixed border-collapse text-center text-[16px] leading-6 [&_th]:align-middle [&_td]:align-middle">
           <colgroup>
             {deleteMode ? <col className="w-14" /> : null}
             <col className="w-[9%]" />
@@ -104,7 +104,7 @@ export default function CustomerManagementTable({
             <tr className="border-b border-[#dbe2ea]">
               {deleteMode ? <th className="w-14 px-2 py-0" aria-label="선택" /> : null}
               <th scope="col" className="px-2 py-0 font-medium">
-                <button type="button" onClick={onSortByName} className="inline-flex min-h-11 items-center justify-center text-center hover:text-[#1f6b5b]">고객명</button>
+                <button type="button" onClick={onSortByName} className="inline-flex min-h-11 items-center justify-center text-center hover:text-[#1f6b5b]"><span className="text-[16px] leading-6">고객명</span></button>
               </th>
               <th scope="col" className="px-2 py-0 font-medium">연락처</th>
               <th scope="col" className="px-2 py-0 font-medium">반려동물 이름</th>
@@ -142,7 +142,7 @@ export default function CustomerManagementTable({
                   <td className="truncate px-2">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</td>
                   <td className="truncate px-2 tabular-nums">{row.recentVisitDate || "미방문"}</td>
                   <td className="break-words px-2 py-2" title={row.recentService || undefined}>{row.recentService || (row.recentVisitDate ? "미등록" : "미방문")}</td>
-                  <td className="px-2"><span className={cn("inline-flex min-h-6 items-center rounded-full border px-2 text-[12px] font-medium leading-[18px]", row.customerGrade === "단골" ? "border-[#d6e8e2] bg-[#f3faf7] text-[#1f6b5b]" : "border-[#e2e8f0] bg-[#f8fafc] text-[#475569]")}>{row.customerGrade}</span></td>
+                  <td className="px-2"><span className={cn("inline-flex min-h-6 items-center rounded-full border px-2 text-[16px] font-medium leading-6", row.customerGrade === "단골" ? "border-[#d6e8e2] bg-[#f3faf7] text-[#1f6b5b]" : "border-[#e2e8f0] bg-[#f8fafc] text-[#475569]")}>{row.customerGrade}</span></td>
                   <td className="truncate px-2 tabular-nums">{row.registeredAt}</td>
                 </tr>
               );
@@ -151,7 +151,7 @@ export default function CustomerManagementTable({
         </table>
       </div>
 
-      <div className="h-full space-y-2 overflow-y-auto p-3 xl:hidden">
+      <div className="h-full space-y-2 overflow-y-auto p-3 md:hidden">
         {rows.map((row) => {
           const checked = selectedDeleteIds.includes(row.id);
           return (
@@ -161,15 +161,15 @@ export default function CustomerManagementTable({
                 <button type="button" onClick={() => onOpen(row.id)} className="relative min-h-11 min-w-0 flex-1 px-5 text-center">
                   <span className="flex items-center justify-center gap-3">
                     <span className="flex min-w-0 items-center gap-2">
-                      <span className="min-w-0 break-keep text-[14px] font-medium leading-5 text-[#17243c] [overflow-wrap:anywhere]">{row.name}</span>
-                      <span className={cn("inline-flex min-h-6 shrink-0 items-center rounded-full border px-2 text-[12px] font-medium leading-[18px]", row.customerGrade === "단골" ? "border-[#d6e8e2] bg-[#f3faf7] text-[#1f6b5b]" : "border-[#e2e8f0] bg-[#f8fafc] text-[#475569]")}>{row.customerGrade}</span>
+                      <span className="min-w-0 break-keep text-[16px] font-medium leading-6 text-[#17243c] [overflow-wrap:anywhere]">{row.name}</span>
+                      <span className={cn("inline-flex min-h-6 shrink-0 items-center rounded-full border px-2 text-[16px] font-medium leading-6", row.customerGrade === "단골" ? "border-[#d6e8e2] bg-[#f3faf7] text-[#1f6b5b]" : "border-[#e2e8f0] bg-[#f8fafc] text-[#475569]")}>{row.customerGrade}</span>
                     </span>
                     <ChevronRight className="absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                   </span>
-                  <span className="mt-1 block truncate text-[14px] leading-5 font-normal text-[#475569]">{formatPhoneNumber(row.phone)}</span>
+                  <span className="mt-1 block truncate text-[16px] leading-6 font-normal text-[#475569]">{formatPhoneNumber(row.phone)}</span>
                 </button>
               </div>
-              <dl className="mt-2 grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 border-t border-[#edf2f7] pt-2 text-center text-[14px] leading-5">
+              <dl className="mt-2 grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 border-t border-[#edf2f7] pt-2 text-center text-[16px] leading-6">
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 이름</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</dd></div>
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 나이</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</dd></div>
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">최근 방문일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentVisitDate || "미방문"}</dd></div>

@@ -14,11 +14,13 @@ import type {
   SegmentProfitabilityMetric,
   ServiceProfitabilityMetric,
   StaffProfitabilityMetric,
+  RevenueBenefitMetric,
+  RevenueCategoryMetric,
+  RevenueDailyMetric,
 } from "@/types/profitability";
 import { isOvernightActualGroomingSession } from "@/lib/appointment-time";
 
 const MIN_RECOMMENDATION_SAMPLE_SIZE = 3;
-const RANGE_DAYS: Record<ProfitabilityRange, number> = { "30d": 30, "90d": 90, "365d": 365 };
 
 export type ProfitabilityObservation = {
   id: string;
@@ -65,15 +67,80 @@ type AppointmentRow = {
   original_service_price: number | null;
   discount_amount: number | null;
   final_service_price: number | null;
+  discount_coupon_names?: string[];
+  discount_snapshot?: unknown;
 };
 
 type RevenueRow = {
+  id?: string;
+  appointment_id?: string | null;
+  service_id?: string | null;
+  entry_date?: string;
+  revenue_type?: string;
+  title?: string;
+  external_payment_id?: string | null;
   grooming_record_id: string | null;
   gross_amount: number;
   discount_amount: number;
+  refund_amount?: number;
   net_amount: number;
   status: string;
 };
+
+function buildSalesSummary(rows: RevenueRow[], appointments: AppointmentRow[]) {
+  const settled = rows.filter((row) => ["paid", "partially_refunded", "refunded"].includes(row.status));
+  const paidAmount = settled.reduce((sum, row) => sum + safeNumber(row.net_amount), 0);
+  const paidSales = settled.filter((row) => row.revenue_type !== "discount" && row.revenue_type !== "refund");
+  const paidCount = new Set(paidSales.map((row) => row.appointment_id || row.external_payment_id || row.id)).size;
+  const dailyMap = new Map<string, number>();
+  for (const row of settled) {
+    if (row.entry_date) dailyMap.set(row.entry_date, (dailyMap.get(row.entry_date) ?? 0) + safeNumber(row.net_amount));
+  }
+  const categoryMap = new Map<string, RevenueCategoryMetric>();
+  for (const row of settled) {
+    if (["discount", "refund"].includes(row.revenue_type ?? "")) continue;
+    const name = row.title?.trim() || (row.revenue_type === "product" ? "상품" : row.revenue_type === "fee" ? "수수료" : "서비스");
+    const current = categoryMap.get(name) ?? { name, amount: 0, count: 0 };
+    current.amount += safeNumber(row.net_amount);
+    current.count += 1;
+    categoryMap.set(name, current);
+  }
+  const appointmentsById = new Map(appointments.map((appointment) => [appointment.id, appointment]));
+  const benefits = new Map<string, RevenueBenefitMetric>();
+  const seenAppointments = new Set<string>();
+  for (const row of settled) {
+    if (!row.appointment_id || seenAppointments.has(row.appointment_id) || row.revenue_type === "product") continue;
+    seenAppointments.add(row.appointment_id);
+    const appointment = appointmentsById.get(row.appointment_id);
+    if (!appointment) continue;
+    const snapshot = appointment.discount_snapshot && typeof appointment.discount_snapshot === "object" ? appointment.discount_snapshot as { appliedCoupons?: Array<{ name?: string; discountAmount?: number; discountType?: string; serviceBenefitName?: string }> } : {};
+    const applied = Array.isArray(snapshot.appliedCoupons) ? snapshot.appliedCoupons : [];
+    const names = Array.isArray(appointment.discount_coupon_names) ? appointment.discount_coupon_names : [];
+    for (const [index, name] of names.entries()) {
+      const coupon = applied[index];
+      const key = name.trim();
+      if (!key) continue;
+      const metric = benefits.get(key) ?? { name: key, discountAmount: 0, usageCount: 0, freeServiceCount: 0 };
+      metric.usageCount += 1;
+      if (coupon?.discountType === "service" || coupon?.serviceBenefitName) metric.freeServiceCount += 1;
+      else metric.discountAmount += safeNumber(coupon?.discountAmount);
+      benefits.set(key, metric);
+    }
+  }
+  return {
+    paidAmount,
+    paidCount,
+    averagePaidAmount: paidCount ? Math.round(paidAmount / paidCount) : 0,
+    discountAmount: settled.reduce((sum, row) => sum + safeNumber(row.discount_amount), 0),
+    refundAmount: settled.reduce((sum, row) => sum + safeNumber(row.refund_amount), 0),
+    unpaidAmount: rows.filter((row) => row.status === "unpaid").reduce((sum, row) => sum + safeNumber(row.net_amount), 0),
+    expectedAmount: rows.filter((row) => row.status === "expected").reduce((sum, row) => sum + safeNumber(row.net_amount), 0),
+    previousPaidAmount: 0,
+    daily: Array.from(dailyMap.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([date, amount]): RevenueDailyMetric => ({ date, paidAmount: amount })),
+    categories: Array.from(categoryMap.values()).sort((a, b) => b.amount - a.amount),
+    benefits: Array.from(benefits.values()).sort((a, b) => b.discountAmount - a.discountAmount || b.usageCount - a.usageCount),
+  };
+}
 
 function safeNumber(value: unknown, fallback = 0) {
   const number = typeof value === "number" ? value : Number(value);
@@ -385,6 +452,19 @@ export function buildProfitabilityPayload(params: {
       recordsWithoutExpectedTime: params.observations.filter((row) => !row.expectedMinutes).length,
       minimumRecommendationSampleSize: MIN_RECOMMENDATION_SAMPLE_SIZE,
     },
+    sales: {
+      paidAmount: netRevenue,
+      paidCount: params.observations.length,
+      averagePaidAmount: params.observations.length ? Math.round(netRevenue / params.observations.length) : 0,
+      discountAmount,
+      refundAmount: 0,
+      unpaidAmount: 0,
+      expectedAmount: 0,
+      previousPaidAmount: 0,
+      daily: [],
+      categories: [],
+      benefits: [],
+    },
   };
 }
 
@@ -393,10 +473,16 @@ function kstDateString(date: Date) {
 }
 
 function rangeDates(range: ProfitabilityRange) {
-  const to = kstDateString(new Date());
-  const fromDate = new Date(`${to}T00:00:00+09:00`);
-  fromDate.setUTCDate(fromDate.getUTCDate() - RANGE_DAYS[range] + 1);
-  return { from: kstDateString(fromDate), to };
+  const today = kstDateString(new Date());
+  const [year, month] = today.split("-").map(Number);
+  const currentStart = range === "30d" ? new Date(Date.UTC(year, month - 1, 1))
+    : range === "90d" ? new Date(Date.UTC(year, month - 2, 1))
+    : new Date(Date.UTC(year, 0, 1));
+  const format = (date: Date) => kstDateString(new Date(`${date.toISOString().slice(0, 10)}T00:00:00+09:00`));
+  const previousEnd = new Date(currentStart.getTime() - 86400000);
+  const elapsedDays = Math.floor((new Date(`${today}T00:00:00+09:00`).getTime() - new Date(`${format(currentStart)}T00:00:00+09:00`).getTime()) / 86400000) + 1;
+  const previousStart = new Date(previousEnd.getTime() - (elapsedDays - 1) * 86400000);
+  return { from: format(currentStart), to: today, previousFrom: format(previousStart), previousTo: format(previousEnd) };
 }
 
 function durationBetween(startAt: string | null | undefined, endAt: string | null | undefined) {
@@ -413,7 +499,7 @@ function missingProfitabilityColumn(error: { code?: string; message?: string } |
 export async function loadProfitabilityPayload(shopId: string, range: ProfitabilityRange) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 서버 연결을 확인할 수 없습니다.");
-  const { from, to } = rangeDates(range);
+  const { from, to, previousFrom, previousTo } = rangeDates(range);
   const baseRecordColumns = "id,appointment_id,pet_id,service_id,staff_id,groomed_at,price_paid,actual_duration_minutes";
   const extendedRecordColumns = `${baseRecordColumns},expected_duration_minutes,original_price,discount_amount,pet_breed_snapshot,pet_weight_snapshot,service_name_snapshot`;
 
@@ -446,7 +532,7 @@ export async function loadProfitabilityPayload(shopId: string, range: Profitabil
   const [appointmentsResult, petsResult, servicesResult, staffResult, revenueResult] = await Promise.all([
     supabase
       .from("appointments")
-      .select("id,service_id,status,start_at,end_at,actual_started_at,actual_completed_at,original_service_price,discount_amount,final_service_price")
+      .select("id,service_id,status,start_at,end_at,actual_started_at,actual_completed_at,original_service_price,discount_amount,final_service_price,discount_coupon_names,discount_snapshot")
       .eq("shop_id", shopId)
       .gte("appointment_date", from)
       .lte("appointment_date", to)
@@ -456,9 +542,9 @@ export async function loadProfitabilityPayload(shopId: string, range: Profitabil
     supabase.from("staff_members").select("id,name,display_name").eq("shop_id", shopId).limit(1000),
     supabase
       .from("shop_revenue_entries")
-      .select("grooming_record_id,gross_amount,discount_amount,net_amount,status")
+      .select("id,appointment_id,external_payment_id,service_id,entry_date,revenue_type,title,grooming_record_id,gross_amount,discount_amount,refund_amount,net_amount,status")
       .eq("shop_id", shopId)
-      .gte("entry_date", from)
+      .gte("entry_date", previousFrom)
       .lte("entry_date", to)
       .limit(5000),
   ]);
@@ -527,7 +613,7 @@ export async function loadProfitabilityPayload(shopId: string, range: Profitabil
     pets: Array.from(pets.entries()).map(([id, pet]) => ({ id, name: pet.name ?? "반려동물" })),
   });
 
-  return buildProfitabilityPayload({
+  const payload = buildProfitabilityPayload({
     observations,
     durationRecommendations,
     petDurationRecommendations,
@@ -535,10 +621,14 @@ export async function loadProfitabilityPayload(shopId: string, range: Profitabil
     from,
     to,
   });
+  const salesRows = (revenueResult.data ?? []) as RevenueRow[];
+  const sales = buildSalesSummary(salesRows.filter((row) => row.entry_date && row.entry_date >= from && row.entry_date <= to), appointmentRows);
+  sales.previousPaidAmount = buildSalesSummary(salesRows.filter((row) => row.entry_date && row.entry_date >= previousFrom && row.entry_date <= previousTo), []).paidAmount;
+  return { ...payload, sales };
 }
 
 export function buildDemoProfitabilityPayload(range: ProfitabilityRange) {
-  const { from, to } = rangeDates(range);
+  const { from, to, previousFrom, previousTo } = rangeDates(range);
   const demo: ProfitabilityObservation[] = [
     ...Array.from({ length: 5 }, (_, index) => ({
       id: `maltese-${index}`,
@@ -613,5 +703,16 @@ export function buildDemoProfitabilityPayload(range: ProfitabilityRange) {
       recommendedMinutes: 65,
     },
   ];
-  return buildProfitabilityPayload({ observations: demo, petDurationRecommendations, range, from, to });
+  const payload = buildProfitabilityPayload({ observations: demo, petDurationRecommendations, range, from, to });
+  const paidAmount = demo.reduce((sum, row) => sum + row.netRevenue, 0);
+  const totalDays = Math.max(1, Math.round((new Date(`${to}T00:00:00+09:00`).getTime() - new Date(`${from}T00:00:00+09:00`).getTime()) / 86400000) + 1);
+  const pointCount = Math.min(15, totalDays);
+  const daily = Array.from({ length: pointCount }, (_, index) => {
+    const date = new Date(`${from}T00:00:00+09:00`);
+    date.setUTCDate(date.getUTCDate() + Math.floor((index * (totalDays - 1)) / Math.max(1, pointCount - 1)));
+    const day = kstDateString(date);
+    return { date: day, paidAmount: Math.round(paidAmount / pointCount * (0.55 + ((index * 17) % 9) / 10)) };
+  });
+  const demoDailyTotal = daily.reduce((sum, item) => sum + item.paidAmount, 0);
+  return { ...payload, sales: { paidAmount: demoDailyTotal, paidCount: demo.length, averagePaidAmount: Math.round(demoDailyTotal / demo.length), discountAmount: demo.reduce((sum, row) => sum + row.discountAmount, 0), refundAmount: 0, unpaidAmount: 18000, expectedAmount: 32000, previousPaidAmount: Math.round(demoDailyTotal * 0.92), daily, categories: [{ name: "전체 미용", amount: Math.round(demoDailyTotal * 0.85), count: demo.length - 2 }, { name: "부분 미용", amount: Math.round(demoDailyTotal * 0.15), count: 2 }], benefits: [{ name: "첫 방문 할인", discountAmount: 5000, usageCount: 1, freeServiceCount: 0 }, { name: "발톱 정리", discountAmount: 0, usageCount: 2, freeServiceCount: 2 }] } };
 }

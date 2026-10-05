@@ -323,6 +323,9 @@ Rules:
 - Actual duration comes from the completed appointment's actual timestamps. Imported legacy history may use a known external actual duration when no PetManager appointment exists.
 - Expected duration comes from the completion snapshot, then the appointment window, then the detailed price-guide service duration.
 - `shop_revenue_entries` remains the one revenue ledger. Profitability must not create a separate editable revenue total.
+- Owner 매출 분석은 `shop_revenue_entries` 전체를 기간 기준으로 집계한다. `paid`, `partially_refunded`, `refunded`의 `net_amount`만 결제 매출에 포함하고, `unpaid`와 `expected`는 별도 합계로 반환한다. 일별·항목별 합계도 같은 결제 상태 기준을 사용한다.
+- 매출 분석의 혜택 사용은 결제된 예약에 저장된 `discount_coupon_names`와 `discount_snapshot.appliedCoupons`만 집계한다. 쿠폰별 할인액이 저장되지 않은 과거 건은 임의 배분하지 않으며, 서비스 혜택은 할인액 대신 사용 횟수로 표시한다.
+- `range=30d|90d|365d`는 각각 이번 달, 최근 3개월(이번 달 포함), 올해 누계이며, 비교 매출은 조회 시작일 직전의 동일 일수 구간 기준이다.
 - Breed, weight, service name, expected duration, original price, discount, and final paid amount are historical snapshots and must not change when current pet/service settings change.
 - Price-increase recommendations require at least three timed records for the same breed, rounded weight, and service segment.
 - Records without actual time are excluded from hourly calculations and returned as a data-quality count. Clients must not invent actual time.

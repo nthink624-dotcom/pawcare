@@ -3369,7 +3369,7 @@ function OwnerAppContent({
                               {!isStaffApp ? (
                                 <>
                                   <span className="shrink-0 text-[#64748b]">·</span>
-                                  <span className="shrink-0 font-normal text-[var(--muted)]">{summary.guardian.phone}</span>
+                                  <span className="shrink-0 font-normal text-[var(--muted)]">{formatShopPhoneNumber(summary.guardian.phone)}</span>
                                 </>
                               ) : null}
                               <span className="shrink-0 text-[#64748b]">·</span>
@@ -3491,6 +3491,12 @@ function OwnerAppContent({
                       <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
                     </button>
                   )}
+
+                  {!isStaffApp && !editingCustomerFields.phone && selectedGuardian.phone.trim() ? (
+                    <div className="px-[15px] pb-3">
+                      <QuickContactRow phone={selectedGuardian.phone} />
+                    </div>
+                  ) : null}
 
                   <div className="border-t border-[#edf1f5]" />
                   {editingCustomerFields.pet ? (

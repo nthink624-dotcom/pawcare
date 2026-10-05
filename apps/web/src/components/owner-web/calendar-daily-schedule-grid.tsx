@@ -103,9 +103,12 @@ function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, 
       <span className="flex min-w-0 flex-col gap-0.5 @[300px]/chip:hidden">
         <span className="flex min-w-0 items-center justify-between gap-2">
           <span data-booking-content="identity" title={[booking.pet, booking.customer].filter(Boolean).join(" · ")} className="min-w-0 truncate font-medium text-[#17243c]">{booking.pet}</span>
-          <span data-booking-status="true" className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span>
+          {height >= 100 ? <span data-booking-status="true" className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span> : <span data-booking-content="time" title={timeLabel} className="shrink-0 whitespace-nowrap tabular-nums text-[#526174]">{timeLabel.split("-")[0]}</span>}
         </span>
-        <span data-booking-content="service" title={service} className="min-w-0 truncate text-[#526174]">{service}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span data-booking-content="service" title={service} className="min-w-0 flex-1 truncate text-[#526174]">{service}</span>
+          {height < 100 ? <span data-booking-status="true" className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span> : null}
+        </span>
         {height >= 100 ? <span data-booking-content="time" className="whitespace-nowrap tabular-nums text-[#526174]">{timeLabel}</span> : null}
       </span>
       <span className="hidden min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 @[300px]/chip:grid">

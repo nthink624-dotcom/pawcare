@@ -45,7 +45,7 @@ const ownerWebNavigationGroups: Array<{
       { key: "schedule", label: "예약 관리" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
-      { key: "profitability", label: "매출 분석" },
+      { key: "profitability", label: "수익 분석" },
     ],
   },
   {
@@ -69,7 +69,7 @@ const ownerWebSidebarGroups: Array<{
       { key: "schedule", label: "예약 관리" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
-      { key: "profitability", label: "매출 분석" },
+      { key: "profitability", label: "수익 분석" },
     ],
   },
   {

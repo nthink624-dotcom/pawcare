@@ -4148,7 +4148,7 @@ function HomeHeaderStaffSelect({
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative h-11 min-w-[120px] shrink-0">
+    <div ref={rootRef} className="relative h-10 min-w-[120px] shrink-0">
       <button
         type="button"
         className={cn(

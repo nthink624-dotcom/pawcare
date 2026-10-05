@@ -78,11 +78,38 @@ function formatOccurredAt(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "시간 확인 필요";
   return new Intl.DateTimeFormat("ko-KR", {
-    month: "numeric",
-    day: "numeric",
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatOccurredDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "날짜 확인 필요";
+  return `${String(date.getFullYear()).slice(-2)}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function formatCallPhoneNumber(value: string) {
+  const digits = value.replace(/[^0-9]/g, "");
+  if (digits.startsWith("02")) {
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}-${digits.slice(2, -4)}-${digits.slice(-4)}`;
+  }
+  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return value;
+}
+
+function groupEventsByDate(events: CatchCallEvent[]) {
+  const groups = new Map<string, CatchCallEvent[]>();
+  for (const event of events) {
+    const date = formatOccurredDate(event.occurredAt);
+    const group = groups.get(date);
+    if (group) group.push(event);
+    else groups.set(date, [event]);
+  }
+  return [...groups].map(([date, dateEvents]) => ({ date, events: dateEvents }));
 }
 
 function eventStatusLabel(event: CatchCallEvent) {
@@ -133,6 +160,7 @@ export default function OwnerCatchCallPanel({
 
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null;
   const guardianId = selectedEvent?.matchedGuardian?.id ?? null;
+  const selectedGuardianPhone = guardianId ? data.guardians.find((guardian) => guardian.id === guardianId)?.phone ?? "" : "";
   const guardianPets = useMemo(
     () => (guardianId ? data.pets.filter((pet) => pet.guardian_id === guardianId) : []),
     [data.pets, guardianId],
@@ -310,11 +338,11 @@ export default function OwnerCatchCallPanel({
       <div className="relative rounded-[24px] border border-[#dce7f1] bg-gradient-to-br from-[#f4f8ff] via-white to-[#eef8f5] p-5 shadow-[0_8px_24px_rgba(28,48,77,0.06)]">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[24px]"><div className="absolute -right-10 -top-14 size-40 rounded-full bg-[#dceaff]/60 blur-2xl" /></div>
         <div className="relative">
-          <div className="flex items-start gap-3.5">
+          <div className="flex items-center gap-3.5">
             <span className="grid size-12 shrink-0 place-items-center rounded-[17px] bg-[#172b4d] text-white">
               <PhoneCall className="size-[21px]" aria-hidden="true" />
             </span>
-            <div className="min-w-0 flex-1 pt-0.5">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <h3 className="min-w-0 flex-1 text-[15px] font-semibold leading-5 tracking-[-0.03em] text-[#172b4d]">등록 고객 전화 확인</h3>
                 <InfoTip ariaLabel="캐치콜 도움말" className="z-20 shrink-0" popoverClassName="!left-auto !right-0 !top-7 !translate-x-0 w-[min(240px,calc(100vw-80px))]">
@@ -330,7 +358,7 @@ export default function OwnerCatchCallPanel({
                 aria-label="캐치콜 자동 감지 켜기 또는 끄기"
                 onClick={() => void toggleAutomaticCallScreening()}
                 disabled={configuringCallScreening}
-                className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${callScreeningStatus.active ? "bg-[#31856e]" : "bg-[#c3cbd5]"}`}
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${callScreeningStatus.active ? "bg-[#31856e]" : "bg-[#c3cbd5]"}`}
               >
                 <span className={`absolute left-1 top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${callScreeningStatus.active ? "translate-x-5" : "translate-x-0"}`} />
               </button>
@@ -350,14 +378,14 @@ export default function OwnerCatchCallPanel({
 
       {incomingCallChoice?.pending && !selectedEvent ? (
         <div className="space-y-3 rounded-[14px] border border-[#b9d2ff] bg-[#f5f8ff] p-4" role="dialog" aria-label="수신 전화 선택" aria-live="assertive">
-          <div className="flex items-start gap-3">
+          <div className="flex items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#dfeaff] text-[#2563eb]">
               <PhoneCall className="size-5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[16px] font-semibold leading-6 text-[#15213b]">전화가 왔어요</p>
               <p className="mt-0.5 text-[14px] leading-5 text-[#52627a]">
-                {incomingCallChoice.callerNumber ? `010-****-${incomingCallChoice.callerNumber.slice(-4)}` : "전화번호 확인 중"}
+                {incomingCallChoice.callerNumber ? formatCallPhoneNumber(incomingCallChoice.callerNumber) : "전화번호 확인 중"}
               </p>
             </div>
           </div>
@@ -380,7 +408,7 @@ export default function OwnerCatchCallPanel({
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[16px] font-medium leading-6 text-[#15213b]">{selectedEvent.matchedGuardian?.name} 보호자</p>
-              <p className="mt-0.5 text-[13px] leading-5 text-[#64748b]">010-****-{selectedEvent.phoneTail} · {formatOccurredAt(selectedEvent.occurredAt)}</p>
+              <p className="mt-0.5 text-[13px] leading-5 text-[#64748b]">{selectedGuardianPhone ? formatCallPhoneNumber(selectedGuardianPhone) : `끝 4자리 ${selectedEvent.phoneTail}`} · {formatOccurredAt(selectedEvent.occurredAt)}</p>
             </div>
           </div>
           <div className="grid gap-3">
@@ -443,19 +471,35 @@ export default function OwnerCatchCallPanel({
         </div>
         {loading ? <div className="rounded-[14px] border border-[#e8edf3] bg-white px-4 py-6 text-center text-[14px] text-[#64748b]">통화 기록을 불러오는 중입니다.</div> : null}
         {!loading && events.length === 0 && !message ? <div className="rounded-[14px] border border-[#e8edf3] bg-white px-4 py-6 text-center text-[14px] leading-5 text-[#64748b]">아직 들어온 통화가 없습니다.</div> : null}
-        {!loading ? events.map((event) => {
-          const canReserve = event.matchStatus === "matched" && Boolean(event.matchedGuardian) && !event.appointmentId;
-          return (
-            <button key={event.id} type="button" onClick={() => selectEvent(event)} disabled={!canReserve} className="flex min-h-[72px] w-full items-center gap-3 rounded-[14px] border border-[#e8edf3] bg-white px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-default disabled:opacity-75">
-              <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#f1f5f9] text-[#64748b]"><PhoneCall className="size-4" aria-hidden="true" /></span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2"><span className="truncate text-[16px] font-medium leading-6 text-[#15213b]">{event.matchedGuardian?.name ?? "확인되지 않은 통화"}</span><span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#64748b]">{eventLabels[event.eventType]}</span></span>
-                <span className="mt-0.5 block text-[13px] leading-5 text-[#64748b]">010-****-{event.phoneTail} · {formatOccurredAt(event.occurredAt)}</span>
-              </span>
-              <span className={`shrink-0 text-[12px] font-medium leading-[18px] ${event.notificationStatus === "failed" ? "text-[#9a5e4e]" : event.appointmentId ? "text-[#1f6b5b]" : "text-[#64748b]"}`}>{eventStatusLabel(event)}</span>
-            </button>
-          );
-        }) : null}
+        {!loading ? groupEventsByDate(events).map((group) => (
+          <div key={group.date} className="space-y-2.5">
+            <div className="flex items-center gap-3 px-1" aria-label={`${group.date} 통화 내역`}>
+              <span className="h-px flex-1 bg-[#dce3eb]" aria-hidden="true" />
+              <time className="shrink-0 text-[13px] font-medium leading-5 tracking-[0.02em] text-[#64748b]">{group.date}</time>
+              <span className="h-px flex-1 bg-[#dce3eb]" aria-hidden="true" />
+            </div>
+            {group.events.map((event) => {
+              const canReserve = event.matchStatus === "matched" && Boolean(event.matchedGuardian) && !event.appointmentId;
+              const phone = event.matchedGuardian
+                ? data.guardians.find((guardian) => guardian.id === event.matchedGuardian?.id)?.phone
+                : null;
+              return (
+                <button key={event.id} type="button" onClick={() => selectEvent(event)} disabled={!canReserve} className="flex min-h-[76px] w-full items-center gap-3 rounded-[14px] border border-[#e8edf3] bg-white px-3.5 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-default disabled:opacity-75">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#f1f5f9] text-[#64748b]"><PhoneCall className="size-4" aria-hidden="true" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[16px] font-medium leading-6 text-[#15213b]">{event.matchedGuardian?.name ?? "확인되지 않은 통화"}</span>
+                    <span className="mt-0.5 block truncate text-[13px] leading-5 text-[#64748b]">{phone ? formatCallPhoneNumber(phone) : `미확인 번호 · 끝 4자리 ${event.phoneTail}`}</span>
+                    <span className={`mt-1 block truncate text-[12px] font-medium leading-[18px] ${event.notificationStatus === "failed" ? "text-[#9a5e4e]" : event.appointmentId ? "text-[#1f6b5b]" : "text-[#64748b]"}`}>{eventStatusLabel(event)}</span>
+                  </span>
+                  <span className="flex min-h-[48px] shrink-0 flex-col items-end justify-between self-stretch py-0.5">
+                    <span className="inline-flex min-h-6 items-center rounded-full bg-[#f1f5f9] px-2 text-[12px] font-medium leading-[18px] text-[#52627a]">{eventLabels[event.eventType]}</span>
+                    <time className="whitespace-nowrap text-[12px] leading-[18px] text-[#64748b]">{formatOccurredAt(event.occurredAt)}</time>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )) : null}
       </div>
     </section>
   );

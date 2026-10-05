@@ -1,9 +1,9 @@
 "use client";
 
-import { Clock, Copy, ExternalLink, Link2, MapPin, Navigation, Phone, Star, Store } from "lucide-react";
+import { Copy, ExternalLink, Link2, Phone, Navigation, ChevronLeft, ChevronDown, Star, Share2, Bell } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { BookingLinkNaverGuide } from "./booking-link-naver-guide";
+import { BookingLinkNaverGuide, NAVER_PRICE_NOTICE_EXAMPLES } from "./booking-link-naver-guide";
 
 import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import {
@@ -22,7 +22,7 @@ function buildPublicBookingUrl(shopId: string) {
   return `${window.location.origin}/s/${shopId}`;
 }
 
-const naverDirectionsText = "간편 예약은 홈페이지 링크를 눌러주세요.";
+const naverDirectionsText = "간편예약은 아래 파란색 URL을 눌러주세요.";
 const smartPlaceUrl = "https://smartplace.naver.com/";
 
 export default function BookingLinkManagementScreen({
@@ -48,7 +48,7 @@ export default function BookingLinkManagementScreen({
       <main className="min-w-0 w-full">
         <section
           data-booking-link-main-surface
-          className="min-w-0 overflow-hidden rounded-[14px] border border-[#e8edf3] bg-white"
+          className="min-w-0 rounded-[14px] border border-[#e8edf3] bg-white"
         >
           <header className="min-w-0 px-3 py-3 sm:px-4 sm:py-4">
             <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
@@ -115,13 +115,10 @@ export default function BookingLinkManagementScreen({
                 </button>
               </div>
 
-              <div className="mt-4 grid min-w-0 gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
-                <NaverPlacePreview
-                  shopName={shop.name}
-                  phone={shop.phone}
-                  address={shop.address}
-                  bookingUrl={bookingUrl}
-                />
+              <div className="mt-4 grid min-w-0 items-start gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+                <aside data-naver-phone-preview className="mx-auto w-full max-w-[300px] lg:sticky lg:top-4 lg:self-start">
+                  <NaverPlacePreview shop={shop} bookingUrl={bookingUrl} />
+                </aside>
 
                 <BookingLinkNaverGuide
                   bookingUrl={bookingUrl}
@@ -139,130 +136,53 @@ export default function BookingLinkManagementScreen({
   );
 }
 
-function NaverPlacePreview({
-  shopName,
-  phone,
-  address,
-  bookingUrl,
-}: {
-  shopName: string;
-  phone: string | null | undefined;
-  address: string;
-  bookingUrl: string;
-}) {
+function NaverPlacePreview({ shop, bookingUrl }: { shop: BootstrapPayload["shop"]; bookingUrl: string }) {
+  const settings = shop.customer_page_settings;
+  const shopPhotos = (settings.hero_image_urls?.length ? settings.hero_image_urls : [settings.hero_image_url]).filter(Boolean).slice(0, 2);
+  const usingExamplePhoto = shopPhotos.length === 0;
+  const photos = usingExamplePhoto ? ["/images/booking-link-grooming-preview-ai.png"] : shopPhotos;
+  const iconClass = "mt-[3px] h-[18px] w-[18px] shrink-0 text-[#bfc3cb]";
   return (
-    <div className="w-full max-w-[300px] overflow-hidden rounded-[16px] border border-[#dbe2ea] bg-white text-[#111827] shadow-[0_10px_20px_rgba(15,23,42,0.08)]">
-      <div className="grid h-[118px] grid-cols-[1.45fr_0.85fr] gap-px bg-[#e5e7eb]">
-        <div
-          className="bg-cover bg-center"
-          style={{ backgroundImage: "url('/images/customer-booking-hero-storefront.png')" }}
-        />
-        <div className="grid grid-rows-2 gap-px">
-          <div
-            className="bg-cover bg-center"
-            style={{ backgroundImage: "url('/images/customer-booking-hero-retriever-bath.jpg')" }}
-          />
-          <div
-            className="relative bg-cover bg-center"
-            style={{ backgroundImage: "url('/images/customer-booking-hero-original.jpg')" }}
-          >
-            <div className="absolute inset-0 bg-black/24" />
-            <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2.5 py-1 text-[12px] font-semibold text-white">
-              더보기
-            </span>
+    <figure className="m-0 text-center">
+      <div className="relative mx-auto aspect-[823/1677]" style={{ width: "min(300px, calc((100dvh - 170px) * 823 / 1677))" }}>
+        <div className="absolute inset-x-[4.65%] bottom-[1.65%] top-[1.95%] overflow-hidden rounded-[12%/6%] bg-white">
+          <svg viewBox="0 0 390 844" preserveAspectRatio="none" className="h-full w-full" aria-label="내 매장의 네이버 화면 구성 예시">
+            <foreignObject width="390" height="844">
+              <div data-naver-preview-canvas className="relative flex h-[844px] w-[390px] flex-col bg-white text-left text-[16px] font-normal leading-6 tracking-[-0.3px]" style={{ fontFamily: 'Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif' }}>
+          <div aria-hidden="true" className="flex h-11 shrink-0 items-center justify-between px-5 pt-2 text-[14px] font-medium"><span>9:41</span><span>••• ▰</span></div>
+          <div className="flex h-12 shrink-0 items-center justify-between px-4"><ChevronLeft aria-hidden="true" className="h-7 w-7" /><span className="min-w-0 truncate text-[18px] font-semibold">{shop.name}</span><Star aria-hidden="true" className="h-7 w-7" /></div>
+          <div data-naver-preview-content className="min-h-0 flex-1 overflow-y-auto pb-8 text-[#333333]">
+            <div className="px-4 pb-5 pt-3"><h3 className="text-[24px] font-semibold leading-8">{shop.name}</h3><p className="mt-2 text-[#8f8f8f]">반려동물미용</p></div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <div className="relative mx-4 flex h-[206px] gap-1 overflow-hidden rounded-[14px]">{photos.map((photo, index) => <img key={`${photo}-${index}`} src={photo} alt={usingExamplePhoto ? "강아지를 빗질하는 반려동물 미용 예시 사진" : `${shop.name} 매장 사진 ${index + 1}`} className="h-full min-w-0 flex-1 object-cover" />)}{usingExamplePhoto && <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-[12px] leading-5 text-white">예시 사진</span>}</div>
+            <div aria-hidden="true" className="flex gap-2 overflow-hidden px-4 py-4 text-[#1677ff]">{[[Navigation, "길찾기"], [Share2, "공유"], [Phone, "전화"], [Bell, "알림"]].map(([Icon, label]) => { const RowIcon = Icon as typeof Navigation; return <span key={String(label)} className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-[#e9f1ff] px-3"><RowIcon className="h-5 w-5" />{String(label)}</span>; })}</div>
+            <div aria-hidden="true" className="sticky top-0 z-10 flex h-12 items-center justify-between gap-3 border-b border-[#eeeeee] bg-white px-4 text-[#8f8f8f]"><span className="flex h-full items-center border-b-2 border-[#222222] font-semibold text-[#222222]">홈</span><span>소식</span><span>리뷰</span><span>사진</span><span>지도</span><span>정보</span></div>
+            <div className="space-y-4 px-4 py-4">
+              <div className="flex items-start gap-2"><NaverInfoIcon kind="pin" className={iconClass} /><p className="min-w-0">{shop.address || "매장 주소 미등록"} <ChevronDown aria-hidden="true" className="inline h-3 w-3 text-[#8f8f8f]" /><span className="text-[#0068c3]"> 지도 · 내비게이션 · 거리뷰</span></p></div>
+              <div className="flex items-start gap-2"><NaverInfoIcon kind="directions" className={iconClass} /><p>{naverDirectionsText}</p></div>
+              <div className="flex items-start gap-2"><NaverInfoIcon kind="clock" className={iconClass} /><p>{settings.operating_hours_note || "영업시간 정보 미등록"} <ChevronDown aria-hidden="true" className="inline h-3 w-3 text-[#8f8f8f]" /></p></div>
+              <div className="flex items-start gap-2"><NaverInfoIcon kind="phone" className={iconClass} /><p>{shop.phone || "전화번호 미등록"} <span className="text-[#0068c3]">복사</span></p></div>
+              <div className="flex items-start gap-2"><NaverInfoIcon kind="price" className={iconClass} /><div className="min-w-0 flex-1 space-y-1">{NAVER_PRICE_NOTICE_EXAMPLES.map(notice => <div key={notice} className="flex items-baseline gap-1"><span>{notice}</span><span className="min-w-2 flex-1 border-b border-dotted border-[#e5e5e5]" /><span className="shrink-0">무료</span></div>)}<p className="pt-1 text-[#0068c3]">가격표 이미지로 보기</p></div></div>
+              <div className="flex items-start gap-2"><NaverInfoIcon kind="globe" className={iconClass} /><a href={bookingUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 text-[#0068c3] focus-visible:outline-2 focus-visible:outline-blue-600"><span className="block truncate">{bookingUrl}</span><span className="block">예약</span></a></div>
+              {settings.parking_notice && <div className="flex items-start gap-2"><NaverInfoIcon kind="price" className={iconClass} /><p>{settings.parking_notice}</p></div>}
+              <div aria-hidden="true" className="flex items-center gap-2 pt-1"><span className="h-px flex-1 bg-[#eeeeee]" /><span className="rounded-full bg-[#f6f6f6] px-4 py-2">정보 더보기 ›</span><span className="h-px flex-1 bg-[#eeeeee]" /></div>
+            </div>
           </div>
+          <div aria-hidden="true" className="pointer-events-none absolute bottom-2 left-1/2 h-1 w-1/3 -translate-x-1/2 rounded-full bg-[#111827]" />
+              </div>
+            </foreignObject>
+          </svg>
         </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/iphone-14-pro-phone-template.svg" alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" />
       </div>
-
-      <div className="px-4 py-4">
-        <div className="space-y-3.5 text-[14px] leading-[1.45]">
-          <div className="grid grid-cols-[20px_minmax(0,1fr)] gap-2.5">
-            <MapPin className="mt-0.5 h-[18px] w-[18px] text-[#c8c8c8]" fill="currentColor" strokeWidth={0} />
-            <div>
-              <p className="text-[#222222]">
-                {address || "경기 수원시 권선구 하탑로34번길 18 1층"} <span className="text-[#777]">⌄</span> <span className="text-[#0b73d9]">지도 · 내비게이션 · 거리뷰</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[20px_minmax(0,1fr)] gap-2.5">
-            <Navigation className="mt-0.5 h-[18px] w-[18px] text-[#9aa4b2]" strokeWidth={1.8} />
-            <p className="font-semibold text-[#222222]">{naverDirectionsText}</p>
-          </div>
-
-          <div className="grid grid-cols-[20px_minmax(0,1fr)] gap-2.5">
-            <Clock className="mt-0.5 h-[18px] w-[18px] text-[#c8c8c8]" fill="currentColor" strokeWidth={0} />
-            <p className="text-[#222222]">
-              영업 종료 · <span>10:00에 영업 시작</span> <span className="text-[#777]">⌄</span>
-            </p>
-          </div>
-
-          <div className="grid grid-cols-[20px_minmax(0,1fr)] gap-2.5">
-            <Phone className="mt-0.5 h-[18px] w-[18px] text-[#c8c8c8]" fill="currentColor" strokeWidth={0} />
-            <p className="text-[#222222]">
-              {phone || "0507-0000-0000"} <span className="text-[#94a3b8]">ⓘ</span> <span className="text-[#0b73d9]">복사</span>
-            </p>
-          </div>
-
-          <div className="grid grid-cols-[20px_minmax(0,1fr)] gap-2.5">
-            <Store className="mt-0.5 h-[18px] w-[18px] text-[#c8c8c8]" fill="currentColor" strokeWidth={0} />
-            <div className="space-y-1 text-[#222222]">
-              <div className="flex justify-between gap-3 border-b border-dotted border-[#e5e7eb] pb-1">
-                <span>소형견 전체미용</span>
-                <span className="font-semibold">35,000원</span>
-              </div>
-              <div className="flex justify-between gap-3 border-b border-dotted border-[#e5e7eb] pb-1">
-                <span>소형견 4kg 이상부터 변동</span>
-                <span className="font-semibold">변동</span>
-              </div>
-              <div className="flex justify-between gap-3 border-b border-dotted border-[#e5e7eb] pb-1">
-                <span>중형견 전체미용</span>
-                <span className="font-semibold">40,000원</span>
-              </div>
-              <div className="flex justify-between gap-3 border-b border-dotted border-[#e5e7eb] pb-1">
-                <span>중형견 4kg이상부터 변동</span>
-                <span className="font-semibold">변동</span>
-              </div>
-              <div className="flex justify-between gap-3 border-b border-dotted border-[#e5e7eb] pb-1">
-                <span>길이추가</span>
-                <span className="font-semibold">변동</span>
-              </div>
-              <div className="flex justify-between gap-3 border-b border-dotted border-[#e5e7eb] pb-1">
-                <span>얼굴컷(추가)</span>
-                <span className="font-semibold">변동</span>
-              </div>
-              <p className="pt-0.5 text-[#0b73d9]">가격표 이미지로 보기</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[20px_minmax(0,1fr)] gap-2.5">
-            <GlobeIcon />
-            <div>
-              <p className="break-all text-[14px] text-[#006bd6]">{bookingUrl}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[20px_minmax(0,1fr)] gap-2.5">
-            <Store className="mt-0.5 h-[18px] w-[18px] text-[#c8c8c8]" fill="currentColor" strokeWidth={0} />
-            <p className="text-[#222222]">반려동물 동반, 무선 인터넷, 주차</p>
-          </div>
-        </div>
-
-        <div className="mt-4 border-t border-[#eef2f7] pt-3 text-center">
-          <span className="inline-flex rounded-full bg-[#f5f5f5] px-5 py-2 text-[13px] font-medium text-[#333333]">
-            정보 더보기
-          </span>
-        </div>
-      </div>
-    </div>
+      <figcaption className="mt-3 text-[16px] leading-6 text-[#64748b]"><p className="font-medium text-[#111827]">내 매장 등록 미리보기</p><p>휴대폰 안에서도 아래로 내려볼 수 있어요.</p></figcaption>
+    </figure>
   );
 }
 
-function GlobeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="mt-0.5 h-[18px] w-[18px] text-[#c8c8c8]">
-      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path d="M3 12h18M12 3c2.4 2.6 3.6 5.6 3.6 9S14.4 18.4 12 21M12 3C9.6 5.6 8.4 8.6 8.4 12S9.6 18.4 12 21" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.7" />
-    </svg>
-  );
+function NaverInfoIcon({ kind, className }: { kind: string; className: string }) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className={className}>
+    {kind === "pin" ? <><path fill="currentColor" d="M12 2a8 8 0 0 0-8 8c0 5 8 12 8 12s8-7 8-12a8 8 0 0 0-8-8Z" /><circle cx="12" cy="10" r="2.5" fill="white" /></> : kind === "clock" ? <><circle cx="12" cy="12" r="11" fill="currentColor" /><path d="M12 5v7l4 2" fill="none" stroke="white" strokeWidth="1.6" strokeLinecap="round" /></> : kind === "globe" ? <><circle cx="12" cy="12" r="11" fill="currentColor" /><ellipse cx="12" cy="12" rx="4" ry="11" fill="none" stroke="white" strokeWidth="1.4" /><path d="M1 12h22" stroke="white" strokeWidth="1.4" /></> : kind === "price" ? <><circle cx="12" cy="12" r="11" fill="currentColor" /><path d="m5 7 3 10 4-10 4 10 3-10M4 11h16" fill="none" stroke="white" strokeWidth="1.5" /></> : kind === "phone" ? <path fill="currentColor" d="M4 2 2 5c0 8 9 17 17 17l3-2-5-6-3 2c-3-1-5-3-6-6l2-3-6-5Z" /> : <path d="M5 21V9h12M12 4l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+  </svg>;
 }

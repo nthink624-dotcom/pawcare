@@ -864,6 +864,7 @@ const baseDailyBookings = calendarBookings.map((booking) => ({
 
 type DailyBooking = {
   customerMemo?: string;
+  petPhotoUrl?: string | null;
   id: string;
   day: string;
   start: number;
@@ -4359,11 +4360,12 @@ export default function CalendarManagementScreen({
   const filteredBookings = useMemo(
     () => {
       const guardianById = new Map(bootstrapData.guardians.map((guardian) => [guardian.id, guardian]));
+      const photoByAppointmentId = new Map((bootstrapData.petDisplayPhotos ?? []).map((photo) => [photo.appointmentId, photo.url]));
       return displayScopedBookings
         .filter((booking) => isTimelineBookingStatus(booking.status))
-        .map((booking) => ({ ...booking, customerMemo: booking.guardianId ? guardianById.get(booking.guardianId)?.memo ?? "" : "" }));
+        .map((booking) => ({ ...booking, customerMemo: booking.guardianId ? guardianById.get(booking.guardianId)?.memo ?? "" : "", petPhotoUrl: photoByAppointmentId.get(booking.sourceAppointmentId ?? booking.id) ?? null }));
     },
-    [bootstrapData.guardians, displayScopedBookings],
+    [bootstrapData.guardians, bootstrapData.petDisplayPhotos, displayScopedBookings],
   );
 
   const selectedBooking = filteredBookings.find((item) => item.id === selectedBookingId);

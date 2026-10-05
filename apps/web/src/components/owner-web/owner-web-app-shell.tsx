@@ -29,7 +29,7 @@ const screenIconPaths: Record<OwnerWebNavigationKey, string> = {
   ownerProfile: "/icons/phosphor/user-circle.svg",
   shopInfo: "/icons/phosphor/storefront.svg",
   operatingHours: "/icons/phosphor/clock.svg",
-  benefits: "/icons/phosphor/projector-screen-chart.svg",
+  benefits: "/icons/phosphor/gift.svg",
   alerts: "/icons/phosphor/bell.svg",
   help: "/icons/phosphor/WarningCircle.svg",
   billing: "/icons/phosphor/projector-screen-chart.svg",
@@ -107,7 +107,7 @@ function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey
   return (
     <span
 className={cn(
-        "block h-5 w-5 shrink-0 transition-colors [filter:drop-shadow(0_0_0.35px_currentColor)]",
+        "block h-5 w-5 shrink-0 transition-colors",
         active ? "bg-[var(--acc)]" : "bg-[#9aa3af]",
       )}      style={
         {

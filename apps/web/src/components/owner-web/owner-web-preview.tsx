@@ -102,6 +102,7 @@ function buildShopInitials(shopName: string) {
 function settingsTabForScreen(screen: OwnerWebScreenKey): SettingsTabKey | null {
   if (screen === "ownerProfile") return "profile";
   if (screen === "shopInfo") return "shop";
+  if (screen === "bookingLink" || screen === "bookingPageManagement") return "shop";
   if (screen === "operatingHours") return "hours";
   if (screen === "benefits") return "benefits";
   if (screen === "alerts") return "alerts";
@@ -242,10 +243,6 @@ function renderScreen(
           onCreateRequestHandled={onCreateRequestHandled}
         />
       );
-    case "bookingPageManagement":
-      return <CustomerBookingPageManagementScreen initialData={initialData} onDataChange={onDataChange} />;
-    case "bookingLink":
-      return <BookingLinkManagementScreen initialData={initialData} />;
     case "customers":
       return <CustomerManagementScreen initialData={initialData} onCreateReservationForCustomer={onCreateReservationForCustomer} onDataChange={onDataChange} />;
     case "calendarRecords":
@@ -291,12 +288,24 @@ function renderScreen(
     case "help":
       return <OwnerHelpScreen initialData={initialData} />;
     case "shopInfo":
+    case "bookingLink":
+    case "bookingPageManagement":
     case "operatingHours":
     case "ownerProfile":
     case "benefits":
     case "alerts":
       return (
         <SettingsManagementScreen
+          initialShopSection={screen === "bookingLink" || screen === "bookingPageManagement" ? "booking" : undefined}
+          bookingPageContent={
+            <div className="min-w-0 space-y-5">
+              <BookingLinkManagementScreen initialData={initialData} embedded />
+              <details className="border-t border-[#e8edf3] pt-4">
+                <summary className="cursor-pointer text-[16px] font-medium leading-6">고객 예약 화면 설정</summary>
+                <div className="mt-4 min-w-0"><CustomerBookingPageManagementScreen initialData={initialData} onDataChange={onDataChange} /></div>
+              </details>
+            </div>
+          }
           activeTab={settingsTabForScreen(screen) ?? "shop"}
           showTabNavigation={false}
           shop={initialData.shop}
@@ -879,6 +888,11 @@ export default function OwnerWebPreview({
         activeScreen={initialSetupScreen}
         onClose={closeInitialSetup}
         onNavigate={(screen) => {
+          if (screen === "bookingLink") {
+            closeInitialSetup();
+            setActiveScreen("bookingLink");
+            return;
+          }
           if (screen === "operatingHours" || screen === "staff" || screen === "services") {
             setInitialSetupScreen(screen);
           }

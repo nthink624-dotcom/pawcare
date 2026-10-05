@@ -30,6 +30,8 @@ type ShopInfoSettingsPanelProps = {
   profileImagesProcessing?: boolean;
   children?: ReactNode;
   serviceMenuContent?: ReactNode;
+  bookingPageContent?: ReactNode;
+  initialSectionId?: string;
   shop?: Shop;
   previewServices?: Service[];
   staffMembers?: BootstrapStaffMember[];
@@ -319,6 +321,8 @@ export default function ShopInfoSettingsPanel({
   profileImagesProcessing = false,
   children,
   serviceMenuContent,
+  bookingPageContent,
+  initialSectionId,
   shop,
   staffMembers = [],
   businessHoursSummary = "",
@@ -377,10 +381,14 @@ export default function ShopInfoSettingsPanel({
       { id: "staff-profile", label: "프로필 관리" },
       { id: "hours", label: "영업 시간", hidden: !children },
       { id: "menu", label: "요금표 관리", hidden: !serviceMenuContent },
+      { id: "booking", label: "예약 페이지", hidden: !bookingPageContent },
     ].filter((tab) => !tab.hidden),
-    [children, serviceMenuContent],
+    [children, serviceMenuContent, bookingPageContent],
   );
-  const [activeSectionId, setActiveSectionId] = useState(sectionTabs[0]?.id ?? "basic");
+  const [activeSectionId, setActiveSectionId] = useState(initialSectionId ?? sectionTabs[0]?.id ?? "basic");
+  useEffect(() => {
+    if (initialSectionId) setActiveSectionId(initialSectionId);
+  }, [initialSectionId]);
   const settingsScrollRef = useRef<HTMLDivElement | null>(null);
   function handleProfileTouchStart(event: TouchEvent<HTMLButtonElement>) {
     profileTouchStartXRef.current = event.touches[0]?.clientX ?? null;
@@ -620,7 +628,7 @@ export default function ShopInfoSettingsPanel({
                     onClick={() => changeActiveSection(tab.id)}
                     onKeyDown={(event) => handleSectionTabKeyDown(event, tab.id)}
                     className={cn(
-                      "inline-flex h-11 shrink-0 items-center rounded-full px-4 text-[16px] font-medium leading-6 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+                      "inline-flex h-10 shrink-0 items-center rounded-full px-4 text-[16px] font-medium leading-6 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
                       activeSectionId === tab.id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]",
                     )}
                   >
@@ -1051,6 +1059,12 @@ export default function ShopInfoSettingsPanel({
                   >
                     <div className="min-w-0 w-full max-w-full [overflow-wrap:anywhere]">{children}</div>
                   </PanelCard>
+                </div>
+              ) : null}
+
+              {bookingPageContent ? (
+                <div id="shop-info-panel-booking" role="tabpanel" aria-labelledby="shop-info-tab-booking" hidden={activeSectionId !== "booking"}>
+                  {activeSectionId === "booking" ? bookingPageContent : null}
                 </div>
               ) : null}
 

@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     });
     if (!values.예약일시) values.예약일시 = "예약 일시";
     const types = ALIMTALK_NOTIFICATION_REGISTRY.map((item) => item.type);
-    const templates = await getApprovedSsodaaNotificationTemplates(types, values);
+    const templates = await getApprovedSsodaaNotificationTemplates(types, values, owner.shopId);
 
     return Response.json({
       shopId: owner.shopId,
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
     const message =
       error instanceof Error
         ? error.message
-        : "쏘다 승인 알림톡 내용을 불러오지 못했습니다.";
+        : "승인된 알림톡 내용을 불러오지 못했습니다.";
     return Response.json({ message }, { status: 503 });
   }
 }

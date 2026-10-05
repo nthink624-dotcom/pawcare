@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import { SettingsRevisitReminderDefault } from "@/components/owner-web/settings-revisit-reminder-default";
+import { OwnerAlimtalkTemplateEditor } from "@/components/owner-web/owner-alimtalk-template-editor";
 import { AlertSettingsSwitch } from "@/components/owner-web/settings-alert-switch";
 import {
   PETMANAGER_BRAND_MARK_SRC,
@@ -327,17 +328,17 @@ function KakaoAlimtalkPreview({
       <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[18px] font-semibold leading-[26px] text-[#111827]">실제 발송 미리보기</p>
-          <p className="mt-1 text-[14px] font-normal leading-5 text-[#64748b]">{item.title}</p>
+          <p className="mt-1 text-[16px] font-normal leading-6 text-[#64748b]">{item.title}</p>
         </div>
         <MessageCircle className="h-5 w-5 text-[#64748b]" />
       </div>
 
-      <p className="rounded-[8px] bg-[#f6f8fa] px-3 py-2 text-[13px] leading-5 text-[#64748b]">
+      <p className="rounded-[8px] bg-[#f6f8fa] px-3 py-2 text-[16px] leading-6 text-[#64748b]">
         {loading
-          ? "쏘다 승인 본문과 버튼을 확인하고 있습니다."
+          ? "승인된 알림 문구와 버튼을 확인하고 있습니다."
           : error
             ? error
-            : `쏘다 승인 본문·버튼을 그대로 가져와 ${shopName} 정보로 표시합니다.`}
+            : `${shopName} 매장에 적용된 알림 문구와 버튼을 표시합니다.`}
       </p>
 
       <div className="mt-4 flex justify-center">
@@ -354,13 +355,13 @@ function KakaoAlimtalkPreview({
           </div>
 
           <div className="relative ml-0 mt-1 w-full rounded-[2px] bg-white text-[#111827] shadow-sm sm:ml-[35px] sm:w-[214px]">
-            <div className="rounded-t-[2px] bg-[#ffe500] px-2.5 py-2 text-[13px] font-normal leading-5 text-[#111827]">
+            <div className="rounded-t-[2px] bg-[#ffe500] px-2.5 py-2 text-[16px] font-normal leading-6 text-[#111827]">
               알림톡 도착
             </div>
             <span className="absolute right-2 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-[#3b3328] text-[12px] font-medium leading-[18px] text-white sm:-right-3">
               kakao
             </span>
-            <div className="px-2.5 py-3 text-[13px] font-normal leading-5">
+            <div className="px-2.5 py-3 text-[16px] font-normal leading-6">
               {message ? (
                 message.split("\n").map((line, index) => {
                   if (!line) {
@@ -377,7 +378,7 @@ function KakaoAlimtalkPreview({
             {preview?.buttons.map((button) => (
               <div
                 key={button.name}
-                className="border-t border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-2 text-center text-[13px] font-medium leading-5 text-[#334155]"
+                className="border-t border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-2 text-center text-[16px] font-medium leading-6 text-[#334155]"
               >
                 {button.name}
               </div>
@@ -425,6 +426,8 @@ export default function SettingsAlertsPanel({
   shopName: string;
   automaticVisitReminderAvailable?: boolean;
 }) {
+  const [activeAlertsPage, setActiveAlertsPage] = useState<"settings" | "templates">("settings");
+  const [templatesPageVisited, setTemplatesPageVisited] = useState(false);
   const [selectedAlertType, setSelectedAlertType] = useState<NotificationType>("appointment_reminder_10m");
   const [templatePreviewState, setTemplatePreviewState] = useState<{
     shopId: string;
@@ -439,6 +442,15 @@ export default function SettingsAlertsPanel({
   const previewItem = alertItems.find((item) => item.type === selectedAlertType) ?? alertItems[0];
   const visitReminderEnabled =
     automaticVisitReminderAvailable && value.appointmentReminder10mEnabled && value.appointmentReminder10mMode === "auto";
+  const templateOptions = alertItems.map((item) => ({
+    type: item.type,
+    title: item.title,
+    group: ["booking_confirmed", "booking_cancelled"].includes(item.type)
+      ? "예약 알림"
+      : reservationNoticeTypes.includes(item.type)
+        ? "예약 안내"
+        : "미용 진행",
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -464,7 +476,7 @@ export default function SettingsAlertsPanel({
           previews: {},
           error: error instanceof Error
             ? error.message
-            : "쏘다 승인 템플릿을 불러오지 못했습니다.",
+            : "승인된 알림 문구를 불러오지 못했습니다.",
         });
       });
 
@@ -489,8 +501,12 @@ export default function SettingsAlertsPanel({
   const showSenderChannelSettings = false;
 
   return (
-    <section data-pc-alerts-surface className="min-w-0 overflow-hidden rounded-[14px] border border-[#e8edf3] bg-white">
-      <div className="grid min-w-0 xl:grid-cols-[minmax(0,1fr)_380px]">
+    <section data-pc-alerts-surface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-white">
+      <div className="grid shrink-0 grid-cols-2 border-b border-[#e8edf3] px-3 sm:px-4" role="tablist" aria-label="알림톡 관리">
+        <button type="button" role="tab" id="alerts-settings-tab" aria-selected={activeAlertsPage === "settings"} aria-controls="alerts-settings-panel" onClick={() => setActiveAlertsPage("settings")} className={cn("min-h-12 border-b-2 px-3 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]", activeAlertsPage === "settings" ? "border-b-[#2563eb] text-[#15213b]" : "border-b-transparent text-[#64748b] hover:text-[#15213b]")}>알림 설정</button>
+        <button type="button" role="tab" id="alerts-templates-tab" aria-selected={activeAlertsPage === "templates"} aria-controls="alerts-templates-panel" onClick={() => { setTemplatesPageVisited(true); setActiveAlertsPage("templates"); }} className={cn("min-h-12 border-b-2 px-3 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]", activeAlertsPage === "templates" ? "border-b-[#2563eb] text-[#15213b]" : "border-b-transparent text-[#64748b] hover:text-[#15213b]")}>내 문구 작성</button>
+      </div>
+      {activeAlertsPage === "settings" ? <div id="alerts-settings-panel" role="tabpanel" aria-labelledby="alerts-settings-tab" className="grid min-h-0 min-w-0 flex-1 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 divide-y divide-[#e8edf3]">
           {showSenderChannelSettings ? (
           <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
@@ -629,7 +645,7 @@ export default function SettingsAlertsPanel({
           </div>
           ) : null}
 
-          <div data-alerts-section="global" className="px-4 py-4">
+          <div data-alerts-section="global" className="bg-[#f8fafc] px-3 py-2">
             <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
               <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
                 <p className="min-w-0 break-words text-[18px] font-semibold leading-[26px] text-[#111827]">알림톡 전체 사용</p>
@@ -647,7 +663,7 @@ export default function SettingsAlertsPanel({
 
           <div
             data-alerts-section="revisit"
-            className="px-4 py-4 [&>div]:!rounded-none [&>div]:!border-0 [&>div]:!bg-transparent [&>div]:!p-0"
+            className="px-3 py-1.5 [&>div]:!rounded-none [&>div]:!border-0 [&>div]:!bg-transparent [&>div]:!p-0"
           >
             <SettingsRevisitReminderDefault
               enabled={value.revisitEnabled}
@@ -665,11 +681,11 @@ export default function SettingsAlertsPanel({
             <section
               key={group.key}
               data-alerts-group={group.key}
-              className="min-w-0 px-4 py-4"
+              className="min-w-0 px-3 py-1.5"
             >
               <div className={cn(
                 "flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap sm:items-center",
-                isReservationGroup ? "mb-2" : "mb-3",
+                "mb-1",
               )}>
                 <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
                   <p className="min-w-0 break-words text-[18px] font-semibold leading-[26px] text-[#111827]">
@@ -680,13 +696,13 @@ export default function SettingsAlertsPanel({
                   ) : null}
                 </div>
                 {!isReservationGroup ? (
-                  <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] font-medium leading-[18px] text-[#64748b]">
+                  <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[14px] font-medium leading-5 text-[#64748b]">
                     {group.items.length}개
                   </span>
                 ) : null}
               </div>
               {group.key === "reservationGuide" ? (
-                <div className="mb-3 border-b border-[#e8edf3] pb-3">
+                <div className="mb-2 border-b border-[#e8edf3] pb-2">
                   <div className="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
                     <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
                       <p className="min-w-0 break-words text-[16px] font-medium leading-6 text-[#111827]">예약 안내 자동 발송</p>
@@ -713,8 +729,8 @@ export default function SettingsAlertsPanel({
                 className={cn(
                   "min-w-0",
                   isReservationGroup
-                    ? "grid gap-2 sm:grid-cols-2"
-                    : "grid gap-2 lg:grid-cols-2",
+                    ? "grid gap-1.5 sm:grid-cols-2"
+                    : "grid gap-1.5 lg:grid-cols-2",
                 )}
               >
                 {group.items.map((item, itemIndex) => {
@@ -734,8 +750,8 @@ export default function SettingsAlertsPanel({
                         onClick={() => setSelectedAlertType(item.type)}
                         className={cn(
                           compactReservationSwitch
-                            ? "flex min-h-14 min-w-0 cursor-pointer items-center justify-between gap-2 border-b border-[#e8edf3] px-0 py-1.5 text-left transition hover:bg-[#fafafa] last:border-b-0"
-                            : "flex min-w-0 flex-col cursor-pointer items-stretch justify-between gap-4 border-b border-[#e8edf3] py-3 text-left transition hover:bg-[#fafafa] last:border-b-0 sm:flex-row sm:items-center",
+                            ? "flex min-h-12 min-w-0 cursor-pointer items-center justify-between gap-2 border-b border-[#e8edf3] px-0 py-1 text-left transition hover:bg-[#fafafa] last:border-b-0"
+                            : "flex min-h-12 min-w-0 cursor-pointer flex-row items-center justify-between gap-2 border-b border-[#e8edf3] py-1 text-left transition hover:bg-[#fafafa] last:border-b-0",
                           compactReservationSwitch
                             ? selected
                               ? "bg-[#fafafa]"
@@ -769,7 +785,7 @@ export default function SettingsAlertsPanel({
                         {reservationNotice ? (
                           <span
                             className={cn(
-                              "self-start shrink-0 rounded-full px-2.5 py-1 text-[13px] font-medium leading-5 sm:self-auto",
+                              "self-start shrink-0 rounded-full px-2.5 py-1 text-[14px] font-medium leading-5 sm:self-auto",
                               visitReminderEnabled ? "bg-[#eff6ff] text-[#1d4ed8]" : "bg-[#f1f5f9] text-[#64748b]",
                             )}
                           >
@@ -797,7 +813,7 @@ export default function SettingsAlertsPanel({
           })}
         </div>
 
-        <aside data-alerts-preview className="min-w-0 border-t border-[#e8edf3] px-4 py-4 xl:sticky xl:top-0 xl:self-start xl:border-l xl:border-t-0">
+        <aside data-alerts-preview className="min-w-0 border-t border-[#e8edf3] px-3 py-3 xl:sticky xl:top-0 xl:self-start xl:border-l xl:border-t-0">
           <KakaoAlimtalkPreview
             item={previewItem}
             preview={templatePreviews[previewItem.type] ?? null}
@@ -806,7 +822,17 @@ export default function SettingsAlertsPanel({
             shopName={shopName}
           />
         </aside>
-      </div>
+      </div> : null}
+      {templatesPageVisited ? <div id="alerts-templates-panel" role="tabpanel" aria-labelledby="alerts-templates-tab" hidden={activeAlertsPage !== "templates"} className="min-h-0 min-w-0 flex-1">
+        <OwnerAlimtalkTemplateEditor
+          shopId={shopId}
+          shopName={shopName}
+          notificationType={previewItem.type}
+          notificationTitle={previewItem.title}
+          options={templateOptions}
+          onSelectType={setSelectedAlertType}
+        />
+      </div> : null}
     </section>
   );
 }

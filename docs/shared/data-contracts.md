@@ -501,6 +501,13 @@ Do not expose separate customer-level toggles for direct/today/tomorrow visit re
 
 PC/admin may own shop-level Alimtalk settings. Mobile customer detail may edit only customer-level preferences and must PATCH the same `guardians.notification_settings` object used by PC.
 
+### Shop Alimtalk Templates
+
+- Owner-authored templates are stored per shop in `shop_alimtalk_template_requests`; clients access them only through owner-authenticated APIs, while the table is service-role only.
+- A saved draft is never used for sending. Owner submission registers the template with Ssodaa and requests review through the server relay.
+- Only an approved Ssodaa template matching both the shop and notification type may override the platform template. Until approval, sends continue to use the currently approved platform mapping.
+- Provider status is refreshed from the Ssodaa template catalog. An unknown submission result must not be retried automatically because Ssodaa may already have accepted the request.
+
 ### Guardian Customer Classification
 
 Customer classification is shop-scoped metadata on `guardians`; it is never an Auth, login, or owner/staff permission role.

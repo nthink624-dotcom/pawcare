@@ -106,7 +106,7 @@ test("mobile CatchCall UI keeps the reservation flow and phone privacy visible",
   const panel = await read("../../apps/mobile/src/components/owner/owner-catch-call-panel.tsx");
   assert.match(panel, /\/api\/owner\/call-events\?shopId=/);
   assert.match(panel, /\/api\/owner\/call-events\/\$\{selectedEvent\.id\}\/reservation/);
-  assert.match(panel, /010-\*\*\*\*-/);
+  assert.match(panel, /미확인 번호 · 끝 4자리 \$\{event\.phoneTail\}/);
   assert.match(panel, /configureOwnerCallScreening/);
   assert.doesNotMatch(panel, /requestOwnerCallLogAccess|callLogGranted/);
   assert.match(panel, /캐치콜/);

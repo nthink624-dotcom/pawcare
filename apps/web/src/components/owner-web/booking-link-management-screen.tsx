@@ -27,8 +27,10 @@ const smartPlaceUrl = "https://smartplace.naver.com/";
 
 export default function BookingLinkManagementScreen({
   initialData,
+  embedded = false,
 }: {
   initialData: BootstrapPayload;
+  embedded?: boolean;
 }) {
   const [copiedTarget, setCopiedTarget] = useState<CopyTarget | null>(null);
   const shop = initialData.shop;
@@ -44,11 +46,11 @@ export default function BookingLinkManagementScreen({
   }
 
   return (
-    <div className="h-full min-h-0 min-w-0 overflow-y-auto text-[#0f172a]">
+    <div className={`${embedded ? "min-w-0" : "h-full min-h-0 min-w-0 overflow-y-auto"} text-[#0f172a]`}>
       <main className="min-w-0 w-full">
         <section
           data-booking-link-main-surface
-          className="min-w-0 rounded-[14px] border border-[#e8edf3] bg-white"
+          className={`min-w-0 bg-white ${embedded ? "" : "rounded-[14px] border border-[#e8edf3]"}`}
         >
           <header className="min-w-0 px-3 py-3 sm:px-4 sm:py-4">
             <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
@@ -117,7 +119,7 @@ export default function BookingLinkManagementScreen({
 
               <div className="mt-4 grid min-w-0 items-start gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
                 <aside data-naver-phone-preview className="mx-auto w-full max-w-[300px] lg:sticky lg:top-4 lg:self-start">
-                  <NaverPlacePreview shop={shop} bookingUrl={bookingUrl} />
+                  <NaverPlacePreview shop={shop} bookingUrl={bookingUrl} viewportOffset={embedded ? 270 : 170} />
                 </aside>
 
                 <BookingLinkNaverGuide
@@ -136,7 +138,7 @@ export default function BookingLinkManagementScreen({
   );
 }
 
-function NaverPlacePreview({ shop, bookingUrl }: { shop: BootstrapPayload["shop"]; bookingUrl: string }) {
+function NaverPlacePreview({ shop, bookingUrl, viewportOffset }: { shop: BootstrapPayload["shop"]; bookingUrl: string; viewportOffset: number }) {
   const settings = shop.customer_page_settings;
   const shopPhotos = (settings.hero_image_urls?.length ? settings.hero_image_urls : [settings.hero_image_url]).filter(Boolean).slice(0, 2);
   const usingExamplePhoto = shopPhotos.length === 0;
@@ -144,7 +146,7 @@ function NaverPlacePreview({ shop, bookingUrl }: { shop: BootstrapPayload["shop"
   const iconClass = "mt-[3px] h-[18px] w-[18px] shrink-0 text-[#bfc3cb]";
   return (
     <figure className="m-0 text-center">
-      <div className="relative mx-auto aspect-[823/1677]" style={{ width: "min(300px, calc((100dvh - 170px) * 823 / 1677))" }}>
+      <div className="relative mx-auto aspect-[823/1677]" style={{ width: `min(300px, calc((100dvh - ${viewportOffset}px) * 823 / 1677))` }}>
         <div className="absolute inset-x-[4.65%] bottom-[1.65%] top-[1.95%] overflow-hidden rounded-[12%/6%] bg-white">
           <svg viewBox="0 0 390 844" preserveAspectRatio="none" className="h-full w-full" aria-label="내 매장의 네이버 화면 구성 예시">
             <foreignObject width="390" height="844">

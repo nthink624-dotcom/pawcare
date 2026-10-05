@@ -45,8 +45,7 @@ const ownerWebNavigationGroups: Array<{
       { key: "schedule", label: "예약 관리" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
-      { key: "profitability", label: "수익 분석" },
-      { key: "bookingLink", label: "예약 링크" },
+      { key: "profitability", label: "매출 분석" },
     ],
   },
   {
@@ -70,8 +69,7 @@ const ownerWebSidebarGroups: Array<{
       { key: "schedule", label: "예약 관리" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
-      { key: "profitability", label: "수익 분석" },
-      { key: "bookingLink", label: "예약 링크" },
+      { key: "profitability", label: "매출 분석" },
     ],
   },
   {
@@ -225,7 +223,7 @@ export default function OwnerWebAppShell({
                 </p>
                 <div className="space-y-1">
                   {group.items.map((screen) => {
-                    const active = activeScreen === screen.key;
+                    const active = activeScreen === screen.key || (screen.key === "shopInfo" && (activeScreen === "bookingLink" || activeScreen === "bookingPageManagement"));
                     const itemClassName = cn(
                       "pm-owner-nav-item relative flex h-10 min-h-10 w-full items-center gap-2.5 rounded-[8px] px-3 text-left text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
                       active &&
@@ -380,7 +378,7 @@ export default function OwnerWebAppShell({
               <HelpCircle className="h-4.5 w-4.5" strokeWidth={1.8} />
             </button>
             <SoftSelect<OwnerWebScreenKey>
-              value={activeScreen}
+              value={activeScreen === "bookingLink" || activeScreen === "bookingPageManagement" ? "shopInfo" : activeScreen}
               onChange={onScreenSelect}
               options={ownerWebNavigationItems.map((screen) => ({ value: screen.key, label: screen.label }))}
               align="right"

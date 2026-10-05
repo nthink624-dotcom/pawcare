@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
@@ -847,6 +847,8 @@ export default function SettingsManagementScreen({
   activeTab: controlledActiveTab,
   onActiveTabChange,
   showTabNavigation = true,
+  bookingPageContent,
+  initialShopSection,
   shop,
   services = [],
   staffMembers = [],
@@ -864,6 +866,8 @@ export default function SettingsManagementScreen({
   activeTab?: SettingsTabKey;
   onActiveTabChange?: (tab: SettingsTabKey) => void;
   showTabNavigation?: boolean;
+  bookingPageContent?: ReactNode;
+  initialShopSection?: string;
   shop?: Shop;
   services?: Service[];
   staffMembers?: BootstrapStaffMember[];
@@ -2032,6 +2036,8 @@ export default function SettingsManagementScreen({
           ) : activeTab === "shop" ? (
             <>
               <ShopInfoSettingsPanel
+                bookingPageContent={bookingPageContent}
+                initialSectionId={initialShopSection}
                 rows={current.rows}
                 shopProfileImages={shopProfileImages}
                 shopProfileImageAssetCount={configuredShopProfileImageAssetCount}

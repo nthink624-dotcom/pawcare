@@ -3909,6 +3909,7 @@ function PhotoStatusDialog({
             <CalendarGroomingCompletionFields
               value={draft.value}
               onChange={draft.setValue}
+              revisitReminderDefaultDays={revisitReminderDefaultDays}
               serviceId={selectedServiceId}
               serviceName={selectedServiceName}
               services={services}

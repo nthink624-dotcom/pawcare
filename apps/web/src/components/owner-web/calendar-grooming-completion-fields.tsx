@@ -17,6 +17,7 @@ export type GroomingCompletionDetails = {
 export function CalendarGroomingCompletionFields({
   value,
   onChange,
+  revisitReminderDefaultDays,
   serviceId,
   serviceName,
   services = [],
@@ -32,6 +33,7 @@ export function CalendarGroomingCompletionFields({
 }: {
   value: GroomingCompletionDetails;
   onChange: (value: GroomingCompletionDetails) => void;
+  revisitReminderDefaultDays: number;
   serviceId?: string;
   serviceName?: string;
   services?: Service[];
@@ -162,7 +164,7 @@ export function CalendarGroomingCompletionFields({
                   type="button"
                   onClick={() => onChange({
                     ...value,
-                    nextRecommendedVisitDate: reminderEnabled ? null : addDate(today, 45),
+                    nextRecommendedVisitDate: reminderEnabled ? null : addDate(today, revisitReminderDefaultDays),
                   })}
                   disabled={disabled}
                   aria-pressed={reminderEnabled}

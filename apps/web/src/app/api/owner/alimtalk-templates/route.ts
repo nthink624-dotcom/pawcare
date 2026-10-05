@@ -44,7 +44,7 @@ const templateSchema = z.object({
     context.addIssue({ code: "custom", path: ["buttonUrl"], message: "버튼 이름과 링크를 함께 입력해 주세요." });
   }
   if (buttonRequiredTypes.has(value.notificationType) && (!value.buttonName || !value.buttonUrl)) {
-    context.addIssue({ code: "custom", path: ["buttonUrl"], message: "이 알림은 쏘다 심사 기준에 맞는 버튼이 필요합니다." });
+    context.addIssue({ code: "custom", path: ["buttonUrl"], message: "이 알림 검수에 필요한 버튼 링크를 입력해 주세요." });
   }
   if (value.buttonUrl) {
     try {
@@ -77,7 +77,7 @@ async function callRelay(path: string, method = "GET", payload?: unknown) {
     body: payload ? JSON.stringify(payload) : undefined,
     cache: "no-store",
   });
-  if (!response.ok) throw new OwnerApiError("쏘다 템플릿 서버에 요청하지 못했습니다.", 502);
+  if (!response.ok) throw new OwnerApiError("템플릿 검수 요청을 보내지 못했습니다.", 502);
   return await response.json() as Record<string, unknown>;
 }
 
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
         row = saved.data;
       } catch {
         await admin.from("shop_alimtalk_template_requests").update({ inspection_status: "unknown" }).eq("id", templateRowId).eq("shop_id", owner.shopId);
-        throw new OwnerApiError("쏘다 응답을 확인하지 못했습니다. 중복 요청을 막기 위해 상태를 확인한 뒤 다시 시도해 주세요.", 502);
+        throw new OwnerApiError("검수 요청 결과를 확인하지 못했습니다. 중복 요청을 막기 위해 상태를 확인한 뒤 다시 시도해 주세요.", 502);
       }
     }
 

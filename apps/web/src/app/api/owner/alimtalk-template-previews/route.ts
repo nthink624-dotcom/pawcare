@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
     const message =
       error instanceof Error
         ? error.message
-        : "쏘다 승인 알림톡 내용을 불러오지 못했습니다.";
+        : "승인된 알림톡 내용을 불러오지 못했습니다.";
     return Response.json({ message }, { status: 503 });
   }
 }

@@ -31,8 +31,8 @@ test("owner template form exposes draft, review, status, and compact preview act
   ]);
 
   assert.match(editor, /임시 저장/);
-  assert.match(editor, /쏘다 검수 요청/);
-  assert.match(editor, /승인되면 이 매장의/);
-  assert.match(editor, /aria-label="작성 중인 문구 미리보기"/);
+  assert.match(editor, /"검수 요청"/);
+  assert.match(editor, /검수가 완료되면 이 매장의/);
+  assert.match(editor, /aria-label="카카오 미리보기"/);
   assert.match(settings, /<OwnerAlimtalkTemplateEditor/);
 });

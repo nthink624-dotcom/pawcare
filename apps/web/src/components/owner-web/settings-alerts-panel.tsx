@@ -335,10 +335,10 @@ function KakaoAlimtalkPreview({
 
       <p className="rounded-[8px] bg-[#f6f8fa] px-3 py-2 text-[16px] leading-6 text-[#475569]">
         {loading
-          ? "쏘다 승인 본문과 버튼을 확인하고 있습니다."
+          ? "승인된 템플릿을 확인하고 있습니다."
           : error
             ? error
-            : `쏘다 승인 본문·버튼을 그대로 가져와 ${shopName} 정보로 표시합니다.`}
+            : `승인된 템플릿에 ${shopName} 정보를 적용해 표시합니다.`}
       </p>
 
       <div className="mt-4 flex justify-center">
@@ -453,6 +453,7 @@ export default function SettingsAlertsPanel({
   }));
 
   useEffect(() => {
+    if (activeAlertsPage !== "settings") return;
     let cancelled = false;
 
     void fetchApiJsonWithAuth<AlimtalkTemplatePreviewResponse>(
@@ -476,14 +477,14 @@ export default function SettingsAlertsPanel({
           previews: {},
           error: error instanceof Error
             ? error.message
-            : "쏘다 승인 템플릿을 불러오지 못했습니다.",
+            : "승인된 템플릿을 불러오지 못했습니다.",
         });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [shopId]);
+  }, [activeAlertsPage, shopId]);
 
   function update(key: AlertToggleKey, checked: boolean) {
     if (key === "appointmentReminder10mEnabled") {
@@ -504,12 +505,12 @@ export default function SettingsAlertsPanel({
     <section data-pc-alerts-surface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e5eaf0] bg-white">
       <div className="shrink-0 border-b border-[#e8edf3] px-3 py-2 sm:px-4" role="tablist" aria-label="알림톡 관리">
         <div className="grid grid-cols-2 gap-1 rounded-[12px] bg-[#f3f5f8] p-1">
-          <button type="button" role="tab" id="alerts-settings-tab" aria-selected={activeAlertsPage === "settings"} aria-controls="alerts-settings-panel" onClick={() => setActiveAlertsPage("settings")} className={cn("min-h-11 rounded-[9px] px-3 text-[16px] leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]", activeAlertsPage === "settings" ? "bg-white font-medium text-[#15213b] shadow-[0_1px_3px_rgba(15,23,42,0.12)]" : "font-medium text-[#64748b] hover:text-[#334155]")}>알림 설정</button>
-          <button type="button" role="tab" id="alerts-templates-tab" aria-selected={activeAlertsPage === "templates"} aria-controls="alerts-templates-panel" onClick={() => { setTemplatesPageVisited(true); setActiveAlertsPage("templates"); }} className={cn("min-h-11 rounded-[9px] px-3 text-[16px] leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]", activeAlertsPage === "templates" ? "bg-white font-medium text-[#15213b] shadow-[0_1px_3px_rgba(15,23,42,0.12)]" : "font-medium text-[#64748b] hover:text-[#334155]")}>내 문구 작성</button>
+          <button type="button" role="tab" id="alerts-settings-tab" aria-selected={activeAlertsPage === "settings"} aria-controls="alerts-settings-panel" onClick={() => setActiveAlertsPage("settings")} className={cn("min-h-11 rounded-[9px] px-3 text-[18px] leading-[26px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]", activeAlertsPage === "settings" ? "bg-white font-medium text-[#15213b] shadow-[0_1px_3px_rgba(15,23,42,0.12)]" : "font-medium text-[#64748b] hover:text-[#334155]")}>알림 설정</button>
+          <button type="button" role="tab" id="alerts-templates-tab" aria-selected={activeAlertsPage === "templates"} aria-controls="alerts-templates-panel" onClick={() => { setTemplatesPageVisited(true); setActiveAlertsPage("templates"); }} className={cn("min-h-11 rounded-[9px] px-3 text-[18px] leading-[26px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]", activeAlertsPage === "templates" ? "bg-white font-medium text-[#15213b] shadow-[0_1px_3px_rgba(15,23,42,0.12)]" : "font-medium text-[#64748b] hover:text-[#334155]")}>내 문구 작성</button>
         </div>
       </div>
       <div id="alerts-settings-panel" role="tabpanel" aria-labelledby="alerts-settings-tab" hidden={activeAlertsPage !== "settings"} className="grid min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain xl:grid-cols-[minmax(0,1fr)_380px] xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden">
-        <div className="min-w-0 divide-y divide-[#e8edf3] xl:overflow-y-auto xl:overscroll-contain">
+        <div className="min-w-0 xl:overflow-y-auto xl:overscroll-contain">
           {showSenderChannelSettings ? (
           <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -647,10 +648,10 @@ export default function SettingsAlertsPanel({
           </div>
           ) : null}
 
-          <div data-alerts-section="global" className="px-3 py-1">
-            <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
-              <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
-                <p className="min-w-0 break-words text-[18px] font-medium leading-[26px] text-[#15213b]">알림톡 전체 사용</p>
+          <div data-alerts-section="global" className="border-y border-[#e8edf3] bg-[#f8fafc] px-3 py-2">
+            <div className="flex min-h-11 flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <p className="min-w-0 break-words text-[18px] font-semibold leading-[26px] text-[#15213b]">알림톡 전체 사용</p>
                 <AlertHelp label="알림톡 전체 사용">
                   끄면 예약 안내와 미용 진행 알림톡 발송이 전체 중지됩니다.
                 </AlertHelp>
@@ -665,7 +666,7 @@ export default function SettingsAlertsPanel({
 
           <div
             data-alerts-section="revisit"
-            className="px-3 py-1 [&>div]:!rounded-none [&>div]:!border-0 [&>div]:!bg-transparent [&>div]:!p-0"
+            className="px-3 py-1"
           >
             <SettingsRevisitReminderDefault
               enabled={value.revisitEnabled}
@@ -683,13 +684,10 @@ export default function SettingsAlertsPanel({
             <section
               key={group.key}
               data-alerts-group={group.key}
-              className="min-w-0 px-3 py-1"
+              className="mt-2 min-w-0 border-t border-[#dce4ed] px-3 pb-1 pt-2.5"
             >
-              <div className={cn(
-                "flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap sm:items-center",
-                "mb-0.5",
-              )}>
-                <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
+              <div className="mb-0.5 flex min-w-0 items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5">
                   <p className="min-w-0 break-words text-[18px] font-medium leading-[26px] text-[#15213b]">
                     {isReservationGroup ? "예약 알림" : group.title}
                   </p>
@@ -698,41 +696,33 @@ export default function SettingsAlertsPanel({
                   ) : null}
                 </div>
                 {!isReservationGroup ? (
-                  <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] font-medium leading-[18px] text-[#64748b]">
-                    {group.items.length}개
-                  </span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] font-medium leading-[18px] text-[#64748b]">
+                      {group.items.length}개
+                    </span>
+                    {group.key === "reservationGuide" ? (
+                      <AlertSettingsSwitch
+                        checked={visitReminderEnabled}
+                        disabled={!value.enabled || !automaticVisitReminderAvailable}
+                        aria-label="예약 안내 자동 발송"
+                        onCheckedChange={(checked) =>
+                          onChange({
+                            ...value,
+                            appointmentReminder10mEnabled: automaticVisitReminderAvailable ? checked : false,
+                            appointmentReminder10mMode: automaticVisitReminderAvailable && checked ? "auto" : "manual",
+                          })
+                        }
+                      />
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
-              {group.key === "reservationGuide" ? (
-                <div className="mb-2 border-b border-[#e8edf3] pb-2">
-                  <div className="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
-                    <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
-                      <p className="min-w-0 break-words text-[18px] font-medium leading-[26px] text-[#15213b]">예약 안내 자동 발송</p>
-                      <AlertHelp label="예약 안내 자동 발송">
-                        켜두면 예약 시점에 맞춰 직전 안내, 오늘 안내, 내일 안내 중 필요한 안내만 한 번 발송됩니다.
-                      </AlertHelp>
-                    </div>
-                    <AlertSettingsSwitch
-                      checked={visitReminderEnabled}
-                      disabled={!value.enabled || !automaticVisitReminderAvailable}
-                      aria-label="예약 안내 자동 발송"
-                      onCheckedChange={(checked) =>
-                        onChange({
-                          ...value,
-                          appointmentReminder10mEnabled: automaticVisitReminderAvailable ? checked : false,
-                          appointmentReminder10mMode: automaticVisitReminderAvailable && checked ? "auto" : "manual",
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-              ) : null}
               <div
                 className={cn(
                   "min-w-0",
                   isReservationGroup
-                    ? "grid sm:grid-cols-2"
-                    : "grid lg:grid-cols-2",
+                    ? "grid gap-x-5 gap-y-1.5 sm:grid-cols-2"
+                    : "grid gap-x-5 gap-y-1.5 lg:grid-cols-2",
                 )}
               >
                 {group.items.map((item, itemIndex) => {
@@ -752,8 +742,8 @@ export default function SettingsAlertsPanel({
                         onClick={() => setSelectedAlertType(item.type)}
                         className={cn(
                           compactReservationSwitch
-                            ? "flex min-h-11 min-w-0 cursor-pointer items-center justify-between gap-3 px-0 py-0 text-left transition hover:bg-[#fafafa]"
-                            : "flex min-h-11 min-w-0 cursor-pointer flex-row items-center justify-between gap-3 border-b border-[#e8edf3] py-0 text-left transition hover:bg-[#fafafa] last:border-b-0",
+                            ? "flex min-h-11 min-w-0 cursor-pointer items-center gap-4 px-0 py-0 text-left transition hover:bg-[#fafafa]"
+                            : "flex min-h-11 min-w-0 cursor-pointer flex-row items-center gap-4 py-0 text-left transition hover:bg-[#fafafa]",
                           compactReservationSwitch
                             ? selected
                               ? "bg-[#fafafa]"
@@ -766,16 +756,12 @@ export default function SettingsAlertsPanel({
                           !disabled || reservationNotice ? "" : "opacity-55",
                         )}
                       >
-                        <div className={cn(
-                          "flex min-w-0 flex-wrap items-center gap-1.5",
-                          compactReservationSwitch ? "flex-1" : "w-full sm:w-auto sm:flex-nowrap",
-                        )}>
+                        <div className="flex min-w-0 items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setSelectedAlertType(item.type)}
                             className={cn(
                               "inline-flex min-h-11 min-w-0 items-center whitespace-normal break-words text-left text-[16px] font-medium leading-6 text-[#475569] focus-visible:outline-none focus-visible:underline",
-                              compactReservationSwitch ? "flex-1" : "w-full sm:w-auto sm:whitespace-nowrap",
                             )}
                           >
                             {item.title}
@@ -787,14 +773,14 @@ export default function SettingsAlertsPanel({
                         {reservationNotice ? (
                           <span
                             className={cn(
-                              "self-start shrink-0 rounded-full px-2.5 py-1 text-[16px] font-medium leading-6 sm:self-auto",
+                              "ml-auto shrink-0 rounded-full px-2.5 py-1 text-[16px] font-medium leading-6",
                               visitReminderEnabled ? "bg-[#eff6ff] text-[#1d4ed8]" : "bg-[#f1f5f9] text-[#64748b]",
                             )}
                           >
                             {visitReminderEnabled ? "자동 ON" : "자동 OFF"}
                           </span>
                         ) : (
-                          <span className="self-start sm:self-auto" onClick={(event) => event.stopPropagation()}>
+                          <span className="ml-auto flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
                             <AlertSettingsSwitch
                               checked={checked}
                               disabled={disabled}

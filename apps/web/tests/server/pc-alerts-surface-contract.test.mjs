@@ -5,12 +5,12 @@ import test from "node:test";
 test("alerts use one neutral outer surface and flat internal sections", async () => {
   const source = await readFile(new URL("../../src/components/owner-web/settings-alerts-panel.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /data-pc-alerts-surface className="min-w-0 overflow-hidden rounded-\[14px\] border border-\[#e8edf3\] bg-white"/);
-  assert.match(source, /data-alerts-section="global" className="px-3 py-2\.5"/);
-  assert.match(source, /data-alerts-section="revisit"[\s\S]*?\[&>div\]:!border-0/);
-  assert.match(source, /data-alerts-group=\{group\.key\}[\s\S]*?className="min-w-0 px-3 py-2\.5"/);
+  assert.match(source, /data-pc-alerts-surface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-\[14px\] border border-\[#e5eaf0\] bg-white"/);
+  assert.match(source, /data-alerts-section="global" className="border-y border-\[#e8edf3\] bg-\[#f8fafc\] px-3 py-2"/);
+  assert.match(source, /data-alerts-section="revisit"[\s\S]*?className="px-3 py-1"/);
+  assert.match(source, /data-alerts-group=\{group\.key\}[\s\S]*?className="mt-2 min-w-0 border-t border-\[#dce4ed\] px-3 pb-1 pt-2\.5"/);
   assert.match(source, /data-alerts-preview className="min-w-0 border-t border-\[#e8edf3\][\s\S]*?xl:border-l xl:border-t-0"/);
-  assert.match(source, /border-b border-\[#e8edf3\][\s\S]*?last:border-b-0/);
+  assert.doesNotMatch(source, /border-y-2/);
   assert.doesNotMatch(source, /shadow-\[0_6px_16px/);
 });
 

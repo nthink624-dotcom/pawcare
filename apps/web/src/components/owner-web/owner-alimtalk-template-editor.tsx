@@ -31,7 +31,7 @@ const statusNames: Record<string, string> = {
   unknown: "상태 확인 필요",
 };
 
-const inputClass = "min-h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#15213b] outline-none placeholder:text-[#94a3b8] focus:border-[#64748b] focus:ring-2 focus:ring-[#64748b]/15";
+const inputClass = "min-h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] leading-6 text-[#15213b] outline-none placeholder:text-[#94a3b8] focus:border-[#64748b] focus:ring-2 focus:ring-[#64748b]/15";
 
 export function OwnerAlimtalkTemplateEditor({
   shopId,
@@ -143,57 +143,62 @@ export function OwnerAlimtalkTemplateEditor({
   }
 
   const preview = templateContent.trim() ? sampleMessage : "작성한 알림 문구가 여기에 표시됩니다.";
+  const groupedOptions = options.reduce<Record<string, TemplateOption[]>>((groups, option) => {
+    (groups[option.group] ??= []).push(option);
+    return groups;
+  }, {});
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-white" data-owner-template-editor>
-      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[#e8edf3] px-4 py-3 sm:px-6">
-        <div className="min-w-0"><h2 id="owner-alimtalk-template-title" className="text-[18px] font-semibold leading-6 text-[#15213b]">내 알림 문구</h2><p className="mt-0.5 text-[13px] leading-5 text-[#64748b]">매장에 맞는 문구를 작성하고 쏘다 검수를 요청하세요.</p></div>
-        {currentTemplate ? <span className="shrink-0 rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] text-[#475569]">{statusNames[currentTemplate.inspection_status] ?? "상태 확인 필요"}</span> : null}
-      </header>
-
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_320px] xl:overflow-hidden">
-              <nav aria-label="알림 종류" className="min-w-0 border-b border-[#e8edf3] bg-white p-3 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
-                <p className="mb-2 px-1 text-[12px] font-semibold text-[#64748b]">템플릿 종류</p>
-                <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
-                  {options.map((option) => {
-                    const selected = option.type === notificationType;
-                    const template = templates.find((item) => item.notification_type === option.type);
-                    return <button key={option.type} type="button" onClick={() => { setNewVersion(false); onSelectType(option.type); }} aria-current={selected ? "page" : undefined} className={`min-h-11 shrink-0 rounded-[10px] border px-3 py-2 text-left transition lg:w-full ${selected ? "border-[#222] bg-[#f4f2ff]" : "border-[#e8edf3] bg-white hover:bg-[#f8fafc]"}`}>
-                      <span className="block text-[14px] font-semibold leading-5 text-[#15213b]">{option.title}</span>
-                      <span className="mt-0.5 block text-[11px] leading-4 text-[#64748b]">{template ? statusNames[template.inspection_status] ?? "상태 확인 필요" : option.group}</span>
-                    </button>;
-                  })}
+              <nav aria-label="알림 종류" className="min-w-0 border-b border-[#e8edf3] bg-white p-3 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-3">
+                <div className="flex gap-4 overflow-x-auto pb-1 lg:flex-col lg:gap-4 lg:overflow-visible">
+                  {Object.entries(groupedOptions).map(([group, groupOptions]) => (
+                    <section key={group} className="min-w-[190px] lg:min-w-0">
+                      <h3 className="mb-1.5 px-1 text-[18px] font-medium leading-[26px] text-[#15213b]">{group}</h3>
+                      <div className="flex gap-1.5 lg:flex-col">
+                        {groupOptions.map((option) => {
+                          const selected = option.type === notificationType;
+                          const template = templates.find((item) => item.notification_type === option.type);
+                          return <button key={option.type} type="button" onClick={() => { setNewVersion(false); onSelectType(option.type); }} aria-current={selected ? "page" : undefined} className={`flex min-h-11 shrink-0 items-center justify-between gap-2 rounded-[9px] border px-2.5 py-1.5 text-left transition lg:w-full ${selected ? "border-[#b8c9c2] bg-[#f3f8f6]" : "border-[#e8edf3] bg-white hover:bg-[#f8fafc]"}`}>
+                            <span className="text-[16px] font-medium leading-6 text-[#334155]">{option.title}</span>
+                            <span className="shrink-0 text-[12px] leading-4 text-[#64748b]">{template ? statusNames[template.inspection_status] ?? "상태 확인 필요" : "미작성"}</span>
+                          </button>;
+                        })}
+                      </div>
+                    </section>
+                  ))}
                 </div>
               </nav>
 
               <main className="min-w-0 bg-white p-4 sm:p-5 lg:overflow-y-auto lg:border-r lg:border-[#e8edf3] xl:border-[#e8edf3]">
-                <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-[18px] font-semibold leading-6 text-[#15213b]">{notificationTitle}</h3><p className="mt-1 text-[13px] leading-5 text-[#64748b]">이 알림에 사용할 매장 전용 문구</p></div>{currentTemplate ? <span className="shrink-0 rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] text-[#475569]">{statusNames[currentTemplate.inspection_status] ?? "상태 확인 필요"}</span> : null}</div>
-                {loading ? <p className="mb-3 text-[13px] text-[#64748b]">매장 템플릿을 불러오는 중입니다.</p> : null}
-                {currentTemplate && !editable ? <div className="rounded-[10px] border border-[#e8edf3] bg-[#f8fafc] p-4"><p className="font-medium text-[#15213b]">{currentTemplate.template_name}</p><p className="mt-2 whitespace-pre-wrap text-[14px] leading-6 text-[#475569]">{currentTemplate.template_content}</p>{currentTemplate.template_buttons?.map((button) => <p key={button.buttonName} className="mt-2 text-[13px] text-[#475569]">버튼 · {button.buttonName}</p>)}<p className="mt-3 text-[12px] text-[#64748b]">승인 전까지 기존 알림 문구가 유지됩니다.</p>{canCreateVersion ? <button type="button" onClick={() => setNewVersion(true)} className="mt-3 min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#15213b]">새 문구 작성</button> : null}</div> : <div className="space-y-3">
-                  <label className="block"><span className="mb-1 block text-[13px] font-medium text-[#475569]">템플릿 이름</span><input value={templateName} onChange={(event) => setTemplateName(event.target.value)} maxLength={100} className={inputClass} placeholder={`${notificationTitle} 안내`} /></label>
-                  <label className="block"><span className="mb-1 block text-[13px] font-medium text-[#475569]">카테고리</span><select value={categoryCode} onChange={(event) => setCategoryCode(event.target.value)} className={inputClass}>{categories.map((category) => <option key={category.code} value={category.code}>{category.name}</option>)}</select></label>
-                  <label className="block"><span className="mb-1 block text-[13px] font-medium text-[#475569]">보호자에게 보낼 내용</span><textarea value={templateContent} onChange={(event) => setTemplateContent(event.target.value)} maxLength={1000} rows={10} className="min-h-[220px] w-full resize-y rounded-[8px] border border-[#dbe2ea] px-3 py-2.5 text-[14px] leading-6 text-[#15213b] outline-none placeholder:text-[#94a3b8] focus:border-[#64748b] focus:ring-2 focus:ring-[#64748b]/15" placeholder="원하는 문구를 적어주세요. 예약일시, 반려동물명 등 필요한 정보를 함께 적을 수 있습니다." /><span className="mt-1 block text-right text-[12px] text-[#64748b]">{templateContent.length} / 1,000</span></label>
-                  <p className="rounded-[8px] bg-[#fff9e8] px-3 py-2 text-[12px] leading-5 text-[#8a6417]">자동 입력 값: {"#{매장명}"}, {"#{반려동물명}"}, {"#{보호자명}"}, {"#{예약일시}"}, {"#{서비스명}"}</p>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-[13px] font-medium text-[#475569]">버튼 이름{needsButton ? " · 필수" : " · 선택"}</span><input value={buttonName} onChange={(event) => setButtonName(event.target.value)} maxLength={14} className={inputClass} placeholder="예약 확인" /></label><label className="block"><span className="mb-1 block text-[13px] font-medium text-[#475569]">버튼 링크</span><input type="url" value={buttonUrl} onChange={(event) => setButtonUrl(event.target.value)} className={inputClass} placeholder="https://" /></label></div>
-                  <p className="text-[12px] leading-5 text-[#64748b]">검수 요청 후 쏘다의 승인이 완료되면 이 매장의 {notificationTitle} 알림에 적용됩니다.</p>
+                <div className="mb-3 flex items-start justify-between gap-3"><div><h3 className="text-[18px] font-medium leading-[26px] text-[#15213b]">{notificationTitle}</h3><p className="mt-1 text-[16px] leading-6 text-[#475569]">이 알림에 사용할 매장 전용 문구</p></div>{currentTemplate ? <span className="shrink-0 rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] text-[#475569]">{statusNames[currentTemplate.inspection_status] ?? "상태 확인 필요"}</span> : null}</div>
+                {loading ? <p className="mb-3 text-[16px] leading-6 text-[#64748b]">매장 템플릿을 불러오는 중입니다.</p> : null}
+                {currentTemplate && !editable ? <div className="rounded-[10px] border border-[#e8edf3] bg-[#f8fafc] p-4"><p className="text-[18px] font-medium leading-[26px] text-[#15213b]">{currentTemplate.template_name}</p><p className="mt-2 whitespace-pre-wrap text-[16px] leading-6 text-[#475569]">{currentTemplate.template_content}</p>{currentTemplate.template_buttons?.map((button) => <p key={button.buttonName} className="mt-2 text-[16px] leading-6 text-[#475569]">버튼 · {button.buttonName}</p>)}<p className="mt-3 text-[16px] leading-6 text-[#64748b]">승인 전까지 기존 알림 문구가 유지됩니다.</p>{canCreateVersion ? <button type="button" onClick={() => setNewVersion(true)} className="mt-3 min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#15213b]">새 문구 작성</button> : null}</div> : <div className="space-y-3">
+                  <label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">템플릿 이름</span><input value={templateName} onChange={(event) => setTemplateName(event.target.value)} maxLength={100} className={inputClass} placeholder={`${notificationTitle} 안내`} /></label>
+                  <label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">카테고리</span><select value={categoryCode} onChange={(event) => setCategoryCode(event.target.value)} className={inputClass}>{categories.map((category) => <option key={category.code} value={category.code}>{category.name}</option>)}</select></label>
+                  <label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">보호자에게 보낼 내용</span><textarea value={templateContent} onChange={(event) => setTemplateContent(event.target.value)} maxLength={1000} rows={10} className="min-h-[220px] w-full resize-y rounded-[8px] border border-[#dbe2ea] px-3 py-2.5 text-[16px] leading-6 text-[#15213b] outline-none placeholder:text-[#94a3b8] focus:border-[#64748b] focus:ring-2 focus:ring-[#64748b]/15" placeholder="원하는 문구를 적어주세요. 예약일시, 반려동물명 등 필요한 정보를 함께 적을 수 있습니다." /><span className="mt-1 block text-right text-[12px] text-[#64748b]">{templateContent.length} / 1,000</span></label>
+                  <p className="rounded-[8px] bg-[#fff9e8] px-3 py-2 text-[16px] leading-6 text-[#8a6417]">자동 입력 값: {"#{매장명}"}, {"#{반려동물명}"}, {"#{보호자명}"}, {"#{예약일시}"}, {"#{서비스명}"}</p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">버튼 이름{needsButton ? " · 필수" : " · 선택"}</span><input value={buttonName} onChange={(event) => setButtonName(event.target.value)} maxLength={14} className={inputClass} placeholder="예약 확인" /></label><label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">버튼 링크</span><input type="url" value={buttonUrl} onChange={(event) => setButtonUrl(event.target.value)} className={inputClass} placeholder="https://" /></label></div>
+                  <p className="text-[16px] leading-6 text-[#64748b]">검수 요청 후 쏘다의 승인이 완료되면 이 매장의 {notificationTitle} 알림에 적용됩니다.</p>
                 </div>}
-                {error ? <p role="alert" className="mt-3 text-[13px] text-[#9a5e4e]">{error}</p> : null}{notice ? <p role="status" className="mt-3 text-[13px] text-[#1f6b5b]">{notice}</p> : null}
+                {error ? <p role="alert" className="mt-3 text-[16px] leading-6 text-[#9a5e4e]">{error}</p> : null}{notice ? <p role="status" className="mt-3 text-[16px] leading-6 text-[#1f6b5b]">{notice}</p> : null}
               </main>
 
               <aside className="min-w-0 bg-[#9bb7d0] p-4 sm:p-5 lg:col-span-2 xl:col-span-1 xl:overflow-y-auto">
-                <div className="mb-3"><p className="text-[15px] font-semibold text-[#15213b]">카카오 미리보기</p><p className="mt-1 text-[12px] leading-5 text-white">입력한 문구가 보호자에게 이렇게 보여요.</p></div>
+                <div className="mb-3"><p className="text-[18px] font-medium leading-[26px] text-[#15213b]">카카오 미리보기</p><p className="mt-1 text-[16px] leading-6 text-white">입력한 문구가 보호자에게 이렇게 보여요.</p></div>
                 <div className="mx-auto max-w-[320px] rounded-[14px] border border-white/60 bg-white p-3 shadow-sm">
-                  <div className="mb-3 flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0c2] text-[11px] font-bold text-[#9a6b00]">톡</span><span className="truncate text-[13px] font-medium text-[#334155]">{shopName || "내 매장"}</span></div>
+                  <div className="mb-3 flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0c2] text-[12px] font-medium text-[#9a6b00]">톡</span><span className="truncate text-[16px] font-medium leading-6 text-[#334155]">{shopName || "내 매장"}</span></div>
                   <div className="overflow-hidden rounded-[10px] border border-[#ececec]">
-                    <div className="bg-[#ffe500] px-3 py-2.5 text-[13px] font-semibold text-[#1f2937]">알림톡 도착</div>
-                    <div className="whitespace-pre-wrap break-words px-3 py-3 text-[13px] leading-[1.65] text-[#334155]">{preview}</div>
-                    {buttonName && buttonUrl ? <div className="border-t border-[#eee] bg-[#fafafa] px-3 py-2.5 text-center text-[13px] font-medium text-[#475569]">{buttonName}</div> : null}
+                    <div className="bg-[#ffe500] px-3 py-2.5 text-[16px] font-medium leading-6 text-[#1f2937]">알림톡 도착</div>
+                    <div className="whitespace-pre-wrap break-words px-3 py-3 text-[16px] leading-6 text-[#334155]">{preview}</div>
+                    {buttonName && buttonUrl ? <div className="border-t border-[#eee] bg-[#fafafa] px-3 py-2.5 text-center text-[16px] font-medium leading-6 text-[#475569]">{buttonName}</div> : null}
                   </div>
                 </div>
               </aside>
       </div>
 
-      {editable ? <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[#e8edf3] bg-white px-4 py-3 sm:px-6"><button type="button" disabled={saving || loading || !categories.length} onClick={() => void save("save")} className="min-h-11 rounded-[9px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-medium text-[#15213b] disabled:opacity-50">임시 저장</button><button type="button" disabled={saving || loading || !categories.length} onClick={() => void save("submit")} className="min-h-11 rounded-[9px] bg-[#5850f5] px-5 text-[14px] font-semibold text-white disabled:opacity-50">{saving ? "요청 중…" : "쏘다 검수 요청"}</button></footer> : null}
+      {editable ? <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[#e8edf3] bg-white px-4 py-2.5 sm:px-6"><button type="button" disabled={saving || loading || !categories.length} onClick={() => void save("save")} className="min-h-11 rounded-[9px] border border-[#dbe2ea] bg-white px-4 text-[16px] font-medium leading-6 text-[#15213b] disabled:opacity-50">임시 저장</button><button type="button" disabled={saving || loading || !categories.length} onClick={() => void save("submit")} className="min-h-11 rounded-[9px] bg-[#5850f5] px-5 text-[16px] font-medium leading-6 text-white disabled:opacity-50">{saving ? "요청 중…" : "쏘다 검수 요청"}</button></footer> : null}
     </section>
   );
 }

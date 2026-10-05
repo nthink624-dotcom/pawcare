@@ -2,7 +2,7 @@
 
 import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, Store, UserRound, type LucideIcon } from "lucide-react";
 import Image from "next/image";
-import { type ReactNode, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   ActionButton,
@@ -532,6 +532,7 @@ function OwnerAppContent({
   const [homeFocusedSection, setHomeFocusedSection] = useState<HomeReservationSectionKey>("current");
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const [selectedGuardianId, setSelectedGuardianId] = useState<string | null>(null);
+  const ownerMainScrollRef = useRef<HTMLElement | null>(null);
   const [selectedCustomerPetId, setSelectedCustomerPetId] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerFilter, setCustomerFilter] = useState<OwnerCustomerFilter>("all");
@@ -1785,6 +1786,10 @@ function OwnerAppContent({
     setRecordPage(1);
     setNotificationPage(1);
   }, [selectedGuardianId]);
+
+  useLayoutEffect(() => {
+    if (activeTab === "customers" && ownerMainScrollRef.current) ownerMainScrollRef.current.scrollTop = 0;
+  }, [activeTab, selectedGuardianId]);
 
   useEffect(() => {
     if (recordPage > totalRecordPages) {
@@ -3076,6 +3081,7 @@ function OwnerAppContent({
       ) : null}
 
       <main
+        ref={ownerMainScrollRef}
         className={cn(
           "no-scrollbar flex-1",
           isHomeTab && !isCustomerDetailView

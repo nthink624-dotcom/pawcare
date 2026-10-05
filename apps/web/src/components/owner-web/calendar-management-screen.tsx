@@ -5411,7 +5411,7 @@ export default function CalendarManagementScreen({
   );
 
   return (
-    <div className="space-y-2">
+    <div className="h-full min-h-0 space-y-2">
       {scheduleDialogOpen ? (
         <ScheduleCreateDialog
           data={bootstrapData}
@@ -5506,8 +5506,9 @@ export default function CalendarManagementScreen({
       ) : null}
 
       <div
+        data-schedule-layout={dockedBookingDetail ? "split" : "single"}
         className={cn("min-h-0 min-w-0 overflow-hidden", dockedBookingDetail && "grid grid-cols-[minmax(0,1fr)_400px] gap-3")}
-        style={{ height: "calc(100vh - 92px)" }}
+        style={{ height: "100%" }}
         inert={careReportFlowOverlayOpen ? true : undefined}
         aria-hidden={careReportFlowOverlayOpen || undefined}
       >

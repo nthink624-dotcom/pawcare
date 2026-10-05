@@ -3397,8 +3397,8 @@ function OwnerAppContent({
           </div>
         ) : null}
         {activeTab === "customers" && selectedGuardian && (
-          <section className="min-h-full space-y-4 bg-[#F4F5F7] px-4 pb-4 pt-[72px]">
-            <div className="fixed left-1/2 top-0 z-30 flex min-h-[56px] w-full max-w-[430px] -translate-x-1/2 items-center justify-center border-b border-[#edf1f5] bg-white px-4">
+          <section className="min-h-full space-y-4 bg-[#F4F5F7] px-4 pb-4 pt-[calc(var(--pm-safe-top)+72px)]">
+            <div className="fixed left-1/2 top-[var(--pm-safe-top)] z-30 flex min-h-[56px] w-full max-w-[430px] -translate-x-1/2 items-center justify-center border-b border-[#edf1f5] bg-white px-4">
               <button
                 type="button"
                 onClick={() => {

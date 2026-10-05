@@ -1,5 +1,9 @@
 export type ProfitabilityRange = "30d" | "90d" | "365d";
 
+export type RevenueDailyMetric = { date: string; paidAmount: number };
+export type RevenueCategoryMetric = { name: string; amount: number; count: number };
+export type RevenueBenefitMetric = { name: string; discountAmount: number; usageCount: number; freeServiceCount: number };
+
 export type ProfitabilityInsightTone = "opportunity" | "warning" | "neutral";
 
 export type ProfitabilityInsight = {
@@ -135,5 +139,18 @@ export type ProfitabilityPayload = {
     recordsWithoutActualTime: number;
     recordsWithoutExpectedTime: number;
     minimumRecommendationSampleSize: number;
+  };
+  sales: {
+    paidAmount: number;
+    paidCount: number;
+    averagePaidAmount: number;
+    discountAmount: number;
+    refundAmount: number;
+    unpaidAmount: number;
+    expectedAmount: number;
+    previousPaidAmount: number;
+    daily: RevenueDailyMetric[];
+    categories: RevenueCategoryMetric[];
+    benefits: RevenueBenefitMetric[];
   };
 };

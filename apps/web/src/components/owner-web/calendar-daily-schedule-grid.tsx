@@ -63,14 +63,50 @@ type DailyBooking = {
 
 const scheduleStartHour = 0;
 const scheduleEndHour = 24;
-const pixelsPerHour = 86.4;
+const pixelsPerHour = 112;
 const minimumBookingCardHitTarget = 44;
 const scheduleBodyInsetY = 7;
 const quarterSlotHeight = pixelsPerHour / 4;
 const scheduleSnapSegmentsPerHour = 4;
 const bookingCardWidth = "96%";
 const bookingCardHorizontalInset = "2%";
-const detailedBookingMinimumDuration = 1.5;
+const detailedBookingMinimumDuration = 1;
+
+function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, height, pendingOverlapLabel }: {
+  booking: DailyBooking;
+  timeLabel: string;
+  statusLabel: string;
+  statusPillClass: string;
+  height: number;
+  pendingOverlapLabel?: string;
+}) {
+  const singleLine = height < 64;
+  const service = booking.service || "서비스 미지정";
+  const memo = booking.memo?.trim() || "없음";
+  return (
+    <span className={cn("h-full w-full min-w-0 text-[16px] font-normal leading-6 text-[#334155]", singleLine ? "flex items-center gap-2 px-3" : "grid content-start grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 px-3 py-2")}>
+      <span data-booking-content="identity" className={cn("min-w-0 truncate font-medium text-[#17243c]", singleLine && "max-w-[25%] shrink-0")}>
+        {booking.pet}{!singleLine && booking.customer ? ` · ${booking.customer}` : ""}
+      </span>
+      {singleLine ? <span data-booking-content="service" className="min-w-0 flex-1 truncate" title={service}>{service}</span> : null}
+      <span data-booking-content="time" className="shrink-0 whitespace-nowrap tabular-nums text-[#526174]">{timeLabel}</span>
+      {singleLine ? (
+        <span className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span>
+      ) : (
+        <span className="col-span-2 flex min-w-0 items-center gap-2">
+          <span data-booking-content="service" className="min-w-0 flex-1 truncate" title={service}>{service}</span>
+          {pendingOverlapLabel ? <span className="shrink-0 text-[14px] leading-5 text-[#a46710]">{pendingOverlapLabel}</span> : null}
+          <span className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span>
+        </span>
+      )}
+      {height >= 100 ? (
+        <span data-booking-content="memo" data-booking-request-note={booking.memo?.trim() ? "present" : "empty"} title={`고객 메모 ${memo}`} className={cn("col-span-2 min-w-0 border-t border-[#e8edf3] pt-1 text-[#64748b]", height >= 140 ? "line-clamp-2" : "truncate")}>
+          고객 메모 · {memo}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 function formatHourLabel(hour: number) {
   const fullHour = Math.floor(hour);
@@ -229,15 +265,7 @@ function getPendingOverlapLabel(booking: DailyBooking, bookings: DailyBooking[])
   return "";
 }
 
-function getBookingLayoutStyle(lane: number, laneCount: number, columnCount: number) {
-  if (columnCount === 1 && laneCount === 1) {
-    return {
-      left: "50%",
-      width: "min(calc(100% - 56px), 560px)",
-      transform: "translateX(-50%)",
-    };
-  }
-
+function getBookingLayoutStyle(lane: number, laneCount: number) {
   const width = laneCount > 1 ? `calc(${bookingCardWidth} / ${laneCount})` : bookingCardWidth;
   const left = laneCount > 1 ? `calc(${bookingCardHorizontalInset} + (${bookingCardWidth} / ${laneCount}) * ${lane})` : bookingCardHorizontalInset;
   return { left, width };
@@ -768,12 +796,11 @@ export function DailyScheduleGrid({
                           const identityTone = getAppointmentIdentityTone(booking.petId ?? booking.pet ?? booking.id);
                           const canAdjustBookingTime = !changeStatus && !completedBooking;
                           const density = getBookingCardDensity(booking.duration);
-                          const compactCard = density === "compact";
                           const expandedMicro = density === "compact" && expandedMicroBookingId === booking.id;
                           const bookingHeight = getBookingHeight(booking.duration);
                           const showResizeHandleBar = booking.duration >= 1;
                           const bookingLayout = bookingLayouts.get(booking.id) ?? { lane: 0, laneCount: 1 };
-                          const bookingLayoutStyle = getBookingLayoutStyle(bookingLayout.lane, bookingLayout.laneCount, columnCount);
+                          const bookingLayoutStyle = getBookingLayoutStyle(bookingLayout.lane, bookingLayout.laneCount);
                           const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
                           const statusPillClass = getReservationStatusPillClass(booking, selectedDate, currentHour);
                           const pendingOverlapLabel = getPendingOverlapLabel(booking, conflictBookings);
@@ -786,39 +813,26 @@ export function DailyScheduleGrid({
                                 key={booking.id}
                                 type="button"
                                 data-booking-id={booking.id}
+                                aria-label={[booking.pet, booking.customer, booking.service, statusLabel, requestNoteText].filter(Boolean).join(" / ")}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   if (booking.sourceAppointmentId) onSelectBooking(booking.sourceAppointmentId);
                                   onSelectStaff(booking.staffKey || firstStaffKey);
                                 }}
                                 className={cn(
-                                  "absolute z-20 box-border flex min-h-11 items-start justify-start overflow-hidden rounded-[9px] border border-l-[3px] px-3 py-2 text-left text-[12px] font-medium leading-[18px] text-[#334155] shadow-none outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
+                                  "absolute z-20 box-border flex min-h-11 items-start justify-start overflow-hidden rounded-[9px] border border-l-[3px] p-0 text-left text-[#334155] shadow-none outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
                                   selected && "!border-[#bcd5fa] ring-1 ring-[#bcd5fa]",
                                 )}
                                 style={{
                                   ...bookingLayoutStyle,
                                   top: getBookingTop(booking.start, scheduleDisplayLayout),
                                   height: bookingHeight,
-                                  backgroundColor: completedBooking ? identityTone.mutedBackground : identityTone.background,
-                                  borderColor: identityTone.border,
+                                  backgroundColor: completedBooking ? "#f8fafc" : "#ffffff",
+                                  borderColor: "#dde5ef",
                                   borderLeftColor: identityTone.accent,
                                 }}
                               >
-                                <span className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-0.5">
-                                  <span className="min-w-0 truncate text-[14px] font-medium leading-5" style={{ color: identityTone.text }}>
-                                    {booking.pet}{booking.customer ? ` · ${booking.customer}` : ""}
-                                  </span>
-                                  <span className="justify-self-end whitespace-nowrap text-[12px] font-medium leading-5 tabular-nums text-[#526174]">
-                                    {booking.scheduledTimeLabel ?? timeLabel}
-                                  </span>
-                                  <span className="col-span-2 flex min-w-0 items-center gap-1.5">
-                                    <span className={cn("shrink-0 rounded-full border px-1.5 text-[11px] font-medium leading-[18px]", statusPillClass)}>{statusLabel}</span>
-                                    <span className="min-w-0 truncate text-[12px] leading-[18px] text-[#56687b]">{booking.service || "서비스 미지정"}</span>
-                                  </span>
-                                  <span className="col-span-2 min-w-0 truncate text-[12px] leading-[18px] text-[#56687b]" title={requestNoteText} data-booking-request-note={requestNote ? "present" : "empty"}>
-                                    <span className="font-medium text-[#475569]">메모</span>{" "}{requestNote || "없음"}
-                                  </span>
-                                </span>
+                                <BookingChipContent booking={booking} timeLabel={booking.scheduledTimeLabel ?? timeLabel} statusLabel={statusLabel} statusPillClass={statusPillClass} height={bookingHeight} pendingOverlapLabel={pendingOverlapLabel} />
                               </button>
                             );
                           }
@@ -829,6 +843,7 @@ export function DailyScheduleGrid({
                               type="button"
                               draggable={!resizingBooking && canAdjustBookingTime}
                               data-booking-id={booking.id}
+                                aria-label={[booking.pet, booking.customer, booking.service, statusLabel, requestNoteText].filter(Boolean).join(" / ")}
                               data-booking-duration={booking.duration}
                               data-booking-density={density}
                               onDragStart={(event) => handleBookingDragStart(event, booking.id)}
@@ -851,88 +866,15 @@ export function DailyScheduleGrid({
                                 ...bookingLayoutStyle,
                                 top: getBookingTop(booking.start, scheduleDisplayLayout),
                                 height: bookingHeight,
-                                backgroundColor: completedBooking ? identityTone.mutedBackground : identityTone.background,
-                                borderColor: identityTone.border,
+                                backgroundColor: completedBooking ? "#f8fafc" : "#ffffff",
+                                borderColor: "#dde5ef",
                                 borderLeftColor: identityTone.accent,
                               }}
                             >
+                              <BookingChipContent booking={booking} timeLabel={displayTimeLabel} statusLabel={statusLabel} statusPillClass={statusPillClass} height={bookingHeight} pendingOverlapLabel={pendingOverlapLabel} />
+
+                              {canAdjustBookingTime ? (
                               <div
-                                className={cn(
-                                  "absolute inset-0 flex min-h-0 min-w-0 overflow-hidden text-left",
-                                  compactCard ? "items-center px-2.5 py-1.5" : "items-start px-3.5 py-2.5",
-                                )}
-                              >
-                                <div
-                                  className={cn(
-                                    "grid w-full min-w-0 content-start items-center gap-x-1.5",
-                                    compactCard
-                                      ? "grid-cols-[minmax(0,1fr)_max-content_max-content] grid-rows-[20px]"
-                                      : "grid-cols-[minmax(0,1fr)_auto] grid-rows-[20px_18px_18px] gap-y-1",
-                                  )}
-                                >
-                                  <p
-                                    className={cn(
-                                      "min-w-0 truncate text-[14px] font-medium leading-5",
-                                      timedStatus === "완료" ? "text-[#64748b]" : "",
-                                    )}
-                                    style={{ color: timedStatus === "완료" ? undefined : identityTone.text }}
-                                  >
-                                    {compactCard ? booking.pet : `${booking.pet} · ${booking.customer}`}
-                                  </p>
-                                  <span
-                                    className={cn(
-                                      "shrink-0 justify-self-end text-[12px] leading-[18px]",
-                                      compactCard
-                                        ? "whitespace-nowrap font-medium tabular-nums text-[#526174]"
-                                        : "whitespace-nowrap font-medium tabular-nums text-[#41546a]",
-                                    )}
-                                  >
-                                    {compactCard ? formatHourLabel(booking.start) : displayTimeLabel}
-                                  </span>
-                                  {compactCard ? (
-                                    <span
-                                      className={cn(
-                                        "inline-flex shrink-0 items-center rounded-full border px-1.5 text-[11px] font-medium leading-[18px]",
-                                        statusPillClass,
-                                      )}
-                                    >
-                                      {statusLabel}
-                                    </span>
-                                  ) : (
-                                    <div className="col-span-2 flex min-w-0 items-center gap-2 leading-[18px]">
-                                      <span
-                                        className={cn(
-                                          "inline-flex shrink-0 items-center rounded-full border px-1.5 text-[12px] font-medium leading-[18px]",
-                                          statusPillClass,
-                                        )}
-                                      >
-                                        {statusLabel}
-                                      </span>
-                                      {pendingOverlapLabel ? (
-                                        <span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#a46710]">
-                                          {pendingOverlapLabel}
-                                        </span>
-                                      ) : null}
-                                      <p className="min-w-0 truncate text-[12px] font-medium leading-[18px] text-[#56687b]">
-                                        {booking.service}
-                                      </p>
-                                    </div>
-                                  )}
-                                  {!compactCard ? (
-                                    <p
-                                      className="col-span-2 min-w-0 truncate text-[12px] leading-[18px] text-[#56687b]"
-                                      title={requestNoteText}
-                                      aria-label={requestNoteText}
-                                      data-booking-request-note={requestNote ? "present" : "empty"}
-                                    >
-                                      <span className="font-medium text-[#475569]">고객 메모</span>{" "}
-                                      <span className="font-normal">{requestNote || "없음"}</span>
-                                    </p>
-                                  ) : null}
-                                </div>
-                              </div>
-                              {selected && canAdjustBookingTime ? (
-                                <div
                                   role="separator"
                                   aria-label="예약 종료 시간 조정"
                                   aria-orientation="horizontal"

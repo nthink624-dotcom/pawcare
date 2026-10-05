@@ -24,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { ScheduleCreateDialog } from "@/components/owner-web/calendar-create-dialog";
 import { AppointmentVisitWeightEditor } from "@/components/owner-web/appointment-visit-weight-editor";
@@ -1586,7 +1586,20 @@ function getVisibleDialogFocusableElements(dialog: HTMLElement | null) {
   });
 }
 
+const dockedBookingMediaQuery = "(min-width: 1440px)";
+
+function subscribeToDockedBookingViewport(onChange: () => void) {
+  const media = window.matchMedia(dockedBookingMediaQuery);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+function getDockedBookingViewport() {
+  return window.matchMedia(dockedBookingMediaQuery).matches;
+}
+
 function BookingSidePanel({
+  docked = false,
   activeMetric,
   shopId,
   bootstrapData,
@@ -1613,6 +1626,7 @@ function BookingSidePanel({
   onSaveNotificationTiming,
   onClose,
 }: {
+  docked?: boolean;
   activeMetric: SummaryMetricKey;
   shopId: string;
   bootstrapData: BootstrapPayload;
@@ -1837,7 +1851,7 @@ function BookingSidePanel({
   }, [selectedBooking?.id]);
 
   useEffect(() => {
-    if (!selectedBooking?.id || focusTrapSuspended) return;
+    if (!selectedBooking?.id || focusTrapSuspended || docked) return;
 
     const dialog = dialogRef.current;
     const activeElement = document.activeElement;
@@ -1883,7 +1897,7 @@ function BookingSidePanel({
       bookingDetailTriggerRef.current = null;
       if (trigger?.isConnected && !focusTrapSuspendedRef.current) trigger.focus();
     };
-  }, [focusTrapSuspended, onClose, selectedBooking?.id]);
+  }, [docked, focusTrapSuspended, onClose, selectedBooking?.id]);
 
   useEffect(() => {
     if (!selectedBooking) return;
@@ -1932,7 +1946,12 @@ function BookingSidePanel({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [detailEditMode, editableStartTime, editableEndTime, editablePhone, editableServiceName, editablePrice]);
 
-  if (!selectedBooking) return null;
+  if (!selectedBooking) return docked ? (
+    <aside data-booking-detail-mode="docked" aria-label="예약 상세" className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center gap-3 rounded-[10px] border border-[#e8edf3] bg-white px-6 text-center">
+      <CalendarPlus className="h-7 w-7 text-[#94a3b8]" aria-hidden="true" />
+      <p className="text-[16px] font-normal leading-6 text-[#64748b]">예약을 선택해 주세요</p>
+    </aside>
+  ) : null;
 
   const breedLabel = selectedBooking.petBreed || "견종 미입력";
   const biteLevel = normalizePetBiteLevel(selectedBooking.petBiteLevel);
@@ -2154,17 +2173,19 @@ function BookingSidePanel({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex justify-end bg-slate-950/20"
+      data-booking-detail-mode={docked ? "docked" : "sheet"}
+      className={docked ? "h-full min-h-0 min-w-0" : "fixed inset-0 z-[70] flex justify-end bg-slate-950/20"}
       onMouseDown={(event) => {
+        if (docked) return;
         event.preventDefault();
         onClose();
       }}
     >
       <div
         ref={dialogRef}
-        className="h-full w-full max-w-[430px] overflow-hidden border-l border-[#dbe2ea] bg-white shadow-[-18px_0_48px_rgba(15,23,42,0.16)]"
-        role="dialog"
-        aria-modal="true"
+        className={docked ? "h-full min-h-0 w-full overflow-hidden rounded-[10px] border border-[#e8edf3] bg-white" : "h-full w-full max-w-[430px] overflow-hidden border-l border-[#dbe2ea] bg-white shadow-[-18px_0_48px_rgba(15,23,42,0.16)]"}
+        role={docked ? "region" : "dialog"}
+        aria-modal={docked ? undefined : true}
         aria-label="예약 상세"
         tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
@@ -4333,6 +4354,8 @@ export default function CalendarManagementScreen({
   );
 
   const selectedBooking = filteredBookings.find((item) => item.id === selectedBookingId);
+  const wideBookingViewport = useSyncExternalStore(subscribeToDockedBookingViewport, getDockedBookingViewport, () => false);
+  const dockedBookingDetail = wideBookingViewport && visibleStaff.length > 0 && (visibleStaff.length === 1 || staff !== "전체 직원");
 
   useEffect(() => {
     if (selectedBookingId && !filteredBookings.some((booking) => booking.id === selectedBookingId)) {
@@ -5470,7 +5493,7 @@ export default function CalendarManagementScreen({
       ) : null}
 
       <div
-        className="min-h-0 min-w-0 overflow-hidden"
+        className={cn("min-h-0 min-w-0 overflow-hidden", dockedBookingDetail && "grid grid-cols-[minmax(0,1fr)_400px] gap-3")}
         style={{ height: "calc(100vh - 92px)" }}
         inert={careReportFlowOverlayOpen ? true : undefined}
         aria-hidden={careReportFlowOverlayOpen || undefined}
@@ -5509,10 +5532,9 @@ export default function CalendarManagementScreen({
           />
         </section>
 
-      </div>
-
-        <div inert={careReportFlowOverlayOpen ? true : undefined} aria-hidden={careReportFlowOverlayOpen || undefined}>
+        <div className={dockedBookingDetail ? "h-full min-h-0 min-w-0" : undefined} inert={careReportFlowOverlayOpen ? true : undefined} aria-hidden={careReportFlowOverlayOpen || undefined}>
           <BookingSidePanel
+            docked={dockedBookingDetail}
             activeMetric={activeMetric}
             shopId={bootstrapData.shop.id}
             bootstrapData={bootstrapData}
@@ -5540,6 +5562,7 @@ export default function CalendarManagementScreen({
               onClose={closeBookingDetail}
             />
         </div>
+      </div>
       {careReportChoiceBooking ? (
         <CalendarCareReportChoiceDialog
           petName={careReportChoiceBooking.pet}

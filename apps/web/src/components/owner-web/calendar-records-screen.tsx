@@ -678,7 +678,11 @@ export default function CalendarRecordsScreen({
   const [statusFilter, setStatusFilter] = useState<CalendarStatusFilter>("all");
   const [selectedItem, setSelectedItem] = useState<DayItem | null>(null);
   const latestDataRef = useRef(initialData);
-  const rangeSyncInFlightRef = useRef(false);
+  const onDataChangeRef = useRef(onDataChange);
+
+  useEffect(() => {
+    onDataChangeRef.current = onDataChange;
+  }, [onDataChange]);
 
   useEffect(() => {
     latestDataRef.current = initialData;
@@ -688,22 +692,23 @@ export default function CalendarRecordsScreen({
     if (initialData.mode !== "supabase") return;
 
     let cancelled = false;
+    let inFlight = false;
     const { from, to } = getMonthRange(monthAnchor);
     const syncMonthRange = async () => {
-      if (document.visibilityState !== "visible" || rangeSyncInFlightRef.current) return;
+      if (document.visibilityState !== "visible" || inFlight) return;
 
-      rangeSyncInFlightRef.current = true;
+      inFlight = true;
       try {
         const range = await fetchOwnerScheduleRange(initialData.shop.id, from, to);
         if (cancelled) return;
 
         const nextData = replaceScheduleRangeInBootstrap(latestDataRef.current, range);
         latestDataRef.current = nextData;
-        onDataChange?.(nextData);
+        onDataChangeRef.current?.(nextData);
       } catch (error) {
         console.error("[owner-calendar] failed to synchronize the visible month", error);
       } finally {
-        rangeSyncInFlightRef.current = false;
+        inFlight = false;
       }
     };
 
@@ -718,7 +723,7 @@ export default function CalendarRecordsScreen({
       window.removeEventListener("focus", syncMonthRange);
       document.removeEventListener("visibilitychange", syncMonthRange);
     };
-  }, [initialData.mode, initialData.shop.id, monthAnchor, onDataChange]);
+  }, [initialData.mode, initialData.shop.id, monthAnchor]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {

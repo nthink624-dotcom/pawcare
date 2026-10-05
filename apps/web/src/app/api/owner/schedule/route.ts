@@ -27,6 +27,11 @@ export async function GET(request: NextRequest) {
       allowMock: false,
       includeLanding: false,
       includeNotifications: true,
+      // Schedule refreshes do not return owner extras or profile images.
+      includeOwnerExtras: false,
+      includeOwnerProfile: false,
+      includeStaffProfileImages: false,
+      includePilotCohort: false,
       appointmentsFrom: from ?? undefined,
       appointmentsTo: to ?? undefined,
       groomingRecordsFrom: from ?? undefined,

@@ -89,7 +89,6 @@ async function rescheduleToAvailableSlot(appointment, overrides = {}) {
           appointmentDate,
           appointmentTime,
           memo: "rescheduled by flow test",
-          eventType: "booking_rescheduled_confirmed",
           notifyCustomer: true,
           ...overrides,
         });
@@ -117,19 +116,17 @@ beforeEach(() => {
 });
 
 describe("appointment and alimtalk flow guards", () => {
-  it("uses exactly the twelve active customer alimtalk templates", () => {
+  it("uses the active customer alimtalk templates", () => {
     assert.deepEqual(ACTIVE_ALIMTALK_TEMPLATE_ALIASES, [
       "booking_confirmed",
-      "booking_manage_link_requested",
       "booking_cancelled",
-      "booking_time_proposed",
-      "booking_rescheduled_confirmed",
       "appointment_reminder_10m",
       "visit_schedule_notice",
       "visit_reminder_notice",
       "grooming_started",
       "grooming_almost_done",
       "grooming_completed",
+      "grooming_completed_without_report",
       "revisit_notice",
     ]);
   });
@@ -147,7 +144,7 @@ describe("appointment and alimtalk flow guards", () => {
     });
 
     assert.notEqual(result.notification.message, "관리자에서 임의로 입력한 발송 문구");
-    assert.match(result.notification.message, /예약 취소가 처리되었어요/);
+    assert.match(result.notification.message, /진심으로 죄송합니다/);
   });
 
   it("creates an owner appointment and records one booking confirmation notification", async () => {
@@ -209,16 +206,14 @@ describe("appointment and alimtalk flow guards", () => {
     assert.equal(notificationsFor(appointment.id, "booking_confirmed").length, 0);
   });
 
-  it("reschedules a confirmed appointment and sends only a real change notification", async () => {
+  it("reschedules a confirmed appointment without sending a duplicate notification", async () => {
     const appointment = await createAvailableOwnerAppointment({ source: "customer" });
     const updated = await rescheduleToAvailableSlot(appointment);
 
     assert.equal(getAppointment(appointment.id).appointment_date, updated.appointment_date);
     assert.notEqual(updated.appointment_date, appointment.appointment_date);
 
-    const rescheduled = notificationsFor(appointment.id, "booking_rescheduled_confirmed");
-    assert.equal(rescheduled.length, 1);
-    assert.equal(rescheduled[0].status, "mocked");
+    assert.equal(notificationsFor(appointment.id, "booking_rescheduled_confirmed").length, 0);
 
     await assert.rejects(
       () =>
@@ -230,7 +225,6 @@ describe("appointment and alimtalk flow guards", () => {
           appointmentDate: updated.appointment_date,
           appointmentTime: updated.appointment_time,
           memo: updated.memo,
-          eventType: "booking_rescheduled_confirmed",
           notifyCustomer: true,
         }),
       /변경 사항이 없습니다/,

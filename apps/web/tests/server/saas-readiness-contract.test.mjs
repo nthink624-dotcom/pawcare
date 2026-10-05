@@ -386,6 +386,7 @@ test("default predeploy entry points all use the complete web/mobile release gat
 
   assert.match(rootPredeploy, /"test:flows"/);
   assert.match(rootPredeploy, /"check:media-architecture"/);
+  assert.match(rootPredeploy, /"check:alimtalk-env:vercel"/);
   assert.doesNotMatch(rootPredeploy, /"check:supabase-cli-target:dev"/);
   assert.doesNotMatch(rootPredeploy, /"check:media-schema:dev"/);
   assert.equal(rootPackage.scripts.predeploy, "npm run predeploy:release");

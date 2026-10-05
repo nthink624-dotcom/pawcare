@@ -130,7 +130,7 @@ requireFile(
 );
 requireFile(".github/workflows/owner-auth-guard.yml", "CI operations gate");
 requireText("apps/web/src/lib/observability.ts", "REQUEST_ID_PATTERN", "web request correlation validation");
-requireText("apps/mobile/src/lib/observability.ts", "REQUEST_ID_PATTERN", "mobile request correlation validation");
+requireText("apps/mobile/src/lib/observability.ts", "crypto.randomUUID()", "mobile-generated request correlation IDs");
 requireText("apps/web/src/app/api/readyz/route.ts", '"x-request-id"', "web readiness request correlation response");
 requireText("apps/mobile/src/app/api/readyz/route.ts", '"x-request-id"', "mobile readiness request correlation response");
 requireText("apps/web/src/app/api/healthz/route.ts", "getReleaseId", "web liveness release identity");
@@ -238,8 +238,8 @@ requireText(
 );
 requireText(
   "apps/web/package.json",
-  'npm run check:alimtalk-env && npm run check:supabase-cli-target:dev',
-  "predeploy Alimtalk environment gate",
+  '"check:alimtalk-env:vercel"',
+  "protected Vercel Alimtalk environment readback command",
 );
 requireText(
   "apps/web/package.json",
@@ -324,8 +324,8 @@ requireText(
 );
 requireText(
   "scripts/check-predeploy-release.cjs",
-  '"check:media-schema:dev"',
-  "predeploy development media schema gate",
+  '"check:media-architecture"',
+  "predeploy media architecture gate",
 );
 requireText(
   "scripts/check-predeploy-release.cjs",

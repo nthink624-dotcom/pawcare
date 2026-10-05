@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import { SettingsRevisitReminderDefault } from "@/components/owner-web/settings-revisit-reminder-default";
+import { OwnerAlimtalkTemplateEditor } from "@/components/owner-web/owner-alimtalk-template-editor";
 import { AlertSettingsSwitch } from "@/components/owner-web/settings-alert-switch";
 import {
   PETMANAGER_BRAND_MARK_SRC,
@@ -629,7 +630,7 @@ export default function SettingsAlertsPanel({
           </div>
           ) : null}
 
-          <div data-alerts-section="global" className="px-4 py-4">
+          <div data-alerts-section="global" className="px-3 py-2.5">
             <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
               <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
                 <p className="min-w-0 break-words text-[18px] font-semibold leading-[26px] text-[#111827]">알림톡 전체 사용</p>
@@ -645,9 +646,18 @@ export default function SettingsAlertsPanel({
             </div>
           </div>
 
+          <div className="px-3 pt-2" data-alerts-template-entry>
+            <OwnerAlimtalkTemplateEditor
+              shopId={shopId}
+              shopName={shopName}
+              notificationType={previewItem.type}
+              notificationTitle={previewItem.title}
+            />
+          </div>
+
           <div
             data-alerts-section="revisit"
-            className="px-4 py-4 [&>div]:!rounded-none [&>div]:!border-0 [&>div]:!bg-transparent [&>div]:!p-0"
+            className="px-3 py-2.5 [&>div]:!rounded-none [&>div]:!border-0 [&>div]:!bg-transparent [&>div]:!p-0"
           >
             <SettingsRevisitReminderDefault
               enabled={value.revisitEnabled}
@@ -665,11 +675,11 @@ export default function SettingsAlertsPanel({
             <section
               key={group.key}
               data-alerts-group={group.key}
-              className="min-w-0 px-4 py-4"
+              className="min-w-0 px-3 py-2.5"
             >
               <div className={cn(
                 "flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap sm:items-center",
-                isReservationGroup ? "mb-2" : "mb-3",
+                "mb-2",
               )}>
                 <div className="flex min-w-0 w-full items-center gap-1.5 sm:w-auto">
                   <p className="min-w-0 break-words text-[18px] font-semibold leading-[26px] text-[#111827]">
@@ -734,8 +744,8 @@ export default function SettingsAlertsPanel({
                         onClick={() => setSelectedAlertType(item.type)}
                         className={cn(
                           compactReservationSwitch
-                            ? "flex min-h-14 min-w-0 cursor-pointer items-center justify-between gap-2 border-b border-[#e8edf3] px-0 py-1.5 text-left transition hover:bg-[#fafafa] last:border-b-0"
-                            : "flex min-w-0 flex-col cursor-pointer items-stretch justify-between gap-4 border-b border-[#e8edf3] py-3 text-left transition hover:bg-[#fafafa] last:border-b-0 sm:flex-row sm:items-center",
+                            ? "flex min-h-12 min-w-0 cursor-pointer items-center justify-between gap-2 border-b border-[#e8edf3] px-0 py-1 text-left transition hover:bg-[#fafafa] last:border-b-0"
+                            : "flex min-h-12 min-w-0 cursor-pointer flex-row items-center justify-between gap-2 border-b border-[#e8edf3] py-1 text-left transition hover:bg-[#fafafa] last:border-b-0",
                           compactReservationSwitch
                             ? selected
                               ? "bg-[#fafafa]"
@@ -797,7 +807,7 @@ export default function SettingsAlertsPanel({
           })}
         </div>
 
-        <aside data-alerts-preview className="min-w-0 border-t border-[#e8edf3] px-4 py-4 xl:sticky xl:top-0 xl:self-start xl:border-l xl:border-t-0">
+        <aside data-alerts-preview className="min-w-0 border-t border-[#e8edf3] px-3 py-3 xl:sticky xl:top-0 xl:self-start xl:border-l xl:border-t-0">
           <KakaoAlimtalkPreview
             item={previewItem}
             preview={templatePreviews[previewItem.type] ?? null}

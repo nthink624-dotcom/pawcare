@@ -938,23 +938,23 @@ export default function OperatingHoursSettings({
               </button>
             </div>
           </div>
-          <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(300px,0.86fr)]">
+          <div className="grid xl:grid-cols-[minmax(0,0.82fr)_minmax(300px,1fr)]">
             <div className="divide-y divide-[#f1f5f9]">
               {businessDays.map((day) => (
-                <div key={day.key} className="grid min-h-[48px] grid-cols-[28px_minmax(0,1fr)] items-center gap-2 px-4 py-2 sm:grid-cols-[28px_90px_minmax(0,1fr)]">
+                <div key={day.key} className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2 px-4 py-1 sm:grid-cols-[28px_90px_220px] sm:gap-x-2">
                   <span className="text-[16px] leading-6 font-normal text-[#111827]">{day.shortLabel}</span>
                   <div className="flex items-center gap-2">
                     <ToggleSwitch checked={day.enabled} onChange={() => updateBusinessDay(day.key, { enabled: !day.enabled })} label={`${day.label} 영업 여부`} compact />
                     <span className={cn("whitespace-nowrap text-[16px] leading-6 font-normal", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>{day.enabled ? "영업" : "휴무"}</span>
                   </div>
                   {day.enabled ? (
-                    <div className="col-span-2 ml-auto grid grid-cols-[88px_20px_88px] sm:col-span-1 items-center justify-end gap-2">
+                    <div className="col-span-2 ml-auto grid grid-cols-[88px_20px_88px] items-center justify-end gap-2 sm:col-span-1 sm:ml-0 sm:justify-start">
                       <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact />
                       <span className="inline-flex h-8 items-center justify-center text-[13px] font-normal text-[#94a3b8]">~</span>
                       <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} compact />
                     </div>
                   ) : (
-                    <p className="col-span-2 ml-auto rounded-[8px] bg-[#f8fafc] sm:col-span-1 px-3 py-1.5 text-[16px] leading-6 font-normal text-[#64748b]">예약 없음</p>
+                    <p className="col-span-2 ml-auto rounded-[8px] bg-[#f8fafc] px-3 py-1.5 text-[16px] leading-6 font-normal text-[#64748b] sm:col-span-1 sm:ml-0">예약 없음</p>
                   )}
                 </div>
               ))}

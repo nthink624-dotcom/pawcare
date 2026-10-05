@@ -819,7 +819,9 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     input.type,
     notificationTemplateValues,
     templateAlias,
+    input.shopId,
   );
+  const templateKeyForDelivery = connectedTemplate?.templateCode ?? templateKey;
   const message =
     (input.channel ?? "alimtalk") === "in_app" && input.message?.trim()
       ? input.message.trim()
@@ -888,7 +890,6 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     input.type === "grooming_completed" &&
     mediaAssetIds.length > 0;
   const hasConfiguredPhotoAlimtalkTemplate = Boolean(serverEnv.alimtalkTemplateGroomingCompleted);
-  const templateKeyForDelivery = templateKey;
 
   if (input.appointmentId && !appointment) {
     logNotificationSkipped({
@@ -956,7 +957,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   } else if (
     (input.channel ?? "alimtalk") === "alimtalk" &&
     (serverEnv.alimtalkProvider === "ssodaa" || usesAlimtalkRelay) &&
-    !templateKey
+    !templateKeyForDelivery
   ) {
     status = "failed";
     failReason = `Missing Alimtalk template mapping for ${input.type}.`;

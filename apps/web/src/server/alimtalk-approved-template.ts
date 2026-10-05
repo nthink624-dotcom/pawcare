@@ -5,6 +5,7 @@ import {
   type NotificationTemplateVariables,
 } from "@/lib/notification-registry";
 import { getConfiguredAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { NotificationType } from "@/types/domain";
 
 export type ApprovedSsodaaTemplateButton = {
@@ -98,11 +99,71 @@ function isApprovedAndUsableTemplate(detail: ConnectedTemplateDetail) {
 
 async function getApprovedSsodaaTemplate(
   alias: AlimtalkTemplateAlias,
+  customTemplateCode?: string | null,
 ): Promise<ConnectedTemplateDetail | null> {
   const body = await getRelayTemplateCatalog();
   if (!body) return null;
 
+  if (customTemplateCode) {
+    const detail = body.allTemplates?.find((item) => item.templateCode === customTemplateCode) ?? null;
+    return detail && isApprovedAndUsableTemplate(detail)
+      ? normalizeConnectedTemplateDetail(customTemplateCode, detail)
+      : null;
+  }
+
   return getApprovedSsodaaTemplateFromCatalog(alias, body);
+}
+
+async function getShopApprovedTemplateCodes(shopId: string | undefined, types: NotificationType[]) {
+  if (!shopId) return new Map<NotificationType, string>();
+  const admin = getSupabaseAdmin();
+  if (!admin) return new Map<NotificationType, string>();
+  const result = await admin
+    .from("shop_alimtalk_template_requests")
+    .select("id,notification_type,template_code,inspection_status")
+    .eq("shop_id", shopId)
+    .in("notification_type", types)
+    .order("created_at", { ascending: false });
+  if (result.error) return new Map<NotificationType, string>();
+
+  const rows = result.data ?? [];
+  const pendingRows = rows.filter((row) => ["submitting", "requested", "reviewing", "unknown"].includes(row.inspection_status));
+  if (pendingRows.length > 0) {
+    const catalog = await getRelayTemplateCatalog();
+    if (catalog) {
+      await Promise.all(pendingRows.map(async (row) => {
+        const provider = catalog.allTemplates?.find((item) => item.templateCode === row.template_code);
+        if (!provider) return;
+        const providerStatus = String(provider.inspectionStatus ?? "").toUpperCase();
+        const serviceStatus = String(provider.serviceStatus ?? "").toUpperCase();
+        const nextStatus = providerStatus === "APR" || providerStatus === "APPROVED" || ["ACT", "RDY", "ACTIVE", "READY"].includes(serviceStatus)
+          ? "approved"
+          : ["REJ", "REJECTED"].includes(providerStatus)
+            ? "rejected"
+            : ["ING", "REVIEWING", "PROCESSING"].includes(providerStatus)
+              ? "reviewing"
+              : ["REQ", "REQUESTED", "WAIT", "WAITING"].includes(providerStatus)
+                ? "requested"
+                : null;
+        if (nextStatus && nextStatus !== row.inspection_status) {
+          await admin.from("shop_alimtalk_template_requests").update({
+            inspection_status: nextStatus,
+            service_status: serviceStatus.toLowerCase() || "unknown",
+            provider_checked_at: new Date().toISOString(),
+          }).eq("id", row.id).eq("shop_id", shopId);
+          row.inspection_status = nextStatus;
+        }
+      }));
+    }
+  }
+
+  const codes = new Map<NotificationType, string>();
+  for (const row of rows) {
+    if (row.inspection_status === "approved" && !codes.has(row.notification_type as NotificationType)) {
+      codes.set(row.notification_type as NotificationType, row.template_code);
+    }
+  }
+  return codes;
 }
 
 function getApprovedSsodaaTemplateFromCatalog(
@@ -314,27 +375,40 @@ export async function getApprovedSsodaaNotificationTemplate(
   type: NotificationType,
   values: NotificationTemplateVariables,
   templateAlias?: string | null,
+  shopId?: string,
 ) {
   const spec = templateAlias
     ? ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === templateAlias)
     : ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
   if (!spec) return null;
 
-  const detail = await getApprovedSsodaaTemplate(spec.templateAlias);
+  const customCodes = await getShopApprovedTemplateCodes(shopId, [type]);
+  const detail = await getApprovedSsodaaTemplate(spec.templateAlias, customCodes.get(type));
   return renderApprovedSsodaaNotificationTemplate({ type, templateAlias: spec.templateAlias, values, detail });
 }
 
 export async function getApprovedSsodaaNotificationTemplates(
   types: NotificationType[],
   values: NotificationTemplateVariables,
+  shopId?: string,
 ) {
-  const catalog = await getRelayTemplateCatalog();
+  const [catalog, customCodes] = await Promise.all([
+    getRelayTemplateCatalog(),
+    getShopApprovedTemplateCodes(shopId, types),
+  ]);
 
   return types.map((type) => {
     const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
+    const customCode = customCodes.get(type);
     const detail = spec && catalog
-      ? getApprovedSsodaaTemplateFromCatalog(spec.templateAlias, catalog)
+      ? customCode
+        ? catalog.allTemplates?.find((item) => item.templateCode === customCode && isApprovedAndUsableTemplate(item)) ?? null
+        : getApprovedSsodaaTemplateFromCatalog(spec.templateAlias, catalog)
       : null;
+    // A preview is a list of independently available templates. Keep an unavailable
+    // approval out of the list instead of failing every other preview in the response.
+    // The single-template resolver used by dispatch still throws and fails closed.
+    if (requiresApprovedSsodaaTemplate() && !detail?.templateContent) return null;
     return renderApprovedSsodaaNotificationTemplate({ type, values, detail });
   });
 }

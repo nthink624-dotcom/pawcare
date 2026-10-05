@@ -50,7 +50,7 @@ export function BookingLinkNaverGuide({ bookingUrl, directionsText, smartPlaceUr
   ] : [
     { title: "위쪽 ‘가격정보’를 누르세요.", detail: "부가정보 옆에 있는 가격정보를 선택하세요. 업종에 따라 메뉴 이름이나 입력칸이 다를 수 있습니다.", image: "live-price-tab", width: 736, height: 118 },
     { title: "‘+ 가격 추가’를 누르세요.", detail: "예약 안내 문구를 넣을 새 항목을 만드세요. 기존 미용 가격은 그대로 두세요.", image: "live-price-add", width: 549, height: 79 },
-    { title: "상품명에 안내 문구를 한 줄씩 넣으세요.", detail: "위 예시에서 한 줄을 복사해 상품명에 붙여넣으세요. 예시는 미리보기처럼 ‘무료’로 표시하는 구성입니다. 내 매장의 취소·노쇼 정책에 맞게 문구를 바꾸세요.", image: "live-price-form", width: 545, height: 806 },
+    { title: "상품명에 안내 문구를 한 줄씩 넣으세요.", detail: "아래 입력 예시처럼 상품명에 ‘신중한 예약 부탁드립니다!’를 쓰고 가격에 0을 입력하세요. 나머지 문구도 한 줄씩 추가하세요. 내 매장의 취소·노쇼 정책에 맞게 문구를 바꾸세요.", image: "price-filled-example", width: 545, height: 806 },
     { title: "‘추가하기’를 누르고 나머지 줄도 등록하세요.", detail: "입력한 문구를 확인하고 초록색 ‘추가하기’를 누르세요. 같은 방법으로 안내 문구를 한 줄씩 추가하면 미리보기처럼 위에서부터 차례대로 보입니다." },
   ]),
     { title: "페이지 아래의 ‘저장하기’를 누르세요.", detail: "입력 창을 닫은 뒤 페이지 아래로 내려가 초록색 ‘저장하기’를 누르세요. 저장 완료 안내가 나올 때까지 기다리세요.", image: "live-save", width: 718, height: 89 },
@@ -62,7 +62,7 @@ export function BookingLinkNaverGuide({ bookingUrl, directionsText, smartPlaceUr
       <section className="mb-4 border-b border-[#e8edf3] pb-4">
         <h2 className="text-[20px] font-semibold leading-7">네이버에 예약 링크 올리기</h2>
         <p className="mt-2 text-[#64748b]">먼저 예약 링크를 등록하세요. 안내 문구와 가격표 안내는 필요한 경우 추가하면 됩니다.</p>
-        <p className="mt-2 text-[#64748b]">실제 네이버 PC 화면을 캡처했습니다. 파란 테두리가 누를 곳입니다. 캡처를 누르면 크게 볼 수 있습니다.</p>
+        <p className="mt-2 text-[#64748b]">실제 네이버 PC 화면과 문구를 채운 입력 예시입니다. 파란 테두리가 누를 곳입니다. 이미지를 누르면 크게 볼 수 있습니다.</p>
       </section>
       <div className="flex flex-wrap gap-2 border-b border-[#e8edf3] pb-3" role="group" aria-label="네이버 등록 방법 선택">
         {([["link", "1. 예약 링크"], ["directions", "2. 안내 문구"], ["price", "3. 가격표 안내"]] as const).map(([value, label]) => (
@@ -91,7 +91,7 @@ export function BookingLinkNaverGuide({ bookingUrl, directionsText, smartPlaceUr
             </div>
             {step.image && <a href={`/images/naver-smartplace-guide-${step.image}.png`} target="_blank" rel="noreferrer" aria-label={`${step.title} 캡처 크게 보기 (새 탭)`} className="mt-3 block w-fit max-w-full rounded-[8px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`/images/naver-smartplace-guide-${step.image}.png`} alt={`${step.title} 실제 네이버 화면, 파란 테두리가 클릭 위치`} width={step.width} height={step.height} loading="lazy" className="block h-auto max-w-full rounded-[8px] border border-[#e8edf3]" style={{ width: step.width }} />
+              <img src={`/images/naver-smartplace-guide-${step.image}.png`} alt={step.image === "price-filled-example" ? "상품명에 신중한 예약 부탁드립니다!, 가격에 0을 입력한 예시" : `${step.title} 실제 네이버 화면, 파란 테두리가 클릭 위치`} width={step.width} height={step.height} loading="lazy" className="block h-auto max-w-full rounded-[8px] border border-[#e8edf3]" style={{ width: step.width }} />
             </a>}
           </li>
         ))}

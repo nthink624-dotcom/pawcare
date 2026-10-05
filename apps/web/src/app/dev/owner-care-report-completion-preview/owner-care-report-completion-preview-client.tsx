@@ -181,6 +181,7 @@ export function OwnerCareReportCompletionPreviewClient({
             <CalendarGroomingCompletionFields
               value={details}
               onChange={setDetails}
+              revisitReminderDefaultDays={45}
               serviceId={previewServiceId}
               serviceName={previewServiceName}
               services={previewServices}

@@ -91,16 +91,24 @@ function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, 
   ].filter(Boolean);
   const memo = noteParts.join(" / ");
   if (singleLine) return (
-    <span className="flex h-full w-full min-w-0 items-center gap-2 px-3 text-[16px] font-normal leading-6 text-[#334155]">
+    <span className="@container/chip flex h-full w-full min-w-0 items-center gap-2 px-3 text-[16px] font-normal leading-6 text-[#334155]">
       <span data-booking-content="identity" className="max-w-[25%] min-w-0 shrink-0 truncate font-medium text-[#17243c]">{booking.pet}</span>
       <span data-booking-content="service" className="min-w-0 flex-1 truncate" title={service}>{service}</span>
-      <span data-booking-content="time" className="shrink-0 whitespace-nowrap tabular-nums text-[#526174]">{timeLabel}</span>
-      <span data-booking-status="true" className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span>
+      <span data-booking-content="time" title={timeLabel} className="shrink-0 whitespace-nowrap tabular-nums text-[#526174]"><span className="@[300px]/chip:hidden">{timeLabel.split("-")[0]}</span><span className="hidden @[300px]/chip:inline">{timeLabel}</span></span>
+      <span data-booking-status="true" className={cn("hidden shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5 @[300px]/chip:inline", statusPillClass)}>{statusLabel}</span>
     </span>
   );
   return (
-    <span className="@container/chip flex h-full w-full min-w-0 flex-col gap-1 px-3 pb-3.5 pt-2.5 text-[16px] font-normal leading-6 text-[#334155]">
-      <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+    <span className={cn("@container/chip flex h-full w-full min-w-0 flex-col gap-1 px-3 text-[16px] font-normal leading-6 text-[#334155]", height >= 100 ? "pb-3.5 pt-2.5" : "py-2")}>
+      <span className="flex min-w-0 flex-col gap-0.5 @[300px]/chip:hidden">
+        <span className="flex min-w-0 items-center justify-between gap-2">
+          <span data-booking-content="identity" title={[booking.pet, booking.customer].filter(Boolean).join(" · ")} className="min-w-0 truncate font-medium text-[#17243c]">{booking.pet}</span>
+          <span data-booking-status="true" className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span>
+        </span>
+        <span data-booking-content="service" title={service} className="min-w-0 truncate text-[#526174]">{service}</span>
+        {height >= 100 ? <span data-booking-content="time" className="whitespace-nowrap tabular-nums text-[#526174]">{timeLabel}</span> : null}
+      </span>
+      <span className="hidden min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 @[300px]/chip:grid">
         <span className="flex min-w-0 items-center gap-2.5">
           {height >= 100 ? (
             <span data-booking-avatar="true" className="hidden size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-white/80 bg-white/80 @[300px]/chip:inline-flex">
@@ -125,9 +133,9 @@ function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, 
       </span>
       {pendingOverlapLabel ? <span className="truncate text-[14px] leading-5 text-[#a46710]">{pendingOverlapLabel}</span> : null}
       {height >= 100 && memo ? (
-        <span className={cn("flex min-w-0 items-start gap-2 text-[#64748b]", height >= 140 && "mt-auto") }>
+        <span className={cn("min-w-0 items-start gap-2 text-[#64748b]", height >= 140 ? "mt-auto flex" : "hidden @[300px]/chip:flex") }>
           <NotebookPen aria-hidden="true" className="mt-1 size-4 shrink-0" />
-          <span data-booking-content="memo" data-booking-request-note="present" title={memo} className={cn("min-w-0", height >= 140 ? "line-clamp-2" : "truncate")}>{memo}</span>
+          <span data-booking-content="memo" data-booking-request-note="present" title={memo} className={cn("min-w-0", height >= 180 ? "line-clamp-2" : height >= 140 ? "truncate @[300px]/chip:line-clamp-2 @[300px]/chip:whitespace-normal" : "truncate")}>{memo}</span>
         </span>
       ) : null}
     </span>

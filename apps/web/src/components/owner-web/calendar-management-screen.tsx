@@ -4067,6 +4067,10 @@ export default function CalendarManagementScreen({
 }) {
   const [bootstrapData, setBootstrapData] = useState(() => initialData);
   const bootstrapDataRef = useRef(bootstrapData);
+  const onDataChangeRef = useRef(onDataChange);
+  useEffect(() => {
+    onDataChangeRef.current = onDataChange;
+  }, [onDataChange]);
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
   const [selectedDate, setSelectedDate] = useState(() =>
     initialData.mode !== "supabase" || initialData.shop.id === "owner-demo"
@@ -4233,6 +4237,7 @@ export default function CalendarManagementScreen({
     if (bootstrapData.mode !== "supabase") return;
 
     let cancelled = false;
+    let inFlight = false;
     const syncScheduleRange = async () => {
       const canSync =
         typeof document === "undefined" ||
@@ -4244,8 +4249,9 @@ export default function CalendarManagementScreen({
           !photoStatusAction &&
           !earlyStartBooking);
 
-      if (!canSync) return;
+      if (!canSync || inFlight) return;
 
+      inFlight = true;
       try {
         const currentData = bootstrapDataRef.current;
         const range = await fetchOwnerScheduleRange(currentData.shop.id, selectedDate, selectedDate);
@@ -4253,9 +4259,11 @@ export default function CalendarManagementScreen({
         const nextBootstrapData = applyRecentStatusOverrides(replaceScheduleRangeInBootstrap(currentData, range));
         bootstrapDataRef.current = nextBootstrapData;
         setBootstrapData(nextBootstrapData);
-        onDataChange?.(nextBootstrapData);
+        onDataChangeRef.current?.(nextBootstrapData);
       } catch (error) {
         console.error("[owner-schedule] failed to synchronize the visible schedule range", error);
+      } finally {
+        inFlight = false;
       }
     };
 
@@ -4275,7 +4283,6 @@ export default function CalendarManagementScreen({
     bootstrapData.shop.id,
     careReportChoiceBooking,
     earlyStartBooking,
-    onDataChange,
     photoStatusAction,
     scheduleDialogOpen,
     scheduleSaving,

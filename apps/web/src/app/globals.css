@@ -235,6 +235,23 @@ button[class*="hover:bg-[#293548]"]:hover {
   border-radius: var(--pm-owner-main-surface-radius) !important;
 }
 
+/* 고정 예약 상세는 스케줄 보드와 독립된 두 카드로 표시한다. */
+.pm-owner-web .pm-owner-main-surface:has([data-schedule-layout="split"]) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.pm-owner-web .pm-owner-main-surface [data-schedule-layout="split"] [data-schedule-board-root="true"] {
+  border: 1px solid var(--pm-owner-main-surface-border) !important;
+}
+
+.pm-owner-web [data-schedule-layout="split"] [data-booking-detail-mode="docked"] > [aria-label="예약 상세"],
+.pm-owner-web [data-schedule-layout="split"] aside[data-booking-detail-mode="docked"] {
+  border-color: var(--pm-owner-main-surface-border);
+  border-radius: var(--pm-owner-main-surface-radius);
+}
+
 /* 가입 직후 설정은 실제 폼과 가이드를 같은 작업면에 유지한다. */
 .pm-initial-setup-layout {
   display: grid;

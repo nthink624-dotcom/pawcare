@@ -426,6 +426,8 @@ export default function SettingsAlertsPanel({
   shopName: string;
   automaticVisitReminderAvailable?: boolean;
 }) {
+  const [activeAlertsPage, setActiveAlertsPage] = useState<"settings" | "templates">("settings");
+  const [templatesPageVisited, setTemplatesPageVisited] = useState(false);
   const [selectedAlertType, setSelectedAlertType] = useState<NotificationType>("appointment_reminder_10m");
   const [templatePreviewState, setTemplatePreviewState] = useState<{
     shopId: string;
@@ -440,6 +442,15 @@ export default function SettingsAlertsPanel({
   const previewItem = alertItems.find((item) => item.type === selectedAlertType) ?? alertItems[0];
   const visitReminderEnabled =
     automaticVisitReminderAvailable && value.appointmentReminder10mEnabled && value.appointmentReminder10mMode === "auto";
+  const templateOptions = alertItems.map((item) => ({
+    type: item.type,
+    title: item.title,
+    group: ["booking_confirmed", "booking_cancelled"].includes(item.type)
+      ? "예약 알림"
+      : reservationNoticeTypes.includes(item.type)
+        ? "예약 안내"
+        : "미용 진행",
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -490,8 +501,12 @@ export default function SettingsAlertsPanel({
   const showSenderChannelSettings = false;
 
   return (
-    <section data-pc-alerts-surface className="min-w-0 overflow-hidden rounded-[14px] border border-[#e8edf3] bg-white">
-      <div className="grid min-w-0 xl:grid-cols-[minmax(0,1fr)_380px]">
+    <section data-pc-alerts-surface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-white">
+      <div className="grid shrink-0 grid-cols-2 border-b border-[#e8edf3] px-3 sm:px-4" role="tablist" aria-label="알림톡 관리">
+        <button type="button" role="tab" id="alerts-settings-tab" aria-selected={activeAlertsPage === "settings"} aria-controls="alerts-settings-panel" onClick={() => setActiveAlertsPage("settings")} className={cn("min-h-12 border-b-2 px-3 text-[14px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]", activeAlertsPage === "settings" ? "border-b-[#2563eb] text-[#15213b]" : "border-b-transparent text-[#64748b] hover:text-[#15213b]")}>알림 설정</button>
+        <button type="button" role="tab" id="alerts-templates-tab" aria-selected={activeAlertsPage === "templates"} aria-controls="alerts-templates-panel" onClick={() => { setTemplatesPageVisited(true); setActiveAlertsPage("templates"); }} className={cn("min-h-12 border-b-2 px-3 text-[14px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]", activeAlertsPage === "templates" ? "border-b-[#2563eb] text-[#15213b]" : "border-b-transparent text-[#64748b] hover:text-[#15213b]")}>내 문구 작성</button>
+      </div>
+      <div id="alerts-settings-panel" role="tabpanel" aria-labelledby="alerts-settings-tab" hidden={activeAlertsPage !== "settings"} className="grid min-h-0 min-w-0 flex-1 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 divide-y divide-[#e8edf3]">
           {showSenderChannelSettings ? (
           <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
@@ -644,15 +659,6 @@ export default function SettingsAlertsPanel({
                 onCheckedChange={(checked) => onChange({ ...value, enabled: checked })}
               />
             </div>
-          </div>
-
-          <div className="px-3 pt-2" data-alerts-template-entry>
-            <OwnerAlimtalkTemplateEditor
-              shopId={shopId}
-              shopName={shopName}
-              notificationType={previewItem.type}
-              notificationTitle={previewItem.title}
-            />
           </div>
 
           <div
@@ -816,6 +822,16 @@ export default function SettingsAlertsPanel({
             shopName={shopName}
           />
         </aside>
+      </div>
+      <div id="alerts-templates-panel" role="tabpanel" aria-labelledby="alerts-templates-tab" hidden={activeAlertsPage !== "templates"} className="min-h-0 min-w-0 flex-1">
+        {templatesPageVisited ? <OwnerAlimtalkTemplateEditor
+          shopId={shopId}
+          shopName={shopName}
+          notificationType={previewItem.type}
+          notificationTitle={previewItem.title}
+          options={templateOptions}
+          onSelectType={setSelectedAlertType}
+        /> : null}
       </div>
     </section>
   );

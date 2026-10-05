@@ -1978,7 +1978,7 @@ export default function SettingsManagementScreen({
         </div>
       ) : null}
 
-      <div className={cn("grid min-h-0 gap-6", (activeTab === "shop" || activeTab === "benefits") && "h-full", showTabNavigation && "xl:grid-cols-[316px_minmax(0,1fr)]")}>
+      <div className={cn("grid min-h-0 gap-6", (activeTab === "shop" || activeTab === "benefits" || activeTab === "alerts") && "h-full", showTabNavigation && "xl:grid-cols-[316px_minmax(0,1fr)]")}>
         {showTabNavigation ? (
           <WebSurface className="p-3">
             <div className="space-y-1.5">
@@ -2000,7 +2000,7 @@ export default function SettingsManagementScreen({
           </WebSurface>
         ) : null}
 
-        <div className={cn("min-w-0 space-y-4", (activeTab === "shop" || activeTab === "benefits") && "h-full min-h-0")}>
+        <div className={cn("min-w-0 space-y-4", (activeTab === "shop" || activeTab === "benefits" || activeTab === "alerts") && "h-full min-h-0")}>
           {activeTab === "alerts" ? (
             <SettingsAlertsPanel
               value={alertSettings}

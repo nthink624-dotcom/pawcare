@@ -1,16 +1,19 @@
-import { Copy } from "lucide-react";
+import { Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS } from "./owner-web-action-button-styles";
 
-type GuideMode = "link" | "directions";
+type GuideMode = "link" | "directions" | "price";
+type GuideStep = { title: string; detail: string; image?: string; width?: number; height?: number };
+const actionClass = `${OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS} !text-[16px]`;
+export const NAVER_PRICE_NOTICE_EXAMPLES = [
+  "당일 취소 및 노쇼",
+  "다음 예약 어렵습니다",
+  "신중한 예약 부탁드립니다! 🙏",
+  "아래 파란색 예약 URL 꾹!",
+] as const;
+const priceNote = NAVER_PRICE_NOTICE_EXAMPLES.join("\n");
 
-export function BookingLinkNaverGuide({
-  bookingUrl,
-  directionsText,
-  smartPlaceUrl,
-  copied,
-  onCopy,
-}: {
+export function BookingLinkNaverGuide({ bookingUrl, directionsText, smartPlaceUrl, copied, onCopy }: {
   bookingUrl: string;
   directionsText: string;
   smartPlaceUrl: string;
@@ -18,92 +21,78 @@ export function BookingLinkNaverGuide({
   onCopy: () => void;
 }) {
   const [mode, setMode] = useState<GuideMode>("link");
-  const isLink = mode === "link";
-  const steps = [
-    { title: "스마트플레이스를 엽니다.", detail: "위의 스마트플레이스 열기 버튼을 누르세요. 버튼을 못 찾으면 네이버에서 스마트플레이스를 검색하세요.", image: "search", width: 816, height: 72 },
-    { title: "네이버 스마트플레이스를 선택합니다.", detail: "네이버 스마트플레이스에 로그인한 뒤 내 업체를 선택하세요.", image: "result", width: 791, height: 194 },
-    { title: "내 업체를 선택합니다.", detail: "예약 링크를 등록할 매장을 선택하세요.", image: "business", width: 1242, height: 263 },
-    ...(isLink ? [
-      { title: "업체정보 > 부가정보로 이동합니다.", detail: "왼쪽 업체정보 메뉴에서 상단 부가정보 탭을 선택하세요.", image: "info-additional-marked", width: 1003, height: 334 },
-      { title: "+ URL 추가를 클릭합니다.", detail: "부가정보 아래의 홈페이지·SNS 영역을 찾으세요.", image: "url-button", width: 671, height: 151 },
-      { title: "예약 링크를 입력하고 추가합니다.", detail: "유형에서 홈페이지(웹사이트)를 선택하고, 복사한 예약 링크를 URL 입력칸에 붙여넣은 뒤 추가하기를 누르세요.", image: "url-modal", width: 940, height: 633 },
-    ] : [
-      { title: "업체정보 > 기본정보로 이동합니다.", detail: "왼쪽 업체정보 메뉴에서 상단 기본정보 탭을 선택하세요.", image: "basic-info-marked", width: 1116, height: 401 },
-      { title: "찾아오는 길 설명에 안내 문구를 추가합니다.", detail: "기존 길 안내는 유지하고, 마지막에 복사한 예약 안내 문구를 덧붙이세요.", image: "directions-field", width: 665, height: 274 },
-    ]),
-    { title: "저장하기를 누릅니다.", detail: "저장 후 플레이스에서 문구와 예약 링크가 표시되는지 확인하세요.", image: "save-button", width: 178, height: 58 },
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState(false);
+  async function copyText(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedValue(value);
+      setCopyError(false);
+      window.setTimeout(() => setCopiedValue(null), 1600);
+    } catch {
+      setCopyError(true);
+    }
+  }
+  const start: GuideStep[] = [
+    { title: "스마트플레이스를 여세요.", detail: "이 안내 위의 ‘스마트플레이스 열기’를 누르세요. 네이버 로그인 화면이 나오면 내 업체를 관리하는 아이디로 로그인하세요." },
+    { title: "내 매장을 선택하세요.", detail: "‘내 업체’를 누르고, 예약 링크를 등록할 매장 이름을 누르세요. 다른 매장을 선택하지 않았는지 확인하세요." },
+    { title: "왼쪽 ‘업체정보’를 누르세요.", detail: "아래 캡처의 파란 테두리로 표시한 메뉴를 누르세요.", image: "live-company-menu", width: 304, height: 546 },
+  ];
+  const steps: GuideStep[] = [...start, ...(mode === "link" ? [
+    { title: "위쪽 ‘부가정보’를 누르세요.", detail: "기본정보 옆에 있는 부가정보를 선택하세요.", image: "live-additional-tab", width: 736, height: 118 },
+    { title: "아래로 내려가 ‘URL 추가’를 누르세요.", detail: "‘운영중인 홈페이지, SNS, 커뮤니티 등이 있나요?’라는 항목을 찾으세요. 그 아래의 ‘+ URL 추가’를 누르세요.", image: "live-url-add", width: 549, height: 79 },
+    { title: "‘예약’을 선택하고 예약 주소를 붙여넣으세요.", detail: "이 안내 위의 ‘예약 링크 복사’를 누르세요. 네이버 창으로 돌아가 분류에서 ‘예약’을 선택한 뒤, URL 입력칸의 https://를 지우고 복사한 주소 전체를 붙여넣으세요. Windows에서는 Ctrl+V를 누르면 됩니다.", image: "live-url-form", width: 545, height: 560 },
+    { title: "‘추가하기’를 누르세요.", detail: "입력한 주소가 내 매장 예약 주소와 같은지 확인하고, 창 아래의 초록색 ‘추가하기’를 누르세요. 아직 페이지 저장이 끝난 것은 아닙니다." },
+  ] : mode === "directions" ? [
+    { title: "위쪽 ‘기본정보’를 누르세요.", detail: "부가정보 왼쪽에 있는 기본정보를 선택하세요.", image: "live-basic-tab", width: 736, height: 118 },
+    { title: "아래로 내려가 ‘찾아오는 길’을 찾으세요.", detail: "아래처럼 길 안내를 쓰는 큰 입력칸을 찾으세요. 기존 길 안내는 지우지 마세요.", image: "live-directions", width: 647, height: 202 },
+    { title: "길 안내 마지막에 예약 문구를 붙여넣으세요.", detail: "이 안내 위의 ‘문구 복사’를 누르세요. 네이버 입력칸의 기존 글 마지막을 클릭하고 Enter를 누른 뒤 Ctrl+V로 붙여넣으세요. 홈페이지에 예약 링크를 먼저 등록해야 고객이 찾을 수 있습니다." },
+  ] : [
+    { title: "위쪽 ‘가격정보’를 누르세요.", detail: "부가정보 옆에 있는 가격정보를 선택하세요. 업종에 따라 메뉴 이름이나 입력칸이 다를 수 있습니다.", image: "live-price-tab", width: 736, height: 118 },
+    { title: "‘+ 가격 추가’를 누르세요.", detail: "예약 안내 문구를 넣을 새 항목을 만드세요. 기존 미용 가격은 그대로 두세요.", image: "live-price-add", width: 549, height: 79 },
+    { title: "상품명에 안내 문구를 한 줄씩 넣으세요.", detail: "아래 입력 예시처럼 상품명에 ‘신중한 예약 부탁드립니다!’를 쓰고 가격에 0을 입력하세요. 나머지 문구도 한 줄씩 추가하세요. 내 매장의 취소·노쇼 정책에 맞게 문구를 바꾸세요.", image: "price-filled-example", width: 545, height: 806 },
+    { title: "‘추가하기’를 누르고 나머지 줄도 등록하세요.", detail: "입력한 문구를 확인하고 초록색 ‘추가하기’를 누르세요. 같은 방법으로 안내 문구를 한 줄씩 추가하면 미리보기처럼 위에서부터 차례대로 보입니다." },
+  ]),
+    { title: "페이지 아래의 ‘저장하기’를 누르세요.", detail: "입력 창을 닫은 뒤 페이지 아래로 내려가 초록색 ‘저장하기’를 누르세요. 저장 완료 안내가 나올 때까지 기다리세요.", image: "live-save", width: 718, height: 89 },
+    { title: "네이버에서 내 매장을 검색해 확인하세요.", detail: "고객이 보는 플레이스에서 홈페이지의 예약 링크를 눌러보세요. 내 매장 이름이 표시된 예약 화면이 열리면 됩니다. 안내 문구도 원하는 위치에 보이는지 확인하세요." },
   ];
 
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 text-[16px] leading-6">
+      <section className="mb-4 border-b border-[#e8edf3] pb-4">
+        <h2 className="text-[20px] font-semibold leading-7">네이버에 예약 링크 올리기</h2>
+        <p className="mt-2 text-[#64748b]">먼저 예약 링크를 등록하세요. 안내 문구와 가격표 안내는 필요한 경우 추가하면 됩니다.</p>
+        <p className="mt-2 text-[#64748b]">실제 네이버 PC 화면과 문구를 채운 입력 예시입니다. 파란 테두리가 누를 곳입니다. 이미지를 누르면 크게 볼 수 있습니다.</p>
+      </section>
       <div className="flex flex-wrap gap-2 border-b border-[#e8edf3] pb-3" role="group" aria-label="네이버 등록 방법 선택">
-        {([ ["link", "예약 링크 등록"], ["directions", "안내 문구 등록"] ] as const).map(([value, label]) => (
-          <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)}
-            className={`min-h-11 rounded-[8px] px-4 py-2 text-[16px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${mode === value ? "bg-[#111a30] text-white" : "bg-[#f1f3f7] text-[#334155]"}`}>
+        {([["link", "1. 예약 링크"], ["directions", "2. 안내 문구"], ["price", "3. 가격표 안내"]] as const).map(([value, label]) => (
+          <button key={value} type="button" aria-pressed={mode === value} onClick={() => { setMode(value); setCopyError(false); }} className={`h-10 rounded-[8px] px-4 text-[16px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${mode === value ? "bg-[#1875f0] text-white" : "bg-[#f1f3f7] text-[#334155]"}`}>
             {label}
           </button>
         ))}
       </div>
-      <div className="py-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-[20px] font-semibold leading-7">{isLink ? "홈페이지에 예약 링크 연결" : "찾아오는 길에 예약 안내 추가"}</h2>
-          {!isLink && <button type="button" onClick={onCopy} className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}><Copy className="h-4 w-4" />{copied ? "복사됨" : "문구 복사"}</button>}
-        </div>
-        <p className="mt-2 text-[14px] leading-5 text-[#64748b]">
-          {isLink
-            ? "예약 링크를 복사한 뒤 스마트플레이스를 열고, 내 업체의 홈페이지·SNS에 붙여넣으면 됩니다."
-            : "찾아오는 길 설명에는 고객이 예약 페이지를 찾을 수 있도록 안내 문구를 덧붙일 수 있습니다."}
-        </p>
-        {isLink && (
-          <div className="mt-3 rounded-[10px] border border-[#e8edf3] bg-[#f8fafc] px-3 py-3 text-[14px] leading-5 text-[#334155]">
-            <p className="font-medium text-[#111827]">가장 쉬운 등록 순서</p>
-            <ol className="mt-2 space-y-1.5">
-              <li><span className="mr-1.5 text-[#64748b]">1.</span>위의 <span className="font-medium text-[#111827]">예약 링크 복사</span>를 누릅니다.</li>
-              <li><span className="mr-1.5 text-[#64748b]">2.</span><span className="font-medium text-[#111827]">스마트플레이스 열기</span>를 누르고 내 업체를 선택합니다.</li>
-              <li><span className="mr-1.5 text-[#64748b]">3.</span><span className="font-medium text-[#111827]">업체정보 → 부가정보 → 홈페이지·SNS</span>에서 URL을 추가하고 저장합니다.</li>
-            </ol>
-            <a href={smartPlaceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[14px] font-medium text-[#334155] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
-              스마트플레이스 다시 열기 ↗
-            </a>
-          </div>
-        )}
+      <div className="flex flex-wrap gap-2 py-4">
+        <a href={smartPlaceUrl} target="_blank" rel="noreferrer" className={actionClass}><ExternalLink className="h-4 w-4" />스마트플레이스 열기</a>
+        {mode === "link" ? <button type="button" onClick={() => void copyText(bookingUrl)} className={actionClass}><Copy className="h-4 w-4" />{copiedValue === bookingUrl ? "복사됨" : "예약 링크 복사"}</button> : mode === "directions" ? <button type="button" onClick={onCopy} className={actionClass}><Copy className="h-4 w-4" />{copied ? "복사됨" : "문구 복사"}</button> : <button type="button" onClick={() => void copyText(priceNote)} className={actionClass}><Copy className="h-4 w-4" />{copiedValue === priceNote ? "복사됨" : "상품명 예시 복사"}</button>}
       </div>
+      <p className="mb-4 whitespace-pre-line break-all rounded-[8px] bg-[#f8fafc] p-3">{mode === "link" ? bookingUrl : mode === "directions" ? directionsText : priceNote}</p>
+      {mode === "price" && <p className="mb-4 text-[#64748b]">휴대폰 미리보기는 가격표 항목을 예약 안내 문구로 활용한 예시입니다.</p>}
+      {copyError && <p role="alert" className="mb-4">복사하지 못했습니다. 위 글을 선택한 뒤 Ctrl+C로 직접 복사해주세요.</p>}
+      <p role="status" className="sr-only">{copiedValue ? "복사했습니다." : ""}</p>
       <ol className="space-y-5">
         {steps.map((step, index) => (
-          <li key={step.image} className="min-w-0 border-t border-[#e8edf3] pt-4 first:border-t-0 first:pt-0">
+          <li key={`${mode}-${index}`} className="min-w-0 border-t border-[#e8edf3] pt-4 first:border-t-0 first:pt-0">
             <div className="flex items-start gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f1f3f7] text-[14px] font-medium">{index + 1}</span>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f1f3f7] font-medium">{index + 1}</span>
               <div className="min-w-0">
-                <h3 className="text-[16px] font-medium leading-6">{step.title}</h3>
-                <p className="mt-1 text-[14px] leading-5 text-[#64748b]">{step.detail}</p>
+                <h3 className="font-medium">{step.title}</h3>
+                <p className="mt-1 text-[#64748b]">{step.detail}</p>
               </div>
             </div>
-            <div className="mt-3 min-w-0">
-              <a
-                href={`/images/naver-smartplace-guide-${step.image}.png`}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`${step.title} 캡처 원본 보기 (새 탭)`}
-                className="block w-fit max-w-full rounded-[8px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-              >
-                {/* Preserve screenshot pixels; never stretch beyond the source dimensions. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/images/naver-smartplace-guide-${step.image}.png`}
-                  alt={`${step.title} 네이버 화면 캡처`}
-                  width={step.width}
-                  height={step.height}
-                  loading="lazy"
-                  className="block h-auto max-w-full rounded-[8px] border border-[#e8edf3]"
-                  style={{ width: step.width }}
-                />
-              </a>
-              <a href={`/images/naver-smartplace-guide-${step.image}.png`} target="_blank" rel="noreferrer"
-                className="inline-flex min-h-11 items-center rounded-[6px] px-1 text-[14px] text-[#334155] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-blue-600"
-                aria-label={`${step.title} 원본 보기 (새 탭)`}>원본 보기 ↗</a>
-              {step.image === "url-modal" && <p className="mt-1 break-all rounded-[8px] bg-[#f8fafc] p-3 text-[16px] leading-6">{bookingUrl}</p>}
-              {step.image === "directions-field" && <p className="mt-1 rounded-[8px] bg-[#f8fafc] p-3 text-[16px] leading-6">{directionsText}</p>}
-            </div>
+            {step.image && <a href={`/images/naver-smartplace-guide-${step.image}.png`} target="_blank" rel="noreferrer" aria-label={`${step.title} 캡처 크게 보기 (새 탭)`} className="mt-3 block w-fit max-w-full rounded-[8px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/images/naver-smartplace-guide-${step.image}.png`} alt={step.image === "price-filled-example" ? "상품명에 신중한 예약 부탁드립니다!, 가격에 0을 입력한 예시" : `${step.title} 실제 네이버 화면, 파란 테두리가 클릭 위치`} width={step.width} height={step.height} loading="lazy" className="block h-auto max-w-full rounded-[8px] border border-[#e8edf3]" style={{ width: step.width }} />
+            </a>}
           </li>
         ))}
       </ol>

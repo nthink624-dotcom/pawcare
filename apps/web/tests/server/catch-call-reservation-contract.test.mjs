@@ -50,7 +50,8 @@ test("Android automatic CatchCall adapter allows calls before asynchronous uploa
   assert.match(plugin, /public void setEnabled/);
   assert.match(store, /callCaptureEnabled/);
   assert.match(store, /AES\/GCM\/NoPadding/);
-  assert.match(notification, /setOngoing\(true\)/);
+  assert.match(notification, /setOngoing\(false\)/);
+  assert.match(notification, /전화만 받기/);
   assert.doesNotMatch(receiver, /OwnerCallNotification\.cancel\(context, providerCallId\)/);
   assert.doesNotMatch(service, /System\.out|Log\.d|Log\.i/);
 });

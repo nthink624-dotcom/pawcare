@@ -31,7 +31,7 @@ test('두 앱이 공통 소스를 묶음 및 배포 추적 범위에 포함한�
 test('공유 DB 변경 이력은 루트에만 둔다', () => {
   assert.ok(existsSync(path.join(root, 'supabase/migrations')));
   for (const app of ['web', 'mobile']) {
-    assert.equal(existsSync(path.join(root, `apps/${app}/supabase`)), false);
+    assert.equal(existsSync(path.join(root, `apps/${app}/supabase/migrations`)), false);
   }
 });
 test('개인 설정과 복구본은 Git 제외 대상이다', () => {

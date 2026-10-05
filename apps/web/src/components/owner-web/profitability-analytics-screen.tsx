@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, RefreshCw, TrendingUp } from "lucide-react";
+import { BarChart3, CalendarDays, RefreshCw, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
@@ -18,7 +18,7 @@ const won = (value: number) => `${Math.round(value).toLocaleString("ko-KR")}원`
 function Metric({ label, value, note }: { label: string; value: string; note: string }) {
   return <div className="min-w-0 rounded-xl border border-[#e5eaf0] bg-white p-4">
     <p className="text-[14px] leading-5 text-[#66758a]">{label}</p>
-    <p className="mt-1 truncate text-[22px] font-semibold leading-7 tracking-tight text-[#172033]">{value}</p>
+    <p className="mt-1 text-[22px] font-semibold leading-7 tracking-tight text-[#172033] tabular-nums [overflow-wrap:anywhere]">{value}</p>
     <p className="mt-1 text-[13px] leading-5 text-[#718096]">{note}</p>
   </div>;
 }
@@ -62,6 +62,7 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
   }, [payload, range]);
   const maxDaily = useMemo(() => Math.max(1, ...chartRows.map((item) => item.paidAmount)), [chartRows]);
   const change = payload?.sales.previousPaidAmount ? Math.round((payload.sales.paidAmount - payload.sales.previousPaidAmount) / Math.abs(payload.sales.previousPaidAmount) * 100) : null;
+  const hasPaidSales = Boolean(payload && (payload.sales.paidCount > 0 || payload.sales.paidAmount !== 0));
 
   return <div data-profitability-main-surface className="h-full min-h-0 min-w-0 overflow-auto">
       <header className="flex flex-col justify-between gap-3 border-b border-[#e8edf3] px-4 py-4 sm:flex-row sm:items-center sm:px-5">
@@ -75,14 +76,19 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
       </header>
       {error && <div className="border-b border-[#f0d8dc] bg-[#fff8f8] px-5 py-3 text-[14px] text-[#9f3a48]">{error}</div>}
       {loading && !payload ? <div className="px-5 py-16 text-center text-[14px] text-[#64748b]">매출 정보를 불러오고 있습니다.</div> : payload && <>
-        <div className="flex items-center gap-2 px-4 pb-3 pt-4 text-[13px] text-[#64748b] sm:px-5"><CalendarDays className="h-4 w-4" />{payload.from} ~ {payload.to}<span className="ml-auto">완료 결제 기준</span></div>
-        <section className="grid gap-2 px-4 pb-5 sm:grid-cols-2 xl:grid-cols-4 sm:px-5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 pb-3 pt-4 text-[13px] text-[#64748b] sm:px-5"><CalendarDays className="h-4 w-4 shrink-0" />{payload.from} ~ {payload.to}<span className="ml-auto">결제 완료분 · 미수/예정 제외</span></div>
+        <section className="grid grid-cols-2 gap-2 px-4 pb-5 lg:grid-cols-4 sm:px-5">
           <Metric label="결제 매출" value={won(payload.sales.paidAmount)} note={change === null ? "비교 기간 자료 없음" : `이전 기간보다 ${change > 0 ? "+" : ""}${change}%`} />
           <Metric label="결제 건수" value={`${payload.sales.paidCount.toLocaleString("ko-KR")}건`} note={`건당 평균 ${won(payload.sales.averagePaidAmount)}`} />
           <Metric label="할인" value={won(payload.sales.discountAmount)} note="결제된 항목에 기록된 할인" />
           <Metric label="환불" value={won(payload.sales.refundAmount)} note="결제 원장에 기록된 환불" />
         </section>
-        <Section title={range === "365d" ? "월별 매출" : range === "90d" ? "주별 매출" : "일별 매출"} aside={<span className="text-[13px] text-[#718096]">결제 완료 기준</span>}>
+        {!hasPaidSales ? <div className="flex min-h-[280px] flex-col items-center justify-center border-t border-[#e8edf3] px-5 py-10 text-center">
+          <BarChart3 className="h-6 w-6 text-[#8a98aa]" strokeWidth={1.8} aria-hidden="true" />
+          <h2 className="mt-2 text-[18px] font-medium leading-6 text-[#253044]">선택한 기간에 결제된 매출이 없습니다</h2>
+          <p className="mt-1 max-w-[34rem] text-[14px] leading-5 text-[#64748b]">결제가 완료되면 매출 추이와 구성, 적용된 혜택을 확인할 수 있습니다.</p>
+        </div> : <>
+        <Section title={range === "365d" ? "월별 매출" : range === "90d" ? "주별 매출" : "일별 매출"} aside={<span className="text-[13px] text-[#718096]">결제 완료분</span>}>
           {chartRows.length ? <div className="flex h-40 items-end gap-2 overflow-x-auto border-b border-[#e8edf3] pb-2">
             {chartRows.map((item) => <div key={item.date} title={`${item.date}: ${won(item.paidAmount)}`} className="flex h-full min-w-[24px] flex-1 flex-col items-center justify-end gap-1">
               <div className="w-full max-w-8 rounded-t bg-[#4b83f5]" style={{ height: `${Math.max(3, item.paidAmount / maxDaily * 100)}%` }} />
@@ -90,16 +96,17 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
             </div>)}
           </div> : <p className="py-5 text-center text-[14px] text-[#718096]">선택한 기간의 결제 매출이 없습니다.</p>}
         </Section>
-        <Section title="매출 구성">
+        {(payload.sales.categories.length > 0 || payload.sales.paidCount > 0) && <Section title="매출 구성">
           {payload.sales.categories.length ? <div className="divide-y divide-[#edf0f4]">
             {payload.sales.categories.map((item) => <div key={item.name} className="flex items-center justify-between gap-4 py-3 text-[14px]"><div className="min-w-0"><p className="truncate font-medium text-[#29364a]">{item.name}</p><p className="mt-0.5 text-[13px] text-[#718096]">{item.count}건</p></div><p className="shrink-0 font-medium tabular-nums text-[#172033]">{won(item.amount)}</p></div>)}
           </div> : <p className="py-2 text-[14px] text-[#718096]">상품·서비스 매출 구분이 기록된 항목이 없습니다.</p>}
-        </Section>
-        <Section title="혜택 사용" aside={<span className="text-[13px] text-[#718096]">기록된 혜택만 표시</span>}>
+        </Section>}
+        {(payload.sales.benefits.length > 0 || payload.sales.paidCount > 0) && <Section title="혜택 사용" aside={<span className="text-[13px] text-[#718096]">기록된 혜택만 표시</span>}>
           {payload.sales.benefits.length ? <div className="divide-y divide-[#edf0f4]">
             {payload.sales.benefits.map((item) => <div key={item.name} className="flex flex-wrap items-center justify-between gap-2 py-3 text-[14px]"><p className="font-medium text-[#29364a]">{item.name}</p><p className="text-[#58677c]">{item.usageCount}회 사용{item.freeServiceCount ? ` · 무료 서비스 ${item.freeServiceCount}회` : ""}{item.discountAmount ? ` · 할인 ${won(item.discountAmount)}` : ""}</p></div>)}
           </div> : <p className="py-2 text-[14px] text-[#718096]">선택한 기간에 기록된 쿠폰·서비스 혜택이 없습니다.</p>}
-        </Section>
+        </Section>}
+        </>}
         {(payload.sales.unpaidAmount || payload.sales.expectedAmount) ? <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-[#e8edf3] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#68778c] sm:px-5"><span>미수 {won(payload.sales.unpaidAmount)}</span><span>예정 {won(payload.sales.expectedAmount)}</span><span className="text-[#8591a0]">결제 매출 합계에는 포함하지 않았습니다.</span></div> : null}
       </>}
   </div>;

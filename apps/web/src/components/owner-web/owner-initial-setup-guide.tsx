@@ -104,6 +104,7 @@ function SetupChecklist({
   onNavigate: (screen: OwnerWebScreenKey) => void;
 }) {
   return (
+    <>
     <ol className={compact ? "grid min-w-0 grid-cols-2 gap-1.5" : "space-y-1.5"}>
       {setupItems.map((item, index) => {
         const complete = confirmed.includes(item.key);
@@ -136,6 +137,14 @@ function SetupChecklist({
         );
       })}
     </ol>
+    <button
+      type="button"
+      onClick={() => onNavigate("bookingLink")}
+      className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#15213b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+    >
+      예약 페이지 설정
+    </button>
+    </>
   );
 }
 

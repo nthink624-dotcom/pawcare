@@ -11,6 +11,7 @@ export type CustomerManagementTableRow = {
   phone: string;
   customerGrade: "신규" | "일반" | "단골";
   recentVisitDate: string | null;
+  recentService: string | null;
   pets: Array<{ name: string; birthday: string | null }>;
 };
 
@@ -87,7 +88,7 @@ export default function CustomerManagementTable({
   return (
     <>
       <div className="hidden h-full overflow-auto xl:block">
-        <table className="w-full min-w-[720px] table-fixed border-collapse text-[14px] leading-5">
+        <table className="w-full min-w-[880px] table-fixed border-collapse text-[14px] leading-5">
           <thead className="sticky top-0 z-10 bg-[#f4f5f3] text-[#4f5a64]">
             <tr className="border-b border-[#dbe2ea]">
               {deleteMode ? <th className="w-14 px-2 py-0" aria-label="선택" /> : null}
@@ -100,6 +101,7 @@ export default function CustomerManagementTable({
               <th className="px-2 py-0 text-left font-medium">반려동물 이름</th>
               <th className="px-2 py-0 text-left font-medium">반려동물 나이</th>
               <th className="px-2 py-0 text-left font-medium">최근 방문일</th>
+              <th className="px-2 py-0 text-left font-medium">최근 받은 서비스</th>
             </tr>
           </thead>
           <tbody>
@@ -130,6 +132,7 @@ export default function CustomerManagementTable({
                   <td className="truncate px-2">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</td>
                   <td className="truncate px-2">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</td>
                   <td className="truncate px-2 tabular-nums">{row.recentVisitDate || "미방문"}</td>
+                  <td className="break-words px-2 py-2" title={row.recentService || undefined}>{row.recentService || (row.recentVisitDate ? "미등록" : "미방문")}</td>
                 </tr>
               );
             })}
@@ -160,6 +163,7 @@ export default function CustomerManagementTable({
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 이름</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</dd></div>
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 나이</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</dd></div>
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">최근 방문일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentVisitDate || "미방문"}</dd></div>
+                <div className="col-span-2 min-w-0"><dt className="font-medium text-[#64748b]">최근 받은 서비스</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentService || (row.recentVisitDate ? "미등록" : "미방문")}</dd></div>
               </dl>
             </article>
           );

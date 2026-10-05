@@ -42,6 +42,7 @@ type CustomerViewRow = {
   tags: string[];
   recentVisit: string;
   recentVisitDate: string | null;
+  recentService: string | null;
   nextBooking: string;
   nextBookingDate: string | null;
   nextBookingService: string;
@@ -295,8 +296,16 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
       .reverse()
       .find((appointment) => appointment.status === "completed");
     const recentRecordTime = getTimestampParts(recentRecord?.groomed_at);
-    const recentVisitDate = recentRecordTime.date || recentCompletedAppointment?.appointment_date || null;
-    const recentVisit = recentRecordTime.date
+    const useRecentRecord = Boolean(recentRecordTime.date && (
+      !recentCompletedAppointment
+      || recentRecord.appointment_id === recentCompletedAppointment.id
+      || `${recentRecordTime.date} ${recentRecordTime.time}` >= `${recentCompletedAppointment.appointment_date} ${recentCompletedAppointment.appointment_time.slice(0, 5)}`
+    ));
+    const recentVisitDate = useRecentRecord ? recentRecordTime.date : recentCompletedAppointment?.appointment_date || null;
+    const recentService = useRecentRecord
+      ? recentRecord.service_name_snapshot?.trim() || serviceNameById.get(recentRecord.service_id) || null
+      : recentCompletedAppointment ? serviceNameById.get(recentCompletedAppointment.service_id) || null : null;
+    const recentVisit = useRecentRecord
       ? formatMonthDayTime(recentRecordTime.date, recentRecordTime.time)
       : recentCompletedAppointment
         ? formatMonthDayTime(recentCompletedAppointment.appointment_date, recentCompletedAppointment.appointment_time)
@@ -331,6 +340,7 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
       tags: tags.length > 0 ? tags : ["일반"],
       recentVisit,
       recentVisitDate,
+      recentService,
       nextBooking: upcomingAppointment ? formatMonthDayTime(upcomingAppointment.appointment_date, upcomingAppointment.appointment_time) : "예약 없음",
       nextBookingDate: upcomingAppointment?.appointment_date ?? null,
       nextBookingService,
@@ -358,11 +368,12 @@ function buildLocalMockCustomerRows(): CustomerViewRow[] {
     { id: "MOCK-008", name: "서민지", phone: "010-4811-2904", pets: ["구름"], tags: ["피부 민감"], recentVisit: "5/6", recentVisitDate: "2026-05-06", nextBooking: "5/22 16:00", nextBookingDate: "2026-05-22", memo: "저자극 샴푸 사용.", alerts: "알림 수신 중", alertEnabled: true, appointmentCount: 6, groomingCount: 6, noshowCount: 0 },
     { id: "MOCK-009", name: "오지후", phone: "010-5560-7721", pets: ["하루"], tags: ["대형견"], recentVisit: "5/3", recentVisitDate: "2026-05-03", nextBooking: "5/17 13:00", nextBookingDate: "2026-05-17", memo: "목욕 시간 넉넉한 확보 필요.", alerts: "알림 수신 중", alertEnabled: true, appointmentCount: 3, groomingCount: 3, noshowCount: 0 },
     { id: "MOCK-010", name: "김유라", phone: "010-7002-1908", pets: ["미미"], tags: ["첫 방문"], recentVisit: "방문 전", recentVisitDate: null, nextBooking: "5/15 12:30", nextBookingDate: "2026-05-15", memo: "예약 때 요청사항 없음.", alerts: "알림 수신 중", alertEnabled: true, appointmentCount: 1, groomingCount: 0, noshowCount: 0 },
-  ] satisfies Array<Omit<CustomerViewRow, "searchText" | "deleted" | "nextBookingService" | "petDetails">>;
+  ] satisfies Array<Omit<CustomerViewRow, "searchText" | "deleted" | "nextBookingService" | "petDetails" | "recentService">>;
 
   return rows.map((row) => ({
     ...row,
     deleted: false,
+    recentService: null,
     nextBookingService: row.nextBookingDate ? "전체 미용" : "예약 없음",
     petDetails: row.pets.map((petName, index) => ({
       id: `mock-pet-${row.id}-${index}`,
@@ -587,6 +598,7 @@ export default function CustomerManagementScreen({
         phone: row.phone,
         customerGrade,
         recentVisitDate: row.recentVisitDate,
+        recentService: row.recentService,
         pets: row.petDetails.map((pet) => ({ name: pet.name, birthday: pet.birthday })),
       };
     });
@@ -630,6 +642,7 @@ export default function CustomerManagementScreen({
       tags: tags.length > 0 ? tags : ["일반"],
       recentVisit: "방문 전",
       recentVisitDate: null,
+      recentService: null,
       nextBooking: "예약 없음",
       nextBookingDate: null,
       nextBookingService: "예약 없음",

@@ -835,6 +835,7 @@ function appointmentToDailyBooking(
     date: formatScheduleDateLabel(selectedDate),
     appointmentDate: appointment.appointment_date,
     staffKey: staffColumn.key,
+    staffAssignmentLocked: Boolean(persistedStaffKey && assignedStaff),
     staffName: staffColumn.name,
     serviceId: appointment.service_id,
     memo: appointment.memo,
@@ -888,6 +889,7 @@ type DailyBooking = {
   date: string;
   appointmentDate?: string;
   staffKey: StaffKey;
+  staffAssignmentLocked?: boolean;
   staffName: string;
   serviceId?: string;
   memo?: string;
@@ -1391,7 +1393,7 @@ function resolveStaffBookingConflicts(bookings: DailyBooking[], staffColumns: Ow
       ...staffColumns.slice(0, currentColumnIndex),
     ];
     const targetColumn =
-      booking.displayMode === "reservation-chip"
+      booking.staffAssignmentLocked || booking.displayMode === "reservation-chip"
         ? candidateColumns[0]
         : candidateColumns.find(
             (staffColumn) =>

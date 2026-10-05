@@ -2,6 +2,7 @@
 
 import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { NotebookPen, Scissors } from "lucide-react";
 
 import {
   buildScheduleStaffLaneColumns,
@@ -11,7 +12,7 @@ import {
 import { CalendarStaffLaneHeader } from "@/components/owner-web/calendar-staff-lane-header";
 import { CalendarTimeRail, CalendarTimeRailHeader } from "@/components/owner-web/calendar-time-rail";
 import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
-import { getAppointmentIdentityTone } from "@/lib/appointment-identity-colors";
+import { getStaffChipTone } from "@/lib/staff-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { StaffScheduleOverride } from "@/types/domain";
 
@@ -54,6 +55,7 @@ type DailyBooking = {
   duration: number;
   memo?: string;
   customerMemo?: string;
+  petPhotoUrl?: string | null;
   staffKey: StaffKey;
   actualTimeLabel?: string;
   scheduledTimeLabel?: string;
@@ -87,26 +89,45 @@ function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, 
     booking.customerMemo?.trim() ? `고객 메모 · ${booking.customerMemo.trim()}` : "",
     booking.memo?.trim() ? `예약 메모 · ${booking.memo.trim()}` : "",
   ].filter(Boolean);
-  const memo = noteParts.join(" / ") || "고객 메모 · 없음";
-  return (
-    <span className={cn("h-full w-full min-w-0 text-[16px] font-normal leading-6 text-[#334155]", singleLine ? "flex items-center gap-2 px-3" : "grid content-start grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 px-3 py-2")}>
-      <span data-booking-content="identity" className={cn("min-w-0 truncate font-medium text-[#17243c]", singleLine && "max-w-[25%] shrink-0")}>
-        {booking.pet}{!singleLine && booking.customer ? ` · ${booking.customer}` : ""}
-      </span>
-      {singleLine ? <span data-booking-content="service" className="min-w-0 flex-1 truncate" title={service}>{service}</span> : null}
+  const memo = noteParts.join(" / ");
+  if (singleLine) return (
+    <span className="flex h-full w-full min-w-0 items-center gap-2 px-3 text-[16px] font-normal leading-6 text-[#334155]">
+      <span data-booking-content="identity" className="max-w-[25%] min-w-0 shrink-0 truncate font-medium text-[#17243c]">{booking.pet}</span>
+      <span data-booking-content="service" className="min-w-0 flex-1 truncate" title={service}>{service}</span>
       <span data-booking-content="time" className="shrink-0 whitespace-nowrap tabular-nums text-[#526174]">{timeLabel}</span>
-      {singleLine ? (
-        <span className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span>
-      ) : (
-        <span className="col-span-2 flex min-w-0 items-center gap-2">
-          <span data-booking-content="service" className="min-w-0 flex-1 truncate" title={service}>{service}</span>
-          {pendingOverlapLabel ? <span className="shrink-0 text-[14px] leading-5 text-[#a46710]">{pendingOverlapLabel}</span> : null}
-          <span className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span>
+      <span data-booking-status="true" className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span>
+    </span>
+  );
+  return (
+    <span className="@container/chip flex h-full w-full min-w-0 flex-col gap-1 px-3 pb-3.5 pt-2.5 text-[16px] font-normal leading-6 text-[#334155]">
+      <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <span className="flex min-w-0 items-center gap-2.5">
+          {height >= 100 ? (
+            <span data-booking-avatar="true" className="hidden size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-white/80 bg-white/80 @[300px]/chip:inline-flex">
+              <img src={booking.petPhotoUrl || "/images/default-pet-profile.png"} alt="" draggable={false} loading="lazy" className={cn("size-full", booking.petPhotoUrl ? "object-cover" : "object-contain")} onError={(event) => { if (!event.currentTarget.src.endsWith("/images/default-pet-profile.png")) event.currentTarget.src = "/images/default-pet-profile.png"; }} />
+            </span>
+          ) : null}
+          <span className="min-w-0 flex-1">
+            <span data-booking-content="identity" className="flex min-w-0 items-baseline gap-1.5" title={[booking.pet, booking.customer].filter(Boolean).join(" · ")}>
+              <span className="min-w-0 truncate font-medium text-[#17243c]">{booking.pet}</span>
+              {booking.customer ? <span className="hidden min-w-0 truncate text-[#64748b] @[380px]/chip:inline">· {booking.customer}</span> : null}
+            </span>
+            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[#526174]">
+              <Scissors aria-hidden="true" className="hidden size-4 shrink-0 @[300px]/chip:block" />
+              <span data-booking-content="service" className="min-w-0 truncate" title={service}>{service}</span>
+            </span>
+          </span>
         </span>
-      )}
-      {height >= 100 ? (
-        <span data-booking-content="memo" data-booking-request-note={noteParts.length ? "present" : "empty"} title={memo} className={cn("col-span-2 min-w-0 border-t border-[#e8edf3] pt-1 text-[#64748b]", height >= 140 ? "line-clamp-2" : "truncate")}>
-          {memo}
+        <span className="flex shrink-0 flex-col items-end gap-1">
+          <span data-booking-content="time" className="whitespace-nowrap font-medium tabular-nums text-[#526174]">{timeLabel}</span>
+          <span data-booking-status="true" className={cn("rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span>
+        </span>
+      </span>
+      {pendingOverlapLabel ? <span className="truncate text-[14px] leading-5 text-[#a46710]">{pendingOverlapLabel}</span> : null}
+      {height >= 100 && memo ? (
+        <span className={cn("flex min-w-0 items-start gap-2 text-[#64748b]", height >= 140 && "mt-auto") }>
+          <NotebookPen aria-hidden="true" className="mt-1 size-4 shrink-0" />
+          <span data-booking-content="memo" data-booking-request-note="present" title={memo} className={cn("min-w-0", height >= 140 ? "line-clamp-2" : "truncate")}>{memo}</span>
         </span>
       ) : null}
     </span>
@@ -798,7 +819,8 @@ export function DailyScheduleGrid({
                           const changeStatus = isChangeBookingStatus(booking.status);
                           const timedStatus = getTimedBookingStatus(booking, selectedDate, currentHour);
                           const completedBooking = isCompletedBookingStatus(booking.sourceStatus ?? booking.status);
-                          const identityTone = getAppointmentIdentityTone(booking.petId ?? booking.pet ?? booking.id);
+                          const bookingStaff = visibleStaff.find((member) => member.key === booking.staffKey);
+                          const identityTone = getStaffChipTone(booking.staffKey, bookingStaff?.chipColorIndex);
                           const canAdjustBookingTime = !changeStatus && !completedBooking;
                           const density = getBookingCardDensity(booking.duration);
                           const expandedMicro = density === "compact" && expandedMicroBookingId === booking.id;
@@ -825,16 +847,16 @@ export function DailyScheduleGrid({
                                   onSelectStaff(booking.staffKey || firstStaffKey);
                                 }}
                                 className={cn(
-                                  "absolute z-20 box-border flex min-h-11 items-start justify-start overflow-hidden rounded-[9px] border border-l-[3px] p-0 text-left text-[#334155] shadow-none outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
-                                  selected && "!border-[#bcd5fa] ring-1 ring-[#bcd5fa]",
+                                  "group/booking absolute z-20 box-border flex min-h-11 items-start justify-start overflow-hidden rounded-[14px] border border-l-[3px] p-0 text-left text-[#334155] shadow-[0_1px_2px_rgba(15,23,42,0.03)] outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_3px_10px_rgba(15,23,42,0.07)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
+                                  selected && "!border-[#bcd5fa] shadow-[0_3px_12px_rgba(37,99,235,0.09)] ring-1 ring-[#bcd5fa]",
                                 )}
                                 style={{
                                   ...bookingLayoutStyle,
                                   top: getBookingTop(booking.start, scheduleDisplayLayout),
                                   height: bookingHeight,
-                                  backgroundColor: completedBooking ? "#f8fafc" : "#ffffff",
-                                  borderColor: "#dde5ef",
-                                  borderLeftColor: identityTone.accent,
+                                  backgroundColor: completedBooking ? "#f8fafc" : `color-mix(in srgb, ${identityTone.background} 55%, white)`,
+                                  borderColor: completedBooking ? "#dde5ef" : identityTone.border,
+                                  borderLeftColor: identityTone.selectedBackground,
                                 }}
                               >
                                 <BookingChipContent booking={booking} timeLabel={booking.scheduledTimeLabel ?? timeLabel} statusLabel={statusLabel} statusPillClass={statusPillClass} height={bookingHeight} pendingOverlapLabel={pendingOverlapLabel} />
@@ -860,20 +882,20 @@ export function DailyScheduleGrid({
                                 setExpandedMicroBookingId(density === "compact" ? booking.id : null);
                               }}
                               className={cn(
-                                "absolute z-20 box-border cursor-grab overflow-hidden rounded-[10px] border border-l-[3px] p-0 text-left shadow-none outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1 active:cursor-grabbing",
+                                "group/booking absolute z-20 box-border cursor-grab overflow-hidden rounded-[14px] border border-l-[3px] p-0 text-left shadow-[0_1px_2px_rgba(15,23,42,0.03)] outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_3px_10px_rgba(15,23,42,0.07)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1 active:cursor-grabbing",
                                 !canAdjustBookingTime && "cursor-pointer active:cursor-pointer",
                                 resizingBooking?.bookingId === booking.id && "cursor-ns-resize",
                                 draggingBookingId === booking.id && "opacity-70 ring-1 ring-[#93c5fd]",
                                 expandedMicro && "z-50 shadow-none",
-                                selected && "!border-[#bcd5fa] ring-1 ring-[#bcd5fa]",
+                                selected && "!border-[#bcd5fa] shadow-[0_3px_12px_rgba(37,99,235,0.09)] ring-1 ring-[#bcd5fa]",
                               )}
                               style={{
                                 ...bookingLayoutStyle,
                                 top: getBookingTop(booking.start, scheduleDisplayLayout),
                                 height: bookingHeight,
-                                backgroundColor: completedBooking ? "#f8fafc" : "#ffffff",
-                                borderColor: "#dde5ef",
-                                borderLeftColor: identityTone.accent,
+                                backgroundColor: completedBooking ? "#f8fafc" : `color-mix(in srgb, ${identityTone.background} 55%, white)`,
+                                borderColor: completedBooking ? "#dde5ef" : identityTone.border,
+                                borderLeftColor: identityTone.selectedBackground,
                               }}
                             >
                               <BookingChipContent booking={booking} timeLabel={displayTimeLabel} statusLabel={statusLabel} statusPillClass={statusPillClass} height={bookingHeight} pendingOverlapLabel={pendingOverlapLabel} />
@@ -887,10 +909,10 @@ export function DailyScheduleGrid({
                                   onPointerMove={handleResizePointerMove}
                                   onPointerUp={finishResizeBooking}
                                   onPointerCancel={finishResizeBooking}
-                                  className="absolute inset-x-3 bottom-0.5 z-30 flex h-4 cursor-ns-resize touch-none items-center justify-center"
+                                  className={cn("absolute inset-x-3 bottom-0.5 z-30 flex h-4 cursor-ns-resize touch-none items-center justify-center opacity-0 transition-opacity group-hover/booking:opacity-100 group-focus-within/booking:opacity-100 [@media(hover:none)]:opacity-100", (selected || resizingBooking?.bookingId === booking.id) && "opacity-100")}
                                 >
                                   {showResizeHandleBar ? (
-                                    <span className="h-[5px] w-10 rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.88)]" style={{ backgroundColor: identityTone.accent }} />
+                                    <span className="h-[4px] w-8 rounded-full" style={{ backgroundColor: identityTone.selectedBackground }} />
                                   ) : null}
                                 </div>
                               ) : null}

@@ -863,6 +863,7 @@ const baseDailyBookings = calendarBookings.map((booking) => ({
 }));
 
 type DailyBooking = {
+  customerMemo?: string;
   id: string;
   day: string;
   start: number;
@@ -2387,6 +2388,13 @@ function BookingSidePanel({
                 )}
               </div>
             </section>
+
+            {selectedBooking.customerMemo?.trim() ? (
+              <section className="pt-4">
+                <h3 className="text-[14px] font-medium leading-5 text-[#334155]">고객 메모</h3>
+                <p className="mt-2 whitespace-pre-wrap break-words rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 text-[16px] font-normal leading-6 text-[#334155]">{selectedBooking.customerMemo.trim()}</p>
+              </section>
+            ) : null}
 
             <section className="pt-4">
               <h3 className="text-[14px] font-medium leading-5 text-[#334155]">코멘트</h3>
@@ -4349,8 +4357,13 @@ export default function CalendarManagementScreen({
   }
 
   const filteredBookings = useMemo(
-    () => displayScopedBookings.filter((booking) => isTimelineBookingStatus(booking.status)),
-    [displayScopedBookings],
+    () => {
+      const guardianById = new Map(bootstrapData.guardians.map((guardian) => [guardian.id, guardian]));
+      return displayScopedBookings
+        .filter((booking) => isTimelineBookingStatus(booking.status))
+        .map((booking) => ({ ...booking, customerMemo: booking.guardianId ? guardianById.get(booking.guardianId)?.memo ?? "" : "" }));
+    },
+    [bootstrapData.guardians, displayScopedBookings],
   );
 
   const selectedBooking = filteredBookings.find((item) => item.id === selectedBookingId);

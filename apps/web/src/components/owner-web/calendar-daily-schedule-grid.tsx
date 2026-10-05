@@ -53,6 +53,7 @@ type DailyBooking = {
   start: number;
   duration: number;
   memo?: string;
+  customerMemo?: string;
   staffKey: StaffKey;
   actualTimeLabel?: string;
   scheduledTimeLabel?: string;
@@ -82,7 +83,11 @@ function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, 
 }) {
   const singleLine = height < 64;
   const service = booking.service || "서비스 미지정";
-  const memo = booking.memo?.trim() || "없음";
+  const noteParts = [
+    booking.customerMemo?.trim() ? `고객 메모 · ${booking.customerMemo.trim()}` : "",
+    booking.memo?.trim() ? `예약 메모 · ${booking.memo.trim()}` : "",
+  ].filter(Boolean);
+  const memo = noteParts.join(" / ") || "고객 메모 · 없음";
   return (
     <span className={cn("h-full w-full min-w-0 text-[16px] font-normal leading-6 text-[#334155]", singleLine ? "flex items-center gap-2 px-3" : "grid content-start grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 px-3 py-2")}>
       <span data-booking-content="identity" className={cn("min-w-0 truncate font-medium text-[#17243c]", singleLine && "max-w-[25%] shrink-0")}>
@@ -100,8 +105,8 @@ function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, 
         </span>
       )}
       {height >= 100 ? (
-        <span data-booking-content="memo" data-booking-request-note={booking.memo?.trim() ? "present" : "empty"} title={`고객 메모 ${memo}`} className={cn("col-span-2 min-w-0 border-t border-[#e8edf3] pt-1 text-[#64748b]", height >= 140 ? "line-clamp-2" : "truncate")}>
-          고객 메모 · {memo}
+        <span data-booking-content="memo" data-booking-request-note={noteParts.length ? "present" : "empty"} title={memo} className={cn("col-span-2 min-w-0 border-t border-[#e8edf3] pt-1 text-[#64748b]", height >= 140 ? "line-clamp-2" : "truncate")}>
+          {memo}
         </span>
       ) : null}
     </span>
@@ -804,7 +809,7 @@ export function DailyScheduleGrid({
                           const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
                           const statusPillClass = getReservationStatusPillClass(booking, selectedDate, currentHour);
                           const pendingOverlapLabel = getPendingOverlapLabel(booking, conflictBookings);
-                          const requestNote = booking.memo?.trim() ?? "";
+                          const requestNote = [booking.customerMemo?.trim(), booking.memo?.trim()].filter(Boolean).join(" / ");
                           const requestNoteText = requestNote ? `고객 메모 ${requestNote}` : "고객 메모 없음";
 
                           if (booking.displayMode === "reservation-chip") {

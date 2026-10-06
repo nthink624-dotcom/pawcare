@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import CustomerBookingManagePanel from "@/components/customer/customer-booking-manage-panel";
 import CustomerFirstVisitFlow from "@/components/customer/customer-first-visit-claude-flow";
 import { fetchApiJson } from "@/lib/api";
+import BookingPolicyNotice from "@/components/booking/booking-policy-notice";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import {
   buildCustomerServiceMenuOptions,
@@ -459,6 +460,7 @@ export default function CustomerBookingPage({
   const [completedFirstVisitBooking, setCompletedFirstVisitBooking] = useState<BookingCreateResponse | null>(null);
   const [completionManageAccessToken, setCompletionManageAccessToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [policyAcceptance, setPolicyAcceptance] = useState({ version: 0, accepted: false });
   const [firstVisitSlots, setFirstVisitSlots] = useState<string[]>([]);
   const [firstVisitRecommendedSlots, setFirstVisitRecommendedSlots] = useState<string[]>([]);
   const [firstVisitRecommendationSource, setFirstVisitRecommendationSource] = useState<CustomerAvailabilityPayload["recommendationSource"]>();
@@ -883,6 +885,8 @@ export default function CustomerBookingPage({
     try {
       const bookingPayload = {
         shopId,
+        bookingPolicyVersion: policyAcceptance.version,
+        bookingPolicyAccepted: policyAcceptance.accepted,
         guardianName: firstVisit.ownerName,
         phone: phoneNormalize(firstVisit.phone),
         petName: firstVisit.petName,
@@ -986,6 +990,8 @@ export default function CustomerBookingPage({
               submitting={submitting}
               completedBooking={completedFirstVisitBooking}
               previewOnly={previewOnly}
+              policyReady={previewOnly || policyAcceptance.accepted}
+              policyNotice={previewOnly ? null : <BookingPolicyNotice shopId={shopId} onChange={setPolicyAcceptance} />}
               onBackToEntry={resetView}
               onStepBack={() => {
                 if (lockFirstVisitStep) return;

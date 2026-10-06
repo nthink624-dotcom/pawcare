@@ -10,6 +10,7 @@ import {
 import { mergeResolvedProfileImageUrls } from "@/lib/media/profile-image-collection";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 import { cn } from "@/lib/utils";
+import BookingPolicyPanel from "@/components/owner-web/booking-policy-panel";
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
 import type { BootstrapStaffMember, OwnerProfile, Service, Shop } from "@/types/domain";
 
@@ -431,7 +432,7 @@ export default function ShopInfoSettingsPanel({
     />
   );
   useEffect(() => {
-    if (initialSectionId) setActiveSectionId(initialSectionId);
+    setActiveSectionId(initialSectionId ?? "basic");
   }, [initialSectionId]);
   const settingsScrollRef = useRef<HTMLDivElement | null>(null);
   function handleProfileTouchStart(event: TouchEvent<HTMLButtonElement>) {
@@ -615,6 +616,7 @@ export default function ShopInfoSettingsPanel({
   }, [shop?.id, staffMembers]);
 
   useEffect(() => {
+    if (activeSectionId === "policy") return;
     if (sectionTabs.some((tab) => tab.id === activeSectionId)) return;
     setActiveSectionId(sectionTabs[0]?.id ?? "basic");
   }, [activeSectionId, sectionTabs]);
@@ -648,14 +650,8 @@ export default function ShopInfoSettingsPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3" data-shop-info-main-surface>
-          <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:px-5">
-            {showCustomerPreview && <div className="mb-2 flex justify-end xl:hidden">
-              <button type="button" onClick={() => setPreviewDialogOpen(true)}
-                className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#e1e4ea] px-3 text-[16px] font-medium text-[#15213b]">
-                <Smartphone className="h-4 w-4" />고객 화면 미리보기
-              </button>
-            </div>}
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-1" data-shop-info-main-surface>
+          {activeSectionId !== "policy" && <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:px-5">
             <div className="flex items-center justify-between gap-4">
               <div
                 role="tablist"
@@ -683,13 +679,19 @@ export default function ShopInfoSettingsPanel({
                 ))}
               </div>
             </div>
-          </div>
+            {showCustomerPreview && <div className="mt-2 flex justify-end xl:hidden">
+              <button type="button" onClick={() => setPreviewDialogOpen(true)}
+                className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#e1e4ea] px-3 text-[16px] font-medium text-[#15213b]">
+                <Smartphone className="h-4 w-4" />고객 화면 미리보기
+              </button>
+            </div>}
+          </div>}
 
           <div className={cn("grid min-h-0 min-w-0 flex-1 gap-4", showCustomerPreview && "xl:grid-cols-[minmax(0,1fr)_320px]")}>
           <div
             ref={settingsScrollRef}
             data-shop-info-scroll-region
-            className="no-scrollbar min-h-0 min-w-0 overflow-y-auto rounded-[13px] bg-white px-3 py-3 sm:px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="no-scrollbar min-h-0 min-w-0 overflow-y-auto rounded-[13px] bg-white px-3 pt-1 pb-1 sm:px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <div className="min-w-0 w-full space-y-[18px]">
               <div id="shop-info-panel-basic" role="tabpanel" aria-labelledby="shop-info-tab-basic" hidden={activeSectionId !== "basic"}>
@@ -1115,6 +1117,10 @@ export default function ShopInfoSettingsPanel({
                 </div>
               ) : null}
 
+              <section id="shop-info-panel-policy" aria-label="예약 정책" hidden={activeSectionId !== "policy"}>
+                {activeSectionId === "policy" && shop ? <BookingPolicyPanel shopId={shop.id} editable={editable} /> : null}
+              </section>
+
               {serviceMenuContent ? (
                 <div id="shop-info-panel-menu" role="tabpanel" aria-labelledby="shop-info-tab-menu" hidden={activeSectionId !== "menu"}>
                   <PanelCard
@@ -1151,4 +1157,3 @@ export default function ShopInfoSettingsPanel({
     </div>
   );
 }
-

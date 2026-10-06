@@ -2527,7 +2527,7 @@ export default function OwnerApp({
                               key={item.label}
                               label={item.label}
                               description={item.description}
-                              active={guardianNotificationsEnabled && selectedGuardian.notification_settings[item.settingKey]}
+                              active={guardianNotificationsEnabled && selectedGuardian.notification_settings[item.settingKey] !== false}
                               disabled={saving || !guardianNotificationsEnabled}
                               onChange={(checked) => {
                                 void updateGuardianNotifications(selectedGuardian.id, { [item.settingKey]: checked });
@@ -4946,7 +4946,6 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
     </div>
   );
 }
-
 
 
 

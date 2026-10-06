@@ -1602,6 +1602,8 @@ function getDockedBookingViewport() {
   return window.matchMedia(dockedBookingMediaQuery).matches;
 }
 
+import BookingPreparationPanel from "@/components/booking/booking-preparation-panel";
+
 function BookingSidePanel({
   docked = false,
   activeMetric,
@@ -2324,6 +2326,7 @@ function BookingSidePanel({
             ) : null}
 
             <section className="pt-4">
+              <BookingPreparationPanel key={selectedBooking.id} shopId={shopId} appointmentId={selectedBooking.id} />
               <h3 className="text-[14px] font-medium leading-5 text-[#334155]">서비스 내역</h3>
               {selectedGuardianAlimtalkBlockedReason ? (
                 <div className="mb-2 rounded-[10px] border border-[#f3c6cf] bg-[#fff7f8] px-3 py-2 text-[13px] leading-5 text-[#9f3448]">

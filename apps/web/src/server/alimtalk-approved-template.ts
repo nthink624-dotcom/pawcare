@@ -4,6 +4,7 @@ import {
   type AlimtalkTemplateAlias,
   type NotificationTemplateVariables,
 } from "@/lib/notification-registry";
+import { APPROVED_ALIMTALK_CONTRACTS } from "@petmanager/shared/contracts/alimtalk";
 import { getConfiguredAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { NotificationType } from "@/types/domain";
@@ -34,6 +35,7 @@ type RelayTemplateCatalogBody = {
 };
 
 const aliasesThatMustHaveSsodaaButtons = new Set<AlimtalkTemplateAlias>([
+  "booking_consent_request",
   "booking_confirmed",
   "appointment_reminder_10m",
   "visit_schedule_notice",
@@ -89,12 +91,37 @@ function normalizeConnectedButton(
   };
 }
 
-function isApprovedAndUsableTemplate(detail: ConnectedTemplateDetail) {
+export function isApprovedAndUsableTemplate(
+  detail: ConnectedTemplateDetail,
+  alias?: AlimtalkTemplateAlias,
+) {
+  if (alias === "booking_consent_request") {
+    return detail.inspectionStatus?.toUpperCase() === "APR"
+      && ["ACT", "RDY"].includes(detail.serviceStatus?.toUpperCase() ?? "");
+  }
   return (
     detail.inspectionStatus === "APR" ||
     detail.serviceStatus === "ACT" ||
     detail.serviceStatus === "RDY"
   );
+}
+
+function normalizeTemplateText(value: string) {
+  return value.replace(/\r\n?/g, "\n").split("\n").map((line) => line.trimEnd()).join("\n").trim();
+}
+
+export function hasApprovedBookingConsentTemplateContract(detail: ConnectedTemplateDetail) {
+  const contract = APPROVED_ALIMTALK_CONTRACTS.booking_consent_request;
+  return normalizeTemplateText(detail.templateContent ?? "") === normalizeTemplateText(contract.body)
+    && detail.buttons.length === 1
+    && detail.buttons[0]?.type === "WL"
+    && detail.buttons[0]?.name.trim() === contract.button;
+}
+
+function validateTemplateContract(alias: AlimtalkTemplateAlias, detail: ConnectedTemplateDetail) {
+  if (alias === "booking_consent_request" && !hasApprovedBookingConsentTemplateContract(detail)) {
+    throw new Error("동의서 요청 알림톡의 승인 본문 또는 버튼이 등록된 계약과 달라 발송을 중단했습니다.");
+  }
 }
 
 async function getApprovedSsodaaTemplate(
@@ -106,12 +133,15 @@ async function getApprovedSsodaaTemplate(
 
   if (customTemplateCode) {
     const detail = body.allTemplates?.find((item) => item.templateCode === customTemplateCode) ?? null;
-    return detail && isApprovedAndUsableTemplate(detail)
-      ? normalizeConnectedTemplateDetail(customTemplateCode, detail)
-      : null;
+    if (!detail || !isApprovedAndUsableTemplate(detail, alias)) return null;
+    const normalized = normalizeConnectedTemplateDetail(customTemplateCode, detail);
+    validateTemplateContract(alias, normalized);
+    return normalized;
   }
 
-  return getApprovedSsodaaTemplateFromCatalog(alias, body);
+  const detail = getApprovedSsodaaTemplateFromCatalog(alias, body);
+  if (detail) validateTemplateContract(alias, detail);
+  return detail;
 }
 
 async function getShopApprovedTemplateCodes(shopId: string | undefined, types: NotificationType[]) {
@@ -170,17 +200,22 @@ function getApprovedSsodaaTemplateFromCatalog(
   alias: AlimtalkTemplateAlias,
   body: RelayTemplateCatalogBody,
 ): ConnectedTemplateDetail | null {
-  const templateCode = getConfiguredAlimtalkTemplateKey(alias)?.trim();
+  const configuredCode = getConfiguredAlimtalkTemplateKey(alias)?.trim();
+  const aliasEntry = body.items?.find(
+    (item) => item.alias === alias && (!configuredCode || item.configuredCode === configuredCode),
+  );
+  // The relay maps a template to its alias when the owner submits it for review.
+  // Resolve that mapping dynamically so approval is enough to enable the template;
+  // no separate Vercel env edit is needed after Kakao review.
+  const templateCode = configuredCode || aliasEntry?.configuredCode?.trim();
   if (!templateCode) return null;
 
   const detail =
-    body.items?.find(
-      (item) => item.alias === alias && item.configuredCode === templateCode,
-    )?.detail ??
+    aliasEntry?.detail ??
     body.allTemplates?.find((item) => item.templateCode === templateCode) ??
     null;
 
-  if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
+  if (!detail || !isApprovedAndUsableTemplate(detail, alias)) return null;
 
   return normalizeConnectedTemplateDetail(templateCode, detail);
 }
@@ -315,6 +350,12 @@ function renderApprovedTemplateButtons(params: {
       renderedValue: linkPc,
       variables: params.values,
     });
+    if (params.spec.templateAlias === "booking_consent_request") {
+      const bookingManageUrl = params.values["예약 확인 링크"]?.trim();
+      if (!bookingManageUrl || linkMobile !== bookingManageUrl || linkPc !== bookingManageUrl) {
+        throw new Error("동의서 작성 버튼이 해당 예약의 보호자 서명 링크와 일치하지 않아 발송을 중단했습니다.");
+      }
+    }
     return {
       ...button,
       linkMobile,

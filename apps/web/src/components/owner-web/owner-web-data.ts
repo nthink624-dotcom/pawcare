@@ -9,13 +9,14 @@
   | "staff"
   | "ownerProfile"
   | "shopInfo"
+  | "bookingPolicy"
   | "operatingHours"
   | "benefits"
   | "alerts"
   | "help";
 
 export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string }> = [
-  { key: "schedule", label: "예약 관리" },
+  { key: "schedule", label: "오늘" },
   { key: "bookingLink", label: "예약 링크" },
   { key: "calendarRecords", label: "캘린더" },
   { key: "customers", label: "고객 관리" },
@@ -23,6 +24,7 @@ export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string
   { key: "services", label: "요금표 관리" },
   { key: "staff", label: "직원 관리" },
   { key: "shopInfo", label: "매장 정보" },
+  { key: "bookingPolicy", label: "예약 정책" },
   { key: "benefits", label: "혜택 관리" },
   { key: "alerts", label: "알림 설정" },
   { key: "help", label: "도움말" },

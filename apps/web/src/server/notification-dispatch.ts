@@ -75,6 +75,7 @@ const abuseHandledStatuses = new Set<NotificationStatus>(["queued", "sent", "moc
 
 const oneShotAppointmentNotificationTypes = new Set<NotificationType>([
   "booking_received",
+  "booking_consent_request",
   "booking_confirmed",
   "owner_booking_requested",
   "booking_cancelled",
@@ -151,6 +152,8 @@ function buildAbuseDedupeKey(params: {
 
 function getDuplicateBlockMessage(type: NotificationType) {
   switch (type) {
+    case "booking_consent_request":
+      return "이미 이 예약의 동의서 요청 알림을 보냈거나 발송 대기 중입니다.";
     case "grooming_started":
       return "이미 이 예약의 미용 시작 알림을 보냈거나 발송 대기 중입니다. 미용 시작은 예약 건당 한 번만 보낼 수 있어요.";
     case "grooming_almost_done":
@@ -406,6 +409,15 @@ function legacyBuildNotificationMessage(params: {
           return previous !== "";
         })
         .join("\n");
+    case "booking_consent_request":
+      return [
+        `[${params.shopName}]`,
+        `${params.recipientName ?? "보호자"}님, ${params.petName} 미용 전 동의서를 확인해 주세요.`,
+        "",
+        `방문 일정: ${dateLabel}`,
+        "",
+        "아래 버튼을 눌러 내용을 읽고 서명해 주세요.",
+      ].join("\n");
     case "owner_booking_requested":
       return `새 예약이 접수되었어요.\n${params.petName}\n${dateLabel}`;
     case "booking_confirmed":
@@ -649,6 +661,11 @@ function buildNotificationButtons(params: {
       }];
     }
     return [];
+  }
+
+  if (params.type === "booking_consent_request") {
+    if (!params.bookingManageUrl) return [];
+    return [{ type: "WL", name: "동의서 작성", linkMobile: params.bookingManageUrl, linkPc: params.bookingManageUrl }];
   }
 
   if (params.type === "booking_confirmed") {
@@ -945,6 +962,9 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     status = "sent";
     provider = "in_app";
     sentAt = nowIso();
+  } else if (input.type === "booking_consent_request" && connectedTemplate?.source !== "ssodaa_approved") {
+    status = "failed";
+    failReason = "동의서 요청 알림톡 템플릿이 아직 카카오 승인·연결되지 않았습니다.";
   } else if (isPhotoAlimtalkRequest && !hasConfiguredPhotoAlimtalkTemplate) {
     status = "queued";
     provider = "pending_template";

@@ -1,0 +1,41 @@
+create or replace function public.snapshot_booking_policy() returns trigger
+language plpgsql security invoker set search_path = public as $$
+declare p jsonb; pv integer; c jsonb := '[]'; t jsonb; signed jsonb; n integer; rule text; required boolean; applies boolean; due_at timestamptz;
+begin
+  select policy,version into p,pv from shop_booking_policies where shop_id = new.shop_id;
+  if p is null then return new; end if;
+  select count(*) into n from appointments where shop_id = new.shop_id and guardian_id = new.guardian_id and status = 'noshow';
+  select b.rule into rule from guardian_booking_conditions b where b.shop_id = new.shop_id and b.guardian_id = new.guardian_id;
+  rule := coalesce(rule, case when n >= 2 then p->>'repeatNoshowRule' when n = 1 then p->>'firstNoshowRule' else 'normal' end);
+  applies := p->>'depositAudience' = 'all' or (p->>'depositAudience' = 'noshow' and n > 0)
+    or (p->>'depositAudience' = 'new' and not exists (
+      select 1 from appointments where shop_id = new.shop_id and guardian_id = new.guardian_id and status in ('completed','in_progress','almost_done')
+    ));
+  required := rule = 'deposit' or (p->>'depositMode' = 'required' and applies);
+  for t in select value from jsonb_array_elements(coalesce(p->'templates','[]')) loop
+    if coalesce(t->>'archivedAt','') <> '' then continue; end if;
+    if not coalesce((t->>'enabled')::boolean,false) then continue; end if;
+    if t->>'audience' = 'manual' then continue; end if;
+    if t->>'audience' = 'new' and exists (select 1 from appointments where shop_id=new.shop_id and guardian_id=new.guardian_id and status in ('completed','in_progress','almost_done')) then continue; end if;
+    signed := null;
+    if t->>'scope' = 'pet' then
+      select item into signed from booking_preparations b, lateral jsonb_array_elements(b.data->'consents') item
+      where b.shop_id = new.shop_id and b.guardian_id = new.guardian_id and b.pet_id = new.pet_id
+        and item->>'id' = t->>'id' and item->>'version' = t->>'version' and item->>'status' = 'signed'
+      order by b.updated_at desc limit 1;
+    end if;
+    c := c || jsonb_build_array(coalesce(signed, t || '{"status":"pending"}'::jsonb));
+  end loop;
+  due_at := least(now() + make_interval(hours => (p->>'depositDueHours')::integer), new.start_at);
+  insert into booking_preparations(appointment_id,shop_id,guardian_id,pet_id,data) values (
+    new.id,new.shop_id,new.guardian_id,new.pet_id,
+    jsonb_build_object('policy',p,'policyVersion',pv,'approvalRequired',rule='approval' and new.source='customer',
+      'guardianName',(select name from guardians where id=new.guardian_id),
+      'petName',(select name from pets where id=new.pet_id),'consents',c,'cancellation',null,
+      'history',case when new.source='customer' then jsonb_build_array(jsonb_build_object('action','policy_acceptance','at',now(),'actor','customer','note','예약 정책 확인')) else '[]'::jsonb end,'requests','[]'::jsonb,
+      'deposit',jsonb_build_object('status',case when required then 'pending' else 'not_requested' end,
+        'required',required,'amount',(p->>'depositAmount')::integer,'receivedAmount',0,'refundedAmount',0,
+        'dueAt',case when required then due_at else null end,'payerName','','reportedAt',null,'confirmedAt',null,'confirmedBy',null))
+  );
+  return new;
+end $$;

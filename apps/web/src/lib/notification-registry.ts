@@ -24,6 +24,7 @@ export type GuardianSettingKey = keyof GuardianNotificationSettings | null;
 
 export type AlimtalkTemplateAlias =
   | "booking_received"
+  | "booking_consent_request"
   | "booking_confirmed"
   | "booking_cancelled"
   | "appointment_reminder_10m"
@@ -38,6 +39,7 @@ export type AlimtalkTemplateAlias =
 
 export type AlimtalkTemplateConfigKey =
   | "templateBookingReceived"
+  | "templateBookingConsentRequest"
   | "templateBookingConfirmed"
   | "templateBookingCancelled"
   | "templateBookingRescheduledConfirmed"
@@ -74,13 +76,13 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     title: "예약 접수",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "고객이 예약을 신청하면 즉시 발송",
+    trigger: "현재 발송하지 않음. 확정 예약은 예약 확정 안내를 사용",
     dispatchSource: "src/server/customer-bookings.ts",
     templateAlias: "booking_received",
     templateConfigKey: "templateBookingReceived",
     shopSettingKey: "enabled",
     guardianSettingKey: "enabled",
-    notes: "자동 승인 매장에서도 접수 안내용으로 사용",
+    notes: "예약금 대기 접수 안내는 새 템플릿 승인·연결 후 제공",
     draftBody: [
       "[#{매장명}] #{반려동물명} 예약이 접수되었어요.",
       "방문 일정: #{예약일시}",
@@ -94,12 +96,26 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     ].join("\n"),
   },
   {
+    type: "booking_consent_request",
+    title: "동의서 작성 요청",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "오너가 예약별로 동의서 요청을 선택했을 때 수동 발송",
+    dispatchSource: "src/server/booking-preparation.ts",
+    templateAlias: "booking_consent_request",
+    templateConfigKey: "templateBookingConsentRequest",
+    shopSettingKey: "enabled",
+    guardianSettingKey: "consent_request_enabled",
+    notes: "카카오 승인 후에만 발송합니다.",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.booking_consent_request.body,
+  },
+  {
     type: "booking_confirmed",
     title: "예약 확정",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "오너가 직접 등록한 예약을 확정할 때만 발송. 고객이 직접 신청한 예약에는 발송하지 않음",
-    dispatchSource: "src/server/owner-mutations.ts",
+    trigger: "오너·고객 예약이 확정될 때 자동 발송. 예약금·승인 대기에는 발송하지 않음",
+    dispatchSource: "src/server/owner-mutations.ts / customer-bookings.ts / booking-preparation.ts",
     templateAlias: "booking_confirmed",
     templateConfigKey: "templateBookingConfirmed",
     shopSettingKey: "booking_confirmed_enabled",
@@ -300,6 +316,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
 ] as const;
 
 export const ACTIVE_ALIMTALK_TEMPLATE_ALIASES: readonly AlimtalkTemplateAlias[] = [
+  "booking_consent_request",
   "booking_confirmed",
   "booking_cancelled",
   "appointment_reminder_10m",
@@ -404,6 +421,8 @@ export function shouldSendByShopSettings(
       return true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
+    case "booking_consent_request":
+      return true;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
     case "grooming_almost_done":
@@ -428,8 +447,12 @@ export function shouldSendByGuardianSettings(
   if (!settings.enabled) return false;
 
   switch (type) {
+    case "booking_consent_request":
+      return settings.consent_request_enabled ?? true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
+    case "booking_consent_request":
+      return settings.consent_request_enabled ?? true;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
     case "appointment_reminder_10m":

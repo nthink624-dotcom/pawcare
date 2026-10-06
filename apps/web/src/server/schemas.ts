@@ -105,6 +105,8 @@ export const guardianUpdateSchema = z.object({
     enabled: z.boolean().optional(),
     revisit_enabled: z.boolean().optional(),
     booking_confirmed_enabled: z.boolean().optional(),
+    consent_request_enabled: z.boolean().optional(),
+    deposit_request_enabled: z.boolean().optional(),
     booking_cancelled_enabled: z.boolean().optional(),
     booking_rescheduled_enabled: z.boolean().optional(),
     appointment_reminder_10m_enabled: z.boolean().optional(),

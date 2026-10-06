@@ -256,6 +256,8 @@ export default function CustomerFirstVisitClaudeFlow({
   onStepBack,
   onNext,
   onSubmit,
+  policyNotice,
+  policyReady = true,
   onServiceSelect,
   onStaffSelect,
   onDateSelect,
@@ -293,6 +295,8 @@ export default function CustomerFirstVisitClaudeFlow({
   onStepBack: () => void;
   onNext: () => void;
   onSubmit: () => Promise<void>;
+  policyNotice?: import("react").ReactNode;
+  policyReady?: boolean;
   onOpenShopInfo: () => void;
   onServiceSelect: (serviceOptionId: string) => void;
   onStaffSelect: (staffId: string) => void;
@@ -659,7 +663,8 @@ export default function CustomerFirstVisitClaudeFlow({
             </div>
           </div>
           <div className="dock">
-            <button className="cta" type="button" disabled={!firstVisit.ownerName.trim() || !isValidBookingPhoneNumber(firstVisit.phone) || submitting} onClick={() => void onSubmit()}>
+            {policyNotice}
+            <button className="cta" type="button" disabled={!policyReady || !firstVisit.ownerName.trim() || !isValidBookingPhoneNumber(firstVisit.phone) || submitting} onClick={() => void onSubmit()}>
               {submitting ? "예약 등록 중..." : "예약 등록하기"}
             </button>
           </div>

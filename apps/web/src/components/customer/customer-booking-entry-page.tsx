@@ -389,6 +389,7 @@ export default function CustomerBookingEntryPage({
   const staffProfilePointerStartXRef = useRef<number | null>(null);
   useEffect(() => {
     if (!previewMode || !previewSection) return;
+    setHoursOpen(previewSection === "hours");
     const frame = requestAnimationFrame(() => {
       const scroller = entryScrollRef.current;
       const target = entryRootRef.current?.querySelector<HTMLElement>(

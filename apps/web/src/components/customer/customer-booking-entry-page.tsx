@@ -281,6 +281,7 @@ export default function CustomerBookingEntryPage({
   infoHref,
   bookingHref,
   previewMode = false,
+  previewSection,
   previewSelectedServiceOptionId = "",
   onPreviewBookingStart,
 }: {
@@ -291,6 +292,7 @@ export default function CustomerBookingEntryPage({
   infoHref: string;
   bookingHref?: string;
   previewMode?: boolean | "entry" | "staffSelection";
+  previewSection?: "basic" | "staff-profile" | "hours";
   previewSelectedServiceOptionId?: string;
   onPreviewBookingStart?: (selection: CustomerBookingPreviewSelection) => void;
 }) {
@@ -367,7 +369,7 @@ export default function CustomerBookingEntryPage({
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [priceSheetOpen, setPriceSheetOpen] = useState(false);
   const [selectedServiceOptionId, setSelectedServiceOptionId] = useState("");
-  const [hoursOpen, setHoursOpen] = useState(false);
+  const [hoursOpen, setHoursOpen] = useState(previewMode && previewSection === "hours");
   const [addressCopied, setAddressCopied] = useState(false);
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const [heroGalleryOpen, setHeroGalleryOpen] = useState(false);
@@ -385,6 +387,20 @@ export default function CustomerBookingEntryPage({
   const heroTouchStartXRef = useRef<number | null>(null);
   const staffProfileTouchStartXRef = useRef<number | null>(null);
   const staffProfilePointerStartXRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!previewMode || !previewSection) return;
+    const frame = requestAnimationFrame(() => {
+      const scroller = entryScrollRef.current;
+      const target = entryRootRef.current?.querySelector<HTMLElement>(
+        previewSection === "hours" ? ".srow" : '[aria-label="직원 프로필"]',
+      );
+      if (!scroller) return;
+      const top = previewSection === "basic" || !target ? 0
+        : target.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 16;
+      scroller.scrollTo({ top, behavior: "instant" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [previewMode, previewSection]);
   const selectedServiceOption = serviceOptions.find((service) => service.id === selectedServiceOptionId) ?? null;
   const baseBookingHref = bookingHref ?? `/book/${encodeURIComponent(shop.id)}`;
   const selectedServiceBookingHref = selectedServiceOption

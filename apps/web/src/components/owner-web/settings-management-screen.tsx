@@ -2046,6 +2046,8 @@ export default function SettingsManagementScreen({
                 profileImagesProcessing={shopProfileImageMutationBusy}
                 shop={customerPagePreviewShop ?? shop}
                 staffMembers={staffMembers}
+                previewServices={previewServices}
+                ownerProfile={ownerProfile}
                 businessHoursSummary={String(businessHoursRow?.value ?? "")}
                 closedDaysSummary={String(closedDayRow?.value ?? "")}
                 editable

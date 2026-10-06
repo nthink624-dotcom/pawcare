@@ -58,9 +58,53 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
       }
       buckets.set(key, (buckets.get(key) ?? 0) + item.paidAmount);
     }
-    return Array.from(buckets, ([date, paidAmount]) => ({ date, paidAmount, label: range === "365d" ? date.slice(5, 7) + "月" : range === "90d" ? date.slice(5, 10).replace("-", "/") : date.slice(8) }));
+    if (!payload) return [];
+
+    const start = new Date(`${payload.from}T00:00:00Z`);
+    const end = new Date(`${payload.to}T00:00:00Z`);
+    const keys: string[] = [];
+    if (range === "365d") {
+      const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+      while (cursor <= end) {
+        keys.push(cursor.toISOString().slice(0, 10));
+        cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+      }
+    } else if (range === "90d") {
+      const cursor = new Date(start);
+      cursor.setUTCDate(cursor.getUTCDate() - (cursor.getUTCDay() + 6) % 7);
+      while (cursor <= end) {
+        keys.push(cursor.toISOString().slice(0, 10));
+        cursor.setUTCDate(cursor.getUTCDate() + 7);
+      }
+    } else {
+      const cursor = new Date(start);
+      while (cursor <= end) {
+        keys.push(cursor.toISOString().slice(0, 10));
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+
+    return keys.map((date, index) => ({
+      date,
+      paidAmount: buckets.get(date) ?? 0,
+      label: range === "365d"
+        ? date.slice(5, 7) + "월"
+        : range === "90d"
+          ? date.slice(5, 10).replace("-", "/")
+          : index % 5 === 0 || index === keys.length - 1 ? date.slice(8) : "",
+    }));
   }, [payload, range]);
-  const maxDaily = useMemo(() => Math.max(1, ...chartRows.map((item) => item.paidAmount)), [chartRows]);
+  const maxBucket = useMemo(() => Math.max(1, ...chartRows.map((item) => item.paidAmount)), [chartRows]);
+  const bestBucket = useMemo(() => chartRows.reduce<(typeof chartRows)[number] | null>((best, item) => item.paidAmount > (best?.paidAmount ?? 0) ? item : best, null), [chartRows]);
+  const bestBucketLabel = bestBucket
+    ? range === "365d"
+      ? `${bestBucket.date.slice(0, 4)}년 ${Number(bestBucket.date.slice(5, 7))}월`
+      : bestBucket.date.slice(5).replace("-", "/")
+    : "";
+  const averagePerDay = payload
+    ? Math.round(payload.sales.paidAmount / Math.max(1, Math.floor((new Date(`${payload.to}T00:00:00Z`).getTime() - new Date(`${payload.from}T00:00:00Z`).getTime()) / 86400000) + 1))
+    : 0;
+  const categoryTotal = payload?.sales.categories.reduce((sum, item) => sum + item.amount, 0) ?? 0;
   const change = payload?.sales.previousPaidAmount ? Math.round((payload.sales.paidAmount - payload.sales.previousPaidAmount) / Math.abs(payload.sales.previousPaidAmount) * 100) : null;
   const hasPaidSales = Boolean(payload && (payload.sales.paidCount > 0 || payload.sales.paidAmount !== 0));
 
@@ -89,17 +133,31 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
           <p className="mt-1 max-w-[34rem] text-[14px] leading-5 text-[#64748b]">결제가 완료되면 매출 추이와 구성, 적용된 혜택을 확인할 수 있습니다.</p>
         </div> : <>
         <Section title={range === "365d" ? "월별 매출" : range === "90d" ? "주별 매출" : "일별 매출"} aside={<span className="text-[13px] text-[#718096]">결제 완료분</span>}>
-          {chartRows.length ? <div className="flex h-40 items-end gap-2 overflow-x-auto border-b border-[#e8edf3] pb-2">
-            {chartRows.map((item) => <div key={item.date} title={`${item.date}: ${won(item.paidAmount)}`} className="flex h-full min-w-[24px] flex-1 flex-col items-center justify-end gap-1">
-              <div className="w-full max-w-8 rounded-t bg-[#4b83f5]" style={{ height: `${Math.max(3, item.paidAmount / maxDaily * 100)}%` }} />
-              <span className="text-[12px] leading-4 text-[#8793a3]">{item.label}</span>
-            </div>)}
-          </div> : <p className="py-5 text-center text-[14px] text-[#718096]">선택한 기간의 결제 매출이 없습니다.</p>}
+          {chartRows.length ? <>
+            <div role="list" aria-label={range === "365d" ? "월별 결제 매출" : range === "90d" ? "주별 결제 매출" : "일별 결제 매출"} className="flex h-36 items-end gap-1 border-b border-[#e8edf3] pb-2 sm:gap-2">
+              {chartRows.map((item) => <div key={item.date} role="listitem" aria-label={`${item.date}: ${won(item.paidAmount)}`} title={`${item.date}: ${won(item.paidAmount)}`} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
+                <div className={cn("w-full max-w-8 rounded-t", item.paidAmount ? "bg-[#4b83f5]" : "bg-[#e8edf3]")} style={{ height: `${Math.max(item.paidAmount ? 4 : 2, item.paidAmount / maxBucket * 100)}%` }} />
+                <span className="min-h-4 text-[12px] leading-4 text-[#718096]">{item.label}</span>
+              </div>)}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-[14px] leading-5 text-[#64748b]">
+              {bestBucket && bestBucket.paidAmount > 0 && <span>가장 높은 구간 <span className="font-medium text-[#172033]">{bestBucketLabel} · {won(bestBucket.paidAmount)}</span></span>}
+              <span>하루 평균 <span className="font-medium text-[#172033]">{won(averagePerDay)}</span></span>
+            </div>
+          </> : <p className="py-5 text-center text-[14px] text-[#718096]">선택한 기간의 결제 매출이 없습니다.</p>}
         </Section>
-        {(payload.sales.categories.length > 0 || payload.sales.paidCount > 0) && <Section title="매출 구성">
+        {(payload.sales.categories.length > 0 || payload.sales.paidCount > 0) && <Section title="매출 구성" aside={<span className="text-[13px] text-[#718096]">항목이 기록된 매출 기준</span>}>
           {payload.sales.categories.length ? <div className="divide-y divide-[#edf0f4]">
-            {payload.sales.categories.map((item) => <div key={item.name} className="flex items-center justify-between gap-4 py-3 text-[14px]"><div className="min-w-0"><p className="truncate font-medium text-[#29364a]">{item.name}</p><p className="mt-0.5 text-[13px] text-[#718096]">{item.count}건</p></div><p className="shrink-0 font-medium tabular-nums text-[#172033]">{won(item.amount)}</p></div>)}
+            {payload.sales.categories.map((item) => {
+              const share = categoryTotal > 0 ? Math.max(0, Math.round(item.amount / categoryTotal * 100)) : 0;
+              return <div key={item.name} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 py-3 text-[14px]">
+                <div className="min-w-0"><p className="truncate font-medium text-[#29364a]">{item.name}</p><p className="mt-0.5 text-[13px] text-[#718096]">{item.count}건 · {share}%</p></div>
+                <p className="shrink-0 font-medium tabular-nums text-[#172033]">{won(item.amount)}</p>
+                <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-[#edf1f5]" aria-hidden="true"><div className="h-full rounded-full bg-[#8aa8dc]" style={{ width: `${share}%` }} /></div>
+              </div>;
+            })}
           </div> : <p className="py-2 text-[14px] text-[#718096]">상품·서비스 매출 구분이 기록된 항목이 없습니다.</p>}
+          {categoryTotal > 0 && categoryTotal < payload.sales.paidAmount && <p className="mt-2 text-[13px] leading-5 text-[#718096]">일부 결제 항목은 유형이 기록되지 않아 위 구성에서 제외될 수 있습니다.</p>}
         </Section>}
         {(payload.sales.benefits.length > 0 || payload.sales.paidCount > 0) && <Section title="혜택 사용" aside={<span className="text-[13px] text-[#718096]">기록된 혜택만 표시</span>}>
           {payload.sales.benefits.length ? <div className="divide-y divide-[#edf0f4]">

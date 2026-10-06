@@ -41,7 +41,7 @@ begin
   return new;
 end $$;
 
-create function public.sync_preparation_booking_change() returns trigger
+create or replace function public.sync_preparation_booking_change() returns trigger
 language plpgsql security invoker set search_path=public as $$
 begin
   if new.status in ('cancelled','noshow') and old.status <> new.status then

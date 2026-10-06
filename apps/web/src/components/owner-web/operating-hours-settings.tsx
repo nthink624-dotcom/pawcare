@@ -912,7 +912,15 @@ export default function OperatingHoursSettings({
 
   if (compact) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 [container-type:inline-size] [container-name:pm-operating-hours]">
+        <style>{`
+          .pm-operating-hours-columns { grid-template-columns: minmax(0, 1fr); }
+          .pm-operating-hours-calendar { border-left-width: 0; border-top-width: 1px; }
+          @container pm-operating-hours (min-width: 800px) {
+            .pm-operating-hours-columns { grid-template-columns: minmax(390px, 1fr) minmax(300px, 1fr); }
+            .pm-operating-hours-calendar { border-left-width: 1px; border-top-width: 0; }
+          }
+        `}</style>
         {saveError ? (
           <p className="rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[14px] leading-5 text-[#b42318]">
             {saveError}
@@ -938,7 +946,7 @@ export default function OperatingHoursSettings({
               </button>
             </div>
           </div>
-          <div className="grid xl:grid-cols-[minmax(0,0.82fr)_minmax(300px,1fr)]">
+          <div className="pm-operating-hours-columns grid">
             <div className="divide-y divide-[#f1f5f9]">
               {businessDays.map((day) => (
                 <div key={day.key} className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2 px-4 py-1 sm:grid-cols-[28px_90px_220px] sm:gap-x-2">
@@ -960,7 +968,7 @@ export default function OperatingHoursSettings({
               ))}
             </div>
 
-            <div className="border-t border-[#edf2f7] px-4 py-3 xl:border-l xl:border-t-0">
+            <div className="pm-operating-hours-calendar border-[#edf2f7] px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[16px] leading-6 font-normal text-[#111827]">정기 휴무일</p>
                 <div className="grid w-[190px] grid-cols-3 gap-1 rounded-[8px] border border-[#e4ebf2] bg-[#f8fafc] p-1">

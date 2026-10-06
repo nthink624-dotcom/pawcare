@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Camera, ImageOff, Info, LoaderCircle, Save, Scissors, Settings2, Store, Trash2, UserRound } from "lucide-react";
+import { Camera, ImageOff, Info, LoaderCircle, Save, Scissors, Settings2, Smartphone, Store, Trash2, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type TouchEvent } from "react";
 
 import {
@@ -10,6 +10,8 @@ import {
 import { mergeResolvedProfileImageUrls } from "@/lib/media/profile-image-collection";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 import { cn } from "@/lib/utils";
+import BookingPolicyPanel from "@/components/owner-web/booking-policy-panel";
+import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
 import type { BootstrapStaffMember, OwnerProfile, Service, Shop } from "@/types/domain";
 
 export type ShopInfoSettingRow = {
@@ -324,6 +326,8 @@ export default function ShopInfoSettingsPanel({
   bookingPageContent,
   initialSectionId,
   shop,
+  previewServices = [],
+  ownerProfile,
   staffMembers = [],
   businessHoursSummary = "",
   closedDaysSummary = "",
@@ -382,10 +386,52 @@ export default function ShopInfoSettingsPanel({
       { id: "hours", label: "영업 시간", hidden: !children },
       { id: "menu", label: "요금표 관리", hidden: !serviceMenuContent },
       { id: "booking", label: "예약 페이지", hidden: !bookingPageContent },
+      { id: "policy", label: "예약 정책", hidden: !shop },
     ].filter((tab) => !tab.hidden),
     [children, serviceMenuContent, bookingPageContent],
   );
   const [activeSectionId, setActiveSectionId] = useState(initialSectionId ?? sectionTabs[0]?.id ?? "basic");
+  const previewDialogRef = useRef<HTMLDialogElement | null>(null);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [desktopPreviewVisible, setDesktopPreviewVisible] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const sync = () => { setDesktopPreviewVisible(media.matches); if (media.matches) setPreviewDialogOpen(false); };
+    sync(); media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+  const showCustomerPreview = ["basic", "staff-profile", "hours"].includes(activeSectionId);
+  const previewSection = activeSectionId as "basic" | "staff-profile" | "hours";
+  const customerPreviewShop: Shop | null = shop ? {
+    ...shop, name: shopName, description, phone, address,
+    customer_page_settings: {
+      ...shop.customer_page_settings,
+      address_detail: addressDetail,
+      hero_image_url: isProfileImageRestorePending ? shop.customer_page_settings.hero_image_url : carouselProfileImages[0] ?? "",
+      hero_image_urls: isProfileImageRestorePending ? shop.customer_page_settings.hero_image_urls : carouselProfileImages,
+      // Use the currently edited images; a preview refresh must not restore removed photos.
+      hero_media_asset_id: undefined, hero_media_asset_ids: [],
+      social_links: { ...shop.customer_page_settings.social_links,
+        instagram_url: instagramUrl, kakao_channel_url: kakaoChannelUrl,
+        naver_blog_url: naverBlogUrl, threads_url: threadsUrl },
+    },
+  } : null;
+  const customerPreviewStaff = staffMembers.map(member => {
+    const draft = staffProfileDrafts[member.id];
+    return draft ? { ...member, ...draft, profileImageUrl: draft.profileImageUrls[0] ?? "" } : member;
+  });
+  useEffect(() => {
+    const dialog = previewDialogRef.current;
+    if (previewDialogOpen && showCustomerPreview && !dialog?.open) dialog?.showModal();
+    else if (!previewDialogOpen || !showCustomerPreview) dialog?.close();
+  }, [previewDialogOpen, showCustomerPreview]);
+  const customerPreview = (
+    <CustomerPagePhonePreview
+      shop={customerPreviewShop} services={previewServices} ownerProfile={ownerProfile}
+      staffMembers={customerPreviewStaff} previewSection={previewSection} showTitle={false}
+      key={activeSectionId}
+    />
+  );
   useEffect(() => {
     if (initialSectionId) setActiveSectionId(initialSectionId);
   }, [initialSectionId]);
@@ -604,17 +650,19 @@ export default function ShopInfoSettingsPanel({
   }
 
   return (
-    <div
-      className="h-full min-h-0 min-w-0 overflow-hidden rounded-[13px] bg-white"
-      data-shop-info-main-surface
-    >
-        <div className="relative flex h-full min-h-0 min-w-0 flex-col">
-          <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:px-5">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3" data-shop-info-main-surface>
+          <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:px-5">
+            {showCustomerPreview && <div className="mb-2 flex justify-end xl:hidden">
+              <button type="button" onClick={() => setPreviewDialogOpen(true)}
+                className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#e1e4ea] px-3 text-[16px] font-medium text-[#15213b]">
+                <Smartphone className="h-4 w-4" />고객 화면 미리보기
+              </button>
+            </div>}
             <div className="flex items-center justify-between gap-4">
               <div
                 role="tablist"
                 aria-label="설정 메뉴"
-                className="no-scrollbar flex min-h-[54px] min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-full border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="no-scrollbar flex min-h-[54px] min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-[14px] border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 {sectionTabs.map((tab) => (
                   <button
@@ -639,10 +687,11 @@ export default function ShopInfoSettingsPanel({
             </div>
           </div>
 
+          <div className={cn("grid min-h-0 min-w-0 flex-1 gap-4", showCustomerPreview && "xl:grid-cols-[minmax(0,1fr)_320px]")}>
           <div
             ref={settingsScrollRef}
             data-shop-info-scroll-region
-            className="no-scrollbar min-h-0 flex-1 overflow-y-auto bg-white px-3 py-3 sm:px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="no-scrollbar min-h-0 min-w-0 overflow-y-auto rounded-[13px] bg-white px-3 py-3 sm:px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <div className="min-w-0 w-full space-y-[18px]">
               <div id="shop-info-panel-basic" role="tabpanel" aria-labelledby="shop-info-tab-basic" hidden={activeSectionId !== "basic"}>
@@ -1068,6 +1117,10 @@ export default function ShopInfoSettingsPanel({
                 </div>
               ) : null}
 
+              <div id="shop-info-panel-policy" role="tabpanel" aria-labelledby="shop-info-tab-policy" hidden={activeSectionId !== "policy"}>
+                {activeSectionId === "policy" && shop ? <BookingPolicyPanel shopId={shop.id} editable={editable} /> : null}
+              </div>
+
               {serviceMenuContent ? (
                 <div id="shop-info-panel-menu" role="tabpanel" aria-labelledby="shop-info-tab-menu" hidden={activeSectionId !== "menu"}>
                   <PanelCard
@@ -1084,7 +1137,23 @@ export default function ShopInfoSettingsPanel({
 
             </div>
           </div>
+    {showCustomerPreview && <>
+      <div data-shop-customer-preview aria-label="고객 화면 미리보기" className="hidden max-h-full min-h-0 self-start xl:block">
+        <div className="no-scrollbar min-h-0 overflow-y-auto pt-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{desktopPreviewVisible && customerPreview}</div>
+      </div>
+      <dialog ref={previewDialogRef} aria-labelledby="shop-preview-dialog-title"
+        onClose={() => setPreviewDialogOpen(false)}
+        className="m-auto max-h-[calc(100dvh-24px)] w-[min(360px,calc(100vw-24px))] overflow-y-auto rounded-[14px] border border-[#e1e4ea] bg-white p-4 shadow-xl backdrop:bg-slate-900/40"
+        onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h3 id="shop-preview-dialog-title" className="text-[16px] font-medium">고객 화면 미리보기</h3>
+          <button type="button" aria-label="미리보기 닫기" onClick={() => previewDialogRef.current?.close()}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#e1e4ea]"><X className="h-4 w-4" /></button>
         </div>
+        {previewDialogOpen && customerPreview}
+      </dialog>
+    </>}
+    </div>
     </div>
   );
 }

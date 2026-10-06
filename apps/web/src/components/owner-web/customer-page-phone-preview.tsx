@@ -21,6 +21,8 @@ export function CustomerPagePhonePreview({
   ownerProfile,
   staffMembers = [],
   previewMode = "entry",
+  previewSection,
+  showTitle = true,
   onTestReservationComplete,
   className,
 }: {
@@ -29,6 +31,8 @@ export function CustomerPagePhonePreview({
   ownerProfile?: OwnerProfile | null;
   staffMembers?: BootstrapStaffMember[];
   previewMode?: "entry" | "staffSelection";
+  previewSection?: "basic" | "staff-profile" | "hours";
+  showTitle?: boolean;
   onTestReservationComplete?: () => void;
   className?: string;
 }) {
@@ -36,7 +40,7 @@ export function CustomerPagePhonePreview({
 
   return (
     <div className={cn("flex h-full w-full flex-col items-center justify-center", className)}>
-      <p className="mb-4 text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">{"\uBBF8\uB9AC\uBCF4\uAE30"}</p>
+      {showTitle && <p className="mb-4 text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">{"\uBBF8\uB9AC\uBCF4\uAE30"}</p>}
       <div className="relative aspect-[823/1677] w-[270px] max-w-full">
         <div className="pointer-events-none absolute left-[3.4%] top-[1.25%] h-[97.4%] w-[93.2%] rounded-[40px] bg-[#070707]" />
         <div className="absolute left-[4.62%] top-[1.91%] z-10 h-[96.48%] w-[90.64%] overflow-hidden rounded-[31px] bg-[#fdf7f5]">
@@ -92,6 +96,7 @@ export function CustomerPagePhonePreview({
                     ownerProfile={ownerProfile}
                     infoHref={`/entry/${encodeURIComponent(shop.id)}`}
                     previewMode={previewMode}
+                    previewSection={previewSection}
                     onPreviewBookingStart={(nextSelection) => {
                       setSelection(nextSelection);
                     }}

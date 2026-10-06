@@ -8,6 +8,8 @@ export const paymentBookingSchema = z.object({
   expectedAmount: z.coerce.number().int().min(0).max(SERVICE_PRICE_MAX_KRW),
   booking: z.object({
     shopId: z.string().min(1),
+    bookingPolicyVersion: z.number().int().nonnegative().optional(),
+    bookingPolicyAccepted: z.boolean().optional(),
     guardianName: z.string().trim().min(1),
     phone: z.string().trim().min(10),
     petName: z.string().trim().min(1),

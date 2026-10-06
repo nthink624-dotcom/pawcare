@@ -28,6 +28,7 @@ const screenIconPaths: Record<OwnerWebNavigationKey, string> = {
   staff: "/icons/phosphor/users.svg",
   ownerProfile: "/icons/phosphor/user-circle.svg",
   shopInfo: "/icons/phosphor/storefront.svg",
+  bookingPolicy: "/icons/phosphor/list-checks.svg",
   operatingHours: "/icons/phosphor/clock.svg",
   benefits: "/icons/phosphor/gift.svg",
   alerts: "/icons/phosphor/bell.svg",
@@ -42,7 +43,7 @@ const ownerWebNavigationGroups: Array<{
   {
     label: "운영",
     items: [
-      { key: "schedule", label: "예약 관리" },
+      { key: "schedule", label: "오늘" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
       { key: "profitability", label: "수익 분석" },
@@ -52,6 +53,7 @@ const ownerWebNavigationGroups: Array<{
     label: "설정",
     items: [
       { key: "shopInfo", label: "매장 정보" },
+      { key: "bookingPolicy", label: "예약 정책" },
       { key: "benefits", label: "혜택 관리" },
       { key: "staff", label: "직원 관리" },
       { key: "alerts", label: "알림 설정" },
@@ -66,7 +68,7 @@ const ownerWebSidebarGroups: Array<{
   {
     label: "운영",
     items: [
-      { key: "schedule", label: "예약 관리" },
+      { key: "schedule", label: "오늘" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
       { key: "profitability", label: "수익 분석" },
@@ -76,6 +78,7 @@ const ownerWebSidebarGroups: Array<{
     label: "설정",
     items: [
       { key: "shopInfo", label: "매장 정보" },
+      { key: "bookingPolicy", label: "예약 정책" },
       { key: "benefits", label: "혜택 관리" },
       { key: "staff", label: "직원 관리" },
       { key: "alerts", label: "알림 설정" },
@@ -98,6 +101,7 @@ const ownerWebFlushCoreScreens = new Set<OwnerWebScreenKey>([
   "profitability",
   "bookingLink",
   "shopInfo",
+  "bookingPolicy",
   "alerts",
 ]);
 

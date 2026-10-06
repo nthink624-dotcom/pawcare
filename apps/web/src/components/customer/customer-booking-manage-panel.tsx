@@ -11,6 +11,7 @@ import {
 } from "@/components/customer/customer-grooming-result-card";
 import type { CustomerWeightMeasurement } from "@/lib/customer-weight-history";
 import { fetchApiJson } from "@/lib/api";
+import BookingPreparationPanel from "@/components/booking/booking-preparation-panel";
 import { invalidateCustomerAvailability } from "@/lib/customer-availability";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { CUSTOMER_BOOKING_HORIZON_DAYS } from "@/lib/customer-booking-window";
@@ -663,6 +664,7 @@ export default function CustomerBookingManagePanel({
                     </p>
                   </div>
 
+                  {!isResultView && initialAccessToken ? <BookingPreparationPanel shopId={shopId} appointmentId={appointment.id} accessToken={initialAccessToken} onStatusChanged={() => void reloadBookingFromToken()} /> : null}
                   {isResultView && groomingRecord && initialAccessToken ? (
                     <CustomerGroomingResultCard
                       shopId={shopId}

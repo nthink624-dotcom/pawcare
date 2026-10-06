@@ -211,6 +211,7 @@ function formatNotificationDateTime(value: string | null | undefined) {
 function getNotificationTypeLabel(type: NotificationType) {
   const labels: Record<NotificationType, string> = {
     booking_received: "예약 접수",
+    booking_consent_request: "동의서 요청",
     booking_confirmed: "예약 확정",
     owner_booking_requested: "오너 알림",
     booking_cancelled: "예약 취소",

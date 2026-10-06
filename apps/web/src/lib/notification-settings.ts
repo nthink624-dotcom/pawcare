@@ -30,6 +30,8 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
 
 export const defaultGuardianNotificationSettings: GuardianNotificationSettings = {
   enabled: true,
+  consent_request_enabled: true,
+  deposit_request_enabled: true,
   revisit_enabled: true,
   booking_confirmed_enabled: true,
   booking_cancelled_enabled: true,
@@ -126,6 +128,8 @@ export function normalizeGuardianNotificationSettings(settings: Partial<Guardian
 
   return {
     enabled: merged.enabled,
+    consent_request_enabled: merged.consent_request_enabled ?? true,
+    deposit_request_enabled: merged.deposit_request_enabled ?? true,
     revisit_enabled: merged.revisit_enabled,
     booking_confirmed_enabled: merged.booking_confirmed_enabled,
     booking_cancelled_enabled: merged.booking_cancelled_enabled,

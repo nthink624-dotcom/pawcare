@@ -40,9 +40,10 @@ import {
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { createAppointment } from "@/server/owner-mutations";
 import { dispatchNotification } from "@/server/notification-dispatch";
+import { cancellationCutoffHours, readOptionalBookingPolicy } from "@/server/booking-preparation";
+import { OwnerApiError } from "@/server/owner-api-auth";
 import type { Appointment, Guardian, Pet, Shop } from "@/types/domain";
 
-const customerBookingChangeCutoffMinutes = 2 * 60;
 
 type CustomerBookingPaymentContext = {
   paymentId: string;
@@ -51,6 +52,8 @@ type CustomerBookingPaymentContext = {
 
 const customerBookingCreateSchema = z.object({
   shopId: z.string().min(1),
+  bookingPolicyVersion: z.number().int().nonnegative().optional(),
+  bookingPolicyAccepted: z.boolean().optional(),
   guardianName: z.string().trim().min(1),
   phone: z.string().trim().min(10),
   petName: z.string().trim().min(1),
@@ -133,9 +136,10 @@ function getGuardianPetsForProfile(bootstrap: Awaited<ReturnType<typeof getBoots
     .map(({ id, name, guardian_id, breed, weight }) => ({ id, name, guardian_id, breed, weight }));
 }
 
-function assertCustomerCanChangeBooking(_shop: Shop, appointment: Appointment) {
+async function assertCustomerCanChangeBooking(_shop: Shop, appointment: Appointment) {
   const appointmentStartsAt = new Date(appointment.start_at).getTime();
-  const latestCustomerChangeAt = appointmentStartsAt - customerBookingChangeCutoffMinutes * 60 * 1000;
+  const cutoffHours = await cancellationCutoffHours(appointment.shop_id, appointment.id);
+  const latestCustomerChangeAt = appointmentStartsAt - cutoffHours * 60 * 60 * 1000;
 
   if (Date.now() > latestCustomerChangeAt) {
     throw new Error("고객 직접 변경/취소 가능 시간이 지났습니다. 매장에 문의해 주세요.");
@@ -721,6 +725,10 @@ export async function createCustomerBooking(
   options: { trustedDiscountQuote?: CustomerDiscountQuoteResponse; payment?: CustomerBookingPaymentContext } = {},
 ) {
   const payload = customerBookingCreateSchema.parse(input);
+  const bookingPolicy = await readOptionalBookingPolicy(payload.shopId);
+  if (bookingPolicy && (payload.bookingPolicyAccepted !== true || payload.bookingPolicyVersion !== bookingPolicy.version)) {
+    throw new OwnerApiError("예약 정책이 변경되었거나 확인되지 않았습니다. 새로 불러온 뒤 안내를 확인해 주세요.", 409);
+  }
   assertCustomerBookingDate(payload.appointmentDate);
   const bootstrap = await requireOwnerInitialSetupCompleteBootstrap(payload.shopId);
   const discountQuote =
@@ -787,6 +795,7 @@ export async function createCustomerBooking(
   const mergedMemo = [customServiceMemo, payload.memo.trim()].filter(Boolean).join("\n");
   const discountSnapshot = {
     ...discountQuote,
+    bookingPolicyVersion: bookingPolicy?.version ?? null,
     customerServiceOptionId: selectedCustomerServiceOption?.id ?? discountQuote.customerServiceOptionId,
     customerServiceOptionName: selectedCustomerServiceOption?.name ?? null,
     customerServiceOptionDurationMinutes: selectedCustomerServiceOption?.durationMinutes ?? null,
@@ -870,6 +879,13 @@ export async function createCustomerBooking(
       appointmentTime: payload.appointmentTime,
     },
   });
+
+  if (appointment.status === "confirmed") {
+    scheduleCustomerBookingNotification({
+      shopId: appointment.shop_id, appointmentId: appointment.id, guardianId: appointment.guardian_id,
+      petId: appointment.pet_id, type: "booking_confirmed", channel: "alimtalk", skipIfExists: true,
+    });
+  }
 
   const bookingAccessToken = createBookingAccessToken({
     shopId: payload.shopId,
@@ -1104,7 +1120,7 @@ export async function updateCustomerBooking(input: unknown) {
   if (!canManageAppointment(appointment)) {
     throw new Error("이미 지난 예약은 변경하거나 취소할 수 없습니다.");
   }
-  assertCustomerCanChangeBooking(bootstrap.shop, appointment);
+  await assertCustomerCanChangeBooking(bootstrap.shop, appointment);
 
   if (payload.action === "cancel") {
     const nextValues = {

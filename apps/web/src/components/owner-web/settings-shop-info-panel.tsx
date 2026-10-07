@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Camera, ImageOff, Info, LoaderCircle, Save, Scissors, Settings2, Smartphone, Store, Trash2, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type TouchEvent } from "react";
@@ -1157,4 +1157,3 @@ export default function ShopInfoSettingsPanel({
     </div>
   );
 }
-

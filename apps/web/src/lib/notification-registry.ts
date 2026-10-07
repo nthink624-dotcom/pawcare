@@ -451,6 +451,8 @@ export function shouldSendByGuardianSettings(
       return settings.consent_request_enabled ?? true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
+    case "booking_consent_request":
+      return settings.consent_request_enabled ?? true;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
     case "appointment_reminder_10m":

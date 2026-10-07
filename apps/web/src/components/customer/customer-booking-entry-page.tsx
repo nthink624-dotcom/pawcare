@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { ChevronDown, Copy, Navigation, Phone, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
@@ -369,7 +369,7 @@ export default function CustomerBookingEntryPage({
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [priceSheetOpen, setPriceSheetOpen] = useState(false);
   const [selectedServiceOptionId, setSelectedServiceOptionId] = useState("");
-  const [hoursOpen, setHoursOpen] = useState(false);
+  const [hoursOpen, setHoursOpen] = useState(previewMode && previewSection === "hours");
   const [addressCopied, setAddressCopied] = useState(false);
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const [heroGalleryOpen, setHeroGalleryOpen] = useState(false);
@@ -1251,4 +1251,3 @@ function MapButton({ label, onClick }: { label: string; onClick: () => void }) {
     </button>
   );
 }
-

@@ -668,9 +668,9 @@ export default function ShopInfoSettingsPanel({
                     aria-selected={activeSectionId === tab.id}
                     tabIndex={activeSectionId === tab.id ? 0 : -1}
                     onClick={() => changeActiveSection(tab.id)}
-                    onKeyDown={(event) => handleSectionTabKeyDown(event, tab.id)}
+                    onKeyDown={(event) => handleSectionTabKeyDown(event, tab.id)} data-owner-control-size='content'
                     className={cn(
-                      "inline-flex h-10 shrink-0 items-center rounded-full px-4 text-[16px] font-medium leading-6 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+                      "inline-flex h-10 shrink-0 items-center rounded-full px-4 text-[18px] font-medium leading-6 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
                       activeSectionId === tab.id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]",
                     )}
                   >

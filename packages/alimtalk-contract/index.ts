@@ -18,7 +18,7 @@ export const APPROVED_ALIMTALK_CONTRACTS = {
     code: "booking_consent_request",
     body: `[#{매장명}]\n\n#{보호자명}님, #{반려동물명} 미용 전 동의서를 확인해 주세요.\n\n방문 일정: #{예약일시}\n\n아래 버튼을 눌러 내용을 읽고 서명해 주세요.`,
     button: "동의서 작성",
-    variables: ["매장명", "보호자명", "반려동물명", "예약일시"],
+    variables: ["매장명", "보호자명", "반려동물명", "예약일시", "예약관리토큰"],
   },
   booking_confirmed: {
     code: "booking_confirmed",

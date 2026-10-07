@@ -1537,7 +1537,7 @@ textarea {
   opacity: 0.55;
 }
 
-/* Navigation keeps its readable 16px label and 20px icon within the shared
+/* Navigation keeps its readable 16px label and 24px icon within the shared
    40px row; toolbar actions use the more compact control typography above. */
 .pm-owner-web .pm-owner-sidebar .pm-owner-nav-item {
   font-size: 16px !important;
@@ -1545,6 +1545,6 @@ textarea {
 }
 
 .pm-owner-web .pm-owner-sidebar .pm-owner-nav-item > span[aria-hidden="true"] {
-  width: 20px !important;
-  height: 20px !important;
+  width: 24px !important;
+  height: 24px !important;
 }

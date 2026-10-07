@@ -5173,8 +5173,8 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
                 <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
                   {durationSourceLabel}
                   {durationEstimate.stats
-                    ? ` ${durationEstimate.stats.sampleCount}건 · 평균 ${durationEstimate.stats.averageMinutes}분 · 중앙값 ${durationEstimate.stats.medianMinutes}분`
-                    : " · 실제 기록이 3건 이상이면 자동으로 맞춰요."}
+                    ? ` ${durationEstimate.stats.sampleCount}건 · 실제 평균 ${durationEstimate.stats.averageMinutes}분${durationEstimate.stats.sampleCount < 3 ? " · 초기 추정" : ""}`
+                    : " · 완료 기록이 쌓이면 반영해요."}
                 </p>
               </div>
             ) : null}

@@ -12,7 +12,7 @@ import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/ow
 import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import { resolveDurationEstimate, summarizeDurationMinutes } from "@/lib/duration-statistics";
+import { estimatePetServiceDuration } from "@petmanager/shared/lib/pet-duration-estimate";
 import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
 import { normalizePetBiteLevel } from "@/lib/pet-bite-level";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
@@ -169,36 +169,10 @@ function formatPetProfile(pet: Pick<Pet, "breed" | "weight" | "notes">) {
   return pet.notes?.replace(/^고객 입력:\s*/, "").trim() || "견종/몸무게 미입력";
 }
 
-function durationStatsForRecords(records: GroomingRecord[], predicate: (record: GroomingRecord) => boolean) {
-  return summarizeDurationMinutes(
-    records.filter(predicate).map((record) => record.actual_duration_minutes),
-  );
-}
-
 function durationEstimateForPetService(data: BootstrapPayload, pet: Pet | null, serviceId: string) {
-  const petStats = durationStatsForRecords(
-    data.groomingRecords,
-    (record) => record.pet_id === pet?.id && record.service_id === serviceId,
-  );
-  const serviceWeightStats = durationStatsForRecords(
-    data.groomingRecords,
-    (record) =>
-      record.service_id === serviceId &&
-      typeof pet?.weight === "number" &&
-      typeof record.pet_weight_snapshot === "number" &&
-      Math.round(record.pet_weight_snapshot) === Math.round(pet.weight),
-  );
-  const serviceStats = durationStatsForRecords(
-    data.groomingRecords,
-    (record) => record.service_id === serviceId,
-  );
-  const baselineMinutes = data.services.find((service) => service.id === serviceId)?.duration_minutes ?? null;
-  return resolveDurationEstimate({
-    baselineMinutes,
-    petStats,
-    serviceWeightStats,
-    serviceStats,
-  });
+  const service = data.services.find(item => item.id === serviceId);
+  return service ? estimatePetServiceDuration({ appointments: data.appointments, groomingRecords: data.groomingRecords, service, pet })
+    : { minutes: null, source: "baseline" as const, stats: null };
 }
 
 function formatNotificationDateTime(value: string | null | undefined) {
@@ -211,6 +185,7 @@ function formatNotificationDateTime(value: string | null | undefined) {
 function getNotificationTypeLabel(type: NotificationType) {
   const labels: Record<NotificationType, string> = {
     booking_received: "예약 접수",
+    booking_consent_request: "동의서 요청",
     booking_confirmed: "예약 확정",
     owner_booking_requested: "오너 알림",
     booking_cancelled: "예약 취소",
@@ -1680,7 +1655,7 @@ function CustomerReservationModal({
             </p>
             <p className="mt-0.5 text-[13px] leading-5 text-[#64748b]">
               {durationSourceLabel}
-              {durationEstimate.stats ? ` ${durationEstimate.stats.sampleCount}건 · 평균 ${durationEstimate.stats.averageMinutes}분 · 중앙값 ${durationEstimate.stats.medianMinutes}분` : " · 실제 기록이 3건 이상이면 자동으로 맞춥니다."}
+              {durationEstimate.stats ? ` ${durationEstimate.stats.sampleCount}건 · 실제 평균 ${durationEstimate.stats.averageMinutes}분${durationEstimate.stats.sampleCount < 3 ? " · 초기 추정" : ""}` : " · 완료 기록이 쌓이면 반영합니다."}
             </p>
           </div>
 

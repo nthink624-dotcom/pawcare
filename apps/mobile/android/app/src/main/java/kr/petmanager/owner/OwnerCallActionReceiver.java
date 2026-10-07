@@ -11,7 +11,35 @@ public class OwnerCallActionReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         String action = intent == null ? "" : intent.getAction();
         if (OwnerCallNotification.ACTION_DISMISS.equals(action)) {
-            OwnerCallNotification.cancel(context, intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0));
+            int notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0);
+            String providerCallId = intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID);
+            OwnerCallNotification.cancel(context, notificationId);
+            if (providerCallId == null || providerCallId.trim().isEmpty()) return;
+            PendingResult pendingResult = goAsync();
+            Context appContext = context.getApplicationContext();
+            new Thread(() -> {
+                try {
+                    org.json.JSONArray queued = OwnerCallScreeningStore.enqueueChoice(appContext, providerCallId, "phone_only_selected");
+                    for (int index = 0; index < queued.length(); index += 1) {
+                        org.json.JSONObject choice = queued.optJSONObject(index);
+                        if (choice == null || !providerCallId.equals(choice.optString("providerCallId", ""))) continue;
+                        for (int attempt = 0; attempt < 2; attempt += 1) {
+                            if (OwnerCallScreeningTransport.sendChoiceIfPossible(appContext, choice)) break;
+                            if (attempt == 0) {
+                                try {
+                                    Thread.sleep(500L);
+                                } catch (InterruptedException interrupted) {
+                                    Thread.currentThread().interrupt();
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+                    }
+                } finally {
+                    pendingResult.finish();
+                }
+            }, "petmanager-call-phone-only-choice").start();
             return;
         }
         if (OwnerCallNotification.ACTION_ADD_RESERVATION.equals(action)) {
@@ -26,23 +54,9 @@ public class OwnerCallActionReceiver extends BroadcastReceiver {
             context.startActivity(openApp);
             return;
         }
-        if (!OwnerCallNotification.ACTION_ANSWER_CALL.equals(action) && !OwnerCallNotification.ACTION_END_CALL.equals(action)) return;
-
-        String providerCallId = intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID);
-        boolean completed = OwnerCallNotification.ACTION_ANSWER_CALL.equals(action)
-            ? (OwnerInCallService.answer() || OwnerCallControl.answer(context))
-            : (OwnerInCallService.disconnect() || OwnerCallControl.end(context));
-        if (!completed) {
-            OwnerCallNotification.showIncoming(
-                context,
-                providerCallId,
-                intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER),
-                "통화 제어에 실패했어요. 권한을 확인하거나 기본 전화 화면을 이용해 주세요."
-            );
-            return;
+        if (OwnerCallNotification.ACTION_ANSWER_CALL.equals(action) || OwnerCallNotification.ACTION_END_CALL.equals(action)) {
+            // Invalidate stale actions from older builds. Samsung Phone remains the call controller.
+            OwnerCallNotification.cancel(context, intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0));
         }
-        OwnerCallScreeningStore.clearPendingIncomingCallChoice(context);
-        OwnerCallNotification.cancel(context, providerCallId);
-        OwnerCallNotification.cancel(context, intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0));
     }
 }

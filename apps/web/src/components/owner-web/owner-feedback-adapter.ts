@@ -21,6 +21,7 @@ const screenKeyByOwnerScreen: Record<OwnerWebScreenKey, TesterFeedbackScreenKey>
   staff: "staff",
   ownerProfile: "shop_settings",
   shopInfo: "shop_settings",
+  bookingPolicy: "shop_settings",
   operatingHours: "shop_settings",
   benefits: "billing",
   alerts: "notifications",

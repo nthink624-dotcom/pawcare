@@ -28,6 +28,7 @@ const screenIconPaths: Record<OwnerWebNavigationKey, string> = {
   staff: "/icons/phosphor/users.svg",
   ownerProfile: "/icons/phosphor/user-circle.svg",
   shopInfo: "/icons/phosphor/storefront.svg",
+  bookingPolicy: "/icons/phosphor/list-checks.svg",
   operatingHours: "/icons/phosphor/clock.svg",
   benefits: "/icons/phosphor/gift.svg",
   alerts: "/icons/phosphor/bell.svg",
@@ -42,7 +43,7 @@ const ownerWebNavigationGroups: Array<{
   {
     label: "운영",
     items: [
-      { key: "schedule", label: "예약 관리" },
+      { key: "schedule", label: "오늘" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
       { key: "profitability", label: "매출 분석" },
@@ -52,6 +53,7 @@ const ownerWebNavigationGroups: Array<{
     label: "설정",
     items: [
       { key: "shopInfo", label: "매장 정보" },
+      { key: "bookingPolicy", label: "예약 정책" },
       { key: "benefits", label: "혜택 관리" },
       { key: "staff", label: "직원 관리" },
       { key: "alerts", label: "알림 설정" },
@@ -66,7 +68,7 @@ const ownerWebSidebarGroups: Array<{
   {
     label: "운영",
     items: [
-      { key: "schedule", label: "예약 관리" },
+      { key: "schedule", label: "오늘" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
       { key: "profitability", label: "매출 분석" },
@@ -76,6 +78,7 @@ const ownerWebSidebarGroups: Array<{
     label: "설정",
     items: [
       { key: "shopInfo", label: "매장 정보" },
+      { key: "bookingPolicy", label: "예약 정책" },
       { key: "benefits", label: "혜택 관리" },
       { key: "staff", label: "직원 관리" },
       { key: "alerts", label: "알림 설정" },
@@ -98,16 +101,15 @@ const ownerWebFlushCoreScreens = new Set<OwnerWebScreenKey>([
   "profitability",
   "bookingLink",
   "shopInfo",
+  "bookingPolicy",
   "alerts",
 ]);
 
-function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey; active: boolean }) {
+function PhosphorSidebarIcon({ screen }: { screen: OwnerWebNavigationKey }) {
   return (
     <span
-className={cn(
-        "block h-5 w-5 shrink-0 transition-colors",
-        active ? "bg-[var(--acc)]" : "bg-[#9aa3af]",
-      )}      style={
+      className="block h-6 w-6 shrink-0 bg-current transition-colors"
+      style={
         {
           WebkitMaskImage: `url(${screenIconPaths[screen]})`,
           maskImage: `url(${screenIconPaths[screen]})`,
@@ -232,8 +234,8 @@ export default function OwnerWebAppShell({
                     if (screen.key === "billing") {
                       return (
                         <Link key={screen.key} href={screen.href} prefetch className={itemClassName}>
-                          <PhosphorSidebarIcon screen={screen.key} active={false} />
-                          <span className="min-w-0 truncate">{screen.label}</span>
+                          <PhosphorSidebarIcon screen={screen.key} />
+                          <span className="inline-flex min-h-6 min-w-0 items-center truncate">{screen.label}</span>
                         </Link>
                       );
                     }
@@ -246,8 +248,8 @@ export default function OwnerWebAppShell({
                         onClick={() => onScreenSelect(screen.key)}
                         className={itemClassName}
                       >
-                        <PhosphorSidebarIcon screen={screen.key} active={active} />
-                        <span className="min-w-0 truncate">{screen.label}</span>
+                        <PhosphorSidebarIcon screen={screen.key} />
+                        <span className="inline-flex min-h-6 min-w-0 items-center truncate">{screen.label}</span>
                       </button>
                     );
                   })}

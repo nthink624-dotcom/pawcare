@@ -2327,7 +2327,8 @@ export async function createAppointment(input: unknown, options?: AppointmentMut
 
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
-  const { error } = await supabase.from("appointments").insert(appointment);
+  const { data: savedAppointment, error } = await supabase.from("appointments").insert(appointment).select("status").single();
+  if (savedAppointment) appointment.status = savedAppointment.status;
   if (error) {
     // Readiness-test evidence must never be silently downgraded to a legacy
     // appointment row without its server-owned purpose/actor/request markers.
@@ -2384,7 +2385,8 @@ export async function createAppointment(input: unknown, options?: AppointmentMut
         fallbackPayload.discount_snapshot = appointment.discount_snapshot;
       }
 
-      const { error: fallbackError } = await supabase.from("appointments").insert(fallbackPayload);
+      const { data: fallbackSaved, error: fallbackError } = await supabase.from("appointments").insert(fallbackPayload).select("status").single();
+      if (fallbackSaved) appointment.status = fallbackSaved.status;
 
       if (fallbackError) throw new Error(getAppointmentWriteErrorMessage(fallbackError));
       if (!options?.ownerReadinessTest && appointment.status === "confirmed" && appointment.source === "owner") {

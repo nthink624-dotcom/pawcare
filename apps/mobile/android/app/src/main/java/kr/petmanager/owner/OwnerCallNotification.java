@@ -22,8 +22,9 @@ final class OwnerCallNotification {
     static final String ACTION_END_CALL = "kr.petmanager.owner.action.END_CALL";
     static final String EXTRA_PROVIDER_CALL_ID = "providerCallId";
     static final String EXTRA_CALLER_NUMBER = "callerNumber";
+    static final String EXTRA_NOTIFICATION_ID = "notificationId";
 
-    private static final String CHANNEL_ID = "catch-call-incoming-v2";
+    private static final String CHANNEL_ID = "catch-call-incoming-v3";
     private static final int REQUEST_CODE_BASE = 47000;
 
     private OwnerCallNotification() {}
@@ -92,21 +93,30 @@ final class OwnerCallNotification {
             : phoneTail.isEmpty()
                 ? (registeredCaller ? "예약을 바로 접수할 수 있어요." : "새 고객으로 등록할 수 있어요.")
                 : "010-****-" + phoneTail + (registeredCaller ? " · 예약을 바로 접수할 수 있어요." : " · 새 고객으로 등록할 수 있어요.");
-        Notification notification = new NotificationCompat.Builder(context, CHANNEL_ID)
+        NotificationCompat.Builder actionable = new NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(kr.petmanager.owner.R.drawable.ic_stat_paw)
             .setContentTitle(registeredCaller ? "등록 고객에게 전화가 왔어요" : "새 번호로 전화가 왔어요")
             .setContentText(contentText)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .setContentIntent(choicePendingIntent)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .addAction(new NotificationCompat.Action.Builder(0, "신규고객 등록", registrationPendingIntent).build())
-            .addAction(new NotificationCompat.Action.Builder(0, "예약접수", reservationPendingIntent).build())
-            .build();
+            .setContentIntent(registeredCaller ? reservationPendingIntent : choicePendingIntent)
+            .setOngoing(false)
+            .setOnlyAlertOnce(true);
+        if (registeredCaller) {
+            Intent phoneOnly = new Intent(context, OwnerCallActionReceiver.class)
+                .setAction(ACTION_DISMISS)
+                .putExtra(EXTRA_PROVIDER_CALL_ID, providerCallId)
+                .putExtra(EXTRA_NOTIFICATION_ID, notificationId);
+            PendingIntent phoneOnlyAction = PendingIntent.getBroadcast(context, notificationId + 4, phoneOnly,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            actionable.addAction(new NotificationCompat.Action.Builder(0, "예약 추가", reservationPendingIntent).build());
+            actionable.addAction(new NotificationCompat.Action.Builder(0, "전화만 받기", phoneOnlyAction).build());
+        } else {
+            actionable.addAction(new NotificationCompat.Action.Builder(0, "신규고객 등록", registrationPendingIntent).build());
+        }
 
-        NotificationManagerCompat.from(context).notify(notificationId, notification);
+        NotificationManagerCompat.from(context).notify(notificationId, actionable.build());
     }
 
     static void cancel(Context context, String providerCallId) {
@@ -126,6 +136,8 @@ final class OwnerCallNotification {
         );
         channel.setDescription("전화가 왔을 때 신규고객 등록 또는 예약접수로 바로 이동합니다.");
         channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+        channel.setSound(null, null);
+        channel.enableVibration(false);
         manager.createNotificationChannel(channel);
     }
 

@@ -29,7 +29,9 @@ final class OwnerCallScreeningStore {
     private static final String KEY_ALIAS = "petmanager_call_screening_v1";
     private static final String CONFIG_KEY = "config";
     private static final String EVENTS_KEY = "events";
+    private static final String CHOICES_KEY = "choices";
     private static final int MAX_PENDING_EVENTS = 50;
+    private static final int MAX_PENDING_CHOICES = 50;
 
     private OwnerCallScreeningStore() {}
 
@@ -262,6 +264,54 @@ final class OwnerCallScreeningStore {
             if (event != null && !acknowledged.contains(event.optString("providerEventId", ""))) remaining.put(event);
         }
         writeArray(context, EVENTS_KEY, remaining);
+    }
+
+    static synchronized JSONArray enqueueChoice(Context context, String providerCallId, String actionName) {
+        String callId = providerCallId == null ? "" : providerCallId.trim();
+        if (callId.isEmpty() || !("reservation_selected".equals(actionName) || "phone_only_selected".equals(actionName))) return new JSONArray();
+        String shopId = readObject(context, CONFIG_KEY).optString("shopId", "").trim();
+        if (shopId.isEmpty()) return new JSONArray();
+
+        JSONArray choices = readArray(context, CHOICES_KEY);
+        for (int index = 0; index < choices.length(); index += 1) {
+            JSONObject choice = choices.optJSONObject(index);
+            if (choice != null && callId.equals(choice.optString("providerCallId", ""))) return choices;
+        }
+
+        try {
+            JSONObject choice = new JSONObject();
+            choice.put("shopId", shopId);
+            choice.put("providerCallId", callId);
+            choice.put("action", actionName);
+            choice.put("selectedAt", System.currentTimeMillis());
+            JSONArray next = new JSONArray();
+            int start = Math.max(0, choices.length() - MAX_PENDING_CHOICES + 1);
+            for (int index = start; index < choices.length(); index += 1) next.put(choices.optJSONObject(index));
+            next.put(choice);
+            writeArray(context, CHOICES_KEY, next);
+            return next;
+        } catch (Exception ignored) {
+            return choices;
+        }
+    }
+
+    static synchronized JSONArray getPendingChoices(Context context) {
+        return readArray(context, CHOICES_KEY);
+    }
+
+    static synchronized void acknowledgeChoices(Context context, JSONArray providerCallIds) {
+        Set<String> acknowledged = new HashSet<>();
+        for (int index = 0; index < providerCallIds.length(); index += 1) {
+            String id = providerCallIds.optString(index, "").trim();
+            if (!id.isEmpty()) acknowledged.add(id);
+        }
+        JSONArray existing = readArray(context, CHOICES_KEY);
+        JSONArray remaining = new JSONArray();
+        for (int index = 0; index < existing.length(); index += 1) {
+            JSONObject choice = existing.optJSONObject(index);
+            if (choice != null && !acknowledged.contains(choice.optString("providerCallId", ""))) remaining.put(choice);
+        }
+        writeArray(context, CHOICES_KEY, remaining);
     }
 
     static synchronized void clear(Context context) {

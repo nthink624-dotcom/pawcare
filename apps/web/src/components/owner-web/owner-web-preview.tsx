@@ -102,6 +102,7 @@ function buildShopInitials(shopName: string) {
 function settingsTabForScreen(screen: OwnerWebScreenKey): SettingsTabKey | null {
   if (screen === "ownerProfile") return "profile";
   if (screen === "shopInfo") return "shop";
+  if (screen === "bookingPolicy") return "shop";
   if (screen === "bookingLink" || screen === "bookingPageManagement") return "shop";
   if (screen === "operatingHours") return "hours";
   if (screen === "benefits") return "benefits";
@@ -164,7 +165,7 @@ function getRequestedOwnerWebScreen(data: BootstrapPayload): OwnerWebScreenKey {
   if (typeof window === "undefined") return "schedule";
   const searchParams = new URLSearchParams(window.location.search);
   const screen = searchParams.get("screen") as OwnerWebScreenKey | null;
-  if (screen && ["schedule", "bookingPageManagement", "bookingLink", "customers", "calendarRecords", "profitability", "services", "staff", "ownerProfile", "shopInfo", "operatingHours", "benefits", "alerts", "help"].includes(screen)) {
+  if (screen && ["schedule", "bookingPageManagement", "bookingLink", "customers", "calendarRecords", "profitability", "services", "staff", "ownerProfile", "shopInfo", "bookingPolicy", "operatingHours", "benefits", "alerts", "help"].includes(screen)) {
     return screen;
   }
   if (!getBootstrapOwnerInitialSetupReadiness(data).completed) return "schedule";
@@ -288,6 +289,7 @@ function renderScreen(
     case "help":
       return <OwnerHelpScreen initialData={initialData} />;
     case "shopInfo":
+    case "bookingPolicy":
     case "bookingLink":
     case "bookingPageManagement":
     case "operatingHours":
@@ -296,7 +298,7 @@ function renderScreen(
     case "alerts":
       return (
         <SettingsManagementScreen
-          initialShopSection={screen === "bookingLink" || screen === "bookingPageManagement" ? "booking" : undefined}
+          initialShopSection={screen === "bookingPolicy" ? "policy" : screen === "bookingLink" || screen === "bookingPageManagement" ? "booking" : undefined}
           bookingPageContent={
             <div className="min-w-0 space-y-5">
               <BookingLinkManagementScreen initialData={initialData} embedded />

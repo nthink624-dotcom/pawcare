@@ -1,5 +1,7 @@
 # PetManager PC/Mobile Data Contracts
 
+예약금·서명 동의서·노쇼 조건 공통 계약: [booking-preparation-contract.md](booking-preparation-contract.md). 로컬 구현이며 원격 적용 전 단계.
+
 _Last updated: 2026-09-08_
 
 ## Source Of Truth
@@ -724,6 +726,7 @@ Price-guide image analysis uses two separate persistence classes.
 
 - `call_integrations` stores a shop-scoped provider connection, explicit `line_type` (`landline` or `mobile`), and one-way webhook-token hash. A shop may connect separate wired and mobile business lines; the raw webhook token is returned only once by `POST /api/owner/call-integrations`; `GET` never returns it.
 - `call_events` is an append-only server-ingested event ledger. It stores provider event ID, direction, event type, occurrence time, HMAC phone fingerprint, last four digits, match status, and an allowlisted metadata object. It never stores the raw caller number, recording, transcript, or unfiltered provider payload.
+- `call_event_actions` is an append-only owner-choice ledger linked to one matched incoming `call_events` row. It records only `reservation_selected` or `phone_only_selected`, the selecting owner, and timestamps; it stores no phone number or provider payload.
 - CatchCall reservation flow links one matched `call_events` row to at most one `appointments` row through `call_events.appointment_id`. The appointment uses `appointments.source = 'catchcall'`; this source deliberately suppresses the normal create-time booking notification.
 - `POST /api/owner/call-events/:eventId/reservation` is an authenticated owner/manager write. It accepts only the selected pet/service/staff/date/time/memo, requires a matched guardian, and returns the existing link on replay. It does not accept or return a raw caller number.
 - If the event is already `ended`, the server dispatches the approved `booking_confirmed` AlimTalk after the link is committed. For an incoming/answered event, notification remains `not_requested` until a matching ended event is ingested by provider call ID. Duplicate/replayed ended events do not send a second message.
@@ -738,3 +741,10 @@ Price-guide image analysis uses two separate persistence classes.
 - `POST /api/admin/notifications/failures` accepts only a UUID `notificationId` whose current status is `failed`. The server reloads the current shop, appointment, guardian, pet, and media relations before dispatching; client-supplied recipient data is not trusted.
 - Retries preserve the original failed row, record `retryOfNotificationId` on the new notification, use the normal notification settings and dedupe guard, and write an `owner_activity_events` audit row with no message or phone payload.
 - A retry result remains an explicit `failed`, `queued`, `sent`, or `skipped` state. Automatic customer re-delivery is never performed by the failure-list endpoint.
+# 반려동물별 실제 소요시간 추정
+
+- 시작·완료 시각은 `appointments.actual_started_at` / `actual_completed_at`, 실제 소요시간은 `grooming_records.actual_duration_minutes`, 당시 예약시간은 `expected_duration_minutes`로 구분해 보존한다.
+- 웹 고객 관리 예약 추가와 모바일 예약 추가는 `apps/shared/lib/pet-duration-estimate.ts`의 동일 계산을 사용한다. 같은 매장·서비스·반려동물의 완료 예약에 유일하게 연결되고, 시작/완료 시각의 차이와 실제 소요시간이 일치하는 기록만 사용한다.
+- 해당 반려동물 기록이 1건부터 있으면 중앙값을 5분 단위로 올림해 추천한다. 1~2건은 `초기 추정`으로 표시한다. 예: 예약 90분 / 실제 74분 → 다음 예상 75분, 실제 평균 74분, 기록 1건.
+- 해당 동물 기록이 없으면 같은 매장·서비스·반올림 체중 기록 3건 이상, 같은 서비스 3건 이상, 기본 서비스 시간 순으로 대체한다. 다른 매장 기록·취소·미완료·중복·시각 누락 및 불일치 기록은 제외한다.
+- 이 값은 현재 조회된 기록의 읽기 전용 추정이며 과거 예약·실측 기록이나 요금표를 변경하지 않는다. 모든 과거 기록의 완전 조회 또는 통계적 정확성을 보장하지 않는다.

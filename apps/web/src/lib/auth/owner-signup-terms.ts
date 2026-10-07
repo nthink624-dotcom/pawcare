@@ -1,4 +1,4 @@
-export const OWNER_SIGNUP_TERMS_VERSION = "2026-09-14";
+export const OWNER_SIGNUP_TERMS_VERSION = "2026-10-06";
 export const OWNER_MARKETING_CONSENT_DOCUMENT_VERSION = "2026-09-14-v1";
 export const OWNER_MARKETING_TRIAL_BENEFIT_CODE = "marketing_consent_signup_30d_v1";
 export const OWNER_MARKETING_TRIAL_BENEFIT_DAYS = 30;
@@ -20,7 +20,7 @@ export const ownerSignupTerms: OwnerSignupTerm[] = [
     title: "서비스 이용약관 동의",
     required: true,
     content: `서비스 이용약관
-시행일자: 2026년 9월 14일
+시행일자: 2026년 10월 6일
 
 제1조 (목적)
 이 약관은 ${LEGAL_OPERATOR_NAME}(이하 "회사")가 운영하는 "${LEGAL_SERVICE_NAME}" 서비스(이하 "서비스")의 이용과 관련하여 회사와 이용자 간의 권리, 의무 및 책임사항 등 필요한 사항을 규정함을 목적으로 합니다.
@@ -45,6 +45,7 @@ export const ownerSignupTerms: OwnerSignupTerm[] = [
 1. 반려동물 미용 예약 접수 및 조회
 2. 고객, 반려동물, 예약, 미용기록 관리
 3. 매장 운영 지원 기능 및 관련 부가 서비스
+4. 동의서 관리 기능은 매장이 미용 동의 문안을 작성·수정하고 보호자의 서명과 기록을 관리할 수 있는 도구를 제공합니다. 기본 문안은 참고용이며 법률 자문이나 법적 효력 보증이 아닙니다.
 
 제6조 (서비스의 중단)
 회사는 시스템 점검, 장애, 천재지변 등 부득이한 사유가 발생한 경우 서비스의 전부 또는 일부를 제한하거나 중단할 수 있습니다.
@@ -55,6 +56,7 @@ export const ownerSignupTerms: OwnerSignupTerm[] = [
 2. 허위 정보 등록
 3. 서비스 방해 및 부정 이용
 4. 회사 및 제3자의 권리 침해
+5. 회원은 매장과 보호자 사이의 미용 서비스 계약과 동의서에 관하여 문안의 검토·수정, 보호자에 대한 설명과 동의 확보, 필요한 기록의 관리 및 분쟁 대응을 책임집니다. 동의서의 최종 내용과 보호자에게 제시하고 동의를 받는 방식은 회원이 정합니다.
 
 제8조 (회사의 의무)
 1. 회사는 관련 법령을 준수하며 안정적인 서비스 제공을 위해 노력합니다.
@@ -77,12 +79,13 @@ export const ownerSignupTerms: OwnerSignupTerm[] = [
 
 제12조 (면책)
 회사는 불가항력적 사유 또는 이용자의 귀책사유로 인한 서비스 장애에 대하여 관련 법령이 허용하는 범위 내에서 책임을 제한합니다.
+동의서 관리 기능에서 매장과 보호자가 작성·체결하는 미용 관련 합의의 당사자는 해당 매장과 보호자이며, 회사는 그 합의의 당사자가 아닙니다. 회사는 기본 동의서 문안의 법적 적합성이나 개별 매장 상황에 대한 적합성을 보증하지 않습니다. 다만 이 조항은 회사가 제공하는 서비스 자체에 관하여 관련 법령상 부담하는 의무나 회사의 귀책사유에 따른 책임을 배제하지 않습니다.
 
 제13조 (분쟁 해결)
 회사와 이용자 간 분쟁은 대한민국 법령과 절차에 따라 해결합니다.
 
 부칙
-이 약관은 2026년 9월 14일부터 시행합니다.`,
+이 약관은 2026년 10월 6일부터 시행합니다.`,
   },
   {
     id: "privacy",

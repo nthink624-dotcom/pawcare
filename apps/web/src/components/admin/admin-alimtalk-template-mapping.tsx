@@ -242,7 +242,7 @@ export default function AdminAlimtalkTemplateMapping() {
             </p>
           </div>
           <span className={`rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[#475569] ${ADMIN_TYPOGRAPHY.badge}`}>
-            연결 정상 {connectedCount}/{notificationMappings.length}
+            PetManager 발송 기준 통과 {connectedCount}/{notificationMappings.length}
           </span>
         </div>
 
@@ -260,8 +260,10 @@ export default function AdminAlimtalkTemplateMapping() {
             const statusText = !mapping.templateCode
               ? "템플릿 미연결"
               : mapping.usable
-                ? "연결 · 쏘다 상태 정상"
-                : "코드는 연결됐지만 승인/사용 확인 필요";
+                ? mapping.inspectionStatus?.toUpperCase() === "APR"
+                  ? "코드 연결 · 검수 승인"
+                  : "코드 연결 · 발송 기준 통과"
+                : "코드 연결 · 발송 승인 확인 필요";
             const statusClass = !mapping.templateCode
               ? "bg-[#FFF7ED] text-[#9A5E4E]"
               : mapping.usable
@@ -301,7 +303,7 @@ export default function AdminAlimtalkTemplateMapping() {
           })}
         </ul>
         <p className={`mt-2 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
-          이 표는 PetManager 연결 코드와 쏘다 검수·서비스 상태를 확인합니다. 실제 발송에는 매장/고객 수신 설정, 중복 방지, 크레딧 조건도 적용됩니다. 본문을 펼쳐 알림 목적에 맞는 문구와 버튼인지 확인해 주세요.
+          이 표는 PetManager 연결 코드, 앱의 발송 승인 판정, 쏘다 검수·서비스 원문 상태를 확인합니다. 실제 발송에는 매장/고객 수신 설정, 중복 방지, 크레딧 조건도 적용됩니다. 본문을 펼쳐 알림 목적에 맞는 문구와 버튼인지 확인해 주세요.
         </p>
       </section> : null}
     </section>

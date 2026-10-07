@@ -24,7 +24,7 @@ test("consent template resolves from relay alias after review without a Vercel e
 
   assert.match(resolver, /item\.alias === alias && \(!configuredCode \|\| item\.configuredCode === configuredCode\)/);
   assert.match(resolver, /configuredCode \|\| aliasEntry\?\.configuredCode/);
-  assert.match(resolver, /isApprovedAndUsableTemplate\(detail, alias\)/);
+  assert.match(resolver, /isApprovedAndUsableTemplate\(detail\)/);
   assert.match(dispatch, /booking_consent_request" && connectedTemplate\?\.source !== "ssodaa_approved"/);
 });
 
@@ -40,9 +40,10 @@ test("consent Alimtalk requires provider approval, active service, exact body, a
     buttons: [{ type: "WL", name: "동의서 작성", linkMobile: "https://www.petmanager.co.kr/book/manage?t=#{예약 확인 링크}" }],
   };
 
-  assert.equal(isApprovedAndUsableTemplate(detail, "booking_consent_request"), true);
-  assert.equal(isApprovedAndUsableTemplate({ ...detail, inspectionStatus: "", serviceStatus: "ACT" }, "booking_consent_request"), false);
-  assert.equal(isApprovedAndUsableTemplate({ ...detail, serviceStatus: "" }, "booking_consent_request"), false);
+  assert.equal(isApprovedAndUsableTemplate(detail), true);
+  assert.equal(isApprovedAndUsableTemplate({ ...detail, inspectionStatus: "" }), false);
+  assert.equal(isApprovedAndUsableTemplate({ ...detail, serviceStatus: "" }), false);
+  assert.equal(isApprovedAndUsableTemplate({ ...detail, serviceStatus: "S" }), false);
   assert.equal(hasApprovedBookingConsentTemplateContract(detail), true);
   assert.equal(hasApprovedBookingConsentTemplateContract({ ...detail, templateContent: `${contract} 변경` }), false);
   assert.equal(hasApprovedBookingConsentTemplateContract({ ...detail, buttons: [{ ...detail.buttons[0], name: "예약 확인" }] }), false);

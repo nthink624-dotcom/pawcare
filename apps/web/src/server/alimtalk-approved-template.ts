@@ -16,7 +16,7 @@ export type ApprovedSsodaaTemplateButton = {
   linkPc?: string | null;
 };
 
-type ConnectedTemplateDetail = {
+export type ConnectedTemplateDetail = {
   templateCode: string;
   templateName: string | null;
   templateContent: string | null;
@@ -25,7 +25,7 @@ type ConnectedTemplateDetail = {
   buttons: ApprovedSsodaaTemplateButton[];
 };
 
-type RelayTemplateCatalogBody = {
+export type RelayTemplateCatalogBody = {
   items?: Array<{
     alias?: AlimtalkTemplateAlias | null;
     configuredCode?: string | null;
@@ -139,7 +139,7 @@ async function getApprovedSsodaaTemplate(
     return normalized;
   }
 
-  const detail = getApprovedSsodaaTemplateFromCatalog(alias, body);
+  const detail = await getApprovedSsodaaTemplateFromCatalog(alias, body);
   if (detail) validateTemplateContract(alias, detail);
   return detail;
 }
@@ -196,11 +196,12 @@ async function getShopApprovedTemplateCodes(shopId: string | undefined, types: N
   return codes;
 }
 
-function getApprovedSsodaaTemplateFromCatalog(
+async function getApprovedSsodaaTemplateFromCatalog(
   alias: AlimtalkTemplateAlias,
   body: RelayTemplateCatalogBody,
-): ConnectedTemplateDetail | null {
-  const configuredCode = getConfiguredAlimtalkTemplateKey(alias)?.trim();
+): Promise<ConnectedTemplateDetail | null> {
+  const platformCode = await getPlatformMappedTemplateCode(alias);
+  const configuredCode = platformCode || getConfiguredAlimtalkTemplateKey(alias)?.trim();
   const aliasEntry = body.items?.find(
     (item) => item.alias === alias && (!configuredCode || item.configuredCode === configuredCode),
   );
@@ -220,6 +221,26 @@ function getApprovedSsodaaTemplateFromCatalog(
   return normalizeConnectedTemplateDetail(templateCode, detail);
 }
 
+async function getPlatformMappedTemplateCode(alias: AlimtalkTemplateAlias) {
+  const admin = getSupabaseAdmin();
+  if (!admin) return null;
+  const result = await admin
+    .from("platform_alimtalk_templates")
+    .select("provider_template_code")
+    .eq("provider", "ssodaa")
+    .eq("template_alias", alias)
+    .eq("inspection_status", "approved")
+    .eq("service_status", "active")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (result.error) {
+    throw new Error("예약 확정 템플릿 설정을 확인하지 못했습니다.");
+  }
+  const code = result.data?.provider_template_code?.trim();
+  return code || null;
+}
+
 function normalizeConnectedTemplateDetail(
   templateCode: string,
   detail: ConnectedTemplateDetail,
@@ -236,7 +257,7 @@ function normalizeConnectedTemplateDetail(
   };
 }
 
-async function getRelayTemplateCatalog(): Promise<RelayTemplateCatalogBody | null> {
+export async function getRelayTemplateCatalog(): Promise<RelayTemplateCatalogBody | null> {
   const urls = getRelayAdminUrlCandidates("/admin/templates");
   if (!urls.length) return null;
 
@@ -438,20 +459,20 @@ export async function getApprovedSsodaaNotificationTemplates(
     getShopApprovedTemplateCodes(shopId, types),
   ]);
 
-  return types.map((type) => {
+  return Promise.all(types.map(async (type) => {
     const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
     const customCode = customCodes.get(type);
     const detail = spec && catalog
       ? customCode
         ? catalog.allTemplates?.find((item) => item.templateCode === customCode && isApprovedAndUsableTemplate(item)) ?? null
-        : getApprovedSsodaaTemplateFromCatalog(spec.templateAlias, catalog)
+        : await getApprovedSsodaaTemplateFromCatalog(spec.templateAlias, catalog)
       : null;
     // A preview is a list of independently available templates. Keep an unavailable
     // approval out of the list instead of failing every other preview in the response.
     // The single-template resolver used by dispatch still throws and fails closed.
     if (requiresApprovedSsodaaTemplate() && !detail?.templateContent) return null;
     return renderApprovedSsodaaNotificationTemplate({ type, values, detail });
-  });
+  }));
 }
 
 export async function renderApprovedSsodaaTemplateBody(

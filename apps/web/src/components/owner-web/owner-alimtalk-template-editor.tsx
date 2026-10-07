@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { getNotificationDraftBody } from "@/lib/notification-registry";
 import type { NotificationType } from "@/types/domain";
 
 type ShopTemplate = {
@@ -51,8 +52,8 @@ export function OwnerAlimtalkTemplateEditor({
   const [templates, setTemplates] = useState<ShopTemplate[]>([]);
   const [categories, setCategories] = useState<TemplateCategory[]>([]);
   const [templateId, setTemplateId] = useState("");
-  const [templateName, setTemplateName] = useState("");
-  const [templateContent, setTemplateContent] = useState("");
+  const [templateContent, setTemplateContent] = useState(() => getNotificationDraftBody(notificationType) ?? "");
+  const editedContentKey = useRef("");
   const [categoryCode, setCategoryCode] = useState("");
   const [buttonName, setButtonName] = useState("");
   const [buttonUrl, setButtonUrl] = useState("");
@@ -86,24 +87,25 @@ export function OwnerAlimtalkTemplateEditor({
 
   useEffect(() => {
     const current = templates.find((template) => template.notification_type === notificationType);
+    const contentKey = `${shopId}:${notificationType}:${newVersion}`;
+    if (editedContentKey.current !== contentKey) {
+      editedContentKey.current = "";
+      setTemplateContent(current?.template_content ?? getNotificationDraftBody(notificationType) ?? "");
+    }
     setNotice("");
     setError("");
     if (!current || newVersion) {
       setTemplateId("");
-      setTemplateName(current?.template_name ?? "");
-      setTemplateContent(current?.template_content ?? "");
       setButtonName(current?.template_buttons?.[0]?.buttonName ?? "");
       setButtonUrl(current?.template_buttons?.[0]?.linkMobile ?? "");
-      if (current) setCategoryCode(current.category_code || categories[0]?.code || "");
+      setCategoryCode(current?.category_code || categories[0]?.code || "");
       return;
     }
     setTemplateId(current.id);
-    setTemplateName(current.template_name);
-    setTemplateContent(current.template_content);
     setButtonName(current.template_buttons?.[0]?.buttonName ?? "");
     setButtonUrl(current.template_buttons?.[0]?.linkMobile ?? "");
     setCategoryCode(current.category_code || categories[0]?.code || "");
-  }, [templates, notificationType, categories, newVersion]);
+  }, [templates, notificationType, categories, newVersion, shopId]);
 
   const currentTemplate = templates.find((template) => template.notification_type === notificationType);
   const editable = !currentTemplate || currentTemplate.inspection_status === "draft" || newVersion;
@@ -117,8 +119,13 @@ export function OwnerAlimtalkTemplateEditor({
     .replaceAll("#{서비스명}", "예약 서비스");
 
   async function save(action: "save" | "submit") {
-    if (!templateName.trim() || !templateContent.trim() || !categoryCode) {
-      setError("템플릿 이름, 내용, 카테고리를 입력해 주세요.");
+    const templateName = currentTemplate?.template_name?.trim() || notificationTitle;
+    if (!templateContent.trim()) {
+      setError("보호자에게 보낼 내용을 입력해 주세요.");
+      return;
+    }
+    if (!categoryCode) {
+      setError("알림 분류를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
       return;
     }
     setSaving(true);
@@ -172,21 +179,27 @@ export function OwnerAlimtalkTemplateEditor({
               </nav>
 
               <main className="min-w-0 bg-white p-4 sm:p-5 lg:overflow-y-auto lg:border-r lg:border-[#e8edf3] xl:border-[#e8edf3]">
-                <div className="mb-3 flex items-start justify-between gap-3"><div><h3 className="text-[18px] font-medium leading-[26px] text-[#15213b]">{notificationTitle}</h3><p className="mt-1 text-[16px] leading-6 text-[#475569]">이 알림에 사용할 매장 전용 문구</p></div>{currentTemplate ? <span className="shrink-0 rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] text-[#475569]">{statusNames[currentTemplate.inspection_status] ?? "상태 확인 필요"}</span> : null}</div>
+                <div className="mb-3 flex items-start justify-between gap-3"><h3 className="text-[18px] font-medium leading-[26px] text-[#15213b]">{notificationTitle}</h3>{currentTemplate ? <span className="shrink-0 rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] text-[#475569]">{statusNames[currentTemplate.inspection_status] ?? "상태 확인 필요"}</span> : null}</div>
+                <p data-template-policy className="mb-3 flex items-start gap-2 rounded-[8px] bg-[#fff9e8] px-3 py-2 text-[13px] leading-5 text-[#8a6417]"><span aria-hidden="true" className="shrink-0">ⓘ</span><span>카카오 정책상 홍보·이벤트 등 비정보성 내용은 입력할 수 없고, 검수 후 적용됩니다.</span></p>
                 {loading ? <p className="mb-3 text-[16px] leading-6 text-[#64748b]">매장 템플릿을 불러오는 중입니다.</p> : null}
                 {currentTemplate && !editable ? <div className="rounded-[10px] border border-[#e8edf3] bg-[#f8fafc] p-4"><p className="text-[18px] font-medium leading-[26px] text-[#15213b]">{currentTemplate.template_name}</p><p className="mt-2 whitespace-pre-wrap text-[16px] leading-6 text-[#475569]">{currentTemplate.template_content}</p>{currentTemplate.template_buttons?.map((button) => <p key={button.buttonName} className="mt-2 text-[16px] leading-6 text-[#475569]">버튼 · {button.buttonName}</p>)}<p className="mt-3 text-[16px] leading-6 text-[#64748b]">승인 전까지 기존 알림 문구가 유지됩니다.</p>{canCreateVersion ? <button type="button" onClick={() => setNewVersion(true)} className="mt-3 min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#15213b]">새 문구 작성</button> : null}</div> : <div className="space-y-3">
-                  <label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">템플릿 이름</span><input value={templateName} onChange={(event) => setTemplateName(event.target.value)} maxLength={100} className={inputClass} placeholder={`${notificationTitle} 안내`} /></label>
-                  <label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">카테고리</span><select value={categoryCode} onChange={(event) => setCategoryCode(event.target.value)} className={inputClass}>{categories.map((category) => <option key={category.code} value={category.code}>{category.name}</option>)}</select></label>
-                  <label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">보호자에게 보낼 내용</span><textarea value={templateContent} onChange={(event) => setTemplateContent(event.target.value)} maxLength={1000} rows={10} className="min-h-[220px] w-full resize-y rounded-[8px] border border-[#dbe2ea] px-3 py-2.5 text-[16px] leading-6 text-[#15213b] outline-none placeholder:text-[#94a3b8] focus:border-[#64748b] focus:ring-2 focus:ring-[#64748b]/15" placeholder="원하는 문구를 적어주세요. 예약일시, 반려동물명 등 필요한 정보를 함께 적을 수 있습니다." /><span className="mt-1 block text-right text-[12px] text-[#64748b]">{templateContent.length} / 1,000</span></label>
-                  <p className="rounded-[8px] bg-[#fff9e8] px-3 py-2 text-[16px] leading-6 text-[#8a6417]">자동 입력 값: {"#{매장명}"}, {"#{반려동물명}"}, {"#{보호자명}"}, {"#{예약일시}"}, {"#{서비스명}"}</p>
+                  <div>
+                    <label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">보호자에게 보낼 내용</span><textarea value={templateContent} onChange={(event) => { editedContentKey.current = `${shopId}:${notificationType}:${newVersion}`; setTemplateContent(event.target.value); }} maxLength={1000} rows={10} className="min-h-[220px] w-full resize-y rounded-[8px] border border-[#dbe2ea] px-3 py-2.5 text-[16px] leading-6 text-[#15213b] outline-none placeholder:text-[#94a3b8] focus:border-[#64748b] focus:ring-2 focus:ring-[#64748b]/15" placeholder="원하는 문구를 적어주세요. 예약일시, 반려동물명 등 필요한 정보를 함께 적을 수 있습니다." /></label>
+                    <div data-template-content-meta className="mt-1 flex items-start justify-between gap-3 text-[#64748b]">
+                      <p className="min-w-0 break-words text-[13px] leading-5">자동 입력 값: {"#{매장명}"}, {"#{반려동물명}"}, {"#{보호자명}"}, {"#{예약일시}"}, {"#{서비스명}"}</p>
+                      <span className="shrink-0 whitespace-nowrap text-[12px] leading-5">{templateContent.length} / 1,000</span>
+                    </div>
+                  </div>
+                  <details><summary className="flex min-h-11 cursor-pointer items-center text-[16px] font-medium leading-6 text-[#475569]">버튼 설정{needsButton ? " · 필수" : " · 선택"}</summary>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">버튼 이름{needsButton ? " · 필수" : " · 선택"}</span><input value={buttonName} onChange={(event) => setButtonName(event.target.value)} maxLength={14} className={inputClass} placeholder="예약 확인" /></label><label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">버튼 링크</span><input type="url" value={buttonUrl} onChange={(event) => setButtonUrl(event.target.value)} className={inputClass} placeholder="https://" /></label></div>
+                  </details>
                   <p className="text-[16px] leading-6 text-[#64748b]">검수가 완료되면 이 매장의 {notificationTitle} 알림에 적용됩니다.</p>
                 </div>}
                 {error ? <p role="alert" className="mt-3 text-[16px] leading-6 text-[#9a5e4e]">{error}</p> : null}{notice ? <p role="status" className="mt-3 text-[16px] leading-6 text-[#1f6b5b]">{notice}</p> : null}
               </main>
 
               <aside aria-label="카카오 미리보기" className="min-w-0 bg-[#9bb7d0] p-4 sm:p-5 lg:col-span-2 xl:col-span-1 xl:overflow-y-auto">
-                <div className="mb-3"><p className="text-[18px] font-medium leading-[26px] text-[#15213b]">카카오 미리보기</p><p className="mt-1 text-[16px] leading-6 text-white">입력한 문구가 보호자에게 이렇게 보여요.</p></div>
+                <div className="mb-3"><p className="text-[18px] font-medium leading-[26px] text-[#15213b]">카카오 미리보기</p></div>
                 <div className="mx-auto max-w-[320px] rounded-[14px] border border-white/60 bg-white p-3 shadow-sm">
                   <div className="mb-3 flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0c2] text-[12px] font-medium text-[#9a6b00]">톡</span><span className="truncate text-[16px] font-medium leading-6 text-[#334155]">{shopName || "내 매장"}</span></div>
                   <div className="overflow-hidden rounded-[10px] border border-[#ececec]">

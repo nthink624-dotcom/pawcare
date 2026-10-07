@@ -370,6 +370,12 @@ export default function CustomerBookingEntryPage({
   const [priceSheetOpen, setPriceSheetOpen] = useState(false);
   const [selectedServiceOptionId, setSelectedServiceOptionId] = useState("");
   const [hoursOpen, setHoursOpen] = useState(previewMode && previewSection === "hours");
+  const hoursPreviewKey = `${Boolean(previewMode)}:${previewSection ?? ""}`;
+  const [previousHoursPreviewKey, setPreviousHoursPreviewKey] = useState(hoursPreviewKey);
+  if (previousHoursPreviewKey !== hoursPreviewKey) {
+    setPreviousHoursPreviewKey(hoursPreviewKey);
+    if (previewMode && previewSection) setHoursOpen(previewSection === "hours");
+  }
   const [addressCopied, setAddressCopied] = useState(false);
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const [heroGalleryOpen, setHeroGalleryOpen] = useState(false);
@@ -389,7 +395,6 @@ export default function CustomerBookingEntryPage({
   const staffProfilePointerStartXRef = useRef<number | null>(null);
   useEffect(() => {
     if (!previewMode || !previewSection) return;
-    setHoursOpen(previewSection === "hours");
     const frame = requestAnimationFrame(() => {
       const scroller = entryScrollRef.current;
       const target = entryRootRef.current?.querySelector<HTMLElement>(

@@ -378,7 +378,7 @@ export default function PriceGuideNativeInlineTable({
                           label: group.weightBands[weightIndex]?.label,
                         }] : [];
                       });
-                      return <th key={`service-${serviceIndex}`} className="sticky top-0 z-30 min-w-[210px] border-b border-r border-[#e8edf3] bg-[#f8fafc] p-1.5 align-top !font-medium last:border-r-0">
+                      return <th key={`service-${serviceIndex}`} className="sticky top-0 z-30 min-w-[210px] border-b border-r border-[#e8edf3] bg-[#f8fafc] p-1 align-top !font-medium last:border-r-0">
                         {renderedStructureField === serviceId ? (
                           <div className="flex min-w-[196px] items-start gap-1" data-price-guide-structure-editor={serviceId}>
                             <label htmlFor={serviceId} className="sr-only">서비스명</label>
@@ -388,7 +388,7 @@ export default function PriceGuideNativeInlineTable({
                         ) : (
                           <div className="flex min-w-0 flex-col items-stretch gap-1">
                             <button id={serviceId} type="button" onClick={() => startStructureEdit(serviceId)} className="min-h-10 w-full rounded-[8px] px-2 text-center !text-[16px] !font-medium !leading-6 text-[#172033] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 이름 수정`}>{serviceName || <span className="text-[#7a8798]">서비스명 입력</span>}</button>
-                            <div className="flex min-h-8 items-center justify-center gap-1 border-t border-[#e8edf3] pt-0.5">
+                            <div className="grid min-h-8 grid-cols-[minmax(0,1fr)_88px] items-center gap-1.5 border-t border-[#e8edf3] pt-0.5" data-price-guide-header-alignment="true">
                             <PriceGuideServicePriceControl
                               serviceName={serviceName}
                               groupName={groupName}

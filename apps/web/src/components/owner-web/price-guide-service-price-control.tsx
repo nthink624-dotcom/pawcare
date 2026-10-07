@@ -109,7 +109,7 @@ export default function PriceGuideServicePriceControl({
   }, [open]);
 
   return <>
-    <button type="button" onClick={openDialog} aria-haspopup="dialog" aria-label={`${groupName} ${serviceName} 가격 설정`} title="가격 설정" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] px-2 text-[14px] font-medium text-[#42536a] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" data-price-guide-service-price-trigger="true">
+    <button type="button" onClick={openDialog} aria-haspopup="dialog" aria-label={`${groupName} ${serviceName} 가격 설정`} title="가격 설정" className="inline-flex min-h-11 w-full min-w-0 items-center justify-center whitespace-nowrap rounded-[8px] px-1 text-[14px] font-medium text-[#42536a] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" data-price-guide-service-price-trigger="true">
       가격
     </button>
     {open && typeof document !== "undefined" ? createPortal(

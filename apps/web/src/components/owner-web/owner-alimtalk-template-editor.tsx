@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CircleHelp } from "lucide-react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { getNotificationDraftBody } from "@/lib/notification-registry";
@@ -21,6 +22,17 @@ type ShopTemplate = {
 
 type TemplateCategory = { code: string; name: string };
 type TemplateOption = { type: NotificationType; title: string; group: string };
+
+const notificationHelp: Partial<Record<NotificationType, string>> = {
+  booking_confirmed: "예약이 확정되었음을 알리고, 방문 일시와 예약 서비스를 안내하는 알림입니다.",
+  booking_cancelled: "매장에서 예약을 취소했음을 보호자에게 안내하는 알림입니다. 고객이 직접 취소한 경우에는 보내지 않습니다.",
+  appointment_reminder_10m: "방문 시간이 가까워졌을 때 예약 일정을 다시 알려주는 알림입니다. 직전·오늘·내일 안내 중 예약에 맞는 안내만 한 번 보냅니다.",
+  visit_reminder_notice: "예약 당일 방문까지 시간이 남아 있을 때 오늘 일정을 알려주는 알림입니다. 직전·오늘·내일 안내 중 예약에 맞는 안내만 한 번 보냅니다.",
+  visit_schedule_notice: "예약일 하루 전에 내일 방문할 일정을 미리 알려주는 알림입니다. 직전·오늘·내일 안내 중 예약에 맞는 안내만 한 번 보냅니다.",
+  grooming_started: "반려동물의 미용을 시작했음을 보호자에게 알려주는 알림입니다.",
+  grooming_almost_done: "미용이 곧 끝날 예정임을 알리고, 보호자가 데리러 올 준비를 할 수 있도록 안내하는 알림입니다.",
+  grooming_completed: "미용이 끝났음을 알려주는 알림입니다. 케어리포트를 작성한 경우에는 리포트 확인도 안내합니다.",
+};
 
 const statusNames: Record<string, string> = {
   draft: "임시 저장",
@@ -62,6 +74,8 @@ export function OwnerAlimtalkTemplateEditor({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [newVersion, setNewVersion] = useState(false);
+  const [helpType, setHelpType] = useState<NotificationType | null>(null);
+  const helpOpen = helpType === notificationType;
 
   const loadTemplates = useCallback(async () => {
     setLoading(true);
@@ -167,7 +181,7 @@ export function OwnerAlimtalkTemplateEditor({
                         {groupOptions.map((option) => {
                           const selected = option.type === notificationType;
                           const template = templates.find((item) => item.notification_type === option.type);
-                          return <button key={option.type} type="button" onClick={() => { setNewVersion(false); onSelectType(option.type); }} aria-current={selected ? "page" : undefined} className={`flex min-h-11 shrink-0 items-center justify-between gap-2 rounded-[9px] border px-2.5 py-1.5 text-left transition lg:w-full ${selected ? "border-[#b8c9c2] bg-[#f3f8f6]" : "border-[#e8edf3] bg-white hover:bg-[#f8fafc]"}`}>
+                          return <button key={option.type} type="button" onClick={() => { setHelpType(null); setNewVersion(false); onSelectType(option.type); }} aria-current={selected ? "page" : undefined} className={`flex min-h-11 shrink-0 items-center justify-between gap-2 rounded-[9px] border px-2.5 py-1.5 text-left transition lg:w-full ${selected ? "border-[#b8c9c2] bg-[#f3f8f6]" : "border-[#e8edf3] bg-white hover:bg-[#f8fafc]"}`}>
                             <span className="text-[16px] font-medium leading-6 text-[#334155]">{option.title}</span>
                             <span className="shrink-0 text-[12px] leading-4 text-[#64748b]">{template ? statusNames[template.inspection_status] ?? "상태 확인 필요" : "미작성"}</span>
                           </button>;
@@ -179,7 +193,8 @@ export function OwnerAlimtalkTemplateEditor({
               </nav>
 
               <main className="min-w-0 bg-white p-4 sm:p-5 lg:overflow-y-auto lg:border-r lg:border-[#e8edf3] xl:border-[#e8edf3]">
-                <div className="mb-3 flex items-start justify-between gap-3"><h3 className="text-[18px] font-medium leading-[26px] text-[#15213b]">{notificationTitle}</h3>{currentTemplate ? <span className="shrink-0 rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] text-[#475569]">{statusNames[currentTemplate.inspection_status] ?? "상태 확인 필요"}</span> : null}</div>
+                <div className="mb-3 flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-1"><h3 className="text-[18px] font-medium leading-[26px] text-[#15213b]">{notificationTitle}</h3><button type="button" aria-label={`${notificationTitle} 역할 도움말`} aria-expanded={helpOpen} aria-controls="owner-template-role-help" onClick={() => setHelpType(helpOpen ? null : notificationType)} onKeyDown={(event) => { if (event.key === "Escape") setHelpType(null); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"><CircleHelp className="h-4 w-4" aria-hidden="true" /></button></div>{currentTemplate ? <span className="shrink-0 rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] text-[#475569]">{statusNames[currentTemplate.inspection_status] ?? "상태 확인 필요"}</span> : null}</div>
+                <p id="owner-template-role-help" hidden={!helpOpen} className="mb-3 min-w-0 whitespace-normal break-words rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[14px] leading-5 text-[#475569] [overflow-wrap:anywhere]">{notificationHelp[notificationType]}</p>
                 <p data-template-policy className="mb-3 flex items-start gap-2 rounded-[8px] bg-[#fff9e8] px-3 py-2 text-[13px] leading-5 text-[#8a6417]"><span aria-hidden="true" className="shrink-0">ⓘ</span><span>카카오 정책상 홍보·이벤트 등 비정보성 내용은 입력할 수 없고, 검수 후 적용됩니다.</span></p>
                 {loading ? <p className="mb-3 text-[16px] leading-6 text-[#64748b]">매장 템플릿을 불러오는 중입니다.</p> : null}
                 {currentTemplate && !editable ? <div className="rounded-[10px] border border-[#e8edf3] bg-[#f8fafc] p-4"><p className="text-[18px] font-medium leading-[26px] text-[#15213b]">{currentTemplate.template_name}</p><p className="mt-2 whitespace-pre-wrap text-[16px] leading-6 text-[#475569]">{currentTemplate.template_content}</p>{currentTemplate.template_buttons?.map((button) => <p key={button.buttonName} className="mt-2 text-[16px] leading-6 text-[#475569]">버튼 · {button.buttonName}</p>)}<p className="mt-3 text-[16px] leading-6 text-[#64748b]">승인 전까지 기존 알림 문구가 유지됩니다.</p>{canCreateVersion ? <button type="button" onClick={() => setNewVersion(true)} className="mt-3 min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#15213b]">새 문구 작성</button> : null}</div> : <div className="space-y-3">

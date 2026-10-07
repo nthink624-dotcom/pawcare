@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 
 import { serverEnv } from "@/lib/server-env";
-import { getNotificationTitle } from "@/lib/notification-registry";
+import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 
@@ -11,10 +11,11 @@ export const dynamic = "force-dynamic";
 
 const templateSchema = z.object({
   shopId: z.string().trim().min(1).max(100),
-  notificationType: z.enum([
-    "booking_confirmed", "booking_cancelled", "appointment_reminder_10m",
-    "visit_schedule_notice", "visit_reminder_notice", "grooming_started",
-    "grooming_almost_done", "grooming_completed", "revisit_notice",
+  templateAlias: z.enum([
+    "booking_consent_request", "booking_confirmed", "booking_cancelled",
+    "appointment_reminder_10m", "visit_schedule_notice", "visit_reminder_notice",
+    "grooming_started", "grooming_almost_done", "grooming_completed",
+    "grooming_completed_without_report", "revisit_notice",
   ]),
   templateName: z.string().trim().min(1).max(100),
   templateContent: z.string().trim().min(1).max(1000),
@@ -39,12 +40,12 @@ const templateSchema = z.object({
   }
   const buttonRequiredTypes = new Set([
     "booking_confirmed", "appointment_reminder_10m", "visit_schedule_notice",
-    "visit_reminder_notice", "grooming_completed", "revisit_notice",
+    "visit_reminder_notice", "grooming_completed", "revisit_notice", "booking_consent_request",
   ]);
   if (Boolean(value.buttonName) !== Boolean(value.buttonUrl)) {
     context.addIssue({ code: "custom", path: ["buttonUrl"], message: "버튼 이름과 링크를 함께 입력해 주세요." });
   }
-  if (buttonRequiredTypes.has(value.notificationType) && (!value.buttonName || !value.buttonUrl)) {
+  if (buttonRequiredTypes.has(value.templateAlias) && (!value.buttonName || !value.buttonUrl)) {
     context.addIssue({ code: "custom", path: ["buttonUrl"], message: "이 알림 검수에 필요한 버튼 링크를 입력해 주세요." });
   }
   if (value.buttonUrl) {
@@ -53,6 +54,9 @@ const templateSchema = z.object({
     } catch {
       context.addIssue({ code: "custom", path: ["buttonUrl"], message: "https 링크를 입력해 주세요." });
     }
+  }
+  if (value.templateAlias === "booking_consent_request" && value.buttonName !== "동의서 작성") {
+    context.addIssue({ code: "custom", path: ["buttonName"], message: "동의서 요청 버튼 이름은 '동의서 작성'이어야 합니다." });
   }
 });
 
@@ -139,16 +143,20 @@ export async function POST(request: NextRequest) {
     assertOwnerOrManager(owner);
     const admin = getSupabaseAdmin();
     if (!admin || !owner.userId) throw new OwnerApiError("템플릿 저장 설정을 확인해 주세요.", 503);
-    const fixedTemplateName = getNotificationTitle(payload.notificationType);
+    const registryItem = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === payload.templateAlias);
+    if (!registryItem) throw new OwnerApiError("알림 종류를 확인해 주세요.", 400);
+    const notificationType = registryItem.type;
+    const fixedTemplateName = registryItem.title;
 
     let row: Record<string, unknown> | null = null;
     if (payload.id) {
       const current = await admin.from("shop_alimtalk_template_requests").select("*").eq("id", payload.id).eq("shop_id", owner.shopId).maybeSingle();
       if (current.error || !current.data) throw new OwnerApiError("저장할 템플릿을 찾지 못했습니다.", 404);
-      if (current.data.notification_type !== payload.notificationType) throw new OwnerApiError("템플릿 알림 종류를 확인해 주세요.", 409);
+      if (current.data.template_alias !== payload.templateAlias) throw new OwnerApiError("템플릿 알림 종류를 확인해 주세요.", 409);
       if (current.data.inspection_status !== "draft") throw new OwnerApiError("심사 요청된 템플릿은 수정할 수 없습니다. 새 템플릿으로 작성해 주세요.", 409);
       const updated = await admin.from("shop_alimtalk_template_requests").update({
         template_name: fixedTemplateName,
+        template_alias: payload.templateAlias,
         template_content: payload.templateContent,
         category_code: payload.categoryCode,
         template_buttons: payload.buttonName && payload.buttonUrl
@@ -162,7 +170,8 @@ export async function POST(request: NextRequest) {
       const templateCode = `PM${randomBytes(13).toString("hex").toUpperCase()}`;
       const inserted = await admin.from("shop_alimtalk_template_requests").insert({
         shop_id: owner.shopId,
-        notification_type: payload.notificationType,
+        notification_type: notificationType,
+        template_alias: payload.templateAlias,
         template_code: templateCode,
         template_name: fixedTemplateName,
         template_content: payload.templateContent,
@@ -184,7 +193,7 @@ export async function POST(request: NextRequest) {
         .from("shop_alimtalk_template_requests")
         .select("id")
         .eq("shop_id", owner.shopId)
-        .eq("notification_type", payload.notificationType)
+        .eq("template_alias", payload.templateAlias)
         .in("inspection_status", ["submitting", "requested", "reviewing", "unknown"])
         .neq("id", templateRowId)
         .limit(1)
@@ -205,7 +214,7 @@ export async function POST(request: NextRequest) {
           templateEmphasizeType: "NONE",
           templateConfigKey: null,
           templateButtons: Array.isArray(row.template_buttons) ? row.template_buttons : [],
-          comment: `${payload.notificationType} 알림 템플릿 심사 요청`,
+          comment: `${payload.templateAlias} 알림 템플릿 심사 요청`,
           requestReview: true,
         });
         const saved = await admin.from("shop_alimtalk_template_requests").update({ inspection_status: "requested", submitted_at: new Date().toISOString() }).eq("id", templateRowId).eq("shop_id", owner.shopId).select("*").single();

@@ -144,17 +144,17 @@ async function getApprovedSsodaaTemplate(
   return detail;
 }
 
-async function getShopApprovedTemplateCodes(shopId: string | undefined, types: NotificationType[]) {
-  if (!shopId) return new Map<NotificationType, string>();
+async function getShopApprovedTemplateCodes(shopId: string | undefined, aliases: AlimtalkTemplateAlias[]) {
+  if (!shopId) return new Map<AlimtalkTemplateAlias, string>();
   const admin = getSupabaseAdmin();
-  if (!admin) return new Map<NotificationType, string>();
+  if (!admin) return new Map<AlimtalkTemplateAlias, string>();
   const result = await admin
     .from("shop_alimtalk_template_requests")
-    .select("id,notification_type,template_code,inspection_status")
+    .select("id,template_alias,template_code,inspection_status")
     .eq("shop_id", shopId)
-    .in("notification_type", types)
+    .in("template_alias", aliases)
     .order("created_at", { ascending: false });
-  if (result.error) return new Map<NotificationType, string>();
+  if (result.error) return new Map<AlimtalkTemplateAlias, string>();
 
   const rows = result.data ?? [];
   const pendingRows = rows.filter((row) => ["submitting", "requested", "reviewing", "unknown"].includes(row.inspection_status));
@@ -187,10 +187,10 @@ async function getShopApprovedTemplateCodes(shopId: string | undefined, types: N
     }
   }
 
-  const codes = new Map<NotificationType, string>();
+  const codes = new Map<AlimtalkTemplateAlias, string>();
   for (const row of rows) {
-    if (row.inspection_status === "approved" && !codes.has(row.notification_type as NotificationType)) {
-      codes.set(row.notification_type as NotificationType, row.template_code);
+    if (row.inspection_status === "approved" && !codes.has(row.template_alias as AlimtalkTemplateAlias)) {
+      codes.set(row.template_alias as AlimtalkTemplateAlias, row.template_code);
     }
   }
   return codes;
@@ -444,8 +444,8 @@ export async function getApprovedSsodaaNotificationTemplate(
     : ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
   if (!spec) return null;
 
-  const customCodes = await getShopApprovedTemplateCodes(shopId, [type]);
-  const detail = await getApprovedSsodaaTemplate(spec.templateAlias, customCodes.get(type));
+  const customCodes = await getShopApprovedTemplateCodes(shopId, [spec.templateAlias]);
+  const detail = await getApprovedSsodaaTemplate(spec.templateAlias, customCodes.get(spec.templateAlias));
   return renderApprovedSsodaaNotificationTemplate({ type, templateAlias: spec.templateAlias, values, detail });
 }
 
@@ -456,12 +456,15 @@ export async function getApprovedSsodaaNotificationTemplates(
 ) {
   const [catalog, customCodes] = await Promise.all([
     getRelayTemplateCatalog(),
-    getShopApprovedTemplateCodes(shopId, types),
+    getShopApprovedTemplateCodes(
+      shopId,
+      Array.from(new Set(types.map((type) => ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type)?.templateAlias).filter((alias): alias is AlimtalkTemplateAlias => Boolean(alias)))),
+    ),
   ]);
 
   return Promise.all(types.map(async (type) => {
     const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
-    const customCode = customCodes.get(type);
+    const customCode = spec ? customCodes.get(spec.templateAlias) : undefined;
     const detail = spec && catalog
       ? customCode
         ? catalog.allTemplates?.find((item) => item.templateCode === customCode && isApprovedAndUsableTemplate(item)) ?? null

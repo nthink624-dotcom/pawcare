@@ -8,7 +8,8 @@ import { useEffect, useState } from "react";
 import { SettingsRevisitReminderDefault } from "@/components/owner-web/settings-revisit-reminder-default";
 import { OwnerAlimtalkTemplateEditor } from "@/components/owner-web/owner-alimtalk-template-editor";
 import { AlertSettingsSwitch } from "@/components/owner-web/settings-alert-switch";
-import { renderNotificationTemplateBody } from "@/lib/notification-registry";
+import { ALIMTALK_NOTIFICATION_REGISTRY, renderNotificationTemplateBody } from "@/lib/notification-registry";
+import type { AlimtalkTemplateAlias } from "@/lib/notification-registry";
 import {
   PETMANAGER_BRAND_MARK_SRC,
   PETMANAGER_MASTER_BRAND_NAME,
@@ -457,6 +458,7 @@ export default function SettingsAlertsPanel({
   const [activeAlertsPage, setActiveAlertsPage] = useState<"settings" | "templates">("settings");
   const [templatesPageVisited, setTemplatesPageVisited] = useState(false);
   const [selectedAlertType, setSelectedAlertType] = useState<NotificationType>("appointment_reminder_10m");
+  const [selectedTemplateAlias, setSelectedTemplateAlias] = useState<AlimtalkTemplateAlias>("appointment_reminder_10m");
   const [templatePreviewState, setTemplatePreviewState] = useState<{
     shopId: string;
     previews: Partial<Record<NotificationType, AlimtalkTemplatePreview>>;
@@ -470,15 +472,14 @@ export default function SettingsAlertsPanel({
   const previewItem = alertItems.find((item) => item.type === selectedAlertType) ?? alertItems[0];
   const visitReminderEnabled =
     automaticVisitReminderAvailable && value.appointmentReminder10mEnabled && value.appointmentReminder10mMode === "auto";
-  const templateOptions = alertItems.map((item) => ({
+  const templateOptions = ALIMTALK_NOTIFICATION_REGISTRY.map((item) => ({
+    alias: item.templateAlias,
     type: item.type,
     title: item.title,
-    group: ["booking_confirmed", "booking_cancelled"].includes(item.type)
+    group: ["booking_consent_request", "booking_confirmed", "booking_cancelled", "revisit_notice"].includes(item.templateAlias)
       ? "예약 알림"
       : reservationNoticeTypes.includes(item.type)
         ? "예약 안내"
-        : item.type === "revisit_notice"
-          ? "예약 알림"
         : "미용 진행",
   }));
 
@@ -844,10 +845,13 @@ export default function SettingsAlertsPanel({
         {templatesPageVisited ? <OwnerAlimtalkTemplateEditor
           shopId={shopId}
           shopName={shopName}
-          notificationType={previewItem.type}
-          notificationTitle={previewItem.title}
+          selectedAlias={selectedTemplateAlias}
           options={templateOptions}
-          onSelectType={setSelectedAlertType}
+          onSelectAlias={(alias) => {
+            setSelectedTemplateAlias(alias);
+            const selected = templateOptions.find((item) => item.alias === alias);
+            if (selected) setSelectedAlertType(selected.type);
+          }}
         /> : null}
       </div>
     </section>

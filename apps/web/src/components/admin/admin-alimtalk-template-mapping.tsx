@@ -100,13 +100,26 @@ export default function AdminAlimtalkTemplateMapping() {
     && !mapping.usable
     && !["S", "STP", "STOP", "STOPPED"].includes(mapping.serviceStatus?.toUpperCase() ?? ""),
   ).length;
-  const reminderMappings = notificationMappings.filter((mapping) =>
-    ["appointment_reminder_10m", "visit_schedule_notice", "visit_reminder_notice"].includes(mapping.alias),
-  );
-  const reminderSendableCount = reminderMappings.filter((mapping) => mapping.templateCode && mapping.usable).length;
-  const reminderStoppedCount = reminderMappings.filter((mapping) =>
-    ["S", "STP", "STOP", "STOPPED"].includes(mapping.serviceStatus?.toUpperCase() ?? ""),
-  ).length;
+  const mappingGroups = [
+    {
+      key: "reservation",
+      title: "예약 알림",
+      aliases: ["booking_consent_request", "booking_confirmed", "booking_cancelled", "revisit_notice"],
+    },
+    {
+      key: "reservation-guide",
+      title: "예약 안내",
+      aliases: ["appointment_reminder_10m", "visit_schedule_notice", "visit_reminder_notice"],
+    },
+    {
+      key: "grooming",
+      title: "미용 진행",
+      aliases: ["grooming_started", "grooming_almost_done", "grooming_completed", "grooming_completed_without_report"],
+    },
+  ].map((group) => ({
+    ...group,
+    mappings: notificationMappings.filter((mapping) => group.aliases.includes(mapping.alias)),
+  })).filter((group) => group.mappings.length > 0);
   const templateUseCounts = new Map<string, number>();
   for (const mapping of notificationMappings) {
     if (mapping.templateCode) templateUseCounts.set(mapping.templateCode, (templateUseCounts.get(mapping.templateCode) ?? 0) + 1);
@@ -281,15 +294,23 @@ export default function AdminAlimtalkTemplateMapping() {
           </div>)}
         </div>
 
-        {reminderMappings.length > 0 ? <div className={`mt-3 rounded-[8px] border px-3 py-2 ${reminderStoppedCount > 0 ? "border-[#F0D4CC] bg-[#FFF7F4]" : "border-[#D9E7F5] bg-[#F5F9FF]"}`}>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>예약 안내 {reminderSendableCount}/{reminderMappings.length}</p>
-            {reminderStoppedCount > 0 ? <span className={`text-[#9A4F3E] ${ADMIN_TYPOGRAPHY.helper}`}>{reminderStoppedCount}개 중지</span> : null}
-          </div>
-        </div> : null}
-
-        <ul className="mt-3 divide-y divide-[#E8EDF3] rounded-[8px] border border-[#E8EDF3]">
-          {notificationMappings.map((mapping) => {
+        <div className="mt-3 space-y-3">
+          {mappingGroups.map((group) => {
+            const groupSendable = group.mappings.filter((mapping) => mapping.templateCode && mapping.usable).length;
+            const groupStopped = group.mappings.filter((mapping) => ["S", "STP", "STOP", "STOPPED"].includes(mapping.serviceStatus?.toUpperCase() ?? "")).length;
+            const groupMissing = group.mappings.filter((mapping) => !mapping.templateCode).length;
+            const groupReview = group.mappings.filter((mapping) => mapping.templateCode && !mapping.usable && !["S", "STP", "STOP", "STOPPED"].includes(mapping.serviceStatus?.toUpperCase() ?? "")).length;
+            return <section key={group.key} aria-label={group.title} className="overflow-hidden rounded-[8px] border border-[#E8EDF3]">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-[#F8FAFC] px-3 py-2.5 sm:px-4">
+                <h4 className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{group.title} <span className="font-normal text-[#64748B]">{groupSendable}/{group.mappings.length} 발송 가능</span></h4>
+                <div className={`flex flex-wrap gap-x-3 gap-y-1 ${ADMIN_TYPOGRAPHY.helper}`}>
+                  {groupStopped > 0 ? <span className="text-[#9A4F3E]">{groupStopped}개 중지 · 발송 불가</span> : null}
+                  {groupMissing > 0 ? <span className="text-[#9A4F3E]">{groupMissing}개 템플릿 미연결</span> : null}
+                  {groupReview > 0 ? <span className="text-[#8B6429]">{groupReview}개 상태 확인 필요</span> : null}
+                </div>
+              </div>
+              <ul className="divide-y divide-[#E8EDF3]">
+          {group.mappings.map((mapping) => {
             const status = getMappingStatus(mapping);
             const statusClass = status.tone === "success"
               ? "bg-[#EAF7F1] text-[#1F6B5B]"
@@ -325,7 +346,10 @@ export default function AdminAlimtalkTemplateMapping() {
               </div>
             </li>;
           })}
-        </ul>
+              </ul>
+            </section>;
+          })}
+        </div>
       </section> : null}
     </section>
   );

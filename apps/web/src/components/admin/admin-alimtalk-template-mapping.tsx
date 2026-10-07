@@ -128,10 +128,9 @@ export default function AdminAlimtalkTemplateMapping() {
       if (!normalized) return "검수 상태 미확인";
       return `검수 확인 필요 (${code})`;
     }
-    if (["R", "RDY", "READY"].includes(normalized)) return "사용 가능 · 아직 발송 전";
-    if (["ACT", "ACTIVE"].includes(normalized)) return "정상 사용 중 · 발송 가능";
+    if (["R", "RDY", "READY", "ACT", "ACTIVE"].includes(normalized)) return "발송 가능";
     if (["S", "STP", "STOP", "STOPPED"].includes(normalized)) return "중지 · 발송 불가";
-    if (["DMT", "DORMANT"].includes(normalized)) return "휴면 · 확인 필요";
+    if (["DMT", "DORMANT"].includes(normalized)) return "휴면";
     if (["BLK", "BLOCKED"].includes(normalized)) return "차단 · 발송 불가";
     if (!normalized) return "서비스 상태 확인 필요";
     return `서비스 상태 확인 필요 (${code})`;
@@ -145,9 +144,7 @@ export default function AdminAlimtalkTemplateMapping() {
     if (inspectionStatus === "REJ") return { label: "카카오 반려", tone: "danger" as const };
     if (mapping.usable) {
       return {
-        label: serviceStatus === "R" || serviceStatus === "RDY" || serviceStatus === "READY"
-          ? "사용 가능 · 아직 발송 전"
-          : "정상 사용 중",
+        label: "발송 가능",
         tone: "success" as const,
       };
     }
@@ -171,9 +168,9 @@ export default function AdminAlimtalkTemplateMapping() {
       setSelectedCode(response.selectedCode);
       setSavedCode(response.selectedCode);
       setSavedName(response.selectedName);
-      setNotice("선택한 템플릿을 예약 확정 알림톡 발송에 적용했습니다.");
+      setNotice("저장됨");
     } catch (cause) {
-      setError(getAdminErrorMessage(cause, "템플릿을 저장하지 못했습니다. 연결과 승인 상태를 확인해 주세요."));
+      setError(getAdminErrorMessage(cause, "저장 실패"));
     } finally {
       setSaving(false);
     }
@@ -183,10 +180,7 @@ export default function AdminAlimtalkTemplateMapping() {
     <section aria-labelledby="admin-alimtalk-template-title" className="rounded-[12px] border border-[#D9E0E8] bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 id="admin-alimtalk-template-title" className={`text-[#111112] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>예약 확정 템플릿</h2>
-          <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
-            쏘다에 연결된 승인 템플릿 중 실제 발송에 사용할 항목을 선택합니다.
-          </p>
+          <h2 id="admin-alimtalk-template-title" className={`text-[#111112] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>예약 확정</h2>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading || saving} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] border border-[#D9E0E8] bg-white px-3 text-[#475569] hover:bg-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] disabled:opacity-60 ${ADMIN_TYPOGRAPHY.control}`}>
           <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
@@ -208,14 +202,14 @@ export default function AdminAlimtalkTemplateMapping() {
             확인 {new Date(connection.checkedAt).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
           </span> : null}
         </div>
-        <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
-          {connection ? `릴레이 ${connection.relayConnected ? "연결됨" : "연결 안 됨"} · 전체 ${connection.templateCount}개 · 승인 ${connection.approvedCount}개 · 예약 확정 선택 가능 ${connection.reservationTemplateCount}개` : "새로고침하면 릴레이와 쏘다 템플릿 목록을 다시 확인합니다."}
-        </p>
+        {connection ? <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
+          릴레이 {connection.relayConnected ? "연결됨" : "연결 안 됨"} · 전체 {connection.templateCount}개 · 승인 {connection.approvedCount}개 · 예약 확정 {connection.reservationTemplateCount}개
+        </p> : null}
       </div>
 
       <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
         <label className="block min-w-0">
-          <span className={`mb-1 block text-[#475569] ${ADMIN_TYPOGRAPHY.label}`}>사용할 템플릿</span>
+          <span className={`mb-1 block text-[#475569] ${ADMIN_TYPOGRAPHY.label}`}>템플릿</span>
           <select value={selectedCode} onChange={(event) => { setSelectedCode(event.target.value); setNotice(null); }} disabled={loading || saving || templates.length === 0} className={`min-h-11 w-full rounded-[8px] border border-[#D9E0E8] bg-white px-3 text-[#15213B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] disabled:bg-[#F8FAFC] ${ADMIN_TYPOGRAPHY.control}`}>
             <option value="">승인된 템플릿 선택</option>
             {selectedCode && !templates.some((template) => template.templateCode === selectedCode) ? <option value={selectedCode}>{savedName || selectedCode} · 현재 적용</option> : null}
@@ -241,12 +235,12 @@ export default function AdminAlimtalkTemplateMapping() {
       {notice ? <p role="status" className={`mt-3 text-[#1F6B5B] ${ADMIN_TYPOGRAPHY.helper}`}>{notice}</p> : null}
       {error ? <p role="alert" className={`mt-3 text-[#9A5E4E] ${ADMIN_TYPOGRAPHY.helper}`}>{error}</p> : null}
       {!loading && !error && templates.length === 0 ? <p className={`mt-3 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
-        쏘다에서 사용 가능한 예약 확정 템플릿을 찾지 못했습니다. 쏘다 연결과 템플릿 승인 상태를 확인해 주세요.
+        예약 확정 템플릿 없음
       </p> : null}
 
       {!loading && !error ? <details className="mt-4 border-t border-[#E8EDF3] pt-3">
         <summary className={`flex min-h-11 cursor-pointer items-center text-[#334155] ${ADMIN_TYPOGRAPHY.label}`}>
-          쏘다에서 조회한 전체 템플릿 {providerTemplates.length}개
+          쏘다 템플릿 {providerTemplates.length}개
         </summary>
         {providerTemplates.length ? <ul className="mt-3 divide-y divide-[#E8EDF3]">
           {providerTemplates.map((template) => <li key={template.templateCode} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -258,18 +252,17 @@ export default function AdminAlimtalkTemplateMapping() {
               <span>{formatTemplateStatus(template.inspectionStatus, "inspection")}</span>
               <span>{formatTemplateStatus(template.serviceStatus, "service")}</span>
               <span className={selectedCodes.has(template.templateCode) ? "text-[#1F6B5B]" : ""}>
-                {selectedCodes.has(template.templateCode) ? "예약 확정 선택 가능" : "예약 확정 발송에 사용할 수 없음"}
+                {selectedCodes.has(template.templateCode) ? "예약 확정 사용 가능" : "예약 확정 사용 불가"}
               </span>
             </div>
           </li>)}
-        </ul> : <p className={`mt-3 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>쏘다에서 조회한 템플릿이 없습니다.</p>}
+        </ul> : <p className={`mt-3 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>쏘다 템플릿 없음</p>}
       </details> : null}
 
       {!loading && !error ? <section aria-labelledby="alimtalk-notification-mappings-title" className="mt-5 border-t border-[#E8EDF3] pt-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h3 id="alimtalk-notification-mappings-title" className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>PetManager 알림 연결 상태</h3>
-            <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>초록은 발송 가능, 빨강은 중지/미연결, 주황은 확인이 필요합니다.</p>
+            <h3 id="alimtalk-notification-mappings-title" className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>알림 연결 상태</h3>
           </div>
           {connection?.checkedAt ? <span className={`text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
             쏘다 확인 {new Date(connection.checkedAt).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
@@ -288,18 +281,11 @@ export default function AdminAlimtalkTemplateMapping() {
           </div>)}
         </div>
 
-        <p className={`mt-2 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
-          쏘다 상태: <strong>R</strong> 사용 가능(사용 전) · <strong>S</strong> 중지(발송 불가) · 앱은 카카오 승인과 발송 가능한 상태를 모두 확인합니다.
-        </p>
-
         {reminderMappings.length > 0 ? <div className={`mt-3 rounded-[8px] border px-3 py-2 ${reminderStoppedCount > 0 ? "border-[#F0D4CC] bg-[#FFF7F4]" : "border-[#D9E7F5] bg-[#F5F9FF]"}`}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>예약 안내 발송 가능 {reminderSendableCount}/{reminderMappings.length}</p>
-            {reminderStoppedCount > 0 ? <span className={`text-[#9A4F3E] ${ADMIN_TYPOGRAPHY.helper}`}>{reminderStoppedCount}개 템플릿이 쏘다에서 중지됨</span> : null}
+            <p className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>예약 안내 {reminderSendableCount}/{reminderMappings.length}</p>
+            {reminderStoppedCount > 0 ? <span className={`text-[#9A4F3E] ${ADMIN_TYPOGRAPHY.helper}`}>{reminderStoppedCount}개 중지</span> : null}
           </div>
-          <p className={`mt-1 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
-            전날·당일·직전 안내는 서로 다른 조건의 대안이며, 예약마다 하나만 자동 발송합니다.
-          </p>
         </div> : null}
 
         <ul className="mt-3 divide-y divide-[#E8EDF3] rounded-[8px] border border-[#E8EDF3]">
@@ -312,42 +298,34 @@ export default function AdminAlimtalkTemplateMapping() {
                 : "bg-[#FFF7E8] text-[#8B6429]";
             const duplicateCount = mapping.templateCode ? templateUseCounts.get(mapping.templateCode) ?? 0 : 0;
             return <li key={`${mapping.alias}-${mapping.type}`} className="px-3 py-2.5 sm:px-4">
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                  <p className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{mapping.title}</p>
-                  <span className={`rounded-full px-2 py-0.5 ${statusClass} ${ADMIN_TYPOGRAPHY.badge}`}>{status.label}</span>
-                  {duplicateCount > 1 ? <span className={`text-[#8B6429] ${ADMIN_TYPOGRAPHY.badge}`}>같은 코드 {duplicateCount}종</span> : null}
+              <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+                <p className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{mapping.title}</p>
+                <p className={`min-w-0 max-w-full break-all text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
+                  {mapping.templateName || mapping.templateCode || "템플릿 미연결"}
+                </p>
+                {duplicateCount > 1 ? <span className={`text-[#8B6429] ${ADMIN_TYPOGRAPHY.badge}`}>중복 {duplicateCount}</span> : null}
+                <span className={`rounded-full px-2 py-0.5 ${statusClass} ${ADMIN_TYPOGRAPHY.badge}`}>{status.label}</span>
+                <details className="basis-full sm:ml-auto sm:basis-auto">
+                <summary className={`min-h-8 cursor-pointer text-[#2563EB] ${ADMIN_TYPOGRAPHY.helper}`}>연결 정보</summary>
+                <div className="mt-2 rounded-[8px] bg-[#F8FAFC] p-3">
+                  <p className={`break-all text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
+                    PetManager 코드 <code className="font-medium">{mapping.alias}</code> · {formatMappingSource(mapping.source)}
+                  </p>
+                  <p className={`mt-1 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
+                    {formatTemplateStatus(mapping.inspectionStatus ?? "", "inspection")} · 쏘다 {formatTemplateStatus(mapping.serviceStatus ?? "", "service")}
+                  </p>
+                  {mapping.templateCode ? <p className={`mt-1 break-all text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>쏘다 코드 {mapping.templateCode}</p> : null}
+                  {mapping.templateContent ? <div className={`mt-2 whitespace-pre-wrap break-words border-t border-[#E8EDF3] pt-2 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
+                    <p className="mb-1 font-medium">쏘다 본문</p>
+                    {mapping.templateContent}
+                    {mapping.buttons.length ? <p className="mt-2">버튼: {mapping.buttons.map((button) => button.name).join(", ")}</p> : null}
+                  </div> : null}
                 </div>
-                <details className="w-full sm:w-auto">
-                  <summary className={`min-h-8 cursor-pointer text-[#2563EB] ${ADMIN_TYPOGRAPHY.helper}`}>세부 정보</summary>
-                  <div className="mt-2 rounded-[8px] bg-[#F8FAFC] p-3">
-                    <p className={`text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>{mapping.trigger}</p>
-                    <p className={`mt-1 break-all text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
-                      PetManager 알림 코드 <code className="font-medium">{mapping.alias}</code> · {formatMappingSource(mapping.source)}
-                    </p>
-                    <p className={`mt-1 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
-                      {formatTemplateStatus(mapping.inspectionStatus ?? "", "inspection")} · 쏘다 {formatTemplateStatus(mapping.serviceStatus ?? "", "service")}
-                    </p>
-                    {mapping.notes ? <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>{mapping.notes}</p> : null}
-                    {mapping.templateContent ? <div className={`mt-2 whitespace-pre-wrap break-words border-t border-[#E8EDF3] pt-2 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
-                      <p className="mb-1 font-medium">쏘다 본문</p>
-                      {mapping.templateContent}
-                      {mapping.buttons.length ? <p className="mt-2">버튼: {mapping.buttons.map((button) => button.name).join(", ")}</p> : null}
-                    </div> : null}
-                  </div>
                 </details>
               </div>
-              <p className={`mt-1 break-all text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
-                {mapping.templateName || (mapping.templateCode ? "쏘다 템플릿 상세를 불러오지 못함" : "연결된 쏘다 템플릿 없음")}
-                {mapping.templateCode ? ` · ${mapping.templateCode}` : ""}
-              </p>
-              <p className={`mt-0.5 line-clamp-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>{mapping.trigger}</p>
             </li>;
           })}
         </ul>
-        <p className={`mt-2 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
-          여기서 발송 가능으로 보여도 매장/고객 수신 설정, 중복 방지, 크레딧 조건에 따라 실제 발송이 제한될 수 있습니다.
-        </p>
       </section> : null}
     </section>
   );

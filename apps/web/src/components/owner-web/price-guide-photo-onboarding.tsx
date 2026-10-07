@@ -514,6 +514,17 @@ export default function PriceGuidePhotoOnboarding({
 
       {mode === "choice" && initialDocument ? (
         <div data-price-guide-source="saved">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-4 py-3">
+            <p className="text-[16px] leading-6 text-[#475569]">사진으로 새 요금표를 등록하면 현재 요금표가 바뀝니다.</p>
+            <button
+              type="button"
+              onClick={() => selectMode("photo")}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] bg-[#2563eb] px-4 text-[16px] font-medium leading-6 text-white hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+              data-price-guide-photo-register="true"
+            >
+              사진으로 요금표 등록
+            </button>
+          </div>
           <PriceGuideV2ServiceDetail
             document={initialDocument}
             onSave={applyReviewedDocument}

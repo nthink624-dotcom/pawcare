@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 
 import { serverEnv } from "@/lib/server-env";
+import { getNotificationTitle } from "@/lib/notification-registry";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 
@@ -13,7 +14,7 @@ const templateSchema = z.object({
   notificationType: z.enum([
     "booking_confirmed", "booking_cancelled", "appointment_reminder_10m",
     "visit_schedule_notice", "visit_reminder_notice", "grooming_started",
-    "grooming_almost_done", "grooming_completed",
+    "grooming_almost_done", "grooming_completed", "revisit_notice",
   ]),
   templateName: z.string().trim().min(1).max(100),
   templateContent: z.string().trim().min(1).max(1000),
@@ -24,7 +25,7 @@ const templateSchema = z.object({
   id: z.string().uuid().optional(),
 }).superRefine((value, context) => {
   const allowedVariables = new Set([
-    "매장명", "반려동물명", "보호자명", "예약일시", "제안일시", "서비스명", "매장주소",
+    "매장명", "매장ID", "반려동물명", "보호자명", "예약일시", "제안일시", "서비스명", "매장주소",
     "예약 링크", "예약 확인 링크", "예약관리링크", "예약관리토큰", "예약시간변경링크",
     "예약시간변경토큰", "bookingRescheduleToken", "bookingRescheduleUrl", "길찾기링크",
     "방문전알림분", "방문전알림안내", "픽업예상분", "픽업예상시간", "픽업안내",
@@ -38,7 +39,7 @@ const templateSchema = z.object({
   }
   const buttonRequiredTypes = new Set([
     "booking_confirmed", "appointment_reminder_10m", "visit_schedule_notice",
-    "visit_reminder_notice", "grooming_completed",
+    "visit_reminder_notice", "grooming_completed", "revisit_notice",
   ]);
   if (Boolean(value.buttonName) !== Boolean(value.buttonUrl)) {
     context.addIssue({ code: "custom", path: ["buttonUrl"], message: "버튼 이름과 링크를 함께 입력해 주세요." });
@@ -138,6 +139,7 @@ export async function POST(request: NextRequest) {
     assertOwnerOrManager(owner);
     const admin = getSupabaseAdmin();
     if (!admin || !owner.userId) throw new OwnerApiError("템플릿 저장 설정을 확인해 주세요.", 503);
+    const fixedTemplateName = getNotificationTitle(payload.notificationType);
 
     let row: Record<string, unknown> | null = null;
     if (payload.id) {
@@ -146,7 +148,7 @@ export async function POST(request: NextRequest) {
       if (current.data.notification_type !== payload.notificationType) throw new OwnerApiError("템플릿 알림 종류를 확인해 주세요.", 409);
       if (current.data.inspection_status !== "draft") throw new OwnerApiError("심사 요청된 템플릿은 수정할 수 없습니다. 새 템플릿으로 작성해 주세요.", 409);
       const updated = await admin.from("shop_alimtalk_template_requests").update({
-        template_name: payload.templateName,
+        template_name: fixedTemplateName,
         template_content: payload.templateContent,
         category_code: payload.categoryCode,
         template_buttons: payload.buttonName && payload.buttonUrl
@@ -162,7 +164,7 @@ export async function POST(request: NextRequest) {
         shop_id: owner.shopId,
         notification_type: payload.notificationType,
         template_code: templateCode,
-        template_name: payload.templateName,
+        template_name: fixedTemplateName,
         template_content: payload.templateContent,
         category_code: payload.categoryCode,
         template_buttons: payload.buttonName && payload.buttonUrl

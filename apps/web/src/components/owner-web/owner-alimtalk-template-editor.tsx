@@ -22,6 +22,9 @@ type ShopTemplate = {
 type TemplateCategory = { code: string; name: string };
 type TemplateOption = { type: NotificationType; title: string; group: string };
 
+const REVISIT_BUTTON_NAME = "다음 예약하기";
+const REVISIT_BUTTON_URL = "https://www.petmanager.co.kr/book/#{매장ID}?experience=revisit&t=#{bookingRescheduleToken}";
+
 const statusNames: Record<string, string> = {
   draft: "임시 저장",
   submitting: "요청 중",
@@ -96,8 +99,8 @@ export function OwnerAlimtalkTemplateEditor({
     setError("");
     if (!current || newVersion) {
       setTemplateId("");
-      setButtonName(current?.template_buttons?.[0]?.buttonName ?? "");
-      setButtonUrl(current?.template_buttons?.[0]?.linkMobile ?? "");
+      setButtonName(current?.template_buttons?.[0]?.buttonName ?? (notificationType === "revisit_notice" ? REVISIT_BUTTON_NAME : ""));
+      setButtonUrl(current?.template_buttons?.[0]?.linkMobile ?? (notificationType === "revisit_notice" ? REVISIT_BUTTON_URL : ""));
       setCategoryCode(current?.category_code || categories[0]?.code || "");
       return;
     }
@@ -110,7 +113,7 @@ export function OwnerAlimtalkTemplateEditor({
   const currentTemplate = templates.find((template) => template.notification_type === notificationType);
   const editable = !currentTemplate || currentTemplate.inspection_status === "draft" || newVersion;
   const canCreateVersion = currentTemplate && ["approved", "rejected"].includes(currentTemplate.inspection_status);
-  const needsButton = ["booking_confirmed", "appointment_reminder_10m", "visit_schedule_notice", "visit_reminder_notice", "grooming_completed"].includes(notificationType);
+  const needsButton = ["booking_confirmed", "appointment_reminder_10m", "visit_schedule_notice", "visit_reminder_notice", "grooming_completed", "revisit_notice"].includes(notificationType);
   const sampleMessage = templateContent
     .replaceAll("#{매장명}", shopName)
     .replaceAll("#{반려동물명}", "반려동물")

@@ -549,6 +549,7 @@ export function buildNotificationTemplateValues(params: {
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
   directionsUrl: string | null;
+  shopId: string;
   petName: string;
   recipientName: string | null;
   serviceName: string | null;
@@ -565,6 +566,7 @@ export function buildNotificationTemplateValues(params: {
 
   return {
     매장명: params.shopName,
+    매장ID: params.shopId,
     반려동물명: params.petName,
     보호자명: params.recipientName?.trim() || "",
     예약일시: appointmentDateTime,
@@ -826,6 +828,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     bookingEntryUrl,
     bookingManageUrl,
     directionsUrl,
+    shopId: input.shopId,
     petName: pet?.name ?? "pet",
     recipientName,
     serviceName: service?.name ?? null,

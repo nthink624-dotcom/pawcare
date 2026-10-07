@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { SettingsRevisitReminderDefault } from "@/components/owner-web/settings-revisit-reminder-default";
 import { OwnerAlimtalkTemplateEditor } from "@/components/owner-web/owner-alimtalk-template-editor";
 import { AlertSettingsSwitch } from "@/components/owner-web/settings-alert-switch";
+import { renderNotificationTemplateBody } from "@/lib/notification-registry";
 import {
   PETMANAGER_BRAND_MARK_SRC,
   PETMANAGER_MASTER_BRAND_NAME,
@@ -176,6 +177,12 @@ const alertItems: AlertItem[] = [
     type: "grooming_completed",
     role: "미용이 끝났을 때 완료 상태와 픽업 가능 상태를 안내합니다.",
   },
+  {
+    key: "revisitEnabled",
+    title: "재예약 알림",
+    type: "revisit_notice",
+    role: "미용 완료 후 설정한 시점에 다음 방문을 안내합니다.",
+  },
 ];
 
 type AlertGroupKey = "reservation" | "reservationGuide" | "grooming";
@@ -188,6 +195,7 @@ const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; ite
       [
         "booking_confirmed",
         "booking_cancelled",
+        "revisit_notice",
       ].includes(item.type),
     ),
   },
@@ -321,7 +329,25 @@ function KakaoAlimtalkPreview({
   error: string;
   shopName: string;
 }) {
-  const message = preview?.body ?? "";
+  const defaultMessage = renderNotificationTemplateBody(item.type, {
+    매장명: shopName || "내 매장",
+    반려동물명: "반려동물",
+    보호자명: "보호자",
+    예약일시: "예약 일시",
+    제안일시: "예약 일시",
+    서비스명: "예약 서비스",
+    매장주소: "매장 주소",
+    "예약 링크": "예약 링크",
+    "예약 확인 링크": "예약 확인 링크",
+    예약관리링크: "예약관리 링크",
+    길찾기링크: "길찾기 링크",
+    방문전알림분: "10",
+    방문전알림안내: "방문 전 안내",
+    픽업예상분: "30",
+    픽업예상시간: "오후 3:00",
+    픽업안내: "픽업 안내",
+  });
+  const message = preview?.body || defaultMessage || "";
 
   return (
     <div className="min-w-0">
@@ -336,9 +362,11 @@ function KakaoAlimtalkPreview({
       <p className="rounded-[8px] bg-[#f6f8fa] px-3 py-2 text-[16px] leading-6 text-[#475569]">
         {loading
           ? "승인된 템플릿을 확인하고 있습니다."
-          : error
-            ? error
-            : `승인된 템플릿에 ${shopName} 정보를 적용해 표시합니다.`}
+          : preview?.source === "ssodaa_approved"
+            ? `승인된 템플릿에 ${shopName} 정보를 적용했습니다.`
+            : error || !preview
+              ? "승인 템플릿을 찾지 못해 기본 문안을 보여드립니다. 기본 문안은 승인된 템플릿이 아닙니다."
+              : "기본 문안 미리보기입니다. 검수 승인 전에는 알림톡으로 발송되지 않습니다."}
       </p>
 
       <div className="mt-4 flex justify-center">
@@ -371,7 +399,7 @@ function KakaoAlimtalkPreview({
                 })
               ) : (
                 <p className="text-[#64748b]">
-                  {loading ? "불러오는 중…" : "승인된 내용을 표시할 수 없습니다."}
+                  {loading ? "불러오는 중…" : "미리보기 문안이 없습니다."}
                 </p>
               )}
             </div>
@@ -449,6 +477,8 @@ export default function SettingsAlertsPanel({
       ? "예약 알림"
       : reservationNoticeTypes.includes(item.type)
         ? "예약 안내"
+        : item.type === "revisit_notice"
+          ? "예약 알림"
         : "미용 진행",
   }));
 
@@ -664,19 +694,6 @@ export default function SettingsAlertsPanel({
             </div>
           </div>
 
-          <div
-            data-alerts-section="revisit"
-            className="px-3 py-1"
-          >
-            <SettingsRevisitReminderDefault
-              enabled={value.revisitEnabled}
-              disabled={!value.enabled}
-              days={value.revisitReminderDefaultDays}
-              onEnabledChange={(enabled) => onChange({ ...value, revisitEnabled: enabled })}
-              onDaysChange={(days) => onChange({ ...value, revisitReminderDefaultDays: days })}
-            />
-          </div>
-
           {alertGroups.map((group) => {
             const isReservationGroup = group.key === "reservation";
 
@@ -726,6 +743,7 @@ export default function SettingsAlertsPanel({
                 )}
               >
                 {group.items.map((item, itemIndex) => {
+                  if (item.type === "revisit_notice") return null;
                   const reservationNotice = isReservationNoticeType(item.type);
                   const checked =
                     item.key === "appointmentReminder10mEnabled"
@@ -795,6 +813,17 @@ export default function SettingsAlertsPanel({
                       </div>
                   );
                 })}
+                {isReservationGroup ? (
+                  <div className="sm:col-span-2" data-alerts-section="revisit" onClick={() => setSelectedAlertType("revisit_notice")}>
+                    <SettingsRevisitReminderDefault
+                      enabled={value.revisitEnabled}
+                      disabled={!value.enabled}
+                      days={value.revisitReminderDefaultDays}
+                      onEnabledChange={(enabled) => onChange({ ...value, revisitEnabled: enabled })}
+                      onDaysChange={(days) => onChange({ ...value, revisitReminderDefaultDays: days })}
+                    />
+                  </div>
+                ) : null}
               </div>
             </section>
             );

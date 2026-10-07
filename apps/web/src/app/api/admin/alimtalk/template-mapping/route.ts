@@ -33,10 +33,8 @@ function isReservationConfirmationTemplate(template: ConnectedTemplateDetail) {
     && isApprovedAndUsableTemplate(template, alias);
 }
 
-async function getAvailableTemplates() {
-  const catalog = await getRelayTemplateCatalog();
-  if (!catalog) throw new AdminApiError("쏘다 템플릿 목록에 연결하지 못했습니다.", 503);
-  return (catalog.allTemplates ?? [])
+function getAvailableTemplates(catalog: Awaited<ReturnType<typeof getRelayTemplateCatalog>>) {
+  return (catalog?.allTemplates ?? [])
     .filter(isReservationConfirmationTemplate)
     .map(templateSummary)
     .sort((left, right) => left.templateName.localeCompare(right.templateName, "ko"));
@@ -48,8 +46,8 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     if (!admin) throw new AdminApiError("알림 설정 저장소를 확인해 주세요.", 503);
 
-    const [templates, mappingResult] = await Promise.all([
-      getAvailableTemplates(),
+    const [catalog, mappingResult] = await Promise.all([
+      getRelayTemplateCatalog(),
       admin
         .from("platform_alimtalk_templates")
         .select("provider_template_code,template_name,updated_at")
@@ -58,13 +56,27 @@ export async function GET(request: NextRequest) {
         .eq("inspection_status", "approved")
         .eq("service_status", "active")
         .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      .limit(1)
+      .maybeSingle(),
     ]);
+    if (!catalog) throw new AdminApiError("쏘다 릴레이에 연결하지 못했습니다.", 503);
     if (mappingResult.error) throw new AdminApiError("현재 알림톡 템플릿을 불러오지 못했습니다.", 503);
+
+    const providerTemplates = (catalog.allTemplates ?? []).map(templateSummary);
+    const templates = getAvailableTemplates(catalog);
+    const approvedCount = providerTemplates.filter((template) => template.inspectionStatus.toUpperCase() === "APR").length;
 
     return Response.json({
       templates,
+      providerTemplates,
+      connection: {
+        relayConnected: true,
+        ssodaaConnected: catalog.providerStatus?.connected ?? null,
+        checkedAt: catalog.providerStatus?.checkedAt ?? null,
+        templateCount: catalog.providerStatus?.templateCount ?? providerTemplates.length,
+        approvedCount,
+        reservationTemplateCount: templates.length,
+      },
       selectedCode: mappingResult.data?.provider_template_code ?? serverEnv.alimtalkTemplateBookingConfirmed ?? "",
       persistedCode: mappingResult.data?.provider_template_code ?? "",
       selectedName: mappingResult.data?.template_name ?? null,

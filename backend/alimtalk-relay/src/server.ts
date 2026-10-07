@@ -1190,10 +1190,15 @@ async function buildSsodaaTemplateCatalog() {
     configuredCode: resolveTemplateKey(alias) ?? "",
   }));
   let listRecords: Record<string, unknown>[] = [];
+  let providerConnected = false;
+  let providerCheckedAt: string | null = null;
 
   try {
     listRecords = await fetchSsodaaTemplateList();
+    providerConnected = true;
+    providerCheckedAt = new Date().toISOString();
   } catch (error) {
+    providerCheckedAt = new Date().toISOString();
     console.warn("[relay] Ssodaa template list fetch failed");
   }
 
@@ -1258,6 +1263,11 @@ async function buildSsodaaTemplateCatalog() {
   return {
     items: detailEntries,
     allTemplates,
+    providerStatus: {
+      connected: providerConnected,
+      checkedAt: providerCheckedAt,
+      templateCount: allTemplates.length,
+    },
   };
 }
 
@@ -1608,6 +1618,7 @@ app.get("/admin/templates", async (request, response) => {
         error: item.error ? "템플릿 상세를 불러오지 못했습니다." : null,
       })),
       allTemplates: catalog.allTemplates.map((item) => sanitizeTemplateDetail(item)),
+      providerStatus: catalog.providerStatus,
     });
   } catch (error) {
     respondWithRouteError(response, error, "릴레이 템플릿 목록을 확인하지 못했습니다.");

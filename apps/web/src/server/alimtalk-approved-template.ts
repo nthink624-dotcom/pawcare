@@ -32,6 +32,11 @@ export type RelayTemplateCatalogBody = {
     detail?: ConnectedTemplateDetail | null;
   }>;
   allTemplates?: ConnectedTemplateDetail[];
+  providerStatus?: {
+    connected: boolean;
+    checkedAt: string | null;
+    templateCount: number;
+  };
 };
 
 const aliasesThatMustHaveSsodaaButtons = new Set<AlimtalkTemplateAlias>([

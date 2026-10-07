@@ -96,19 +96,14 @@ function normalizeConnectedButton(
   };
 }
 
-export function isApprovedAndUsableTemplate(
-  detail: ConnectedTemplateDetail,
-  alias?: AlimtalkTemplateAlias,
-) {
-  if (alias === "booking_consent_request") {
-    return detail.inspectionStatus?.toUpperCase() === "APR"
-      && ["ACT", "RDY"].includes(detail.serviceStatus?.toUpperCase() ?? "");
-  }
-  return (
-    detail.inspectionStatus === "APR" ||
-    detail.serviceStatus === "ACT" ||
-    detail.serviceStatus === "RDY"
-  );
+export function isApprovedAndUsableTemplate(detail: ConnectedTemplateDetail) {
+  const inspectionStatus = detail.inspectionStatus?.toUpperCase() ?? "";
+  const serviceStatus = detail.serviceStatus?.toUpperCase() ?? "";
+
+  // Ssodaa's template screen shows R as "사용가능(사용전)" and S as "중지".
+  // A Kakao-approved but stopped template must not be treated as sendable.
+  return inspectionStatus === "APR"
+    && ["ACT", "RDY", "R", "ACTIVE", "READY"].includes(serviceStatus);
 }
 
 function normalizeTemplateText(value: string) {
@@ -138,7 +133,7 @@ async function getApprovedSsodaaTemplate(
 
   if (customTemplateCode) {
     const detail = body.allTemplates?.find((item) => item.templateCode === customTemplateCode) ?? null;
-    if (!detail || !isApprovedAndUsableTemplate(detail, alias)) return null;
+    if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
     const normalized = normalizeConnectedTemplateDetail(customTemplateCode, detail);
     validateTemplateContract(alias, normalized);
     return normalized;
@@ -221,7 +216,7 @@ async function getApprovedSsodaaTemplateFromCatalog(
     body.allTemplates?.find((item) => item.templateCode === templateCode) ??
     null;
 
-  if (!detail || !isApprovedAndUsableTemplate(detail, alias)) return null;
+  if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
 
   return normalizeConnectedTemplateDetail(templateCode, detail);
 }

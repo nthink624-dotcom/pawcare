@@ -31,7 +31,7 @@ function templateSummary(template: ConnectedTemplateDetail) {
 function isReservationConfirmationTemplate(template: ConnectedTemplateDetail) {
   return /예약.*확정|확정.*예약/.test(template.templateName ?? "")
     && template.buttons.length > 0
-    && isApprovedAndUsableTemplate(template, alias);
+    && isApprovedAndUsableTemplate(template);
 }
 
 function getAvailableTemplates(catalog: Awaited<ReturnType<typeof getRelayTemplateCatalog>>) {
@@ -87,7 +87,7 @@ function buildNotificationMappings(
       inspectionStatus: detail?.inspectionStatus ?? (platformMapping ? "APR" : null),
       serviceStatus: detail?.serviceStatus ?? (platformMapping ? "ACT" : null),
       buttons: (detail?.buttons ?? []).map((button) => ({ name: button.name, type: button.type })),
-      usable: Boolean(detail && isApprovedAndUsableTemplate(detail, item.templateAlias)),
+      usable: Boolean(detail && isApprovedAndUsableTemplate(detail)),
     };
   });
 }

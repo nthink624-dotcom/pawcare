@@ -90,11 +90,23 @@ export default function AdminAlimtalkTemplateMapping() {
   const selectedTemplate = templates.find((template) => template.templateCode === selectedCode) ?? null;
   const isDirty = !savedCode || selectedCode !== savedCode;
   const selectedCodes = new Set(templates.map((template) => template.templateCode));
-  const connectedCount = notificationMappings.filter((mapping) => mapping.templateCode && mapping.usable).length;
+  const sendableCount = notificationMappings.filter((mapping) => mapping.templateCode && mapping.usable).length;
+  const stoppedCount = notificationMappings.filter((mapping) =>
+    Boolean(mapping.templateCode) && ["S", "STP", "STOP", "STOPPED"].includes(mapping.serviceStatus?.toUpperCase() ?? ""),
+  ).length;
+  const missingCount = notificationMappings.filter((mapping) => !mapping.templateCode).length;
+  const reviewCount = notificationMappings.filter((mapping) =>
+    Boolean(mapping.templateCode)
+    && !mapping.usable
+    && !["S", "STP", "STOP", "STOPPED"].includes(mapping.serviceStatus?.toUpperCase() ?? ""),
+  ).length;
   const reminderMappings = notificationMappings.filter((mapping) =>
     ["appointment_reminder_10m", "visit_schedule_notice", "visit_reminder_notice"].includes(mapping.alias),
   );
-  const reminderConnectedCount = reminderMappings.filter((mapping) => mapping.templateCode && mapping.usable).length;
+  const reminderSendableCount = reminderMappings.filter((mapping) => mapping.templateCode && mapping.usable).length;
+  const reminderStoppedCount = reminderMappings.filter((mapping) =>
+    ["S", "STP", "STOP", "STOPPED"].includes(mapping.serviceStatus?.toUpperCase() ?? ""),
+  ).length;
   const templateUseCounts = new Map<string, number>();
   for (const mapping of notificationMappings) {
     if (mapping.templateCode) templateUseCounts.set(mapping.templateCode, (templateUseCounts.get(mapping.templateCode) ?? 0) + 1);
@@ -110,16 +122,36 @@ export default function AdminAlimtalkTemplateMapping() {
   function formatTemplateStatus(code: string, kind: "inspection" | "service") {
     const normalized = code.toUpperCase();
     if (kind === "inspection") {
-      if (normalized === "APR") return "승인됨";
+      if (normalized === "APR") return "카카오 승인";
       if (normalized === "REQ") return "검수 중";
-      if (normalized === "REJ") return "반려됨";
+      if (normalized === "REJ") return "카카오 반려";
       if (!normalized) return "검수 상태 미확인";
-      return `검수 상태 ${code}`;
+      return `검수 확인 필요 (${code})`;
     }
-    if (normalized === "ACT") return "사용 중";
-    if (normalized === "RDY") return "사용 준비";
-    if (!normalized) return "서비스 상태 미확인";
-    return `서비스 상태 ${code}`;
+    if (["R", "RDY", "READY"].includes(normalized)) return "사용 가능 · 아직 발송 전";
+    if (["ACT", "ACTIVE"].includes(normalized)) return "정상 사용 중 · 발송 가능";
+    if (["S", "STP", "STOP", "STOPPED"].includes(normalized)) return "중지 · 발송 불가";
+    if (["DMT", "DORMANT"].includes(normalized)) return "휴면 · 확인 필요";
+    if (["BLK", "BLOCKED"].includes(normalized)) return "차단 · 발송 불가";
+    if (!normalized) return "서비스 상태 확인 필요";
+    return `서비스 상태 확인 필요 (${code})`;
+  }
+
+  function getMappingStatus(mapping: MappingResponse["notificationMappings"][number]) {
+    const serviceStatus = mapping.serviceStatus?.toUpperCase() ?? "";
+    const inspectionStatus = mapping.inspectionStatus?.toUpperCase() ?? "";
+    if (!mapping.templateCode) return { label: "템플릿 없음", tone: "danger" as const };
+    if (["S", "STP", "STOP", "STOPPED"].includes(serviceStatus)) return { label: "중지 · 발송 불가", tone: "danger" as const };
+    if (inspectionStatus === "REJ") return { label: "카카오 반려", tone: "danger" as const };
+    if (mapping.usable) {
+      return {
+        label: serviceStatus === "R" || serviceStatus === "RDY" || serviceStatus === "READY"
+          ? "사용 가능 · 아직 발송 전"
+          : "정상 사용 중",
+        tone: "success" as const,
+      };
+    }
+    return { label: "상태 확인 필요", tone: "warning" as const };
   }
 
   async function save() {
@@ -236,74 +268,85 @@ export default function AdminAlimtalkTemplateMapping() {
       {!loading && !error ? <section aria-labelledby="alimtalk-notification-mappings-title" className="mt-5 border-t border-[#E8EDF3] pt-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h3 id="alimtalk-notification-mappings-title" className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>PetManager 발송 연결</h3>
-            <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
-              실제 알림 종류별로 발송에 선택되는 쏘다 템플릿 코드와 승인 상태를 확인합니다.
-            </p>
+            <h3 id="alimtalk-notification-mappings-title" className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>PetManager 알림 연결 상태</h3>
+            <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>초록은 발송 가능, 빨강은 중지/미연결, 주황은 확인이 필요합니다.</p>
           </div>
-          <span className={`rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[#475569] ${ADMIN_TYPOGRAPHY.badge}`}>
-            PetManager 발송 기준 통과 {connectedCount}/{notificationMappings.length}
-          </span>
+          {connection?.checkedAt ? <span className={`text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
+            쏘다 확인 {new Date(connection.checkedAt).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
+          </span> : null}
         </div>
 
-        {reminderMappings.length > 0 ? <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className={`rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[#475569] ${ADMIN_TYPOGRAPHY.badge}`}>
-            예약 안내 연결 {reminderConnectedCount}/{reminderMappings.length}
-          </span>
-          <p className={`mt-3 rounded-[8px] border border-[#D9E7F5] bg-[#F5F9FF] px-3 py-2 text-[#334155] ${ADMIN_TYPOGRAPHY.helper}`}>
-            예약 안내는 전날·당일·직전 시점별 대안입니다. 예약마다 조건에 맞는 안내 하나만 자동 발송하며, 세 종류를 모두 보내지 않습니다.
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            { label: "발송 가능", count: sendableCount, tone: "success" },
+            { label: "중지 · 발송 불가", count: stoppedCount, tone: "danger" },
+            { label: "템플릿 미연결", count: missingCount, tone: "danger" },
+            { label: "상태 확인 필요", count: reviewCount, tone: "warning" },
+          ].map((item) => <div key={item.label} className={`rounded-[8px] border px-3 py-2 ${item.tone === "success" ? "border-[#CDE9DA] bg-[#F0FAF4] text-[#1F6B5B]" : item.tone === "danger" ? "border-[#F0D4CC] bg-[#FFF7F4] text-[#9A4F3E]" : "border-[#F0E1C5] bg-[#FFFAF0] text-[#8B6429]"}`}>
+            <p className={ADMIN_TYPOGRAPHY.helper}>{item.label}</p>
+            <p className={`mt-0.5 ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{item.count}개</p>
+          </div>)}
+        </div>
+
+        <p className={`mt-2 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
+          쏘다 상태: <strong>R</strong> 사용 가능(사용 전) · <strong>S</strong> 중지(발송 불가) · 앱은 카카오 승인과 발송 가능한 상태를 모두 확인합니다.
+        </p>
+
+        {reminderMappings.length > 0 ? <div className={`mt-3 rounded-[8px] border px-3 py-2 ${reminderStoppedCount > 0 ? "border-[#F0D4CC] bg-[#FFF7F4]" : "border-[#D9E7F5] bg-[#F5F9FF]"}`}>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>예약 안내 발송 가능 {reminderSendableCount}/{reminderMappings.length}</p>
+            {reminderStoppedCount > 0 ? <span className={`text-[#9A4F3E] ${ADMIN_TYPOGRAPHY.helper}`}>{reminderStoppedCount}개 템플릿이 쏘다에서 중지됨</span> : null}
+          </div>
+          <p className={`mt-1 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
+            전날·당일·직전 안내는 서로 다른 조건의 대안이며, 예약마다 하나만 자동 발송합니다.
           </p>
         </div> : null}
 
         <ul className="mt-3 divide-y divide-[#E8EDF3] rounded-[8px] border border-[#E8EDF3]">
           {notificationMappings.map((mapping) => {
-            const statusText = !mapping.templateCode
-              ? "템플릿 미연결"
-              : mapping.usable
-                ? mapping.inspectionStatus?.toUpperCase() === "APR"
-                  ? "코드 연결 · 검수 승인"
-                  : "코드 연결 · 발송 기준 통과"
-                : "코드 연결 · 발송 승인 확인 필요";
-            const statusClass = !mapping.templateCode
-              ? "bg-[#FFF7ED] text-[#9A5E4E]"
-              : mapping.usable
-                ? "bg-[#EAF7F1] text-[#1F6B5B]"
-                : "bg-[#FFF7ED] text-[#9A5E4E]";
-            return <li key={`${mapping.alias}-${mapping.type}`} className="px-3 py-3 sm:px-4">
-              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{mapping.title}</p>
-                    <span className={`rounded-full px-2 py-0.5 ${statusClass} ${ADMIN_TYPOGRAPHY.badge}`}>{statusText}</span>
-                  </div>
-                  <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>{mapping.trigger}</p>
-                  <p className={`mt-1 break-all text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
-                    {mapping.templateName || (mapping.templateCode ? "쏘다 템플릿 상세 확인 불가" : "연결된 템플릿 없음")}
-                    {mapping.templateCode ? ` · ${mapping.templateCode}` : ""}
-                  </p>
-                  {mapping.templateCode && (templateUseCounts.get(mapping.templateCode) ?? 0) > 1 ?
-                    <p className={`mt-1 text-[#9A5E4E] ${ADMIN_TYPOGRAPHY.helper}`}>
-                      같은 템플릿 코드가 알림 {templateUseCounts.get(mapping.templateCode)}종에 연결되어 있습니다. 아래 본문을 열어 목적이 맞는지 확인해 주세요.
-                    </p> : null}
-                  <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
-                    PetManager 별칭 <code className="font-medium">{mapping.alias}</code> · {formatMappingSource(mapping.source)}
-                    {mapping.inspectionStatus || mapping.serviceStatus ? ` · 검수 ${formatTemplateStatus(mapping.inspectionStatus ?? "", "inspection")} · ${formatTemplateStatus(mapping.serviceStatus ?? "", "service")}` : ""}
-                  </p>
-                  {mapping.notes ? <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>{mapping.notes}</p> : null}
+            const status = getMappingStatus(mapping);
+            const statusClass = status.tone === "success"
+              ? "bg-[#EAF7F1] text-[#1F6B5B]"
+              : status.tone === "danger"
+                ? "bg-[#FFF0EC] text-[#9A4F3E]"
+                : "bg-[#FFF7E8] text-[#8B6429]";
+            const duplicateCount = mapping.templateCode ? templateUseCounts.get(mapping.templateCode) ?? 0 : 0;
+            return <li key={`${mapping.alias}-${mapping.type}`} className="px-3 py-2.5 sm:px-4">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <p className={`text-[#15213B] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{mapping.title}</p>
+                  <span className={`rounded-full px-2 py-0.5 ${statusClass} ${ADMIN_TYPOGRAPHY.badge}`}>{status.label}</span>
+                  {duplicateCount > 1 ? <span className={`text-[#8B6429] ${ADMIN_TYPOGRAPHY.badge}`}>같은 코드 {duplicateCount}종</span> : null}
                 </div>
-                {mapping.templateContent ? <details className="w-full sm:w-auto sm:max-w-[360px]">
-                  <summary className={`min-h-9 cursor-pointer text-[#2563EB] ${ADMIN_TYPOGRAPHY.helper}`}>연결된 본문 확인</summary>
-                  <div className={`mt-2 whitespace-pre-wrap break-words rounded-[8px] bg-[#F8FAFC] p-3 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
-                    {mapping.templateContent}
-                    {mapping.buttons.length ? <p className="mt-2 border-t border-[#E8EDF3] pt-2">버튼: {mapping.buttons.map((button) => button.name).join(", ")}</p> : null}
+                <details className="w-full sm:w-auto">
+                  <summary className={`min-h-8 cursor-pointer text-[#2563EB] ${ADMIN_TYPOGRAPHY.helper}`}>세부 정보</summary>
+                  <div className="mt-2 rounded-[8px] bg-[#F8FAFC] p-3">
+                    <p className={`text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>{mapping.trigger}</p>
+                    <p className={`mt-1 break-all text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
+                      PetManager 알림 코드 <code className="font-medium">{mapping.alias}</code> · {formatMappingSource(mapping.source)}
+                    </p>
+                    <p className={`mt-1 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
+                      {formatTemplateStatus(mapping.inspectionStatus ?? "", "inspection")} · 쏘다 {formatTemplateStatus(mapping.serviceStatus ?? "", "service")}
+                    </p>
+                    {mapping.notes ? <p className={`mt-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>{mapping.notes}</p> : null}
+                    {mapping.templateContent ? <div className={`mt-2 whitespace-pre-wrap break-words border-t border-[#E8EDF3] pt-2 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
+                      <p className="mb-1 font-medium">쏘다 본문</p>
+                      {mapping.templateContent}
+                      {mapping.buttons.length ? <p className="mt-2">버튼: {mapping.buttons.map((button) => button.name).join(", ")}</p> : null}
+                    </div> : null}
                   </div>
-                </details> : null}
+                </details>
               </div>
+              <p className={`mt-1 break-all text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
+                {mapping.templateName || (mapping.templateCode ? "쏘다 템플릿 상세를 불러오지 못함" : "연결된 쏘다 템플릿 없음")}
+                {mapping.templateCode ? ` · ${mapping.templateCode}` : ""}
+              </p>
+              <p className={`mt-0.5 line-clamp-1 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>{mapping.trigger}</p>
             </li>;
           })}
         </ul>
         <p className={`mt-2 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>
-          이 표는 PetManager 연결 코드, 앱의 발송 승인 판정, 쏘다 검수·서비스 원문 상태를 확인합니다. 실제 발송에는 매장/고객 수신 설정, 중복 방지, 크레딧 조건도 적용됩니다. 본문을 펼쳐 알림 목적에 맞는 문구와 버튼인지 확인해 주세요.
+          여기서 발송 가능으로 보여도 매장/고객 수신 설정, 중복 방지, 크레딧 조건에 따라 실제 발송이 제한될 수 있습니다.
         </p>
       </section> : null}
     </section>

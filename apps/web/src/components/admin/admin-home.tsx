@@ -8,6 +8,7 @@ import {
   ClipboardList,
   DoorOpen,
   MessageCircle,
+  MessageSquareText,
   RefreshCcw,
   Users,
   X,
@@ -290,6 +291,7 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
                 <MenuCard href="/owner/admin" title="계정 관리" description="오너 계정 운영" color="#31A5F6" textColor="#082F49" icon={<Users className="h-6 w-6" />} />
                 <MenuCard href="/admin/support" title="고객 문의" description="접수·답변·처리 현황" color="#31D6C6" textColor="#103E45" icon={<MessageCircle className="h-6 w-6" />} />
                 <MenuCard href="/admin/notifications" title="알림 실패" description="발송 실패 확인·재처리" color="#F2C94C" textColor="#4A3500" icon={<BellRing className="h-6 w-6" />} />
+                <MenuCard href="/admin/alimtalk-templates" title="알림톡 템플릿" description="예약 확정 템플릿 설정" color="#E1F2FF" textColor="#123B63" icon={<MessageSquareText className="h-6 w-6" />} />
                 <MenuCard href="/admin/audit" title="감사 로그" description="운영 변경 주체·상태 확인" color="#D9E7FF" textColor="#163A68" icon={<ClipboardCheck className="h-6 w-6" />} />
                 <MenuCard onClick={openRevenue} controls="revenue" title="매출 현황" description="결제와 구독 매출" color="#31BCFC" textColor="#082F49" icon={<BarChart3 className="h-6 w-6" />} />
               </nav>

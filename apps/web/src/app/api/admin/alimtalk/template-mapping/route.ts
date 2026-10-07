@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 
-import { serverEnv } from "@/lib/server-env";
+import { getConfiguredAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
+import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
   getRelayTemplateCatalog,
@@ -40,13 +41,64 @@ function getAvailableTemplates(catalog: Awaited<ReturnType<typeof getRelayTempla
     .sort((left, right) => left.templateName.localeCompare(right.templateName, "ko"));
 }
 
+function buildNotificationMappings(
+  catalog: Awaited<ReturnType<typeof getRelayTemplateCatalog>>,
+  rows: Array<{
+    template_alias: string | null;
+    provider_template_code: string | null;
+    template_name: string | null;
+    inspection_status: string;
+    service_status: string;
+  }>,
+) {
+  return ALIMTALK_NOTIFICATION_REGISTRY.map((item) => {
+    const platformMapping = rows.find((row) =>
+      row.template_alias === item.templateAlias
+      && row.inspection_status === "approved"
+      && row.service_status === "active"
+      && Boolean(row.provider_template_code?.trim()),
+    );
+    const envCode = getConfiguredAlimtalkTemplateKey(item.templateAlias)?.trim() ?? "";
+    const relayItem = catalog?.items?.find((entry) => entry.alias === item.templateAlias);
+    const relayCode = relayItem?.configuredCode?.trim() ?? "";
+    const code = platformMapping?.provider_template_code?.trim() || envCode || relayCode;
+    const source = platformMapping?.provider_template_code?.trim()
+      ? "platform"
+      : envCode
+        ? "environment"
+        : relayCode
+          ? "relay"
+          : "none";
+    const detail = (relayItem?.configuredCode === code ? relayItem.detail : null)
+      ?? catalog?.allTemplates?.find((template) => template.templateCode === code)
+      ?? null;
+
+    return {
+      type: item.type,
+      title: item.title,
+      trigger: item.trigger,
+      alias: item.templateAlias,
+      configKey: item.templateConfigKey,
+      notes: item.notes,
+      source,
+      templateCode: code || null,
+      templateName: detail?.templateName ?? platformMapping?.template_name ?? null,
+      templateContent: detail?.templateContent ?? null,
+      inspectionStatus: detail?.inspectionStatus ?? (platformMapping ? "APR" : null),
+      serviceStatus: detail?.serviceStatus ?? (platformMapping ? "ACT" : null),
+      buttons: (detail?.buttons ?? []).map((button) => ({ name: button.name, type: button.type })),
+      usable: Boolean(detail && isApprovedAndUsableTemplate(detail, item.templateAlias)),
+    };
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     await requireAdminSession(request);
     const admin = getSupabaseAdmin();
     if (!admin) throw new AdminApiError("알림 설정 저장소를 확인해 주세요.", 503);
 
-    const [catalog, mappingResult] = await Promise.all([
+    const [catalog, mappingResult, mappingsResult] = await Promise.all([
       getRelayTemplateCatalog(),
       admin
         .from("platform_alimtalk_templates")
@@ -58,9 +110,15 @@ export async function GET(request: NextRequest) {
         .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+      admin
+        .from("platform_alimtalk_templates")
+        .select("template_alias,provider_template_code,template_name,inspection_status,service_status,updated_at")
+        .eq("provider", "ssodaa")
+        .order("updated_at", { ascending: false }),
     ]);
     if (!catalog) throw new AdminApiError("쏘다 릴레이에 연결하지 못했습니다.", 503);
     if (mappingResult.error) throw new AdminApiError("현재 알림톡 템플릿을 불러오지 못했습니다.", 503);
+    if (mappingsResult.error) throw new AdminApiError("PetManager 알림 연결 정보를 불러오지 못했습니다.", 503);
 
     const providerTemplates = (catalog.allTemplates ?? []).map(templateSummary);
     const templates = getAvailableTemplates(catalog);
@@ -69,6 +127,7 @@ export async function GET(request: NextRequest) {
     return Response.json({
       templates,
       providerTemplates,
+      notificationMappings: buildNotificationMappings(catalog, mappingsResult.data ?? []),
       connection: {
         relayConnected: true,
         ssodaaConnected: catalog.providerStatus?.connected ?? null,

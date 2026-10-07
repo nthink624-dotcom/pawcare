@@ -1,11 +1,13 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { BreedManagementDialog } from "@/components/owner-web/service-price-guide-group-dialogs";
 import PriceGuideNativeInlineExtras from "@/components/owner-web/price-guide-native-inline-extras";
 import PriceGuideServiceDurationControl from "@/components/owner-web/price-guide-service-duration-control";
+import PriceGuideServicePriceControl, { type WeightPriceUpdate } from "@/components/owner-web/price-guide-service-price-control";
+import PriceGuideWeightBandControl from "@/components/owner-web/price-guide-weight-band-control";
 
 import {
   addDirectPriceGuideService,
@@ -22,6 +24,7 @@ import {
   updateDirectPriceGuideGroup,
   updateDirectPriceGuideService,
   updateDirectPriceGuideWeightBand,
+  updateDirectPriceGuideWeightBands,
   updateDirectPriceGuideWeightBandLabel,
 } from "@/lib/price-guide-direct-matrix";
 import { priceGuideDisplayGroupLabel } from "@/lib/price-guide-structured-table";
@@ -44,6 +47,7 @@ type ValidationIssue = {
 
 // PRICE_GUIDE_UI_HARD_CONTRACT: 16/24 only; price left + duration right on one nowrap row.
 const inputClass = "h-11 min-w-0 w-full rounded-[8px] border border-[#cbd5e1] bg-white px-2.5 !text-[16px] font-normal !leading-6 text-[#172033] outline-none placeholder:text-[#94a3b8] focus-visible:border-[#2563eb] focus-visible:ring-2 focus-visible:ring-[#2563eb]/20";
+const numericInputClass = `${inputClass} !h-10 appearance-none text-center [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
 const cellButtonClass = "min-h-11 w-full min-w-0 rounded-[8px] px-2.5 py-2 text-left !text-[16px] !font-medium !leading-6 text-[#334155] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]";
 const actionClass = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[8px] border border-[#cbd5e1] bg-white px-3 !text-[16px] !font-medium !leading-6 text-[#42536a] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
 const iconButtonClass = "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] hover:bg-[#f1f5f9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
@@ -78,6 +82,17 @@ function compactPriceDurationLabel(row: PriceGuideV2Row) {
   return `${row.priceMinKrw.toLocaleString("ko-KR")}원${row.priceKind === "starting" ? "부터" : ""} · ${row.durationMinutes === null ? "미정" : `${row.durationMinutes}분`}`;
 }
 
+function applyWeightPriceUpdates(document: PriceGuideV2, updates: WeightPriceUpdate[]) {
+  const byRowIndex = new Map(updates.map((update) => [update.rowIndex, update]));
+  return {
+    ...document,
+    rows: document.rows.map((row, rowIndex) => {
+      const update = byRowIndex.get(rowIndex);
+      return update ? { ...row, priceMinKrw: update.priceMinKrw, priceMaxKrw: update.priceMaxKrw } : row;
+    }),
+  };
+}
+
 function priceDisplayLabel(row: PriceGuideV2Row) {
   if (row.priceMinKrw === null) return "미정";
   if (row.priceKind === "range") {
@@ -95,6 +110,7 @@ function PriceDurationInlineCell({
   durationIssue,
   forceInputId,
   onEditStart,
+  onOpenDurationSetup,
   onChange,
 }: {
   row: PriceGuideV2Row;
@@ -103,6 +119,7 @@ function PriceDurationInlineCell({
   durationIssue?: ValidationIssue;
   forceInputId?: string;
   onEditStart: (field: "price" | "duration") => void;
+  onOpenDurationSetup: () => void;
   onChange: (patch: Partial<PriceGuideV2Row>, fields: string[]) => void;
 }) {
   const [editingField, setEditingField] = useState<"price" | "duration" | null>(null);
@@ -130,7 +147,7 @@ function PriceDurationInlineCell({
               onChange={(event) => onChange({ priceMinKrw: nullableInteger(event.target.value) }, ["priceMinKrw"])}
               aria-invalid={Boolean(priceIssue)}
               aria-describedby={priceIssue ? `${priceIssue.inputId}-error` : undefined}
-              className={`${inputClass} tabular-nums`}
+              className={`${inputClass} !h-10 tabular-nums text-center`}
               placeholder={row.priceKind === "range" ? "최소" : "미정"}
             />
             {row.priceKind === "range" ? <>
@@ -143,7 +160,7 @@ function PriceDurationInlineCell({
                 onChange={(event) => onChange({ priceMaxKrw: nullableInteger(event.target.value) }, ["priceMaxKrw"])}
                 aria-invalid={Boolean(priceIssue)}
                 aria-describedby={priceIssue ? `${priceIssue.inputId}-error` : undefined}
-                className={`${inputClass} tabular-nums`}
+                className={`${inputClass} !h-10 tabular-nums text-center`}
                 placeholder="최대"
               />
             </> : null}
@@ -158,7 +175,7 @@ function PriceDurationInlineCell({
               onChange={(event) => onChange({ durationMinutes: nullableInteger(event.target.value) }, ["durationMinutes"])}
               aria-invalid={Boolean(durationIssue)}
               aria-describedby={durationIssue ? `${durationId}-error` : undefined}
-              className={`${inputClass} tabular-nums`}
+              className={`${inputClass} !h-10 tabular-nums text-center`}
               placeholder="미정"
             />
           </div>
@@ -168,10 +185,10 @@ function PriceDurationInlineCell({
         </div>
       ) : (
         <div className="grid grid-cols-[minmax(0,1fr)_88px] items-center gap-1.5" data-price-left-time-right="true">
-          <button id={minPriceId} type="button" onClick={() => { onEditStart("price"); setEditingField("price"); }} className={`${cellButtonClass} min-w-0 truncate whitespace-nowrap text-[16px] font-medium leading-6 tabular-nums !px-2.5`} aria-label={`${priceDisplayLabel(row)} 가격 수정`} data-price-side="left">
+          <button id={minPriceId} type="button" onClick={() => { onEditStart("price"); setEditingField("price"); }} className={`${cellButtonClass} min-w-0 truncate whitespace-nowrap !text-center text-[16px] font-medium leading-6 tabular-nums !px-2.5`} aria-label={`${priceDisplayLabel(row)} 가격 수정`} data-price-side="left">
             {priceDisplayLabel(row)}
           </button>
-          <button id={`${durationId}-trigger`} type="button" onClick={() => { onEditStart("duration"); setEditingField("duration"); }} className={`${cellButtonClass} min-w-0 whitespace-nowrap border-l border-[#e2e8f0] text-[16px] font-medium leading-6 tabular-nums !px-2 !text-left`} aria-label={`${row.durationMinutes === null ? "미정" : `${row.durationMinutes}분`} 예상시간 수정`} data-duration-side="right">
+          <button id={`${durationId}-trigger`} type="button" onClick={onOpenDurationSetup} className={`${cellButtonClass} min-w-0 whitespace-nowrap border-l border-[#e2e8f0] text-[16px] font-medium leading-6 tabular-nums !px-2 !text-center !rounded-l-none`} aria-label={`${row.durationMinutes === null ? "미정" : `${row.durationMinutes}분`} 예상시간 설정`} data-duration-side="right">
             {row.durationMinutes === null ? "미정" : `${row.durationMinutes}분`}
           </button>
         </div>
@@ -210,6 +227,7 @@ export default function PriceGuideNativeInlineTable({
   const [activeStructureField, setActiveStructureField] = useState<string | null>(null);
   const [dismissedIssueInputId, setDismissedIssueInputId] = useState<string | null>(null);
   const [breedDialogGroupIndex, setBreedDialogGroupIndex] = useState<number | null>(null);
+  const [durationSetupRequests, setDurationSetupRequests] = useState<Record<string, number>>({});
   const groups = readDirectPriceGuideMatrix(guide);
   const preservedRows = readPreservedPriceGuideRows(guide);
   const durationGroups = groupPriceGuideRowsByServiceDuration(guide);
@@ -222,9 +240,27 @@ export default function PriceGuideNativeInlineTable({
     setActiveStructureField(inputId);
   }
 
+  function finishStructureEditAfterBlur(inputId: string, editor: HTMLElement | null, nextTarget: EventTarget | null) {
+    if (nextTarget instanceof Node && editor?.contains(nextTarget)) return;
+    window.setTimeout(() => {
+      setActiveStructureField((current) => current === inputId ? null : current);
+    }, 0);
+  }
+
+  function handleStructureInputKeyDown(event: KeyboardEvent<HTMLInputElement>, inputId: string) {
+    if (event.nativeEvent.isComposing || event.key !== "Enter") return;
+    event.preventDefault();
+    setActiveStructureField((current) => current === inputId ? null : current);
+  }
+
   function startIndependentCellEdit() {
     setDismissedIssueInputId(firstIssueInputId ?? null);
     setActiveStructureField(null);
+  }
+
+  function requestDurationSetup(groupIndex: number, serviceIndex: number) {
+    const key = `${groupIndex}:${serviceIndex}`;
+    setDurationSetupRequests((current) => ({ ...current, [key]: (current[key] ?? 0) + 1 }));
   }
 
   function emit(next: PriceGuideV2, rowIndexes: number[], fields: string[]) {
@@ -294,13 +330,13 @@ export default function PriceGuideNativeInlineTable({
           const groupName = priceGuideDisplayGroupLabel(group.sourceLabel.trim()) || `그룹 ${groupIndex + 1}`;
           const titleId = `price-guide-direct-group-${groupIndex}-sourceLabel`;
           const titleIssue = issues.get(`tableGroups:${groupIndex}.sourceLabel`);
-          const tableWidth = Math.max(760, 120 + group.serviceNames.length * 210);
+          const tableWidth = Math.max(760, 136 + group.serviceNames.length * 210);
           return (
             <section key={`group-${groupIndex}`} className="min-w-0 rounded-[12px] border border-[#dbe2ea] bg-white p-2.5" data-native-price-guide-group={groupIndex}>
               {renderedStructureField === titleId ? (
                 <div>
                   <label htmlFor={titleId} className="sr-only">그룹 제목</label>
-                  <input id={titleId} autoFocus value={group.sourceLabel.trim() ? groupName : ""} onChange={(event) => emit(updateDirectPriceGuideGroup(guide, groupIndex, { sourceLabel: event.target.value }), rowIndexes, ["breedGroup"])} aria-invalid={Boolean(titleIssue)} aria-describedby={titleIssue ? `${titleId}-error` : undefined} className={`${inputClass} max-w-lg !font-medium`} placeholder="그룹 제목 입력" />
+                  <input id={titleId} autoFocus value={group.sourceLabel.trim() ? groupName : ""} onChange={(event) => emit(updateDirectPriceGuideGroup(guide, groupIndex, { sourceLabel: event.target.value }), rowIndexes, ["breedGroup"])} onBlur={(event) => finishStructureEditAfterBlur(titleId, event.currentTarget.parentElement, event.relatedTarget)} onKeyDown={(event) => handleStructureInputKeyDown(event, titleId)} aria-invalid={Boolean(titleIssue)} aria-describedby={titleIssue ? `${titleId}-error` : undefined} className={`${inputClass} max-w-lg !font-medium`} placeholder="그룹 제목 입력" />
                   <InlineError issue={titleIssue} />
                 </div>
               ) : null}
@@ -321,7 +357,7 @@ export default function PriceGuideNativeInlineTable({
               <div className="mt-2 max-h-[min(62dvh,680px)] max-w-full overflow-auto overscroll-contain rounded-[10px] border border-[#dbe2ea]" tabIndex={0} aria-label={`${groupName} 인라인 요금표, 좌우와 위아래로 이동할 수 있습니다`} data-price-guide-matrix-scroll="true">
                 <table className="w-full border-collapse text-[16px] leading-6 text-[#334155]" style={{ minWidth: tableWidth }}>
                   <thead className="sticky top-0 z-30"><tr className="bg-[#f8fafc] text-left text-[16px] font-medium leading-6 text-[#64748b]">
-                    <th className="sticky left-0 top-0 z-40 w-[120px] border-b border-r border-[#dbe2ea] bg-[#f8fafc] px-2 py-3 !font-medium">몸무게</th>
+                    <th className="sticky left-0 top-0 z-40 w-[136px] border-b border-r border-[#dbe2ea] bg-[#f8fafc] px-2 py-3 text-center !font-medium">몸무게</th>
                     {group.serviceNames.map((serviceName, serviceIndex) => {
                       const serviceRowIndex = directPriceGuideRowIndex(groups, groupIndex, 0, serviceIndex);
                       const serviceId = rowInputId(serviceRowIndex, "serviceName");
@@ -331,26 +367,50 @@ export default function PriceGuideNativeInlineTable({
                         const row = guide.rows[rowIndex];
                         return row ? [{ rowIndex, minKg: row.minKg, maxKg: row.maxKg, durationMinutes: row.durationMinutes, label: group.weightBands[weightIndex]?.label }] : [];
                       });
-                      return <th key={`service-${serviceIndex}`} className="sticky top-0 z-30 min-w-[210px] border-b border-[#dbe2ea] bg-[#f8fafc] p-1.5 align-top !font-medium">
+                      const priceTargets = serviceRowIndexes.flatMap((rowIndex, weightIndex) => {
+                        const row = guide.rows[rowIndex];
+                        return row ? [{
+                          rowIndex,
+                          minKg: row.minKg,
+                          maxKg: row.maxKg,
+                          priceMinKrw: row.priceMinKrw,
+                          priceMaxKrw: row.priceMaxKrw,
+                          label: group.weightBands[weightIndex]?.label,
+                        }] : [];
+                      });
+                      return <th key={`service-${serviceIndex}`} className="sticky top-0 z-30 min-w-[210px] border-b border-r border-[#e8edf3] bg-[#f8fafc] p-1.5 align-top !font-medium last:border-r-0">
                         {renderedStructureField === serviceId ? (
-                          <div className="flex min-w-[196px] items-start gap-1">
+                          <div className="flex min-w-[196px] items-start gap-1" data-price-guide-structure-editor={serviceId}>
                             <label htmlFor={serviceId} className="sr-only">서비스명</label>
-                            <input id={serviceId} autoFocus value={serviceName} onChange={(event) => emit(updateDirectPriceGuideService(guide, groupIndex, serviceIndex, event.target.value), serviceRowIndexes, ["serviceName"])} className={`${inputClass} text-center !font-medium`} placeholder="서비스명 입력" />
+                            <input id={serviceId} autoFocus value={serviceName} onChange={(event) => emit(updateDirectPriceGuideService(guide, groupIndex, serviceIndex, event.target.value), serviceRowIndexes, ["serviceName"])} onBlur={(event) => finishStructureEditAfterBlur(serviceId, event.currentTarget.parentElement, event.relatedTarget)} onKeyDown={(event) => handleStructureInputKeyDown(event, serviceId)} className={`${inputClass} text-center !font-medium`} placeholder="서비스명 입력" />
                             {group.serviceNames.length > 1 ? <button type="button" onClick={() => { startStructureEdit(null); onChange(removeDirectPriceGuideService(guide, groupIndex, serviceIndex)); }} className={iconButtonClass} aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 열 삭제`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button> : null}
                           </div>
                         ) : (
-                          <div className="flex min-w-0 items-center gap-1">
-                            <button id={serviceId} type="button" onClick={() => startStructureEdit(serviceId)} className="min-h-11 min-w-0 flex-1 rounded-[8px] px-2 text-center !text-[16px] !font-medium !leading-6 text-[#172033] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 이름 수정`}>{serviceName || <span className="text-[#7a8798]">서비스명 입력</span>}</button>
+                          <div className="flex min-w-0 flex-col items-stretch gap-1">
+                            <button id={serviceId} type="button" onClick={() => startStructureEdit(serviceId)} className="min-h-10 w-full rounded-[8px] px-2 text-center !text-[16px] !font-medium !leading-6 text-[#172033] hover:bg-[#f7f9fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" aria-label={`${serviceName || `서비스 ${serviceIndex + 1}`} 이름 수정`}>{serviceName || <span className="text-[#7a8798]">서비스명 입력</span>}</button>
+                            <div className="flex min-h-8 items-center justify-center gap-1 border-t border-[#e8edf3] pt-0.5">
+                            <PriceGuideServicePriceControl
+                              serviceName={serviceName}
+                              groupName={groupName}
+                              targets={priceTargets}
+                              onApply={(updates) => emit(
+                                applyWeightPriceUpdates(guide, updates),
+                                updates.map((update) => update.rowIndex),
+                                ["priceMinKrw", "priceMaxKrw"],
+                              )}
+                            />
                             {durationGroup ? <PriceGuideServiceDurationControl
                               serviceName={durationGroup.serviceName}
                               groupName={groupName}
                               targets={durationTargets}
+                              openRequest={durationSetupRequests[`${groupIndex}:${serviceIndex}`] ?? 0}
                               onApply={(updates) => emit(
                                 applyWeightDurationUpdates(guide, updates),
                                 updates.map((update) => update.rowIndex),
                                 ["durationMinutes"],
                               )}
                             /> : null}
+                            </div>
                           </div>
                         )}
                       </th>;
@@ -364,7 +424,7 @@ export default function PriceGuideNativeInlineTable({
                     const maxWeightId = rowInputId(firstWeightRowIndex, "maxKg");
                     const weightEditing = [minWeightId, maxWeightId].includes(renderedStructureField ?? "");
                     return <tr key={`weight-${weightIndex}`} className="border-b border-[#edf2f7] last:border-b-0">
-                      <th className="sticky left-0 z-20 w-[120px] border-r border-[#dbe2ea] bg-[#fbfcfd] p-1 text-left align-top font-normal">
+                      <th className="sticky left-0 z-20 w-[136px] border-r border-[#dbe2ea] bg-[#fbfcfd] p-1 text-center align-top font-normal">
                         {weightEditing && photoReviewMode ? (
                           <div className="min-w-[122px]" data-price-guide-weight-edit={weightIndex}>
                             <label htmlFor={minWeightId} className="sr-only">몸무게 기준</label>
@@ -381,8 +441,9 @@ export default function PriceGuideNativeInlineTable({
                               min={0}
                               step={0.1}
                               inputMode="decimal"
+                              onBlur={(event) => finishStructureEditAfterBlur(minWeightId, event.currentTarget.closest("[data-price-guide-weight-edit]"), event.relatedTarget)}
                               onChange={(event) => emit(updateDirectPriceGuideWeightBand(guide, groupIndex, weightIndex, { minKg: nullableDecimal(event.target.value), maxKg: weightBand.maxKg }), group.serviceNames.map((_, serviceIndex) => directPriceGuideRowIndex(groups, groupIndex, weightIndex, serviceIndex)), ["minKg", "maxKg", "weightBandLabel"])}
-                              className={inputClass}
+                              className={numericInputClass}
                               placeholder="최소"
                             />
                             <label htmlFor={maxWeightId} className="sr-only">체중 상한</label>
@@ -394,17 +455,18 @@ export default function PriceGuideNativeInlineTable({
                               min={0}
                               step={0.1}
                               inputMode="decimal"
+                              onBlur={(event) => finishStructureEditAfterBlur(maxWeightId, event.currentTarget.closest("[data-price-guide-weight-edit]"), event.relatedTarget)}
                               onChange={(event) => emit(updateDirectPriceGuideWeightBand(guide, groupIndex, weightIndex, { minKg: weightBand.minKg, maxKg: nullableDecimal(event.target.value) }), group.serviceNames.map((_, serviceIndex) => directPriceGuideRowIndex(groups, groupIndex, weightIndex, serviceIndex)), ["minKg", "maxKg", "weightBandLabel"])}
                               aria-invalid={Boolean(weightIssue)}
                               aria-describedby={weightIssue ? `${weightIssue.inputId}-error` : undefined}
-                              className={inputClass}
+                              className={numericInputClass}
                               placeholder="최대"
                             />
                             <div className="col-span-2"><InlineError issue={weightIssue} /></div>
                           </div>
                         ) : (
-                          <div className="flex min-w-0 items-start gap-1">
-                            <button id={minWeightId} type="button" onClick={() => startStructureEdit(minWeightId)} className={`${cellButtonClass} !w-auto min-w-0 flex-1 px-1.5`} data-price-guide-weight-limit={weightBand.maxKg ?? undefined}>
+                          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] items-center gap-1">
+                            <button id={minWeightId} type="button" onClick={() => startStructureEdit(minWeightId)} className={`${cellButtonClass} min-w-0 whitespace-nowrap !text-center px-1.5`} data-price-guide-weight-limit={weightBand.maxKg ?? undefined}>
                               {weightLabel}
                               {weightBand.note ? <span className="mt-0.5 block text-[16px] font-normal leading-6 text-[#718096]">{weightBand.note}</span> : null}
                             </button>
@@ -424,7 +486,7 @@ export default function PriceGuideNativeInlineTable({
                         const priceForceInputId = forcedIssueInputId === kindId
                           ? minPriceId
                           : [minPriceId, maxPriceId].includes(forcedIssueInputId ?? "") ? forcedIssueInputId : undefined;
-                        return <td key={`cell-${serviceIndex}`} className="min-w-[210px] p-1 align-top">
+                        return <td key={`cell-${serviceIndex}`} className="min-w-[210px] border-r border-[#e8edf3] p-1 align-top last:border-r-0">
                           <PriceDurationInlineCell
                             row={row}
                             rowIndex={rowIndex}
@@ -436,6 +498,7 @@ export default function PriceGuideNativeInlineTable({
                                 ? minPriceId
                                 : priceForceInputId}
                             onEditStart={startIndependentCellEdit}
+                            onOpenDurationSetup={() => requestDurationSetup(groupIndex, serviceIndex)}
                             onChange={(patch, fields) => emit(updateDirectPriceGuideCell(
                               guide,
                               groupIndex,
@@ -451,6 +514,15 @@ export default function PriceGuideNativeInlineTable({
                 </table>
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
+                <PriceGuideWeightBandControl
+                  groupName={groupName}
+                  bands={group.weightBands}
+                  onApply={(weightBands) => emit(
+                    updateDirectPriceGuideWeightBands(guide, groupIndex, weightBands),
+                    rowIndexes,
+                    ["minKg", "maxKg", "weightBandLabel"],
+                  )}
+                />
                 <button type="button" onClick={() => { const nextWeightIndex = group.weightBands.length; const next = addDirectPriceGuideWeightBand(guide, groupIndex); const nextGroups = readDirectPriceGuideMatrix(next); onChange(next); if (nextGroups[groupIndex]?.weightBands.length === nextWeightIndex + 1) startStructureEdit(rowInputId(directPriceGuideRowIndex(nextGroups, groupIndex, nextWeightIndex, 0), "minKg")); }} className={actionClass}><Plus className="h-4 w-4" aria-hidden="true" />몸무게</button>
                 <button type="button" onClick={() => { const nextServiceIndex = group.serviceNames.length; const next = addDirectPriceGuideService(guide, groupIndex); const nextGroups = readDirectPriceGuideMatrix(next); onChange(next); if (nextGroups[groupIndex]?.serviceNames.length === nextServiceIndex + 1) startStructureEdit(rowInputId(directPriceGuideRowIndex(nextGroups, groupIndex, 0, nextServiceIndex), "serviceName")); }} className={actionClass}><Plus className="h-4 w-4" aria-hidden="true" />서비스</button>
               </div>

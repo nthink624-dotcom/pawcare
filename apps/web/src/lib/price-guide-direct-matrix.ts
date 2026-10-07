@@ -410,6 +410,18 @@ export function updateDirectPriceGuideWeightBand(
   });
 }
 
+export function updateDirectPriceGuideWeightBands(
+  document: PriceGuideV2,
+  groupIndex: number,
+  weightBands: PriceGuideV2WeightBand[],
+) {
+  return updateGroups(document, (groups) => {
+    const group = groups[groupIndex];
+    if (!group || weightBands.length !== group.weightBands.length) return;
+    group.weightBands = weightBands.map((band) => ({ ...band }));
+  });
+}
+
 /** Photo review edits the visible source label without deriving hidden kg bounds. */
 export function updateDirectPriceGuideWeightBandLabel(
   document: PriceGuideV2,

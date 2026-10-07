@@ -11,10 +11,11 @@ test("photo and manual tables share scoped explicit weight-duration controls",as
  assert.match(table,/label: group.weightBands\[weightIndex\]\?\.label/);
  assert.match(table,/data-price-left-time-right="true"/);
  assert.match(control,/explicitDurationUpdates\(targets, values\)/);
- assert.match(control,/proposeWeightDurations\(targets/);
- assert.match(control,/baseKg: 2/);
- assert.match(control,/incrementMinutes: 10/);
- assert.match(control,/<option value=\{2\}>2kg마다<\/option><option value=\{3\}>3kg마다<\/option>/);
- assert.match(control,/계산해서 채우기/);
+ assert.match(control,/targets\.map\(\(target, bandIndex\)/);
+ assert.match(control,/bandIndex \* parsedIncrementMinutes/);
+ assert.match(control,/useState\("10"\)/);
+ assert.match(control,/첫 체중 구간 시간/);
+ assert.match(control,/구간마다 추가할 시간/);
+ assert.doesNotMatch(control,/proposeWeightDurations|2kg마다|3kg마다|계산해서 채우기/);
  assert.match(control,/placeholder="미정"/);
 });

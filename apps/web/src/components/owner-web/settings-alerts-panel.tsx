@@ -476,8 +476,10 @@ export default function SettingsAlertsPanel({
     alias: item.templateAlias,
     type: item.type,
     title: item.title,
-    group: ["booking_consent_request", "booking_confirmed", "booking_cancelled", "revisit_notice"].includes(item.templateAlias)
-      ? "예약 알림"
+    group: item.templateAlias === "booking_consent_request"
+      ? "예약 전 준비"
+      : ["booking_confirmed", "booking_cancelled", "revisit_notice"].includes(item.templateAlias)
+        ? "예약 알림"
       : reservationNoticeTypes.includes(item.type)
         ? "예약 안내"
         : "미용 진행",

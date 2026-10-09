@@ -4,10 +4,21 @@ import type { NextRequest } from "next/server";
 
 import { serverEnv } from "@/lib/server-env";
 import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
+import { getApprovedSsodaaTemplateButtonDefaults } from "@/server/alimtalk-approved-template";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 
 export const dynamic = "force-dynamic";
+
+const buttonRequiredAliases = new Set([
+  "booking_confirmed",
+  "appointment_reminder_10m",
+  "visit_schedule_notice",
+  "visit_reminder_notice",
+  "grooming_completed",
+  "revisit_notice",
+  "booking_consent_request",
+]);
 
 const templateSchema = z.object({
   shopId: z.string().trim().min(1).max(100),
@@ -20,8 +31,6 @@ const templateSchema = z.object({
   templateName: z.string().trim().min(1).max(100),
   templateContent: z.string().trim().min(1).max(1000),
   categoryCode: z.string().trim().min(1).max(100),
-  buttonName: z.string().trim().max(14).optional().default(""),
-  buttonUrl: z.string().trim().max(2000).optional().default(""),
   action: z.enum(["save", "submit"]),
   id: z.string().uuid().optional(),
 }).superRefine((value, context) => {
@@ -37,26 +46,6 @@ const templateSchema = z.object({
     .filter((variable) => variable && !allowedVariables.has(variable));
   if (unknownVariables.length > 0) {
     context.addIssue({ code: "custom", path: ["templateContent"], message: "사용할 수 없는 자동 입력 항목이 있습니다." });
-  }
-  const buttonRequiredTypes = new Set([
-    "booking_confirmed", "appointment_reminder_10m", "visit_schedule_notice",
-    "visit_reminder_notice", "grooming_completed", "revisit_notice", "booking_consent_request",
-  ]);
-  if (Boolean(value.buttonName) !== Boolean(value.buttonUrl)) {
-    context.addIssue({ code: "custom", path: ["buttonUrl"], message: "버튼 이름과 링크를 함께 입력해 주세요." });
-  }
-  if (buttonRequiredTypes.has(value.templateAlias) && (!value.buttonName || !value.buttonUrl)) {
-    context.addIssue({ code: "custom", path: ["buttonUrl"], message: "이 알림 검수에 필요한 버튼 링크를 입력해 주세요." });
-  }
-  if (value.buttonUrl) {
-    try {
-      if (new URL(value.buttonUrl).protocol !== "https:") throw new Error("https required");
-    } catch {
-      context.addIssue({ code: "custom", path: ["buttonUrl"], message: "https 링크를 입력해 주세요." });
-    }
-  }
-  if (value.templateAlias === "booking_consent_request" && value.buttonName !== "동의서 작성") {
-    context.addIssue({ code: "custom", path: ["buttonName"], message: "동의서 요청 버튼 이름은 '동의서 작성'이어야 합니다." });
   }
 });
 
@@ -129,7 +118,12 @@ export async function GET(request: NextRequest) {
     }));
 
     const categories = Array.isArray(categoriesResult?.categories) ? categoriesResult.categories : [];
-    return Response.json({ templates: synced, categories });
+    const buttonDefaults = await getApprovedSsodaaTemplateButtonDefaults(
+      Array.from(new Set(ALIMTALK_NOTIFICATION_REGISTRY.map((item) => item.templateAlias))),
+      owner.shopId,
+    );
+
+    return Response.json({ templates: synced, categories, buttonDefaults });
   } catch (error) {
     const status = error instanceof OwnerApiError ? error.status : 500;
     return Response.json({ message: error instanceof OwnerApiError ? error.message : "매장 템플릿을 불러오지 못했습니다." }, { status });
@@ -147,6 +141,18 @@ export async function POST(request: NextRequest) {
     if (!registryItem) throw new OwnerApiError("알림 종류를 확인해 주세요.", 400);
     const notificationType = registryItem.type;
     const fixedTemplateName = registryItem.title;
+    const defaults = await getApprovedSsodaaTemplateButtonDefaults([payload.templateAlias], owner.shopId);
+    const buttons = defaults[payload.templateAlias] ?? [];
+    if (buttons.length > 1) {
+      throw new OwnerApiError("공통 템플릿에 버튼이 여러 개 있어 요청을 저장할 수 없습니다. 관리자에게 확인해 주세요.", 409);
+    }
+    if (buttonRequiredAliases.has(payload.templateAlias) && buttons.length === 0) {
+      throw new OwnerApiError("승인된 공통 템플릿 버튼을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", 409);
+    }
+    const button = buttons[0];
+    const templateButtons = button
+      ? [{ buttonType: "WL", buttonName: button.buttonName, linkMobile: button.linkMobile, linkPc: button.linkMobile }]
+      : [];
 
     let row: Record<string, unknown> | null = null;
     if (payload.id) {
@@ -159,9 +165,7 @@ export async function POST(request: NextRequest) {
         template_alias: payload.templateAlias,
         template_content: payload.templateContent,
         category_code: payload.categoryCode,
-        template_buttons: payload.buttonName && payload.buttonUrl
-          ? [{ buttonType: "WL", buttonName: payload.buttonName, linkMobile: payload.buttonUrl, linkPc: payload.buttonUrl }]
-          : [],
+        template_buttons: templateButtons,
         updated_at: new Date().toISOString(),
       }).eq("id", payload.id).eq("shop_id", owner.shopId).select("*").single();
       if (updated.error) throw new OwnerApiError("템플릿 초안을 저장하지 못했습니다.", 503);
@@ -176,9 +180,7 @@ export async function POST(request: NextRequest) {
         template_name: fixedTemplateName,
         template_content: payload.templateContent,
         category_code: payload.categoryCode,
-        template_buttons: payload.buttonName && payload.buttonUrl
-          ? [{ buttonType: "WL", buttonName: payload.buttonName, linkMobile: payload.buttonUrl, linkPc: payload.buttonUrl }]
-          : [],
+        template_buttons: templateButtons,
         created_by_user_id: owner.userId,
       }).select("*").single();
       if (inserted.error) throw new OwnerApiError("템플릿 초안을 저장하지 못했습니다.", 503);

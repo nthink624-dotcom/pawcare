@@ -23,10 +23,17 @@ type ShopTemplate = {
 
 type TemplateCategory = { code: string; name: string };
 type TemplateOption = { alias: AlimtalkTemplateAlias; type: NotificationType; title: string; group: string };
-
-const REVISIT_BUTTON_NAME = "다음 예약하기";
-const REVISIT_BUTTON_URL = "https://www.petmanager.co.kr/book/#{매장ID}?experience=revisit&t=#{bookingRescheduleToken}";
-const CONSENT_BUTTON_URL = "https://www.petmanager.co.kr/m?access_token=#{예약관리토큰}";
+type TemplateButton = { buttonName: string; linkMobile: string };
+type ButtonDefaults = Partial<Record<AlimtalkTemplateAlias, TemplateButton[]>>;
+const requiredButtonAliases: AlimtalkTemplateAlias[] = [
+  "booking_confirmed",
+  "appointment_reminder_10m",
+  "visit_schedule_notice",
+  "visit_reminder_notice",
+  "grooming_completed",
+  "revisit_notice",
+  "booking_consent_request",
+];
 
 const notificationHelp: Partial<Record<NotificationType, string>> = {
   booking_consent_request: "예약별 동의서 작성 요청을 보낼 때 사용합니다. 카카오 심사 규칙에 맞춰 본문과 버튼이 고정되어 있습니다.",
@@ -71,6 +78,7 @@ export function OwnerAlimtalkTemplateEditor({
   const notificationTitle = selectedOption.title;
   const [templates, setTemplates] = useState<ShopTemplate[]>([]);
   const [categories, setCategories] = useState<TemplateCategory[]>([]);
+  const [buttonDefaults, setButtonDefaults] = useState<ButtonDefaults>({});
   const [templateId, setTemplateId] = useState("");
   const [templateContent, setTemplateContent] = useState(() => getNotificationDraftBodyByAlias(selectedAlias) ?? "");
   const editedContentKey = useRef("");
@@ -89,12 +97,13 @@ export function OwnerAlimtalkTemplateEditor({
     setLoading(true);
     setError("");
     try {
-      const response = await fetchApiJsonWithAuth<{ templates: ShopTemplate[]; categories: TemplateCategory[] }>(
+      const response = await fetchApiJsonWithAuth<{ templates: ShopTemplate[]; categories: TemplateCategory[]; buttonDefaults: ButtonDefaults }>(
         `/api/owner/alimtalk-templates?shopId=${encodeURIComponent(shopId)}`,
         { cache: "no-store" },
       );
       setTemplates(response.templates);
       setCategories(response.categories);
+      setButtonDefaults(response.buttonDefaults ?? {});
       setCategoryCode((current) => current || response.categories[0]?.code || "");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "템플릿을 불러오지 못했습니다.");
@@ -109,6 +118,7 @@ export function OwnerAlimtalkTemplateEditor({
 
   useEffect(() => {
     const current = templates.find((template) => template.template_alias === selectedAlias);
+    const defaultButton = buttonDefaults[selectedAlias]?.[0];
     const contentKey = `${shopId}:${selectedAlias}:${newVersion}`;
     if (editedContentKey.current !== contentKey) {
       editedContentKey.current = "";
@@ -118,21 +128,23 @@ export function OwnerAlimtalkTemplateEditor({
     setError("");
     if (!current || newVersion) {
       setTemplateId("");
-      setButtonName(current?.template_buttons?.[0]?.buttonName ?? (selectedAlias === "revisit_notice" ? REVISIT_BUTTON_NAME : selectedAlias === "booking_consent_request" ? "동의서 작성" : ""));
-      setButtonUrl(current?.template_buttons?.[0]?.linkMobile ?? (selectedAlias === "revisit_notice" ? REVISIT_BUTTON_URL : selectedAlias === "booking_consent_request" ? CONSENT_BUTTON_URL : ""));
+      setButtonName(defaultButton?.buttonName ?? "");
+      setButtonUrl(defaultButton?.linkMobile ?? "");
       setCategoryCode(current?.category_code || categories[0]?.code || "");
       return;
     }
     setTemplateId(current.id);
-    setButtonName(current.template_buttons?.[0]?.buttonName ?? "");
-    setButtonUrl(current.template_buttons?.[0]?.linkMobile ?? "");
+    setButtonName(defaultButton?.buttonName ?? current.template_buttons?.[0]?.buttonName ?? "");
+    setButtonUrl(defaultButton?.linkMobile ?? current.template_buttons?.[0]?.linkMobile ?? "");
     setCategoryCode(current.category_code || categories[0]?.code || "");
-  }, [templates, selectedAlias, categories, newVersion, shopId]);
+  }, [templates, buttonDefaults, selectedAlias, categories, newVersion, shopId]);
 
   const currentTemplate = templates.find((template) => template.template_alias === selectedAlias);
+  const selectedButtonDefaults = buttonDefaults[selectedAlias] ?? [];
   const editable = !currentTemplate || currentTemplate.inspection_status === "draft" || newVersion;
   const canCreateVersion = currentTemplate && ["approved", "rejected"].includes(currentTemplate.inspection_status);
-  const needsButton = ["booking_confirmed", "appointment_reminder_10m", "visit_schedule_notice", "visit_reminder_notice", "grooming_completed", "revisit_notice", "booking_consent_request"].includes(selectedAlias);
+  const needsButton = requiredButtonAliases.includes(selectedAlias) || selectedButtonDefaults.length > 0;
+  const unsupportedButtonCount = selectedButtonDefaults.length > 1;
   const fixedContract = selectedAlias === "booking_consent_request";
   const sampleMessage = templateContent
     .replaceAll("#{매장명}", shopName)
@@ -158,7 +170,7 @@ export function OwnerAlimtalkTemplateEditor({
       const response = await fetchApiJsonWithAuth<{ template: ShopTemplate }>("/api/owner/alimtalk-templates", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ shopId, templateAlias: selectedAlias, templateName, templateContent, categoryCode, buttonName, buttonUrl, action, ...(templateId ? { id: templateId } : {}) }),
+        body: JSON.stringify({ shopId, templateAlias: selectedAlias, templateName, templateContent, categoryCode, action, ...(templateId ? { id: templateId } : {}) }),
       });
       setTemplates((current) => [response.template, ...current.filter((item) => item.id !== response.template.id)]);
       setTemplateId(response.template.id);
@@ -215,7 +227,10 @@ export function OwnerAlimtalkTemplateEditor({
                     </div>
                   </div>
                   <details><summary className="flex min-h-11 cursor-pointer items-center text-[16px] font-medium leading-6 text-[#475569]">버튼 설정{needsButton ? " · 필수" : " · 선택"}</summary>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">버튼 이름{needsButton ? " · 필수" : " · 선택"}</span><input value={buttonName} readOnly={fixedContract} onChange={(event) => setButtonName(event.target.value)} maxLength={14} className={inputClass} placeholder="예약 확인" /></label><label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">버튼 링크</span><input type="url" value={buttonUrl} readOnly={fixedContract} onChange={(event) => setButtonUrl(event.target.value)} className={inputClass} placeholder="https://" /></label></div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">버튼 이름{needsButton ? " · 필수" : " · 선택"}</span><input value={buttonName} readOnly maxLength={14} className={`${inputClass} read-only:bg-[#f8fafc]`} placeholder={loading ? "승인된 버튼을 불러오는 중" : needsButton ? "승인된 버튼 확인 필요" : "버튼 없음"} /></label><label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">버튼 링크 · 고정</span><input type="url" value={buttonUrl} readOnly className={`${inputClass} read-only:bg-[#f8fafc]`} placeholder={loading ? "승인된 링크를 불러오는 중" : needsButton ? "승인된 링크 확인 필요" : "버튼 없음"} /></label></div>
+                  <p className="text-[13px] leading-5 text-[#64748b]">승인된 공통 템플릿의 버튼을 그대로 사용합니다.</p>
+                  {needsButton && !loading && (!buttonName || !buttonUrl) ? <p role="alert" className="text-[13px] leading-5 text-[#9a5e4e]">승인된 공통 버튼을 불러오지 못해 저장할 수 없습니다.</p> : null}
+                  {unsupportedButtonCount ? <p role="alert" className="text-[13px] leading-5 text-[#9a5e4e]">공통 템플릿에 버튼이 여러 개 있어 요청할 수 없습니다. 관리자에게 확인해 주세요.</p> : null}
                   </details>
                   <p className="text-[16px] leading-6 text-[#64748b]">검수가 완료되면 이 매장의 {notificationTitle} 알림에 적용됩니다.</p>
                 </div>}
@@ -235,7 +250,7 @@ export function OwnerAlimtalkTemplateEditor({
               </aside>
       </div>
 
-      {editable ? <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[#e8edf3] bg-white px-4 py-2.5 sm:px-6"><button type="button" disabled={saving || loading || !categories.length} onClick={() => void save("save")} className="min-h-11 rounded-[9px] border border-[#dbe2ea] bg-white px-4 text-[16px] font-medium leading-6 text-[#15213b] disabled:opacity-50">임시 저장</button><button type="button" disabled={saving || loading || !categories.length} onClick={() => void save("submit")} className="min-h-11 rounded-[9px] bg-[#5850f5] px-5 text-[16px] font-medium leading-6 text-white disabled:opacity-50">{saving ? "요청 중…" : "검수 요청"}</button></footer> : null}
+      {editable ? <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[#e8edf3] bg-white px-4 py-2.5 sm:px-6"><button type="button" disabled={saving || loading || !categories.length || unsupportedButtonCount || (needsButton && (!buttonName || !buttonUrl))} onClick={() => void save("save")} className="min-h-11 rounded-[9px] border border-[#dbe2ea] bg-white px-4 text-[16px] font-medium leading-6 text-[#15213b] disabled:opacity-50">임시 저장</button><button type="button" disabled={saving || loading || !categories.length || unsupportedButtonCount || (needsButton && (!buttonName || !buttonUrl))} onClick={() => void save("submit")} className="min-h-11 rounded-[9px] bg-[#5850f5] px-5 text-[16px] font-medium leading-6 text-white disabled:opacity-50">{saving ? "요청 중…" : "검수 요청"}</button></footer> : null}
     </section>
   );
 }

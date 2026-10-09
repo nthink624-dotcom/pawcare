@@ -223,7 +223,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "grooming_completed",
-    title: "미용 완료",
+    title: "케어리포트 있음",
     target: "guardian",
     channel: "alimtalk",
     trigger: "예약 상태가 completed가 되면 발송",
@@ -237,7 +237,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "grooming_completed",
-    title: "미용 완료 - 케어리포트 없음",
+    title: "케어리포트 없음",
     target: "guardian",
     channel: "alimtalk",
     trigger: "예약 상태가 completed가 되고 최종 발행된 케어리포트가 없을 때 발송",

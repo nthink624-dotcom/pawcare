@@ -144,6 +144,41 @@ async function getApprovedSsodaaTemplate(
   return detail;
 }
 
+export async function getApprovedSsodaaTemplateButtonDefaults(
+  aliases: AlimtalkTemplateAlias[],
+  shopId?: string,
+) {
+  const [catalog, customCodes] = await Promise.all([
+    getRelayTemplateCatalog(),
+    getShopApprovedTemplateCodes(shopId, aliases),
+  ]);
+
+  const entries = await Promise.all(aliases.map(async (alias) => {
+    const customCode = customCodes.get(alias);
+    const customDetail = customCode
+      ? catalog?.allTemplates?.find((item) => item.templateCode === customCode && isApprovedAndUsableTemplate(item)) ?? null
+      : null;
+    const detail = customDetail
+      ? normalizeConnectedTemplateDetail(customCode!, customDetail)
+      : catalog
+        ? await getApprovedSsodaaTemplateFromCatalog(alias, catalog)
+        : null;
+    if (detail) {
+      try {
+        validateTemplateContract(alias, detail);
+      } catch {
+        return [alias, []] as const;
+      }
+    }
+    return [
+      alias,
+      detail?.buttons.map((button) => ({ buttonName: button.name, linkMobile: button.linkMobile })) ?? [],
+    ] as const;
+  }));
+
+  return Object.fromEntries(entries) as Partial<Record<AlimtalkTemplateAlias, Array<{ buttonName: string; linkMobile: string }>>>;
+}
+
 async function getShopApprovedTemplateCodes(shopId: string | undefined, aliases: AlimtalkTemplateAlias[]) {
   if (!shopId) return new Map<AlimtalkTemplateAlias, string>();
   const admin = getSupabaseAdmin();

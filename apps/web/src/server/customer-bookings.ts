@@ -40,7 +40,7 @@ import {
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { createAppointment } from "@/server/owner-mutations";
 import { dispatchNotification } from "@/server/notification-dispatch";
-import { cancellationCutoffHours, readOptionalBookingPolicy } from "@/server/booking-preparation";
+import { cancellationCutoffHours, readOptionalBookingPolicy, requestRequiredConsentAfterConfirmation } from "@/server/booking-preparation";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type { Appointment, Guardian, Pet, Shop } from "@/types/domain";
 
@@ -348,8 +348,11 @@ async function createSupabaseCustomerBookingAtomically(params: {
   };
 }
 
-function scheduleCustomerBookingNotification(input: Parameters<typeof dispatchNotification>[0]) {
-  const task = () => deliverCustomerBookingNotificationSafely(input, dispatchNotification);
+function scheduleCustomerBookingNotification(input: Parameters<typeof dispatchNotification>[0], afterDelivery?: () => Promise<void>) {
+  const task = async () => {
+    await deliverCustomerBookingNotificationSafely(input, dispatchNotification);
+    await afterDelivery?.();
+  };
 
   try {
     after(task);
@@ -884,7 +887,7 @@ export async function createCustomerBooking(
     scheduleCustomerBookingNotification({
       shopId: appointment.shop_id, appointmentId: appointment.id, guardianId: appointment.guardian_id,
       petId: appointment.pet_id, type: "booking_confirmed", channel: "alimtalk", skipIfExists: true,
-    });
+    }, () => requestRequiredConsentAfterConfirmation(appointment.shop_id, appointment.id));
   }
 
   const bookingAccessToken = createBookingAccessToken({

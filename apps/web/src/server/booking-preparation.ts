@@ -9,6 +9,7 @@ import { OwnerApiError } from "@/server/owner-api-auth";
 import { dispatchNotification } from "@/server/notification-dispatch";
 import { deliverCustomerBookingNotificationSafely } from "@/lib/customer-booking-notification";
 import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors";
+import { logOperationalEvent } from "@/lib/observability";
 
 const rule = z.enum(["normal", "approval", "deposit", "blocked"]);
 export const bookingPolicySchema = z.object({
@@ -175,7 +176,7 @@ export async function authorizePreparationToken(token: string, appointmentId: st
   return result;
 }
 export const preparationActionSchema = z.object({
-  action: z.enum(["request_deposit", "report_deposit", "confirm_deposit", "correct_deposit", "waive_deposit", "refund_record", "sign", "add_consent", "waive_consent", "cancel", "request_cancel", "noshow", "correct_noshow", "set_condition", "set_preferences", "approve", "request_guidance"]),
+  action: z.enum(["request_deposit", "report_deposit", "confirm_deposit", "correct_deposit", "waive_deposit", "refund_record", "sign", "add_consent", "waive_consent", "cancel", "request_cancel", "noshow", "correct_noshow", "set_condition", "set_preferences", "approve", "request_guidance", "auto_request_required_consent"]),
   rule: rule.optional(),
   cancellationKind: z.enum(["owner", "customer", "late_customer"]).optional(),
   version: z.number().int().positive(), note: z.string().trim().max(2000).default(""),
@@ -184,8 +185,10 @@ export const preparationActionSchema = z.object({
   signature: z.array(z.array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })).min(2).max(1500)).min(1).max(40).optional(),
   agreed: z.literal(true).optional(), consent: z.boolean().optional(), deposit: z.boolean().optional(),
 });
-export async function actOnPreparation(current: PreparationResponse, raw: unknown, actor: { kind: "owner" | "customer"; userId: string | null }) {
+export async function actOnPreparation(current: PreparationResponse, raw: unknown, actor: { kind: "owner" | "customer" | "system"; userId: string | null }) {
   const input = preparationActionSchema.parse(raw);
+  if (actor.kind === "system" && input.action !== "auto_request_required_consent") throw new OwnerApiError("처리 권한이 없습니다.", 403);
+  if (input.action === "auto_request_required_consent" && actor.kind !== "system") throw new OwnerApiError("처리 권한이 없습니다.", 403);
   if (input.version !== current.version) throw new OwnerApiError("예약 내용이 변경되었습니다. 다시 불러와 주세요.", 409);
   if (actor.kind === "customer" && !["report_deposit", "sign", "cancel", "request_cancel", "set_preferences"].includes(input.action)) throw new OwnerApiError("처리 권한이 없습니다.", 403);
   if (actor.kind === "owner" && ["sign", "set_preferences"].includes(input.action)) throw new OwnerApiError("보호자가 직접 처리해야 합니다.", 403);
@@ -290,56 +293,67 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       if (current.appointmentStatus !== "pending") throw new OwnerApiError("승인 대기 중인 예약이 아닙니다.");
       if (deposit.required && !["confirmed", "waived"].includes(deposit.status)) throw new OwnerApiError("예약금을 확인하거나 면제한 뒤 승인해 주세요.");
       nextStatus = "confirmed"; break;
-    case "request_guidance": {
-      if (!input.consent) throw new OwnerApiError("\uB3D9\uC758\uC11C \uC694\uCCAD\uB9CC \uC54C\uB9BC\uD1A1\uC73C\uB85C \uBCF4\uB0BC \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
-      if (input.deposit) throw new OwnerApiError("\uC608\uC57D\uAE08 \uC694\uCCAD \uC54C\uB9BC\uD1A1\uC740 \uBCC4\uB3C4 \uD15C\uD50C\uB9BF \uC2B9\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4. \uC608\uC57D\uAE08\uC744 \uC120\uD0DD \uD574\uC81C\uD558\uACE0 \uB3D9\uC758\uC11C \uC694\uCCAD\uC744 \uBCF4\uB0B4 \uC8FC\uC138\uC694.");
-      if (!data.consents.some(c => c.status === "pending")) throw new OwnerApiError("\uC791\uC131 \uB300\uAE30 \uC911\uC778 \uB3D9\uC758\uC11C\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
-      const previousRequest = [...data.requests].reverse().find(r => r.purposes.includes("consent") && ["sending", "queued", "sent"].includes(r.status));
-      if (previousRequest) throw new OwnerApiError("\uC774 \uC608\uC57D\uC758 \uB3D9\uC758\uC11C \uC694\uCCAD\uC740 \uC774\uBBF8 \uBC1C\uC1A1\uD588\uAC70\uB098 \uCC98\uB9AC \uC911\uC785\uB2C8\uB2E4.", 409);
+    case "request_guidance": case "auto_request_required_consent": {
+      const automatic = input.action === "auto_request_required_consent";
+      if (automatic) {
+        if (current.appointmentStatus !== "confirmed" || !data.consents.some(c => c.required && c.status === "pending")) break;
+        if (deposit.required && !["confirmed", "waived"].includes(deposit.status)) break;
+        if (data.requests.some(r => r.purposes.includes("consent"))) break;
+      } else {
+        if (!input.consent) throw new OwnerApiError("\uB3D9\uC758\uC11C \uC694\uCCAD\uB9CC \uC54C\uB9BC\uD1A1\uC73C\uB85C \uBCF4\uB0BC \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
+        if (input.deposit) throw new OwnerApiError("\uC608\uC57D\uAE08 \uC694\uCCAD \uC54C\uB9BC\uD1A1\uC740 \uBCC4\uB3C4 \uD15C\uD50C\uB9BF \uC2B9\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4. \uC608\uC57D\uAE08\uC744 \uC120\uD0DD \uD574\uC81C\uD558\uACE0 \uB3D9\uC758\uC11C \uC694\uCCAD\uC744 \uBCF4\uB0B4 \uC8FC\uC138\uC694.");
+        if (!data.consents.some(c => c.status === "pending")) throw new OwnerApiError("\uC791\uC131 \uB300\uAE30 \uC911\uC778 \uB3D9\uC758\uC11C\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+        const previousRequest = [...data.requests].reverse().find(r => r.purposes.includes("consent") && ["sending", "queued", "sent"].includes(r.status));
+        if (previousRequest) throw new OwnerApiError("\uC774 \uC608\uC57D\uC758 \uB3D9\uC758\uC11C \uC694\uCCAD\uC740 \uC774\uBBF8 \uBC1C\uC1A1\uD588\uAC70\uB098 \uCC98\uB9AC \uC911\uC785\uB2C8\uB2E4.", 409);
+      }
       const prefs = current.notificationPreferences;
-      if (prefs?.enabled === false || prefs?.consent === false) throw new OwnerApiError("\uACE0\uAC1D\uC774 \uB3D9\uC758\uC11C \uC694\uCCAD \uC54C\uB9BC \uC218\uC2E0\uC744 \uB04C\uC5B4 \uB450\uC5C8\uC2B5\uB2C8\uB2E4.", 409);
+      const preferenceBlocked = prefs?.enabled === false || prefs?.consent === false;
+      if (preferenceBlocked && !automatic) throw new OwnerApiError("고객이 동의서 요청 알림 수신을 꺼 두었습니다.", 409);
       consentRequestId = randomUUID();
-      data.requests.push({ id: consentRequestId, at: now, purposes: ["consent"], status: "sending", reason: "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1\uC744 \uD655\uC778\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4." });
+      data.requests.push({ id: consentRequestId, at: now, purposes: ["consent"], status: preferenceBlocked ? "blocked" : "sending", reason: preferenceBlocked ? "고객이 동의서 알림 수신을 꺼 두었습니다." : "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1\uC744 \uD655\uC778\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4." });
       break;
     }
   }
-  data.history.push({ action: input.action, at: now, actor: actor.kind === "customer" ? "customer" : actor.userId ?? "owner", note:
+  data.history.push({ action: input.action, at: now, actor: actor.kind === "system" ? "system" : actor.kind === "customer" ? "customer" : actor.userId ?? "owner", note:
     ["confirm_deposit", "correct_deposit", "refund_record"].includes(input.action)
       ? `${input.note} · 이전 입금 ${previousReceipt}원 · 현재 입금 ${deposit.receivedAmount}원 · 누적 환불 ${deposit.refundedAmount}원` : input.note });
   const result = await db().rpc("save_booking_preparation", { p_shop: current.shopId, p_appointment: current.appointmentId, p_version: current.version, p_data: data, p_status: nextStatus, p_rule: nextRule, p_preferences: preferences });
   if (result.error) databaseError(result.error);
   if (consentRequestId) {
-    let requestStatus: BookingPreparation["requests"][number]["status"] = "failed";
-    let requestReason = "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1\uC744 \uCC98\uB9AC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uBC1C\uC1A1 \uC774\uB825\uC744 \uD655\uC778\uD574 \uC8FC\uC138\uC694.";
-    try {
-      const delivery = await dispatchNotification({
-        shopId: current.shopId, appointmentId: current.appointmentId,
-        guardianId: current.guardianId, petId: current.petId,
-        type: "booking_consent_request", channel: "alimtalk", skipIfExists: true,
-        metadata: { bookingPreparationRequestId: consentRequestId },
-      });
-      if (delivery.notification.status === "sent") {
-        requestStatus = "sent";
-        requestReason = "\uB3D9\uC758\uC11C \uC694\uCCAD \uC54C\uB9BC\uD1A1\uC744 \uBCF4\uB0B4\uC5C8\uC2B5\uB2C8\uB2E4.";
-      } else if (delivery.notification.status === "queued") {
-        requestStatus = "queued";
-        requestReason = delivery.notification.fail_reason || "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1 \uB300\uAE30 \uC911\uC785\uB2C8\uB2E4.";
-      } else if (delivery.notification.status === "skipped") {
-        requestStatus = "blocked";
-        requestReason = delivery.notification.fail_reason || "\uC218\uC2E0 \uC124\uC815 \uB610\uB294 \uC911\uBCF5 \uBC1C\uC1A1 \uBC29\uC9C0 \uC870\uAC74\uC73C\uB85C \uBC1C\uC1A1\uD558\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.";
-      } else if (delivery.notification.status === "mocked") {
-        requestReason = "\uD14C\uC2A4\uD2B8 \uBAA8\uB4DC\uC5D0\uC11C\uB294 \uC2E4\uC81C \uC54C\uB9BC\uD1A1\uC744 \uBCF4\uB0B4\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.";
-      } else {
-        requestReason = delivery.notification.fail_reason || requestReason;
+    const createdRequest = data.requests.find(item => item.id === consentRequestId);
+    let requestStatus: BookingPreparation["requests"][number]["status"] = createdRequest?.status === "blocked" ? "blocked" : "failed";
+    let requestReason = createdRequest?.status === "blocked" ? createdRequest.reason : "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1\uC744 \uCC98\uB9AC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uBC1C\uC1A1 \uC774\uB825\uC744 \uD655\uC778\uD574 \uC8FC\uC138\uC694.";
+    if (createdRequest?.status !== "blocked") {
+      try {
+        const delivery = await dispatchNotification({
+          shopId: current.shopId, appointmentId: current.appointmentId,
+          guardianId: current.guardianId, petId: current.petId,
+          type: "booking_consent_request", channel: "alimtalk", skipIfExists: true,
+          metadata: { bookingPreparationRequestId: consentRequestId },
+        });
+        if (delivery.notification.status === "sent") {
+          requestStatus = "sent";
+          requestReason = "동의서 요청 알림톡을 보냈습니다.";
+        } else if (delivery.notification.status === "queued") {
+          requestStatus = "queued";
+          requestReason = delivery.notification.fail_reason || "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1 \uB300\uAE30 \uC911\uC785\uB2C8\uB2E4.";
+        } else if (delivery.notification.status === "skipped") {
+          requestStatus = "blocked";
+          requestReason = delivery.notification.fail_reason || "\uC218\uC2E0 \uC124\uC815 \uB610\uB294 \uC911\uBCF5 \uBC1C\uC1A1 \uBC29\uC9C0 \uC870\uAC74\uC73C\uB85C \uBC1C\uC1A1\uD558\uC9C0 \uC54A\uC558\uC2B\uB2C8\uB2E4.";
+        } else if (delivery.notification.status === "mocked") {
+          requestReason = "테스트 모드에서는 실제 알림톡을 보내지 않았습니다.";
+        } else {
+          requestReason = delivery.notification.fail_reason || requestReason;
+        }
+      } catch {
+        // Keep provider responses and secrets out of the owner UI.
       }
-    } catch {
-      // Keep provider responses and secrets out of the owner UI.
     }
     const latest = await getPreparation(current.shopId, current.appointmentId, actor.kind === "owner");
     const settled = structuredClone(latest.data);
     const request = settled.requests.find(item => item.id === consentRequestId);
     if (request) { request.status = requestStatus; request.reason = requestReason; }
-    settled.history.push({ action: "request_guidance", at: new Date().toISOString(), actor: actor.userId ?? "owner", note: requestReason });
+    settled.history.push({ action: input.action, at: new Date().toISOString(), actor: actor.kind === "system" ? "system" : actor.userId ?? "owner", note: requestReason });
     const settledResult = await db().rpc("save_booking_preparation", {
       p_shop: current.shopId, p_appointment: current.appointmentId, p_version: latest.version,
       p_data: settled, p_status: null, p_rule: null, p_preferences: null,
@@ -350,10 +364,31 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
   if ((nextStatus === "confirmed" && input.action !== "correct_noshow") || (input.action === "cancel" && data.cancellation?.kind === "owner")) {
     const type = nextStatus === "confirmed" ? "booking_confirmed" as const : "booking_cancelled" as const;
     const task = () => deliverCustomerBookingNotificationSafely({ shopId: current.shopId, appointmentId: current.appointmentId,
-      guardianId: current.guardianId, petId: current.petId, type, channel: "alimtalk", skipIfExists: true }, dispatchNotification);
+      guardianId: current.guardianId, petId: current.petId, type, channel: "alimtalk", skipIfExists: true }, dispatchNotification)
+      .then(() => nextStatus === "confirmed" ? requestRequiredConsentAfterConfirmation(current.shopId, current.appointmentId) : undefined);
     try { after(task); } catch { await task(); }
   }
   return getPreparation(current.shopId, current.appointmentId, actor.kind === "owner");
+}
+
+/** Automatically requests only required, still-pending consent after the booking is confirmed. */
+export async function requestRequiredConsentAfterConfirmation(shopId: string, appointmentId: string) {
+  try {
+    const current = await getPreparation(shopId, appointmentId, true);
+    if (current.appointmentStatus !== "confirmed") return;
+    if (!current.data.consents.some(consent => consent.required && consent.status === "pending")) return;
+    if (current.data.deposit.required && !["confirmed", "waived"].includes(current.data.deposit.status)) return;
+    if (current.data.requests.some(request => request.purposes.includes("consent"))) return;
+    await actOnPreparation(current, { action: "auto_request_required_consent", version: current.version }, { kind: "system", userId: null });
+  } catch (error) {
+    if (!(error instanceof OwnerApiError && [404, 409].includes(error.status))) {
+      logOperationalEvent("booking_consent_auto_request.failed", {
+        operation: "booking_consent_auto_request",
+        code: error instanceof OwnerApiError ? `http_${error.status}` : "unexpected",
+        status: error instanceof OwnerApiError ? error.status : 500,
+      });
+    }
+  }
 }
 
 /** Existing installations keep their legacy cutoff until the new migration/policy exists. */

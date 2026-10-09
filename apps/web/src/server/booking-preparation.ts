@@ -339,7 +339,7 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
           requestReason = delivery.notification.fail_reason || "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1 \uB300\uAE30 \uC911\uC785\uB2C8\uB2E4.";
         } else if (delivery.notification.status === "skipped") {
           requestStatus = "blocked";
-          requestReason = delivery.notification.fail_reason || "\uC218\uC2E0 \uC124\uC815 \uB610\uB294 \uC911\uBCF5 \uBC1C\uC1A1 \uBC29\uC9C0 \uC870\uAC74\uC73C\uB85C \uBC1C\uC1A1\uD558\uC9C0 \uC54A\uC558\uC2B\uB2C8\uB2E4.";
+          requestReason = delivery.notification.fail_reason || "수신 설정 또는 중복 발송 방지 조건으로 보내지 않았습니다.";
         } else if (delivery.notification.status === "mocked") {
           requestReason = "테스트 모드에서는 실제 알림톡을 보내지 않았습니다.";
         } else {

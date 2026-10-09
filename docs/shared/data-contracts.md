@@ -508,6 +508,9 @@ PC/admin may own shop-level Alimtalk settings. Mobile customer detail may edit o
 
 ### Shop Alimtalk Templates
 
+- The platform default mapping is the active `ssodaa` row in `platform_alimtalk_templates` for each notification alias. It takes precedence over relay/environment template codes; changing a template's approval in Ssodaa does not change this mapping automatically.
+- A platform mapping is sendable only when the provider inspection is approved and its service status is ready or active. Stopped, rejected, or unresolved templates must stay out of the active mapping.
+- Supported platform aliases include booking consent, confirmation and cancellation; direct, same-day and day-before visit reminders; grooming start, pickup and completion variants; revisit and birthday notifications. The migration `20261009113956_extend_platform_alimtalk_template_aliases.sql` keeps these aliases and their config keys within the database constraints.
 - Owner-authored templates are stored per shop in `shop_alimtalk_template_requests`; clients access them only through owner-authenticated APIs, while the table is service-role only.
 - A saved draft is never used for sending. Owner submission registers the template with Ssodaa and requests review through the server relay.
 - Only an approved Ssodaa template matching both the shop and notification type may override the platform template. Until approval, sends continue to use the currently approved platform mapping.

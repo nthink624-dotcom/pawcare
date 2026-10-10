@@ -1,7 +1,6 @@
 "use client";
 
 import BenefitManagementTable from "@/components/owner-web/benefit-management-table";
-import type { DiscountCouponPreset } from "@/components/owner-web/discount-coupon-editor";
 import BenefitRegistrationForm from "@/components/owner-web/benefit-registration-form";
 import {
   OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
@@ -22,7 +21,6 @@ type Props = {
   canRegister: boolean;
   dirty: boolean;
   onViewChange: (view: BenefitsManagementView) => void;
-  onOpenRegister: (preset?: DiscountCouponPreset) => void;
   onRegistrationChange: (patch: Partial<CustomerDiscountCoupon>) => void;
   onRegister: () => void;
   onCancelRegistration: () => void;
@@ -33,9 +31,6 @@ type Props = {
   onUpdate: (couponId: string, patch: Partial<CustomerDiscountCoupon>) => void;
 };
 
-const tabClassName =
-  "benefit-management-tab relative inline-flex h-10 items-center justify-center rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full";
-
 export default function BenefitsManagementPanel({
   view,
   coupons,
@@ -44,7 +39,6 @@ export default function BenefitsManagementPanel({
   canRegister,
   dirty,
   onViewChange,
-  onOpenRegister,
   onRegistrationChange,
   onRegister,
   onCancelRegistration,
@@ -55,9 +49,10 @@ export default function BenefitsManagementPanel({
   onUpdate,
 }: Props) {
   return (
-    <div className="benefit-management-panel flex flex-col gap-2 lg:h-full lg:min-h-0">
-      <div className="flex shrink-0 flex-wrap items-end justify-between gap-4 px-1">
-        <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="혜택 관리 보기">
+    <div className="benefit-management-panel flex flex-col gap-0 lg:h-full lg:min-h-0">
+      <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:px-5">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <div className="owner-settings-tabbar min-w-0 basis-full flex-none xl:basis-0 xl:flex-1" role="tablist" aria-label="혜택 관리 보기">
             <button
               type="button"
               id="benefit-register-tab"
@@ -65,12 +60,8 @@ export default function BenefitsManagementPanel({
               aria-selected={view === "register"}
               aria-controls="benefit-register-panel"
               onClick={() => onViewChange("register")}
-              className={cn(
-                tabClassName,
-                view === "register"
-                  ? "border-[#1677ff] bg-[#eff6ff] text-[#1677ff] after:bg-[#1677ff] hover:bg-[#dbeafe]"
-                  : "border-[#e8edf3] bg-white text-[#475569] after:bg-transparent hover:border-[#cbd5e1] hover:bg-[#f8fafc] hover:text-[#15213b]",
-              )}
+              data-owner-control-size="content"
+              className="owner-settings-tab"
             >
               혜택 등록
             </button>
@@ -81,32 +72,29 @@ export default function BenefitsManagementPanel({
               aria-selected={view === "manage"}
               aria-controls="benefit-manage-panel"
               onClick={() => onViewChange("manage")}
-              className={cn(
-                tabClassName,
-                view === "manage"
-                  ? "border-[#1677ff] bg-[#eff6ff] text-[#1677ff] after:bg-[#1677ff] hover:bg-[#dbeafe]"
-                  : "border-[#e8edf3] bg-white text-[#475569] after:bg-transparent hover:border-[#cbd5e1] hover:bg-[#f8fafc] hover:text-[#15213b]",
-              )}
+              data-owner-control-size="content"
+              className="owner-settings-tab"
             >
               혜택 조회/수정
             </button>
+          </div>
+          {view === "manage" ? (
+            <button
+              type="button"
+              onClick={onReload}
+              disabled={!dirty}
+              className={cn(
+                OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+              "!h-11 ml-auto shrink-0 !text-[16px] !leading-6 xl:ml-0",
+              )}
+            >
+              저장된 내용 불러오기
+            </button>
+          ) : null}
         </div>
-        {view === "manage" ? (
-          <button
-            type="button"
-            onClick={onReload}
-            disabled={!dirty}
-            className={cn(
-              OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
-              "!text-[16px] !leading-6",
-            )}
-          >
-            저장된 내용 불러오기
-          </button>
-        ) : null}
       </div>
 
-      <WebSurface className="flex flex-col overflow-visible p-4 pb-5 lg:min-h-0 lg:flex-1 lg:overflow-x-hidden lg:overflow-y-auto">
+      <WebSurface className="flex flex-col overflow-visible rounded-t-none border-t-0 p-4 pb-5 lg:min-h-0 lg:flex-1 lg:overflow-x-hidden lg:overflow-y-auto">
         <div
           id="benefit-register-panel"
           role="tabpanel"
@@ -130,7 +118,6 @@ export default function BenefitsManagementPanel({
           <BenefitManagementTable
             coupons={coupons}
             serviceOptions={serviceOptions}
-            onOpenRegister={() => onOpenRegister()}
             onDelete={onDelete}
             onDeleteMany={onDeleteMany}
             onToggleEnabled={onToggleEnabled}
@@ -145,7 +132,7 @@ export default function BenefitsManagementPanel({
               onClick={onCancelRegistration}
               className={cn(
                 OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
-                "max-w-full rounded-[8px] px-5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+                "!h-11 max-w-full rounded-[8px] px-5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
               )}
             >
               취소
@@ -156,7 +143,7 @@ export default function BenefitsManagementPanel({
               onClick={onRegister}
               className={cn(
                 OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
-                "max-w-full rounded-[8px] px-5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-[#e8edf3] disabled:bg-[#f1f3f7] disabled:text-[#94a3b8]",
+                "!h-11 max-w-full rounded-[8px] px-5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-[#e8edf3] disabled:bg-[#f1f3f7] disabled:text-[#94a3b8]",
               )}
             >
               혜택 등록

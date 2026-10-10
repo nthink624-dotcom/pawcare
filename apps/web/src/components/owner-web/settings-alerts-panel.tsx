@@ -536,10 +536,10 @@ export default function SettingsAlertsPanel({
 
   return (
     <section data-pc-alerts-surface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e5eaf0] bg-white">
-      <div className="shrink-0 border-b border-[#e8edf3] px-3 py-2 sm:px-4" role="tablist" aria-label="알림톡 관리">
-        <div className="grid grid-cols-2 gap-1 rounded-[12px] bg-[#f3f5f8] p-1">
-          <button type="button" role="tab" id="alerts-settings-tab" aria-selected={activeAlertsPage === "settings"} aria-controls="alerts-settings-panel" onClick={() => setActiveAlertsPage("settings")} className={cn("min-h-11 rounded-[9px] px-3 text-[18px] leading-[26px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]", activeAlertsPage === "settings" ? "bg-white font-medium text-[#15213b] shadow-[0_1px_3px_rgba(15,23,42,0.12)]" : "font-medium text-[#64748b] hover:text-[#334155]")}>알림 설정</button>
-          <button type="button" role="tab" id="alerts-templates-tab" aria-selected={activeAlertsPage === "templates"} aria-controls="alerts-templates-panel" onClick={() => { setTemplatesPageVisited(true); setActiveAlertsPage("templates"); }} className={cn("min-h-11 rounded-[9px] px-3 text-[18px] leading-[26px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]", activeAlertsPage === "templates" ? "bg-white font-medium text-[#15213b] shadow-[0_1px_3px_rgba(15,23,42,0.12)]" : "font-medium text-[#64748b] hover:text-[#334155]")}>내 문구 작성</button>
+      <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:px-5">
+        <div className="owner-settings-tabbar" role="tablist" aria-label="알림톡 관리">
+          <button type="button" role="tab" id="alerts-settings-tab" aria-selected={activeAlertsPage === "settings"} aria-controls="alerts-settings-panel" onClick={() => setActiveAlertsPage("settings")} data-owner-control-size="content" className="owner-settings-tab">알림 설정</button>
+          <button type="button" role="tab" id="alerts-templates-tab" aria-selected={activeAlertsPage === "templates"} aria-controls="alerts-templates-panel" onClick={() => { setTemplatesPageVisited(true); setActiveAlertsPage("templates"); }} data-owner-control-size="content" className="owner-settings-tab">내 문구 작성</button>
         </div>
       </div>
       <div id="alerts-settings-panel" role="tabpanel" aria-labelledby="alerts-settings-tab" hidden={activeAlertsPage !== "settings"} className="grid min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain xl:grid-cols-[minmax(0,1fr)_380px] xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden">

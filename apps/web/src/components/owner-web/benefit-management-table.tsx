@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
+import { Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import DiscountCouponEditor from "@/components/owner-web/discount-coupon-editor";
@@ -23,7 +23,6 @@ type BenefitFilters = {
 type Props = {
   coupons: CustomerDiscountCoupon[];
   serviceOptions: CustomerServiceSourceOption[];
-  onOpenRegister: () => void;
   onDelete: (couponId: string) => void;
   onDeleteMany: (couponIds: string[]) => void;
   onToggleEnabled: (couponId: string) => void;
@@ -40,7 +39,50 @@ const initialFilters: BenefitFilters = {
 const fieldClassName =
   "h-11 w-full rounded-[6px] border border-[#dbe2ea] bg-white px-3 text-[16px]! font-medium! leading-6! text-[#111827] outline-none focus:border-[#94a3b8] focus:ring-2 focus:ring-[#e2e8f0]";
 
-const tableHeaderClassName = "px-3 py-3 text-[14px] font-medium leading-5";
+const tableHeaderClassName = "px-3 py-3 text-[16px] font-medium leading-6";
+
+function BenefitRowActions({
+  coupon,
+  onEdit,
+  onToggleEnabled,
+  onDelete,
+}: {
+  coupon: CustomerDiscountCoupon;
+  onEdit: () => void;
+  onToggleEnabled: () => void;
+  onDelete: () => void;
+}) {
+  const name = coupon.owner_label || coupon.name;
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1.5">
+      <button
+        type="button"
+        onClick={onEdit}
+        className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-medium leading-6 text-[#334155] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
+        aria-label={`${name} 수정`}
+      >
+        <Pencil className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />
+        수정
+      </button>
+      <button
+        type="button"
+        onClick={onToggleEnabled}
+        className="inline-flex h-11 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-medium leading-6 text-[#334155] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
+      >
+        {coupon.enabled ? "중지" : "재사용"}
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] border border-[#ead6dc] bg-white text-[#a04455] transition hover:bg-[#fffafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
+        aria-label={`${name} 삭제`}
+      >
+        <Trash2 className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
 
 function getAudienceLabel(audience: CustomerDiscountCoupon["audience"]) {
   if (audience === "first_visit") return "첫 방문 고객";
@@ -67,7 +109,6 @@ function getPeriodLabel(coupon: CustomerDiscountCoupon) {
 export default function BenefitManagementTable({
   coupons,
   serviceOptions,
-  onOpenRegister,
   onDelete,
   onDeleteMany,
   onToggleEnabled,
@@ -96,6 +137,9 @@ export default function BenefitManagementTable({
   const visibleIds = filteredCoupons.map((coupon) => coupon.id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const selectedCount = coupons.reduce((count, coupon) => count + Number(selectedIds.has(coupon.id)), 0);
+  const emptyMessage = coupons.length === 0
+    ? "등록된 혜택이 없습니다. 혜택 등록 탭에서 먼저 등록해 주세요."
+    : "조건에 맞는 혜택이 없습니다. 검색 조건을 바꿔 다시 조회해 주세요.";
 
   function resetFilters() {
     setFilterDraft(initialFilters);
@@ -141,7 +185,7 @@ export default function BenefitManagementTable({
         }}
       >
         <label className="min-w-0 space-y-1.5">
-          <span className="text-[14px] font-medium leading-5 text-[#475569]">혜택명</span>
+          <span className="text-[16px] font-medium leading-6 text-[#475569]">혜택명</span>
           <input
             value={filterDraft.query}
             onChange={(event) => setFilterDraft((current) => ({ ...current, query: event.target.value }))}
@@ -150,7 +194,7 @@ export default function BenefitManagementTable({
           />
         </label>
         <label className="min-w-0 space-y-1.5">
-          <span className="text-[14px] font-medium leading-5 text-[#475569]">혜택 대상</span>
+          <span className="text-[16px] font-medium leading-6 text-[#475569]">혜택 대상</span>
           <select
             value={filterDraft.audience}
             onChange={(event) => setFilterDraft((current) => ({
@@ -166,7 +210,7 @@ export default function BenefitManagementTable({
           </select>
         </label>
         <label className="min-w-0 space-y-1.5">
-          <span className="text-[14px] font-medium leading-5 text-[#475569]">혜택 방식</span>
+          <span className="text-[16px] font-medium leading-6 text-[#475569]">혜택 방식</span>
           <select
             value={filterDraft.discountType}
             onChange={(event) => setFilterDraft((current) => ({
@@ -182,7 +226,7 @@ export default function BenefitManagementTable({
           </select>
         </label>
         <label className="min-w-0 space-y-1.5">
-          <span className="text-[14px] font-medium leading-5 text-[#475569]">상태</span>
+          <span className="text-[16px] font-medium leading-6 text-[#475569]">상태</span>
           <select
             value={filterDraft.status}
             onChange={(event) => setFilterDraft((current) => ({
@@ -201,10 +245,10 @@ export default function BenefitManagementTable({
             type="submit"
             className={cn(
               OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
-              "min-w-0 flex-1 rounded-[6px] px-4 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+              "!h-11 min-w-0 flex-1 rounded-[6px] px-4 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
             )}
           >
-            <Search className="h-4 w-4" />
+            <Search className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />
             조회
           </button>
           <button
@@ -212,18 +256,18 @@ export default function BenefitManagementTable({
             onClick={resetFilters}
             className={cn(
               OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
-              "min-w-max flex-none rounded-[6px] px-3 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+              "!h-11 min-w-max flex-none rounded-[6px] px-3 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
             )}
           >
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />
             초기화
           </button>
         </div>
       </form>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 py-3">
-        <p className="text-[16px] font-medium leading-6 text-[#334155]">
-          혜택 목록 <span className="font-normal text-[#64748b]">총 {filteredCoupons.length}개</span>
+        <p className="text-[18px] font-semibold leading-[26px] text-[#334155]">
+          혜택 목록 <span className="text-[14px] font-normal leading-5 text-[#64748b]">총 {filteredCoupons.length}개</span>
         </p>
         <div className="flex min-w-0 basis-full flex-wrap items-center justify-end gap-2 sm:basis-auto sm:flex-none">
           <button
@@ -232,35 +276,36 @@ export default function BenefitManagementTable({
             onClick={deleteSelected}
             className={cn(
               OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
-              "min-w-max flex-none rounded-[8px] px-3.5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] text-center focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40",
+              "!h-11 min-w-max flex-none rounded-[8px] px-3.5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] text-center focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40",
             )}
           >
             선택 삭제{selectedCount > 0 ? ` (${selectedCount})` : ""}
           </button>
-          <button
-            type="button"
-            onClick={onOpenRegister}
-            className={cn(
-              OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
-              "min-w-max flex-none rounded-[8px] px-3.5 !text-[16px] !leading-6 whitespace-normal [word-break:keep-all] text-center focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
-            )}
-          >
-            <Plus className="h-4 w-4" />
-            새 혜택 등록
-          </button>
         </div>
       </div>
 
-      <div className="min-h-[210px] shrink-0 overflow-auto rounded-[6px] border border-[#dbe2ea] lg:min-h-0 lg:flex-1">
+      <div className="benefit-management-results">
+      <div className="benefit-management-desktop-table min-h-0 min-w-0 flex-1 overflow-auto rounded-[6px] border border-[#dbe2ea]">
         <table
           className={cn(
-            "w-full min-w-[1060px] border-collapse text-center text-[16px] font-normal leading-6",
-            filteredCoupons.length === 0 && "lg:h-full",
+            "w-full min-w-[960px] table-fixed border-collapse text-center text-[16px] font-normal leading-6",
+            filteredCoupons.length === 0 && "h-full",
           )}
         >
+          <colgroup>
+            <col className="w-[44px]" />
+            <col className="w-[74px]" />
+            <col className="w-[120px]" />
+            <col className="w-[102px]" />
+            <col className="w-[100px]" />
+            <col className="w-[110px]" />
+            <col className="w-[110px]" />
+            <col className="w-[128px]" />
+            <col className="w-[172px]" />
+          </colgroup>
           <thead className="sticky top-0 z-10 bg-[#f8fafc] text-[#475569]">
             <tr className="border-b border-[#dbe2ea]">
-              <th className="h-11 w-11 p-0 text-[14px] font-medium leading-5">
+              <th className="h-11 w-11 p-0 text-[16px] font-medium leading-6">
                 <label className="inline-flex h-11 w-11 cursor-pointer items-center justify-center">
                   <input
                     type="checkbox"
@@ -278,21 +323,21 @@ export default function BenefitManagementTable({
               <th className={tableHeaderClassName}>혜택 내용</th>
               <th className={tableHeaderClassName}>서비스</th>
               <th className={tableHeaderClassName}>기간</th>
-              <th className={cn(tableHeaderClassName, "text-center")}>관리</th>
+              <th className={cn(tableHeaderClassName, "sticky right-0 z-20 min-w-[172px] bg-[#f8fafc] text-center")}>관리</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#e5e7eb] bg-white text-[16px] font-normal leading-6">
             {filteredCoupons.length === 0 ? (
-            <tr className="lg:h-full">
-              <td colSpan={9} className="px-4 py-12 text-center align-middle text-[#64748b]">
-                  조회된 혜택이 없습니다.
+              <tr className="h-full">
+                <td colSpan={9} className="px-4 py-12 text-center align-middle text-[16px] leading-6 text-[#64748b]">
+                  {emptyMessage}
                 </td>
               </tr>
             ) : (
               filteredCoupons.map((coupon) => (
                 <tr
                   key={coupon.id}
-                  className={cn("hover:bg-[#fbfcfd]", editingCouponId === coupon.id && "bg-[#f7faf9]")}
+                  className={cn("group bg-white hover:bg-[#fbfcfd]", editingCouponId === coupon.id && "bg-[#f7faf9]")}
                 >
                   <td className="h-11 w-11 p-0">
                     <label className="inline-flex h-11 w-11 cursor-pointer items-center justify-center">
@@ -319,49 +364,88 @@ export default function BenefitManagementTable({
                       {coupon.enabled ? "사용 중" : "중지됨"}
                     </span>
                   </td>
-                  <td className="px-3 py-3 font-normal text-[#334155]">{coupon.owner_label || coupon.name}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-[#334155]">{getAudienceLabel(coupon.audience)}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-[#334155]">{getBenefitMethodLabel(coupon.discount_type)}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-[#334155]">{formatDiscountCouponValue(coupon)}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-[#334155]">{getServiceScopeLabel(coupon)}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-[#334155]">{getPeriodLabel(coupon)}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex justify-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setEditingCouponId((current) => current === coupon.id ? null : coupon.id)}
-                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
-                        title="수정"
-                        aria-label={`${coupon.owner_label || coupon.name} 수정`}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onToggleEnabled(coupon.id)}
-                        className={cn(
-                          OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
-                          "rounded-[7px] px-2.5 !text-[16px] !leading-6 focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
-                        )}
-                      >
-                        {coupon.enabled ? "중지" : "재사용"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteOne(coupon)}
-                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-[7px] border border-[#ead6dc] bg-white text-[#a04455] transition hover:bg-[#fffafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2"
-                        title="삭제"
-                        aria-label={`${coupon.owner_label || coupon.name} 삭제`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                  <td className="break-words px-3 py-3 font-normal text-[#334155]">{coupon.owner_label || coupon.name}</td>
+                  <td className="break-words px-3 py-3 text-[#334155]">{getAudienceLabel(coupon.audience)}</td>
+                  <td className="break-words px-3 py-3 text-[#334155]">{getBenefitMethodLabel(coupon.discount_type)}</td>
+                  <td className="break-words px-3 py-3 text-[#334155]">{formatDiscountCouponValue(coupon)}</td>
+                  <td className="break-words px-3 py-3 text-[#334155]">{getServiceScopeLabel(coupon)}</td>
+                  <td className="break-words px-3 py-3 tabular-nums text-[#334155]">{getPeriodLabel(coupon)}</td>
+                  <td className={cn(
+                    "sticky right-0 z-[1] px-1.5 py-2 shadow-[-8px_0_12px_rgba(15,23,42,0.04)]",
+                    editingCouponId === coupon.id ? "bg-[#f7faf9]" : "bg-white group-hover:bg-[#fbfcfd]",
+                  )}>
+                    <BenefitRowActions
+                      coupon={coupon}
+                      onEdit={() => setEditingCouponId((current) => current === coupon.id ? null : coupon.id)}
+                      onToggleEnabled={() => onToggleEnabled(coupon.id)}
+                      onDelete={() => deleteOne(coupon)}
+                    />
                   </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="benefit-management-card-list min-h-[210px] min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
+        {filteredCoupons.length === 0 ? (
+          <div className="flex min-h-[210px] flex-1 items-center justify-center rounded-[8px] border border-[#dbe2ea] px-4 py-8 text-center">
+            <p className="max-w-[42ch] text-[16px] font-normal leading-6 text-[#64748b]">{emptyMessage}</p>
+          </div>
+        ) : (
+          filteredCoupons.map((coupon) => (
+            <article
+              key={coupon.id}
+              className={cn(
+                "min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white p-3",
+                editingCouponId === coupon.id && "border-[#cbd5e1] bg-[#f7faf9]",
+              )}
+            >
+              <div className="flex min-w-0 items-start gap-2">
+                <label className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(coupon.id)}
+                    onChange={() => setSelectedIds((current) => {
+                      const next = new Set(current);
+                      if (next.has(coupon.id)) next.delete(coupon.id);
+                      else next.add(coupon.id);
+                      return next;
+                    })}
+                    aria-label={`${coupon.owner_label || coupon.name} 선택`}
+                    className="h-3.5 w-3.5 accent-[#607080]"
+                  />
+                </label>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <h3 className="min-w-0 break-words text-[16px] font-medium leading-6 text-[#17243c]">{coupon.owner_label || coupon.name}</h3>
+                    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] font-medium leading-[18px] text-[#111827]">
+                      <span className={cn("h-2 w-2 rounded-full", coupon.enabled ? "bg-[#1f9d55]" : "bg-[#b9c3cf")} />
+                      {coupon.enabled ? "사용 중" : "중지됨"}
+                    </span>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-[#edf2f7] pt-3 text-[16px] leading-6">
+                    <div className="min-w-0"><dt className="text-[16px] font-medium leading-6 text-[#475569]">혜택 대상</dt><dd className="mt-0.5 break-words text-[#334155]">{getAudienceLabel(coupon.audience)}</dd></div>
+                    <div className="min-w-0"><dt className="text-[16px] font-medium leading-6 text-[#475569]">혜택 방식</dt><dd className="mt-0.5 break-words text-[#334155]">{getBenefitMethodLabel(coupon.discount_type)}</dd></div>
+                    <div className="min-w-0"><dt className="text-[16px] font-medium leading-6 text-[#475569]">혜택 내용</dt><dd className="mt-0.5 break-words text-[#334155]">{formatDiscountCouponValue(coupon)}</dd></div>
+                    <div className="min-w-0"><dt className="text-[16px] font-medium leading-6 text-[#475569]">서비스</dt><dd className="mt-0.5 break-words text-[#334155]">{getServiceScopeLabel(coupon)}</dd></div>
+                    <div className="col-span-2 min-w-0"><dt className="text-[16px] font-medium leading-6 text-[#475569]">기간</dt><dd className="mt-0.5 break-words tabular-nums text-[#334155]">{getPeriodLabel(coupon)}</dd></div>
+                  </dl>
+                  <div className="mt-3 border-t border-[#edf2f7] pt-3">
+                    <BenefitRowActions
+                      coupon={coupon}
+                      onEdit={() => setEditingCouponId((current) => current === coupon.id ? null : coupon.id)}
+                      onToggleEnabled={() => onToggleEnabled(coupon.id)}
+                      onDelete={() => deleteOne(coupon)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </article>
+          ))
+        )}
+      </div>
       </div>
 
       {editingCoupon ? (

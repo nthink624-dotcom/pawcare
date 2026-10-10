@@ -157,13 +157,6 @@ button[class*="hover:bg-[#293548]"]:hover {
   font-family: inherit;
 }
 
-/* Benefit view tabs are primary controls, so they use the shared Control role. */
-.pm-owner-web.owner-font .benefit-management-panel .benefit-management-tab {
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 24px;
-}
-
 /* Product UI never drops below the shared micro role. External brand mocks stay untouched. */
 .pm-owner-web [class~="text-[8px]"]:not([data-booking-link-channel="naver"] *):not([data-customer-phone-preview-frame] *),
 .pm-owner-web [class~="text-[9px]"]:not([data-booking-link-channel="naver"] *):not([data-customer-phone-preview-frame] *),
@@ -1424,7 +1417,8 @@ textarea {
 }
 
 /* Owner web controls share a 40px visual size. Calendar cells, booking/staff
-   cards, switches and customer/Naver previews keep their own content sizing. */
+   cards, switches, customer/Naver previews and the benefits editor keep their
+   own component sizing. */
 .pm-owner-web :is(button, a):is(
   .pm-owner-action, [role="tab"],
   [class~="h-8"], [class~="h-9"], [class~="h-10"], [class~="h-11"],
@@ -1436,7 +1430,8 @@ textarea {
 ):not(:where(
   [data-booking-id], [data-staff-identity-card],
   [role="switch"], [role="checkbox"], [data-owner-control-size="content"],
-  [data-booking-link-channel="naver"] *, [data-customer-phone-preview-frame] *
+  [data-booking-link-channel="naver"] *, [data-customer-phone-preview-frame] *,
+  .benefit-management-panel *
 )) {
   height: 40px !important;
   min-height: 40px !important;
@@ -1459,7 +1454,7 @@ textarea {
   [class~="w-12"]
 ):not(:where([data-booking-id], [data-staff-identity-card],
   [role="switch"], [data-owner-control-size="content"], [data-booking-link-channel="naver"] *,
-  [data-customer-phone-preview-frame] *)) {
+  [data-customer-phone-preview-frame] *, .benefit-management-panel *)) {
   width: 40px !important;
   min-width: 40px;
   padding-left: 0 !important;
@@ -1500,7 +1495,7 @@ textarea {
   background-color: var(--acc-dk) !important;
 }
 
-.pm-owner-web :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select):not(:where([data-booking-link-channel="naver"] *, [data-customer-phone-preview-frame] *)) {
+.pm-owner-web :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select):not(:where([data-booking-link-channel="naver"] *, [data-customer-phone-preview-frame] *, .benefit-management-panel *)) {
   height: 40px !important;
   min-height: 40px !important;
   padding-top: 0 !important;
@@ -1514,7 +1509,7 @@ textarea {
    taller wrapper. The wrapper owns its border and keyboard focus. */
 .pm-owner-web :is(label, div):is(.flex, .inline-flex):has(> input:not([type="checkbox"]):not([type="radio"])):is(
   [class~="h-10"], [class~="h-11"], [class~="h-12"], [class~="min-h-11"]
-) {
+):not(:where(.benefit-management-panel *)) {
   height: 40px !important;
   min-height: 40px !important;
   border-radius: 8px !important;
@@ -1522,7 +1517,7 @@ textarea {
 
 .pm-owner-web :is(label, div):is(.flex, .inline-flex):has(> input):is(
   [class~="h-10"], [class~="h-11"], [class~="h-12"], [class~="min-h-11"]
-) > input {
+):not(:where(.benefit-management-panel *)) > input {
   height: 100% !important;
   min-height: 0 !important;
 }
@@ -1539,6 +1534,116 @@ textarea {
 
 /* Navigation keeps its readable 16px label and 24px icon within the shared
    40px row; toolbar actions use the more compact control typography above. */
+.benefit-management-panel {
+  min-width: 0;
+}
+
+.benefit-management-results {
+  container-type: inline-size;
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 210px;
+  min-width: 0;
+}
+
+.benefit-management-results .benefit-management-desktop-table {
+  display: none;
+}
+
+.benefit-management-results .benefit-management-card-list {
+  display: flex;
+}
+
+@container (min-width: 980px) {
+  .benefit-management-results .benefit-management-desktop-table {
+    display: block;
+  }
+
+  .benefit-management-results .benefit-management-card-list {
+    display: none;
+  }
+}
+
+.pm-owner-web .benefit-management-panel :is(button, a)[class~="h-11"] {
+  height: 44px !important;
+  min-height: 44px !important;
+}
+
+.pm-owner-web .owner-settings-tabbar {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 54px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  border: 1px solid #d8dce3;
+  border-radius: 14px;
+  padding: 4px;
+  background: #eef1f5;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pm-owner-web .owner-settings-tabbar::-webkit-scrollbar {
+  display: none;
+}
+
+.pm-owner-web .owner-settings-tabbar > [role="tab"] {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 44px !important;
+  min-height: 44px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  padding: 0 16px !important;
+  color: #646a74 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-family: inherit;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  line-height: 26px !important;
+  white-space: nowrap;
+  outline: none;
+  transition: color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.pm-owner-web .owner-settings-tabbar > [role="tab"][aria-selected="true"] {
+  color: #2f6bd4 !important;
+  background: #fff !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+}
+
+.pm-owner-web .owner-settings-tabbar > [role="tab"]:not([aria-selected="true"]):hover {
+  color: #181b21 !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+}
+
+.pm-owner-web .owner-settings-tabbar > [role="tab"]:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.pm-owner-web .benefit-management-panel button > svg {
+  width: 18px !important;
+  height: 18px !important;
+  flex-shrink: 0;
+}
+
+.pm-owner-web .benefit-management-panel input:not([type="checkbox"]),
+.pm-owner-web .benefit-management-panel select {
+  height: 44px !important;
+  min-height: 44px !important;
+}
+
 .pm-owner-web .pm-owner-sidebar .pm-owner-nav-item {
   font-size: 16px !important;
   line-height: 24px !important;

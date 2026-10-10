@@ -50,9 +50,9 @@ export default function BenefitsManagementPanel({
 }: Props) {
   return (
     <div className="benefit-management-panel flex flex-col gap-0 lg:h-full lg:min-h-0">
-      <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:px-5">
+      <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 pt-3 pb-0 backdrop-blur sm:px-5">
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <div className="owner-settings-tabbar min-w-0 basis-full flex-none xl:basis-0 xl:flex-1" role="tablist" aria-label="혜택 관리 보기">
+          <div className="owner-settings-tabbar benefit-management-tabbar min-w-0 basis-full flex-none xl:basis-0 xl:flex-1" role="tablist" aria-label="혜택 관리 보기">
             <button
               type="button"
               id="benefit-register-tab"

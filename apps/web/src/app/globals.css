@@ -1442,7 +1442,7 @@ textarea {
   font-weight: 500 !important;
   line-height: 20px !important;
 
-  & > :is(svg, span[aria-hidden="true"]) {
+  & > :is(svg, span[aria-hidden="true"]):not(.pm-owner-sidebar-icon) {
     width: 16px !important;
     height: 16px !important;
     flex-shrink: 0;
@@ -1593,6 +1593,10 @@ textarea {
   display: none;
 }
 
+.pm-owner-web .benefit-management-tabbar {
+  border-radius: 14px 14px 0 0 !important;
+}
+
 .pm-owner-web .owner-settings-tabbar > [role="tab"] {
   box-sizing: border-box;
   display: inline-flex;
@@ -1645,8 +1649,13 @@ textarea {
 }
 
 .pm-owner-web .pm-owner-sidebar .pm-owner-nav-item {
-  font-size: 16px !important;
-  line-height: 24px !important;
+  font-size: 18px !important;
+  line-height: 26px !important;
+}
+
+.pm-owner-web .pm-owner-sidebar .pm-owner-nav-item > svg {
+  width: 22px !important;
+  height: 22px !important;
 }
 
 .pm-owner-web .pm-owner-sidebar .pm-owner-nav-item > span[aria-hidden="true"] {

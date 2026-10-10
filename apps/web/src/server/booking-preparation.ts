@@ -104,6 +104,10 @@ async function syncActiveBookingConsentVersions(shopId: string, policy: BookingP
       const visits = await admin.from("appointments").select("id", { head: true, count: "exact" })
         .eq("shop_id", shopId).eq("guardian_id", current.guardianId).in("status", ["completed", "in_progress", "almost_done"]);
       if (visits.error) databaseError(visits.error);
+      // Consent form revisions apply automatically to new customers only.
+      // Keep existing customers' booking snapshots and signatures unchanged;
+      // the new version will apply when they create a new booking.
+      if (visits.count) continue;
       const eligible = policy.templates.filter(template => template.enabled && !template.archivedAt
         && template.audience !== "manual" && (template.audience !== "new" || !visits.count));
       const latestById = new Map<string, typeof policy.templates[number]>();

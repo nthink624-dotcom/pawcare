@@ -67,6 +67,7 @@ export async function saveBookingPolicy(shopId: string, input: unknown, version:
     if (!old) { template.version = 1; continue; }
     const changed = ["title", "body", "required", "scope"].some(k => old[k as keyof typeof old] !== template[k as keyof typeof template]);
     template.version = old.version + (changed ? 1 : 0);
+    if (changed) template.audience = "new";
   }
   const result = version === 0
     ? await db().from("shop_booking_policies").insert({ shop_id: shopId, policy }).select("version").single()

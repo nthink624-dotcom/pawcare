@@ -51,8 +51,8 @@ export default function BenefitsManagementPanel({
   return (
     <div className="benefit-management-panel flex flex-col gap-0 lg:h-full lg:min-h-0">
       <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 pt-3 pb-0 backdrop-blur sm:px-5">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <div className="owner-settings-tabbar benefit-management-tabbar min-w-0 basis-full flex-none xl:basis-0 xl:flex-1" role="tablist" aria-label="혜택 관리 보기">
+        <div className="flex min-w-0 flex-col items-stretch gap-2">
+          <div className="owner-settings-tabbar benefit-management-tabbar w-full" role="tablist" aria-label="혜택 관리 보기">
             <button
               type="button"
               id="benefit-register-tab"
@@ -79,17 +79,19 @@ export default function BenefitsManagementPanel({
             </button>
           </div>
           {view === "manage" ? (
-            <button
-              type="button"
-              onClick={onReload}
-              disabled={!dirty}
-              className={cn(
-                OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
-              "!h-11 ml-auto shrink-0 !text-[16px] !leading-6 xl:ml-0",
-              )}
-            >
-              저장된 내용 불러오기
-            </button>
+            <div className="flex justify-end pb-2">
+              <button
+                type="button"
+                onClick={onReload}
+                disabled={!dirty}
+                className={cn(
+                  OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+                  "!h-11 shrink-0 !text-[16px] !leading-6",
+                )}
+              >
+                저장된 내용 불러오기
+              </button>
+            </div>
           ) : null}
         </div>
       </div>

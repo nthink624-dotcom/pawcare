@@ -551,6 +551,7 @@ export function buildNotificationTemplateValues(params: {
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
   directionsUrl: string | null;
+  shopId: string;
   petName: string;
   recipientName: string | null;
   serviceName: string | null;
@@ -567,6 +568,7 @@ export function buildNotificationTemplateValues(params: {
 
   return {
     매장명: params.shopName,
+    매장ID: params.shopId,
     반려동물명: params.petName,
     보호자명: params.recipientName?.trim() || "",
     예약일시: appointmentDateTime,
@@ -702,15 +704,18 @@ function buildNotificationButtons(params: {
 
 function hasExistingNotification(
   notifications: Notification[],
-  input: Pick<DispatchNotificationInput, "type" | "appointmentId" | "guardianId" | "petId">,
+  input: Pick<DispatchNotificationInput, "type" | "appointmentId" | "guardianId" | "petId" | "metadata">,
 ) {
+  const requestId = typeof input.metadata?.bookingPreparationRequestId === "string"
+    ? input.metadata.bookingPreparationRequestId : null;
   return notifications.some((item) => {
     const sameType = item.type === input.type;
     const sameAppointment = (item.appointment_id ?? null) === (input.appointmentId ?? null);
     const sameGuardian = (item.guardian_id ?? null) === (input.guardianId ?? null);
     const samePet = (item.pet_id ?? null) === (input.petId ?? null);
+    const sameRequest = !requestId || item.metadata?.bookingPreparationRequestId === requestId;
     const alreadyHandled = item.status === "sent" || item.status === "queued" || item.status === "mocked";
-    return sameType && sameAppointment && sameGuardian && samePet && alreadyHandled;
+    return sameType && sameAppointment && sameGuardian && samePet && sameRequest && alreadyHandled;
   });
 }
 
@@ -832,6 +837,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     bookingEntryUrl,
     bookingManageUrl,
     directionsUrl,
+    shopId: input.shopId,
     petName: pet?.name ?? "pet",
     recipientName,
     serviceName: service?.name ?? null,

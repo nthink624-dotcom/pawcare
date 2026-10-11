@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, RotateCcw } from "lucide-react";
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -47,6 +48,7 @@ export default function PriceGuideV2ServiceDetail({
   const draftIssues = useMemo(() => validatePriceGuideDocument(draft, { photoTable }), [draft, photoTable]);
   const dirty = JSON.stringify(draft) !== valueSignature;
   const syncedValueSignatureRef = useRef(valueSignature);
+  const groupDialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     if (syncedValueSignatureRef.current === valueSignature) return;
@@ -58,6 +60,16 @@ export default function PriceGuideV2ServiceDetail({
     setEditingTarget(null);
     setFocusFirstMissingDuration(false);
   }, [value, valueSignature]);
+
+  useEffect(() => {
+    const dialog = groupDialogRef.current;
+    if (!dialog) return;
+    if (photoTable && editingTarget?.kind === "group") {
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+    }
+  }, [editingTarget, photoTable]);
 
   function updateDraft(next: PriceGuideV2) {
     setDraft(value.source === "manual" ? next : { ...next, source: "owner_corrected" });
@@ -140,6 +152,38 @@ export default function PriceGuideV2ServiceDetail({
             setEditing(true);
           }}
         />
+      ) : photoTable && editingTarget?.kind === "group" && typeof document !== "undefined" ? createPortal(
+        <dialog
+          ref={groupDialogRef}
+          aria-labelledby="price-guide-group-editor-title"
+          onCancel={(event) => { event.preventDefault(); resetDraft(); }}
+          onClick={(event) => { if (event.target === event.currentTarget) resetDraft(); }}
+          className="owner-font pm-owner-web fixed inset-0 m-auto max-h-[calc(100dvh-32px)] w-[calc(100%-32px)] max-w-[1180px] overflow-y-auto rounded-[14px] border border-[#dbe2ea] bg-white p-4 text-[#172033] shadow-xl backdrop:bg-black/30 sm:p-5"
+          data-price-guide-group-editor-dialog="true"
+        >
+          <header className="mb-3 flex items-center justify-between gap-3 border-b border-[#e5eaf0] pb-3">
+            <h2 id="price-guide-group-editor-title" className="text-[20px] font-semibold leading-7">{editingHeading}</h2>
+            <button type="button" onClick={resetDraft} className="min-h-11 rounded-[8px] px-3 text-[16px] text-[#526174] hover:bg-[#f8fafc]">닫기</button>
+          </header>
+          <div className="max-h-[calc(100dvh-190px)] overflow-y-auto">
+            <PriceGuideNativeInlineTable
+              document={draft}
+              onChange={updateDraft}
+              validationIssues={validationIssues}
+              heading={editingHeading}
+              photoReviewMode
+              focusFirstMissingDuration={focusFirstMissingDuration}
+              visibleGroupIndex={editingTarget.groupIndex}
+              hideHeader
+            />
+          </div>
+          {saveError ? <p role="alert" className="mt-3 text-[14px] font-medium leading-5 text-[#a04455]">{saveError}</p> : null}
+          <footer className="mt-3 flex justify-end gap-2 border-t border-[#e5eaf0] pt-3">
+            <button type="button" onClick={resetDraft} disabled={saving} className="min-h-11 rounded-[8px] border border-[#cbd5e1] px-4 text-[15px] font-medium text-[#475569] disabled:opacity-50">취소</button>
+            <button type="button" onClick={() => void saveDraft()} disabled={saving} className="min-h-11 rounded-[8px] bg-[#172033] px-4 text-[15px] font-medium text-white disabled:opacity-60">{saving ? "저장 중" : "저장"}</button>
+          </footer>
+        </dialog>,
+        document.body,
       ) : (
         <PriceGuideNativeInlineTable
           document={draft}
@@ -152,8 +196,8 @@ export default function PriceGuideV2ServiceDetail({
           extrasOnly={editingTarget?.kind === "extras"}
         />
       )}
-      {saveError ? <p role="alert" className="mt-3 text-[13px] font-medium leading-5 text-[#a04455]">{saveError}</p> : null}
-      {editing ? <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      {saveError && !editingTarget ? <p role="alert" className="mt-3 text-[13px] font-medium leading-5 text-[#a04455]">{saveError}</p> : null}
+      {editing && !editingTarget ? <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <button
           type="button"
           onClick={resetDraft}

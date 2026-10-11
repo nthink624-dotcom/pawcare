@@ -25,7 +25,7 @@ export const DEFAULT_BOOKING_POLICY: BookingPolicy = {
 };
 export type SignaturePoint = { x: number; y: number };
 export type ConsentRecord = ConsentTemplate & {
-  status: "pending" | "signed" | "waived";
+  status: "pending" | "signed" | "waived" | "superseded";
   signerName?: string; signedAt?: string; signature?: SignaturePoint[][];
   waivedReason?: string;
 };
@@ -46,7 +46,7 @@ export type BookingPreparation = {
   cancellation: { kind: "customer" | "late_customer" | "owner" | "noshow" | "unclassified" | "deposit_expired"; reason: string; at: string } | null;
   cancelRequest?: { reason: string; at: string } | null;
   history: Array<{ action: string; at: string; actor: string; note: string }>;
-  requests: Array<{ id: string; at: string; purposes: string[]; status: "sending" | "queued" | "blocked" | "sent" | "failed"; reason: string }>;
+  requests: Array<{ id: string; at: string; purposes: string[]; status: "sending" | "queued" | "blocked" | "sent" | "failed"; reason: string; consentVersions?: Record<string, number> }>;
 };
 export type PublicBookingPolicy = Pick<BookingPolicy, "depositMode" | "depositAudience" | "depositAmount" | "cancellationCutoffHours" | "cancellationNotice" | "firstNoshowRule" | "repeatNoshowRule">;
 export type PreparationResponse = {

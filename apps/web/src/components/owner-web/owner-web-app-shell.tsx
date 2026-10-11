@@ -1,9 +1,29 @@
 "use client";
 
-import { ChevronDown, HelpCircle, LogOut, MessageSquareWarning, Search } from "lucide-react";
+import {
+  Bell,
+  CalendarDays,
+  ChevronDown,
+  CircleHelp,
+  CircleUserRound,
+  ClipboardList,
+  Clock3,
+  CreditCard,
+  Gift,
+  HelpCircle,
+  Link2,
+  LogOut,
+  MessageSquareWarning,
+  Presentation,
+  Scissors,
+  Search,
+  Store,
+  UsersRound,
+  type LucideIcon,
+} from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
-import { useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useState, type ReactNode, type RefObject } from "react";
 
 import PetManagerBrand from "@/components/brand/petmanager-brand";
 import { type OwnerWebScreenKey } from "@/components/owner-web/owner-web-data";
@@ -17,23 +37,23 @@ type OwnerWebNavigationItem =
   | { key: OwnerWebScreenKey; label: string; href?: never }
   | { key: "billing"; label: string; href: Route };
 
-const screenIconPaths: Record<OwnerWebNavigationKey, string> = {
-  schedule: "/icons/phosphor/clipboard-text.svg",
-  bookingPageManagement: "/icons/phosphor/storefront.svg",
-  bookingLink: "/icons/phosphor/line-segments.svg",
-  calendarRecords: "/icons/phosphor/calendar-dots.svg",
-  customers: "/icons/phosphor/user-circle.svg",
-  profitability: "/icons/phosphor/projector-screen-chart.svg",
-  services: "/icons/phosphor/projector-screen-chart.svg",
-  staff: "/icons/phosphor/users.svg",
-  ownerProfile: "/icons/phosphor/user-circle.svg",
-  shopInfo: "/icons/phosphor/storefront.svg",
-  bookingPolicy: "/icons/phosphor/list-checks.svg",
-  operatingHours: "/icons/phosphor/clock.svg",
-  benefits: "/icons/phosphor/gift.svg",
-  alerts: "/icons/phosphor/bell.svg",
-  help: "/icons/phosphor/WarningCircle.svg",
-  billing: "/icons/phosphor/projector-screen-chart.svg",
+const screenIconComponents: Record<OwnerWebNavigationKey, LucideIcon> = {
+  schedule: ClipboardList,
+  bookingPageManagement: Store,
+  bookingLink: Link2,
+  calendarRecords: CalendarDays,
+  customers: CircleUserRound,
+  profitability: Presentation,
+  bookingPolicy: ClipboardList,
+  services: Scissors,
+  staff: UsersRound,
+  ownerProfile: CircleUserRound,
+  shopInfo: Store,
+  operatingHours: Clock3,
+  benefits: Gift,
+  alerts: Bell,
+  help: CircleHelp,
+  billing: CreditCard,
 };
 
 const ownerWebNavigationGroups: Array<{
@@ -105,25 +125,9 @@ const ownerWebFlushCoreScreens = new Set<OwnerWebScreenKey>([
   "alerts",
 ]);
 
-function PhosphorSidebarIcon({ screen }: { screen: OwnerWebNavigationKey }) {
-  return (
-    <span
-      className="block h-6 w-6 shrink-0 bg-current transition-colors"
-      style={
-        {
-          WebkitMaskImage: `url(${screenIconPaths[screen]})`,
-          maskImage: `url(${screenIconPaths[screen]})`,
-          WebkitMaskRepeat: "no-repeat",
-          maskRepeat: "no-repeat",
-          WebkitMaskPosition: "center",
-          maskPosition: "center",
-          WebkitMaskSize: "contain",
-          maskSize: "contain",
-        } as CSSProperties
-      }
-      aria-hidden="true"
-    />
-  );
+function OwnerWebSidebarIcon({ screen }: { screen: OwnerWebNavigationKey }) {
+  const Icon = screenIconComponents[screen];
+  return <Icon className="pm-owner-sidebar-icon h-[22px] w-[22px] shrink-0" strokeWidth={1.8} aria-hidden="true" />;
 }
 
 const OWNER_HEADER_UTILITY_BUTTON_CLASS =
@@ -219,23 +223,23 @@ export default function OwnerWebAppShell({
         <nav className="flex-1 overflow-y-auto px-5 pb-4 pt-1">
           <div className="space-y-4">
             {ownerWebSidebarGroups.map((group, groupIndex) => (
-              <div key={group.label} className={cn(groupIndex > 0 && "border-t border-dashed border-[#e1e5ec] pt-4")}>
-                <p className="mb-2 px-3 text-[12px] font-medium leading-[18px] text-[#64748b]">
+              <div key={group.label} className={cn(groupIndex > 0 && "border-t border-dashed border-[#e1e5ec] pt-5")}>
+                <p className="mb-2.5 px-1 text-[14px] font-medium leading-5 text-[#8f98a6]">
                   {group.label}
                 </p>
                 <div className="space-y-1">
                   {group.items.map((screen) => {
                     const active = activeScreen === screen.key || (screen.key === "shopInfo" && (activeScreen === "bookingLink" || activeScreen === "bookingPageManagement"));
                     const itemClassName = cn(
-                      "pm-owner-nav-item relative flex h-10 min-h-10 w-full items-center gap-2.5 rounded-[8px] px-3 text-left text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
+                      "pm-owner-nav-item relative flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[18px] font-medium leading-[26px] tracking-[-0.005em] text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
                       active &&
                         "bg-[#eff6ff] text-[var(--acc)] shadow-none hover:bg-[#eff6ff] hover:text-[var(--acc)]",
                     );
                     if (screen.key === "billing") {
                       return (
                         <Link key={screen.key} href={screen.href} prefetch className={itemClassName}>
-                          <PhosphorSidebarIcon screen={screen.key} />
-                          <span className="inline-flex min-h-6 min-w-0 items-center truncate">{screen.label}</span>
+                          <OwnerWebSidebarIcon screen={screen.key} />
+                          <span className="min-w-0 truncate">{screen.label}</span>
                         </Link>
                       );
                     }
@@ -248,8 +252,8 @@ export default function OwnerWebAppShell({
                         onClick={() => onScreenSelect(screen.key)}
                         className={itemClassName}
                       >
-                        <PhosphorSidebarIcon screen={screen.key} />
-                        <span className="inline-flex min-h-6 min-w-0 items-center truncate">{screen.label}</span>
+                        <OwnerWebSidebarIcon screen={screen.key} />
+                        <span className="min-w-0 truncate">{screen.label}</span>
                       </button>
                     );
                   })}

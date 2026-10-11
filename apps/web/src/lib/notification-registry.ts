@@ -239,7 +239,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "grooming_completed",
-    title: "미용 완료",
+    title: "케어리포트 있음",
     target: "guardian",
     channel: "alimtalk",
     trigger: "예약 상태가 completed가 되면 발송",
@@ -253,7 +253,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "grooming_completed",
-    title: "미용 완료 - 케어리포트 없음",
+    title: "케어리포트 없음",
     target: "guardian",
     channel: "alimtalk",
     trigger: "예약 상태가 completed가 되고 최종 발행된 케어리포트가 없을 때 발송",
@@ -267,7 +267,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "revisit_notice",
-    title: "재방문 안내",
+    title: "재예약 알림",
     target: "guardian",
     channel: "alimtalk",
     trigger: "케어 완료 때 오너가 선택한 재예약 알림일에 자동 발송",
@@ -279,12 +279,12 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     notes: "매장과 고객 모두 재방문 알림이 켜져 있고, 이후 예약이 없을 때 한 번만 발송",
     draftBody: [
       "[#{매장명}]",
-      "#{반려동물명}의 다음 케어 시기가 다가왔어요.",
+      "안녕하세요, 보호자님.",
+      "#{반려동물명}의 다음 미용 시기가 다가와 안내드려요.",
       "",
-      "마지막 방문: #{마지막방문일}",
-      "권장 관리 주기: #{관리주기}",
-      "",
-      "원하시는 날짜와 시간을 편하게 선택해 주세요.",
+      "아이의 털 상태와 컨디션에 맞춰 편안하게 미용받을 수 있도록 꼼꼼히 준비하겠습니다.",
+      "원하시는 날짜와 시간은 아래 버튼에서 확인하고 예약해 주세요.",
+      "다음 방문에도 정성껏 돌봐드릴게요. 감사합니다.",
     ].join("\n"),
   },
   {

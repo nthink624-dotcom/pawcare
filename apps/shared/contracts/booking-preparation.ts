@@ -1,5 +1,6 @@
 /** PC·모바일·공유 서버의 예약 준비 계약. */
 export type NextBookingRule = "normal" | "approval" | "deposit" | "blocked";
+export const DEPOSIT_HOLD_MINUTES = 20;
 export type ConsentTemplate = {
   id: string; version: number; title: string; body: string;
   required: boolean; scope: "pet" | "appointment"; enabled: boolean;
@@ -9,7 +10,7 @@ export type ConsentTemplate = {
 export type BookingPolicy = {
   depositMode: "off" | "optional" | "required";
   depositAudience: "all" | "new" | "noshow";
-  depositAmount: number; depositDueHours: number;
+  depositAmount: number; depositDueHours: number; // Legacy storage field; new requests use DEPOSIT_HOLD_MINUTES.
   bankName: string; bankAccount: string; bankHolder: string;
   cancellationCutoffHours: number; cancellationNotice: string;
   firstNoshowRule: NextBookingRule; repeatNoshowRule: NextBookingRule;
@@ -39,9 +40,10 @@ export type BookingPreparation = {
     required: boolean; amount: number; receivedAmount: number; refundedAmount: number;
     dueAt: string | null; payerName: string; reportedAt: string | null;
     confirmedAt: string | null; confirmedBy: string | null;
+    releaseIfUnreported?: boolean;
   };
   consents: ConsentRecord[];
-  cancellation: { kind: "customer" | "late_customer" | "owner" | "noshow" | "unclassified"; reason: string; at: string } | null;
+  cancellation: { kind: "customer" | "late_customer" | "owner" | "noshow" | "unclassified" | "deposit_expired"; reason: string; at: string } | null;
   cancelRequest?: { reason: string; at: string } | null;
   history: Array<{ action: string; at: string; actor: string; note: string }>;
   requests: Array<{ id: string; at: string; purposes: string[]; status: "sending" | "queued" | "blocked" | "sent" | "failed"; reason: string }>;

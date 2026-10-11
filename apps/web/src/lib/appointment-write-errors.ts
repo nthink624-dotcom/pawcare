@@ -16,6 +16,7 @@ export function getAppointmentWriteErrorMessage(
   fallback = "예약을 저장하지 못했습니다.",
 ) {
   const detail = [error.message, error.details, error.hint].filter(Boolean).join(" ").toLowerCase();
+  if (detail.includes("booking_deposit_expired")) return "예약금 입금 신고 기한이 지나 예약 시간이 해제되었습니다. 예약을 다시 진행해 주세요.";
   if (detail.includes("booking_deposit_required")) return "예약금을 확인하거나 면제한 뒤 진행해 주세요.";
   if (detail.includes("booking_consent_required")) return "필수 동의서 작성을 완료한 뒤 미용을 시작해 주세요.";
   if (detail.includes("booking_online_restricted")) return "현재 온라인 예약이 제한되어 있습니다. 매장에 문의해 주세요.";

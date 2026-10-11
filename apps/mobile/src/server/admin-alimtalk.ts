@@ -214,6 +214,7 @@ function getRelayHost() {
 function getAppTemplateConfigValues(): Record<AlimtalkTemplateConfigKey, string> {
   return {
     templateBookingReceived: serverEnv.alimtalkTemplateBookingReceived || "",
+    templateBookingDepositRequest: serverEnv.alimtalkTemplateBookingDepositRequest || "",
     templateBookingConfirmed: serverEnv.alimtalkTemplateBookingConfirmed || "",
     templateBookingManageLinkRequested: serverEnv.alimtalkTemplateBookingManageLinkRequested || "",
     templateBookingCancelled: serverEnv.alimtalkTemplateBookingCancelled || "",

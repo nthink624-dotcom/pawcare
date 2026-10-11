@@ -9,6 +9,7 @@ import { OwnerApiError } from "@/server/owner-api-auth";
 import { dispatchNotification } from "@/server/notification-dispatch";
 import { deliverCustomerBookingNotificationSafely } from "@/lib/customer-booking-notification";
 import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors";
+import { depositHoldDeadline, expireUnreportedDeposits } from "@/server/booking-deposit-hold";
 
 const rule = z.enum(["normal", "approval", "deposit", "blocked"]);
 export const bookingPolicySchema = z.object({
@@ -35,6 +36,7 @@ function db() {
   return admin;
 }
 function databaseError(error: { code?: string; message?: string } | null): never {
+  if (error?.message?.includes("BOOKING_DEPOSIT_EXPIRED")) throw new OwnerApiError("입금 신고 기한이 지나 예약 시간이 해제되었습니다. 이체하지 말고 매장에 문의해 주세요.", 409);
   if (error?.message?.includes("VERSION_CONFLICT")) throw new OwnerApiError("다른 화면에서 변경되었습니다. 새로 불러온 뒤 다시 처리해 주세요.", 409);
   if (error?.message?.includes("BOOKING_SIGNED_DOCUMENT_IMMUTABLE")) throw new OwnerApiError("이미 서명한 동의서는 변경할 수 없습니다.", 409);
   if (error?.code === "23P01" || /BOOKING_(DEPOSIT_REQUIRED|CONSENT_REQUIRED|ONLINE_RESTRICTED|DEPOSIT_NOT_CONFIGURED|POLICY_CHANGED|NOSHOW_NOT_STARTED)/.test(error?.message ?? ""))
@@ -77,6 +79,7 @@ export async function saveBookingPolicy(shopId: string, input: unknown, version:
 }
 export async function getPreparation(shopId: string, appointmentId: string, owner = false): Promise<PreparationResponse> {
   const admin = db();
+  await expireUnreportedDeposits(admin, shopId, appointmentId);
   const [booking, preparation] = await Promise.all([
     admin.from("appointments").select("id,shop_id,guardian_id,pet_id,status,start_at,final_service_price").eq("shop_id", shopId).eq("id", appointmentId).maybeSingle(),
     admin.from("booking_preparations").select("version,data").eq("shop_id", shopId).eq("appointment_id", appointmentId).maybeSingle(),
@@ -193,7 +196,7 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
   const previousReceipt = deposit.receivedAmount;
   const active = ["pending", "confirmed"].includes(current.appointmentStatus);
   let nextStatus: string | null = null, nextRule: string | null = null;
-  let consentRequestId: string | null = null;
+  const guidanceRequests: Array<{ id: string; purpose: "consent" | "deposit" }> = [];
   let preferences: { consent: boolean; deposit: boolean } | null = null;
   if (!active && !["refund_record", "correct_noshow", "set_condition", "set_preferences"].includes(input.action)) throw new OwnerApiError("진행 중이거나 종료된 예약은 이 작업을 처리할 수 없습니다.", 409);
   switch (input.action) {
@@ -227,12 +230,14 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       if (!["not_requested", "cancelled"].includes(deposit.status)) throw new OwnerApiError("이미 요청되었거나 확인된 예약금입니다.", 409);
       if (!data.policy.bankAccount || !data.policy.bankHolder || data.policy.depositMode === "off") throw new OwnerApiError("매장 예약금 설정을 먼저 확인해 주세요.");
       deposit.status = "pending";
-      deposit.dueAt = new Date(Math.min(Date.now() + data.policy.depositDueHours * 3600000, Date.parse(current.startAt))).toISOString();
+      deposit.dueAt = depositHoldDeadline(current.startAt);
+      deposit.releaseIfUnreported = true;
       if (Date.parse(deposit.dueAt) <= Date.now()) throw new OwnerApiError("납부 기한을 확보할 수 없습니다. 매장에 문의해 주세요.");
       break;
     case "report_deposit":
       if (!["pending", "reported"].includes(deposit.status)) throw new OwnerApiError("현재 입금 신고를 받을 수 없습니다.", 409);
       if (!input.payerName) throw new OwnerApiError("입금자명을 입력해 주세요.");
+      if (deposit.releaseIfUnreported && deposit.status === "pending" && (!deposit.dueAt || Date.parse(deposit.dueAt) <= Date.now())) throw new OwnerApiError("입금 신고 기한이 지났습니다. 이체하지 말고 매장에 문의해 주세요.", 409);
       deposit.status = "reported"; deposit.payerName = input.payerName; deposit.reportedAt = now; break;
     case "confirm_deposit":
       if (!["pending", "reported"].includes(deposit.status)) throw new OwnerApiError("확인 대기 중인 예약금만 처리할 수 있습니다.", 409);
@@ -291,15 +296,18 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       if (deposit.required && !["confirmed", "waived"].includes(deposit.status)) throw new OwnerApiError("예약금을 확인하거나 면제한 뒤 승인해 주세요.");
       nextStatus = "confirmed"; break;
     case "request_guidance": {
-      if (!input.consent) throw new OwnerApiError("\uB3D9\uC758\uC11C \uC694\uCCAD\uB9CC \uC54C\uB9BC\uD1A1\uC73C\uB85C \uBCF4\uB0BC \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
-      if (input.deposit) throw new OwnerApiError("\uC608\uC57D\uAE08 \uC694\uCCAD \uC54C\uB9BC\uD1A1\uC740 \uBCC4\uB3C4 \uD15C\uD50C\uB9BF \uC2B9\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4. \uC608\uC57D\uAE08\uC744 \uC120\uD0DD \uD574\uC81C\uD558\uACE0 \uB3D9\uC758\uC11C \uC694\uCCAD\uC744 \uBCF4\uB0B4 \uC8FC\uC138\uC694.");
-      if (!data.consents.some(c => c.status === "pending")) throw new OwnerApiError("\uC791\uC131 \uB300\uAE30 \uC911\uC778 \uB3D9\uC758\uC11C\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
-      const previousRequest = [...data.requests].reverse().find(r => r.purposes.includes("consent") && ["sending", "queued", "sent"].includes(r.status));
-      if (previousRequest) throw new OwnerApiError("\uC774 \uC608\uC57D\uC758 \uB3D9\uC758\uC11C \uC694\uCCAD\uC740 \uC774\uBBF8 \uBC1C\uC1A1\uD588\uAC70\uB098 \uCC98\uB9AC \uC911\uC785\uB2C8\uB2E4.", 409);
+      if (!input.consent && !input.deposit) throw new OwnerApiError("보낼 안내를 선택해 주세요.");
       const prefs = current.notificationPreferences;
-      if (prefs?.enabled === false || prefs?.consent === false) throw new OwnerApiError("\uACE0\uAC1D\uC774 \uB3D9\uC758\uC11C \uC694\uCCAD \uC54C\uB9BC \uC218\uC2E0\uC744 \uB04C\uC5B4 \uB450\uC5C8\uC2B5\uB2C8\uB2E4.", 409);
-      consentRequestId = randomUUID();
-      data.requests.push({ id: consentRequestId, at: now, purposes: ["consent"], status: "sending", reason: "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1\uC744 \uD655\uC778\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4." });
+      for (const purpose of ["deposit", "consent"] as const) {
+        if (!input[purpose]) continue;
+        if (prefs?.enabled === false || prefs?.[purpose] === false) throw new OwnerApiError("고객이 해당 요청 알림 수신을 꺼 두었습니다.", 409);
+        if (purpose === "consent" && !data.consents.some(c => c.status === "pending")) throw new OwnerApiError("작성 대기 중인 동의서가 없습니다.");
+        if (purpose === "deposit" && (!["pending", "reported"].includes(deposit.status) || !deposit.dueAt || Date.parse(deposit.dueAt) <= Date.now())) throw new OwnerApiError("납부 대기 중인 예약금과 유효한 기한을 확인해 주세요.");
+        if (data.requests.some(r => r.purposes.includes(purpose) && ["sending", "queued", "sent"].includes(r.status))) throw new OwnerApiError("이 예약의 해당 안내는 이미 발송했거나 처리 중입니다.", 409);
+        const id = randomUUID();
+        guidanceRequests.push({ id, purpose });
+        data.requests.push({ id, at: now, purposes: [purpose], status: "sending", reason: "알림톡 발송을 확인하고 있습니다." });
+      }
       break;
     }
   }
@@ -308,19 +316,19 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       ? `${input.note} · 이전 입금 ${previousReceipt}원 · 현재 입금 ${deposit.receivedAmount}원 · 누적 환불 ${deposit.refundedAmount}원` : input.note });
   const result = await db().rpc("save_booking_preparation", { p_shop: current.shopId, p_appointment: current.appointmentId, p_version: current.version, p_data: data, p_status: nextStatus, p_rule: nextRule, p_preferences: preferences });
   if (result.error) databaseError(result.error);
-  if (consentRequestId) {
+  for (const guidance of guidanceRequests) {
     let requestStatus: BookingPreparation["requests"][number]["status"] = "failed";
     let requestReason = "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1\uC744 \uCC98\uB9AC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uBC1C\uC1A1 \uC774\uB825\uC744 \uD655\uC778\uD574 \uC8FC\uC138\uC694.";
     try {
       const delivery = await dispatchNotification({
         shopId: current.shopId, appointmentId: current.appointmentId,
         guardianId: current.guardianId, petId: current.petId,
-        type: "booking_consent_request", channel: "alimtalk", skipIfExists: true,
-        metadata: { bookingPreparationRequestId: consentRequestId },
+        type: guidance.purpose === "deposit" ? "booking_deposit_request" : "booking_consent_request", channel: "alimtalk", skipIfExists: true,
+        metadata: { bookingPreparationRequestId: guidance.id },
       });
       if (delivery.notification.status === "sent") {
         requestStatus = "sent";
-        requestReason = "\uB3D9\uC758\uC11C \uC694\uCCAD \uC54C\uB9BC\uD1A1\uC744 \uBCF4\uB0B4\uC5C8\uC2B5\uB2C8\uB2E4.";
+        requestReason = guidance.purpose === "deposit" ? "예약금 요청 알림톡을 보냈습니다." : "동의서 요청 알림톡을 보냈습니다.";
       } else if (delivery.notification.status === "queued") {
         requestStatus = "queued";
         requestReason = delivery.notification.fail_reason || "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1 \uB300\uAE30 \uC911\uC785\uB2C8\uB2E4.";
@@ -337,7 +345,7 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
     }
     const latest = await getPreparation(current.shopId, current.appointmentId, actor.kind === "owner");
     const settled = structuredClone(latest.data);
-    const request = settled.requests.find(item => item.id === consentRequestId);
+    const request = settled.requests.find(item => item.id === guidance.id);
     if (request) { request.status = requestStatus; request.reason = requestReason; }
     settled.history.push({ action: "request_guidance", at: new Date().toISOString(), actor: actor.userId ?? "owner", note: requestReason });
     const settledResult = await db().rpc("save_booking_preparation", {

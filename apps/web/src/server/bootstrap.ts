@@ -12,6 +12,7 @@ import {
 import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { deriveOwnerInitialSetupReadiness } from "@/lib/owner-initial-setup-readiness";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { expireUnreportedDeposits } from "@/server/booking-deposit-hold";
 import { defaultStaffProfileMessage, getStaffProfileMessage } from "@/lib/staff-display";
 import { isStaffProfileFallbackKey } from "@/lib/staff-profile-fallback";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -452,6 +453,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   if (!supabase) {
     throw new Error("Supabase 서버 연결이 없어 매장 데이터를 불러올 수 없습니다.");
   }
+  await expireUnreportedDeposits(supabase, shopId);
 
   let notificationsQuery: any = includeNotifications
     ? supabase.from("notifications").select("*").eq("shop_id", shopId).order("created_at", { ascending: false })

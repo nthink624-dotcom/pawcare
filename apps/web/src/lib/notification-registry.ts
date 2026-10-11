@@ -25,6 +25,7 @@ export type GuardianSettingKey = keyof GuardianNotificationSettings | null;
 export type AlimtalkTemplateAlias =
   | "booking_received"
   | "booking_consent_request"
+  | "booking_deposit_request"
   | "booking_confirmed"
   | "booking_cancelled"
   | "appointment_reminder_10m"
@@ -40,6 +41,7 @@ export type AlimtalkTemplateAlias =
 export type AlimtalkTemplateConfigKey =
   | "templateBookingReceived"
   | "templateBookingConsentRequest"
+  | "templateBookingDepositRequest"
   | "templateBookingConfirmed"
   | "templateBookingCancelled"
   | "templateBookingRescheduledConfirmed"
@@ -71,6 +73,20 @@ export type NotificationRegistryItem = {
 export type NotificationTemplateVariables = Record<string, string | null | undefined>;
 
 export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
+  {
+    type: "booking_deposit_request",
+    title: "예약금 납부 요청",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "오너가 예약별로 예약금 요청 안내를 선택했을 때 수동 발송",
+    dispatchSource: "src/server/booking-preparation.ts",
+    templateAlias: "booking_deposit_request",
+    templateConfigKey: "templateBookingDepositRequest",
+    shopSettingKey: "enabled",
+    guardianSettingKey: "deposit_request_enabled",
+    notes: "승인된 예약금 전용 템플릿으로 금액·계좌·기한과 입금 신고 링크를 안내합니다.",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request.body,
+  },
   {
     type: "booking_received",
     title: "예약 접수",
@@ -317,6 +333,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
 
 export const ACTIVE_ALIMTALK_TEMPLATE_ALIASES: readonly AlimtalkTemplateAlias[] = [
   "booking_consent_request",
+  "booking_deposit_request",
   "booking_confirmed",
   "booking_cancelled",
   "appointment_reminder_10m",
@@ -423,6 +440,8 @@ export function shouldSendByShopSettings(
       return settings.booking_confirmed_enabled;
     case "booking_consent_request":
       return true;
+    case "booking_deposit_request":
+      return true;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
     case "grooming_almost_done":
@@ -449,6 +468,8 @@ export function shouldSendByGuardianSettings(
   switch (type) {
     case "booking_consent_request":
       return settings.consent_request_enabled ?? true;
+    case "booking_deposit_request":
+      return settings.deposit_request_enabled ?? true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
     case "booking_consent_request":

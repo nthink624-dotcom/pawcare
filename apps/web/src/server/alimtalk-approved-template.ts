@@ -35,6 +35,7 @@ export type RelayTemplateCatalogBody = {
 };
 
 const aliasesThatMustHaveSsodaaButtons = new Set<AlimtalkTemplateAlias>([
+  "booking_deposit_request",
   "booking_consent_request",
   "booking_confirmed",
   "appointment_reminder_10m",
@@ -95,7 +96,7 @@ export function isApprovedAndUsableTemplate(
   detail: ConnectedTemplateDetail,
   alias?: AlimtalkTemplateAlias,
 ) {
-  if (alias === "booking_consent_request") {
+  if (alias === "booking_consent_request" || alias === "booking_deposit_request") {
     return detail.inspectionStatus?.toUpperCase() === "APR"
       && ["ACT", "RDY"].includes(detail.serviceStatus?.toUpperCase() ?? "");
   }
@@ -119,9 +120,19 @@ export function hasApprovedBookingConsentTemplateContract(detail: ConnectedTempl
 }
 
 function validateTemplateContract(alias: AlimtalkTemplateAlias, detail: ConnectedTemplateDetail) {
+  if (alias === "booking_deposit_request" && !hasApprovedBookingDepositTemplateContract(detail)) {
+    throw new Error("예약금 요청 알림톡의 승인 본문 또는 버튼이 등록된 계약과 달라 발송을 중단했습니다.");
+  }
   if (alias === "booking_consent_request" && !hasApprovedBookingConsentTemplateContract(detail)) {
     throw new Error("동의서 요청 알림톡의 승인 본문 또는 버튼이 등록된 계약과 달라 발송을 중단했습니다.");
   }
+}
+
+export function hasApprovedBookingDepositTemplateContract(detail: ConnectedTemplateDetail) {
+  const contract = APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request;
+  return normalizeTemplateText(detail.templateContent ?? "") === normalizeTemplateText(contract.body)
+    && detail.buttons.length === 1 && detail.buttons[0]?.type === "WL"
+    && detail.buttons[0]?.name.trim() === contract.button;
 }
 
 async function getApprovedSsodaaTemplate(
@@ -196,7 +207,7 @@ async function getShopApprovedTemplateCodes(shopId: string | undefined, types: N
   return codes;
 }
 
-async function getApprovedSsodaaTemplateFromCatalog(
+export async function getApprovedSsodaaTemplateFromCatalog(
   alias: AlimtalkTemplateAlias,
   body: RelayTemplateCatalogBody,
 ): Promise<ConnectedTemplateDetail | null> {
@@ -371,10 +382,10 @@ function renderApprovedTemplateButtons(params: {
       renderedValue: linkPc,
       variables: params.values,
     });
-    if (params.spec.templateAlias === "booking_consent_request") {
+    if (params.spec.templateAlias === "booking_consent_request" || params.spec.templateAlias === "booking_deposit_request") {
       const bookingManageUrl = params.values["예약 확인 링크"]?.trim();
       if (!bookingManageUrl || linkMobile !== bookingManageUrl || linkPc !== bookingManageUrl) {
-        throw new Error("동의서 작성 버튼이 해당 예약의 보호자 서명 링크와 일치하지 않아 발송을 중단했습니다.");
+        throw new Error("요청 버튼이 해당 예약의 보호자 확인 링크와 일치하지 않아 발송을 중단했습니다.");
       }
     }
     return {

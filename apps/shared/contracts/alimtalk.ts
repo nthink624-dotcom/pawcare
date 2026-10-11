@@ -14,6 +14,12 @@ export type AlimtalkContract = {
 };
 
 export const APPROVED_ALIMTALK_CONTRACTS = {
+  booking_deposit_request: {
+    code: "booking_deposit_request",
+    body: `[#{매장명}]\n\n#{보호자명}님, #{반려동물명} 예약금 납부 안내입니다.\n\n방문 일정: #{예약일시}\n예약금: #{예약금액}원\n입금 계좌: #{은행명} #{입금계좌}\n예금주: #{예금주}\n납부 기한: #{납부기한}\n\n기한 안에 이체한 뒤 아래 버튼에서 입금자명을 남겨 주세요.\n#{기한안내}`,
+    button: "예약금 입금 신고",
+    variables: ["매장명", "보호자명", "반려동물명", "예약일시", "예약금액", "은행명", "입금계좌", "예금주", "납부기한", "기한안내", "예약관리토큰"],
+  },
   booking_consent_request: {
     code: "booking_consent_request",
     body: `[#{매장명}]\n\n#{보호자명}님, #{반려동물명} 미용 전 동의서를 확인해 주세요.\n\n방문 일정: #{예약일시}\n\n아래 버튼을 눌러 내용을 읽고 서명해 주세요.`,

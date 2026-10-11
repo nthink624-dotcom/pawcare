@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { BookingPreparation } from "@petmanager/shared/contracts/booking-preparation";
 
 import {
   getAlimtalkTemplateAlias,
@@ -76,6 +77,7 @@ const abuseHandledStatuses = new Set<NotificationStatus>(["queued", "sent", "moc
 const oneShotAppointmentNotificationTypes = new Set<NotificationType>([
   "booking_received",
   "booking_consent_request",
+  "booking_deposit_request",
   "booking_confirmed",
   "owner_booking_requested",
   "booking_cancelled",
@@ -667,6 +669,10 @@ function buildNotificationButtons(params: {
     if (!params.bookingManageUrl) return [];
     return [{ type: "WL", name: "동의서 작성", linkMobile: params.bookingManageUrl, linkPc: params.bookingManageUrl }];
   }
+  if (params.type === "booking_deposit_request") {
+    if (!params.bookingManageUrl) return [];
+    return [{ type: "WL", name: "예약금 입금 신고", linkMobile: params.bookingManageUrl, linkPc: params.bookingManageUrl }];
+  }
 
   if (params.type === "booking_confirmed") {
     if (params.bookingManageUrl) {
@@ -832,6 +838,25 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     shopAddress: bootstrap.shop.address ?? null,
     shopName: bootstrap.shop.name,
   });
+  if (input.type === "booking_deposit_request") {
+    if (!appointment || !["pending", "confirmed"].includes(appointment.status)) {
+      throw new Error("예약금 안내를 보낼 수 있는 예약이 아닙니다.");
+    }
+    const preparation = await getSupabaseAdmin()?.from("booking_preparations")
+      .select("data").eq("shop_id", input.shopId).eq("appointment_id", appointment.id).maybeSingle();
+    if (!preparation || preparation.error || !preparation.data) throw new Error("예약금 요청 정보를 확인할 수 없습니다.");
+    const data = preparation.data.data as BookingPreparation;
+    if (!["pending", "reported"].includes(data.deposit.status) || !data.deposit.dueAt
+      || Date.parse(data.deposit.dueAt) <= Date.now()) throw new Error("납부 기한이 지난 예약금 안내는 보낼 수 없습니다.");
+    Object.assign(notificationTemplateValues, {
+      예약금액: data.deposit.amount.toLocaleString("ko-KR"),
+      은행명: data.policy.bankName, 입금계좌: data.policy.bankAccount, 예금주: data.policy.bankHolder,
+      납부기한: new Date(data.deposit.dueAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
+      기한안내: data.deposit.releaseIfUnreported
+        ? "20분 안에 입금 신고가 없으면 예약이 취소되고 다른 고객이 해당 시간을 예약할 수 있습니다. 입금 신고 후에는 매장 확인을 기다려 주세요."
+        : "납부 기한과 예약 상태를 예약 확인 페이지에서 확인해 주세요.",
+    });
+  }
   const connectedTemplate = await getApprovedSsodaaNotificationTemplate(
     input.type,
     notificationTemplateValues,
@@ -965,6 +990,9 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   } else if (input.type === "booking_consent_request" && connectedTemplate?.source !== "ssodaa_approved") {
     status = "failed";
     failReason = "동의서 요청 알림톡 템플릿이 아직 카카오 승인·연결되지 않았습니다.";
+  } else if (input.type === "booking_deposit_request" && connectedTemplate?.source !== "ssodaa_approved") {
+    status = "failed";
+    failReason = "예약금 요청 알림톡 템플릿이 아직 카카오 승인·연결되지 않았습니다.";
   } else if (isPhotoAlimtalkRequest && !hasConfiguredPhotoAlimtalkTemplate) {
     status = "queued";
     provider = "pending_template";

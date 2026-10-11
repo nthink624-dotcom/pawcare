@@ -42,7 +42,7 @@
 - 노쇼는 시간이 지난 확정 예약만 처리한다. 정상·늦은 취소·미납 취소를 노쇼 횟수에 합산하지 않는다.
 - 신규 필수 예약과 수동으로 만든 신규 예약금 요청은 `deposit.releaseIfUnreported=true`와 `dueAt`을 저장한다. 기한은 요청 시점부터 20분이며 예약 시작을 넘지 않는다. `depositDueHours`는 과거 저장 계약 호환용이며 신규 요청의 기한 계산에 사용하지 않는다.
 - 보호자가 기한 전에 `report_deposit`를 저장하면 `reported`로 시간을 유지한다. 실제 입금 완료는 오너가 확인해야 한다. `pending` 미신고 요청은 기한 경과 시 예약을 `cancelled`, 예약금 요청을 `cancelled`, 취소 사유를 `deposit_expired`로 처리한다. 노쇼로 집계하지 않고 서명 자료·처리 이력을 보존한다.
-- `expire_unreported_booking_deposits(shop,appointment,staff,exclude)`는 서비스 역할 전용이며 예약 조회/가용시간 조회 전에 호출한다. 선택 인수 `exclude`는 예약 변경 트리거에서 현재 행의 재귀 변경을 방지한다. 예약 INSERT/시간 변경의 기존 shop/staff advisory lock과 겹침 검사 사이에서도 같은 만료 함수를 실행한다. 별도 cron 없이 다음 조회/예약 시 만료를 반영하며, 보호자 화면은 마감 시 서버 상태를 다시 읽는다.
+- `expire_unreported_booking_deposits(shop,appointment,staff,exclude)`는 서비스 역할 전용이며 웹·모바일·공유 백엔드의 예약 조회/가용시간 조회 전에 같은 공통 헬퍼로 호출한다. 선택 인수 `exclude`는 예약 변경 트리거에서 현재 행의 재귀 변경을 방지한다. 예약 INSERT/시간 변경의 기존 shop/staff advisory lock과 겹침 검사 사이에서도 같은 만료 함수를 실행한다. 별도 cron 없이 다음 조회/예약 시 만료를 반영하며, 보호자 화면은 마감 시 서버 상태를 다시 읽는다.
 - 만료는 예약 행을 먼저 잠그고 준비 행을 재검사한다. 입금 신고가 처리 중인 행은 `SKIP LOCKED`로 건너뛰어 예약 잠금과 staff advisory lock의 교착을 피한다. 저장 RPC는 잠금 후 `clock_timestamp()`로 마감을 다시 확인해 기한 후 신고를 거절한다. 신고/확인 완료·면제·환불·기납부 금액이 있는 요청 및 신규 해제 표식이 없는 과거 예약은 자동 해제하지 않는다.
 
 ## 알림톡

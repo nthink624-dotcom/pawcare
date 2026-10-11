@@ -61,9 +61,9 @@
 
 ## 적용·검증 상태
 
-2026-10-12 읽기 확인에서 검수용 DB qefxdtmdtvnzgupmjlom와 운영 DB ysxykikqnneuhypybjry에 `booking_preparations`, `shop_booking_policies` 테이블이 존재했다. 테이블 존재 확인은 정책·트리거 동작의 통과 근거가 아니다. 운영 `platform_alimtalk_templates`의 예약금 템플릿 등록 및 승인·활성 건수는 모두 0이었다. 릴레이 provider catalog는 로컬 연결 거부로 확인하지 못했다.
-예약금 알림톡 연결 소스는 로컬 구현 단계다. provider 템플릿 승인·등록·매핑과 릴레이/웹 배포, 실제 발송은 아직 수행하지 않았다.
-대표가 20분 내 보호자 입금 신고 시 시간을 유지하는 기준을 승인했다. `20261011151259_booking_deposit_twenty_minute_hold.sql`은 로컬 생성·검증 단계이며 원격 DB에 적용하지 않았다. 배포 시 DB 마이그레이션을 먼저 적용해야 한다. 기존 설치의 RPC 누락(PGRST202)은 조회 장애를 만들지 않도록 호환 처리하지만, 해당 환경에 자동 해제가 적용됐다는 의미는 아니다.
+2026-10-12 대표가 머지·커밋·운영 배포를 승인했다. 운영 DB ysxykikqnneuhypybjry에 `20261011154133_booking_deposit_twenty_minute_hold.sql`, `20261011154225_booking_deposit_template_aliases.sql`을 적용하고 이력과 서비스 역할 전용 권한을 읽어 확인했다. 소스 파일의 버전은 실제 적용 이력에 맞췄다. 고객 행을 만들거나 기존 요청에 신규 해제 표식을 소급하지 않았다.
+운영 릴레이 HTTPS health와 provider catalog 조회가 정상 응답했다. `booking_deposit_request_v1` 템플릿을 등록하고 검수 신청했으며 catalog에서 동일 본문과 `REQ`/`R` 상태를 확인했다. 웹·모바일 Production의 `ALIMTALK_TEMPLATE_BOOKING_DEPOSIT_REQUEST` 연결을 준비했다. Kakao 검수 승인 전에는 실제 발송하지 않는다. 실제 고객 발송은 수행하지 않았다.
+기존 설치의 RPC 누락(PGRST202)은 조회 장애를 만들지 않도록 호환 처리하지만, 해당 환경에 자동 해제가 적용됐다는 의미는 아니다. 다른 환경에는 같은 마이그레이션을 웹 배포 전에 적용해야 한다.
 
 로컬 PostgreSQL에서 20분 기한, 미신고 해제 후 새 예약, 신고된 예약 유지 및 오너 확인, 지연 신고 거절, 두 고객 동시 예약, 신고와 만료의 경합, 매장 범위 및 서비스 역할 권한을 검증했다. 실제 보호자 컴포넌트의 테스트 데이터 화면을 1440/1024/430/390 폭에서 렌더링해 신고 후 유지와 기한 경과 해제 안내를 확인했다. 운영 고객 데이터와 실제 알림톡 발송 검증은 수행하지 않았다.
 정책 버전 동기화는 기존 `booking_preparations` RPC와 JSON 계약을 사용하며 별도 DB 컬럼을 추가하지 않는다. 동의서 버전 동기화 자체에는 원격 DB 스키마 변경이 없다.

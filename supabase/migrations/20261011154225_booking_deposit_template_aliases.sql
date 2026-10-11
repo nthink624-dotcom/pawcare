@@ -1,4 +1,6 @@
 -- Extend existing registries for the booking deposit request contract.
+alter table public.shop_alimtalk_template_requests
+  drop constraint if exists shop_alimtalk_template_requests_alias_check;
 -- Keep the platform mapping registry in sync with the notification aliases used by web and mobile.
 
 alter table public.platform_alimtalk_templates

@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
+import { buildDepositTemplateValues } from "@petmanager/shared/lib/deposit-template-values";
+import { readBookingPolicy } from "@/server/booking-preparation";
 
-import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
+import { ALIMTALK_NOTIFICATION_REGISTRY, renderNotificationTemplateBody } from "@/lib/notification-registry";
 import { getApprovedSsodaaNotificationTemplates } from "@/server/alimtalk-approved-template";
 import { buildBookingEntryUrl, buildBookingManageUrl } from "@/server/booking-access-token";
 import { getBootstrap } from "@/server/bootstrap";
@@ -73,6 +75,8 @@ export async function GET(request: NextRequest) {
       shopName: bootstrap.shop.name,
     });
     if (!values.예약일시) values.예약일시 = "예약 일시";
+    const { policy } = await readBookingPolicy(owner.shopId);
+    Object.assign(values, buildDepositTemplateValues(policy));
     const types = ALIMTALK_NOTIFICATION_REGISTRY.map((item) => item.type);
     const templates = await getApprovedSsodaaNotificationTemplates(types, values, owner.shopId);
 
@@ -102,8 +106,14 @@ export async function GET(request: NextRequest) {
             inspectionStatus: template?.inspectionStatus ?? null,
             serviceStatus: template?.serviceStatus ?? null,
             source: template?.source ?? "draft",
+            sampleLabel: "매장 설정과 예시 예약으로 구성했습니다. 실제 발송 시 해당 고객과 예약금 요청의 정보로 바뀝니다.",
           };
-        }),
+        }).concat(templates.some((template) => template?.type === "booking_deposit_request") ? [] : [{
+          type: "booking_deposit_request", title: "예약금 입금 요청", templateCode: null,
+          templateName: null, body: renderNotificationTemplateBody("booking_deposit_request", values) ?? "",
+          buttons: [{ name: "예약금 입금 신고" }], inspectionStatus: null, serviceStatus: null,
+          source: "draft", sampleLabel: "예약금 설정을 적용한 기본 문안입니다. 검수 승인 전에는 발송되지 않습니다.",
+        }]),
     });
   } catch (error) {
     if (error instanceof OwnerApiError) {

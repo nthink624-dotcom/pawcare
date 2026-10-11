@@ -27,7 +27,8 @@ test("deposit request observes guardian and shop opt-out independently of consen
   assert.equal(shouldSendByGuardianSettings({...defaultGuardianNotificationSettings,deposit_request_enabled:false},"booking_deposit_request"), false);
   assert.equal(shouldSendByGuardianSettings({...defaultGuardianNotificationSettings,enabled:false},"booking_deposit_request"), false);
   assert.equal(shouldSendByShopSettings(defaultShopNotificationSettings,"booking_deposit_request"), true);
-  assert.equal(shouldSendByShopSettings({...defaultShopNotificationSettings,enabled:false},"booking_deposit_request"), false);
+  assert.equal(shouldSendByShopSettings({...defaultShopNotificationSettings,enabled:false},"booking_deposit_request"), true);
+  assert.equal(shouldSendByShopSettings({...defaultShopNotificationSettings,enabled:false},"booking_confirmed"), false);
 });
 test("deposit alias resolves only an approved template from the provider catalog", async () => {
   const catalog={items:[{alias:"booking_deposit_request",configuredCode:detail.templateCode,detail}],allTemplates:[detail]};

@@ -1,7 +1,9 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DEFAULT_BOOKING_CONSENT_ID, DEFAULT_BOOKING_POLICY, NEXT_BOOKING_RULE_LABELS, type BookingPolicy, type NextBookingRule } from "@petmanager/shared/contracts/booking-preparation";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { BookingDepositAlimtalkPreview } from "@/components/owner-web/booking-deposit-alimtalk-preview";
+import { publishBookingPolicyChange, subscribeBookingPolicyChange } from "@/lib/booking-policy-events";
 const field = "h-10 w-full rounded-[8px] border border-slate-300 bg-white px-3 text-[16px] outline-none focus:ring-2 focus:ring-blue-200";
 type ConsentDraft = { templateId: string | null; title: string; body: string };
 const LEGACY_DEFAULT_CONSENT_BODY = `보호자는 반려동물의 질병과 과거 병력, 알레르기, 복용 중인 약, 피부·관절 상태, 최근 치료 여부를 미용 전에 정확히 알려주세요. 특히 노령이거나 기저질환이 있는 경우 미용 중 스트레스나 컨디션 변화가 생길 수 있으므로 관련 정보를 충분히 전달해 주세요.
@@ -91,11 +93,24 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
   const [tab, setTab] = useState("deposit");
   const [consentDraft, setConsentDraft] = useState<ConsentDraft | null>(null);
   const [selectedConsentId, setSelectedConsentId] = useState<string | null>(null);
+  const policyDirty = useRef(false);
   useEffect(() => { let active = true; setLoaded(false); fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`).then(r => { if (active) { const nextPolicy = ensureDefaultConsent(r.policy); setPolicy(nextPolicy); setVersion(r.version); setLoaded(true); setMessage(""); const first = nextPolicy.templates[0]; setSelectedConsentId(first?.id ?? null); setConsentDraft(first ? { templateId: first.id, title: first.title, body: first.body } : null); } }).catch(e => { if (active) setMessage(e.message); }); return () => { active = false; }; }, [shopId]);
-  function change<K extends keyof BookingPolicy>(key: K, value: BookingPolicy[K]) { setPolicy(p => ({ ...p, [key]: value })); setMessage(""); }
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = subscribeBookingPolicyChange(shopId, () => {
+    if (!loaded || busy) return;
+    void fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`, { cache: "no-store" }).then((result) => {
+      if (!active || result.version === version) return;
+      if (policyDirty.current) { setMessage("다른 화면에서 설정이 변경되었습니다. 현재 수정 내용은 유지되며, 저장 전에 최신 설정을 다시 확인해 주세요."); return; }
+      setPolicy(ensureDefaultConsent(result.policy)); setVersion(result.version);
+    }).catch(() => { if (active) setMessage("최신 예약금 설정을 확인하지 못했습니다."); });
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [shopId, loaded, busy, version]);
+  function change<K extends keyof BookingPolicy>(key: K, value: BookingPolicy[K]) { policyDirty.current = true; setPolicy(p => ({ ...p, [key]: value })); setMessage(""); }
   async function save(nextPolicy: BookingPolicy = policy): Promise<boolean> {
     setBusy(true); setMessage("");
-    try { const r = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PUT", body: JSON.stringify({ shopId, policy: nextPolicy, version }), headers: { "Content-Type": "application/json" } }); setPolicy(ensureDefaultConsent(r.policy)); setVersion(r.version); setMessage(""); return true; }
+    try { const r = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PUT", body: JSON.stringify({ shopId, policy: nextPolicy, version }), headers: { "Content-Type": "application/json" } }); setPolicy(ensureDefaultConsent(r.policy)); setVersion(r.version); policyDirty.current = false; publishBookingPolicyChange(shopId); setMessage("저장했습니다."); return true; }
     catch (e) { setMessage(e instanceof Error ? e.message : "저장하지 못했습니다."); return false; } finally { setBusy(false); }
   }
   async function saveConsentDraft() {
@@ -164,6 +179,9 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
       <div className="no-scrollbar flex min-h-[54px] min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-[14px] border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="예약 관리 설정">{[["deposit", "예약금"], ["consent", "동의서 관리"], ["noshow", "취소·노쇼"]].map(([id, title]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} data-owner-control-size='content' className={`inline-flex h-10 shrink-0 items-center rounded-full px-4 text-[18px] font-medium leading-6 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 ${tab === id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]"}`}>{title}</button>)}</div>
     </div>
     <div className={`px-5 pt-3 ${tab === "consent" ? "space-y-0 pb-0 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : "space-y-5 pb-3"}`}>
+    <div className={tab === "deposit" ? "grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,1fr)]" : "contents"}>
+    <div className={tab === "deposit" ? "min-w-0 space-y-4 rounded-[14px] border border-[#e8edf3] bg-white p-4 sm:p-5" : "contents"}>
+    {tab === "deposit" && <div><h3 className="text-[18px] font-medium">예약금 설정</h3><p className="mt-1 text-[13px] leading-5 text-slate-500">사용 여부를 저장하면 알림 설정에도 동일하게 반영됩니다.</p></div>}
     <fieldset disabled={!loaded || busy || !editable} aria-busy={!loaded && !message} className={`min-w-0 space-y-4 ${tab === "consent" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
       {tab === "deposit" && <>
         <div className="grid gap-4 sm:grid-cols-2"><Label title="예약금 사용"><select className={field} value={policy.depositMode} onChange={e => change("depositMode", e.target.value as BookingPolicy["depositMode"])}><option value="off">사용 안 함</option><option value="optional">예약별 선택</option><option value="required">대상 고객에게 필수</option></select></Label><Label title="적용 고객"><select className={field} value={policy.depositAudience} onChange={e => change("depositAudience", e.target.value as BookingPolicy["depositAudience"])}><option value="all">전체 고객</option><option value="new">첫 방문 고객</option><option value="noshow">노쇼 이력 고객</option></select></Label>
@@ -218,6 +236,9 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
       </>}
     </fieldset>
     <div className="flex flex-wrap items-center gap-3">{tab !== "consent" && <button type="button" disabled={!loaded || busy || !editable} onClick={() => void save()} className="h-10 rounded-[8px] bg-[#1976ff] px-5 text-white disabled:opacity-100! disabled:cursor-not-allowed">{busy ? "저장 중" : "정책 저장"}</button>}{(message || !loaded) && <p role="status" className="min-w-0 text-[16px] text-slate-600">{message || "예약 정책을 불러오는 중입니다."}</p>}</div>
+    </div>
+    {tab === "deposit" && <BookingDepositAlimtalkPreview shopId={shopId} policy={policy} loaded={loaded} />}
+    </div>
     </div>
   </section>;
 }

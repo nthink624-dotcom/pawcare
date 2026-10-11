@@ -423,6 +423,9 @@ export function shouldSendByShopSettings(
   type: NotificationType,
 ) {
   if (!settings) return null;
+  // Deposit requests have one source of truth in the booking policy. The general
+  // reservation/grooming switch must not silently disable an explicit request.
+  if (type === "booking_deposit_request") return true;
   if (!settings.enabled) return false;
 
   switch (type) {
@@ -439,8 +442,6 @@ export function shouldSendByShopSettings(
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
     case "booking_consent_request":
-      return true;
-    case "booking_deposit_request":
       return true;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;

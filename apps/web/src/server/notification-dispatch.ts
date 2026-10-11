@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { buildDepositTemplateValues } from "@petmanager/shared/lib/deposit-template-values";
 import type { BookingPreparation } from "@petmanager/shared/contracts/booking-preparation";
 
 import {
@@ -854,14 +855,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     const data = preparation.data.data as BookingPreparation;
     if (!["pending", "reported"].includes(data.deposit.status) || !data.deposit.dueAt
       || Date.parse(data.deposit.dueAt) <= Date.now()) throw new Error("납부 기한이 지난 예약금 안내는 보낼 수 없습니다.");
-    Object.assign(notificationTemplateValues, {
-      예약금액: data.deposit.amount.toLocaleString("ko-KR"),
-      은행명: data.policy.bankName, 입금계좌: data.policy.bankAccount, 예금주: data.policy.bankHolder,
-      납부기한: new Date(data.deposit.dueAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
-      기한안내: data.deposit.releaseIfUnreported
-        ? "20분 안에 입금 신고가 없으면 예약이 취소되고 다른 고객이 해당 시간을 예약할 수 있습니다. 입금 신고 후에는 매장 확인을 기다려 주세요."
-        : "납부 기한과 예약 상태를 예약 확인 페이지에서 확인해 주세요.",
-    });
+    if (!data.policy.bankName || !data.policy.bankAccount || !data.policy.bankHolder) {
+      throw new Error("예약금 입금 계좌가 설정되지 않아 발송할 수 없습니다.");
+    }
+    Object.assign(notificationTemplateValues, buildDepositTemplateValues(data.policy, data.deposit));
   }
   const connectedTemplate = await getApprovedSsodaaNotificationTemplate(
     input.type,

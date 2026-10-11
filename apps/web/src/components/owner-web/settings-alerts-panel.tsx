@@ -1,9 +1,11 @@
 "use client";
 
 import { CircleHelp, MessageCircle } from "lucide-react";
+import type { BookingPolicy } from "@petmanager/shared/contracts/booking-preparation";
+import { publishBookingPolicyChange, subscribeBookingPolicyChange } from "@/lib/booking-policy-events";
 import Image from "next/image";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { SettingsRevisitReminderDefault } from "@/components/owner-web/settings-revisit-reminder-default";
 import { OwnerAlimtalkTemplateEditor } from "@/components/owner-web/owner-alimtalk-template-editor";
@@ -73,7 +75,7 @@ type AlertToggleKey = Exclude<
 >;
 
 type AlertItem = {
-  key: AlertToggleKey;
+  key: AlertToggleKey | "depositMode";
   title: string;
   type: NotificationType;
   role: string;
@@ -89,6 +91,7 @@ type AlimtalkTemplatePreview = {
   inspectionStatus: string | null;
   serviceStatus: string | null;
   source: "ssodaa_approved" | "draft";
+  sampleLabel?: string;
 };
 
 type AlimtalkTemplatePreviewResponse = {
@@ -130,6 +133,7 @@ function AlertHelp({
 }
 
 const alertItems: AlertItem[] = [
+  { key: "depositMode", title: "예약금 요청", type: "booking_deposit_request", role: "예약금 페이지와 같은 사용 설정입니다. 금액·계좌·기한은 예약금 설정에서 자동 입력합니다." },
   {
     key: "bookingConfirmedEnabled",
     title: "예약 확정",
@@ -195,6 +199,7 @@ const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; ite
     items: alertItems.filter((item) =>
       [
         "booking_confirmed",
+        "booking_deposit_request",
         "booking_cancelled",
         "revisit_notice",
       ].includes(item.type),
@@ -354,7 +359,7 @@ function KakaoAlimtalkPreview({
     <div className="min-w-0">
       <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[18px] font-medium leading-[26px] text-[#15213b]">실제 발송 미리보기</p>
+          <p className="text-[18px] font-medium leading-[26px] text-[#15213b]">발송 문안 미리보기</p>
           <p className="mt-1 text-[16px] font-normal leading-6 text-[#475569]">{item.title}</p>
         </div>
         <MessageCircle className="h-5 w-5 text-[#64748b]" />
@@ -364,7 +369,7 @@ function KakaoAlimtalkPreview({
         {loading
           ? "승인된 템플릿을 확인하고 있습니다."
           : preview?.source === "ssodaa_approved"
-            ? `승인된 템플릿에 ${shopName} 정보를 적용했습니다.`
+            ? preview.sampleLabel || "승인된 문안에 예시 예약 정보를 적용했습니다. 실제 발송 시 해당 예약 정보로 바뀝니다."
             : error || !preview
               ? "승인 템플릿을 찾지 못해 기본 문안을 보여드립니다. 기본 문안은 승인된 템플릿이 아닙니다."
               : "기본 문안 미리보기입니다. 검수 승인 전에는 알림톡으로 발송되지 않습니다."}
@@ -459,6 +464,27 @@ export default function SettingsAlertsPanel({
   const [templatesPageVisited, setTemplatesPageVisited] = useState(false);
   const [selectedAlertType, setSelectedAlertType] = useState<NotificationType>("appointment_reminder_10m");
   const [selectedTemplateAlias, setSelectedTemplateAlias] = useState<AlimtalkTemplateAlias>("appointment_reminder_10m");
+  const [depositPolicy, setDepositPolicy] = useState<{ shopId: string; policy: BookingPolicy; version: number } | null>(null);
+  const [depositSaving, setDepositSaving] = useState(false);
+  const [depositError, setDepositError] = useState("");
+  const depositReadVersion = useRef(0);
+  const currentDepositPolicy = depositPolicy?.shopId === shopId ? depositPolicy : null;
+  useEffect(() => {
+    let active = true;
+    const refresh = () => { const readVersion = ++depositReadVersion.current; void fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`, { cache: "no-store" }).then((result) => { if (active && readVersion === depositReadVersion.current) { setDepositPolicy({ shopId, ...result }); setDepositError(""); } }).catch((cause) => { if (active && readVersion === depositReadVersion.current) { setDepositPolicy(null); setDepositError(cause instanceof Error ? cause.message : "예약금 설정을 불러오지 못했습니다."); } }); };
+    refresh();
+    const unsubscribe = subscribeBookingPolicyChange(shopId, refresh);
+    return () => { active = false; unsubscribe(); };
+  }, [shopId]);
+  async function updateDepositMode(depositMode: BookingPolicy["depositMode"]) {
+    if (!currentDepositPolicy || depositSaving) return;
+    setDepositSaving(true); setDepositError("");
+    try {
+      const result = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ shopId, version: currentDepositPolicy.version, depositMode }) });
+      depositReadVersion.current++; setDepositPolicy({ shopId, ...result }); publishBookingPolicyChange(shopId);
+    } catch (cause) { setDepositError(cause instanceof Error ? cause.message : "예약금 설정을 저장하지 못했습니다."); }
+    finally { setDepositSaving(false); }
+  }
   const [templatePreviewState, setTemplatePreviewState] = useState<{
     shopId: string;
     previews: Partial<Record<NotificationType, AlimtalkTemplatePreview>>;
@@ -476,7 +502,7 @@ export default function SettingsAlertsPanel({
     alias: item.templateAlias,
     type: item.type,
     title: item.title,
-    group: item.templateAlias === "booking_consent_request"
+    group: ["booking_consent_request", "booking_deposit_request"].includes(item.templateAlias)
       ? "예약 전 준비"
       : ["booking_confirmed", "booking_cancelled", "revisit_notice"].includes(item.templateAlias)
         ? "예약 알림"
@@ -517,7 +543,7 @@ export default function SettingsAlertsPanel({
     return () => {
       cancelled = true;
     };
-  }, [activeAlertsPage, shopId]);
+  }, [activeAlertsPage, shopId, currentDepositPolicy?.version]);
 
   function update(key: AlertToggleKey, checked: boolean) {
     if (key === "appointmentReminder10mEnabled") {
@@ -684,14 +710,14 @@ export default function SettingsAlertsPanel({
           <div data-alerts-section="global" className="border-y border-[#e8edf3] bg-[#f8fafc] px-3 py-2">
             <div className="flex min-h-11 flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
               <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                <p className="min-w-0 break-words text-[18px] font-semibold leading-[26px] text-[#15213b]">알림톡 전체 사용</p>
-                <AlertHelp label="알림톡 전체 사용">
-                  끄면 예약 안내와 미용 진행 알림톡 발송이 전체 중지됩니다.
+                <p className="min-w-0 break-words text-[18px] font-semibold leading-[26px] text-[#15213b]">일반 예약·미용 알림 사용</p>
+                <AlertHelp label="일반 예약·미용 알림 사용">
+                  끄면 일반 예약 안내와 미용 진행 알림톡이 중지됩니다. 예약금 요청은 예약금 설정에서 관리합니다.
                 </AlertHelp>
               </div>
               <AlertSettingsSwitch
                 checked={value.enabled}
-                aria-label="알림톡 전체 사용"
+                aria-label="일반 예약·미용 알림 사용"
                 onCheckedChange={(checked) => onChange({ ...value, enabled: checked })}
               />
             </div>
@@ -747,6 +773,10 @@ export default function SettingsAlertsPanel({
               >
                 {group.items.map((item, itemIndex) => {
                   if (item.type === "revisit_notice") return null;
+                  if (item.key === "depositMode") return <div key={item.type} className="min-w-0 py-2 sm:col-span-2">
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><button type="button" onClick={() => setSelectedAlertType(item.type)} className="min-h-11 text-left text-[16px] font-medium text-[#475569]">예약금 사용</button><select aria-label="예약금 사용" value={currentDepositPolicy?.policy.depositMode ?? "off"} disabled={!currentDepositPolicy || depositSaving} onChange={(event) => { setSelectedAlertType(item.type); void updateDepositMode(event.target.value as BookingPolicy["depositMode"]); }} className="min-h-11 max-w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#15213b]"><option value="off">사용 안 함</option><option value="optional">예약별 선택</option><option value="required">대상 고객에게 필수</option></select></div>
+                    <p className="text-[13px] leading-5 text-[#64748b]">{depositSaving ? "예약금 설정을 저장하고 있습니다." : !currentDepositPolicy ? "예약금 설정 확인 중" : "예약금 페이지와 같은 설정입니다. 변경하면 즉시 저장됩니다."}</p>{depositError ? <p role="alert" className="text-[13px] leading-5 text-[#9a5e4e]">{depositError}</p> : null}
+                  </div>;
                   const reservationNotice = isReservationNoticeType(item.type);
                   const checked =
                     item.key === "appointmentReminder10mEnabled"
@@ -808,7 +838,7 @@ export default function SettingsAlertsPanel({
                               aria-label={`${item.title} 알림`}
                               onCheckedChange={(nextChecked) => {
                                 setSelectedAlertType(item.type);
-                                update(item.key, nextChecked);
+                                if (item.key !== "depositMode") update(item.key, nextChecked);
                               }}
                             />
                           </span>

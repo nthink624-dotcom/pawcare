@@ -1,4 +1,7 @@
 import { randomBytes } from "node:crypto";
+import { APPROVED_ALIMTALK_CONTRACTS } from "@petmanager/shared/contracts/alimtalk";
+import { buildDepositTemplateValues } from "@petmanager/shared/lib/deposit-template-values";
+import { readBookingPolicy } from "@/server/booking-preparation";
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 
@@ -18,12 +21,13 @@ const buttonRequiredAliases = new Set([
   "grooming_completed",
   "revisit_notice",
   "booking_consent_request",
+  "booking_deposit_request",
 ]);
 
 const templateSchema = z.object({
   shopId: z.string().trim().min(1).max(100),
   templateAlias: z.enum([
-    "booking_consent_request", "booking_confirmed", "booking_cancelled",
+    "booking_consent_request", "booking_deposit_request", "booking_confirmed", "booking_cancelled",
     "appointment_reminder_10m", "visit_schedule_notice", "visit_reminder_notice",
     "grooming_started", "grooming_almost_done", "grooming_completed",
     "grooming_completed_without_report", "revisit_notice",
@@ -40,12 +44,16 @@ const templateSchema = z.object({
     "예약시간변경토큰", "bookingRescheduleToken", "bookingRescheduleUrl", "길찾기링크",
     "방문전알림분", "방문전알림안내", "픽업예상분", "픽업예상시간", "픽업안내",
     "pickupReadyEtaMinutes", "pickupGuide",
+    ...APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request.variables,
   ]);
   const unknownVariables = Array.from(value.templateContent.matchAll(/#\{([^}]+)\}/g))
     .map((match) => match[1]?.trim() ?? "")
     .filter((variable) => variable && !allowedVariables.has(variable));
   if (unknownVariables.length > 0) {
     context.addIssue({ code: "custom", path: ["templateContent"], message: "사용할 수 없는 자동 입력 항목이 있습니다." });
+  }
+  if (value.templateAlias === "booking_deposit_request" && value.templateContent !== APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request.body) {
+    context.addIssue({ code: "custom", path: ["templateContent"], message: "예약금 요청은 입금 계좌와 기한 안내가 포함된 기본 문안을 사용해 주세요." });
   }
 });
 
@@ -105,9 +113,7 @@ export async function GET(request: NextRequest) {
       const provider = catalog.find((item) => item.templateCode === row.template_code);
       if (!provider || row.inspection_status === "draft") return row;
       const serviceStatus = String(provider.serviceStatus ?? "unknown").toLowerCase();
-      const nextStatus = ["act", "rdy", "active", "ready"].includes(serviceStatus)
-        ? "approved"
-        : inspectionState(provider.inspectionStatus);
+      const nextStatus = inspectionState(provider.inspectionStatus);
       if (nextStatus === row.inspection_status && serviceStatus === row.service_status) return row;
       const update = await admin.from("shop_alimtalk_template_requests").update({
         inspection_status: nextStatus,
@@ -123,7 +129,8 @@ export async function GET(request: NextRequest) {
       owner.shopId,
     );
 
-    return Response.json({ templates: synced, categories, buttonDefaults });
+    const { policy } = await readBookingPolicy(owner.shopId);
+    return Response.json({ templates: synced, categories, buttonDefaults, previewValues: buildDepositTemplateValues(policy) });
   } catch (error) {
     const status = error instanceof OwnerApiError ? error.status : 500;
     return Response.json({ message: error instanceof OwnerApiError ? error.message : "매장 템플릿을 불러오지 못했습니다." }, { status });

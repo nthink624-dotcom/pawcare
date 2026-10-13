@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight, PawPrint } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -87,32 +87,32 @@ export default function CustomerManagementTable({
 
   return (
     <>
-      <div className="hidden h-full overflow-auto md:block">
-        <table className="w-full min-w-[1000px] table-fixed border-collapse text-center text-[16px] leading-6 [&_th]:align-middle [&_td]:align-middle">
+      <div className="hidden h-full overflow-auto bg-[#fafbfD] px-3 pb-3 md:block">
+        <table data-customer-management-table className="w-full min-w-[1080px] table-fixed border-separate border-spacing-x-0 border-spacing-y-2 text-center text-[16px] font-normal leading-6 [&_th]:align-middle [&_td]:align-middle [&_td:first-child]:rounded-l-[14px] [&_td:last-child]:rounded-r-[14px]">
           <colgroup>
             {deleteMode ? <col className="w-14" /> : null}
-            <col className="w-[9%]" />
+            <col className="w-[11%]" />
             <col className="w-[15%]" />
             <col className="w-[12%]" />
             <col className="w-[11%]" />
-            <col className="w-[13%]" />
+            <col className="w-[12%]" />
             <col />
             <col className="w-[8%]" />
-            <col className="w-[13%]" />
+            <col className="w-[12%]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[#f4f5f3] text-[#4f5a64]">
-            <tr className="border-b border-[#dbe2ea]">
+          <thead className="sticky top-0 z-10 bg-[#fafbfd] text-[14px] leading-5 text-[#526079] [&_th]:h-14 [&_th]:bg-[#edf2f8] [&_th:first-child]:rounded-l-[14px] [&_th:last-child]:rounded-r-[14px] [&_svg]:shrink-0 [&_svg]:text-[#7387a2]">
+            <tr>
               {deleteMode ? <th className="w-14 px-2 py-0" aria-label="선택" /> : null}
-              <th scope="col" className="px-2 py-0 font-medium">
-                <button type="button" onClick={onSortByName} className="inline-flex min-h-11 items-center justify-center text-center hover:text-[#1f6b5b]"><span className="text-[16px] leading-6">고객명</span></button>
+              <th scope="col" className="px-2 py-0 text-center font-medium">
+                <button type="button" aria-label="고객명으로 정렬" data-owner-control-size="content" onClick={onSortByName} className="inline-flex min-h-11 items-center justify-center rounded-[10px] px-2 text-center text-[14px] font-medium leading-5 transition-colors hover:bg-white hover:text-[#15213b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">고객명</button>
               </th>
-              <th scope="col" className="px-2 py-0 font-medium">연락처</th>
-              <th scope="col" className="px-2 py-0 font-medium">반려동물 이름</th>
-              <th scope="col" className="px-2 py-0 font-medium">반려동물 나이</th>
-              <th scope="col" className="px-2 py-0 font-medium">최근 방문일</th>
-              <th scope="col" className="px-2 py-0 font-medium">최근 받은 서비스</th>
-              <th scope="col" className="px-2 py-0 font-medium">고객 등급</th>
-              <th scope="col" className="px-2 py-0 font-medium">등록일</th>
+              <th scope="col" className="px-3 py-2 text-center font-medium">연락처</th>
+              <th scope="col" className="px-3 py-2 text-center font-medium">반려동물 이름</th>
+              <th scope="col" className="px-2 py-2 font-medium">반려동물 나이</th>
+              <th scope="col" className="px-2 py-2 font-medium">최근 방문일</th>
+              <th scope="col" className="px-2 py-2 font-medium">최근 받은 서비스</th>
+              <th scope="col" className="px-2 py-2 font-medium">고객 등급</th>
+              <th scope="col" className="px-2 py-2 font-medium">등록일</th>
             </tr>
           </thead>
           <tbody>
@@ -131,19 +131,19 @@ export default function CustomerManagementTable({
                     }
                   }}
                   className={cn(
-                    "h-[58px] cursor-pointer border-b border-[#edf2f7] text-[#334155] outline-none transition focus-visible:bg-[#eef5ff]",
-                    selectedId === row.id ? "bg-[#f8fafc]" : "bg-white hover:bg-[#fbfcfd]",
+                    "h-[60px] cursor-pointer text-[#475569] outline-none transition-colors focus-visible:bg-[#eef5ff] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]",
+                    selectedId === row.id ? "bg-[#edf4fc]" : "bg-white hover:bg-[#f0f5fc]",
                   )}
                 >
                   {deleteMode ? <td className="px-2"><SelectionControl checked={checked} onToggle={() => onToggleDelete(row.id)} /></td> : null}
-                  <td className="truncate px-2 font-medium text-[#17243c]">{row.name}</td>
-                  <td className="truncate px-2 tabular-nums">{formatPhoneNumber(row.phone)}</td>
-                  <td className="truncate px-2">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</td>
-                  <td className="truncate px-2">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</td>
-                  <td className="truncate px-2 tabular-nums">{row.recentVisitDate || "미방문"}</td>
-                  <td className="break-words px-2 py-2" title={row.recentService || undefined}>{row.recentService || (row.recentVisitDate ? "미등록" : "미방문")}</td>
-                  <td className="px-2"><span className={cn("inline-flex min-h-6 items-center rounded-full border px-2 text-[16px] font-medium leading-6", row.customerGrade === "단골" ? "border-[#d6e8e2] bg-[#f3faf7] text-[#1f6b5b]" : "border-[#e2e8f0] bg-[#f8fafc] text-[#475569]")}>{row.customerGrade}</span></td>
-                  <td className="truncate px-2 tabular-nums">{row.registeredAt}</td>
+                  <td className="truncate px-2 py-3 text-center text-[16px] font-medium leading-6 text-[#15213b]" title={row.name}>{row.name}</td>
+                  <td className={cn("truncate px-3 text-center tabular-nums", !row.phone && "text-[#64748b]")}>{formatPhoneNumber(row.phone)}</td>
+                  <td className="px-3 text-center font-normal text-[#334155]" title={row.pets.map((pet) => pet.name).join(", ")}><span className="flex min-w-0 items-center justify-center gap-2"><span aria-hidden="true" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5f0e9] text-[#87664a]"><PawPrint className="h-4 w-4" strokeWidth={1.7} /></span><span className="truncate">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</span></span></td>
+                  <td className={cn("truncate px-2", !row.pets.some((pet) => pet.birthday) && "text-[#64748b]")}>{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</td>
+                  <td className={cn("truncate px-2 tabular-nums", !row.recentVisitDate && "text-[#64748b]")}>{row.recentVisitDate || "미방문"}</td>
+                  <td className={cn("break-words px-2 py-3", !row.recentService && "text-[#64748b]")} title={row.recentService || undefined}>{row.recentService || (row.recentVisitDate ? "미등록" : "미방문")}</td>
+                  <td className="px-2"><span className={cn("inline-flex min-h-8 items-center rounded-full px-3 py-1 text-[16px] font-normal leading-6", row.customerGrade === "단골" ? "bg-[#edf6f2] text-[#1f6b5b]" : row.customerGrade === "신규" ? "bg-[#eff4fa] text-[#476184]" : "bg-[#f1f3f6] text-[#64748b]")}>{row.customerGrade}</span></td>
+                  <td className="truncate px-2 tabular-nums text-[#64748b]">{row.registeredAt}</td>
                 </tr>
               );
             })}
@@ -151,25 +151,25 @@ export default function CustomerManagementTable({
         </table>
       </div>
 
-      <div className="h-full space-y-2 overflow-y-auto p-3 md:hidden">
+      <div className="h-full space-y-3 overflow-y-auto bg-[#f8fafc] p-3 md:hidden">
         {rows.map((row) => {
           const checked = selectedDeleteIds.includes(row.id);
           return (
-            <article key={row.id} className={cn("rounded-[10px] border p-3", selectedId === row.id ? "border-[#bfd2ea] bg-[#f8fbff]" : "border-[#dbe2ea] bg-white")}>
+            <article key={row.id} className={cn("rounded-[14px] border p-4", selectedId === row.id ? "border-[#b8c8d9] bg-[#f8fbff]" : "border-[#e8edf3] bg-white")}>
               <div className="flex items-start gap-2">
                 {deleteMode ? <SelectionControl checked={checked} onToggle={() => onToggleDelete(row.id)} /> : null}
-                <button type="button" onClick={() => onOpen(row.id)} className="relative min-h-11 min-w-0 flex-1 px-5 text-center">
-                  <span className="flex items-center justify-center gap-3">
+                <button type="button" onClick={() => onOpen(row.id)} className="relative min-h-11 min-w-0 flex-1 rounded-md pr-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">
+                  <span className="flex items-center gap-3">
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 break-keep text-[16px] font-medium leading-6 text-[#17243c] [overflow-wrap:anywhere]">{row.name}</span>
-                      <span className={cn("inline-flex min-h-6 shrink-0 items-center rounded-full border px-2 text-[16px] font-medium leading-6", row.customerGrade === "단골" ? "border-[#d6e8e2] bg-[#f3faf7] text-[#1f6b5b]" : "border-[#e2e8f0] bg-[#f8fafc] text-[#475569]")}>{row.customerGrade}</span>
+                      <span className={cn("inline-flex min-h-6 shrink-0 items-center rounded-md px-2 text-[13px] font-medium leading-5", row.customerGrade === "단골" ? "bg-[#edf6f2] text-[#1f6b5b]" : row.customerGrade === "신규" ? "bg-[#eff4fa] text-[#476184]" : "bg-[#f1f3f6] text-[#64748b]")}>{row.customerGrade}</span>
                     </span>
                     <ChevronRight className="absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                   </span>
                   <span className="mt-1 block truncate text-[16px] leading-6 font-normal text-[#475569]">{formatPhoneNumber(row.phone)}</span>
                 </button>
               </div>
-              <dl className="mt-2 grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 border-t border-[#edf2f7] pt-2 text-center text-[16px] leading-6">
+              <dl className="mt-3 grid min-w-0 grid-cols-2 gap-x-4 gap-y-3 border-t border-[#edf2f7] pt-3 text-left text-[16px] leading-6 [&_dt]:text-[14px] [&_dt]:leading-5">
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 이름</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</dd></div>
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 나이</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</dd></div>
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">최근 방문일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentVisitDate || "미방문"}</dd></div>

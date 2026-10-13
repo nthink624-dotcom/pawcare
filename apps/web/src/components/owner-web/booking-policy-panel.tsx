@@ -95,6 +95,11 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
   const policyDirty = useRef(false);
   const policyReadVersion = useRef(0);
   const [depositBeforeEdit, setDepositBeforeEdit] = useState<Partial<BookingPolicy> | null>(null);
+  useEffect(() => {
+    setDepositBeforeEdit(null);
+    policyDirty.current = false;
+    policyReadVersion.current++;
+  }, [shopId]);
   const [consentDraft, setConsentDraft] = useState<ConsentDraft | null>(null);
   const [selectedConsentId, setSelectedConsentId] = useState<string | null>(null);
   useEffect(() => { let active = true; setLoaded(false); fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`).then(r => { if (active) { const nextPolicy = ensureDefaultConsent(r.policy); setPolicy(nextPolicy); setVersion(r.version); setLoaded(true); setMessage(""); const first = nextPolicy.templates[0]; setSelectedConsentId(first?.id ?? null); setConsentDraft(first ? { templateId: first.id, title: first.title, body: first.body } : null); } }).catch(e => { if (active) setMessage(e.message); }); return () => { active = false; }; }, [shopId]);

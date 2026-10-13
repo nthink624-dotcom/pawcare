@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { assertDepositNotificationValues } from "@/server/deposit-notification-validation";
 import { buildDepositTemplateValues } from "@petmanager/shared/lib/deposit-template-values";
 import type { BookingPreparation } from "@petmanager/shared/contracts/booking-preparation";
 
@@ -853,7 +854,9 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       .select("data").eq("shop_id", input.shopId).eq("appointment_id", appointment.id).maybeSingle();
     if (!preparation || preparation.error || !preparation.data) throw new Error("예약금 요청 정보를 확인할 수 없습니다.");
     const data = preparation.data.data as BookingPreparation;
+    assertDepositNotificationValues(data);
     if (!["pending", "reported"].includes(data.deposit.status) || !data.deposit.dueAt
+      || !Number.isFinite(Date.parse(data.deposit.dueAt))
       || Date.parse(data.deposit.dueAt) <= Date.now()) throw new Error("납부 기한이 지난 예약금 안내는 보낼 수 없습니다.");
     if (!data.policy.bankName || !data.policy.bankAccount || !data.policy.bankHolder) {
       throw new Error("예약금 입금 계좌가 설정되지 않아 발송할 수 없습니다.");

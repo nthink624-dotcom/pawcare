@@ -111,6 +111,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     setPolicy(p => ({ ...p, [key]: value })); setMessage("");
   }
   async function save(nextPolicy: BookingPolicy = policy): Promise<boolean> {
+    if (tab === "deposit") nextPolicy = { ...nextPolicy, depositMode: nextPolicy.depositMode === "off" ? "off" : "optional", depositAudience: "all" };
     setBusy(true); setMessage("");
     try { const r = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PUT", body: JSON.stringify({ shopId, policy: nextPolicy, version }), headers: { "Content-Type": "application/json" } }); policyReadVersion.current++; setPolicy(ensureDefaultConsent(r.policy)); setVersion(r.version); setDepositBeforeEdit(null); policyDirty.current = false; publishBookingPolicyChange(shopId); setMessage(""); return true; }
     catch (e) { setMessage(e instanceof Error ? e.message : "저장하지 못했습니다."); return false; } finally { setBusy(false); }
@@ -197,27 +198,32 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     <fieldset disabled={!loaded || busy || !editable} aria-busy={!loaded && !message} className={`min-w-0 space-y-4 ${tab !== "noshow" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
       {tab === "deposit" && <div data-deposit-editor className="grid min-h-[440px] gap-5 lg:min-h-[max(560px,calc(100dvh-260px))] lg:grid-cols-[minmax(220px,0.29fr)_minmax(0,0.71fr)] xl:flex-1">
         <aside className="overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white">
-          <h3 className="flex min-h-[58px] items-center border-b border-[#edf0f4] px-5 font-semibold">예약금 관리</h3>
-          <nav aria-label="예약금 설정 항목" className="py-2">{[["settings", "예약금 설정"], ["notice", "납부 안내"], ["refund", "취소·환불 안내"]].map(([id, title]) => <button key={id} type="button" data-owner-control-size="content" aria-pressed={depositSection === id} onClick={() => setDepositSection(id)} className={`flex min-h-[52px] w-full items-center px-5 py-3 text-left text-[16px] font-medium leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${depositSection === id ? "bg-[#f5f4ff] text-[#15213b]" : "text-slate-600 hover:bg-slate-50"}`}>{title}</button>)}</nav>
+          <div className="flex min-h-[58px] flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-[#edf0f4] px-5 py-2">
+            <h3 className="font-semibold">예약금 관리</h3>
+            <button type="button" role="switch" aria-label="예약금 사용" aria-checked={policy.depositMode !== "off"} data-owner-control-size="content" onClick={() => {
+              change("depositMode", policy.depositMode === "off" ? "optional" : "off");
+            }} className="flex min-h-11 items-center gap-2 rounded-[8px] text-[14px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-50">
+              <span>예약금 사용</span>
+              <span className={`rounded-full px-2 py-1 text-[12px] leading-[18px] ${policy.depositMode !== "off" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>{policy.depositMode !== "off" ? "켜짐" : "꺼짐"}</span>
+              <span aria-hidden="true" className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full ${policy.depositMode !== "off" ? "bg-[#1976ff]" : "bg-slate-300"}`}><span className={`h-5 w-5 rounded-full bg-white transition-transform motion-reduce:transition-none ${policy.depositMode !== "off" ? "translate-x-6" : "translate-x-1"}`} /></span>
+            </button>
+          </div>
+          <nav aria-label="예약금 설정 항목" className="py-2">{[["settings", "예약금 설정"], ["refund", "취소·환불 안내"]].map(([id, title]) => <button key={id} type="button" data-owner-control-size="content" aria-pressed={depositSection === id} onClick={() => setDepositSection(id)} className={`flex min-h-[52px] w-full items-center px-5 py-3 text-left text-[16px] font-medium leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${depositSection === id ? "bg-[#f5f4ff] text-[#15213b]" : "text-slate-600 hover:bg-slate-50"}`}>{title}</button>)}</nav>
+          {policy.depositMode === "off" && <div className="flex flex-wrap justify-end gap-3 border-t border-[#edf0f4] px-5 py-3">
+            <button type="button" data-owner-control-size="content" disabled={!depositBeforeEdit || busy} onClick={() => { if (depositBeforeEdit) setPolicy(current => ({ ...current, ...depositBeforeEdit })); setDepositBeforeEdit(null); setMessage(""); }} className="min-h-11 rounded-[10px] border border-[#e1e4ea] px-4 text-[16px] text-slate-600 disabled:opacity-50">취소</button>
+            <button type="button" data-owner-control-size="content" onClick={() => void save()} className="min-h-11 rounded-[10px] bg-[#1976ff] px-5 text-[16px] font-medium text-white">{busy ? "저장 중" : "저장"}</button>
+          </div>}
         </aside>
-        <section className="flex min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white">
-          <header className="flex min-h-[58px] items-center border-b border-[#edf0f4] px-5 py-3"><h3 className="text-[20px] font-semibold leading-7">{depositSection === "settings" ? "예약금 설정" : depositSection === "notice" ? "납부 안내" : "취소·환불 안내"}</h3></header>
+        {policy.depositMode !== "off" && <section className="flex min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white">
+          <header className="flex min-h-[58px] items-center border-b border-[#edf0f4] px-5 py-3"><h3 className="text-[20px] font-semibold leading-7">{depositSection === "settings" ? "예약금 설정" : "취소·환불 안내"}</h3></header>
           <div className="flex-1 space-y-6 px-5 py-5 text-[16px] font-normal leading-6 [&_input]:min-h-11 [&_select]:min-h-11">
           {depositSection === "settings" && <>
-        <div className="grid gap-4 sm:grid-cols-2"><Label title="예약금 사용"><select className={field} value={policy.depositMode} onChange={e => change("depositMode", e.target.value as BookingPolicy["depositMode"])}><option value="off">사용 안 함</option><option value="optional">예약별 선택</option><option value="required">대상 고객에게 필수</option></select></Label><Label title="적용 고객"><select className={field} value={policy.depositAudience} onChange={e => change("depositAudience", e.target.value as BookingPolicy["depositAudience"])}><option value="all">전체 고객</option><option value="new">첫 방문 고객</option><option value="noshow">노쇼 이력 고객</option></select></Label>
-          <Label title="예약금 (원)"><input className={field} type="number" min={1} value={policy.depositAmount} onChange={e => change("depositAmount", Number(e.target.value))} /></Label><Label title="입금 신고 기한"><input className={field} value="예약금 요청 후 20분" readOnly /></Label></div>
-        <div className="grid gap-4 sm:grid-cols-3">{[["bankName", "은행"], ["bankAccount", "입금 계좌"], ["bankHolder", "예금주"]].map(([key, title]) => <Label key={key} title={title}><input className={field} value={policy[key as "bankName" | "bankAccount" | "bankHolder"]} onChange={e => change(key as "bankName" | "bankAccount" | "bankHolder", e.target.value)} /></Label>)}</div>
-          </>}
-          {depositSection === "notice" && <>
-            <p className="text-[13px] leading-5 text-slate-500">입력한 설정 미리보기 · 실제 알림톡 문구는 알림설정에서 관리합니다.</p>
-            <dl className="divide-y divide-[#edf0f4] rounded-[14px] bg-[#f8fafc] px-5 [&>div]:grid [&>div]:grid-cols-[96px_minmax(0,1fr)] [&>div]:gap-3 [&>div]:py-4 [&_dt]:text-slate-500 [&_dd]:break-words">
-              <div><dt>예약금</dt><dd>{policy.depositAmount.toLocaleString()}원</dd></div>
-              <div><dt>은행</dt><dd>{policy.bankName || "미입력"}</dd></div>
-              <div><dt>입금 계좌</dt><dd>{policy.bankAccount || "미입력"}</dd></div>
-              <div><dt>예금주</dt><dd>{policy.bankHolder || "미입력"}</dd></div>
-              <div><dt>입금 신고 기한</dt><dd>예약금 요청 후 20분</dd></div>
-            </dl>
-            <p className="text-slate-600">보호자가 20분 안에 입금 신고를 하면 오너 확인까지 예약 시간을 유지합니다. 신고 없이 기한이 지나면 예약을 취소하고 해당 시간을 해제합니다.</p>
+            <div className="divide-y divide-[#edf0f4] rounded-[14px] bg-[#f8fafc] px-4 sm:px-5 [&>label]:grid [&>label]:min-w-0 [&>label]:items-center [&>label]:gap-2 [&>label]:py-4 sm:[&>label]:grid-cols-[112px_minmax(0,1fr)] sm:[&>label]:gap-4">
+              <label><span className="text-slate-600">예약금</span><span className="flex min-w-0 items-center gap-3"><input aria-label="예약금 (원)" className={`${field} max-w-[480px]`} type="number" min={1} value={policy.depositAmount} onChange={e => change("depositAmount", Number(e.target.value))} /><span>원</span></span></label>
+              {[["bankName", "은행"], ["bankAccount", "입금 계좌"], ["bankHolder", "예금주"]].map(([key, title]) => <label key={key}><span className="text-slate-600">{title}</span><input className={`${field} max-w-[480px]`} placeholder={`${title} 입력`} value={policy[key as "bankName" | "bankAccount" | "bankHolder"]} onChange={e => change(key as "bankName" | "bankAccount" | "bankHolder", e.target.value)} /></label>)}
+              <label><span className="text-slate-600">입금 신고 기한</span><span className="flex min-w-0 flex-wrap items-center gap-3"><span>요청 후</span><input aria-label="입금 신고 기한 (분)" className={`${field} max-w-[160px]`} type="number" min={1} max={1440} step={1} value={policy.depositHoldMinutes ?? 20} onChange={e => change("depositHoldMinutes", Number(e.target.value))} /><span>분</span></span></label>
+            </div>
+            <p className="text-slate-600">1~1,440분으로 설정할 수 있으며 예약 시작 시각을 넘기지 않습니다. 기한 안에 입금 신고를 하면 오너 확인까지 예약 시간을 유지하고, 신고 없이 기한이 지나면 예약을 취소합니다.</p>
           </>}
           {depositSection === "refund" && <>
             <Label title="고객 직접 취소 마감 (예약 시작 전 시간)"><input className={field} type="number" min={0} max={720} value={policy.cancellationCutoffHours} onChange={e => change("cancellationCutoffHours", Number(e.target.value))} /></Label>
@@ -229,7 +235,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
             <button type="button" data-owner-control-size="content" disabled={!depositBeforeEdit || busy} onClick={() => { if (depositBeforeEdit) setPolicy(current => ({ ...current, ...depositBeforeEdit })); setDepositBeforeEdit(null); setMessage(""); }} className="min-h-11 rounded-[10px] border border-[#e1e4ea] px-4 text-[16px] text-slate-600 disabled:opacity-50">취소</button>
             <button type="button" data-owner-control-size="content" onClick={() => void save()} className="min-h-11 rounded-[10px] bg-[#1976ff] px-5 text-[16px] font-medium text-white">{busy ? "저장 중" : "저장"}</button>
           </footer>
-        </section>
+        </section>}
       </div>}
       {tab === "consent" && <>
         <div className="space-y-4 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
@@ -238,8 +244,8 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
               <div className="flex min-h-[58px] shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[#edf0f4] px-4 py-2 sm:px-5">
                 <h3 className="font-semibold">동의서 양식</h3>
                 <label className={`flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 ${editable && !busy ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
-                  <span className="text-[14px] font-medium">미용 전 필수 서명</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[13px] font-semibold ${policy.consentBeforeStart ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-600"}`}>{policy.consentBeforeStart ? "켜짐" : "꺼짐"}</span>
+                  <span className="text-[16px] font-medium leading-6">미용 전 필수 서명</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[16px] font-medium leading-6 ${policy.consentBeforeStart ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-600"}`}>{policy.consentBeforeStart ? "켜짐" : "꺼짐"}</span>
                   <input type="checkbox" className="peer sr-only" aria-label="미용 전 필수 서명 설정" checked={policy.consentBeforeStart} disabled={busy || !editable} onChange={e => void save({ ...policy, consentBeforeStart: e.target.checked })} />
                   <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-full bg-slate-300 transition-colors after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-[#1976ff] peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#1976ff] peer-disabled:opacity-50" />
                 </label>

@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { depositHoldDeadline, expireUnreportedDeposits } from "../../src/server/booking-deposit-hold.ts";
+
+test("owner-configured minutes apply within the visit boundary", () => {
+  const at = Date.parse("2026-10-12T01:00:00Z");
+  assert.equal(depositHoldDeadline("2026-10-12T03:00:00Z", at, 60), new Date(at + 3600000).toISOString());
+  assert.equal(depositHoldDeadline("2026-10-12T01:05:00Z", at, 60), new Date(at + 300000).toISOString());
+  for (const minutes of [0, -1, 1.5, 1441, NaN]) assert.throws(() => depositHoldDeadline("2026-10-12T03:00:00Z", at, minutes));
+});
 test("request deadline is twenty minutes and cannot extend past the visit", () => {
   const at=Date.parse('2026-10-12T10:00:00+09:00');
   assert.equal(depositHoldDeadline('2026-10-12T12:00:00+09:00',at),new Date(at+1200000).toISOString());

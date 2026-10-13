@@ -6,6 +6,10 @@ import { buildDepositTemplateValues } from "@petmanager/shared/lib/deposit-templ
 import { fillNotificationTemplate } from "../../src/lib/notification-registry.ts";
 
 const policy = { ...DEFAULT_BOOKING_POLICY, bankName: "테스트은행", bankAccount: "TEST-123", bankHolder: "테스트매장" };
+test("custom deadline preview and legacy default agree", () => {
+  assert.match(buildDepositTemplateValues({ ...policy, depositHoldMinutes: 60 }).납부기한, /60분/);
+  assert.match(buildDepositTemplateValues({ ...policy, depositHoldMinutes: undefined }).납부기한, /20분/);
+});
 test("deposit preview uses saved account values and explicitly labels a sample deadline", () => {
   const values = buildDepositTemplateValues(policy);
   const body = fillNotificationTemplate(APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request.body, { ...values, 매장명: "테스트매장", 보호자명: "예시", 반려동물명: "예시", 예약일시: "예시" });

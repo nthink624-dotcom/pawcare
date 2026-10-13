@@ -10,7 +10,8 @@ export type ConsentTemplate = {
 export type BookingPolicy = {
   depositMode: "off" | "optional" | "required";
   depositAudience: "all" | "new" | "noshow";
-  depositAmount: number; depositDueHours: number; // Legacy storage field; new requests use DEPOSIT_HOLD_MINUTES.
+  depositAmount: number; depositDueHours: number; // Legacy storage field, retained for compatibility.
+  depositHoldMinutes?: number; // Missing legacy values default to 20; integer 1..1440.
   bankName: string; bankAccount: string; bankHolder: string;
   cancellationCutoffHours: number; cancellationNotice: string;
   firstNoshowRule: NextBookingRule; repeatNoshowRule: NextBookingRule;
@@ -18,7 +19,7 @@ export type BookingPolicy = {
 };
 export const DEFAULT_BOOKING_CONSENT_ID = "00000000-0000-4000-8000-000000000001";
 export const DEFAULT_BOOKING_POLICY: BookingPolicy = {
-  depositMode: "off", depositAudience: "all", depositAmount: 20000, depositDueHours: 24,
+  depositMode: "off", depositAudience: "all", depositAmount: 20000, depositDueHours: 24, depositHoldMinutes: DEPOSIT_HOLD_MINUTES,
   bankName: "", bankAccount: "", bankHolder: "", cancellationCutoffHours: 2,
   cancellationNotice: "취소 가능 시간이 지난 경우 매장에 문의해 주세요.",
   firstNoshowRule: "approval", repeatNoshowRule: "approval", consentBeforeStart: false, templates: [],
@@ -48,7 +49,7 @@ export type BookingPreparation = {
   history: Array<{ action: string; at: string; actor: string; note: string }>;
   requests: Array<{ id: string; at: string; purposes: string[]; status: "sending" | "queued" | "blocked" | "sent" | "failed"; reason: string; consentVersions?: Record<string, number> }>;
 };
-export type PublicBookingPolicy = Pick<BookingPolicy, "depositMode" | "depositAudience" | "depositAmount" | "cancellationCutoffHours" | "cancellationNotice" | "firstNoshowRule" | "repeatNoshowRule">;
+export type PublicBookingPolicy = Pick<BookingPolicy, "depositMode" | "depositAudience" | "depositAmount" | "depositHoldMinutes" | "cancellationCutoffHours" | "cancellationNotice" | "firstNoshowRule" | "repeatNoshowRule">;
 export type PreparationResponse = {
   appointmentId: string; shopId: string; guardianId: string; petId: string;
   appointmentStatus: string; startAt: string; version: number; data: BookingPreparation;

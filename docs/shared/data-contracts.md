@@ -1,5 +1,9 @@
 # PetManager PC/Mobile Data Contracts
 
+## Configurable deposit deadline (2026-10-13)
+
+`BookingPolicy.depositHoldMinutes` is an optional integer 1..1440, defaulting to 20 for legacy records. Owner PUT validates it; public policy GET exposes it. New request deadlines use the saved preparation policy and are capped at appointment start. Existing dueAt values are never rewritten. Apply 20261013133107_configurable_deposit_deadline.sql before the web release. Missing deposit payment values block dispatch.
+
 예약금·서명 동의서·노쇼 조건 공통 계약: [booking-preparation-contract.md](booking-preparation-contract.md). 로컬 구현이며 원격 적용 전 단계.
 
 _Last updated: 2026-09-08_

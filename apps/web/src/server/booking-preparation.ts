@@ -16,6 +16,7 @@ const rule = z.enum(["normal", "approval", "deposit", "blocked"]);
 export const bookingPolicySchema = z.object({
   depositMode: z.enum(["off", "optional", "required"]), depositAudience: z.enum(["all", "new", "noshow"]),
   depositAmount: z.number().int().min(1).max(10000000), depositDueHours: z.number().int().min(1).max(720),
+  depositHoldMinutes: z.number().int().min(1).max(1440).default(20),
   bankName: z.string().trim().max(50), bankAccount: z.string().trim().max(60), bankHolder: z.string().trim().max(50),
   cancellationCutoffHours: z.number().int().min(0).max(720), cancellationNotice: z.string().trim().max(3000),
   firstNoshowRule: rule, repeatNoshowRule: rule, consentBeforeStart: z.boolean(),
@@ -322,7 +323,7 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       if (!["not_requested", "cancelled"].includes(deposit.status)) throw new OwnerApiError("이미 요청되었거나 확인된 예약금입니다.", 409);
       if (!data.policy.bankAccount || !data.policy.bankHolder || data.policy.depositMode === "off") throw new OwnerApiError("매장 예약금 설정을 먼저 확인해 주세요.");
       deposit.status = "pending";
-      deposit.dueAt = depositHoldDeadline(current.startAt);
+      deposit.dueAt = depositHoldDeadline(current.startAt, Date.now(), data.policy.depositHoldMinutes);
       deposit.releaseIfUnreported = true;
       if (Date.parse(deposit.dueAt) <= Date.now()) throw new OwnerApiError("납부 기한을 확보할 수 없습니다. 매장에 문의해 주세요.");
       break;

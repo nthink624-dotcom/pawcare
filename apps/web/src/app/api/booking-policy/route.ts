@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const r = await readOptionalBookingPolicy(shopId);
     const policy = r ? {
       depositMode: r.policy.depositMode, depositAudience: r.policy.depositAudience, depositAmount: r.policy.depositAmount,
+      depositHoldMinutes: r.policy.depositHoldMinutes ?? 20,
       cancellationCutoffHours: r.policy.cancellationCutoffHours, cancellationNotice: r.policy.cancellationNotice,
       firstNoshowRule: r.policy.firstNoshowRule, repeatNoshowRule: r.policy.repeatNoshowRule,
     } : null;

@@ -201,9 +201,14 @@ const alertItems: AlertItem[] = [
   },
 ];
 
-type AlertGroupKey = "reservation" | "reservationPrep" | "reservationGuide" | "grooming";
+type AlertGroupKey = "reservation" | "reservationPrep" | "reservationGuide" | "grooming" | "revisit";
 
 const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; items: AlertItem[] }> = [
+  {
+    key: "reservationPrep",
+    title: "예약 준비",
+    items: ["booking_deposit_request", "booking_consent_request"].flatMap(type => alertItems.filter(item => item.type === type)),
+  },
   {
     key: "reservation",
     title: "\uC608\uC57D",
@@ -211,27 +216,15 @@ const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; ite
       [
         "booking_confirmed",
         "booking_cancelled",
-        "revisit_notice",
       ].includes(item.type),
     ),
-  },
-  {
-    key: "reservationPrep",
-    title: "예약 전 준비",
-    items: alertItems.filter((item) => ["booking_consent_request", "booking_deposit_request"].includes(item.type)),
   },
   {
     key: "reservationGuide",
     title: "\uC608\uC57D\uC548\uB0B4",
     help:
       "\uC608\uC57D \uC2DC\uC810\uC5D0 \uB530\uB77C \uC9C1\uC804, \uC624\uB298, \uB0B4\uC77C \uC548\uB0B4 \uC911 \uD544\uC694\uD55C \uC548\uB0B4\uB9CC \uD55C \uBC88 \uBC1C\uC1A1\uB429\uB2C8\uB2E4.",
-    items: alertItems.filter((item) =>
-      [
-        "appointment_reminder_10m",
-        "visit_reminder_notice",
-        "visit_schedule_notice",
-      ].includes(item.type),
-    ),
+    items: ["visit_schedule_notice", "visit_reminder_notice", "appointment_reminder_10m"].flatMap(type => alertItems.filter(item => item.type === type)),
   },
   {
     key: "grooming",
@@ -239,6 +232,11 @@ const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; ite
     items: alertItems.filter((item) =>
       ["groomingStartedEnabled", "groomingAlmostDoneEnabled", "groomingCompletedEnabled"].includes(item.key),
     ),
+  },
+  {
+    key: "revisit",
+    title: "재예약 안내",
+    items: alertItems.filter(item => item.type === "revisit_notice"),
   },
 ];
 
@@ -447,6 +445,18 @@ export default function SettingsAlertsPanel({
       const result = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shopId, version: currentDepositPolicy.version, depositMode }) });
       depositReadVersion.current++; setDepositPolicy({ shopId, ...result }); publishBookingPolicyChange(shopId);
     } catch (cause) { setDepositError(cause instanceof Error ? cause.message : "예약금 설정을 저장하지 못했습니다."); }
+    finally { setDepositSaving(false); }
+  }
+  async function updateConsentBeforeStart(consentBeforeStart: boolean) {
+    if (!currentDepositPolicy || depositSaving) return;
+    setDepositSaving(true); setDepositError("");
+    try {
+      const result = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopId, version: currentDepositPolicy.version, policy: { ...currentDepositPolicy.policy, consentBeforeStart } }),
+      });
+      depositReadVersion.current++; setDepositPolicy({ shopId, ...result }); publishBookingPolicyChange(shopId);
+    } catch (cause) { setDepositError(cause instanceof Error ? cause.message : "필수 서명 설정을 저장하지 못했습니다."); }
     finally { setDepositSaving(false); }
   }
   const [selectedAlertType, setSelectedAlertType] = useState<NotificationType>("appointment_reminder_10m");
@@ -743,11 +753,19 @@ export default function SettingsAlertsPanel({
               >
                 {group.items.map((item, itemIndex) => {
                   if (item.type === "revisit_notice") return null;
-                  if (item.key === "bookingConsentRequestEnabled") return <div key={item.type} className="flex min-h-11 flex-wrap items-center justify-between gap-3 py-2 sm:col-span-2"><button type="button" onClick={() => setSelectedAlertType(item.type)} className="min-h-11 text-left text-[16px] font-normal leading-6">동의서 작성 요청</button><span className="text-[13px] leading-5 text-[#64748b]">동의서 관리의 필수 서명 설정에 따라 요청</span></div>;
-                  if (item.key === "bookingDepositRequestEnabled") return <div key={item.type} className="space-y-2 py-2 sm:col-span-2">
-                    <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-[16px] leading-6">예약금 사용</span><select aria-label="예약금 사용" value={currentDepositPolicy?.policy.depositMode ?? "off"} disabled={!currentDepositPolicy || depositSaving} onChange={event => void updateDepositMode(event.target.value as BookingPolicy["depositMode"])} className="min-h-11 max-w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] leading-6"><option value="off">사용 안 함</option><option value="optional">예약별 선택</option><option value="required">대상 고객에게 필수</option></select></div>
-                    <p className="text-[13px] leading-5 text-[#64748b]">{depositSaving ? "저장 중입니다." : "예약금 페이지와 같은 설정입니다. 변경하면 바로 저장됩니다."}</p>
-                    {depositError && <p role="alert" className="text-[13px] leading-5 text-[#9a5e4e]">{depositError}</p>}
+                  if (item.key === "bookingConsentRequestEnabled") return <div key={item.type} className="flex min-h-11 min-w-0 items-center gap-3 text-left transition hover:bg-[#fafafa]">
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
+                      <button type="button" data-owner-control-size="content" onClick={() => setSelectedAlertType(item.type)} className="min-h-11 shrink-0 text-left text-[16px] font-normal leading-6 text-[#475569] focus-visible:outline-none focus-visible:underline">동의서 작성</button>
+                      <span className="text-[13px] font-normal leading-5 text-[#64748b]">/ 동의서 관리의 필수 서명 설정과 연결됩니다.</span>
+                    </div>
+                    <AlertSettingsSwitch aria-label="미용 전 필수 서명 설정" checked={currentDepositPolicy?.policy.consentBeforeStart ?? false} disabled={!currentDepositPolicy || depositSaving} onCheckedChange={checked => void updateConsentBeforeStart(checked)} />
+                  </div>;
+                  if (item.key === "bookingDepositRequestEnabled") return <div key={item.type} className="min-w-0">
+                    <div className="flex min-h-11 min-w-0 items-center gap-3 text-left transition hover:bg-[#fafafa]">
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2"><span className="shrink-0 text-[16px] font-normal leading-6 text-[#475569]">예약금 사용</span><span role="status" className="text-[13px] font-normal leading-5 text-[#64748b]">/ {depositSaving ? "저장 중입니다." : "예약금 설정과 연결됩니다."}</span></div>
+                      <AlertSettingsSwitch aria-label="예약금 사용" checked={Boolean(currentDepositPolicy && currentDepositPolicy.policy.depositMode !== "off")} disabled={!currentDepositPolicy || depositSaving} onCheckedChange={checked => void updateDepositMode(checked ? "optional" : "off")} />
+                    </div>
+                    {depositError && <p role="alert" className="text-[16px] leading-6 text-[#9a5e4e]">{depositError}</p>}
                   </div>;
                   const reservationNotice = isReservationNoticeType(item.type);
                   const checked =
@@ -819,8 +837,8 @@ export default function SettingsAlertsPanel({
                       </div>
                   );
                 })}
-                {isReservationGroup ? (
-                  <div className="sm:col-span-2" data-alerts-section="revisit" onClick={() => setSelectedAlertType("revisit_notice")}>
+                {group.key === "revisit" ? (
+                  <div className="lg:col-span-2" data-alerts-section="revisit" onClick={() => setSelectedAlertType("revisit_notice")}>
                     <SettingsRevisitReminderDefault
                       enabled={value.revisitEnabled}
                       disabled={!value.enabled}

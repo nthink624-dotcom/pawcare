@@ -27,7 +27,9 @@ const actualReleaseAncestry = {};
 if (releaseCommitCheck.status !== 0) {
   failures.push("expected production release commit is not present in the local Git object database");
 } else {
-  for (const ref of ["master", "origin/master"]) {
+  // An isolated release checkout can coexist with a dirty canonical master.
+  // Validate its checked-out release and the integrated remote master directly.
+  for (const ref of ["HEAD", "origin/master"]) {
     const ancestry = spawnSync("git", ["merge-base", "--is-ancestor", expectedRelease, ref], {
       cwd: root,
       encoding: "utf8",
@@ -70,6 +72,7 @@ const alimtalkCheck = spawnSync(
   [
     path.join(webRoot, "scripts/check-alimtalk-template-env-consistency.cjs"),
     "--pull-vercel-production",
+    "--production-only",
   ],
   { cwd: webRoot, encoding: "utf8", windowsHide: true },
 );

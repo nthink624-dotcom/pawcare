@@ -10,7 +10,7 @@ import {
   resolveOwnerPilotFeedbackDecision,
 } from "../../src/lib/billing/owner-pilot-cohort.ts";
 
-const migrationPath = new URL("../../supabase/migrations/20260907091000_owner_pilot_cohort_authority.sql", import.meta.url);
+const migrationPath = new URL("../../../../supabase/migrations/20260907091000_owner_pilot_cohort_authority.sql", import.meta.url);
 const routePath = new URL("../../src/app/api/admin/pilot-cohort/route.ts", import.meta.url);
 const serverPath = new URL("../../src/server/owner-pilot-cohort.ts", import.meta.url);
 const bootstrapPath = new URL("../../src/server/bootstrap.ts", import.meta.url);

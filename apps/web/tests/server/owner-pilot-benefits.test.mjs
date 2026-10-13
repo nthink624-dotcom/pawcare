@@ -14,7 +14,7 @@ import {
   PILOT_BENEFIT_PREVIEW_STATES,
 } from "../../src/app/dev/pilot-benefits-preview/pilot-benefit-fixtures.ts";
 
-const migrationPath = new URL("../../supabase/migrations/20260907090000_owner_pilot_pre_payment_benefits.sql", import.meta.url);
+const migrationPath = new URL("../../../../supabase/migrations/20260907090000_owner_pilot_pre_payment_benefits.sql", import.meta.url);
 const serverPath = new URL("../../src/server/owner-pilot-benefits.ts", import.meta.url);
 const routePath = new URL("../../src/app/api/admin/pilot-benefits/route.ts", import.meta.url);
 const screenPath = new URL("../../src/components/admin/admin-pilot-benefit-screen.tsx", import.meta.url);

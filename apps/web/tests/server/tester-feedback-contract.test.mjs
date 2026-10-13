@@ -12,8 +12,8 @@ import {
   testerFeedbackStatuses,
 } from "../../src/lib/tester-feedback.ts";
 
-const migrationPath = new URL("../../supabase/migrations/20260908025208_tester_feedback_intake.sql", import.meta.url);
-const hanmadiMigrationPath = new URL("../../supabase/migrations/20260909110000_hanmadi_shared_feedback_and_tester_access.sql", import.meta.url);
+const migrationPath = new URL("../../../../supabase/migrations/20260908025208_tester_feedback_intake.sql", import.meta.url);
+const hanmadiMigrationPath = new URL("../../../../supabase/migrations/20260909110000_hanmadi_shared_feedback_and_tester_access.sql", import.meta.url);
 const ownerRoutePath = new URL("../../src/app/api/owner/tester-feedback/route.ts", import.meta.url);
 const adminRoutePath = new URL("../../src/app/api/admin/tester-feedback/route.ts", import.meta.url);
 const serverPath = new URL("../../src/server/tester-feedback.ts", import.meta.url);

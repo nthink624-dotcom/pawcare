@@ -145,7 +145,7 @@ if (typeof recovery?.database?.protection?.dailyBackupsEnabled !== "boolean" &&
 if (typeof recovery?.media?.objectRecovery?.configured !== "boolean") {
   failures.push("recovery readback media object recovery configuration is missing");
 }
-if (typeof recovery?.priceGuideAi?.enabled !== "boolean" ||
+if ((typeof recovery?.priceGuideAi?.enabled !== "boolean" && !(recovery?.priceGuideAi?.enabled === null && recovery?.priceGuideAi?.status === "UNVERIFIED")) ||
     !["true", "false", "unset", "invalid"].includes(recovery?.priceGuideAi?.featureSetting) ||
     typeof recovery?.priceGuideAi?.apiKeyPresent !== "boolean" ||
     typeof recovery?.priceGuideAi?.modelSupported !== "boolean" ||

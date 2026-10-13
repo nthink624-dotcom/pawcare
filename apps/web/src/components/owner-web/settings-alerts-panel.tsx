@@ -40,8 +40,8 @@ export type AlertSettingsDraft = {
   revisitReminderDefaultDays: number;
   bookingConfirmedEnabled: boolean;
   bookingCancelledEnabled: boolean;
-  bookingConsentRequestEnabled: boolean;
-  bookingDepositRequestEnabled: boolean;
+  bookingConsentRequestEnabled?: boolean;
+  bookingDepositRequestEnabled?: boolean;
   bookingRescheduledEnabled: boolean;
   appointmentReminder10mEnabled: boolean;
   appointmentReminder10mMode: NotificationDeliveryMode;
@@ -743,6 +743,7 @@ export default function SettingsAlertsPanel({
               >
                 {group.items.map((item, itemIndex) => {
                   if (item.type === "revisit_notice") return null;
+                  if (item.key === "bookingConsentRequestEnabled") return <div key={item.type} className="flex min-h-11 flex-wrap items-center justify-between gap-3 py-2 sm:col-span-2"><button type="button" onClick={() => setSelectedAlertType(item.type)} className="min-h-11 text-left text-[16px] font-normal leading-6">동의서 작성 요청</button><span className="text-[13px] leading-5 text-[#64748b]">동의서 관리의 필수 서명 설정에 따라 요청</span></div>;
                   if (item.key === "bookingDepositRequestEnabled") return <div key={item.type} className="space-y-2 py-2 sm:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-[16px] leading-6">예약금 사용</span><select aria-label="예약금 사용" value={currentDepositPolicy?.policy.depositMode ?? "off"} disabled={!currentDepositPolicy || depositSaving} onChange={event => void updateDepositMode(event.target.value as BookingPolicy["depositMode"])} className="min-h-11 max-w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] leading-6"><option value="off">사용 안 함</option><option value="optional">예약별 선택</option><option value="required">대상 고객에게 필수</option></select></div>
                     <p className="text-[13px] leading-5 text-[#64748b]">{depositSaving ? "저장 중입니다." : "예약금 페이지와 같은 설정입니다. 변경하면 바로 저장됩니다."}</p>

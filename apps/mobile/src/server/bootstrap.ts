@@ -7,6 +7,7 @@ import {
   normalizeShopNotificationSettings,
 } from "@/lib/notification-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { expireUnreportedDeposits } from "@petmanager/shared/lib/booking-deposit-hold";
 import { staffProfileFallbackKey } from "@/lib/staff-profile-fallback";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime } from "@/lib/utils";
@@ -191,6 +192,7 @@ export async function getBootstrap(shopId = "demo-shop"): Promise<BootstrapPaylo
   if (!supabase) {
     return buildMockBootstrap(shopId);
   }
+  await expireUnreportedDeposits(supabase, shopId);
 
   const [
     shopRes,

@@ -22,6 +22,8 @@ function resolveExistingPath(basePath) {
 }
 
 export async function resolve(specifier, context, nextResolve) {
+  // Next.js provides this marker during builds; standalone server tests need no runtime implementation.
+  if (specifier === "server-only") return { shortCircuit: true, url: "data:text/javascript,export {};" };
   if (specifier === "next/server") {
     return {
       shortCircuit: true,

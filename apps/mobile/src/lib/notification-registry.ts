@@ -23,6 +23,7 @@ export type ShopSettingKey =
 export type GuardianSettingKey = keyof GuardianNotificationSettings | null;
 
 export type AlimtalkTemplateAlias =
+  | "booking_deposit_request"
   | "booking_received"
   | "booking_confirmed"
   | "booking_cancelled"
@@ -37,6 +38,7 @@ export type AlimtalkTemplateAlias =
   | "birthday_greeting";
 
 export type AlimtalkTemplateConfigKey =
+  | "templateBookingDepositRequest"
   | "templateBookingReceived"
   | "templateBookingConfirmed"
   | "templateBookingManageLinkRequested"
@@ -71,6 +73,14 @@ export type NotificationRegistryItem = {
 export type NotificationTemplateVariables = Record<string, string | null | undefined>;
 
 export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
+  {
+    type: "booking_deposit_request", title: "예약금 납부 요청", target: "guardian", channel: "alimtalk",
+    trigger: "오너가 예약별로 예약금 요청 안내를 선택했을 때 수동 발송",
+    dispatchSource: "src/server/booking-preparation.ts", templateAlias: "booking_deposit_request",
+    templateConfigKey: "templateBookingDepositRequest", shopSettingKey: "enabled",
+    guardianSettingKey: "deposit_request_enabled", notes: "승인된 예약금 전용 템플릿으로 안내합니다.",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request.body,
+  },
   {
     type: "booking_received",
     title: "예약 완료",
@@ -363,6 +373,7 @@ export function shouldSendByShopSettings(
 
   switch (type) {
     case "booking_received":
+    case "booking_deposit_request":
     case "owner_booking_requested":
       return true;
     case "booking_confirmed":
@@ -399,6 +410,8 @@ export function shouldSendByGuardianSettings(
   if (!settings.enabled) return false;
 
   switch (type) {
+    case "booking_deposit_request":
+      return settings.deposit_request_enabled ?? true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
     case "booking_cancelled":

@@ -1,7 +1,9 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { publishBookingPolicyChange, subscribeBookingPolicyChange } from "@/lib/booking-policy-events";
 import { DEFAULT_BOOKING_CONSENT_ID, DEFAULT_BOOKING_POLICY, NEXT_BOOKING_RULE_LABELS, type BookingPolicy, type NextBookingRule } from "@petmanager/shared/contracts/booking-preparation";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { OWNER_SETTINGS_TAB_HEADER_CLASS, OWNER_SETTINGS_TABBAR_CLASS, OWNER_SETTINGS_TAB_CLASS } from "@/components/owner-web/owner-settings-tab-header";
 const field = "h-10 w-full rounded-[8px] border border-slate-300 bg-white px-3 text-[16px] outline-none focus:ring-2 focus:ring-blue-200";
 type ConsentDraft = { templateId: string | null; title: string; body: string };
 const LEGACY_DEFAULT_CONSENT_BODY = `보호자는 반려동물의 질병과 과거 병력, 알레르기, 복용 중인 약, 피부·관절 상태, 최근 치료 여부를 미용 전에 정확히 알려주세요. 특히 노령이거나 기저질환이 있는 경우 미용 중 스트레스나 컨디션 변화가 생길 수 있으므로 관련 정보를 충분히 전달해 주세요.
@@ -89,15 +91,38 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
   const [policy, setPolicy] = useState<BookingPolicy>(() => ensureDefaultConsent(DEFAULT_BOOKING_POLICY)), [version, setVersion] = useState(0);
   const [busy, setBusy] = useState(false), [loaded, setLoaded] = useState(false), [message, setMessage] = useState("");
   const [tab, setTab] = useState("deposit");
+  const [depositSection, setDepositSection] = useState("settings");
+  const policyDirty = useRef(false);
+  const policyReadVersion = useRef(0);
+  const [depositBeforeEdit, setDepositBeforeEdit] = useState<Partial<BookingPolicy> | null>(null);
   const [consentDraft, setConsentDraft] = useState<ConsentDraft | null>(null);
   const [selectedConsentId, setSelectedConsentId] = useState<string | null>(null);
   useEffect(() => { let active = true; setLoaded(false); fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`).then(r => { if (active) { const nextPolicy = ensureDefaultConsent(r.policy); setPolicy(nextPolicy); setVersion(r.version); setLoaded(true); setMessage(""); const first = nextPolicy.templates[0]; setSelectedConsentId(first?.id ?? null); setConsentDraft(first ? { templateId: first.id, title: first.title, body: first.body } : null); } }).catch(e => { if (active) setMessage(e.message); }); return () => { active = false; }; }, [shopId]);
-  function change<K extends keyof BookingPolicy>(key: K, value: BookingPolicy[K]) { setPolicy(p => ({ ...p, [key]: value })); setMessage(""); }
+  function change<K extends keyof BookingPolicy>(key: K, value: BookingPolicy[K]) {
+    policyDirty.current = true;
+    if (tab === "deposit") {
+      setDepositBeforeEdit(previous => previous && key in previous ? previous : { ...previous, [key]: policy[key] });
+    }
+    setPolicy(p => ({ ...p, [key]: value })); setMessage("");
+  }
   async function save(nextPolicy: BookingPolicy = policy): Promise<boolean> {
     setBusy(true); setMessage("");
-    try { const r = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PUT", body: JSON.stringify({ shopId, policy: nextPolicy, version }), headers: { "Content-Type": "application/json" } }); setPolicy(ensureDefaultConsent(r.policy)); setVersion(r.version); setMessage(""); return true; }
+    try { const r = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PUT", body: JSON.stringify({ shopId, policy: nextPolicy, version }), headers: { "Content-Type": "application/json" } }); policyReadVersion.current++; setPolicy(ensureDefaultConsent(r.policy)); setVersion(r.version); setDepositBeforeEdit(null); policyDirty.current = false; publishBookingPolicyChange(shopId); setMessage(""); return true; }
     catch (e) { setMessage(e instanceof Error ? e.message : "저장하지 못했습니다."); return false; } finally { setBusy(false); }
   }
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = subscribeBookingPolicyChange(shopId, () => {
+      if (!loaded || busy) return;
+      const readVersion = ++policyReadVersion.current;
+      void fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`, { cache: "no-store" }).then(result => {
+        if (!active || readVersion !== policyReadVersion.current || result.version === version) return;
+        if (policyDirty.current) { setMessage("다른 화면에서 설정이 변경되었습니다. 입력 내용은 유지됩니다. 최신 설정을 확인한 뒤 저장해 주세요."); return; }
+        setPolicy(ensureDefaultConsent(result.policy)); setVersion(result.version); setDepositBeforeEdit(null);
+      }).catch(() => { if (active) setMessage("최신 예약금 설정을 확인하지 못했습니다."); });
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [shopId, loaded, busy, version]);
   async function saveConsentDraft() {
     if (!consentDraft) return;
     const title = consentDraft.title.trim(), body = consentDraft.body.trim();
@@ -159,18 +184,48 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
   }
   const activeConsentTemplates = policy.templates.filter(t => !t.archivedAt);
   const archivedConsentTemplates = policy.templates.filter(t => Boolean(t.archivedAt));
-  return <section className={`space-y-3 text-[16px] text-[#15213b] ${tab === "consent" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
-    <div className="-mx-3 -mt-1 shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:-mx-5 sm:px-5">
-      <div className="no-scrollbar flex min-h-[54px] min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-[14px] border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="예약 관리 설정">{[["deposit", "예약금"], ["consent", "동의서 관리"], ["noshow", "취소·노쇼"]].map(([id, title]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`inline-flex h-10 shrink-0 items-center rounded-full px-4 text-[16px] font-medium leading-6 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 ${tab === id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]"}`}>{title}</button>)}</div>
+  return <section className={`space-y-3 text-[16px] text-[#15213b] ${tab !== "noshow" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
+    <div className={`${OWNER_SETTINGS_TAB_HEADER_CLASS} -mx-3 -mt-1 sm:-mx-5`}>
+      <div className={OWNER_SETTINGS_TABBAR_CLASS} role="tablist" aria-label="예약 관리 설정">{[["deposit", "예약금"], ["consent", "동의서 관리"], ["noshow", "취소·노쇼"]].map(([id, title]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} data-owner-control-size='content' className={OWNER_SETTINGS_TAB_CLASS}>{title}</button>)}</div>
     </div>
-    <div className={`px-5 pt-3 ${tab === "consent" ? "space-y-0 pb-0 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : "space-y-5 pb-3"}`}>
-    <fieldset disabled={!loaded || busy || !editable} className={`min-w-0 space-y-4 disabled:opacity-60 ${tab === "consent" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
-      {tab === "deposit" && <>
+    <div data-settings-body-container className={`rounded-[14px] border border-[#e1e4ea] bg-white px-4 py-4 ${tab !== "noshow" ? "space-y-0 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : "space-y-5"}`}>
+    <fieldset disabled={!loaded || busy || !editable} aria-busy={!loaded && !message} className={`min-w-0 space-y-4 ${tab !== "noshow" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
+      {tab === "deposit" && <div data-deposit-editor className="grid min-h-[440px] gap-5 lg:min-h-[max(560px,calc(100dvh-260px))] lg:grid-cols-[minmax(220px,0.29fr)_minmax(0,0.71fr)] xl:flex-1">
+        <aside className="overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white">
+          <h3 className="flex min-h-[58px] items-center border-b border-[#edf0f4] px-5 font-semibold">예약금 관리</h3>
+          <nav aria-label="예약금 설정 항목" className="py-2">{[["settings", "예약금 설정"], ["notice", "납부 안내"], ["refund", "취소·환불 안내"]].map(([id, title]) => <button key={id} type="button" data-owner-control-size="content" aria-pressed={depositSection === id} onClick={() => setDepositSection(id)} className={`flex min-h-[52px] w-full items-center px-5 py-3 text-left text-[16px] font-medium leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${depositSection === id ? "bg-[#f5f4ff] text-[#15213b]" : "text-slate-600 hover:bg-slate-50"}`}>{title}</button>)}</nav>
+        </aside>
+        <section className="flex min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white">
+          <header className="flex min-h-[58px] items-center border-b border-[#edf0f4] px-5 py-3"><h3 className="text-[20px] font-semibold leading-7">{depositSection === "settings" ? "예약금 설정" : depositSection === "notice" ? "납부 안내" : "취소·환불 안내"}</h3></header>
+          <div className="flex-1 space-y-6 px-5 py-5 text-[16px] font-normal leading-6 [&_input]:min-h-11 [&_select]:min-h-11">
+          {depositSection === "settings" && <>
         <div className="grid gap-4 sm:grid-cols-2"><Label title="예약금 사용"><select className={field} value={policy.depositMode} onChange={e => change("depositMode", e.target.value as BookingPolicy["depositMode"])}><option value="off">사용 안 함</option><option value="optional">예약별 선택</option><option value="required">대상 고객에게 필수</option></select></Label><Label title="적용 고객"><select className={field} value={policy.depositAudience} onChange={e => change("depositAudience", e.target.value as BookingPolicy["depositAudience"])}><option value="all">전체 고객</option><option value="new">첫 방문 고객</option><option value="noshow">노쇼 이력 고객</option></select></Label>
-          <Label title="예약금 (원)"><input className={field} type="number" min={1} value={policy.depositAmount} onChange={e => change("depositAmount", Number(e.target.value))} /></Label><Label title="납부 기한 (예약 등록 후 시간)"><input className={field} type="number" min={1} max={720} value={policy.depositDueHours} onChange={e => change("depositDueHours", Number(e.target.value))} /></Label></div>
+          <Label title="예약금 (원)"><input className={field} type="number" min={1} value={policy.depositAmount} onChange={e => change("depositAmount", Number(e.target.value))} /></Label><Label title="입금 신고 기한"><input className={field} value="예약금 요청 후 20분" readOnly /></Label></div>
         <div className="grid gap-4 sm:grid-cols-3">{[["bankName", "은행"], ["bankAccount", "입금 계좌"], ["bankHolder", "예금주"]].map(([key, title]) => <Label key={key} title={title}><input className={field} value={policy[key as "bankName" | "bankAccount" | "bankHolder"]} onChange={e => change(key as "bankName" | "bankAccount" | "bankHolder", e.target.value)} /></Label>)}</div>
-        <p className="text-slate-600">계좌이체 예약금은 보호자 입금 신고 후 오너가 실제 입금을 확인합니다. 기한이 지나면 오너가 유지 또는 취소를 결정합니다.</p>
-      </>}
+          </>}
+          {depositSection === "notice" && <>
+            <p className="text-[13px] leading-5 text-slate-500">입력한 설정 미리보기 · 실제 알림톡 문구는 알림설정에서 관리합니다.</p>
+            <dl className="divide-y divide-[#edf0f4] rounded-[14px] bg-[#f8fafc] px-5 [&>div]:grid [&>div]:grid-cols-[96px_minmax(0,1fr)] [&>div]:gap-3 [&>div]:py-4 [&_dt]:text-slate-500 [&_dd]:break-words">
+              <div><dt>예약금</dt><dd>{policy.depositAmount.toLocaleString()}원</dd></div>
+              <div><dt>은행</dt><dd>{policy.bankName || "미입력"}</dd></div>
+              <div><dt>입금 계좌</dt><dd>{policy.bankAccount || "미입력"}</dd></div>
+              <div><dt>예금주</dt><dd>{policy.bankHolder || "미입력"}</dd></div>
+              <div><dt>입금 신고 기한</dt><dd>예약금 요청 후 20분</dd></div>
+            </dl>
+            <p className="text-slate-600">보호자가 20분 안에 입금 신고를 하면 오너 확인까지 예약 시간을 유지합니다. 신고 없이 기한이 지나면 예약을 취소하고 해당 시간을 해제합니다.</p>
+          </>}
+          {depositSection === "refund" && <>
+            <Label title="고객 직접 취소 마감 (예약 시작 전 시간)"><input className={field} type="number" min={0} max={720} value={policy.cancellationCutoffHours} onChange={e => change("cancellationCutoffHours", Number(e.target.value))} /></Label>
+            <Label title="보호자에게 안내할 취소·환불 정책"><textarea className={`${field} h-auto min-h-[220px] py-3 leading-6`} value={policy.cancellationNotice} onChange={e => change("cancellationNotice", e.target.value)} /></Label>
+            <p className="text-[13px] leading-5 text-slate-500">취소·노쇼 메뉴와 같은 설정입니다. 예약금 환불은 실제 반환 후 별도로 기록합니다.</p>
+          </>}
+          </div>
+          <footer className="flex shrink-0 justify-end gap-3 border-t border-[#edf0f4] px-5 py-3">
+            <button type="button" data-owner-control-size="content" disabled={!depositBeforeEdit || busy} onClick={() => { if (depositBeforeEdit) setPolicy(current => ({ ...current, ...depositBeforeEdit })); setDepositBeforeEdit(null); setMessage(""); }} className="min-h-11 rounded-[10px] border border-[#e1e4ea] px-4 text-[16px] text-slate-600 disabled:opacity-50">취소</button>
+            <button type="button" data-owner-control-size="content" onClick={() => void save()} className="min-h-11 rounded-[10px] bg-[#1976ff] px-5 text-[16px] font-medium text-white">{busy ? "저장 중" : "저장"}</button>
+          </footer>
+        </section>
+      </div>}
       {tab === "consent" && <>
         <div className="space-y-4 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
           <div className="grid min-h-[440px] gap-5 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(250px,0.29fr)_minmax(0,0.71fr)] xl:items-stretch">
@@ -217,7 +272,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
         <p className="text-slate-600">정상 취소와 미납 취소는 노쇼로 집계하지 않습니다. 예약금 환불은 실제 반환 후 별도로 기록합니다.</p>
       </>}
     </fieldset>
-    <div className="flex flex-wrap items-center gap-3">{tab !== "consent" && <button type="button" disabled={!loaded || busy || !editable} onClick={() => void save()} className="h-10 rounded-[8px] bg-[#1976ff] px-5 text-white disabled:opacity-50">{busy ? "저장 중" : "정책 저장"}</button>}{message && <p role="status" className="min-w-0 text-[16px] text-slate-600">{message}</p>}</div>
+    <div className="flex flex-wrap items-center gap-3">{tab === "noshow" && <button type="button" disabled={!loaded || busy || !editable} onClick={() => void save()} className="h-10 rounded-[8px] bg-[#1976ff] px-5 text-white disabled:opacity-100! disabled:cursor-not-allowed">{busy ? "저장 중" : "정책 저장"}</button>}{(message || !loaded) && <p role="status" className="min-w-0 text-[16px] text-slate-600">{message || "예약 정책을 불러오는 중입니다."}</p>}</div>
     </div>
   </section>;
 }

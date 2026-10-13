@@ -119,6 +119,7 @@ describe("appointment and alimtalk flow guards", () => {
   it("uses the active customer alimtalk templates", () => {
     assert.deepEqual(ACTIVE_ALIMTALK_TEMPLATE_ALIASES, [
       "booking_consent_request",
+      "booking_deposit_request",
       "booking_confirmed",
       "booking_cancelled",
       "appointment_reminder_10m",

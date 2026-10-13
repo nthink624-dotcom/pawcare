@@ -74,8 +74,18 @@ test('웹과 모바일의 스타일 생성 범위에 공통 UI가 포함된다',
   }
 });
 
-test('공통 폴더 이동은 알림톡 확정 본문을 바꾸지 않는다', () => {
-  assert.equal(read('apps/shared/contracts/alimtalk.ts').replaceAll('\r\n', '\n').trimEnd(), read('packages/alimtalk-contract/index.ts').replaceAll('\r\n', '\n').trimEnd());
+test('새 알림 유형을 추가해도 기존 알림톡 확정 계약을 바꾸지 않는다', () => {
+  const ts = require('typescript');
+  const contracts = file => {
+    const exports = {};
+    const compiled = ts.transpileModule(read(file), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+    new Function('exports', compiled)(exports);
+    return exports.APPROVED_ALIMTALK_CONTRACTS;
+  };
+  const current = contracts('apps/shared/contracts/alimtalk.ts');
+  for (const [code, contract] of Object.entries(contracts('packages/alimtalk-contract/index.ts'))) {
+    assert.deepEqual(current[code], contract, code);
+  }
 });
 
 for (const app of ['web', 'mobile']) {

@@ -3027,7 +3027,7 @@ function OwnerAppContent({
                     <div className="flex min-h-[30px] min-w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-[#eaf1fc] text-[#174ea6]">
                       <Store className="h-4 w-4" aria-hidden="true" />
                     </div>
-                    <p className="min-w-0 max-w-[172px] text-[18px] font-semibold tracking-[-0.01em] text-[#0f172a] [overflow-wrap:anywhere]">{currentOwnedShop.name}</p>
+                    <p className="pm-home-header-label m-0 min-w-0 max-w-[172px] text-[18px] font-semibold leading-6! tracking-[-0.01em] text-[#0f172a] [overflow-wrap:anywhere]">{currentOwnedShop.name}</p>
                     <ChevronDown className="h-4 w-4 shrink-0 text-[#94a3b8]" />
                   </button>
                   {!isStaffApp ? <HomeHeaderStaffSelect options={homeStaffFilterOptions} value={homeStaffFilter} onChange={setHomeStaffFilter} staffCount={data.staffMembers.length} /> : null}
@@ -4202,7 +4202,7 @@ function HomeHeaderStaffSelect({
             <UserRound className="h-4 w-4 shrink-0 text-[#64748b]" strokeWidth={1.8} />
           )
         )}
-        <span className="min-w-0 truncate text-[14px] font-medium tracking-[-0.01em] text-[#334155]">
+        <span className="pm-home-header-label relative -top-px min-w-0 truncate text-[14px] font-medium leading-6! tracking-[-0.01em] text-[#334155]">
           {showStaffStack ? "전체" : selectedOption?.label ?? "담당자"}
         </span>
       </button>

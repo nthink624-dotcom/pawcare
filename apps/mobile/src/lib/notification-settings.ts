@@ -22,6 +22,7 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
 
 export const defaultGuardianNotificationSettings: GuardianNotificationSettings = {
   enabled: true,
+  deposit_request_enabled: true,
   revisit_enabled: true,
   booking_confirmed_enabled: true,
   booking_cancelled_enabled: true,

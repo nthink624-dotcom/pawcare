@@ -10,6 +10,7 @@ export type AppointmentStatus =
   | "noshow";
 
 export type NotificationType =
+  | "booking_deposit_request"
   | "booking_received"
   | "booking_confirmed"
   | "owner_booking_requested"
@@ -82,6 +83,7 @@ export type ShopNotificationSettings = {
 
 export type GuardianNotificationSettings = {
   enabled: boolean;
+  deposit_request_enabled?: boolean;
   revisit_enabled: boolean;
   booking_confirmed_enabled?: boolean;
   booking_cancelled_enabled?: boolean;

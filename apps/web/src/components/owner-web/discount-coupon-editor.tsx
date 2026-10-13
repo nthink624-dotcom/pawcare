@@ -36,12 +36,12 @@ function SelectFrame({
 }
 
 const selectClassName =
-  "h-11 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-9 text-[14px]! font-medium! leading-5! text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
+  "h-11 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-9 text-[16px]! font-medium! leading-6! text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
 
 const inputClassName =
   "h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px]! font-normal! leading-6! text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
 
-const fieldLabelClassName = "text-[14px] font-medium leading-5 text-[#607080]";
+const fieldLabelClassName = "text-[16px] font-medium leading-6 text-[#475569]";
 
 function NormalizedTextInput({
   value,
@@ -411,7 +411,7 @@ export default function DiscountCouponEditor({
               <div className="h-[170px] overflow-hidden">
                 <div className="flex h-full">
                   <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white p-1.5">
-                    <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[8px] border border-[#e2e8f0] bg-white px-2.5 py-1.5 text-[14px] font-medium leading-5 text-[#111827] transition hover:bg-[#f8fafc]">
+                    <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[8px] border border-[#e2e8f0] bg-white px-2.5 py-1.5 text-[16px] font-medium leading-6 text-[#111827] transition hover:bg-[#f8fafc]">
                       <input
                         type="checkbox"
                         checked={coupon.service_scope !== "specific"}
@@ -435,7 +435,7 @@ export default function DiscountCouponEditor({
                           <label
                             key={`${option.id}-${option.linkedOptionIds.join("|")}`}
                             className={cn(
-                              "flex min-h-11 cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-1 text-[14px] font-normal leading-5 transition",
+                              "flex min-h-11 cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-1 text-[16px] font-medium leading-6 transition",
                               selected ? "bg-[#f8fafc] text-[#111827]" : "bg-white text-[#334155] hover:bg-[#f8fafc]",
                             )}
                           >

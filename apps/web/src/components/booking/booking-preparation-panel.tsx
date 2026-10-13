@@ -5,6 +5,63 @@ import BookingSignaturePad, { SignaturePreview } from "@petmanager/shared/compon
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 const button = "h-10 rounded-[8px] border border-slate-300 bg-white px-3 text-[16px] disabled:opacity-50";
 const field = "h-10 min-w-0 w-full rounded-[8px] border border-slate-300 bg-white px-3 text-[16px]";
+function ConsentRequestStatus({ result }: { result: PreparationResponse }) {
+  const { data } = result;
+  const requiredPending = data.consents.some(document => document.required && document.status === "pending");
+  const optionalPending = data.consents.some(document => !document.required && document.status === "pending");
+  const requiredExists = data.policy.templates.some(document => document.enabled && !document.archivedAt && document.required);
+  const requiredWaived = data.consents.some(document => document.required && document.status === "waived");
+  const latest = [...data.requests].reverse().find(request => request.purposes.includes("consent"));
+  const active = ["pending", "confirmed"].includes(result.appointmentStatus);
+  let title = "요청할 동의서 없음", reason = "";
+  let tone = "border-slate-200 bg-slate-50 text-slate-700";
+
+  if (!active) {
+    title = result.appointmentStatus === "cancelled" ? "예약 취소 · 동의서 알림 중단" : "예약 종료 · 동의서 알림 중단";
+    reason = "이 예약에는 더 이상 자동 요청을 보내지 않습니다.";
+  } else if (!requiredPending && optionalPending) {
+    title = "선택 동의서만 대기 · 자동 요청 안 함";
+    reason = "필요하면 아래에서 오너가 개별 요청할 수 있습니다.";
+    tone = "border-slate-200 bg-slate-50 text-slate-700";
+  } else if (!requiredPending && !requiredExists) {
+    title = "요청할 필수 동의서 없음";
+    reason = optionalPending ? "선택 동의서는 자동 요청하지 않습니다." : "";
+    tone = "border-slate-200 bg-slate-50 text-slate-700";
+  } else if (result.appointmentStatus === "pending" && requiredPending) {
+    title = data.deposit.required && !["confirmed", "waived"].includes(data.deposit.status)
+      ? "예약금 확인 후 동의서 요청" : "예약 확정 후 동의서 요청";
+    reason = "예약이 확정되면 미서명 필수 동의서만 자동 요청합니다.";
+    tone = "border-amber-200 bg-amber-50 text-amber-900";
+  } else if (!requiredPending) {
+    title = requiredWaived ? "필수 동의서 예외 처리됨" : "필수 동의서 작성 완료";
+    reason = "새 버전이 등록되면 서명 여부를 다시 확인합니다.";
+    tone = requiredWaived ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900";
+  } else if (latest) {
+    title = ({ sending: "발송 확인 중", queued: "발송 대기", sent: "요청 발송 완료", blocked: "발송 안 됨", failed: "발송 실패" } as const)[latest.status];
+    reason = latest.reason;
+    tone = latest.status === "sent" ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+      : latest.status === "queued" || latest.status === "sending" ? "border-amber-200 bg-amber-50 text-amber-900"
+        : "border-rose-200 bg-rose-50 text-rose-900";
+  } else {
+    title = "필수 동의서 자동 요청 대상";
+    reason = "예약 확정 후 요청 이력이 없습니다. 잠시 후 새로고침해 주세요.";
+    tone = "border-amber-200 bg-amber-50 text-amber-900";
+  }
+
+  if (reason.toLowerCase().includes("recipient phone number not found")) reason = "보호자 연락처 없음 · 번호를 등록한 뒤 다시 요청하세요.";
+  else if (reason.toLowerCase().includes("missing alimtalk template")) reason = "알림톡 템플릿 연결을 확인해야 합니다.";
+  else if (reason.toLowerCase().includes("insufficient alimtalk credits")) reason = "알림톡 잔여 건수가 없습니다. 충전 후 다시 요청하세요.";
+  else if (reason.toLowerCase().includes("provider") || reason.toLowerCase().includes("relay")) reason = "알림톡 업체 연결을 확인한 뒤 다시 요청하세요.";
+
+  return <div className={`rounded-lg border px-3 py-2 ${tone}`} role="status" aria-live="polite">
+    <div className="font-semibold">{title}</div>
+    {reason && <p className="break-words text-[14px] leading-5 opacity-90">{reason}</p>}
+    {latest && <p className="mt-1 text-[12px] opacity-75">{new Date(latest.at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</p>}
+  </div>;
+}
+function hasCurrentConsent(result: PreparationResponse, templateId: string, templateVersion: number) {
+  return result.data.consents.some(document => document.id === templateId && document.version === templateVersion && document.status !== "superseded");
+}
 export default function BookingPreparationPanel({ shopId, appointmentId, accessToken, onStatusChanged }: {
   shopId: string; appointmentId: string; accessToken?: string; onStatusChanged?: () => void;
 }) {
@@ -16,6 +73,7 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
   const [nextRule, setNextRule] = useState<NextBookingRule>("normal");
   const [addTemplateId, setAddTemplateId] = useState("");
   const [cancellationKind, setCancellationKind] = useState("owner");
+  const [now, setNow] = useState(Date.now);
   const load = useCallback(async () => {
     const q = new URLSearchParams({ shopId, appointmentId }); if (accessToken) q.set("t", accessToken);
     const response = await (owner ? fetchApiJsonWithAuth<PreparationResponse>(`${endpoint}?${q}`) : fetchApiJson<PreparationResponse>(`${endpoint}?${q}`));
@@ -24,6 +82,22 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
   useEffect(() => { let active = true; setResult(null); setMessage(""); setSigningId(""); setSignature([]); setAgreed(false);
     load().then(r => { if (active) { setResult(r); setPayerName(r.data.deposit.payerName); setAmount(r.data.deposit.receivedAmount || r.data.deposit.amount); setNextRule(r.nextBookingRule ?? "normal"); setSendConsent(r.data.consents.some(c => c.status === "pending")); setSendDeposit(false); } }).catch(e => { if (active) setMessage(e.message); }); return () => { active = false; };
   }, [load]);
+  const releaseDeadline = result?.data.deposit.releaseIfUnreported && result.data.deposit.status === "pending"
+    && ["pending", "confirmed"].includes(result.appointmentStatus) ? result.data.deposit.dueAt : null;
+  const deadlinePassed = Boolean(releaseDeadline && Date.parse(releaseDeadline) <= now);
+  useEffect(() => {
+    if (!releaseDeadline) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [releaseDeadline]);
+  useEffect(() => {
+    if (!releaseDeadline || !deadlinePassed || busy) return;
+    let active = true;
+    const refresh = () => void load().then(next => { if (active) { setResult(next); onStatusChanged?.(); } }).catch(e => { if (active) setMessage(e.message); });
+    refresh();
+    const timer = window.setInterval(refresh, 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [releaseDeadline, deadlinePassed, busy, load, onStatusChanged]);
   async function act(action: string, extra: Record<string, unknown> = {}) {
     if (!result || busy) return; setBusy(true); setMessage("");
     try {
@@ -31,7 +105,9 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
       const next = await (owner ? fetchApiJsonWithAuth<PreparationResponse>(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body }) : fetchApiJson<PreparationResponse>(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body }));
       setResult(next); setNextRule(next.nextBookingRule ?? "normal"); setSigningId(""); setSignature([]); setAgreed(false);
       if (action === "request_deposit") setSendDeposit(false);
-      setMessage(action === "request_guidance" ? next.data.requests.at(-1)?.reason ?? "요청을 확인해 주세요." : "처리했습니다.");
+      setMessage(action === "request_guidance"
+        ? next.data.requests.slice(-Math.max(1, Number(Boolean(extra.deposit)) + Number(Boolean(extra.consent)))).map(request => request.reason).filter(Boolean).join(" / ") || "요청을 확인해 주세요."
+        : "처리했습니다.");
       if (["cancel", "noshow", "correct_noshow", "approve"].includes(action)) onStatusChanged?.();
     } catch (e) { setMessage(e instanceof Error ? e.message : "처리하지 못했습니다."); } finally { setBusy(false); }
   }
@@ -44,27 +120,34 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
     setBusy(true); try { setResult(await fetchApiJsonWithAuth<PreparationResponse>(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shopId, appointmentId, action: "initialize" }) })); setMessage(""); } catch (e) { setMessage(e instanceof Error ? e.message : "요청을 만들지 못했습니다."); } finally { setBusy(false); }
   }}>이 예약에 동의서·예약금 요청 추가</button>}</section>;
   const { data } = result, d = data.deposit, active = ["pending", "confirmed"].includes(result.appointmentStatus);
+  const latestConsentRequest = [...data.requests].reverse().find(request => request.purposes.includes("consent"));
   const balance = d.receivedAmount - d.refundedAmount;
   return <section className="min-w-0 space-y-4 border-t py-4 text-[16px] leading-6 text-[#15213b]" aria-label="예약금 및 동의서 관리">
     <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-[20px] font-semibold">예약 준비</h3><button type="button" className={button} disabled={busy} onClick={() => void load().then(setResult).catch(e => setMessage(e.message))}>새로고침</button></div>
     <div className="space-y-2"><div className="flex flex-wrap justify-between gap-2"><span>예약금 · {DEPOSIT_STATUS_LABELS[d.status]}</span><span>{d.amount.toLocaleString()}원{d.required ? " · 필수" : ""}</span></div>
       {d.status !== "not_requested" && <>
         <p className="break-all text-slate-600">{data.policy.bankName} {data.policy.bankAccount} · {data.policy.bankHolder}</p>
-        {d.dueAt && <p className="text-slate-600">납부 기한: {new Date(d.dueAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}{Date.parse(d.dueAt) < Date.now() && ["pending", "reported"].includes(d.status) ? " · 기한 경과" : ""}</p>}
+        {d.dueAt && <p className="text-slate-600">{d.releaseIfUnreported ? "입금 신고 기한" : "납부 기한"}: {new Date(d.dueAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}{Date.parse(d.dueAt) < now && d.status === "pending" ? " · 기한 경과" : ""}</p>}
       </>}
       {d.receivedAmount > 0 && <p>입금 확인 {d.receivedAmount.toLocaleString()}원 · 환불 {d.refundedAmount.toLocaleString()}원 · 기납부 잔액 {balance.toLocaleString()}원</p>}
       {result.remainingAmount != null && <p>서비스 금액 {result.serviceAmount?.toLocaleString()}원 · 예약금 차감 후 잔금 {result.remainingAmount.toLocaleString()}원{result.excessDeposit ? ` · 초과 입금 ${result.excessDeposit.toLocaleString()}원` : ""}</p>}
       {d.confirmedAt && <p className="text-slate-600">입금자 {d.payerName} · 확인 {new Date(d.confirmedAt).toLocaleString("ko-KR")}</p>}
-      {active && ["pending", "reported"].includes(d.status) && <div className="space-y-2">
+      {d.releaseIfUnreported && d.status === "pending" && <p className="text-slate-600">20분 안에 이체 후 입금 신고를 해 주세요. 신고 없이 기한이 지나면 예약이 취소되고 다른 고객이 해당 시간을 예약할 수 있습니다.{d.dueAt && Date.parse(d.dueAt) > now ? ` 남은 시간 ${Math.floor((Date.parse(d.dueAt) - now) / 60000)}분 ${Math.floor((Date.parse(d.dueAt) - now) / 1000) % 60}초` : " 기한 경과 여부를 확인하고 있습니다. 이체하지 말고 기다려 주세요."}</p>}
+      {d.releaseIfUnreported && d.status === "reported" && <p role="status" className="text-slate-600">입금 신고를 받았습니다. 예약 시간을 유지하며 매장의 실제 입금 확인을 기다립니다.</p>}
+      {data.cancellation?.kind === "deposit_expired" && <p role="status" className="text-slate-600">입금 신고 기한이 지나 예약이 취소되었습니다. 이체하지 말고 매장에 문의해 주세요.</p>}
+      {active && ["pending", "reported"].includes(d.status) && !(d.releaseIfUnreported && d.status === "pending" && d.dueAt && Date.parse(d.dueAt) <= now) && <div className="space-y-2">
         <label className="grid gap-1">입금자명<input className={field} value={payerName} maxLength={50} onChange={e => setPayerName(e.target.value)} /></label>
         {owner ? <><label className="grid gap-1">실제 확인한 입금액 (원)<input className={field} type="number" min={0} value={amount} onChange={e => setAmount(Number(e.target.value))} /></label><button type="button" className={button} disabled={busy} onClick={() => void act("confirm_deposit", { amount, payerName })}>실제 입금 확인 완료</button></> : <><p className="text-slate-600">이체 후 입금자명을 남겨 주세요. 매장에서 실제 입금을 확인하면 완료됩니다.</p><button type="button" className={`${button} !bg-[#1976ff] !text-white`} disabled={busy} onClick={() => void act("report_deposit", { payerName })}>입금했어요</button></>}
       </div>}
     </div>
     <div className="space-y-3"><h4 className="font-medium">동의서</h4>{data.consents.length === 0 && <p className="text-slate-600">요청된 동의서가 없습니다.</p>}
-      {owner && active && data.policy.templates.some(t => t.enabled && !t.archivedAt && !data.consents.some(c => c.id === t.id) && !(t.scope === "pet" && result.signedPetConsentIds?.includes(t.id))) && <div className="space-y-2"><select aria-label="추가 요청할 동의서" className={field} value={addTemplateId} onChange={e => setAddTemplateId(e.target.value)}><option value="">동의서 선택</option>{data.policy.templates.filter(t => t.enabled && !t.archivedAt && !data.consents.some(c => c.id === t.id) && !(t.scope === "pet" && result.signedPetConsentIds?.includes(t.id))).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select><button type="button" className={button} disabled={busy || !addTemplateId} onClick={() => void act("add_consent", { templateId: addTemplateId })}>이 예약에 동의서 요청 추가</button></div>}
+      {owner && active && data.policy.templates.some(t => t.enabled && !t.archivedAt && !hasCurrentConsent(result, t.id, t.version) && !(t.scope === "pet" && result.signedPetConsentIds?.includes(t.id))) && <div className="space-y-2"><select aria-label="추가 요청할 동의서" className={field} value={addTemplateId} onChange={e => setAddTemplateId(e.target.value)}><option value="">동의서 선택</option>{data.policy.templates.filter(t => t.enabled && !t.archivedAt && !hasCurrentConsent(result, t.id, t.version) && !(t.scope === "pet" && result.signedPetConsentIds?.includes(t.id))).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select><button type="button" className={button} disabled={busy || !addTemplateId} onClick={() => void act("add_consent", { templateId: addTemplateId })}>이 예약에 동의서 요청 추가</button></div>}
       {owner && active && data.policy.templates.some(t => t.enabled && !t.archivedAt && t.scope === "pet" && result.signedPetConsentIds?.includes(t.id) && !data.consents.some(c => c.id === t.id)) && <p className="text-slate-600">이 반려동물은 현재 버전의 동의서에 이미 서명했습니다. 다시 동의가 필요하면 문서를 수정해 새 버전으로 요청해 주세요.</p>}
-      {data.consents.map(doc => <details key={doc.id} className="border-b pb-3" open={signingId === doc.id || undefined}>
-        <summary className="cursor-pointer break-words">{doc.title} · {doc.status === "signed" ? "작성 완료" : doc.status === "waived" ? "예외 처리" : "작성 대기"}{doc.required ? " · 필수" : " · 선택"}</summary>
+      {owner && <ConsentRequestStatus result={result} />}
+      {data.consents.map(doc => {
+        const documentKey = `${doc.id}:${doc.version}`;
+        return <details key={documentKey} className="border-b pb-3" open={signingId === documentKey || undefined}>
+        <summary className="cursor-pointer break-words">{doc.title} · {doc.status === "signed" ? "작성 완료" : doc.status === "waived" ? "예외 처리" : doc.status === "superseded" ? "새 버전으로 변경" : "작성 대기"}{doc.required ? " · 필수" : " · 선택"}</summary>
         <div className="mt-3 space-y-3"><p className="text-slate-600">버전 {doc.version} · {doc.scope === "pet" ? "반려동물별 1회" : "예약마다 작성"}</p><p className="whitespace-pre-wrap break-words">{doc.body}</p>
           {doc.status === "signed" && <><p>{doc.signerName} · {doc.signedAt && new Date(doc.signedAt).toLocaleString("ko-KR")}</p>{doc.signature && <SignaturePreview value={doc.signature} />}<button type="button" className={button} onClick={() => {
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 220">${(doc.signature ?? []).map(s => `<polyline points="${s.map(p => `${p.x * 600},${p.y * 220}`).join(" ")}" fill="none" stroke="black" stroke-width="3"/>`).join("")}</svg>`;
@@ -74,17 +157,17 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
             const url = URL.createObjectURL(blob), a = document.createElement("a"); a.href = url; a.download = `동의서-${doc.id}-v${doc.version}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
           }}>동의서 내려받기</button></>}
           {!owner && active && doc.status === "pending" && <>
-            {signingId !== doc.id ? <button type="button" className={button} onClick={() => { setSigningId(doc.id); setSignature([]); setAgreed(false); }}>동의서 작성</button> : <>
+            {signingId !== documentKey ? <button type="button" className={button} onClick={() => { setSigningId(documentKey); setSignature([]); setAgreed(false); }}>동의서 작성</button> : <>
               <label className="grid gap-1">서명자 이름<input className={field} autoComplete="name" value={signerName} maxLength={50} onChange={e => setSignerName(e.target.value)} /></label>
               <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={agreed} onChange={e => setAgreed(e.target.checked)} />위 내용을 읽고 동의합니다.</label>
               <BookingSignaturePad value={signature} onChange={setSignature} disabled={busy} />
               <p className="text-slate-600">서명본은 매장과 보호자가 확인할 수 있도록 보관됩니다.</p>
-              <button type="button" className={`${button} !bg-[#1976ff] !text-white`} disabled={busy || !agreed || !signerName.trim() || !signature.length} onClick={() => void act("sign", { templateId: doc.id, signerName, signature, agreed })}>서명 완료 및 제출</button>
+              <button type="button" className={`${button} !bg-[#1976ff] !text-white`} disabled={busy || !agreed || !signerName.trim() || !signature.length} onClick={() => void act("sign", { templateId: doc.id, templateVersion: doc.version, signerName, signature, agreed })}>서명 완료 및 제출</button>
             </>}
           </>}
-          {owner && active && doc.status === "pending" && <button type="button" className={button} disabled={busy || !note.trim()} onClick={() => void act("waive_consent", { templateId: doc.id })}>이 예약만 예외 처리</button>}
+          {owner && active && doc.status === "pending" && <button type="button" className={button} disabled={busy || !note.trim()} onClick={() => void act("waive_consent", { templateId: doc.id, templateVersion: doc.version })}>이 예약만 예외 처리</button>}
         </div>
-      </details>)}
+      </details>})}
     </div>
     <p className="whitespace-pre-wrap break-words text-slate-600">{data.policy.cancellationNotice}</p>
     {!owner && <div className="space-y-2 border-t pt-3"><h4 className="font-medium">요청 알림 수신</h4>
@@ -108,7 +191,7 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
       {balance > 0 && <div className="space-y-2"><label className="grid gap-1">실제 반환한 금액 (원)<input className={field} type="number" min={1} max={balance} value={amount} onChange={e => setAmount(Number(e.target.value))} /></label><button type="button" className={button} disabled={!note.trim()} onClick={() => { if (window.confirm("고객에게 실제로 반환한 금액을 기록합니다. 이 버튼으로 이체되지는 않습니다.")) void act("refund_record", { amount }); }}>계좌 환불 완료 기록</button></div>}
       <label className="grid gap-1">이 고객의 다음 예약 조건<select className={field} value={nextRule} onChange={e => setNextRule(e.target.value as NextBookingRule)}>{Object.entries(NEXT_BOOKING_RULE_LABELS).map(([id, title]) => <option key={id} value={id}>{title}</option>)}</select></label>
       <div className="flex flex-wrap gap-2"><button type="button" className={button} disabled={!note.trim()} onClick={() => void act("set_condition", { rule: nextRule })}>고객별 예외 저장</button>{result.appointmentStatus === "noshow" && <button type="button" className={button} disabled={!note.trim()} onClick={() => { if (window.confirm("노쇼 기록을 정정하고 예약을 확정 상태로 복원합니다.")) void act("correct_noshow"); }}>잘못된 노쇼 정정</button>}</div>
-      <div className="space-y-2 border-t pt-3"><h4 className="font-medium">보호자에게 보낼 안내</h4><div className="flex flex-wrap gap-3"><label className="flex items-center gap-2"><input type="checkbox" checked={sendConsent} disabled={busy || !data.consents.some(c => c.status === "pending")} onChange={e => setSendConsent(e.target.checked)} />동의서 요청</label><span className="text-slate-500">예약금 알림톡은 승인 템플릿 준비 후 사용할 수 있습니다.</span></div><div className="flex flex-wrap gap-2"><button type="button" className={button} disabled={busy || !sendConsent} onClick={() => void act("request_guidance", { consent: sendConsent, deposit: false })}>동의서 요청 알림톡 보내기</button><button type="button" className={button} onClick={() => void copyLink()}>예약 확인 링크 복사</button></div></div>
+      {active && <div className="space-y-2 border-t pt-3"><h4 className="font-medium">보호자에게 보낼 안내</h4><div className="flex flex-wrap gap-3"><label className="flex items-center gap-2"><input type="checkbox" checked={sendDeposit} disabled={busy || !["pending", "reported"].includes(d.status) || !d.dueAt || Date.parse(d.dueAt) <= Date.now()} onChange={e => setSendDeposit(e.target.checked)} />예약금 요청</label><label className="flex items-center gap-2"><input type="checkbox" checked={sendConsent} disabled={busy || !data.consents.some(c => c.status === "pending")} onChange={e => setSendConsent(e.target.checked)} />동의서 요청</label></div><div className="flex flex-wrap gap-2"><button type="button" className={button} disabled={busy || (!sendConsent && !sendDeposit)} onClick={() => void act("request_guidance", { consent: sendConsent, deposit: sendDeposit })}>선택한 안내 알림톡 보내기</button><button type="button" className={button} onClick={() => void copyLink()}>예약 확인 링크 복사</button></div></div>}
       {data.history.length > 0 && <details><summary className="cursor-pointer">처리 이력 {data.history.length}건</summary><ul className="mt-2 space-y-2">{data.history.map((h, i) => <li key={i} className="break-words text-slate-600">{new Date(h.at).toLocaleString("ko-KR")} · {({ request_deposit: "예약금 요청", report_deposit: "입금 신고", confirm_deposit: "입금 확인", waive_deposit: "예약금 면제", refund_record: "환불 기록", sign: "동의서 서명", waive_consent: "동의서 예외", cancel: "예약 취소", request_cancel: "취소 요청", noshow: "노쇼 처리", correct_noshow: "노쇼 정정", set_condition: "다음 예약 조건 변경", approve: "예약 승인", request_guidance: "안내 요청" } as Record<string, string>)[h.action] ?? "예약 처리"} {h.note}</li>)}</ul></details>}
     </fieldset>}
     {message && <p role="status" className="break-words text-[16px] text-slate-600">{message}</p>}

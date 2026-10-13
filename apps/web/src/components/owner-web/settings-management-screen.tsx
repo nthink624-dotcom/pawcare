@@ -1517,11 +1517,6 @@ export default function SettingsManagementScreen({
     updateDiscountCoupons(nextCoupons);
   }
 
-  function openBenefitRegistration(preset: DiscountCouponPreset = "all") {
-    setBenefitRegistrationDraft(createDiscountCouponDraft(discountCoupons.length + 1, preset));
-    setBenefitsView("register");
-  }
-
   function cancelBenefitRegistration() {
     setBenefitRegistrationDraft(createDiscountCouponDraft(discountCoupons.length + 1, "all"));
     setBenefitsView("manage");
@@ -2105,7 +2100,6 @@ export default function SettingsManagementScreen({
                 )}
                 dirty={discountCouponsDirty}
                 onViewChange={setBenefitsView}
-                onOpenRegister={openBenefitRegistration}
                 onRegistrationChange={(patch) =>
                   setBenefitRegistrationDraft((current) => ({ ...current, ...patch }))
                 }

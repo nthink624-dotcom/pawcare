@@ -15,6 +15,7 @@ export type AppointmentStatus =
   export type NotificationType =
     | "booking_received"
     | "booking_consent_request"
+    | "booking_deposit_request"
     | "booking_confirmed"
   | "owner_booking_requested"
   | "booking_cancelled"

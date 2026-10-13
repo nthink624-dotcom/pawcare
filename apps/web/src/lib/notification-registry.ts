@@ -25,6 +25,7 @@ export type GuardianSettingKey = keyof GuardianNotificationSettings | null;
 export type AlimtalkTemplateAlias =
   | "booking_received"
   | "booking_consent_request"
+  | "booking_deposit_request"
   | "booking_confirmed"
   | "booking_cancelled"
   | "appointment_reminder_10m"
@@ -40,6 +41,7 @@ export type AlimtalkTemplateAlias =
 export type AlimtalkTemplateConfigKey =
   | "templateBookingReceived"
   | "templateBookingConsentRequest"
+  | "templateBookingDepositRequest"
   | "templateBookingConfirmed"
   | "templateBookingCancelled"
   | "templateBookingRescheduledConfirmed"
@@ -71,6 +73,20 @@ export type NotificationRegistryItem = {
 export type NotificationTemplateVariables = Record<string, string | null | undefined>;
 
 export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
+  {
+    type: "booking_deposit_request",
+    title: "예약금 납부 요청",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "오너가 예약별로 예약금 요청 안내를 선택했을 때 수동 발송",
+    dispatchSource: "src/server/booking-preparation.ts",
+    templateAlias: "booking_deposit_request",
+    templateConfigKey: "templateBookingDepositRequest",
+    shopSettingKey: "enabled",
+    guardianSettingKey: "deposit_request_enabled",
+    notes: "승인된 예약금 전용 템플릿으로 금액·계좌·기한과 입금 신고 링크를 안내합니다.",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request.body,
+  },
   {
     type: "booking_received",
     title: "예약 접수",
@@ -223,7 +239,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "grooming_completed",
-    title: "미용 완료",
+    title: "케어리포트 있음",
     target: "guardian",
     channel: "alimtalk",
     trigger: "예약 상태가 completed가 되면 발송",
@@ -237,7 +253,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "grooming_completed",
-    title: "미용 완료 - 케어리포트 없음",
+    title: "케어리포트 없음",
     target: "guardian",
     channel: "alimtalk",
     trigger: "예약 상태가 completed가 되고 최종 발행된 케어리포트가 없을 때 발송",
@@ -251,7 +267,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "revisit_notice",
-    title: "재방문 안내",
+    title: "재예약 알림",
     target: "guardian",
     channel: "alimtalk",
     trigger: "케어 완료 때 오너가 선택한 재예약 알림일에 자동 발송",
@@ -263,12 +279,12 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     notes: "매장과 고객 모두 재방문 알림이 켜져 있고, 이후 예약이 없을 때 한 번만 발송",
     draftBody: [
       "[#{매장명}]",
-      "#{반려동물명}의 다음 케어 시기가 다가왔어요.",
+      "안녕하세요, 보호자님.",
+      "#{반려동물명}의 다음 미용 시기가 다가와 안내드려요.",
       "",
-      "마지막 방문: #{마지막방문일}",
-      "권장 관리 주기: #{관리주기}",
-      "",
-      "원하시는 날짜와 시간을 편하게 선택해 주세요.",
+      "아이의 털 상태와 컨디션에 맞춰 편안하게 미용받을 수 있도록 꼼꼼히 준비하겠습니다.",
+      "원하시는 날짜와 시간은 아래 버튼에서 확인하고 예약해 주세요.",
+      "다음 방문에도 정성껏 돌봐드릴게요. 감사합니다.",
     ].join("\n"),
   },
   {
@@ -317,6 +333,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
 
 export const ACTIVE_ALIMTALK_TEMPLATE_ALIASES: readonly AlimtalkTemplateAlias[] = [
   "booking_consent_request",
+  "booking_deposit_request",
   "booking_confirmed",
   "booking_cancelled",
   "appointment_reminder_10m",
@@ -406,6 +423,9 @@ export function shouldSendByShopSettings(
   type: NotificationType,
 ) {
   if (!settings) return null;
+  // Deposit requests have one source of truth in the booking policy. The general
+  // reservation/grooming switch must not silently disable an explicit request.
+  if (type === "booking_deposit_request") return true;
   if (!settings.enabled) return false;
 
   switch (type) {
@@ -449,6 +469,8 @@ export function shouldSendByGuardianSettings(
   switch (type) {
     case "booking_consent_request":
       return settings.consent_request_enabled ?? true;
+    case "booking_deposit_request":
+      return settings.deposit_request_enabled ?? true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
     case "booking_consent_request":

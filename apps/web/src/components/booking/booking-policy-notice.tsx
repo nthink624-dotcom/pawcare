@@ -16,6 +16,7 @@ export default function BookingPolicyNotice({ shopId, onChange }: { shopId: stri
     <h3 className="font-medium">예약금·취소 안내</h3>
     {p.depositMode !== "off" && <p>{p.depositAudience === "all" ? "전체 고객" : p.depositAudience === "new" ? "첫 방문 고객" : "노쇼 이력 고객"}의 예약금은 {p.depositAmount.toLocaleString()}원입니다. {p.depositMode === "required" ? "대상 예약은 입금 확인 후 매장에서 확정합니다." : "매장에서 예약별로 요청할 수 있습니다."}</p>}
     <p className="whitespace-pre-wrap break-words">{p.cancellationNotice}</p><p>직접 취소는 예약 시작 {p.cancellationCutoffHours}시간 전까지 가능합니다. 이후에는 매장에 취소를 요청해 주세요.</p>
+    {p.depositMode !== "off" && <p>예약금 요청 후 20분 안에 이체하고 입금 신고를 해 주세요. 기한 내 신고가 없으면 예약 시간이 해제됩니다. 신고 후에는 매장 확인을 기다립니다.</p>}
     <p>노쇼 1회: {NEXT_BOOKING_RULE_LABELS[p.firstNoshowRule]} · 2회 이상: {NEXT_BOOKING_RULE_LABELS[p.repeatNoshowRule]}</p>
     <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={accepted} onChange={e => { setAccepted(e.target.checked); onChange({ version: result.version, accepted: e.target.checked }); }} />예약금·취소·노쇼 안내를 확인했습니다.</label>
   </section>;

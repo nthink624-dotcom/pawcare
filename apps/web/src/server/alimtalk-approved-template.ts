@@ -32,9 +32,15 @@ export type RelayTemplateCatalogBody = {
     detail?: ConnectedTemplateDetail | null;
   }>;
   allTemplates?: ConnectedTemplateDetail[];
+  providerStatus?: {
+    connected: boolean;
+    checkedAt: string | null;
+    templateCount: number;
+  };
 };
 
 const aliasesThatMustHaveSsodaaButtons = new Set<AlimtalkTemplateAlias>([
+  "booking_deposit_request",
   "booking_consent_request",
   "booking_confirmed",
   "appointment_reminder_10m",
@@ -91,19 +97,14 @@ function normalizeConnectedButton(
   };
 }
 
-export function isApprovedAndUsableTemplate(
-  detail: ConnectedTemplateDetail,
-  alias?: AlimtalkTemplateAlias,
-) {
-  if (alias === "booking_consent_request") {
-    return detail.inspectionStatus?.toUpperCase() === "APR"
-      && ["ACT", "RDY"].includes(detail.serviceStatus?.toUpperCase() ?? "");
-  }
-  return (
-    detail.inspectionStatus === "APR" ||
-    detail.serviceStatus === "ACT" ||
-    detail.serviceStatus === "RDY"
-  );
+export function isApprovedAndUsableTemplate(detail: ConnectedTemplateDetail, _alias?: AlimtalkTemplateAlias) {
+  const inspectionStatus = detail.inspectionStatus?.toUpperCase() ?? "";
+  const serviceStatus = detail.serviceStatus?.toUpperCase() ?? "";
+
+  // Ssodaa's template screen shows R as "사용가능(사용전)" and S as "중지".
+  // A Kakao-approved but stopped template must not be treated as sendable.
+  return inspectionStatus === "APR"
+    && ["ACT", "RDY", "R", "ACTIVE", "READY"].includes(serviceStatus);
 }
 
 function normalizeTemplateText(value: string) {
@@ -119,9 +120,19 @@ export function hasApprovedBookingConsentTemplateContract(detail: ConnectedTempl
 }
 
 function validateTemplateContract(alias: AlimtalkTemplateAlias, detail: ConnectedTemplateDetail) {
+  if (alias === "booking_deposit_request" && !hasApprovedBookingDepositTemplateContract(detail)) {
+    throw new Error("예약금 요청 알림톡의 승인 본문 또는 버튼이 등록된 계약과 달라 발송을 중단했습니다.");
+  }
   if (alias === "booking_consent_request" && !hasApprovedBookingConsentTemplateContract(detail)) {
     throw new Error("동의서 요청 알림톡의 승인 본문 또는 버튼이 등록된 계약과 달라 발송을 중단했습니다.");
   }
+}
+
+export function hasApprovedBookingDepositTemplateContract(detail: ConnectedTemplateDetail) {
+  const contract = APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request;
+  return normalizeTemplateText(detail.templateContent ?? "") === normalizeTemplateText(contract.body)
+    && detail.buttons.length === 1 && detail.buttons[0]?.type === "WL"
+    && detail.buttons[0]?.name.trim() === contract.button;
 }
 
 async function getApprovedSsodaaTemplate(
@@ -133,7 +144,7 @@ async function getApprovedSsodaaTemplate(
 
   if (customTemplateCode) {
     const detail = body.allTemplates?.find((item) => item.templateCode === customTemplateCode) ?? null;
-    if (!detail || !isApprovedAndUsableTemplate(detail, alias)) return null;
+    if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
     const normalized = normalizeConnectedTemplateDetail(customTemplateCode, detail);
     validateTemplateContract(alias, normalized);
     return normalized;
@@ -144,17 +155,52 @@ async function getApprovedSsodaaTemplate(
   return detail;
 }
 
-async function getShopApprovedTemplateCodes(shopId: string | undefined, types: NotificationType[]) {
-  if (!shopId) return new Map<NotificationType, string>();
+export async function getApprovedSsodaaTemplateButtonDefaults(
+  aliases: AlimtalkTemplateAlias[],
+  shopId?: string,
+) {
+  const [catalog, customCodes] = await Promise.all([
+    getRelayTemplateCatalog(),
+    getShopApprovedTemplateCodes(shopId, aliases),
+  ]);
+
+  const entries = await Promise.all(aliases.map(async (alias) => {
+    const customCode = customCodes.get(alias);
+    const customDetail = customCode
+      ? catalog?.allTemplates?.find((item) => item.templateCode === customCode && isApprovedAndUsableTemplate(item)) ?? null
+      : null;
+    const detail = customDetail
+      ? normalizeConnectedTemplateDetail(customCode!, customDetail)
+      : catalog
+        ? await getApprovedSsodaaTemplateFromCatalog(alias, catalog)
+        : null;
+    if (detail) {
+      try {
+        validateTemplateContract(alias, detail);
+      } catch {
+        return [alias, []] as const;
+      }
+    }
+    return [
+      alias,
+      detail?.buttons.map((button) => ({ buttonName: button.name, linkMobile: button.linkMobile })) ?? [],
+    ] as const;
+  }));
+
+  return Object.fromEntries(entries) as Partial<Record<AlimtalkTemplateAlias, Array<{ buttonName: string; linkMobile: string }>>>;
+}
+
+async function getShopApprovedTemplateCodes(shopId: string | undefined, aliases: AlimtalkTemplateAlias[]) {
+  if (!shopId) return new Map<AlimtalkTemplateAlias, string>();
   const admin = getSupabaseAdmin();
-  if (!admin) return new Map<NotificationType, string>();
+  if (!admin) return new Map<AlimtalkTemplateAlias, string>();
   const result = await admin
     .from("shop_alimtalk_template_requests")
-    .select("id,notification_type,template_code,inspection_status")
+    .select("id,template_alias,template_code,inspection_status")
     .eq("shop_id", shopId)
-    .in("notification_type", types)
+    .in("template_alias", aliases)
     .order("created_at", { ascending: false });
-  if (result.error) return new Map<NotificationType, string>();
+  if (result.error) return new Map<AlimtalkTemplateAlias, string>();
 
   const rows = result.data ?? [];
   const pendingRows = rows.filter((row) => ["submitting", "requested", "reviewing", "unknown"].includes(row.inspection_status));
@@ -187,16 +233,16 @@ async function getShopApprovedTemplateCodes(shopId: string | undefined, types: N
     }
   }
 
-  const codes = new Map<NotificationType, string>();
+  const codes = new Map<AlimtalkTemplateAlias, string>();
   for (const row of rows) {
-    if (row.inspection_status === "approved" && !codes.has(row.notification_type as NotificationType)) {
-      codes.set(row.notification_type as NotificationType, row.template_code);
+    if (row.inspection_status === "approved" && !codes.has(row.template_alias as AlimtalkTemplateAlias)) {
+      codes.set(row.template_alias as AlimtalkTemplateAlias, row.template_code);
     }
   }
   return codes;
 }
 
-async function getApprovedSsodaaTemplateFromCatalog(
+export async function getApprovedSsodaaTemplateFromCatalog(
   alias: AlimtalkTemplateAlias,
   body: RelayTemplateCatalogBody,
 ): Promise<ConnectedTemplateDetail | null> {
@@ -216,7 +262,7 @@ async function getApprovedSsodaaTemplateFromCatalog(
     body.allTemplates?.find((item) => item.templateCode === templateCode) ??
     null;
 
-  if (!detail || !isApprovedAndUsableTemplate(detail, alias)) return null;
+  if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
 
   return normalizeConnectedTemplateDetail(templateCode, detail);
 }
@@ -371,10 +417,10 @@ function renderApprovedTemplateButtons(params: {
       renderedValue: linkPc,
       variables: params.values,
     });
-    if (params.spec.templateAlias === "booking_consent_request") {
+    if (params.spec.templateAlias === "booking_consent_request" || params.spec.templateAlias === "booking_deposit_request") {
       const bookingManageUrl = params.values["예약 확인 링크"]?.trim();
       if (!bookingManageUrl || linkMobile !== bookingManageUrl || linkPc !== bookingManageUrl) {
-        throw new Error("동의서 작성 버튼이 해당 예약의 보호자 서명 링크와 일치하지 않아 발송을 중단했습니다.");
+        throw new Error("요청 버튼이 해당 예약의 보호자 확인 링크와 일치하지 않아 발송을 중단했습니다.");
       }
     }
     return {
@@ -444,8 +490,8 @@ export async function getApprovedSsodaaNotificationTemplate(
     : ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
   if (!spec) return null;
 
-  const customCodes = await getShopApprovedTemplateCodes(shopId, [type]);
-  const detail = await getApprovedSsodaaTemplate(spec.templateAlias, customCodes.get(type));
+  const customCodes = await getShopApprovedTemplateCodes(shopId, [spec.templateAlias]);
+  const detail = await getApprovedSsodaaTemplate(spec.templateAlias, customCodes.get(spec.templateAlias));
   return renderApprovedSsodaaNotificationTemplate({ type, templateAlias: spec.templateAlias, values, detail });
 }
 
@@ -456,12 +502,15 @@ export async function getApprovedSsodaaNotificationTemplates(
 ) {
   const [catalog, customCodes] = await Promise.all([
     getRelayTemplateCatalog(),
-    getShopApprovedTemplateCodes(shopId, types),
+    getShopApprovedTemplateCodes(
+      shopId,
+      Array.from(new Set(types.map((type) => ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type)?.templateAlias).filter((alias): alias is AlimtalkTemplateAlias => Boolean(alias)))),
+    ),
   ]);
 
   return Promise.all(types.map(async (type) => {
     const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
-    const customCode = customCodes.get(type);
+    const customCode = spec ? customCodes.get(spec.templateAlias) : undefined;
     const detail = spec && catalog
       ? customCode
         ? catalog.allTemplates?.find((item) => item.templateCode === customCode && isApprovedAndUsableTemplate(item)) ?? null

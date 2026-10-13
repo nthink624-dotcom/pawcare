@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { buildDepositTemplateValues } from "@petmanager/shared/lib/deposit-template-values";
+import type { BookingPreparation } from "@petmanager/shared/contracts/booking-preparation";
 
 import {
   getAlimtalkTemplateAlias,
@@ -76,6 +78,7 @@ const abuseHandledStatuses = new Set<NotificationStatus>(["queued", "sent", "moc
 const oneShotAppointmentNotificationTypes = new Set<NotificationType>([
   "booking_received",
   "booking_consent_request",
+  "booking_deposit_request",
   "booking_confirmed",
   "owner_booking_requested",
   "booking_cancelled",
@@ -549,6 +552,7 @@ export function buildNotificationTemplateValues(params: {
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
   directionsUrl: string | null;
+  shopId: string;
   petName: string;
   recipientName: string | null;
   serviceName: string | null;
@@ -565,6 +569,7 @@ export function buildNotificationTemplateValues(params: {
 
   return {
     매장명: params.shopName,
+    매장ID: params.shopId,
     반려동물명: params.petName,
     보호자명: params.recipientName?.trim() || "",
     예약일시: appointmentDateTime,
@@ -667,6 +672,10 @@ function buildNotificationButtons(params: {
     if (!params.bookingManageUrl) return [];
     return [{ type: "WL", name: "동의서 작성", linkMobile: params.bookingManageUrl, linkPc: params.bookingManageUrl }];
   }
+  if (params.type === "booking_deposit_request") {
+    if (!params.bookingManageUrl) return [];
+    return [{ type: "WL", name: "예약금 입금 신고", linkMobile: params.bookingManageUrl, linkPc: params.bookingManageUrl }];
+  }
 
   if (params.type === "booking_confirmed") {
     if (params.bookingManageUrl) {
@@ -696,15 +705,18 @@ function buildNotificationButtons(params: {
 
 function hasExistingNotification(
   notifications: Notification[],
-  input: Pick<DispatchNotificationInput, "type" | "appointmentId" | "guardianId" | "petId">,
+  input: Pick<DispatchNotificationInput, "type" | "appointmentId" | "guardianId" | "petId" | "metadata">,
 ) {
+  const requestId = typeof input.metadata?.bookingPreparationRequestId === "string"
+    ? input.metadata.bookingPreparationRequestId : null;
   return notifications.some((item) => {
     const sameType = item.type === input.type;
     const sameAppointment = (item.appointment_id ?? null) === (input.appointmentId ?? null);
     const sameGuardian = (item.guardian_id ?? null) === (input.guardianId ?? null);
     const samePet = (item.pet_id ?? null) === (input.petId ?? null);
+    const sameRequest = !requestId || item.metadata?.bookingPreparationRequestId === requestId;
     const alreadyHandled = item.status === "sent" || item.status === "queued" || item.status === "mocked";
-    return sameType && sameAppointment && sameGuardian && samePet && alreadyHandled;
+    return sameType && sameAppointment && sameGuardian && samePet && sameRequest && alreadyHandled;
   });
 }
 
@@ -826,12 +838,28 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     bookingEntryUrl,
     bookingManageUrl,
     directionsUrl,
+    shopId: input.shopId,
     petName: pet?.name ?? "pet",
     recipientName,
     serviceName: service?.name ?? null,
     shopAddress: bootstrap.shop.address ?? null,
     shopName: bootstrap.shop.name,
   });
+  if (input.type === "booking_deposit_request") {
+    if (!appointment || !["pending", "confirmed"].includes(appointment.status)) {
+      throw new Error("예약금 안내를 보낼 수 있는 예약이 아닙니다.");
+    }
+    const preparation = await getSupabaseAdmin()?.from("booking_preparations")
+      .select("data").eq("shop_id", input.shopId).eq("appointment_id", appointment.id).maybeSingle();
+    if (!preparation || preparation.error || !preparation.data) throw new Error("예약금 요청 정보를 확인할 수 없습니다.");
+    const data = preparation.data.data as BookingPreparation;
+    if (!["pending", "reported"].includes(data.deposit.status) || !data.deposit.dueAt
+      || Date.parse(data.deposit.dueAt) <= Date.now()) throw new Error("납부 기한이 지난 예약금 안내는 보낼 수 없습니다.");
+    if (!data.policy.bankName || !data.policy.bankAccount || !data.policy.bankHolder) {
+      throw new Error("예약금 입금 계좌가 설정되지 않아 발송할 수 없습니다.");
+    }
+    Object.assign(notificationTemplateValues, buildDepositTemplateValues(data.policy, data.deposit));
+  }
   const connectedTemplate = await getApprovedSsodaaNotificationTemplate(
     input.type,
     notificationTemplateValues,
@@ -965,6 +993,9 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   } else if (input.type === "booking_consent_request" && connectedTemplate?.source !== "ssodaa_approved") {
     status = "failed";
     failReason = "동의서 요청 알림톡 템플릿이 아직 카카오 승인·연결되지 않았습니다.";
+  } else if (input.type === "booking_deposit_request" && connectedTemplate?.source !== "ssodaa_approved") {
+    status = "failed";
+    failReason = "예약금 요청 알림톡 템플릿이 아직 카카오 승인·연결되지 않았습니다.";
   } else if (isPhotoAlimtalkRequest && !hasConfiguredPhotoAlimtalkTemplate) {
     status = "queued";
     provider = "pending_template";

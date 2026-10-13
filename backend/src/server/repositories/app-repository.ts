@@ -1,6 +1,7 @@
 ﻿import { randomUUID } from "crypto";
 
 import { computeAvailableSlots, isShopClosedOnDate } from "@/lib/availability";
+import { expireUnreportedDeposits } from "../../../../apps/shared/lib/booking-deposit-hold";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { buildDemoBootstrap } from "@/lib/mock-data";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
@@ -39,6 +40,7 @@ import type {
 async function loadSupabaseBootstrap(shopId: string): Promise<BootstrapPayload> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return buildDemoBootstrap();
+  await expireUnreportedDeposits(supabase, shopId);
 
   const [shopRes, guardiansRes, petsRes, servicesRes, appointmentsRes, recordsRes, notificationsRes, interestsRes, feedbackRes] = await Promise.all([
     supabase.from("shops").select("*").eq("id", shopId).single(),

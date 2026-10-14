@@ -821,7 +821,7 @@ function OwnerAppContent({
         if (expiredCount > 0) {
           setError(pending ? `${PENDING_PHOTO_EXPIRY_NOTICE} 남아 있는 사진 작업은 복구했습니다.` : PENDING_PHOTO_EXPIRY_NOTICE);
         } else if (pending) {
-          setPhotoNotice("저장하지 않은 사진이 있어요. 이어서 확인할 수 있습니다.");
+          setPhotoNotice("저장 대기 중인 사진이 있어요.");
         }
       })
       .catch(() => {
@@ -3090,15 +3090,17 @@ function OwnerAppContent({
       >
         {error && <div className="mx-4 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         {photoNotice && !mobilePhotoStatusAction && (
-          <div role="status" className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[#f8fafc] px-3 py-2 text-[16px] font-normal leading-6 text-[#526276]">
-            <p className="min-w-0 flex-1">{photoNotice}</p>
-            {pendingMobilePhoto && <button type="button" className="min-h-11 px-3 font-medium text-[#174ea6]" onClick={() => {
-              const pending = pendingMobilePhoto;
-              setMobilePhotoPreviewFile(pendingOwnerStatusPhotoToFile(pending));
-              setMobilePhotoStatusAction(createMobilePhotoStatusAction(pending.appointmentId, pending.nextStatus, false, pending.allowSkip));
-              setPhotoNotice(null);
-            }}>이어서 확인</button>}
-            <button type="button" aria-label="사진 안내 닫기" className="min-h-11 px-3 font-medium" onClick={() => setPhotoNotice(null)}>닫기</button>
+          <div role="status" className="mx-4 mt-3 rounded-[10px] border border-[var(--border)] bg-[#f8fafc] px-3 py-2.5">
+            <p className="text-[16px] font-normal leading-6 text-[#526276]">{photoNotice}</p>
+            <div className="mt-1 flex justify-end gap-1">
+              {pendingMobilePhoto && <button type="button" className="min-h-11 px-3 font-medium text-[#174ea6]" onClick={() => {
+                const pending = pendingMobilePhoto;
+                setMobilePhotoPreviewFile(pendingOwnerStatusPhotoToFile(pending));
+                setMobilePhotoStatusAction(createMobilePhotoStatusAction(pending.appointmentId, pending.nextStatus, false, pending.allowSkip));
+                setPhotoNotice(null);
+              }}>사진 확인</button>}
+              <button type="button" aria-label="사진 안내 닫기" className="min-h-11 px-3 font-medium text-[#526276]" onClick={() => setPhotoNotice(null)}>닫기</button>
+            </div>
           </div>
         )}
 

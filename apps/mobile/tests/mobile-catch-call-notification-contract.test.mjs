@@ -34,7 +34,7 @@ test("registered caller notification offers reservation or phone-only; phone-onl
     receiver.indexOf("if (OwnerCallNotification.ACTION_ADD_RESERVATION.equals(action))"),
   );
 
-  assert.match(notification, /if \(registeredCaller\)[\s\S]*?"예약 추가"[\s\S]*?"전화만 받기"/);
+  assert.match(notification, /if \(registeredCaller\)[\s\S]*?"예약 등록하기"[\s\S]*?"전화만 받기"/);
   assert.match(notification, /catch-call-incoming-v3/);
   assert.match(notification, /channel\.setSound\(null, null\)[\s\S]*?channel\.enableVibration\(false\)/);
   assert.match(notification, /setAction\(ACTION_DISMISS\)[\s\S]*?putExtra\(EXTRA_PROVIDER_CALL_ID, providerCallId\)/);
@@ -56,6 +56,8 @@ test("choice uploads are queued, ordered after call events, owner-scoped, idempo
   assert.doesNotMatch(store.slice(store.indexOf("static synchronized JSONArray enqueueChoice"), store.indexOf("static synchronized JSONArray getPendingChoices")), /callerNumber/);
   assert.match(transport, /\/api\/owner\/call-events\/android\/choices/);
   assert.match(sync, /\/api\/owner\/call-events\/android\/events[\s\S]*?getPendingChoices\(\)[\s\S]*?\/api\/owner\/call-events\/android\/choices/);
+  assert.match(plugin, /public void getPendingChoices\(PluginCall call\)/);
+  assert.match(plugin, /public void acknowledgeChoices\(PluginCall call\)/);
   assert.match(route, /requireOwnerShop\(request, body\.shopId\)/);
   assert.match(route, /provider_event_id", `\$\{body\.providerCallId\}:incoming`/);
   assert.match(route, /match_status !== "matched"/);

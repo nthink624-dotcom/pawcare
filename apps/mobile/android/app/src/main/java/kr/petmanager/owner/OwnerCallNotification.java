@@ -110,7 +110,7 @@ final class OwnerCallNotification {
                 .putExtra(EXTRA_NOTIFICATION_ID, notificationId);
             PendingIntent phoneOnlyAction = PendingIntent.getBroadcast(context, notificationId + 4, phoneOnly,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            actionable.addAction(new NotificationCompat.Action.Builder(0, "예약 추가", reservationPendingIntent).build());
+            actionable.addAction(new NotificationCompat.Action.Builder(0, "예약 등록하기", reservationPendingIntent).build());
             actionable.addAction(new NotificationCompat.Action.Builder(0, "전화만 받기", phoneOnlyAction).build());
         } else {
             actionable.addAction(new NotificationCompat.Action.Builder(0, "신규고객 등록", registrationPendingIntent).build());

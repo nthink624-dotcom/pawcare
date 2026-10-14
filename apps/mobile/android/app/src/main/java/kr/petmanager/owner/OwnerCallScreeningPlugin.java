@@ -165,6 +165,22 @@ public class OwnerCallScreeningPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getPendingChoices(PluginCall call) {
+        call.resolve(new JSObject().put("choices", OwnerCallScreeningStore.getPendingChoices(getContext())));
+    }
+
+    @PluginMethod
+    public void acknowledgeChoices(PluginCall call) {
+        JSONArray providerCallIds = call.getArray("providerCallIds");
+        if (providerCallIds == null) {
+            call.reject("통화 선택 정보를 확인하지 못했습니다.");
+            return;
+        }
+        OwnerCallScreeningStore.acknowledgeChoices(getContext(), providerCallIds);
+        call.resolve();
+    }
+
+    @PluginMethod
     public void getPendingReservationAction(PluginCall call) {
         JSONObject pending = OwnerCallScreeningStore.getPendingReservationAction(getContext());
         JSObject response = new JSObject();

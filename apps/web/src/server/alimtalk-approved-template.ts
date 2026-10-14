@@ -5,6 +5,7 @@ import {
   type NotificationTemplateVariables,
 } from "@/lib/notification-registry";
 import { APPROVED_ALIMTALK_CONTRACTS } from "@petmanager/shared/contracts/alimtalk";
+import { isSameBookingManageLink } from "@petmanager/shared/lib/booking-manage-link";
 import { getConfiguredAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { NotificationType } from "@/types/domain";
@@ -419,7 +420,7 @@ function renderApprovedTemplateButtons(params: {
     });
     if (params.spec.templateAlias === "booking_consent_request" || params.spec.templateAlias === "booking_deposit_request") {
       const bookingManageUrl = params.values["예약 확인 링크"]?.trim();
-      if (!bookingManageUrl || linkMobile !== bookingManageUrl || linkPc !== bookingManageUrl) {
+      if (!bookingManageUrl || !isSameBookingManageLink(linkMobile, bookingManageUrl) || !isSameBookingManageLink(linkPc, bookingManageUrl)) {
         throw new Error("요청 버튼이 해당 예약의 보호자 확인 링크와 일치하지 않아 발송을 중단했습니다.");
       }
     }

@@ -100,19 +100,19 @@ export default function CustomerManagementTable({
             <col className="w-[8%]" />
             <col className="w-[12%]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[#fafbfd] text-[14px] leading-5 text-[#526079] [&_th]:h-14 [&_th]:bg-[#edf2f8] [&_th:first-child]:rounded-l-[14px] [&_th:last-child]:rounded-r-[14px] [&_svg]:shrink-0 [&_svg]:text-[#7387a2]">
+          <thead className="sticky top-0 z-10 bg-[#fafbfd] text-[16px] font-semibold leading-[18px] text-[#334155] [&_th]:h-12 [&_th]:bg-[#edf2f8] [&_th:first-child]:rounded-l-[14px] [&_th:last-child]:rounded-r-[14px] [&_svg]:shrink-0 [&_svg]:text-[#7387a2]">
             <tr>
               {deleteMode ? <th className="w-14 px-2 py-0" aria-label="선택" /> : null}
-              <th scope="col" className="px-2 py-0 text-center font-medium">
-                <button type="button" aria-label="고객명으로 정렬" data-owner-control-size="content" onClick={onSortByName} className="inline-flex min-h-11 items-center justify-center rounded-[10px] px-2 text-center text-[14px] font-medium leading-5 transition-colors hover:bg-white hover:text-[#15213b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">고객명</button>
+              <th scope="col" className="px-2 py-0 text-center font-semibold">
+                <button type="button" aria-label="고객명으로 정렬" data-owner-control-size="content" onClick={onSortByName} className="inline-flex min-h-11 items-center justify-center rounded-[10px] px-2 text-center text-[16px] font-semibold leading-[18px] transition-colors hover:bg-white hover:text-[#15213b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]">고객명</button>
               </th>
-              <th scope="col" className="px-3 py-2 text-center font-medium">연락처</th>
-              <th scope="col" className="px-3 py-2 text-center font-medium">반려동물 이름</th>
-              <th scope="col" className="px-2 py-2 font-medium">반려동물 나이</th>
-              <th scope="col" className="px-2 py-2 font-medium">최근 방문일</th>
-              <th scope="col" className="px-2 py-2 font-medium">최근 받은 서비스</th>
-              <th scope="col" className="px-2 py-2 font-medium">고객 등급</th>
-              <th scope="col" className="px-2 py-2 font-medium">등록일</th>
+              <th scope="col" className="px-3 py-2 text-center font-semibold">연락처</th>
+              <th scope="col" className="px-3 py-2 text-center font-semibold">반려동물 이름</th>
+              <th scope="col" className="px-2 py-2 font-semibold">반려동물 나이</th>
+              <th scope="col" className="px-2 py-2 font-semibold">최근 방문일</th>
+              <th scope="col" className="px-2 py-2 font-semibold">최근 받은 서비스</th>
+              <th scope="col" className="px-2 py-2 font-semibold">고객 등급</th>
+              <th scope="col" className="px-2 py-2 font-semibold">등록일</th>
             </tr>
           </thead>
           <tbody>
@@ -169,12 +169,12 @@ export default function CustomerManagementTable({
                   <span className="mt-1 block truncate text-[16px] leading-6 font-normal text-[#475569]">{formatPhoneNumber(row.phone)}</span>
                 </button>
               </div>
-              <dl className="mt-3 grid min-w-0 grid-cols-2 gap-x-4 gap-y-3 border-t border-[#edf2f7] pt-3 text-left text-[16px] leading-6 [&_dt]:text-[14px] [&_dt]:leading-5">
-                <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 이름</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</dd></div>
-                <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 나이</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</dd></div>
-                <div className="min-w-0"><dt className="font-medium text-[#64748b]">최근 방문일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentVisitDate || "미방문"}</dd></div>
-                <div className="min-w-0"><dt className="font-medium text-[#64748b]">최근 받은 서비스</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentService || (row.recentVisitDate ? "미등록" : "미방문")}</dd></div>
-                <div className="col-span-2 min-w-0"><dt className="font-medium text-[#64748b]">등록일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.registeredAt}</dd></div>
+              <dl className="mt-3 grid min-w-0 grid-cols-2 gap-x-4 gap-y-3 border-t border-[#edf2f7] pt-3 text-left text-[16px] leading-6 [&_dt]:text-[16px] [&_dt]:leading-[18px]">
+                <div className="min-w-0"><dt className="font-semibold text-[#334155]">반려동물 이름</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</dd></div>
+                <div className="min-w-0"><dt className="font-semibold text-[#334155]">반려동물 나이</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</dd></div>
+                <div className="min-w-0"><dt className="font-semibold text-[#334155]">최근 방문일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentVisitDate || "미방문"}</dd></div>
+                <div className="min-w-0"><dt className="font-semibold text-[#334155]">최근 받은 서비스</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentService || (row.recentVisitDate ? "미등록" : "미방문")}</dd></div>
+                <div className="col-span-2 min-w-0"><dt className="font-semibold text-[#334155]">등록일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.registeredAt}</dd></div>
               </dl>
             </article>
           );

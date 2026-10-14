@@ -44,5 +44,9 @@ test('mobile services resolve canonical source directories; only web owns cron j
   assert.equal(mobile.rewrites[1].destination.service, 'frontend');
   const web = JSON.parse(fs.readFileSync(path.join(root, 'apps/web/vercel.json')));
   assert.equal(web.framework, 'nextjs');
-  assert.equal(web.crons.length, 2);
+  assert.deepEqual(web.crons.map(({ path }) => path), [
+    '/api/cron/operational-errors/cleanup',
+    '/api/notifications/visit-reminders',
+    '/api/media/cleanup-expired?dryRun=false',
+  ]);
 });

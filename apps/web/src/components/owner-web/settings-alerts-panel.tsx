@@ -756,13 +756,12 @@ export default function SettingsAlertsPanel({
                   if (item.key === "bookingConsentRequestEnabled") return <div key={item.type} className="flex min-h-11 min-w-0 items-center gap-3 text-left transition hover:bg-[#fafafa]">
                     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
                       <button type="button" data-owner-control-size="content" onClick={() => setSelectedAlertType(item.type)} className="min-h-11 shrink-0 text-left text-[16px] font-normal leading-6 text-[#475569] focus-visible:outline-none focus-visible:underline">동의서 작성</button>
-                      <span className="text-[13px] font-normal leading-5 text-[#64748b]">/ 동의서 관리의 필수 서명 설정과 연결됩니다.</span>
                     </div>
                     <AlertSettingsSwitch aria-label="미용 전 필수 서명 설정" checked={currentDepositPolicy?.policy.consentBeforeStart ?? false} disabled={!currentDepositPolicy || depositSaving} onCheckedChange={checked => void updateConsentBeforeStart(checked)} />
                   </div>;
                   if (item.key === "bookingDepositRequestEnabled") return <div key={item.type} className="min-w-0">
                     <div className="flex min-h-11 min-w-0 items-center gap-3 text-left transition hover:bg-[#fafafa]">
-                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2"><span className="shrink-0 text-[16px] font-normal leading-6 text-[#475569]">예약금 사용</span><span role="status" className="text-[13px] font-normal leading-5 text-[#64748b]">/ {depositSaving ? "저장 중입니다." : "예약금 설정과 연결됩니다."}</span></div>
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2"><span className="shrink-0 text-[16px] font-normal leading-6 text-[#475569]">예약금 사용</span>{depositSaving ? <span role="status" className="text-[13px] font-normal leading-5 text-[#64748b]">저장 중입니다.</span> : null}</div>
                       <AlertSettingsSwitch aria-label="예약금 사용" checked={Boolean(currentDepositPolicy && currentDepositPolicy.policy.depositMode !== "off")} disabled={!currentDepositPolicy || depositSaving} onCheckedChange={checked => void updateDepositMode(checked ? "optional" : "off")} />
                     </div>
                     {depositError && <p role="alert" className="text-[16px] leading-6 text-[#9a5e4e]">{depositError}</p>}

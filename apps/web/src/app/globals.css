@@ -1589,6 +1589,18 @@ textarea {
   -webkit-overflow-scrolling: touch;
 }
 
+/* These two existing navigation rails intentionally remain borderless. */
+.pm-owner-web .owner-settings-tabbar[role="tablist"][aria-label="설정 메뉴"],
+.pm-owner-web .owner-settings-tabbar[role="tablist"][aria-label="혜택 관리 보기"] {
+  border: 0 !important;
+}
+
+/* Keep the extra outline scoped to the two settings tabs that need it. */
+.owner-settings-tabbar[role="tablist"][aria-label="예약 관리 설정"],
+.owner-settings-tabbar[role="tablist"][aria-label="알림톡 관리"] {
+  border: 1px solid #aeb9c8 !important;
+}
+
 .pm-owner-web .owner-settings-tabbar::-webkit-scrollbar {
   display: none;
 }
@@ -1612,9 +1624,9 @@ textarea {
   background: transparent !important;
   box-shadow: none !important;
   font-family: inherit;
-  font-size: 18px !important;
+  font-size: 16px !important;
   font-weight: 500 !important;
-  line-height: 26px !important;
+  line-height: 24px !important;
   white-space: nowrap;
   outline: none;
   transition: color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;

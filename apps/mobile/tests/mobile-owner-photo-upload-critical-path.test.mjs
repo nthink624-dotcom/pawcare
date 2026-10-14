@@ -8,7 +8,7 @@ const [timingSource, mediaClientSource, compressionSource, ownerAppSource] = awa
   readFile(new URL("../src/lib/media/owner-media-client.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/lib/media/client-image-compression.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/components/owner/owner-app.tsx", import.meta.url), "utf8"),
-]);
+]).then(sources => sources.map(source => source.replace(/\r\n?/g, "\n")));
 const timingJavaScript = stripTypeScriptTypes(timingSource, { mode: "transform" });
 const timingModuleUrl = `data:text/javascript;base64,${Buffer.from(timingJavaScript).toString("base64")}`;
 const { markOwnerMediaStep, traceOwnerMediaStep } = await import(timingModuleUrl);

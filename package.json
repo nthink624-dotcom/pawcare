@@ -107,7 +107,7 @@
     "typecheck:web": "npm run typecheck --workspace=@petmanager/web",
     "typecheck:mobile": "npm run typecheck --workspace=@petmanager/mobile",
     "test:workspace": "node --test scripts/monorepo/workspace-test.mjs && node --test scripts/monorepo/shared-ui-parity.test.cjs",
-    "test:mobile": "npm run test:price-guide-core --workspace=@petmanager/mobile && npm run test:readiness --workspace=@petmanager/mobile",
+    "test:mobile": "npm run test:price-guide-core --workspace=@petmanager/mobile && npm run test:readiness --workspace=@petmanager/mobile && npm run test:photos --workspace=@petmanager/mobile",
     "android:release": "npm run android:release --workspace=@petmanager/mobile",
     "test:operational-errors": "npm run test:operational-errors --workspace=@petmanager/web"
   }

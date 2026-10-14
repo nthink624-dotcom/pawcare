@@ -39,6 +39,7 @@ import OwnerContextActionMenu from "@/components/owner/owner-context-action-menu
 import OwnerMobileGroomingStartSheet from "@/components/owner/owner-mobile-grooming-start-sheet";
 import OwnerAppUpdateCoordinator from "@/components/owner/owner-app-update";
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
+import OwnerCallReservationQuickEntry from "@/components/owner/owner-call-reservation-quick-entry";
 import OwnerTesterFeedbackSheet from "@/components/owner/owner-tester-feedback-sheet";
 import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
@@ -674,6 +675,12 @@ function OwnerAppContent({
   }, [activeTab]);
 
   hardwareBackHandlerRef.current = () => {
+    if (pendingCallReservationAction?.pending) {
+      setPendingCallReservationAction(null);
+      void clearOwnerCallReservationAction();
+      clearRootBackExitNotice();
+      return;
+    }
     if (isTesterFeedbackHubOpen) {
       setIsTesterFeedbackHubOpen(false);
       clearRootBackExitNotice();
@@ -871,8 +878,6 @@ function OwnerAppContent({
         return;
       }
       setPendingCallReservationAction(action);
-      setActiveTab("settings");
-      setSettingsEntryScreen("catchcall");
     };
 
     void getOwnerCallReservationAction().then(openCatchCallReservation).catch(() => undefined);
@@ -3732,8 +3737,26 @@ function OwnerAppContent({
           </section>
         )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} pendingReservationAction={pendingCallReservationAction} incomingCallChoice={pendingIncomingCallChoice} onIncomingCallReservation={chooseIncomingCallReservation} onIncomingCallNewCustomer={chooseIncomingCallNewCustomer} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} incomingCallChoice={pendingIncomingCallChoice} onIncomingCallReservation={chooseIncomingCallReservation} onIncomingCallNewCustomer={chooseIncomingCallNewCustomer} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
       </main>
+
+      {pendingCallReservationAction?.pending && !isStaffApp ? (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-[#f4f6f9]" role="dialog" aria-modal="true" aria-label="전화 예약 등록">
+          <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-[#e8edf3] bg-white px-4">
+            <button type="button" onClick={() => { setPendingCallReservationAction(null); void clearOwnerCallReservationAction(); }} className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[16px] text-[#334155]" aria-label="닫기">×</button>
+            <h1 className="text-[18px] font-semibold leading-6 text-[#15213b]">전화 예약 등록</h1>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(var(--pm-safe-bottom)+16px)]">
+            <OwnerCallReservationQuickEntry
+              key={pendingCallReservationAction.providerCallId}
+              data={data}
+              action={pendingCallReservationAction}
+              onClose={() => { setPendingCallReservationAction(null); void clearOwnerCallReservationAction(); }}
+              onSaved={() => { void refreshSilently(); }}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {!isStaffApp && !modal ? (
         <OwnerContextActionMenu

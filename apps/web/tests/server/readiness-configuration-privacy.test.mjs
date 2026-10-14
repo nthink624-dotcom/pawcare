@@ -6,16 +6,16 @@ import { createRequire } from "node:module";
 const ts = createRequire(import.meta.url)("typescript");
 const source = fs.readFileSync(new URL("../../src/app/api/readyz/route.ts", import.meta.url), "utf8");
 async function probe(env) {
-  const module = { exports: {} };
+  const testModule = { exports: {} };
   const supabase = { from: () => ({ select: () => ({ limit: () => ({ abortSignal: async () => ({ error: null }) }) }) }) };
   const deps = {
     "next/server": { NextResponse: { json: (body, options) => ({ body, status: options.status }) } },
-    "@/lib/observability": { getReleaseId: () => "fixture", getRequestId: () => "fixture", logOperationalEvent: () => {} },
+    "@/server/observability": { getReleaseId: () => "fixture", getRequestId: () => "fixture", logOperationalEvent: () => {} },
     "@/lib/supabase/server": { getSupabaseAdmin: () => supabase },
   };
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText,
-    { module, exports: module.exports, require: (name) => deps[name], process: { env }, AbortController, setTimeout, clearTimeout });
-  return await module.exports.GET({});
+    { module: testModule, exports: testModule.exports, require: (name) => deps[name], process: { env }, AbortController, setTimeout, clearTimeout });
+  return await testModule.exports.GET({});
 }
 test("runtime readiness exposes only AI configuration booleans, never the secret", async () => {
   const result = await probe({ OPENAI_PRICE_GUIDE_ENABLED: "true", OPENAI_API_KEY: "TOP_SECRET_NEVER_RETURN", OPENAI_PRICE_GUIDE_MODEL: "gpt-6-luna" });

@@ -8,6 +8,7 @@ const config = [
       "petmanager-landing.jsx",
       ".tmp/**",
       "tmp/**",
+      ".next-*/**",
       ".local-secrets/**",
       "captures/**",
       "evidence/**",

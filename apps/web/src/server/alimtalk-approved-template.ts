@@ -5,6 +5,7 @@ import {
   type NotificationTemplateVariables,
 } from "@/lib/notification-registry";
 import { APPROVED_ALIMTALK_CONTRACTS } from "@petmanager/shared/contracts/alimtalk";
+import { isSameBookingManageLink } from "@petmanager/shared/lib/booking-manage-link";
 import { getConfiguredAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { NotificationType } from "@/types/domain";
@@ -245,7 +246,14 @@ async function getShopApprovedTemplateCodes(shopId: string | undefined, aliases:
 export async function getApprovedSsodaaTemplateFromCatalog(
   alias: AlimtalkTemplateAlias,
   body: RelayTemplateCatalogBody,
+  customTemplateCode?: string | null,
 ): Promise<ConnectedTemplateDetail | null> {
+  if (customTemplateCode) {
+    const detail = body.allTemplates?.find((item) => item.templateCode === customTemplateCode) ?? null;
+    if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
+    return normalizeConnectedTemplateDetail(customTemplateCode, detail);
+  }
+
   const platformCode = await getPlatformMappedTemplateCode(alias);
   const configuredCode = platformCode || getConfiguredAlimtalkTemplateKey(alias)?.trim();
   const aliasEntry = body.items?.find(
@@ -265,6 +273,29 @@ export async function getApprovedSsodaaTemplateFromCatalog(
   if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
 
   return normalizeConnectedTemplateDetail(templateCode, detail);
+}
+
+export async function getApprovedSsodaaTemplateDetails(
+  aliases: AlimtalkTemplateAlias[],
+  shopId?: string,
+) {
+  const [catalog, customCodes] = await Promise.all([
+    getRelayTemplateCatalog(),
+    getShopApprovedTemplateCodes(shopId, aliases),
+  ]);
+  if (!catalog) return {} as Partial<Record<AlimtalkTemplateAlias, ConnectedTemplateDetail>>;
+
+  const entries = await Promise.all(aliases.map(async (alias) => {
+    const detail = await getApprovedSsodaaTemplateFromCatalog(alias, catalog, customCodes.get(alias));
+    if (detail) {
+      try { validateTemplateContract(alias, detail); }
+      catch { return [alias, null] as const; }
+    }
+    return [alias, detail] as const;
+  }));
+  return Object.fromEntries(
+    entries.filter((entry): entry is readonly [AlimtalkTemplateAlias, ConnectedTemplateDetail] => Boolean(entry[1])),
+  ) as Partial<Record<AlimtalkTemplateAlias, ConnectedTemplateDetail>>;
 }
 
 async function getPlatformMappedTemplateCode(alias: AlimtalkTemplateAlias) {
@@ -419,7 +450,7 @@ function renderApprovedTemplateButtons(params: {
     });
     if (params.spec.templateAlias === "booking_consent_request" || params.spec.templateAlias === "booking_deposit_request") {
       const bookingManageUrl = params.values["예약 확인 링크"]?.trim();
-      if (!bookingManageUrl || linkMobile !== bookingManageUrl || linkPc !== bookingManageUrl) {
+      if (!bookingManageUrl || !isSameBookingManageLink(linkMobile, bookingManageUrl) || !isSameBookingManageLink(linkPc, bookingManageUrl)) {
         throw new Error("요청 버튼이 해당 예약의 보호자 확인 링크와 일치하지 않아 발송을 중단했습니다.");
       }
     }

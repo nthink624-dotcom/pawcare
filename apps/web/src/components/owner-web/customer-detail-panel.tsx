@@ -212,7 +212,8 @@ export default function CustomerDetailPanel({
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/20 p-4" onClick={onClose}>
       <section
-        className="relative mx-auto flex h-full max-w-[1520px] flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-[#f7f8fb] shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
+        data-customer-detail
+        className="relative mx-auto flex h-full max-w-[1520px] flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-[#f7f8fb] text-[16px] font-normal leading-6 shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#e1e7ef] bg-white px-4 py-2.5 sm:flex-nowrap sm:gap-4 sm:px-5">
@@ -428,9 +429,9 @@ function SummaryField({ label, children }: { label: string; children: React.Reac
 
 function SummaryStatRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-3 text-[16px] leading-6">
-      <span className="shrink-0 text-[#64748b]">{label}</span>
-      <span className="min-w-0 truncate text-right text-[#111827]">{value}</span>
+    <div className="flex min-w-0 items-center justify-between gap-3 text-[16px] font-normal leading-6">
+      <span className="shrink-0 text-[14px] font-medium leading-5 text-[#64748b]">{label}</span>
+      <span className="min-w-0 break-words text-right text-[#111827]">{value}</span>
     </div>
   );
 }
@@ -1250,7 +1251,7 @@ function PhotoPreviewSlot({ label, preview }: { label: string; preview: Grooming
       ) : (
         <div className="h-full w-full bg-[#f8fafc]" />
       )}
-      <span className="absolute left-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-[5px] bg-white/90 px-1 text-[12px] font-semibold text-[#334155] shadow-[0_1px_4px_rgba(15,23,42,0.12)]">
+      <span className="absolute left-1 top-1 inline-flex min-h-[18px] min-w-4 items-center justify-center rounded-[5px] bg-white/90 px-1 text-[12px] font-medium leading-[18px] text-[#334155] shadow-[0_1px_4px_rgba(15,23,42,0.12)]">
         {label}
       </span>
     </div>
@@ -1821,7 +1822,7 @@ function InlineEditableText({
 
   if (editing) {
     const commonClassName = cn(
-      "w-full rounded-[7px] border border-[#2f7866] bg-white px-2 text-[#111827] outline-none",
+      "w-full rounded-[7px] border border-[#2f7866] bg-white px-2 text-[16px] font-normal leading-6 text-[#111827] outline-none",
       multiline ? "min-h-[84px] py-2 leading-6" : "h-11",
       inputClassName,
     );
@@ -1872,8 +1873,9 @@ function InlineEditableText({
     <button
       type="button"
       onClick={() => setEditing(true)}
+      data-owner-control-size="content"
       className={cn(
-        "inline-flex min-h-11 max-w-full items-center rounded-[6px] text-left hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+        "inline-flex min-h-11 max-w-full items-center rounded-[6px] text-left text-[16px] font-normal leading-6 hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
         className,
       )}
       aria-label={ariaLabel}

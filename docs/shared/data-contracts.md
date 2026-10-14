@@ -2,7 +2,7 @@
 
 ## Configurable deposit deadline (2026-10-13)
 
-`BookingPolicy.depositHoldMinutes` is an optional integer 1..1440, defaulting to 20 for legacy records. Owner PUT validates it; public policy GET exposes it. New request deadlines use the saved preparation policy and are capped at appointment start. Existing dueAt values are never rewritten. Apply 20261013133107_configurable_deposit_deadline.sql before the web release. Missing deposit payment values block dispatch.
+`BookingPolicy.depositHoldMinutes` is an optional integer 1..1440, defaulting to 20 for legacy records. Owner PUT validates it; public policy GET exposes it. New request deadlines use the saved preparation policy and are capped at appointment start. Existing dueAt values are never rewritten. Apply 20261013145604_configurable_deposit_deadline.sql before the web release. Missing deposit payment values block dispatch.
 
 예약금·서명 동의서·노쇼 조건 공통 계약: [booking-preparation-contract.md](booking-preparation-contract.md). 로컬 구현이며 원격 적용 전 단계.
 
@@ -755,3 +755,15 @@ Price-guide image analysis uses two separate persistence classes.
 - 해당 반려동물 기록이 1건부터 있으면 중앙값을 5분 단위로 올림해 추천한다. 1~2건은 `초기 추정`으로 표시한다. 예: 예약 90분 / 실제 74분 → 다음 예상 75분, 실제 평균 74분, 기록 1건.
 - 해당 동물 기록이 없으면 같은 매장·서비스·반올림 체중 기록 3건 이상, 같은 서비스 3건 이상, 기본 서비스 시간 순으로 대체한다. 다른 매장 기록·취소·미완료·중복·시각 누락 및 불일치 기록은 제외한다.
 - 이 값은 현재 조회된 기록의 읽기 전용 추정이며 과거 예약·실측 기록이나 요금표를 변경하지 않는다. 모든 과거 기록의 완전 조회 또는 통계적 정확성을 보장하지 않는다.
+## Approved booking-entry compatibility (2026-10-14)
+
+- Approved request buttons may use the legacy `/book/manage?t=<signed-token>` entry. That static route redirects to `/m` with only the same `t` value; `/m` remains responsible for signature, expiry and shop verification.
+- Request dispatch accepts canonical `/m` or that exact legacy entry only when protocol, origin, signed token, query and fragment match the server-generated canonical URL. Foreign hosts, other tokens, extra query parameters and credentials in URLs fail closed. The approved button text/link and provider review are not changed by this compatibility route.
+
+## Administrator operational error inbox (2026-10-14)
+
+- `operational_error_events` is shared by web/mobile server logging. Columns are `id`, `project_name` (`web` or `mobile`), `event_name`, `http_status` (400-599 or null), `release_id`, and `created_at`. No customer identity, request payload, exception message, token, or arbitrary context is persisted.
+- RLS is enabled with no browser policies. `anon`, `authenticated`, and PUBLIC have no table access; only service-role SELECT/INSERT/DELETE are granted.
+- `GET /api/admin/operational-errors` requires an active administrator session and returns the latest 100 rows within seven days. `GET /api/cron/operational-errors/cleanup` requires the configured `CRON_SECRET` bearer token and fails closed if absent.
+- `cleanup_operational_error_events_v1()` is a service-role-only invoker RPC that removes entries older than 30 days and overflow beyond 5,000 rows. The statement insert trigger enforces the same limits; daily cleanup handles quiet periods.
+- Canonical migration: `supabase/migrations/20261014025923_admin_operational_error_inbox.sql`. Applied production SQL hash matches the canonical SQL. Schema/readback verification is separate from authenticated UI and actual event-delivery verification.

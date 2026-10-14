@@ -1,6 +1,6 @@
 param(
   [string]$SecretPath = "C:\Users\happy\AppData\Local\Temp\petmanager-dev-db-password.dpapi",
-  [string]$CaPath = "C:\Users\happy\AppData\Local\Temp\petmanager-supabase-prod-ca-2021.crt",
+  [string]$CaPath = (Join-Path $env:LOCALAPPDATA "PetManagerBackupCredentials\supabase-prod-ca-2021.crt"),
   [string]$PgBin = "C:\Program Files\PostgreSQL\18\bin",
   [string]$RemoteHost = "aws-1-ap-southeast-2.pooler.supabase.com",
   [int]$RemotePort = 5432,
@@ -74,7 +74,6 @@ function Set-OwnerOnlyAcl {
   param([string]$Path)
   $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
   $acl = [Security.AccessControl.FileSecurity]::new()
-  $acl.SetOwner($sid)
   $acl.SetAccessRuleProtection($true, $false)
   $rule = [Security.AccessControl.FileSystemAccessRule]::new(
     $sid,
@@ -82,7 +81,7 @@ function Set-OwnerOnlyAcl {
     [Security.AccessControl.AccessControlType]::Allow
   )
   [void]$acl.AddAccessRule($rule)
-  Set-Acl -LiteralPath $Path -AclObject $acl
+  [IO.File]::SetAccessControl($Path, $acl)
 }
 
 function New-ProcessStartInfo {

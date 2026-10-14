@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import {
   checkCustomerBookingAccessRecoveryRateLimit,
   requestCustomerBookingAccessLink,

@@ -36,6 +36,7 @@ const OPTIONAL_TEMPLATE_KEYS = new Set([
 ]);
 const args = new Set(process.argv.slice(2));
 const shouldPullVercel = args.has("--pull-vercel-production");
+const productionOnly = args.has("--production-only");
 const localEnvFile = process.argv.find((arg) => arg.startsWith("--local="))?.slice("--local=".length) || ".env.local";
 const productionEnvFile =
   process.argv.find((arg) => arg.startsWith("--production="))?.slice("--production=".length) ||
@@ -145,7 +146,7 @@ try {
   const localValues = parseEnvFile(localEnvFile);
   const productionValues = parseEnvFile(productionEnvFile);
 
-  if (!localValues) {
+  if (!localValues && !productionOnly) {
     console.error(`ERROR: local env file not found: ${localEnvFile}`);
     process.exitCode = 1;
     return;
@@ -154,6 +155,21 @@ try {
   if (!productionValues) {
     console.error(`ERROR: production env file not found: ${productionEnvFile}`);
     process.exitCode = 1;
+    return;
+  }
+  if (productionOnly) {
+    const required = [...RELAY_KEYS, ...PROFILE_KEYS, ...TEMPLATE_KEYS.filter((key) => !OPTIONAL_TEMPLATE_KEYS.has(key))];
+    let failed = false;
+    for (const key of required) {
+      const value = productionValues[key]?.trim();
+      let ok = Boolean(value);
+      if (key.endsWith("_URL") && value) {
+        try { ok = new URL(value).protocol === "https:"; } catch { ok = false; }
+      }
+      failed ||= !ok;
+      console.log(`${ok ? "OK" : "ERROR"} ${key}: ${ok ? "configured" : "missing or invalid"}`);
+    }
+    if (failed) process.exitCode = 1;
     return;
   }
 

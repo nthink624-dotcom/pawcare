@@ -2,7 +2,7 @@
 
 export type AlimtalkMetadata = Record<string, string | boolean | number | null | undefined>;
 
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 
 export type AlimtalkMediaAttachment = {
   attachmentId?: string | null;

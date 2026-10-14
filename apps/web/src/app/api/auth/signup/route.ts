@@ -25,7 +25,7 @@ import {
   OWNER_SIGNUP_TERMS_VERSION,
 } from "@/lib/auth/owner-signup-terms";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
 import { dispatchNotification } from "@/server/notification-dispatch";
 import type { ChannelType, Notification, NotificationType } from "@/types/domain";

@@ -117,10 +117,8 @@ type MobileDurationTarget = {
   durationMinutes: number | null;
 };
 
-function durationFromWeightRule(target: MobileDurationTarget, baseMinutes: number, stepKg: 2 | 3) {
-  const anchorKg = target.maxKg ?? target.minKg;
-  if (!Number.isFinite(anchorKg) || anchorKg === null || anchorKg < 0) return null;
-  const minutes = baseMinutes + Math.ceil(Math.max(0, anchorKg - 2) / stepKg) * 10;
+function durationFromWeightRule(target: MobileDurationTarget, baseMinutes: number, incrementMinutes: number) {
+  const minutes = baseMinutes + target.weightIndex * incrementMinutes;
   return Number.isInteger(minutes) && minutes >= 15 && minutes <= 480 ? minutes : null;
 }
 
@@ -137,25 +135,34 @@ function MobileServiceDurationDialog({
   onClose: () => void;
   onApply: (updates: Array<{ weightIndex: number; durationMinutes: number }>) => void;
 }) {
-  const [baseMinutes, setBaseMinutes] = useState(() => {
-    const firstDuration = targets[0]?.durationMinutes;
-    return firstDuration === null || firstDuration === undefined ? "" : String(firstDuration);
-  });
-  const [stepKg, setStepKg] = useState<2 | 3>(2);
-  const [values, setValues] = useState<Record<number, string>>(() => Object.fromEntries(targets.map((target) => [target.weightIndex, target.durationMinutes === null ? "" : String(target.durationMinutes)])));
+  const [baseMinutes, setBaseMinutes] = useState("60");
+  const [incrementMinutes, setIncrementMinutes] = useState("10");
+  const [values, setValues] = useState<Record<number, string>>(() => Object.fromEntries(targets.map((target) => {
+    const duration = durationFromWeightRule(target, 60, 10) ?? target.durationMinutes;
+    return [target.weightIndex, duration === null ? "" : String(duration)];
+  })));
   const [error, setError] = useState("");
 
-  function calculate(baseOverride?: number) {
+  function calculate(baseOverride?: number, incrementOverride?: number) {
     const parsedBaseMinutes = baseOverride ?? Number(baseMinutes);
+    const parsedIncrementMinutes = incrementOverride ?? Number(incrementMinutes);
     if (!Number.isInteger(parsedBaseMinutes) || parsedBaseMinutes < 15 || parsedBaseMinutes > 480) {
-      setError("2kg 이하 기준 시간을 15~480분으로 입력해 주세요.");
+      setError("첫 체중 구간 시간을 15~480분으로 입력해 주세요.");
+      return;
+    }
+    if (!Number.isInteger(parsedIncrementMinutes) || parsedIncrementMinutes < 0 || parsedIncrementMinutes > 480) {
+      setError("추가 시간은 0~480분으로 입력해 주세요.");
+      return;
+    }
+    if (parsedBaseMinutes + Math.max(0, ...targets.map((target) => target.weightIndex)) * parsedIncrementMinutes > 480) {
+      setError("계산한 시간이 480분을 넘어요. 추가 시간을 줄여 주세요.");
       return;
     }
     const nextValues: Record<number, string> = {};
     for (const target of targets) {
-      const durationMinutes = durationFromWeightRule(target, parsedBaseMinutes, stepKg);
+      const durationMinutes = durationFromWeightRule(target, parsedBaseMinutes, parsedIncrementMinutes);
       if (durationMinutes === null) {
-        setError("체중 구간을 확인한 뒤 다시 계산해 주세요.");
+        setError("계산한 시간이 480분을 넘어요. 추가 시간을 줄여 주세요.");
         return;
       }
       nextValues[target.weightIndex] = String(durationMinutes);
@@ -164,12 +171,22 @@ function MobileServiceDurationDialog({
     setError("");
   }
 
-  function chooseQuickBase(minutes: number) {
-    setBaseMinutes(String(minutes));
-    calculate(minutes);
-  }
-
   function apply() {
+    const parsedBaseMinutes = Number(baseMinutes);
+    const parsedIncrementMinutes = Number(incrementMinutes);
+    if (!Number.isInteger(parsedBaseMinutes) || parsedBaseMinutes < 15 || parsedBaseMinutes > 480) {
+      setError("첫 체중 구간 시간을 15~480분으로 입력해 주세요.");
+      return;
+    }
+    if (!Number.isInteger(parsedIncrementMinutes) || parsedIncrementMinutes < 0 || parsedIncrementMinutes > 480) {
+      setError("추가 시간은 0~480분으로 입력해 주세요.");
+      return;
+    }
+    if (parsedBaseMinutes + Math.max(0, ...targets.map((target) => target.weightIndex)) * parsedIncrementMinutes > 480) {
+      setError("계산한 시간이 480분을 넘어요. 추가 시간을 줄여 주세요.");
+      return;
+    }
+    if (error) return;
     const updates: Array<{ weightIndex: number; durationMinutes: number }> = [];
     for (const target of targets) {
       const value = values[target.weightIndex]?.trim();
@@ -190,18 +207,12 @@ function MobileServiceDurationDialog({
       <div className="max-h-[calc(100dvh-32px)] w-full max-w-md overflow-y-auto rounded-[14px] border border-slate-200 bg-white p-4 text-slate-900 shadow-xl" data-mobile-price-guide-service-duration-dialog>
         <header className="flex items-center justify-between gap-2"><h2 className="text-[20px] font-semibold leading-7">{groupName} · {serviceName}</h2><button type="button" onClick={onClose} className={iconClass} aria-label="예상시간 설정 닫기"><X size={20} aria-hidden="true" /></button></header>
         <section className="mt-4 rounded-[10px] border border-slate-200 bg-slate-50 p-3" aria-label="체중별 예상시간 자동 설정" data-mobile-price-guide-weight-duration-rule>
-          <p className="text-[16px] font-medium leading-6">체중별 시간 자동 설정</p>
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-            <label className="min-w-0 text-[16px] leading-6"><span className="block text-slate-600">2kg 이하 기준 시간</span><span className="mt-1 flex items-center gap-2"><input aria-label="2kg 이하 기준 시간" type="number" inputMode="numeric" min={15} max={480} step={5} value={baseMinutes} onChange={(event) => { setBaseMinutes(event.target.value); setError(""); }} placeholder="예: 40" className={inputClass} /><span>분</span></span></label>
-            <label className="text-[16px] leading-6"><span className="block text-slate-600">증가 간격</span><select aria-label="체중 증가 간격" value={stepKg} onChange={(event) => setStepKg(Number(event.target.value) as 2 | 3)} className="mt-1 h-11 rounded-[8px] border border-slate-300 bg-white px-2 text-[16px] font-medium leading-6"><option value={2}>2kg마다</option><option value={3}>3kg마다</option></select></label>
-          </div>
-          <div className="mt-3" data-mobile-price-guide-duration-quick-options>
-            <p className="text-[16px] leading-6 text-slate-600">기본 시간 빠른 선택</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {[20, 30, 40, 50, 60, 75, 90].map((minutes) => <button key={minutes} type="button" onClick={() => chooseQuickBase(minutes)} aria-pressed={baseMinutes === String(minutes)} className={`min-h-11 rounded-[8px] border px-3 text-[16px] font-medium leading-6 outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${baseMinutes === String(minutes) ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}>{minutes}분</button>)}
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-[16px] leading-6 text-slate-600">선택한 간격마다 10분씩 추가돼요.</p><button type="button" onClick={() => calculate()} className={actionClass}>계산해서 채우기</button></div>
+          <p className="text-[16px] font-medium leading-6">시간 한 번에 채우기</p>
+          <p className="mt-3 flex flex-wrap items-center gap-2 text-[16px] leading-6 text-slate-700">
+            <span>첫 체중 구간은</span>
+            <label className="inline-flex items-center gap-1"><span className="sr-only">첫 체중 구간 시간</span><input aria-label="첫 체중 구간 시간" type="text" inputMode="numeric" pattern="[0-9]*" value={baseMinutes} onChange={(event) => { const value = event.target.value.replace(/\D/g, ""); setBaseMinutes(value); if (value && incrementMinutes) calculate(Number(value), Number(incrementMinutes)); else setError(""); }} className="h-11 w-20 rounded-[8px] border border-slate-300 bg-white px-2 text-center text-[16px] leading-6 text-slate-900 outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20" /><span>분,</span></label>
+            <label className="inline-flex flex-wrap items-center gap-1"><span>다음 체중 구간마다</span><span className="sr-only">구간마다 추가할 시간</span><input aria-label="구간마다 추가할 시간" type="text" inputMode="numeric" pattern="[0-9]*" value={incrementMinutes} onChange={(event) => { const value = event.target.value.replace(/\D/g, ""); setIncrementMinutes(value); if (baseMinutes && value) calculate(Number(baseMinutes), Number(value)); else setError(""); }} className="h-11 w-20 rounded-[8px] border border-slate-300 bg-white px-2 text-center text-[16px] leading-6 text-slate-900 outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20" /><span>분씩 더해요.</span></label>
+          </p>
         </section>
         <div className="mt-4 space-y-3">{targets.map((target) => <label key={target.weightIndex} className="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-3 text-[16px] leading-6"><span>{target.label || "체중 구간 입력"}</span><span className="flex items-center gap-2"><input aria-label={`${target.label || "체중 구간"} 예상시간`} type="number" inputMode="numeric" min={15} max={480} step={1} value={values[target.weightIndex] ?? ""} onChange={(event) => { setValues((current) => ({ ...current, [target.weightIndex]: event.target.value })); setError(""); }} placeholder="미정" className={inputClass} /><span>분</span></span></label>)}</div>
         {error ? <p role="alert" className="mt-3 text-[16px] leading-6 text-[#9a5e4e]">{error}</p> : null}

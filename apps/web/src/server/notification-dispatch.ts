@@ -15,7 +15,7 @@ import {
   resolveAlimtalkTemplateKey,
   serverEnv,
 } from "@/lib/server-env";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
 import {

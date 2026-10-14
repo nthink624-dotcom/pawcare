@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getReleaseId, getRequestId, logOperationalEvent } from "@/lib/observability";
+import { getReleaseId, getRequestId, logOperationalEvent } from "@/server/observability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +12,18 @@ type ReadinessCheck = {
 export async function GET(request: Request) {
   const requestId = getRequestId(request);
   const checks: Record<string, ReadinessCheck> = {};
+  // Vercel intentionally redacts sensitive values from CLI exports. Publish only
+  // non-secret readiness booleans from the running deployment, never key values.
+  const aiFlag = process.env.OPENAI_PRICE_GUIDE_ENABLED;
+  const aiModel = process.env.OPENAI_PRICE_GUIDE_MODEL?.trim() || "gpt-5.6-luna";
+  const configuration = {
+    priceGuideAi: {
+      enabled: aiFlag === "true",
+      settingValid: aiFlag === undefined || aiFlag === "true" || aiFlag === "false",
+      apiKeyPresent: Boolean(process.env.OPENAI_API_KEY?.trim()),
+      modelSupported: ["gpt-5.6-luna", "gpt-6-luna"].includes(aiModel),
+    },
+  };
 
   try {
     // Load the server client inside the guarded probe. A malformed optional
@@ -47,7 +59,7 @@ export async function GET(request: Request) {
 
   const ready = Object.values(checks).every((check) => check.status === "ok");
   return NextResponse.json(
-    { status: ready ? "ok" : "not_ready", checks, requestId, release: getReleaseId() },
+    { status: ready ? "ok" : "not_ready", checks, configuration, requestId, release: getReleaseId() },
     {
       status: ready ? 200 : 503,
       headers: {

@@ -9,12 +9,17 @@ const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 
 const layout = readText("src/app/layout.tsx");
 const globals = readText("src/app/globals.css");
+const mobileGlobals = readText("../mobile/src/app/globals.css");
 const typography = readText("src/components/owner-web/owner-typography.ts");
 const actionButtons = readText("src/components/owner-web/owner-web-action-button-styles.ts");
 const shell = readText("src/components/owner-web/owner-web-app-shell.tsx");
+const legacyOwnerDesktop = readText("src/components/owner/owner-desktop-app.tsx");
+const customerTable = readText("src/components/owner-web/customer-management-table.tsx");
+const operatingHours = readText("src/components/owner-web/operating-hours-settings.tsx");
 const ownerUi = readText("src/components/owner-web/owner-web-ui.tsx");
 const alerts = readText("src/components/owner-web/settings-alerts-panel.tsx");
 const profitability = readText("src/components/owner-web/profitability-analytics-screen.tsx");
+const calendar = readText("src/components/owner-web/calendar-management-screen.tsx");
 
 test("bundles the pinned official Pretendard v1.3.9 WOFF2 and OFL", () => {
   const font = readBytes("src/assets/fonts/PretendardVariable.woff2");
@@ -23,6 +28,7 @@ test("bundles the pinned official Pretendard v1.3.9 WOFF2 and OFL", () => {
   assert.equal(font.length, 2_057_688);
   assert.equal(font.subarray(0, 4).toString("ascii"), "wOF2");
   assert.equal(sha256(font), "9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4");
+  assert.equal(sha256(readBytes("../mobile/public/fonts/PretendardVariable.woff2")), sha256(font));
   assert.equal(sha256(license), "d31ddd9f2bed32fd7e302a205cf2380ba0de6529152d239ef99cfb6f261bfc04");
   assert.match(license.toString("utf8"), /Copyright \(c\) 2021, Kil Hyung-jin/);
   assert.match(license.toString("utf8"), /SIL OPEN FONT LICENSE Version 1\.1/);
@@ -95,8 +101,8 @@ test("maps owner and care-report tokens to 400, 500, and 600 semantic roles", ()
 test("keeps common actions and owner shell controls on canonical readable roles", () => {
   assert.match(actionButtons, /h-11[^"]*text-\[14px\] font-medium leading-5/);
   assert.match(shell, /OWNER_HEADER_UTILITY_BUTTON_CLASS =[\s\S]*h-11[^"]*text-\[14px\] font-medium leading-5/);
-  assert.match(shell, /text-\[12px\] font-medium leading-\[18px\] text-\[#8f98a6\]/);
-  assert.match(shell, /h-11 w-full[^"]*text-\[14px\] font-medium leading-5/);
+  assert.match(shell, /mb-2\.5 px-1 text-\[14px\] font-medium leading-5 text-\[#8f98a6\]/);
+  assert.match(shell, /min-h-11 w-full[^"]*text-\[16px\] font-medium leading-6 tracking-\[-0\.005em\]/);
   assert.match(shell, /text-\[14px\] font-semibold leading-5 tracking-\[-0\.01em\]/);
   assert.match(shell, /text-\[12px\] font-medium leading-\[18px\] text-\[var\(--mut\)\]/);
   assert.doesNotMatch(shell, /font-(?:bold|extrabold|black)/);
@@ -137,4 +143,37 @@ test("preserves the completed profitability typography and removed explanation",
   assert.match(profitability, /text-\[20px\] font-semibold leading-7[\s\S]*시간당 수익 분석/);
   assert.match(profitability, /text-\[18px\] font-semibold leading-\[26px\]/);
   assert.doesNotMatch(profitability, /실제 미용시간과 받은 금액을 연결해|시간당 매출이 낮은 순서입니다/);
+});
+
+test("shares typography tokens without overriding screen-specific content styles", () => {
+  assert.doesNotMatch(globals, /shared\/styles\/typography\.css/);
+  assert.doesNotMatch(mobileGlobals, /shared\/styles\/typography\.css/);
+  assert.match(globals, /\.pm-mobile-owner \.text-xs,[\s\S]{0,400}font-size: 16px !important/);
+  assert.match(mobileGlobals, /--type-page-title-size: 24px;/);
+});
+
+test("uses the guide's dense table and reservation-policy text roles on their own screens", () => {
+  assert.match(customerTable, /<table className="[^"]*text-\[14px\] leading-5/);
+  assert.match(customerTable, /<th className="[^"]*text-left font-medium"/);
+  assert.match(customerTable, /font-mono text-\[#64748b\]/);
+  assert.ok(operatingHours.includes('text-[18px] font-semibold leading-[26px] text-[#334155]">예약 금지 시간 설정'));
+  assert.ok(operatingHours.includes('font-medium leading-5 text-[#334155]'));
+  assert.ok(operatingHours.includes('compact ? "px-2.5 text-[14px]" : "px-3 text-[16px] leading-6"'));
+  assert.match(operatingHours, /text-\[13px\] leading-5 text-\[#475569\]/);
+});
+
+test("keeps the calendar time wheel on approved size and line-height steps", () => {
+  assert.match(calendar, /fontSize: 16, lineHeight: 24/);
+  assert.match(calendar, /fontSize: 14, lineHeight: 20/);
+  assert.match(calendar, /fontSize: 12, lineHeight: 18/);
+  assert.doesNotMatch(calendar, /fontSize: 15[, }]/);
+});
+
+test("uses one slightly lighter outline stroke for owner sidebar icons", () => {
+  assert.match(shell, /const screenIconComponents: Record<OwnerWebNavigationKey, LucideIcon>/);
+  assert.match(shell, /h-\[18px\] w-\[18px\] shrink-0" strokeWidth=\{1\.8\}/);
+  assert.match(legacyOwnerDesktop, /h-4 w-4" strokeWidth=\{1\.8\}/);
+  assert.match(shell, /text-\[14px\] font-medium leading-5/);
+  assert.match(shell, /text-\[16px\] font-medium leading-6 tracking-\[-0\.005em\]/);
+  assert.doesNotMatch(shell, /screenIconPaths|maskImage/);
 });

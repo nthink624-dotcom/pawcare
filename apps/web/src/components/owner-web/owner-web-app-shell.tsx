@@ -3,6 +3,7 @@
 import {
   Bell,
   CalendarDays,
+  ChartNoAxesCombined,
   ChevronDown,
   CircleHelp,
   CircleUserRound,
@@ -14,7 +15,6 @@ import {
   Link2,
   LogOut,
   MessageSquareWarning,
-  Presentation,
   Scissors,
   Search,
   Store,
@@ -43,7 +43,7 @@ const screenIconComponents: Record<OwnerWebNavigationKey, LucideIcon> = {
   bookingLink: Link2,
   calendarRecords: CalendarDays,
   customers: CircleUserRound,
-  profitability: Presentation,
+  profitability: ChartNoAxesCombined,
   bookingPolicy: ClipboardList,
   services: Scissors,
   staff: UsersRound,
@@ -66,6 +66,7 @@ const ownerWebNavigationGroups: Array<{
       { key: "schedule", label: "오늘" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
+      { key: "staff", label: "직원 관리" },
       { key: "profitability", label: "매출 분석" },
     ],
   },
@@ -75,7 +76,6 @@ const ownerWebNavigationGroups: Array<{
       { key: "shopInfo", label: "매장 정보" },
       { key: "bookingPolicy", label: "예약 정책" },
       { key: "benefits", label: "혜택 관리" },
-      { key: "staff", label: "직원 관리" },
       { key: "alerts", label: "알림 설정" },
     ],
   },
@@ -91,6 +91,7 @@ const ownerWebSidebarGroups: Array<{
       { key: "schedule", label: "오늘" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
+      { key: "staff", label: "직원 관리" },
       { key: "profitability", label: "매출 분석" },
     ],
   },
@@ -100,7 +101,6 @@ const ownerWebSidebarGroups: Array<{
       { key: "shopInfo", label: "매장 정보" },
       { key: "bookingPolicy", label: "예약 정책" },
       { key: "benefits", label: "혜택 관리" },
-      { key: "staff", label: "직원 관리" },
       { key: "alerts", label: "알림 설정" },
     ],
   },
@@ -122,6 +122,7 @@ const ownerWebFlushCoreScreens = new Set<OwnerWebScreenKey>([
   "bookingLink",
   "shopInfo",
   "bookingPolicy",
+  "benefits",
   "alerts",
 ]);
 
@@ -210,7 +211,7 @@ export default function OwnerWebAppShell({
       data-testid="owner-web-operations-background"
     >
       <aside className={cn(
-        "pm-owner-sidebar hidden h-screen w-[236px] shrink-0 flex-col border-r border-[var(--nav-bd)] bg-[var(--nav-bg)]",
+        "pm-owner-sidebar hidden h-screen w-[226px] shrink-0 flex-col border-r border-[var(--nav-bd)] bg-[var(--nav-bg)]",
         setupMode ? "hidden" : "lg:flex",
       )}>
         <div className="flex items-center pb-4 pl-[34px] pr-5 pt-[22px]">
@@ -221,13 +222,13 @@ export default function OwnerWebAppShell({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-5 pb-4 pt-1">
-          <div className="space-y-4">
+          <div className="space-y-3">
             {ownerWebSidebarGroups.map((group, groupIndex) => (
-              <div key={group.label} className={cn(groupIndex > 0 && "border-t border-dashed border-[#e1e5ec] pt-5")}>
-                <p className="mb-2.5 px-1 text-[14px] font-medium leading-5 text-[#8f98a6]">
+              <div key={group.label} className={cn(groupIndex > 0 && "border-t border-dashed border-[#e1e5ec] pt-4")}>
+                <p className="mb-2 px-1 text-[14px] font-medium leading-5 text-[#8f98a6]">
                   {group.label}
                 </p>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {group.items.map((screen) => {
                     const active = activeScreen === screen.key || (screen.key === "shopInfo" && (activeScreen === "bookingLink" || activeScreen === "bookingPageManagement"));
                     const itemClassName = cn(

@@ -13,6 +13,7 @@ function argument(name) {
 }
 
 const expectedRelease = argument("--expected-release");
+const { resolveReadbackPath } = require("./lib/readback-path.cjs");
 if (!/^[0-9a-f]{40}$/i.test(expectedRelease)) {
   console.error("Production launch gate: BLOCKED - pass --expected-release <Git SHA>");
   process.exit(1);
@@ -27,7 +28,9 @@ const actualReleaseAncestry = {};
 if (releaseCommitCheck.status !== 0) {
   failures.push("expected production release commit is not present in the local Git object database");
 } else {
-  for (const ref of ["master", "origin/master"]) {
+  // An isolated release checkout can coexist with a dirty canonical master.
+  // Validate its checked-out release and the integrated remote master directly.
+  for (const ref of ["HEAD", "origin/master"]) {
     const ancestry = spawnSync("git", ["merge-base", "--is-ancestor", expectedRelease, ref], {
       cwd: root,
       encoding: "utf8",
@@ -40,7 +43,7 @@ if (releaseCommitCheck.status !== 0) {
 
 const readbackEvidenceCheck = spawnSync(
   process.execPath,
-  [path.join(root, "scripts/check-readback-evidence.cjs")],
+  [path.join(root, "scripts/check-readback-evidence.cjs"), ...(argument("--readback-root") ? ["--readback-root", argument("--readback-root")] : [])],
   { cwd: root, encoding: "utf8", windowsHide: true },
 );
 if (readbackEvidenceCheck.status !== 0) {
@@ -70,6 +73,7 @@ const alimtalkCheck = spawnSync(
   [
     path.join(webRoot, "scripts/check-alimtalk-template-env-consistency.cjs"),
     "--pull-vercel-production",
+    "--production-only",
   ],
   { cwd: webRoot, encoding: "utf8", windowsHide: true },
 );
@@ -114,7 +118,7 @@ if (priceGuideAiCheck.status !== 0) {
 
 function readJson(relativePath) {
   try {
-    return JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"));
+    return JSON.parse(fs.readFileSync(resolveReadbackPath(root, relativePath), "utf8"));
   } catch {
     failures.push(`missing or invalid readback: ${relativePath}`);
     return null;

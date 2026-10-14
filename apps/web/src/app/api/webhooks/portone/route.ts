@@ -1,7 +1,7 @@
 import { Webhook } from "@portone/server-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { requireServerSecret, serverEnv, ServerEnvError } from "@/lib/server-env";
 import { syncOwnerAlimtalkCreditPurchaseFromPayment } from "@/server/owner-alimtalk-credit-purchase";
 import { OwnerBillingError, syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";

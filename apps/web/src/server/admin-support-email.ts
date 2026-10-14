@@ -1,4 +1,4 @@
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 import type { OwnerSupportRequestItem } from "@/server/owner-support-requests";
 

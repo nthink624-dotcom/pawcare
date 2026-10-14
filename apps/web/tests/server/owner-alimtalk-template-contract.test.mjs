@@ -20,7 +20,7 @@ test("owner template requests are shop scoped, owner authenticated, and reviewed
   assert.match(migration, /grant all on table public\.shop_alimtalk_template_requests to service_role/i);
   assert.match(migration, /shop_id text not null references public\.shops\(id\)/i);
   assert.match(migration, /one_active_review_idx[\s\S]*?where inspection_status in \('submitting', 'requested', 'reviewing', 'unknown'\)/i);
-  assert.match(resolver, /getShopApprovedTemplateCodes\(shopId, \[type\]\)/);
+  assert.match(route, /getApprovedSsodaaTemplateDetails\(aliases, owner\.shopId\)/);
   assert.match(dispatch, /input\.shopId,\s*\);/);
 });
 
@@ -33,7 +33,7 @@ test("owner template form exposes draft, review, status, and compact preview act
   assert.match(editor, /임시 저장/);
   assert.match(editor, /"검수 요청"/);
   assert.match(editor, /검수가 완료되면 이 매장의/);
-  assert.match(editor, /aria-label="카카오 미리보기"/);
+  assert.match(editor, /aria-label="카카오톡 알림톡 수신 화면"/);
   assert.match(settings, /<OwnerAlimtalkTemplateEditor/);
 });
 
@@ -42,12 +42,31 @@ test("owner copy editor hides metadata while retaining review payload and policy
   assert.doesNotMatch(editor, />템플릿 이름<|>카테고리<|<select/);
   assert.match(editor, /currentTemplate\?\.template_name\?\.trim\(\) \|\| notificationTitle/);
   assert.match(editor, /current\?\.category_code \|\| categories\[0\]\?\.code/);
-  assert.match(editor, /templateName, templateContent, categoryCode, buttonName, buttonUrl/);
-  assert.match(editor, /카카오 정책상 홍보·이벤트 등 비정보성 내용은 입력할 수 없고, 검수 후 적용됩니다\./);
+  assert.match(editor, /templateName, templateContent, categoryCode, action/);
+  assert.match(editor, /value=\{buttonUrl\} readOnly/);
+  assert.match(editor, /예시 시간 포함 · 홍보·이벤트 문구 제외 · 검수 승인 후 발송/);
   assert.match(editor, /보호자에게 보낼 내용을 입력해 주세요\./);
   assert.match(editor, /<details><summary/);
   assert.doesNotMatch(editor, /이 알림에 사용할 매장 전용 문구/);
-  assert.match(editor, /current\?\.template_content \?\? getNotificationDraftBody\(notificationType\)/);
+  assert.match(editor, /current\?\.template_content \?\? connectedContent \?\? getNotificationDraftBodyByAlias\(selectedAlias\)/);
   assert.match(editor, /editedContentKey\.current !== contentKey/);
   assert(editor.indexOf("data-template-policy") < editor.indexOf("<textarea"));
+});
+
+test("owner template editor uses compact variable chips and an explicitly labeled example appointment time", async () => {
+  const [editor, settings, previewApi, sampleHelper] = await Promise.all([
+    read("../../src/components/owner-web/owner-alimtalk-template-editor.tsx"),
+    read("../../src/components/owner-web/settings-alerts-panel.tsx"),
+    read("../../src/app/api/owner/alimtalk-template-previews/route.ts"),
+    read("../../src/lib/alimtalk-preview-sample.ts"),
+  ]);
+
+  assert.match(editor, /templateVariables\.map/);
+  assert.match(editor, /insertTemplateVariable\(token\)/);
+  assert.equal((editor.match(/data-template-policy/g) ?? []).length, 1);
+  assert.match(editor, /getAlimtalkPreviewAppointmentTime\(\)/);
+  assert.match(previewApi, /usesExampleValues: !appointment/);
+  assert.match(settings, /예약일시: getAlimtalkPreviewAppointmentTime\(\)/);
+  assert.match(sampleHelper, /Asia\/Seoul/);
+  assert.match(sampleHelper, /오후 2:30/);
 });

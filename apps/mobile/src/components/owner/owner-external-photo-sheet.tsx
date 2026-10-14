@@ -97,7 +97,7 @@ export default function OwnerExternalPhotoSheet({
   };
 
   const isPreviewing = Boolean(previewFile);
-  const confirmLabel = action.buttonLabel.replace("사진 찍고", "사진 등록하고");
+  const confirmLabel = action.buttonLabel.replace(/^사진 (찍고|등록하고)\s*/, "");
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[#0d1726]/45 pt-12" onClick={onClose}>
@@ -105,14 +105,15 @@ export default function OwnerExternalPhotoSheet({
         aria-label="사진 등록"
         aria-modal="true"
         role="dialog"
-        className="w-full max-w-[430px] overflow-hidden rounded-t-[28px] bg-[#fbfcfe] shadow-[0_-18px_48px_rgba(15,23,42,0.28)]"
+        data-safe-area-padding="true"
+        className="pm-mobile-sheet flex max-h-[calc(100dvh-48px)] min-h-0 w-full max-w-[430px] flex-col overflow-y-auto rounded-t-[18px] bg-[#fbfcfe] pb-[calc(var(--pm-safe-bottom)+16px)] shadow-[0_-18px_48px_rgba(15,23,42,0.28)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mx-auto mt-2.5 h-1 w-9 rounded-full bg-[#d6deea]" />
         <div className="flex items-start justify-between px-5 pb-4 pt-4">
           <div>
             <h2 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#14213a]">
-              {isPreviewing ? "이 사진으로 진행할까요?" : action.title}
+              {isPreviewing ? "사진 확인" : action.title}
             </h2>
           </div>
           <button
@@ -128,8 +129,9 @@ export default function OwnerExternalPhotoSheet({
 
         {isPreviewing ? (
           <div className="px-5 pb-5">
-            <div className="overflow-hidden rounded-[20px] border border-[#dce5f1] bg-white p-2 shadow-[0_8px_22px_rgba(49,75,112,0.08)]">
-              <img ref={setPreviewImage} alt="등록할 사진 미리보기" className="h-[248px] w-full rounded-[14px] bg-[#f2f5f9] object-contain" />
+            <p className="mb-3 text-[16px] font-normal leading-6 text-[#526276]">사진을 저장한 뒤 {confirmLabel.replace(/^미용 /, "미용을 ")}합니다.</p>
+            <div className="overflow-hidden rounded-[14px] bg-[#f2f5f9]">
+              <img ref={setPreviewImage} alt="등록할 사진 미리보기" className="h-[min(200px,30dvh)] w-full object-contain" />
             </div>
             <div className="mt-4 grid grid-cols-[0.9fr_1.4fr] gap-2">
               <button

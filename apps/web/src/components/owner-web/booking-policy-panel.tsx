@@ -4,6 +4,7 @@ import { publishBookingPolicyChange, subscribeBookingPolicyChange } from "@/lib/
 import { DEFAULT_BOOKING_CONSENT_ID, DEFAULT_BOOKING_POLICY, NEXT_BOOKING_RULE_LABELS, type BookingPolicy, type NextBookingRule } from "@petmanager/shared/contracts/booking-preparation";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { OWNER_SETTINGS_TAB_HEADER_CLASS, OWNER_SETTINGS_TABBAR_CLASS, OWNER_SETTINGS_TAB_CLASS } from "@/components/owner-web/owner-settings-tab-header";
+import { BookingDepositAlimtalkPreview } from "@/components/owner-web/booking-deposit-alimtalk-preview";
 const field = "h-10 w-full rounded-[8px] border border-slate-300 bg-white px-3 text-[16px] outline-none focus:ring-2 focus:ring-blue-200";
 type ConsentDraft = { templateId: string | null; title: string; body: string };
 const LEGACY_DEFAULT_CONSENT_BODY = `보호자는 반려동물의 질병과 과거 병력, 알레르기, 복용 중인 약, 피부·관절 상태, 최근 치료 여부를 미용 전에 정확히 알려주세요. 특히 노령이거나 기저질환이 있는 경우 미용 중 스트레스나 컨디션 변화가 생길 수 있으므로 관련 정보를 충분히 전달해 주세요.
@@ -196,7 +197,8 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     </div>
     <div data-settings-body-container className={`rounded-[14px] border border-[#e1e4ea] bg-white px-4 py-4 ${tab !== "noshow" ? "space-y-0 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : "space-y-5"}`}>
     <fieldset disabled={!loaded || busy || !editable} aria-busy={!loaded && !message} className={`min-w-0 space-y-4 ${tab !== "noshow" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
-      {tab === "deposit" && <div data-deposit-editor className="grid min-h-[440px] gap-5 lg:min-h-[max(560px,calc(100dvh-260px))] lg:grid-cols-[minmax(220px,0.29fr)_minmax(0,0.71fr)] xl:flex-1">
+      {tab === "deposit" && <div data-deposit-editor className="grid min-h-[440px] gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] xl:flex-1">
+        <div className={`grid min-w-0 content-start gap-5 ${policy.depositMode !== "off" ? "lg:grid-cols-[minmax(220px,0.29fr)_minmax(0,0.71fr)]" : ""}`}>
         <aside className="overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white">
           <div className="flex min-h-[58px] flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-[#edf0f4] px-5 py-2">
             <h3 className="font-semibold">예약금 관리</h3>
@@ -236,6 +238,8 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
             <button type="button" data-owner-control-size="content" onClick={() => void save()} className="min-h-11 rounded-[10px] bg-[#1976ff] px-5 text-[16px] font-medium text-white">{busy ? "저장 중" : "저장"}</button>
           </footer>
         </section>}
+        </div>
+        <BookingDepositAlimtalkPreview shopId={shopId} policy={policy} loaded={loaded} />
       </div>}
       {tab === "consent" && <>
         <div className="space-y-4 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">

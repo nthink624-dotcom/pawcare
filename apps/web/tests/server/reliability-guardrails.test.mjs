@@ -284,7 +284,7 @@ test("grooming outcomes keep photos optional while preserving customer results a
   assert.doesNotMatch(completionFields, /30일 후|60일 후|날짜 직접 선택/);
   assert.match(completionFields, /재예약 알림/);
   assert.doesNotMatch(completionFields, />날짜<\/span>/);
-  assert.match(reminderSettings, /재예약 알림 기본 시점/);
+  assert.match(reminderSettings, /재예약 알림 주기/);
   assert.match(reminderSettings, /미용 완료일 기준/);
   assert.match(notificationSettings, /revisit_reminder_default_days: 45/);
   assert.match(tokenContract, /"reschedule" \| "result"/);

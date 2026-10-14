@@ -36,6 +36,7 @@
     "typecheck": "tsc --noEmit",
     "test:price-guide-core": "node --test tests/mobile-price-photo-http-adapter-contract.test.mjs tests/mobile-price-guide-matrix-contract.test.mjs",
     "test:readiness": "node --test tests/mobile-readiness-contract.test.mjs tests/mobile-alimtalk-provider-log-security.test.mjs",
+    "test:photos": "cap copy android && node --test \"tests/*photo*.mjs\" tests/mobile-owner-safe-area-contract.test.mjs",
     "typecheck:backend": "npm --prefix ../../backend run typecheck"
   },
   "dependencies": {

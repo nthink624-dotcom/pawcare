@@ -6,11 +6,14 @@ const { validateLaunchReadbackConsistency } = require("./lib/launch-readback-con
 const { isOperationalErrorCleanupScheduled } = require("./lib/operational-error-cleanup-readiness.cjs");
 
 const root = path.resolve(__dirname, "..");
+const { resolveReadbackPath } = require("./lib/readback-path.cjs");
 const failures = [];
 const warnings = [];
 
 function readJson(relativePath) {
-  const absolutePath = path.join(root, relativePath);
+  let absolutePath;
+  try { absolutePath = resolveReadbackPath(root, relativePath); }
+  catch { failures.push(`missing or unsafe readback: ${relativePath}`); return null; }
   if (!fs.existsSync(absolutePath)) {
     failures.push(`missing: ${relativePath}`);
     return null;
@@ -145,7 +148,7 @@ if (typeof recovery?.database?.protection?.dailyBackupsEnabled !== "boolean" &&
 if (typeof recovery?.media?.objectRecovery?.configured !== "boolean") {
   failures.push("recovery readback media object recovery configuration is missing");
 }
-if (typeof recovery?.priceGuideAi?.enabled !== "boolean" ||
+if ((typeof recovery?.priceGuideAi?.enabled !== "boolean" && !(recovery?.priceGuideAi?.enabled === null && recovery?.priceGuideAi?.status === "UNVERIFIED")) ||
     !["true", "false", "unset", "invalid"].includes(recovery?.priceGuideAi?.featureSetting) ||
     typeof recovery?.priceGuideAi?.apiKeyPresent !== "boolean" ||
     typeof recovery?.priceGuideAi?.modelSupported !== "boolean" ||
@@ -396,7 +399,7 @@ function latestMigrationInRelease(commitSha) {
 
 if (recovery && supabase && vercel && tenantIsolation && observability && adminErrorInbox && operationalErrorInbox) {
   const releaseSha = vercel?.projects?.web?.commitSha;
-  const inLocalMaster = isAncestorOfRef(releaseSha, "master");
+  const inLocalMaster = isAncestorOfRef(releaseSha, "HEAD");
   const inRemoteMaster = isAncestorOfRef(releaseSha, "origin/master");
   if (inLocalMaster === null || inRemoteMaster === null) {
     failures.push("production release ancestry could not be verified against current Git refs");

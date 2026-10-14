@@ -4,6 +4,8 @@ const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 const expectedReleaseIndex = process.argv.indexOf("--expected-release");
 const expectedRelease = expectedReleaseIndex >= 0 ? process.argv[expectedReleaseIndex + 1] : "";
+const readbackRootIndex = process.argv.indexOf("--readback-root");
+const readbackArgs = readbackRootIndex >= 0 ? ["--readback-root", process.argv[readbackRootIndex + 1] ?? ""] : [];
 
 if (!/^[0-9a-f]{40}$/i.test(expectedRelease ?? "")) {
   console.error("postdeploy:release: BLOCKED - pass --expected-release <Git SHA>");
@@ -12,7 +14,7 @@ if (!/^[0-9a-f]{40}$/i.test(expectedRelease ?? "")) {
 
 const launch = spawnSync(
   process.execPath,
-  [path.join(root, "scripts/check-production-launch-readiness.cjs"), "--expected-release", expectedRelease],
+  [path.join(root, "scripts/check-production-launch-readiness.cjs"), "--expected-release", expectedRelease, ...readbackArgs],
   { cwd: root, stdio: "inherit", windowsHide: true },
 );
 
@@ -21,7 +23,7 @@ if (launch.status !== 0) {
   process.exit(launch.status || 1);
 }
 
-const evidence = spawnSync(process.execPath, [path.join(root, "scripts/check-readback-evidence.cjs")], {
+const evidence = spawnSync(process.execPath, [path.join(root, "scripts/check-readback-evidence.cjs"), ...readbackArgs], {
   cwd: root,
   stdio: "inherit",
   windowsHide: true,

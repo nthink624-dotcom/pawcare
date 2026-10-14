@@ -1406,11 +1406,11 @@ export default function CustomerManagementScreen({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-hidden">
-      <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
-        <div className="border-b border-[#dbe2ea] px-4 py-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex h-11 min-w-[320px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b] focus-within:border-[#111827]">
+    <div data-customer-management className="h-full min-h-0 overflow-hidden text-[16px] font-normal leading-6">
+      <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[14px] border border-[#e8edf3] bg-white">
+        <div className="border-b border-[#e8edf3] p-3 sm:p-4">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <label className="flex h-11 min-w-0 basis-full items-center gap-3 rounded-[10px] border border-[#e2e8f0] bg-[#f8fafc] px-3 text-[#64748b] transition focus-within:border-[#64748b] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#64748b]/10 sm:min-w-[240px] sm:flex-1 sm:basis-0">
               <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-4 w-4 text-[#94a3b8]" />
               <input
                 value={query}
@@ -1455,9 +1455,9 @@ export default function CustomerManagementScreen({
             <div>
             <p className="text-[16px] font-medium text-[#111827]">
               {selectedDeleteIds.length}명 선택됨
-              <span className="ml-2 text-[16px] font-normal text-[#64748b]">선택한 고객은 삭제 처리됩니다.</span>
+              <span className="ml-2 text-[13px] font-normal leading-5 text-[#64748b]">선택한 고객은 삭제 처리됩니다.</span>
             </p>
-            {deleteError ? <p className="mt-1 text-[16px] font-medium text-[#b42318]">{deleteError}</p> : null}
+            {deleteError ? <p className="mt-1 text-[13px] font-medium leading-5 text-[#b42318]">{deleteError}</p> : null}
             </div>
             <div className="flex items-center gap-2">
               <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#334155] transition hover:bg-[#f8fafc]" disabled={deletingCustomers}>
@@ -1471,7 +1471,7 @@ export default function CustomerManagementScreen({
         ) : null}
 
         {saveError ? (
-          <p className="border-b border-[#f4c7cc] bg-[#fff7f8] px-4 py-2 text-[16px] font-medium text-[#b42318]">
+          <p className="border-b border-[#f4c7cc] bg-[#fff7f8] px-4 py-2 text-[13px] font-medium leading-5 text-[#b42318]">
             {saveError}
           </p>
         ) : null}
@@ -1605,7 +1605,7 @@ function CustomerReservationModal({
         <div className="space-y-3 px-5 py-4">
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="mb-1 block text-[16px] text-[#64748b]">반려동물</span>
+              <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">반려동물</span>
               <select
                 value={selectedPet?.id ?? ""}
                 onChange={(event) => patchDraft({ petId: event.target.value })}
@@ -1619,7 +1619,7 @@ function CustomerReservationModal({
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-[16px] text-[#64748b]">담당 직원</span>
+              <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">담당 직원</span>
               <select
                 value={draft.staffId}
                 onChange={(event) => patchDraft({ staffId: event.target.value })}
@@ -1636,7 +1636,7 @@ function CustomerReservationModal({
           </div>
 
           <label className="block">
-            <span className="mb-1 block text-[16px] text-[#64748b]">서비스</span>
+            <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">서비스</span>
             <select
               value={selectedService?.id ?? ""}
               onChange={(event) => patchDraft({ serviceId: event.target.value })}
@@ -1662,7 +1662,7 @@ function CustomerReservationModal({
 
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="mb-1 block text-[16px] text-[#64748b]">예약일</span>
+              <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">예약일</span>
               <input
                 type="date"
                 value={draft.date}
@@ -1671,7 +1671,7 @@ function CustomerReservationModal({
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-[16px] text-[#64748b]">예약 시간</span>
+              <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">예약 시간</span>
               <input
                 type="time"
                 step={300}
@@ -1683,7 +1683,7 @@ function CustomerReservationModal({
           </div>
 
           <label className="block">
-            <span className="mb-1 block text-[16px] text-[#64748b]">고객 요청사항</span>
+            <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">고객 요청사항</span>
             <textarea
               value={draft.memo}
               onChange={(event) => patchDraft({ memo: event.target.value })}
@@ -1692,7 +1692,7 @@ function CustomerReservationModal({
             />
           </label>
 
-          {error ? <p className="rounded-[8px] border border-[#f4c7cc] bg-[#fff7f8] px-3 py-2 text-[16px] text-[#b42318]">{error}</p> : null}
+          {error ? <p className="rounded-[8px] border border-[#f4c7cc] bg-[#fff7f8] px-3 py-2 text-[13px] font-medium leading-5 text-[#b42318]">{error}</p> : null}
 
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[16px] text-[#334155] hover:bg-[#f8fafc]" disabled={saving}>
@@ -1735,8 +1735,8 @@ function NewCustomerModal({
       >
         <div className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-4">
           <div>
-            <p className="text-[16px] font-medium text-[#64748b]">고객 관리</p>
-            <h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">신규 고객 추가</h2>
+            <p className="text-[13px] font-normal leading-5 text-[#64748b]">고객 관리</p>
+            <h2 className="mt-1 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">신규 고객 추가</h2>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
             <X className="h-5 w-5" />
@@ -1753,7 +1753,7 @@ function NewCustomerModal({
           <div className="flex-1 space-y-4 overflow-y-auto py-4 pl-5 pr-1">
             <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[16px] font-semibold text-[#111827]">보호자</h3>
+                <h3 className="text-[18px] font-semibold leading-[26px] text-[#111827]">보호자</h3>
                 <div className="flex items-center gap-2">
                   <label className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-medium text-[#334155]">
                     <input
@@ -1777,7 +1777,7 @@ function NewCustomerModal({
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-[16px] font-medium text-[#64748b]">이름</span>
+                  <span className="text-[14px] font-medium leading-5 text-[#64748b]">이름</span>
                   <input
                     value={draft.name}
                     onChange={(event) => patchDraft({ name: event.target.value })}
@@ -1786,7 +1786,7 @@ function NewCustomerModal({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[16px] font-medium text-[#64748b]">연락처</span>
+                  <span className="text-[14px] font-medium leading-5 text-[#64748b]">연락처</span>
                   <input
                     value={draft.phone}
                     onChange={(event) => patchDraft({ phone: formatPhoneNumber(event.target.value) })}
@@ -1795,7 +1795,7 @@ function NewCustomerModal({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[16px] font-medium text-[#64748b]">등급</span>
+                  <span className="text-[14px] font-medium leading-5 text-[#64748b]">등급</span>
                   <select
                     value={draft.customerGradeOverride ?? "auto"}
                     onChange={(event) => patchDraft({ customerGradeOverride: event.target.value === "auto" ? null : event.target.value as CustomerGradeOverride })}
@@ -1814,7 +1814,7 @@ function NewCustomerModal({
               <h3 className="text-[16px] font-semibold text-[#111827]">반려동물 정보</h3>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-[16px] font-medium text-[#64748b]">반려동물 이름</span>
+                  <span className="text-[14px] font-medium leading-5 text-[#64748b]">반려동물 이름</span>
                   <input
                     value={draft.petName}
                     onChange={(event) => patchDraft({ petName: event.target.value })}
@@ -1823,7 +1823,7 @@ function NewCustomerModal({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[16px] font-medium text-[#64748b]">품종</span>
+                  <span className="text-[14px] font-medium leading-5 text-[#64748b]">품종</span>
                   <input
                     value={draft.breed}
                     onChange={(event) => patchDraft({ breed: event.target.value })}
@@ -1832,7 +1832,7 @@ function NewCustomerModal({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[16px] font-medium text-[#64748b]">몸무게</span>
+                  <span className="text-[14px] font-medium leading-5 text-[#64748b]">몸무게</span>
                   <input
                     value={draft.weight}
                     onChange={(event) => patchDraft({ weight: event.target.value })}
@@ -1841,7 +1841,7 @@ function NewCustomerModal({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[16px] font-medium text-[#64748b]">특이사항</span>
+                  <span className="text-[14px] font-medium leading-5 text-[#64748b]">특이사항</span>
                   <input
                     value={draft.petNotes}
                     onChange={(event) => patchDraft({ petNotes: event.target.value })}
@@ -1858,7 +1858,7 @@ function NewCustomerModal({
                 <h3 className="text-[16px] font-semibold text-[#111827]">메모</h3>
               </div>
               <label className="mt-3 block">
-                <span className="text-[16px] font-medium text-[#64748b]">고객 요청 / 상담 메모</span>
+                <span className="text-[14px] font-medium leading-5 text-[#64748b]">고객 요청 / 상담 메모</span>
                 <textarea
                   value={draft.memo}
                   onChange={(event) => patchDraft({ memo: event.target.value })}
@@ -1867,7 +1867,7 @@ function NewCustomerModal({
                 />
               </label>
               <label className="mt-3 block">
-                <span className="text-[16px] font-medium text-[#64748b]">작업자 공유 메모</span>
+                <span className="text-[14px] font-medium leading-5 text-[#64748b]">작업자 공유 메모</span>
                 <textarea
                   value={draft.staffMemo}
                   onChange={(event) => patchDraft({ staffMemo: event.target.value })}
@@ -1877,7 +1877,7 @@ function NewCustomerModal({
               </label>
             </section>
 
-            {error ? <p className="rounded-[8px] border border-[#f4c7cc] bg-[#fff7f8] px-3 py-2 text-[16px] font-medium text-[#b42318]">{error}</p> : null}
+            {error ? <p className="rounded-[8px] border border-[#f4c7cc] bg-[#fff7f8] px-3 py-2 text-[13px] font-medium leading-5 text-[#b42318]">{error}</p> : null}
           </div>
 
           <div className="flex gap-2 border-t border-[#edf2f7] bg-white px-5 py-3.5">

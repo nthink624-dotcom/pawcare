@@ -34,7 +34,10 @@ test("registered caller notification offers reservation or phone-only; phone-onl
     receiver.indexOf("if (OwnerCallNotification.ACTION_ADD_RESERVATION.equals(action))"),
   );
 
-  assert.match(notification, /if \(registeredCaller\)[\s\S]*?"예약 추가"[\s\S]*?"전화만 받기"/);
+  assert.match(notification, /if \(registeredCaller\)[\s\S]*?"예약 등록하기"[\s\S]*?"전화만 받기"/);
+  assert.match(notification, /PhoneNumberUtils\.formatNumber\(phoneNumber, "KR"\)/);
+  assert.doesNotMatch(notification, /010-\*\*\*\*/);
+  assert.match(notification, /VISIBILITY_PRIVATE/);
   assert.match(notification, /catch-call-incoming-v3/);
   assert.match(notification, /channel\.setSound\(null, null\)[\s\S]*?channel\.enableVibration\(false\)/);
   assert.match(notification, /setAction\(ACTION_DISMISS\)[\s\S]*?putExtra\(EXTRA_PROVIDER_CALL_ID, providerCallId\)/);
@@ -45,17 +48,20 @@ test("registered caller notification offers reservation or phone-only; phone-onl
 });
 
 test("choice uploads are queued, ordered after call events, owner-scoped, idempotent, and contain no phone data", async () => {
+  const plugin = await read(mobileRoot, "android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningPlugin.java");
   const store = await read(mobileRoot, "android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningStore.java");
   const transport = await read(mobileRoot, "android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningTransport.java");
   const sync = await read(mobileRoot, "src/lib/owner-call-screening.ts");
   const route = await read(mobileRoot, "src/app/api/owner/call-events/android/choices/route.ts");
-  const migration = await read(repoRoot, "supabase/migrations/20261005113145_catch_call_action_log.sql");
+  const migration = await read(repoRoot, "supabase/migrations/20261005125630_catch_call_action_log.sql");
 
   assert.match(store, /static synchronized JSONArray enqueueChoice/);
   assert.match(store, /writeArray\(context, CHOICES_KEY, next\)/);
   assert.doesNotMatch(store.slice(store.indexOf("static synchronized JSONArray enqueueChoice"), store.indexOf("static synchronized JSONArray getPendingChoices")), /callerNumber/);
   assert.match(transport, /\/api\/owner\/call-events\/android\/choices/);
   assert.match(sync, /\/api\/owner\/call-events\/android\/events[\s\S]*?getPendingChoices\(\)[\s\S]*?\/api\/owner\/call-events\/android\/choices/);
+  assert.match(plugin, /public void getPendingChoices\(PluginCall call\)/);
+  assert.match(plugin, /public void acknowledgeChoices\(PluginCall call\)/);
   assert.match(route, /requireOwnerShop\(request, body\.shopId\)/);
   assert.match(route, /provider_event_id", `\$\{body\.providerCallId\}:incoming`/);
   assert.match(route, /match_status !== "matched"/);

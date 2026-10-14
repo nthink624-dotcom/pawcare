@@ -163,11 +163,11 @@ export default function OwnerDesktopApp({
                   key={item.key}
                   type="button"
                   onClick={() => setActiveView(item.key)}
-                  className={`flex h-11 w-full items-center gap-3 rounded-[8px] px-3 text-left text-[14px] font-medium transition ${
+                  className={`flex h-11 w-full items-center gap-3 rounded-[8px] px-3 text-left text-[16px] font-medium leading-6 tracking-[-0.005em] transition ${
                     active ? "bg-white text-[#173b33]" : "text-white/78 hover:bg-white/10"
                   }`}
                 >
-                  <Icon className="h-4 w-4" strokeWidth={2} />
+                  <Icon className="h-4 w-4" strokeWidth={1.8} />
                   {item.label}
                 </button>
               );

@@ -584,6 +584,7 @@ function OwnerAppContent({
   const [pendingShopProfileEditId, setPendingShopProfileEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [photoNotice, setPhotoNotice] = useState<string | null>(null);
   const [ownerPageOrigin, setOwnerPageOrigin] = useState("");
   const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
   const [pushNotice, setPushNotice] = useState<OwnerPushReceivedEventDetail | null>(null);
@@ -799,6 +800,7 @@ function OwnerAppContent({
 
     setMobilePhotoPreviewFile(null);
     setPendingMobilePhoto(null);
+    setPhotoNotice(null);
     void (async () => {
       await pruneExpiredPendingOwnerStatusPhotos();
       const storedPhotos = await readPendingOwnerStatusPhotos(pendingPhotoAccountId, data.shop.id);
@@ -815,18 +817,11 @@ function OwnerAppContent({
         });
         if (pending) {
           setPendingMobilePhoto(pending);
-          setMobilePhotoPreviewFile(pendingOwnerStatusPhotoToFile(pending));
-          setMobilePhotoStatusAction(createMobilePhotoStatusAction(
-            pending.appointmentId,
-            pending.nextStatus,
-            false,
-            pending.allowSkip,
-          ));
         }
         if (expiredCount > 0) {
           setError(pending ? `${PENDING_PHOTO_EXPIRY_NOTICE} 남아 있는 사진 작업은 복구했습니다.` : PENDING_PHOTO_EXPIRY_NOTICE);
         } else if (pending) {
-          setError(`완료되지 않은 사진 작업을 복구했습니다. ${PENDING_PHOTO_RECOVERY_NOTICE}`);
+          setPhotoNotice("저장 대기 중인 사진이 있어요.");
         }
       })
       .catch(() => {
@@ -2066,7 +2061,7 @@ function OwnerAppContent({
       if (pendingPhotoActionRequestRef.current !== requestId) return null;
       setPendingMobilePhoto(pending);
       setMobilePhotoPreviewFile(pendingOwnerStatusPhotoToFile(pending));
-      setError(PENDING_PHOTO_RECOVERY_NOTICE);
+      setPhotoNotice(PENDING_PHOTO_RECOVERY_NOTICE);
       return pending;
     } catch (storageFailure) {
       if (pendingPhotoActionRequestRef.current !== requestId) return null;
@@ -2407,6 +2402,7 @@ function OwnerAppContent({
       setPendingMobilePhoto(null);
       setMobilePhotoPreviewFile(null);
       setMobilePhotoStatusAction(null);
+      setPhotoNotice(null);
       if (nextStatus === "completed") void openCareReport(appointment.id);
     } catch (uploadError) {
       if (claimedPending && uploadClaimId) {
@@ -3093,6 +3089,20 @@ function OwnerAppContent({
         )}
       >
         {error && <div className="mx-4 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {photoNotice && !mobilePhotoStatusAction && (
+          <div role="status" className="mx-4 mt-3 rounded-[10px] border border-[var(--border)] bg-[#f8fafc] px-3 py-2.5">
+            <p className="text-[16px] font-normal leading-6 text-[#526276]">{photoNotice}</p>
+            <div className="mt-1 flex justify-end gap-1">
+              {pendingMobilePhoto && <button type="button" className="min-h-11 px-3 font-medium text-[#174ea6]" onClick={() => {
+                const pending = pendingMobilePhoto;
+                setMobilePhotoPreviewFile(pendingOwnerStatusPhotoToFile(pending));
+                setMobilePhotoStatusAction(createMobilePhotoStatusAction(pending.appointmentId, pending.nextStatus, false, pending.allowSkip));
+                setPhotoNotice(null);
+              }}>사진 확인</button>}
+              <button type="button" aria-label="사진 안내 닫기" className="min-h-11 px-3 font-medium text-[#526276]" onClick={() => setPhotoNotice(null)}>닫기</button>
+            </div>
+          </div>
+        )}
 
         {activeTab === "home" && (
           <section className="flex h-full min-h-0 flex-col gap-2 bg-[#f6f9fc] px-2.5 pb-[calc(var(--pm-safe-bottom)+128px)] pt-2">
@@ -3886,6 +3896,7 @@ function OwnerAppContent({
               setMobilePhotoPreviewFile(null);
               setPendingMobilePhoto(null);
               setMobilePhotoStatusAction(null);
+              setPhotoNotice(null);
             }
           }}
           onSkip={() => {
@@ -3895,6 +3906,7 @@ function OwnerAppContent({
               if (!await discardStagedMobilePhoto(action)) return;
               pendingPhotoActionRequestRef.current += 1;
               setMobilePhotoStatusAction(null);
+              setPhotoNotice(null);
               await updateAppointment(action.appointmentId, { status: action.nextStatus });
             })();
           }}

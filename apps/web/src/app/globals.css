@@ -1606,7 +1606,7 @@ textarea {
   height: 44px !important;
   min-height: 44px !important;
   border: 0 !important;
-  border-radius: 999px !important;
+  border-radius: 10px !important;
   padding: 0 16px !important;
   color: #646a74 !important;
   background: transparent !important;

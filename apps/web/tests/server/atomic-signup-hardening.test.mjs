@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const migration = readFileSync(
-  new URL("../../supabase/migrations/20260829023403_harden_atomic_owner_signup.sql", import.meta.url),
+  new URL("../../../../supabase/migrations/20260829023403_harden_atomic_owner_signup.sql", import.meta.url),
   "utf8",
 );
 const route = readFileSync(new URL("../../src/app/api/auth/signup/route.ts", import.meta.url), "utf8");
 const rollback = readFileSync(
-  new URL("../../supabase/rollback/20260829023403_harden_atomic_owner_signup.rollback.sql", import.meta.url),
+  new URL("../../../../supabase/rollback/20260829023403_harden_atomic_owner_signup.rollback.sql", import.meta.url),
   "utf8",
 );
 
@@ -47,14 +47,14 @@ test("stale and compensated request states have explicit retry behavior", () => 
   assert.match(migration, /pg_advisory_xact_lock\(hashtextextended\('owner-signup:'/);
 });
 
-test("route fails closed on v5 availability before creating Auth and tags reconciliation metadata", () => {
+test("route claims v5 availability before creating Auth and completes the current v6 contract", () => {
   const claimIndex = route.indexOf('rpc("claim_owner_signup_v5"');
   const authIndex = route.indexOf("auth.admin.createUser");
   assert.ok(claimIndex >= 0 && authIndex > claimIndex);
   assert.match(route, /ATOMIC_SIGNUP_MIGRATION_REQUIRED/);
   assert.match(route, /signup_request_id: payload\.signupRequestId/);
   assert.match(route, /rpc\("mark_owner_signup_auth_created_v5"/);
-  assert.match(route, /rpc\("complete_owner_signup_v5"/);
+  assert.match(route, /rpc\("complete_owner_signup_v6"/);
   assert.doesNotMatch(route, /NEXT_PUBLIC_[A-Z0-9_]*SERVICE_ROLE/);
 });
 

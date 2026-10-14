@@ -10,7 +10,7 @@ import { dispatchNotification } from "@/server/notification-dispatch";
 import { deliverCustomerBookingNotificationSafely } from "@/lib/customer-booking-notification";
 import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors";
 import { depositHoldDeadline, expireUnreportedDeposits } from "@/server/booking-deposit-hold";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 
 const rule = z.enum(["normal", "approval", "deposit", "blocked"]);
 export const bookingPolicySchema = z.object({

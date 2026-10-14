@@ -47,7 +47,7 @@ test("consent Alimtalk requires provider approval, active service, exact body, a
   assert.equal(hasApprovedBookingConsentTemplateContract(detail), true);
   assert.equal(hasApprovedBookingConsentTemplateContract({ ...detail, templateContent: `${contract} 변경` }), false);
   assert.equal(hasApprovedBookingConsentTemplateContract({ ...detail, buttons: [{ ...detail.buttons[0], name: "예약 확인" }] }), false);
-  assert.match(resolver, /linkMobile !== bookingManageUrl \|\| linkPc !== bookingManageUrl/);
+  assert.match(resolver, /!isSameBookingManageLink\(linkMobile, bookingManageUrl\) \|\| !isSameBookingManageLink\(linkPc, bookingManageUrl\)/);
   const preparation = await read("src/server/booking-preparation.ts");
   assert.match(preparation, /if \(!active && !\["refund_record", "correct_noshow", "set_condition", "set_preferences"\]\.includes\(input\.action\)\)/);
 });

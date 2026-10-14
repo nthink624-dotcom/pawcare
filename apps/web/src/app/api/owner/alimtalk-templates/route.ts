@@ -10,6 +10,7 @@ import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
 import { getApprovedSsodaaTemplateButtonDefaults } from "@/server/alimtalk-approved-template";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { getApprovedSsodaaTemplateDetails } from "@/server/alimtalk-approved-template";
 
 export const dynamic = "force-dynamic";
 
@@ -130,7 +131,23 @@ export async function GET(request: NextRequest) {
     );
 
     const { policy } = await readBookingPolicy(owner.shopId);
-    return Response.json({ templates: synced, categories, buttonDefaults, previewValues: buildDepositTemplateValues(policy) });
+    const aliases = ALIMTALK_NOTIFICATION_REGISTRY
+      .map((item) => item.templateAlias)
+      .filter((alias): alias is NonNullable<typeof alias> => Boolean(alias));
+    const approvedTemplates = await getApprovedSsodaaTemplateDetails(aliases, owner.shopId).catch(() => ({}));
+    return Response.json({
+      templates: synced, buttonDefaults, previewValues: buildDepositTemplateValues(policy),
+      categories,
+      approvedTemplates: Object.fromEntries(Object.entries(approvedTemplates).map(([alias, detail]) => [alias, detail ? {
+        templateCode: detail.templateCode,
+        templateName: detail.templateName,
+        templateContent: detail.templateContent,
+        buttons: detail.buttons.map((button) => ({ buttonName: button.name, linkMobile: button.linkMobile })),
+        inspectionStatus: detail.inspectionStatus,
+        serviceStatus: detail.serviceStatus,
+      } : null])),
+    });
+
   } catch (error) {
     const status = error instanceof OwnerApiError ? error.status : 500;
     return Response.json({ message: error instanceof OwnerApiError ? error.message : "매장 템플릿을 불러오지 못했습니다." }, { status });

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
-import BenefitsManagementPanel, { type BenefitsManagementView } from "@/components/owner-web/benefits-management-panel";
+import BenefitsManagementPanel, { BenefitsManagementToolbar, type BenefitsManagementView } from "@/components/owner-web/benefits-management-panel";
 import type { DiscountCouponPreset } from "@/components/owner-web/discount-coupon-editor";
 import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
 import OwnerProfileSettingsPanel from "@/components/owner-web/owner-profile-settings-panel";
@@ -1111,10 +1111,6 @@ export default function SettingsManagementScreen({
       },
     };
   }, [benefitPreviewCoupons, shop, shopProfileImageAssetIds, shopProfileImages]);
-  const discountCouponsDirty = useMemo(
-    () => JSON.stringify(discountCouponDrafts) !== JSON.stringify(savedDiscountCoupons),
-    [discountCouponDrafts, savedDiscountCoupons],
-  );
 
   async function saveShopSettings(
     settings: Record<SettingsTabKey, SettingsTab>,
@@ -1479,15 +1475,6 @@ export default function SettingsManagementScreen({
         scheduleDiscountCouponAutoSave(discountCouponLatestDraftRef.current);
       }
     }
-  }
-
-  function reloadSavedDiscountCoupons() {
-    const normalizedCoupons = normalizeDiscountCoupons(savedDiscountCoupons);
-    setDiscountCouponDrafts(normalizedCoupons);
-    discountCouponDraftKeyRef.current = JSON.stringify(normalizedCoupons);
-    discountCouponLatestDraftRef.current = normalizedCoupons;
-    discountCouponSavedKeyRef.current = discountCouponDraftKeyRef.current;
-    setDiscountCouponSaveStatus("saved");
   }
 
   function updateDiscountCoupon(couponId: string, patch: Partial<CustomerDiscountCoupon>) {
@@ -2086,7 +2073,31 @@ export default function SettingsManagementScreen({
               </ShopInfoSettingsPanel>
             </>
           ) : activeTab === "benefits" ? (
-            <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={previewServices} staffMembers={staffMembers} ownerProfile={ownerProfile}>
+            <CustomerPagePreviewLayout
+              className="benefit-management-preview-layout gap-3 lg:grid-cols-[minmax(0,1fr)_360px]"
+              showPreviewTitle={false}
+              bodyClassName="mb-3 mx-3 sm:mx-5 lg:mr-0"
+              previewClassName="!h-auto mb-3 mr-3 sm:mr-5 !rounded-[14px] !shadow-none"
+              shop={customerPagePreviewShop}
+              services={previewServices}
+              staffMembers={staffMembers}
+              ownerProfile={ownerProfile}
+              topContent={(
+                <BenefitsManagementToolbar
+                  view={benefitsView}
+                  onViewChange={setBenefitsView}
+                  dirty={JSON.stringify(discountCouponDrafts) !== JSON.stringify(savedDiscountCoupons)}
+                  onReload={() => {
+                    const normalizedCoupons = normalizeDiscountCoupons(savedDiscountCoupons);
+                    setDiscountCouponDrafts(normalizedCoupons);
+                    discountCouponDraftKeyRef.current = JSON.stringify(normalizedCoupons);
+                    discountCouponLatestDraftRef.current = normalizedCoupons;
+                    discountCouponSavedKeyRef.current = discountCouponDraftKeyRef.current;
+                    setDiscountCouponSaveStatus("saved");
+                  }}
+                />
+              )}
+            >
               <BenefitsManagementPanel
                 view={benefitsView}
                 coupons={discountCoupons}
@@ -2098,14 +2109,11 @@ export default function SettingsManagementScreen({
                       ? benefitRegistrationDraft.service_benefit_name?.trim()
                       : benefitRegistrationDraft.discount_value > 0)
                 )}
-                dirty={discountCouponsDirty}
-                onViewChange={setBenefitsView}
                 onRegistrationChange={(patch) =>
                   setBenefitRegistrationDraft((current) => ({ ...current, ...patch }))
                 }
                 onRegister={registerBenefit}
                 onCancelRegistration={cancelBenefitRegistration}
-                onReload={reloadSavedDiscountCoupons}
                 onDelete={deleteDiscountCoupon}
                 onDeleteMany={deleteDiscountCoupons}
                 onToggleEnabled={toggleDiscountCouponEnabled}

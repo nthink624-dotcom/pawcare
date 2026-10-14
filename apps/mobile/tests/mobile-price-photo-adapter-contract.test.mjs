@@ -5,6 +5,7 @@ import ts from "typescript";
 
 const sourcePath = new URL("../src/lib/price-photo/mobile-price-photo-adapter.ts", import.meta.url);
 const source = await readFile(sourcePath, "utf8");
+const coreSource = await readFile(new URL("../src/lib/price-photo/generated-price-guide-core.ts", import.meta.url), "utf8");
 
 function loadModule() {
   const output = ts.transpileModule(source, {
@@ -18,7 +19,9 @@ function loadModule() {
 const { createMobilePricePhotoCoordinator } = loadModule();
 
 test("the adapter leaves backend URLs and payload schemas unresolved", () => {
-  assert.match(source, /"fixed" \| "starting" \| "range" \| "unknown"/);
+  assert.match(source, /from "@\/lib\/price-photo\/generated-price-guide-core"/);
+  assert.match(source, /MobilePriceKind/);
+  assert.match(coreSource, /z\.enum\(\["fixed", "starting", "range", "unknown"\]\)/);
   assert.doesNotMatch(source, /fetch\(|\/api\/|supabase|openai|storage/i);
 });
 

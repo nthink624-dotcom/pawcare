@@ -3,6 +3,10 @@
   "regions": ["sin1"],
   "crons": [
     {
+      "path": "/api/cron/operational-errors/cleanup",
+      "schedule": "40 18 * * *"
+    },
+    {
       "path": "/api/notifications/visit-reminders",
       "schedule": "0 0 * * *"
     },

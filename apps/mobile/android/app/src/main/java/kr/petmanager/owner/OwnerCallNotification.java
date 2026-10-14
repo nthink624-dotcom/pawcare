@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.telephony.PhoneNumberUtils;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
@@ -85,14 +86,14 @@ final class OwnerCallNotification {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        String phoneTail = callerNumber == null || callerNumber.length() < 4
-            ? ""
-            : callerNumber.substring(callerNumber.length() - 4);
+        String phoneNumber = callerNumber == null ? "" : callerNumber.trim();
+        String formattedNumber = PhoneNumberUtils.formatNumber(phoneNumber, "KR");
+        if (formattedNumber == null || formattedNumber.trim().isEmpty()) formattedNumber = phoneNumber;
         String contentText = actionFailureMessage != null && !actionFailureMessage.trim().isEmpty()
             ? actionFailureMessage
-            : phoneTail.isEmpty()
+            : phoneNumber.isEmpty()
                 ? (registeredCaller ? "예약을 바로 접수할 수 있어요." : "새 고객으로 등록할 수 있어요.")
-                : "010-****-" + phoneTail + (registeredCaller ? " · 예약을 바로 접수할 수 있어요." : " · 새 고객으로 등록할 수 있어요.");
+                : formattedNumber + (registeredCaller ? " · 예약을 바로 접수할 수 있어요." : " · 새 고객으로 등록할 수 있어요.");
         NotificationCompat.Builder actionable = new NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(kr.petmanager.owner.R.drawable.ic_stat_paw)
             .setContentTitle(registeredCaller ? "등록 고객에게 전화가 왔어요" : "새 번호로 전화가 왔어요")
@@ -110,7 +111,7 @@ final class OwnerCallNotification {
                 .putExtra(EXTRA_NOTIFICATION_ID, notificationId);
             PendingIntent phoneOnlyAction = PendingIntent.getBroadcast(context, notificationId + 4, phoneOnly,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            actionable.addAction(new NotificationCompat.Action.Builder(0, "예약 추가", reservationPendingIntent).build());
+            actionable.addAction(new NotificationCompat.Action.Builder(0, "예약 등록하기", reservationPendingIntent).build());
             actionable.addAction(new NotificationCompat.Action.Builder(0, "전화만 받기", phoneOnlyAction).build());
         } else {
             actionable.addAction(new NotificationCompat.Action.Builder(0, "신규고객 등록", registrationPendingIntent).build());

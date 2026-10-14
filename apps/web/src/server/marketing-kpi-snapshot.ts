@@ -1,7 +1,7 @@
 import "server-only";
 
 import { serverEnv } from "@/lib/server-env";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import {
   buildMarketingKpiSnapshot,
   type MarketingAppointmentRow,

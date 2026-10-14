@@ -78,7 +78,8 @@
     "android:build": "cap build android",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "typecheck:backend": "npm --prefix ../../backend run typecheck"
+    "typecheck:backend": "npm --prefix ../../backend run typecheck",
+    "test:operational-errors": "node --test --experimental-transform-types --experimental-test-module-mocks --loader ./tests/helpers/ts-paths-loader.mjs tests/server/operational-error-inbox.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

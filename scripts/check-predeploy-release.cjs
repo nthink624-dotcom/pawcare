@@ -30,6 +30,7 @@ const checks = [
   "test:alimtalk-relay",
   "test:saas-readiness",
   "test:release-contracts",
+  "test:operational-errors",
   "test:mobile",
   "typecheck",
   "lint",

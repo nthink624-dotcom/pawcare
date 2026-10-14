@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { nowIso } from "@/lib/utils";
 import { notifyAdminOwnerSupportRequest } from "@/server/admin-support-email";
 import { createMediaSignedReadUrl } from "@/server/media-storage";

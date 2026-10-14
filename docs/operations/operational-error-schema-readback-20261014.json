@@ -1,0 +1,16 @@
+{
+  "verifiedAt": "2026-10-14T03:00:24.523Z",
+  "projectRef": "ysxykikqnneuhypybjry",
+  "status": "PASS",
+  "migrationVersion": "20261014025923",
+  "sqlMd5": "f3b6f0502bca958955e0a8332c00f600",
+  "rlsEnabled": true,
+  "anonSelect": false,
+  "authenticatedInsert": false,
+  "serviceRoleInsert": true,
+  "anonCleanup": false,
+  "serviceRoleCleanup": true,
+  "localRetentionTest": "PASS",
+  "actualDelivery": "NOT_RUN",
+  "authenticatedScreen": "NOT_RUN"
+}

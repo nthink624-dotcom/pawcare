@@ -1,7 +1,7 @@
 import { buildDefaultOwnerServices, buildDefaultOwnerStaffMembers } from "@/lib/owner-default-setup";
 import { getOwnerPlanIncludedAlimtalkCredits } from "@/lib/billing/owner-plans";
 import { OWNER_TRIAL_DAYS } from "@/lib/billing/owner-subscription";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { resetShopAlimtalkIncludedCredits } from "@/server/alimtalk-credit-service";
 
 type SupabaseWriter = {

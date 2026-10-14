@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import type { NextRequest, NextResponse } from "next/server";
 
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 export const OWNER_LOGIN_SESSION_COOKIE = "petmanager_owner_login_session";

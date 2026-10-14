@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { isValidOwnerEmail, normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import {
   EMAIL_CONFIRMATION_MESSAGE,
   mapOwnerEmailConfirmationError,

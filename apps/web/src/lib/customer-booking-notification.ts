@@ -1,4 +1,4 @@
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 
 type CustomerBookingNotificationIdentity = {
   appointmentId?: string | null;

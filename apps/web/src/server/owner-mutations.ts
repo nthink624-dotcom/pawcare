@@ -9,7 +9,7 @@ import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { isBookingWithinCanonicalWindow } from "@/lib/booking-last-start-cutoff";
 import { defaultBookingAvailableEndTime, defaultBookingAvailableStartTime, normalizeBookingAvailableTime } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import { preparePriceGuideForStorage } from "@/lib/price-guide-core";
 import {
   coerceEnabledShopNotificationSettings,

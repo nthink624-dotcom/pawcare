@@ -7,7 +7,7 @@ type OperationalContext = Record<string, string | number | boolean | null | unde
 
 export function logOperationalEvent(event: string, context?: OperationalContext) {
   logConsoleOperationalEvent(event, context);
-  if (!/(?:\.failed|\.error)$/.test(event)) return;
+  if (!/(?:failed|error)(?:_|\.|$)/.test(event)) return;
 
   const eventName = event.trim().slice(0, 120);
   const status = typeof context?.status === "number" && Number.isInteger(context.status) && context.status >= 400 && context.status <= 599
@@ -28,7 +28,7 @@ export function logOperationalEvent(event: string, context?: OperationalContext)
           event_name: eventName,
           http_status: status,
           release_id: releaseId,
-        });
+        }).abortSignal(AbortSignal.timeout(3_000));
         if (error) throw new Error("Operational error event insert failed.");
       } catch {
         // Keep sink failures visible without recursively persisting or logging DB details.

@@ -32,8 +32,8 @@
     "verify:supabase-rls:dev": "node scripts/verify-supabase-development-rls.cjs",
     "check:data-safety": "npm run check:data-safety --workspace=@petmanager/web",
     "check:release-tracked-files": "node scripts/check-release-tracked-files.cjs",
-  "check:saas-readiness": "node scripts/check-saas-readiness.cjs",
-  "check:migration-order": "node scripts/check-migration-order.cjs",
+    "check:saas-readiness": "node scripts/check-saas-readiness.cjs",
+    "check:migration-order": "node scripts/check-migration-order.cjs",
     "test:deployment-routing": "node --test scripts/monorepo/deployment-routing.test.cjs",
     "test:recovery-objectives": "npm run test:recovery-objectives --workspace=@petmanager/web",
     "supabase:link:dev": "npm run supabase:link:dev --workspace=@petmanager/web",
@@ -41,9 +41,9 @@
     "supabase:version:dev": "npm run supabase:version:dev --workspace=@petmanager/web",
     "supabase:db:push:dev": "npm run supabase:db:push:dev --workspace=@petmanager/web",
     "supabase:db:push:dev:dry-run": "npm run supabase:db:push:dev:dry-run --workspace=@petmanager/web",
-  "supabase:db:reconcile:dev:dry-run": "npm run supabase:db:reconcile:dev:dry-run --workspace=@petmanager/web",
-  "supabase:migration:repair:dev:dry-run": "node scripts/repair-supabase-migration-history.cjs",
-  "supabase:migration:repair:dev": "node scripts/repair-supabase-migration-history.cjs --execute",
+    "supabase:db:reconcile:dev:dry-run": "npm run supabase:db:reconcile:dev:dry-run --workspace=@petmanager/web",
+    "supabase:migration:repair:dev:dry-run": "node scripts/repair-supabase-migration-history.cjs",
+    "supabase:migration:repair:dev": "node scripts/repair-supabase-migration-history.cjs --execute",
     "supabase:db:reconcile:dev": "npm run supabase:db:reconcile:dev --workspace=@petmanager/web",
     "verify:signup-repair": "npm run verify:signup-repair --workspace=@petmanager/web",
     "supabase:db:push:prod": "npm run supabase:db:push:prod --workspace=@petmanager/web",
@@ -108,6 +108,7 @@
     "typecheck:mobile": "npm run typecheck --workspace=@petmanager/mobile",
     "test:workspace": "node --test scripts/monorepo/workspace-test.mjs && node --test scripts/monorepo/shared-ui-parity.test.cjs",
     "test:mobile": "npm run test:price-guide-core --workspace=@petmanager/mobile && npm run test:readiness --workspace=@petmanager/mobile",
-    "android:release": "npm run android:release --workspace=@petmanager/mobile"
+    "android:release": "npm run android:release --workspace=@petmanager/mobile",
+    "test:operational-errors": "npm run test:operational-errors --workspace=@petmanager/web"
   }
 }

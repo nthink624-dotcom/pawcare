@@ -3,7 +3,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 import { env } from "@/lib/env";
-import { logOperationalEvent } from "@/lib/observability";
+import { logOperationalEvent } from "@/server/observability";
 import {
   calculateOwnerBillingAmountBreakdown,
   getOwnerPlanByCode,

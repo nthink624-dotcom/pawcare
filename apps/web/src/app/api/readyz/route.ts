@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getReleaseId, getRequestId, logOperationalEvent } from "@/lib/observability";
+import { getReleaseId, getRequestId, logOperationalEvent } from "@/server/observability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

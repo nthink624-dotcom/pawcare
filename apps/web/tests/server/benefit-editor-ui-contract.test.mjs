@@ -14,9 +14,9 @@ test("benefit editor keeps the readable blue selection, tab, and footer accessib
   const globals = readProjectFile("src/app/globals.css");
   const ownerShell = readProjectFile("src/components/owner-web/owner-web-app-shell.tsx");
 
-  assert.match(panel, /className="owner-settings-tabbar benefit-management-tabbar min-w-0 w-full" role="tablist"/);
+  assert.match(panel, /className="owner-settings-tabbar min-w-0 w-full" role="tablist"/);
   assert.match(panel, /OWNER_SETTINGS_TAB_HEADER_CLASS/);
-  assert.match(panel, /onClick=\{onReload\} disabled=\{!dirty\}/);
+  assert.doesNotMatch(panel, /onReload|저장된 내용 불러오기/);
   assert.equal((panel.match(/className="owner-settings-tab"/g) ?? []).length, 2);
   assert.match(ownerShell, /owner-font pm-owner-web/);
   assert.match(globals, /\.pm-owner-web \.owner-settings-tabbar > \[role="tab"\][\s\S]*font-size: 18px !important;[\s\S]*font-weight: 500 !important;[\s\S]*line-height: 26px !important;/);

@@ -32,15 +32,13 @@ type Props = {
 type ToolbarProps = {
   view: BenefitsManagementView;
   onViewChange: (view: BenefitsManagementView) => void;
-  dirty: boolean;
-  onReload: () => void;
 };
 
-export function BenefitsManagementToolbar({ view, onViewChange, dirty, onReload }: ToolbarProps) {
+export function BenefitsManagementToolbar({ view, onViewChange }: ToolbarProps) {
   return (
     <>
-      <div className={cn(OWNER_SETTINGS_TAB_HEADER_CLASS, "!pt-3 !pb-0")}>
-        <div className="owner-settings-tabbar benefit-management-tabbar min-w-0 w-full" role="tablist" aria-label="혜택 관리 보기">
+      <div className={OWNER_SETTINGS_TAB_HEADER_CLASS}>
+        <div className="owner-settings-tabbar min-w-0 w-full" role="tablist" aria-label="혜택 관리 보기">
           <button
             type="button"
             id="benefit-register-tab"
@@ -66,9 +64,6 @@ export function BenefitsManagementToolbar({ view, onViewChange, dirty, onReload 
             혜택 조회/수정
           </button>
         </div>
-        {view === "manage" ? <div className="flex justify-end py-2">
-          <button type="button" onClick={onReload} disabled={!dirty} className={cn(OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS, "!h-11 !text-[16px] !leading-6")}>저장된 내용 불러오기</button>
-        </div> : null}
       </div>
     </>
   );

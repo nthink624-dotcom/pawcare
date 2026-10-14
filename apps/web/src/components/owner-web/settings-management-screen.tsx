@@ -2086,15 +2086,6 @@ export default function SettingsManagementScreen({
                 <BenefitsManagementToolbar
                   view={benefitsView}
                   onViewChange={setBenefitsView}
-                  dirty={JSON.stringify(discountCouponDrafts) !== JSON.stringify(savedDiscountCoupons)}
-                  onReload={() => {
-                    const normalizedCoupons = normalizeDiscountCoupons(savedDiscountCoupons);
-                    setDiscountCouponDrafts(normalizedCoupons);
-                    discountCouponDraftKeyRef.current = JSON.stringify(normalizedCoupons);
-                    discountCouponLatestDraftRef.current = normalizedCoupons;
-                    discountCouponSavedKeyRef.current = discountCouponDraftKeyRef.current;
-                    setDiscountCouponSaveStatus("saved");
-                  }}
                 />
               )}
             >

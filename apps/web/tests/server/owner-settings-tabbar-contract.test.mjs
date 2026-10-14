@@ -26,7 +26,7 @@ test("owner settings tabs share the rounded-rectangle tab-bar contract", () => {
   const benefits = readProjectFile(settingsTabFiles[0]);
   const alerts = readProjectFile(settingsTabFiles[2]);
   assert.match(benefits, /OWNER_SETTINGS_TAB_HEADER_CLASS/);
-  assert.match(benefits, /owner-settings-tabbar benefit-management-tabbar min-w-0 w-full/);
+  assert.match(benefits, /owner-settings-tabbar min-w-0 w-full/);
   assert.match(alerts, /OWNER_SETTINGS_TAB_HEADER_CLASS/);
 
   assert.match(globals, /\.pm-owner-web \.owner-settings-tabbar\s*\{[\s\S]*min-height: 54px;[\s\S]*overflow-x: auto;[\s\S]*border-radius: 14px;/);

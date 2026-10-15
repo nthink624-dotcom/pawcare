@@ -95,6 +95,13 @@ export type AdminRevenueSummary = {
   updatedAt: string;
 };
 
+export type AdminOverviewMetrics = {
+  todayVisitorCount: number;
+  confirmedInquiryCount: number;
+  today: string;
+  updatedAt: string;
+};
+
 export const supportRequestCategoryLabels: Record<
   OwnerSupportCategory,
   string

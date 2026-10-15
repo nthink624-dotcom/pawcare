@@ -4241,6 +4241,9 @@ export default function CalendarManagementScreen({
 
     let cancelled = false;
     let inFlight = false;
+    let lastSyncStartedAt = 0;
+    const initialSyncDelayMs = 5_000;
+    const initialSyncReadyAt = Date.now() + initialSyncDelayMs;
     const syncScheduleRange = async () => {
       const canSync =
         typeof document === "undefined" ||
@@ -4252,9 +4255,11 @@ export default function CalendarManagementScreen({
           !photoStatusAction &&
           !earlyStartBooking);
 
-      if (!canSync || inFlight) return;
+      const now = Date.now();
+      if (!canSync || inFlight || now < initialSyncReadyAt || now - lastSyncStartedAt < 5_000) return;
 
       inFlight = true;
+      lastSyncStartedAt = now;
       try {
         const currentData = bootstrapDataRef.current;
         const range = await fetchOwnerScheduleRange(currentData.shop.id, selectedDate, selectedDate);
@@ -4270,13 +4275,14 @@ export default function CalendarManagementScreen({
       }
     };
 
-    void syncScheduleRange();
+    const initialSyncTimeoutId = window.setTimeout(syncScheduleRange, initialSyncDelayMs);
     const intervalId = window.setInterval(syncScheduleRange, 15_000);
     window.addEventListener("focus", syncScheduleRange);
     document.addEventListener("visibilitychange", syncScheduleRange);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(initialSyncTimeoutId);
       window.clearInterval(intervalId);
       window.removeEventListener("focus", syncScheduleRange);
       document.removeEventListener("visibilitychange", syncScheduleRange);

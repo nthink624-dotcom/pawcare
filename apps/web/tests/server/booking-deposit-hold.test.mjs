@@ -17,10 +17,11 @@ test("request deadline is twenty minutes and cannot extend past the visit", () =
 });
 test("expiry RPC is scoped to the authorized shop and appointment", async () => {
   let args;
-  await expireUnreportedDeposits({rpc:async(name,payload)=>{args={name,payload};return {error:null};}},'authorized-shop','appointment');
+  const expiredCount = await expireUnreportedDeposits({rpc:async(name,payload)=>{args={name,payload};return {data:2,error:null};}},'authorized-shop','appointment');
+  assert.equal(expiredCount, 2);
   assert.deepEqual(args,{name:'expire_unreported_booking_deposits',payload:{p_shop:'authorized-shop',p_appointment:'appointment',p_staff:null}});
 });
 test("expiry service errors do not masquerade as a free time slot or expose raw errors", async () => {
   await assert.rejects(()=>expireUnreportedDeposits({rpc:async()=>({error:{code:'XX000',message:'secret raw DB detail'}})},'shop'),e=>!e.message.includes('secret')&&e.message.includes('기한'));
-  await expireUnreportedDeposits({rpc:async()=>({error:{code:'PGRST202'}})},'legacy-shop');
+  assert.equal(await expireUnreportedDeposits({rpc:async()=>({data:null,error:{code:'PGRST202'}})},'legacy-shop'),0);
 });

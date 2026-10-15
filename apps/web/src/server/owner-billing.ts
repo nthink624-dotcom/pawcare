@@ -873,13 +873,15 @@ async function readOrCreateSubscription(identity: BillingIdentity, shopId: strin
     throw new OwnerBillingError("Supabase 관리자 설정을 확인해 주세요.", 503);
   }
 
-  const profile = await getOwnerProfile(identity.id);
-  const subscriptionResult = await admin
-    .from(BILLING_TABLE)
-    .select("*")
-    .eq("user_id", identity.id)
-    .eq("shop_id", shopId)
-    .maybeSingle();
+  const [profile, subscriptionResult] = await Promise.all([
+    getOwnerProfile(identity.id),
+    admin
+      .from(BILLING_TABLE)
+      .select("*")
+      .eq("user_id", identity.id)
+      .eq("shop_id", shopId)
+      .maybeSingle(),
+  ]);
 
   if (subscriptionResult.error) {
     if (isMissingRelationError(subscriptionResult.error)) {
@@ -1518,8 +1520,80 @@ export async function getOwnerSubscriptionSummary(identity: BillingIdentity, sho
   return summary;
 }
 
-export async function getOwnerSubscriptionAccessStatus(identity: BillingIdentity, shopId: string) {
-  return (await getOwnerSubscriptionSummary(identity, shopId)).status;
+export async function getOwnerSubscriptionAccessStatus(
+  identity: BillingIdentity,
+  shopId: string,
+  onTiming?: (phase: "subscription_read" | "subscription_reconcile" | "subscription_schedule" | "subscription_summary", durationMs: number) => void,
+) {
+  let phaseStartedAt = performance.now();
+  const { summary, record, profile } = await readOrCreateSubscription(identity, shopId);
+  onTiming?.("subscription_read", performance.now() - phaseStartedAt);
+  phaseStartedAt = performance.now();
+  const reconciled = await reconcileOwnerSubscriptionRecordIfNeeded(identity, shopId, record);
+  onTiming?.("subscription_reconcile", performance.now() - phaseStartedAt);
+
+  if (reconciled) return reconciled.status;
+  if (!record) return summary.status;
+
+  phaseStartedAt = performance.now();
+  const scheduleReadyRecord = await ensureUpcomingChargeScheduled(identity, profile, record);
+  onTiming?.("subscription_schedule", performance.now() - phaseStartedAt);
+  phaseStartedAt = performance.now();
+  const ownerSummary = await buildOwnerSubscriptionSummary(identity, shopId, scheduleReadyRecord, profile);
+  onTiming?.("subscription_summary", performance.now() - phaseStartedAt);
+  return ownerSummary.status;
+}
+
+export async function peekOwnerSubscriptionAccessStatus(
+  identity: BillingIdentity,
+  shopId: string,
+  options: { deferBillingMaintenance?: boolean } = {},
+) {
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    throw new OwnerBillingError("Supabase 관리자 설정을 확인해 주세요.", 503);
+  }
+
+  const result = await admin
+    .from(BILLING_TABLE)
+    .select("subscription_status,current_period_ends_at,trial_ends_at,last_payment_status,last_schedule_id,next_billing_at,payment_method_exists")
+    .eq("user_id", identity.id)
+    .eq("shop_id", shopId)
+    .maybeSingle();
+
+  if (result.error) {
+    if (isMissingRelationError(result.error)) {
+      throw new OwnerBillingError("매장별 구독 스키마가 준비되지 않았습니다. 로컬 마이그레이션을 먼저 검토해 주세요.", 503);
+    }
+    throw new OwnerBillingError(result.error.message, 500);
+  }
+
+  const record = result.data as Pick<
+    OwnerSubscriptionRecord,
+    | "subscription_status"
+    | "current_period_ends_at"
+    | "trial_ends_at"
+    | "last_payment_status"
+    | "last_schedule_id"
+    | "next_billing_at"
+    | "payment_method_exists"
+  > | null;
+  if (!record) return null;
+
+  // Keep ambiguous or provider-reconciled cases on the full, existing path.
+  if (
+    record.subscription_status === "past_due" ||
+    record.last_payment_status === "failed" ||
+    record.last_payment_status === "scheduled" ||
+    (!options.deferBillingMaintenance &&
+      record.subscription_status === "active" &&
+      record.payment_method_exists &&
+      !hasUpcomingScheduledCharge(record as OwnerSubscriptionRecord))
+  ) {
+    return null;
+  }
+
+  return nextStatusForRecord(record as OwnerSubscriptionRecord);
 }
 
 export async function updateOwnerSubscriptionPreferences(

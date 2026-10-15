@@ -23,6 +23,13 @@ test("owner billing navigation paints the matching cached shop before access ref
   assert.doesNotMatch(page, />\s*구독 정보를 불러오는 중입니다\.\s*</);
 });
 
+test("owner subscription profile and shop record are loaded concurrently", async () => {
+  const billing = await source("src/server/owner-billing.ts");
+  const read = billing.slice(billing.indexOf("async function readOrCreateSubscription"), billing.indexOf("function isMissingOwnerShopMembershipsError"));
+
+  assert.match(read, /Promise\.all\(\[\s*getOwnerProfile\(identity\.id\),\s*admin[\s\S]*?from\(BILLING_TABLE\)/);
+});
+
 test("owner recurring billing uses direct card API without a hosted certificate flow", async () => {
   const [client, api, issue, route] = await Promise.all([
     source("src/lib/billing/owner-billing-client.ts"),

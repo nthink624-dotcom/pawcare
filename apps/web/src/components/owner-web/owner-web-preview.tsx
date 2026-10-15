@@ -420,11 +420,10 @@ export default function OwnerWebPreview({
 
   useEffect(() => {
     if (demoMode || initialSetupEligible) return;
-    const warmProfitability = () => {
+    const preloadProfitabilityScreen = () => {
       void import("@/components/owner-web/profitability-analytics-screen");
-      void fetchApiJsonWithAuth(`/api/owner/profitability?shopId=${encodeURIComponent(initialData.shop.id)}&range=90d`).catch(() => undefined);
     };
-    const timer = window.setTimeout(warmProfitability, 1_200);
+    const timer = window.setTimeout(preloadProfitabilityScreen, 1_200);
     return () => window.clearTimeout(timer);
   }, [demoMode, initialData.shop.id, initialSetupEligible]);
 

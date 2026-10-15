@@ -65,10 +65,13 @@ test("essential bootstrap keeps owner authorization and defers noncritical reads
   const route = fs.readFileSync(path.join(process.cwd(), "src/app/api/bootstrap/route.ts"), "utf8");
   const ownerPage = fs.readFileSync(path.join(process.cwd(), "src/app/owner/page.tsx"), "utf8");
   assert.match(route, /const owner = await requireOwnerShop/);
+  assert.match(route, /deferBillingMaintenance: true/);
   assert.match(route, /includeNotifications: phase === "full"/);
+  assert.match(route, /includeAppointmentChangeEvents: phase === "full"/);
   assert.match(route, /includeGroomingRecords: phase === "full"/);
   assert.match(route, /includeOwnerExtras: phase === "full"/);
   assert.match(route, /includeOwnerProfile: phase === "full" \|\| phase === "launch"/);
+  assert.match(route, /includePilotCohort: phase === "full"/);
   assert.match(ownerPage, /loadBootstrap\(resolvedShopId, "full"\)/);
   assert.ok(ownerPage.indexOf('setData(bootstrap)') < ownerPage.indexOf('loadBootstrap(resolvedShopId, "full")'));
 });

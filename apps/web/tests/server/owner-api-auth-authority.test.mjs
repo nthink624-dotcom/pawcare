@@ -68,3 +68,32 @@ test("missing staff authority schema fails closed instead of falling back to met
   assert.match(loader, /isMissingStaffAuthColumnError\(staffResult\.error\)[\s\S]*503/);
   assert.doesNotMatch(loader, /user_metadata|metadata\s*:/);
 });
+
+test("owner billing peek overlaps shop lookup but is only trusted after shop authorization", async () => {
+  const [authority, billing, bootstrapRoute, subscriptionRoute] = await Promise.all([
+    readSource("src/server/owner-api-auth.ts"),
+    readSource("src/server/owner-billing.ts"),
+    readSource("src/app/api/bootstrap/route.ts"),
+    readSource("src/app/api/subscription/route.ts"),
+  ]);
+  const requireOwnerShop = authority.slice(authority.indexOf("export async function requireOwnerShop"));
+  const accessLoader = authority.slice(
+    authority.indexOf("export async function loadOwnerShopAccessForUser"),
+    authority.indexOf("export async function requireOwnerShop"),
+  );
+  const peek = billing.slice(
+    billing.indexOf("export async function peekOwnerSubscriptionAccessStatus"),
+    billing.indexOf("export async function updateOwnerSubscriptionPreferences"),
+  );
+
+  assert.match(requireOwnerShop, /Promise\.all\(\[[\s\S]*loadOwnerShopAccessForUser\(user\.id, requestedShopId\)[\s\S]*peekOwnerSubscriptionAccessStatus/);
+  assert.match(requireOwnerShop, /loadOwnerShopAccessForUser\(user\.id, requestedShopId\)/);
+  assert.match(accessLoader, /if \(requestedShopId\)[\s\S]*\.eq\("id", requestedShopId\)[\s\S]*\.eq\("owner_user_id", userId\)/);
+  assert.ok(requireOwnerShop.indexOf("if (requestedShopId && !accessByShopId.has(requestedShopId))") < requireOwnerShop.indexOf("accessPeek.status !== null"));
+  assert.match(peek, /eq\("user_id", identity\.id\)[\s\S]*eq\("shop_id", shopId\)/);
+  assert.match(peek, /last_payment_status === "failed"[\s\S]*last_payment_status === "scheduled"/);
+  assert.match(peek, /!options\.deferBillingMaintenance/);
+  assert.doesNotMatch(peek, /\.insert\(|\.update\(|\.upsert\(|\.rpc\(/);
+  assert.match(bootstrapRoute, /deferBillingMaintenance: true/);
+  assert.match(subscriptionRoute, /getOwnerSubscriptionSummary/);
+});

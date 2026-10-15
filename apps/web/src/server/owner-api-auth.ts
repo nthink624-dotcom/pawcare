@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { isOwnerSubscriptionBlocked } from "@/lib/billing/owner-subscription";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
-import { getOwnerSubscriptionAccessStatus, OwnerBillingError } from "@/server/owner-billing";
+import { getOwnerSubscriptionAccessStatus, OwnerBillingError, peekOwnerSubscriptionAccessStatus } from "@/server/owner-billing";
 
 export class OwnerApiError extends Error {
   constructor(
@@ -166,10 +166,61 @@ export function assertOwnerOrManager(owner: Pick<OwnerShopContext, "role">) {
   }
 }
 
-export async function loadOwnerShopAccessForUser(userId: string) {
+export async function loadOwnerShopAccessForUser(userId: string, requestedShopId?: string) {
   const admin = getSupabaseAdmin();
   if (!admin) {
     throw new OwnerApiError("인증 설정을 확인해 주세요.", 503);
+  }
+
+  if (requestedShopId) {
+    const ownedShopResult = await admin
+      .from("shops")
+      .select("id")
+      .eq("id", requestedShopId)
+      .eq("owner_user_id", userId)
+      .maybeSingle();
+    if (ownedShopResult.error) {
+      throw new OwnerApiError(ownedShopResult.error.message, 500);
+    }
+    if (ownedShopResult.data) {
+      return resolveOwnerShopAccess({
+        userId,
+        ownedShops: [ownedShopResult.data as ShopAccessRow],
+        memberships: [],
+        staffBindings: [],
+      });
+    }
+
+    const membershipResult = await admin
+      .from("owner_shop_memberships")
+      .select("owner_user_id,shop_id,role,is_primary")
+      .eq("owner_user_id", userId)
+      .eq("shop_id", requestedShopId)
+      .order("is_primary", { ascending: false });
+    if (membershipResult.error && !isMissingMembershipsError(membershipResult.error)) {
+      throw new OwnerApiError(membershipResult.error.message, 500);
+    }
+
+    const memberships = membershipResult.error ? [] : ((membershipResult.data ?? []) as MembershipRow[]);
+    const needsStaffBinding = memberships.some((membership) => isStaffRole(membership.role));
+    let staffBindings: StaffBindingRow[] = [];
+    if (needsStaffBinding) {
+      const staffResult = await admin
+        .from("staff_members")
+        .select("id,shop_id,is_active,auth_user_id")
+        .eq("auth_user_id", userId)
+        .eq("is_active", true)
+        .eq("shop_id", requestedShopId);
+      if (staffResult.error) {
+        if (isMissingStaffAuthColumnError(staffResult.error)) {
+          throw new OwnerApiError("吏곸썝 ?몄쬆 ?곌껐 ?ㅽ궎留덈? ?뺤씤??二쇱꽭??", 503);
+        }
+        throw new OwnerApiError(staffResult.error.message, 500);
+      }
+      staffBindings = (staffResult.data ?? []) as StaffBindingRow[];
+    }
+
+    return resolveOwnerShopAccess({ userId, ownedShops: [], memberships, staffBindings });
   }
 
   const [shopsResult, membershipResult] = await Promise.all([
@@ -222,7 +273,19 @@ export async function loadOwnerShopAccessForUser(userId: string) {
   });
 }
 
-export async function requireOwnerShop(request: NextRequest, requestedShopId?: string) {
+export async function requireOwnerShop(
+  request: NextRequest,
+  requestedShopId?: string,
+  onTiming?: (phase:
+    | "auth_user"
+    | "shop_access"
+    | "subscription_access"
+    | "subscription_read"
+    | "subscription_reconcile"
+    | "subscription_schedule"
+    | "subscription_summary", durationMs: number) => void,
+  options: { deferBillingMaintenance?: boolean } = {},
+) {
   if (!hasSupabaseServerEnv()) {
     return {
       shopId: requestedShopId || "demo-shop",
@@ -246,7 +309,9 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
     throw new OwnerApiError("인증 설정을 확인해 주세요.", 503);
   }
 
+  let phaseStartedAt = performance.now();
   const userResult = await authClient.auth.getUser(token);
+  onTiming?.("auth_user", performance.now() - phaseStartedAt);
   if (userResult.error || !userResult.data.user) {
     throw new OwnerApiError("로그인이 필요합니다.", 401);
   }
@@ -255,7 +320,30 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
   // getUser(token) performs a network lookup, so app_metadata comes from the current Auth user record.
   assertServerManagedAccountActive(user);
 
-  const accessibleShops = await loadOwnerShopAccessForUser(user.id);
+  phaseStartedAt = performance.now();
+  let accessibleShops: OwnerShopAccess[];
+  let accessPeek:
+    | { status: Awaited<ReturnType<typeof peekOwnerSubscriptionAccessStatus>> }
+    | { error: unknown }
+    | null = null;
+  if (requestedShopId) {
+    const [shops, peek] = await Promise.all([
+      loadOwnerShopAccessForUser(user.id, requestedShopId),
+      peekOwnerSubscriptionAccessStatus(
+        { id: user.id, email: user.email ?? null, created_at: user.created_at ?? null, user_metadata: user.user_metadata ?? null },
+        requestedShopId,
+        { deferBillingMaintenance: options.deferBillingMaintenance },
+      ).then(
+        (status): { status: Awaited<ReturnType<typeof peekOwnerSubscriptionAccessStatus>> } => ({ status }),
+        (error: unknown): { error: unknown } => ({ error }),
+      ),
+    ]);
+    accessibleShops = shops;
+    accessPeek = peek;
+  } else {
+    accessibleShops = await loadOwnerShopAccessForUser(user.id);
+  }
+  onTiming?.("shop_access", performance.now() - phaseStartedAt);
   const accessByShopId = new Map(accessibleShops.map((access) => [access.shopId, access]));
 
   if (accessByShopId.size === 0) {
@@ -282,15 +370,31 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
   }
 
   try {
-    const subscriptionStatus = await getOwnerSubscriptionAccessStatus(
-      {
-        id: billingOwnerUserId,
-        email: resolvedAccess.role === "owner" ? user.email ?? null : null,
-        created_at: resolvedAccess.role === "owner" ? user.created_at ?? null : null,
-        user_metadata: resolvedAccess.role === "owner" ? user.user_metadata ?? null : null,
-      },
-      resolvedShopId,
-    );
+    let subscriptionStatus: Awaited<ReturnType<typeof getOwnerSubscriptionAccessStatus>>;
+    if (resolvedAccess.role === "owner" && accessPeek && "error" in accessPeek) {
+      throw accessPeek.error;
+    }
+    if (
+      resolvedAccess.role === "owner" &&
+      accessPeek &&
+      "status" in accessPeek &&
+      accessPeek.status !== null
+    ) {
+      subscriptionStatus = accessPeek.status;
+    } else {
+      phaseStartedAt = performance.now();
+      subscriptionStatus = await getOwnerSubscriptionAccessStatus(
+        {
+          id: billingOwnerUserId,
+          email: resolvedAccess.role === "owner" ? user.email ?? null : null,
+          created_at: resolvedAccess.role === "owner" ? user.created_at ?? null : null,
+          user_metadata: resolvedAccess.role === "owner" ? user.user_metadata ?? null : null,
+        },
+        resolvedShopId,
+        (phase, durationMs) => onTiming?.(phase, durationMs),
+      );
+      onTiming?.("subscription_access", performance.now() - phaseStartedAt);
+    }
 
     if (isOwnerSubscriptionBlocked(subscriptionStatus)) {
       throw new OwnerApiError("서비스 이용 기간이 만료되었습니다. 결제 정보를 확인해 주세요.", 402);

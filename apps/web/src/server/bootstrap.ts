@@ -46,9 +46,11 @@ import type {
 } from "@/types/domain";
 
 type BootstrapOptions = {
+  onTiming?: (phase: "deposit_expiry" | "data_queries", durationMs: number) => void;
   allowMock?: boolean;
   includeLanding?: boolean;
   includeNotifications?: boolean;
+  includeAppointmentChangeEvents?: boolean;
   includeGroomingRecords?: boolean;
   includeOwnerExtras?: boolean;
   includeOwnerProfile?: boolean;
@@ -428,6 +430,7 @@ function hydrateAppointmentActualTimesFromEvents(
 export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptions = {}): Promise<BootstrapPayload> {
   const includeLanding = options.includeLanding ?? true;
   const includeNotifications = options.includeNotifications ?? true;
+  const includeAppointmentChangeEvents = options.includeAppointmentChangeEvents ?? true;
   const includeGroomingRecords = options.includeGroomingRecords ?? true;
   const includeOwnerExtras = options.includeOwnerExtras ?? true;
   const includeOwnerProfile = options.includeOwnerProfile ?? includeOwnerExtras;
@@ -453,7 +456,11 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   if (!supabase) {
     throw new Error("Supabase 서버 연결이 없어 매장 데이터를 불러올 수 없습니다.");
   }
-  await expireUnreportedDeposits(supabase, shopId);
+  const expiryStartedAt = performance.now();
+  const depositExpiryPromise = expireUnreportedDeposits(supabase, shopId).then((expiredCount) => {
+    options.onTiming?.("deposit_expiry", performance.now() - expiryStartedAt);
+    return expiredCount;
+  });
 
   let notificationsQuery: any = includeNotifications
     ? supabase.from("notifications").select("*").eq("shop_id", shopId).order("created_at", { ascending: false })
@@ -462,22 +469,24 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     notificationsQuery = notificationsQuery.limit(notificationLimit);
   }
 
-  let appointmentsQuery = supabase.from("appointments").select("*").eq("shop_id", shopId).order("appointment_date").order("appointment_time");
-  if (appointmentsFrom) {
-    appointmentsQuery = appointmentsQuery.gte("appointment_date", appointmentsFrom);
-  }
-  if (appointmentsTo) {
-    appointmentsQuery = appointmentsQuery.lte("appointment_date", appointmentsTo);
-  }
-  let appointmentChangeEventsQuery: any = supabase
-    .from("appointment_change_events")
-    .select("*")
-    .eq("shop_id", shopId)
-    .order("created_at", { ascending: false });
-  if (appointmentsFrom) {
+  const buildAppointmentsQuery = () => {
+    let query = supabase.from("appointments").select("*").eq("shop_id", shopId).order("appointment_date").order("appointment_time");
+    if (appointmentsFrom) query = query.gte("appointment_date", appointmentsFrom);
+    if (appointmentsTo) query = query.lte("appointment_date", appointmentsTo);
+    return query;
+  };
+  const appointmentsQuery = buildAppointmentsQuery();
+  let appointmentChangeEventsQuery: any = includeAppointmentChangeEvents
+    ? supabase
+        .from("appointment_change_events")
+        .select("*")
+        .eq("shop_id", shopId)
+        .order("created_at", { ascending: false })
+    : Promise.resolve({ data: [], error: null });
+  if (includeAppointmentChangeEvents && appointmentsFrom) {
     appointmentChangeEventsQuery = appointmentChangeEventsQuery.gte("created_at", `${appointmentsFrom}T00:00:00+09:00`);
   }
-  if (appointmentsTo) {
+  if (includeAppointmentChangeEvents && appointmentsTo) {
     appointmentChangeEventsQuery = appointmentChangeEventsQuery.lte("created_at", `${appointmentsTo}T23:59:59+09:00`);
   }
 
@@ -514,7 +523,8 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
         .maybeSingle()
     : Promise.resolve({ data: null, error: null });
 
-  const [shopRes, guardiansRes, petsRes, servicesRes, staffMemberRows, staffScheduleOverridesRes, appointmentsRes, appointmentChangeEventsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes, ownerProfileRes] =
+  let phaseStartedAt = performance.now();
+  const [shopRes, guardiansRes, petsRes, servicesRes, staffMemberRows, staffScheduleOverridesRes, initialAppointmentsRes, appointmentChangeEventsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes, ownerProfileRes, expiredDepositCount] =
     await Promise.all([
       supabase.from("shops").select("*").eq("id", shopId).is("deleted_at", null).single(),
       supabase.from("guardians").select("*").eq("shop_id", shopId).order("created_at"),
@@ -535,7 +545,10 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       alimtalkCreditSummaryQuery,
       petStaffNotesQuery,
       ownerProfileQuery,
+      depositExpiryPromise,
     ]);
+  const appointmentsRes = expiredDepositCount > 0 ? await buildAppointmentsQuery() : initialAppointmentsRes;
+  options.onTiming?.("data_queries", performance.now() - phaseStartedAt);
 
   if (shopRes.error || !shopRes.data) {
     throw new Error("매장 정보를 찾을 수 없습니다.");

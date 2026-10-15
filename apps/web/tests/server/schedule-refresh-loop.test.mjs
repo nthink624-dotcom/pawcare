@@ -16,8 +16,13 @@ function harness(file, marker) {
   let complete;
   let cleanup;
   let dependencies;
+  let now = 0;
   const data = { mode: "supabase", shop: { id: "shop-1" } };
+  class FakeDate extends Date {
+    static now() { return now; }
+  }
   const context = {
+    Date: FakeDate,
     bootstrapData: data, initialData: data,
     bootstrapDataRef: { current: data }, latestDataRef: { current: data },
     onDataChangeRef: { current: () => { updates++; } },
@@ -31,7 +36,8 @@ function harness(file, marker) {
     applyRecentStatusOverrides: value => value,
     setBootstrapData: () => {}, console,
     useEffect: (fn, deps) => { dependencies = deps; cleanup = fn(); },
-    window: { setInterval: fn => { listeners.set("interval", fn); return 1; }, clearInterval: () => {},
+    window: { setTimeout: fn => { listeners.set("initialTimeout", fn); return 2; }, clearTimeout: () => listeners.delete("initialTimeout"),
+      setInterval: fn => { listeners.set("interval", fn); return 1; }, clearInterval: () => {},
       addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) },
     document: { visibilityState: "visible", addEventListener: (name, fn) => listeners.set(name, fn),
       removeEventListener: name => listeners.delete(name) },
@@ -39,6 +45,7 @@ function harness(file, marker) {
   vm.runInNewContext(effect, context);
   return { source, effect, context, listeners, cleanup, dependencies,
     calls: () => calls, updates: () => updates,
+    setNow: value => { now = value; },
     finish: async () => { complete({}); await new Promise(resolve => setImmediate(resolve)); } };
 }
 
@@ -48,11 +55,17 @@ for (const [file, marker] of [
 ]) {
   test(`${file}: callback changes cannot restart polling; focus and timer cannot overlap`, async () => {
     const h = harness(file, marker);
+    const initialRefreshIsDeferred = file === "calendar-management-screen.tsx";
     assert.doesNotMatch(h.effect, /\bonDataChange\s*[,\]]/);
-    assert.equal(h.calls(), 1);
+    assert.equal(h.calls(), initialRefreshIsDeferred ? 0 : 1);
     await h.listeners.get("focus")();
     await h.listeners.get("interval")();
-    assert.equal(h.calls(), 1);
+    assert.equal(h.calls(), initialRefreshIsDeferred ? 0 : 1);
+    if (initialRefreshIsDeferred) {
+      h.setNow(5_000);
+      h.listeners.get("initialTimeout")();
+      assert.equal(h.calls(), 1);
+    }
     let latestCallbackCalls = 0;
     h.context.onDataChangeRef.current = () => { latestCallbackCalls++; };
     await h.finish();
@@ -61,6 +74,7 @@ for (const [file, marker] of [
     await h.listeners.get("interval")();
     assert.equal(h.calls(), 1);
     h.context.document.visibilityState = "visible";
+    if (initialRefreshIsDeferred) h.setNow(10_000);
     const refresh = h.listeners.get("interval")();
     assert.equal(h.calls(), 2);
     await h.finish();
@@ -69,6 +83,10 @@ for (const [file, marker] of [
   });
   test(`${file}: late responses after cleanup do not update data`, async () => {
     const h = harness(file, marker);
+    if (file === "calendar-management-screen.tsx") {
+      h.setNow(5_000);
+      h.listeners.get("initialTimeout")();
+    }
     h.cleanup();
     await h.finish();
     assert.equal(h.updates(), 0);
@@ -84,4 +102,13 @@ test("schedule endpoint omits unused owner projections without removing authoriz
   }
   assert.match(source, /await requireOwnerShop\(request, requestedShopId\)/);
   assert.match(source, /scopeBootstrapForStaff\(data, owner\)/);
+});
+
+test("owner dashboard preloads profitability code without fetching unused report data", () => {
+  const preview = readFileSync(new URL("../../src/components/owner-web/owner-web-preview.tsx", import.meta.url), "utf8");
+  const profitabilityScreen = readFileSync(new URL("../../src/components/owner-web/profitability-analytics-screen.tsx", import.meta.url), "utf8");
+  assert.match(preview, /preloadProfitabilityScreen/);
+  assert.match(preview, /import\("@\/components\/owner-web\/profitability-analytics-screen"\)/);
+  assert.doesNotMatch(preview, /api\/owner\/profitability/);
+  assert.match(profitabilityScreen, /api\/owner\/profitability/);
 });

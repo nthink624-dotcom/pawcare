@@ -1581,7 +1581,7 @@ textarea {
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 14px;
   padding: 4px;
   background: #eef1f5;

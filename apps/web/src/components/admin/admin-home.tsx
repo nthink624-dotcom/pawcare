@@ -143,6 +143,8 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
   const queuedCount = laneCount("queued");
   const actionCount = laneCount("action");
   const isLimited = workSnapshot?.connection === "limited";
+  const greetingName = adminName.trim() || "관리자님";
+  const greetingLabel = greetingName.endsWith("님") ? greetingName : `${greetingName} 님`;
   const countUnavailableLabel = workSnapshot ? "업무 원장 연결 전" : "확인 중";
   const firstPendingSupportRequest = pending[0] ?? null;
   const closeSupportRequest = useCallback(() => {
@@ -212,11 +214,11 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
         <div className="bg-[#F4F4F4]">
         <section className="rounded-bl-[72px] bg-white px-4 pb-10 pt-7 sm:px-6 md:rounded-bl-[120px] md:pb-12 lg:px-8">
           <div className="grid min-w-0 items-center gap-6 md:grid-cols-[minmax(150px,0.55fr)_minmax(0,2fr)] lg:gap-8">
-            <div className="grid grid-cols-1 gap-2 md:pl-3 lg:pl-8">
-              <p className={`mb-1 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>안녕하세요, {adminName.trim() || "관리자님"}</p>
-              <MiniMetric label="오늘 매출" value={revenue ? formatWon(revenue.todayRevenue) : "—"} detail="결제 완료 기준" />
-              <MiniMetric label="이용객 수" value={overviewMetrics ? `${overviewMetrics.todayVisitorCount}명` : "—"} detail="오늘 예약 기준" />
-              <MiniMetric label="확인된 문의" value={overviewMetrics ? `${overviewMetrics.confirmedInquiryCount}건` : "—"} detail="답변·처리 완료" />
+            <div className="md:pl-3 lg:pl-16">
+              <p className={`text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>안녕하세요.</p>
+              <h1 className={`mt-1 break-keep tracking-[-0.03em] text-[#111112] ${ADMIN_TYPOGRAPHY.pageTitle}`}>
+                {greetingLabel}.
+              </h1>
             </div>
             <div className="min-w-0">
               <p aria-live="polite" className={`mb-2 text-right text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>
@@ -231,14 +233,13 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
               <div className="-mx-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:overflow-visible md:px-0 md:pb-0">
                 <div className="grid w-max min-w-full snap-x snap-mandatory grid-cols-[repeat(4,minmax(240px,78vw))] gap-2 md:w-full md:grid-cols-4">
                   <StatusCard
-                    label="처리할 업무"
-                    value={snapshotHasCounts ? String(queuedCount + actionCount) : "—"}
-                    detail={snapshotHasCounts ? `지시 ${queuedCount} · 조치 ${actionCount}` : countUnavailableLabel}
+                    label="오늘 매출"
+                    value={revenue ? formatWon(revenue.todayRevenue) : "—"}
+                    detail="결제 완료 기준"
                     primary
-                    limited={isLimited}
                   />
-                  <StatusCard label="작업중" value={snapshotHasCounts ? String(laneCount("working")) : "—"} detail={snapshotHasCounts ? "현재 진행 중" : countUnavailableLabel} limited={isLimited} />
-                  <StatusCard label="검수필요" value={snapshotHasCounts ? String(laneCount("review")) : "—"} detail={snapshotHasCounts ? "독립 검수 대기" : countUnavailableLabel} limited={isLimited} />
+                  <StatusCard label="이용객 수" value={overviewMetrics ? `${overviewMetrics.todayVisitorCount}명` : "—"} detail="오늘 예약 기준" />
+                  <StatusCard label="확인된 문의" value={overviewMetrics ? `${overviewMetrics.confirmedInquiryCount}건` : "—"} detail="답변·처리 완료" />
                   <StatusCard label="완료" value={snapshotHasCounts ? String(laneCount("completed")) : "—"} detail={snapshotHasCounts ? "검수까지 완료" : countUnavailableLabel} limited={isLimited} />
                 </div>
               </div>
@@ -373,18 +374,6 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
       {selectedWork ? <WorkDetailPanel item={selectedWork} onClose={closeWork} /> : null}
       {selectedSupportRequest ? <AdminSupportRequestDetail request={selectedSupportRequest} onClose={closeSupportRequest} onSaved={saveSupportRequest} /> : null}
     </main>
-  );
-}
-
-function MiniMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return (
-    <div className="flex min-w-0 items-center justify-between gap-3 rounded-[10px] border border-[#e2e8f0] bg-white px-3 py-2.5">
-      <div className="min-w-0">
-        <p className={`truncate text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>{label}</p>
-        <p className="mt-0.5 truncate text-[20px] font-semibold leading-6 text-[#111112]">{value}</p>
-      </div>
-      <p className={`shrink-0 text-right text-[#94a3b8] ${ADMIN_TYPOGRAPHY.meta}`}>{detail}</p>
-    </div>
   );
 }
 

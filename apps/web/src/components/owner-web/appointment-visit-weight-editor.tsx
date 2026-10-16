@@ -8,12 +8,6 @@ import {
 } from "@/components/owner-web/calendar-owner-api";
 import type { AppointmentVisitWeightResponse } from "@/types/visit-weight";
 
-function formatMeasuredAt(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(date);
-}
-
 export function AppointmentVisitWeightEditor({ shopId, appointmentId }: { shopId: string; appointmentId: string }) {
   const [data, setData] = useState<AppointmentVisitWeightResponse>({ current: null, recent: null });
   const [value, setValue] = useState("");
@@ -75,22 +69,9 @@ export function AppointmentVisitWeightEditor({ shopId, appointmentId }: { shopId
   }
 
   return (
-    <section className="border-b border-[#eef0f2] py-4" aria-labelledby="visit-weight-title">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 id="visit-weight-title" className="text-[14px] font-medium leading-5 text-[#334155]">오늘 몸무게</h3>
-          <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">
-            이 예약에서 직접 측정한 값만 저장해요.
-          </p>
-        </div>
-        {data.recent && !data.current ? (
-          <p className="shrink-0 text-right text-[13px] font-normal leading-5 text-[#64748b] tabular-nums">
-            최근 몸무게<br />
-            <span className="font-medium text-[#334155]">{data.recent.weightKg}kg · {formatMeasuredAt(data.recent.measuredAt)}</span>
-          </p>
-        ) : null}
-      </div>
-      <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_88px] gap-2">
+    <section className="mt-3 border-t border-[#e6edf6] pt-3" aria-labelledby="visit-weight-title">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_88px] items-center gap-2">
+        <h3 id="visit-weight-title" className="whitespace-nowrap text-[16px] font-medium leading-6 text-[#334155]">오늘 몸무게</h3>
         <label className="relative block min-w-0">
           <span className="sr-only">오늘 몸무게</span>
           <input
@@ -120,11 +101,6 @@ export function AppointmentVisitWeightEditor({ shopId, appointmentId }: { shopId
           {saving ? "저장 중" : "저장"}
         </button>
       </div>
-      {data.current ? (
-        <p className="mt-2 text-[13px] font-normal leading-5 text-[#64748b] tabular-nums">
-          이 예약에 저장된 오늘 몸무게 {data.current.weightKg}kg
-        </p>
-      ) : null}
       {notice ? (
         <p className="mt-2 text-[13px] font-normal leading-5 text-[#64748b]" role="status" aria-live="polite">{notice}</p>
       ) : null}

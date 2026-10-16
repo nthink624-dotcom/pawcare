@@ -91,6 +91,7 @@ function Label({ title, children }: { title: string; children: ReactNode }) { re
 export default function BookingPolicyPanel({ shopId, editable = true }: { shopId: string; editable?: boolean }) {
   const [policy, setPolicy] = useState<BookingPolicy>(() => ensureDefaultConsent(DEFAULT_BOOKING_POLICY)), [version, setVersion] = useState(0);
   const [busy, setBusy] = useState(false), [loaded, setLoaded] = useState(false), [message, setMessage] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [tab, setTab] = useState("deposit");
   const [depositSection, setDepositSection] = useState("settings");
   const policyDirty = useRef(false);
@@ -103,7 +104,16 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
   }, [shopId]);
   const [consentDraft, setConsentDraft] = useState<ConsentDraft | null>(null);
   const [selectedConsentId, setSelectedConsentId] = useState<string | null>(null);
-  useEffect(() => { let active = true; setLoaded(false); fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`).then(r => { if (active) { const nextPolicy = ensureDefaultConsent(r.policy); setPolicy(nextPolicy); setVersion(r.version); setLoaded(true); setMessage(""); const first = nextPolicy.templates[0]; setSelectedConsentId(first?.id ?? null); setConsentDraft(first ? { templateId: first.id, title: first.title, body: first.body } : null); } }).catch(e => { if (active) setMessage(e.message); }); return () => { active = false; }; }, [shopId]);
+  const depositHoldMinutesExceedsMax = (policy.depositHoldMinutes ?? 20) > 1440;
+  useEffect(() => {
+    let active = true;
+    setLoaded(false);
+    setMessage("");
+    fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`, { cache: "no-store", signal: AbortSignal.timeout(15_000) })
+      .then(r => { if (active) { const nextPolicy = ensureDefaultConsent(r.policy); setPolicy(nextPolicy); setVersion(r.version); setLoaded(true); setMessage(""); const first = nextPolicy.templates[0]; setSelectedConsentId(first?.id ?? null); setConsentDraft(first ? { templateId: first.id, title: first.title, body: first.body } : null); } })
+      .catch(e => { if (active) setMessage(e instanceof DOMException && e.name === "TimeoutError" ? "예약 정책을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." : e instanceof Error ? e.message : "예약 정책을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."); });
+    return () => { active = false; };
+  }, [shopId, loadAttempt]);
   function change<K extends keyof BookingPolicy>(key: K, value: BookingPolicy[K]) {
     policyDirty.current = true;
     if (tab === "deposit") {
@@ -112,6 +122,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     setPolicy(p => ({ ...p, [key]: value })); setMessage("");
   }
   async function save(nextPolicy: BookingPolicy = policy): Promise<boolean> {
+    if (tab === "deposit" && (nextPolicy.depositHoldMinutes ?? 20) > 1440) { setMessage("최대 24시간입니다."); return false; }
     if (tab === "deposit") nextPolicy = { ...nextPolicy, depositMode: nextPolicy.depositMode === "off" ? "off" : "optional", depositAudience: "all" };
     setBusy(true); setMessage("");
     try { const r = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PUT", body: JSON.stringify({ shopId, policy: nextPolicy, version }), headers: { "Content-Type": "application/json" } }); policyReadVersion.current++; setPolicy(ensureDefaultConsent(r.policy)); setVersion(r.version); setDepositBeforeEdit(null); policyDirty.current = false; publishBookingPolicyChange(shopId); setMessage(""); return true; }
@@ -139,6 +150,9 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
       ? { ...policy, templates: policy.templates.map(t => t.id === consentDraft.templateId ? { ...t, title, body } : t) }
       : { ...policy, templates: [...policy.templates, { id: templateId, version: 1, title, body, required: true, scope: "pet", enabled: true }] };
     if (await save(nextPolicy)) { setSelectedConsentId(templateId); setConsentDraft({ templateId, title, body }); }
+  }
+  async function setConsentTemplateEnabled(templateId: string, enabled: boolean) {
+    await save({ ...policy, templates: policy.templates.map(template => template.id === templateId ? { ...template, enabled } : template) });
   }
   function consentDraftHasUnsavedChanges() {
     if (!consentDraft) return false;
@@ -195,34 +209,34 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     <div className={`${OWNER_SETTINGS_TAB_HEADER_CLASS} -mx-3 -mt-1 sm:-mx-5`}>
       <div className={OWNER_SETTINGS_TABBAR_CLASS} role="tablist" aria-label="예약 관리 설정">{[["deposit", "예약금"], ["consent", "동의서 관리"], ["noshow", "취소·노쇼"]].map(([id, title]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} data-owner-control-size='content' className={OWNER_SETTINGS_TAB_CLASS}>{title}</button>)}</div>
     </div>
-    <div data-settings-body-container className={`rounded-[14px] border border-[#e1e4ea] bg-white px-4 py-4 ${tab !== "noshow" ? "space-y-0 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : "space-y-5"}`}>
-    <fieldset disabled={!loaded || busy || !editable} aria-busy={!loaded && !message} className={`min-w-0 space-y-4 disabled:opacity-100 ${tab !== "noshow" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
-      {tab === "deposit" && <div data-deposit-editor className="grid min-h-[440px] gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:flex-1">
-        <div className="grid min-w-0 gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white">
-          <div className="flex min-h-[58px] items-center border-b border-[#edf0f4] px-5 py-2">
+    <div data-settings-body-container className={`rounded-[14px] border border-[#e1e4ea] bg-white px-4 py-4 ${tab !== "noshow" ? "space-y-0 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:overflow-hidden" : "space-y-5"}`}>
+    {loaded ? <>
+    <fieldset disabled={busy || !editable} aria-busy={!loaded && !message} className={`min-w-0 space-y-4 disabled:opacity-100 ${tab !== "noshow" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
+      {tab === "deposit" && <div data-deposit-editor className="grid min-h-[440px] gap-5 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_360px] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
+        <div className="grid min-h-0 min-w-0 gap-5 lg:grid-cols-[260px_minmax(0,1fr)] xl:h-full xl:items-start">
+        <aside className="min-h-0 overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white xl:h-full">
+          <div className="flex h-[58px] min-h-[58px] shrink-0 items-center border-b border-[#edf0f4] px-5">
             <h3 className="font-semibold">예약금 관리</h3>
           </div>
-          <nav aria-label="예약금 설정 항목" className="py-2">{[["settings", "예약금 설정"], ["refund", "취소·환불 안내"]].map(([id, title]) => <button key={id} type="button" data-owner-control-size="content" aria-pressed={depositSection === id} onClick={() => setDepositSection(id)} className={`flex min-h-[52px] w-full items-center px-5 py-3 text-left text-[16px] font-medium leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${depositSection === id ? "bg-[#f5f4ff] text-[#15213b]" : "text-slate-600 hover:bg-slate-50"}`}>{title}</button>)}</nav>
+          <nav aria-label="예약금 설정 항목" className="py-0">{[["settings", "예약금 설정"], ["refund", "취소·환불 안내"]].map(([id, title]) => <button key={id} type="button" data-owner-control-size="content" aria-pressed={depositSection === id} onClick={() => setDepositSection(id)} className={`flex h-[48px] min-h-[48px] w-full items-center px-5 py-0 text-left text-[16px] font-medium leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${depositSection === id ? "bg-[#f5f4ff] text-[#15213b]" : "text-slate-600 hover:bg-slate-50"}`}>{title}</button>)}</nav>
         </aside>
-        <section className="flex min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white">
-          <header className="flex min-h-[58px] flex-wrap items-center justify-between gap-2 border-b border-[#edf0f4] px-5 py-2">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white xl:h-full">
+          <header className="flex min-h-[58px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#edf0f4] px-5 py-2 xl:h-[58px] xl:flex-nowrap xl:py-0">
             <h3 className="text-[20px] font-semibold leading-7">{depositSection === "settings" ? "예약금 설정" : "취소·환불 안내"}</h3>
             <button type="button" role="switch" aria-label="예약금 사용" aria-checked={policy.depositMode !== "off"} data-owner-control-size="content" onClick={() => change("depositMode", policy.depositMode === "off" ? "optional" : "off")} className="flex min-h-11 items-center gap-2 rounded-[8px] text-[16px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
-              <span>예약금 사용</span>
-              <span className={`rounded-full px-2 py-1 text-[13px] leading-5 ${policy.depositMode !== "off" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>{policy.depositMode !== "off" ? "켜짐" : "꺼짐"}</span>
+              <span className={`rounded-full px-2 py-1 text-[12px] font-medium leading-4 ${policy.depositMode !== "off" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>{policy.depositMode !== "off" ? "켜짐" : "꺼짐"}</span>
               <span aria-hidden="true" className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full ${policy.depositMode !== "off" ? "bg-[#1976ff]" : "bg-slate-300"}`}><span className={`h-5 w-5 rounded-full bg-white transition-transform motion-reduce:transition-none ${policy.depositMode !== "off" ? "translate-x-6" : "translate-x-1"}`} /></span>
             </button>
           </header>
-          <fieldset disabled={policy.depositMode === "off" && depositSection === "settings"} aria-disabled={policy.depositMode === "off" && depositSection === "settings"} className={`m-0 min-w-0 flex-1 border-0 p-0 ${policy.depositMode === "off" && depositSection === "settings" ? "opacity-50" : ""}`}>
-          <div className="space-y-6 px-5 py-5 text-[16px] font-normal leading-6 [&_input]:min-h-11 [&_select]:min-h-11">
+          <fieldset disabled={policy.depositMode === "off" && depositSection === "settings"} aria-disabled={policy.depositMode === "off" && depositSection === "settings"} className={`m-0 flex min-h-0 min-w-0 flex-1 flex-col border-0 p-0 ${policy.depositMode === "off" && depositSection === "settings" ? "opacity-50" : ""}`}>
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 text-[16px] font-normal leading-6 [&_input]:min-h-11 [&_select]:min-h-11">
           {depositSection === "settings" && <>
             <div className="divide-y divide-[#edf0f4] rounded-[14px] bg-[#f8fafc] px-4 sm:px-5 [&>label]:grid [&>label]:min-w-0 [&>label]:items-center [&>label]:gap-2 [&>label]:py-4 sm:[&>label]:grid-cols-[112px_minmax(0,1fr)] sm:[&>label]:gap-4">
               <label><span className="text-slate-600">예약금</span><span className="flex min-w-0 items-center gap-3"><input aria-label="예약금 (원)" className={`${field} max-w-[480px]`} type="number" min={1} value={policy.depositAmount} onChange={e => change("depositAmount", Number(e.target.value))} /><span>원</span></span></label>
               {[["bankName", "은행"], ["bankAccount", "입금 계좌"], ["bankHolder", "예금주"]].map(([key, title]) => <label key={key}><span className="text-slate-600">{title}</span><input className={`${field} max-w-[480px]`} placeholder={`${title} 입력`} value={policy[key as "bankName" | "bankAccount" | "bankHolder"]} onChange={e => change(key as "bankName" | "bankAccount" | "bankHolder", e.target.value)} /></label>)}
-              <label><span className="text-slate-600">입금 신고 기한</span><span className="flex min-w-0 flex-wrap items-center gap-3"><span>요청 후</span><input aria-label="입금 신고 기한 (분)" className={`${field} max-w-[160px]`} type="number" min={1} max={1440} step={1} value={policy.depositHoldMinutes ?? 20} onChange={e => change("depositHoldMinutes", Number(e.target.value))} /><span>분</span></span></label>
+              <label><span className="text-slate-600">입금 신고 기한</span><span className="flex min-w-0 items-center gap-3"><span className="shrink-0">요청 후</span><input aria-label="입금 신고 기한 (분)" aria-invalid={depositHoldMinutesExceedsMax} aria-describedby={depositHoldMinutesExceedsMax ? "deposit-hold-minutes-error" : undefined} className={`${field} max-w-[160px]`} type="number" min={1} max={1440} step={1} value={policy.depositHoldMinutes ?? 20} onChange={e => change("depositHoldMinutes", Number(e.target.value))} /><span className="shrink-0">분</span></span></label>
             </div>
-            <p className="text-slate-600">1~1,440분으로 설정할 수 있으며 예약 시작 시각을 넘기지 않습니다. 기한 안에 입금 신고를 하면 오너 확인까지 예약 시간을 유지하고, 신고 없이 기한이 지나면 예약을 취소합니다.</p>
+            {depositHoldMinutesExceedsMax && <p id="deposit-hold-minutes-error" role="alert" className="mt-2 text-[14px] text-[#9a5e4e]">최대 24시간입니다.</p>}
           </>}
           {depositSection === "refund" && <>
             <Label title="고객 직접 취소 마감 (예약 시작 전 시간)"><input className={field} type="number" min={0} max={720} value={policy.cancellationCutoffHours} onChange={e => change("cancellationCutoffHours", Number(e.target.value))} /></Label>
@@ -233,11 +247,11 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
           </fieldset>
           <footer className="flex shrink-0 justify-end gap-3 border-t border-[#edf0f4] px-5 py-3">
             <button type="button" data-owner-control-size="content" disabled={!depositBeforeEdit || busy} onClick={() => { if (depositBeforeEdit) setPolicy(current => ({ ...current, ...depositBeforeEdit })); setDepositBeforeEdit(null); setMessage(""); }} className="min-h-11 rounded-[10px] border border-[#e1e4ea] px-4 text-[16px] text-slate-600 disabled:opacity-100">취소</button>
-            <button type="button" data-owner-control-size="content" disabled={!loaded || busy || !editable} onClick={() => void save()} className="min-h-11 rounded-[10px] bg-[#1976ff] px-5 text-[16px] font-medium text-white disabled:opacity-100 disabled:cursor-not-allowed">{busy ? "저장 중" : "저장"}</button>
+            <button type="button" data-owner-control-size="content" disabled={!loaded || busy || !editable || depositHoldMinutesExceedsMax} onClick={() => void save()} className="min-h-11 rounded-[10px] bg-[#1976ff] px-5 text-[16px] font-medium text-white disabled:opacity-100 disabled:cursor-not-allowed">{busy ? "저장 중" : "저장"}</button>
           </footer>
         </section>
         </div>
-        <div className={`w-full max-w-[360px] justify-self-center xl:max-w-none xl:justify-self-stretch ${policy.depositMode === "off" ? "opacity-50" : ""}`} aria-disabled={policy.depositMode === "off"}>
+        <div className={`w-full max-w-[360px] justify-self-center xl:h-full xl:min-h-0 xl:max-w-none xl:justify-self-stretch ${policy.depositMode === "off" ? "opacity-50" : ""}`} aria-disabled={policy.depositMode === "off"}>
           <BookingDepositAlimtalkPreview shopId={shopId} policy={policy} loaded={loaded} />
         </div>
       </div>}
@@ -245,33 +259,37 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
         <div className="grid min-h-[440px] gap-5 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="grid min-h-[440px] gap-5 xl:min-h-0 xl:grid-cols-[260px_minmax(0,1fr)] xl:items-stretch">
             <aside className="flex min-h-[260px] flex-col overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white">
-              <div className="flex min-h-[58px] shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[#edf0f4] px-4 py-2 sm:px-5">
+              <div className="flex h-[58px] min-h-[58px] shrink-0 items-center justify-between gap-2 border-b border-[#edf0f4] px-4 sm:px-5">
                 <h3 className="font-semibold">동의서 양식</h3>
-                <label className={`flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 ${editable && !busy ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
-                  <span className="text-[16px] font-medium leading-6">미용 전 필수 서명</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[16px] font-medium leading-6 ${policy.consentBeforeStart ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-600"}`}>{policy.consentBeforeStart ? "켜짐" : "꺼짐"}</span>
-                  <input type="checkbox" className="peer sr-only" aria-label="미용 전 필수 서명 설정" checked={policy.consentBeforeStart} disabled={busy || !editable} onChange={e => void save({ ...policy, consentBeforeStart: e.target.checked })} />
-                  <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-full bg-slate-300 transition-colors after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-[#1976ff] peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#1976ff] peer-disabled:opacity-50" />
-                </label>
+                <button type="button" disabled={activeConsentTemplates.length >= 20 || !editable || busy} className="h-[44px] min-h-[44px] shrink-0 rounded-[14px] bg-[#1976ff] px-2.5 text-[13px] font-medium text-white disabled:opacity-50" onClick={startNewConsent}>＋ 추가</button>
               </div>
               <div className="min-h-0 flex-1 divide-y divide-[#edf0f4] overflow-y-auto">
                 {activeConsentTemplates.map(t => <div key={t.id} className={`flex items-center gap-3 px-4 py-3 ${selectedConsentId === t.id ? "bg-[#f5f4ff]" : "hover:bg-slate-50"}`}>
                   <button type="button" className="min-w-0 flex-1 text-left" onClick={() => selectConsentTemplate(t)}><span className="block truncate font-medium">{t.title || "제목 없는 동의서"}</span></button>
-                  <label className="flex shrink-0 items-center gap-2 text-[14px] text-slate-600"><input type="checkbox" checked={t.enabled} disabled={busy || !editable} onChange={e => void save({ ...policy, templates: policy.templates.map(x => x.id === t.id ? { ...x, enabled: e.target.checked } : x) })} />사용</label>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-medium leading-4 ${t.enabled ? "bg-[#e9f7ef] text-[#1f6b5b]" : "bg-slate-100 text-slate-600"}`}>{t.enabled ? "사용 중" : "미사용"}</span>
                 </div>)}
-                {activeConsentTemplates.length === 0 && <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-4 px-5 text-center text-slate-500"><p>사용 중인 동의서가 없어요.<br />새 양식을 등록하거나 보관한 양식을 복구해 주세요.</p><button type="button" className="h-11 rounded-[9px] bg-[#1976ff] px-4 text-white" onClick={startNewConsent}>＋ 동의서 추가</button></div>}
+                {activeConsentTemplates.length === 0 && <div className="flex h-full min-h-[220px] flex-col items-center justify-center px-5 text-center text-slate-500"><p>사용 중인 동의서가 없어요.<br />위의 추가 버튼으로 새 양식을 만들 수 있어요.</p></div>}
                 {archivedConsentTemplates.length > 0 && <details className="border-t border-[#edf0f4] px-4 py-3"><summary className="cursor-pointer text-[14px] font-medium text-slate-600">보관한 동의서</summary><div className="mt-2 divide-y divide-[#edf0f4]">{archivedConsentTemplates.map(t => <div key={t.id} className="flex items-center gap-3 py-3"><span className="min-w-0 flex-1 truncate text-[14px] text-slate-600">{t.title}</span><button type="button" disabled={!editable || busy} className="h-9 shrink-0 rounded-[8px] border border-slate-300 bg-white px-3 text-[14px]" onClick={() => void restoreConsentTemplate(t.id)}>복구</button></div>)}</div></details>}
               </div>
             </aside>
             <section className="flex min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white xl:h-full xl:min-h-0">
               <header className="flex h-auto min-h-[58px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#edf0f4] px-4 py-2 sm:h-[58px] sm:min-h-[58px] sm:flex-nowrap sm:gap-3 sm:px-5 sm:py-0">
-                <div className="flex min-w-0 items-center gap-3"><h3 className="truncate text-[20px] font-semibold">{consentDraft?.templateId ? (consentDraft.templateId === DEFAULT_CONSENT_TEMPLATE.id ? "기본 동의서 수정" : "동의서 수정") : "새 동의서 작성"}</h3><span className="shrink-0 rounded-[7px] bg-[#e9f7ef] px-2.5 py-1 text-[14px] font-medium text-[#16834a]">{consentDraft?.templateId === DEFAULT_CONSENT_TEMPLATE.id ? "기본 양식" : "직접 작성"}</span></div>
-                <button type="button" disabled={activeConsentTemplates.length >= 20 || !editable || busy} className="h-9 shrink-0 rounded-[8px] bg-[#1976ff] px-4 text-[14px] font-medium text-white disabled:opacity-50" onClick={startNewConsent}>＋ 등록</button>
+                <div className="flex min-w-0 items-center gap-3"><h3 className="truncate text-[20px] font-semibold">{consentDraft?.templateId ? policy.templates.find(template => template.id === consentDraft.templateId)?.title || "동의서 수정" : consentDraft ? "새 동의서" : "동의서 양식"}</h3><span className="shrink-0 rounded-[7px] bg-[#e9f7ef] px-2.5 py-1 text-[14px] font-medium text-[#16834a]">{consentDraft?.templateId === DEFAULT_CONSENT_TEMPLATE.id ? "기본 양식" : consentDraft ? "직접 작성" : "양식 선택"}</span></div>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  {consentDraft?.templateId && (() => {
+                    const template = policy.templates.find(item => item.id === consentDraft.templateId);
+                    if (!template) return null;
+                    return <button type="button" role="switch" aria-label={`${template.title} 사용`} aria-checked={template.enabled} disabled={busy || !editable} onClick={() => void setConsentTemplateEnabled(template.id, !template.enabled)} className="flex min-h-11 items-center gap-2 rounded-[8px] text-[14px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
+                      <span className={`rounded-full px-2 py-1 text-[12px] leading-4 ${template.enabled ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>{template.enabled ? "켜짐" : "꺼짐"}</span>
+                      <span aria-hidden="true" className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full ${template.enabled ? "bg-[#1976ff]" : "bg-slate-300"}`}><span className={`h-5 w-5 rounded-full bg-white transition-transform motion-reduce:transition-none ${template.enabled ? "translate-x-6" : "translate-x-1"}`} /></span>
+                    </button>;
+                  })()}
+                </div>
               </header>
               {consentDraft ? <>
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5 sm:py-4">
+                <div className="no-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5 sm:py-4">
                   <label className="grid grid-cols-[52px_minmax(0,1fr)] items-center gap-3 text-[16px] font-medium"><span>제목:</span><input aria-label="동의서 제목" className="h-[48px] w-full min-w-0 rounded-[9px] border border-[#e1e4ea] bg-white px-4 text-[16px] font-normal outline-none focus:border-[#1976ff] focus:ring-2 focus:ring-[#1976ff]/15" placeholder="동의서 제목을 입력해 주세요." value={consentDraft.title} maxLength={100} onChange={e => setConsentDraft({ ...consentDraft, title: e.target.value })} /></label>
-                  <label className="grid min-h-0 grid-cols-[52px_minmax(0,1fr)] items-start gap-3 text-[16px] font-medium"><span className="pt-3">본문:</span><textarea aria-label="동의서 본문" className="h-[300px] min-h-[260px] w-full min-w-0 resize-none rounded-[9px] border border-[#e1e4ea] bg-white px-4 py-3 text-[16px] font-normal leading-7 outline-none focus:border-[#1976ff] focus:ring-2 focus:ring-[#1976ff]/15 sm:h-[376px] sm:min-h-[300px]" placeholder="동의서 내용을 입력해 주세요." value={consentDraft.body} maxLength={12000} onChange={e => setConsentDraft({ ...consentDraft, body: e.target.value })} /></label>
+                  <label className="grid min-h-0 grid-cols-[52px_minmax(0,1fr)] items-start gap-3 text-[16px] font-medium"><span className="pt-3">본문:</span><textarea aria-label="동의서 본문" className="no-scrollbar h-[300px] min-h-[260px] w-full min-w-0 resize-none rounded-[9px] border border-[#e1e4ea] bg-white px-4 py-3 text-[16px] font-normal leading-7 outline-none focus:border-[#1976ff] focus:ring-2 focus:ring-[#1976ff]/15 sm:h-[376px] sm:min-h-[300px]" placeholder="동의서 내용을 입력해 주세요." value={consentDraft.body} maxLength={12000} onChange={e => setConsentDraft({ ...consentDraft, body: e.target.value })} /></label>
                   {consentDraft.templateId === DEFAULT_CONSENT_TEMPLATE.id && <button type="button" className="text-left text-[14px] font-medium text-[#1976ff] underline underline-offset-2" onClick={() => { if (window.confirm("현재 기본 동의서 편집 내용을 표준 문안으로 바꿀까요? 변경 후 저장을 눌러야 반영됩니다.")) setConsentDraft({ ...consentDraft, title: DEFAULT_CONSENT_TEMPLATE.title, body: DEFAULT_CONSENT_TEMPLATE.body }); }}>표준 문안으로 복원</button>}
                 </div>
                 <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#edf0f4] bg-white px-4 py-3 sm:px-5"><div>{consentDraft.templateId && consentDraft.templateId !== DEFAULT_BOOKING_CONSENT_ID && <button type="button" disabled={busy || !editable} title="보관 후에도 목록에서 복구할 수 있어요." className="h-10 rounded-[9px] border border-[#e1e4ea] px-4 text-[14px] text-slate-600 disabled:opacity-50" onClick={() => void archiveConsentTemplate(consentDraft.templateId!)}>보관</button>}</div><div className="flex gap-3"><button type="button" disabled={busy} className="h-10 rounded-[9px] border border-[#e1e4ea] bg-white px-4 text-[16px] text-slate-600 disabled:opacity-50" onClick={cancelConsentEdit}>취소</button><button type="button" disabled={busy || !editable || !consentDraft.title.trim() || !consentDraft.body.trim()} className="h-10 rounded-[9px] bg-[#1976ff] px-5 text-[16px] font-medium text-white disabled:opacity-50" onClick={() => void saveConsentDraft()}>{busy ? "저장 중" : "저장"}</button></div></footer>
@@ -282,10 +300,16 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
             <header className="flex min-h-[58px] shrink-0 items-center border-b border-[#edf0f4] px-4 py-2 sm:px-5">
               <h3 className="text-[18px] font-medium leading-[26px] text-[#15213b]">동의서 미리보기</h3>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-5">
-              <article className="min-h-full rounded-[10px] border border-[#e4e7ec] bg-white p-5 sm:p-6">
-                <h4 className="mb-4 break-words text-[20px] font-semibold leading-7 text-[#15213b]">{consentDraft?.title.trim() || "동의서 제목"}</h4>
-                <p className="whitespace-pre-wrap break-words text-[16px] font-normal leading-7 text-[#334155]">{consentDraft?.body || "작성 중인 동의서 내용이 여기에 표시됩니다."}</p>
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#f8fafc] p-3 sm:p-4">
+              <article className="mx-auto min-h-full w-full max-w-[430px] rounded-[18px] border border-[#e4e7ec] bg-white p-4 text-[#2b241f] shadow-sm sm:p-5">
+                <div className="mb-4 flex items-center gap-3 border-b border-[#f1d7d1] pb-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#fce9e4] text-[14px] font-semibold text-[#b85245]">동의</span><div className="min-w-0"><p className="text-[13px] text-[#8a7a72]">동의서 작성 요청</p><p className="truncate text-[15px] font-medium">{consentDraft?.title.trim() || "동의서 제목"}</p></div></div>
+                <p className="mb-2 text-[13px] text-[#8a7a72]">문서 버전 {consentDraft?.templateId ? policy.templates.find(template => template.id === consentDraft.templateId)?.version ?? 1 : 1}</p>
+                <h4 className="mb-3 break-words text-[18px] font-semibold leading-7 text-[#2b241f]">{consentDraft?.title.trim() || "동의서 제목"}</h4>
+                <p className="whitespace-pre-wrap break-words text-[15px] font-normal leading-7 text-[#2b241f]">{consentDraft?.body || "작성 중인 동의서 내용이 여기에 표시됩니다."}</p>
+                <div className="mt-5 space-y-4 border-t border-[#f1d7d1] pt-4">
+                  <label className="flex min-h-11 cursor-pointer items-start gap-2 text-[14px] leading-6"><input type="checkbox" disabled className="mt-1 h-4 w-4 accent-[#1976ff]" />위 내용을 읽고 동의합니다.</label>
+                  <button type="button" disabled className="h-11 w-full rounded-[9px] bg-[#1976ff] text-[15px] font-medium text-white opacity-60">동의하고 제출</button>
+                </div>
               </article>
             </div>
           </aside>
@@ -298,7 +322,11 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
         <p className="text-slate-600">정상 취소와 미납 취소는 노쇼로 집계하지 않습니다. 예약금 환불은 실제 반환 후 별도로 기록합니다.</p>
       </>}
     </fieldset>
-    <div className="flex flex-wrap items-center gap-3">{tab === "noshow" && <button type="button" disabled={!loaded || busy || !editable} onClick={() => void save()} className="h-10 rounded-[8px] bg-[#1976ff] px-5 text-white disabled:opacity-100! disabled:cursor-not-allowed">{busy ? "저장 중" : "정책 저장"}</button>}{(message || !loaded) && <p role="status" className="min-w-0 text-[16px] text-slate-600">{message || "예약 정책을 불러오는 중입니다."}</p>}</div>
+    <div className="flex flex-wrap items-center gap-3">{tab === "noshow" && <button type="button" disabled={busy || !editable} onClick={() => void save()} className="h-10 rounded-[8px] bg-[#1976ff] px-5 text-white disabled:opacity-100! disabled:cursor-not-allowed">{busy ? "저장 중" : "정책 저장"}</button>}{message && <p role="status" className="min-w-0 text-[16px] text-slate-600">{message}</p>}</div>
+    </> : <div className="flex min-h-[440px] flex-col items-center justify-center gap-3 py-8 text-center text-[16px] text-slate-600 xl:min-h-0 xl:flex-1" role={message ? "alert" : "status"}>
+      <p>{message || "예약 정책을 불러오는 중입니다."}</p>
+      {message && <button type="button" className="min-h-11 rounded-[10px] border border-[#e1e4ea] bg-white px-4 text-[16px] text-[#15213b]" onClick={() => { setMessage(""); setLoadAttempt(attempt => attempt + 1); }}>{"다시 불러오기"}</button>}
+    </div>}
     </div>
   </section>;
 }

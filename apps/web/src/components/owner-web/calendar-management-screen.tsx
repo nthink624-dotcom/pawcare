@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CalendarPlus,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -14,6 +15,7 @@ import {
   MessageCircle,
   NotebookPen,
   PawPrint,
+  Pencil,
   Play,
   QrCode,
   Scissors,
@@ -796,6 +798,12 @@ function appointmentToDailyBooking(
   const guardian = data.guardians.find((item) => item.id === appointment.guardian_id);
   const pet = data.pets.find((item) => item.id === appointment.pet_id);
   const service = data.services.find((item) => item.id === appointment.service_id);
+  const selectedMenuServiceName =
+    appointment.service_id === getAppointmentCustomServiceId(appointment.id)
+      ? ""
+      : typeof appointment.discount_snapshot?.customerServiceOptionName === "string"
+        ? appointment.discount_snapshot.customerServiceOptionName.trim()
+        : "";
   const persistedStaffKey = appointment.staff_id ?? staffAssignments[appointment.id] ?? null;
   const assignedStaff = persistedStaffKey
     ? staffColumns.find((item) => item.key === persistedStaffKey)
@@ -822,7 +830,7 @@ function appointmentToDailyBooking(
     petId: appointment.pet_id,
     customer: guardian?.name ?? "보호자 미등록",
     pet: pet?.name ?? "반려동물 미등록",
-    service: service?.name ?? "서비스 미등록",
+    service: selectedMenuServiceName || service?.name || "서비스 미등록",
     servicePrice: service?.price,
     guardianPhone: guardian?.phone ?? "",
     petBreed: pet?.breed ?? "",
@@ -1631,6 +1639,7 @@ function BookingSidePanel({
   onSavePetProfile,
   onSaveNotificationTiming,
   onClose,
+  onRefreshAfterStatusChange,
 }: {
   docked?: boolean;
   activeMetric: SummaryMetricKey;
@@ -1667,6 +1676,7 @@ function BookingSidePanel({
     values: { visitReminderOffsetMinutes?: number; pickupReadyEtaMinutes?: number },
   ) => Promise<void>;
   onClose: () => void;
+  onRefreshAfterStatusChange: (bookingId: string, date: string, status: string) => void;
 }) {
   const timeRange = selectedBooking
     ? `${formatHourLabel(selectedBooking.start)}–${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
@@ -1704,6 +1714,8 @@ function BookingSidePanel({
     confirmLabel: string;
     danger?: boolean;
   } | null>(null);
+  const [cancellationDialog, setCancellationDialog] = useState<{ bookingId: string } | null>(null);
+  const [preparationCancelAction, setPreparationCancelAction] = useState<{ bookingId: string; kind: "owner" | "customer"; nonce: number } | null>(null);
   const [editableStartTime, setEditableStartTime] = useState("");
   const [editableEndTime, setEditableEndTime] = useState("");
   const [editablePhone, setEditablePhone] = useState("");
@@ -1720,10 +1732,12 @@ function BookingSidePanel({
     weight: "",
     biteLevel: "none" as PetBiteLevel,
   });
+  const [petProfileEditing, setPetProfileEditing] = useState(false);
   const [timingSaving, setTimingSaving] = useState(false);
   const [timingPickerOpen, setTimingPickerOpen] = useState<"visit" | "pickup" | null>(null);
   const [detailNotice, setDetailNotice] = useState("");
   const [detailEditMode, setDetailEditMode] = useState<"time" | "service" | "price" | null>(null);
+  const serviceMenuRef = useRef<HTMLDivElement | null>(null);
   const detailNoticeTimerRef = useRef<number | null>(null);
   const notificationFeedbackTimerRef = useRef<number | null>(null);
   const timeEditorRef = useRef<HTMLDivElement | null>(null);
@@ -1736,6 +1750,20 @@ function BookingSidePanel({
     ? bootstrapData.pets.find((pet) => pet.id === selectedBooking.petId) ?? null
     : null;
   const petGroupOptions = buildPetGroupOptions(bootstrapData.services, selectedPet?.pricing_group);
+
+  useEffect(() => {
+    setPetProfileEditing(false);
+  }, [selectedBooking?.id]);
+
+  useEffect(() => {
+    if (detailEditMode !== "service") return;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (serviceMenuRef.current?.contains(event.target as Node)) return;
+      setDetailEditMode((current) => current === "service" ? null : current);
+    };
+    document.addEventListener("pointerdown", handleOutsidePointerDown, true);
+    return () => document.removeEventListener("pointerdown", handleOutsidePointerDown, true);
+  }, [detailEditMode]);
 
   function showTemporaryDetailNotice(message: string) {
     if (detailNoticeTimerRef.current !== null) {
@@ -1827,6 +1855,10 @@ function BookingSidePanel({
   }
 
   function requestStatusChange(bookingId: string, nextStatus: string) {
+    if (nextStatus === "취소") {
+      setCancellationDialog({ bookingId });
+      return;
+    }
     if (nextStatus !== "진행 중" && nextStatus !== "픽업 준비" && nextStatus !== "취소") {
       onChangeStatus(bookingId, nextStatus);
       return;
@@ -1960,6 +1992,17 @@ function BookingSidePanel({
   ) : null;
 
   const breedLabel = selectedBooking.petBreed || "견종 미입력";
+  const configuredServiceNames = buildCustomerServiceMenuOptions(
+    buildCustomerServiceSourceOptions(bootstrapData.services),
+  )
+    .map((option) => option.displayName.trim())
+    .filter(Boolean);
+  const editableServiceOptions = Array.from(new Set([
+    ...(configuredServiceNames.length > 0
+      ? configuredServiceNames
+      : bootstrapData.services.filter((service) => service.is_active).map((service) => service.name.trim())),
+    selectedBooking.service.trim(),
+  ].filter(Boolean)));
   const biteLevel = normalizePetBiteLevel(selectedBooking.petBiteLevel);
   const rawRequestText = selectedBooking.memo?.trim() || getCustomerRequest(selectedBooking.id);
   const hasRequestText = Boolean(rawRequestText);
@@ -2074,7 +2117,7 @@ function BookingSidePanel({
     }
   }
 
-  async function saveEditableDetail(overrides?: { startTime?: string; endTime?: string }) {
+  async function saveEditableDetail(overrides?: { startTime?: string; endTime?: string; serviceName?: string }) {
     if (!selectedBooking) return;
 
     const startTime = overrides?.startTime ?? editableStartTime;
@@ -2082,7 +2125,7 @@ function BookingSidePanel({
     const startMinutes = timeInputToMinutes(startTime);
     const endMinutes = timeInputToMinutes(endTime);
     const phone = normalizeSchedulePhone(editablePhone);
-    const serviceName = editableServiceName.trim();
+    const serviceName = (overrides?.serviceName ?? editableServiceName).trim();
     const priceText = editablePrice.replace(/\D/g, "");
     const price = priceText
       ? Number(priceText)
@@ -2199,53 +2242,62 @@ function BookingSidePanel({
       <style>{`.pm-booking-side-panel-scroll { scrollbar-width: none; -ms-overflow-style: none; } .pm-booking-side-panel-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }`}</style>
       <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-0">
         <div className="pm-booking-side-panel-scroll min-h-0 flex-1 overflow-y-auto">
-          <div className="bg-white px-4 pb-4 pt-5">
-            <header className="flex min-w-0 items-start gap-3">
-              <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[14px] border border-[#dbe2ea] bg-white">
+          <div className="bg-white px-4 pb-3 pt-5">
+            <div className="rounded-[16px] border border-[#e6edf6] bg-[#f8fbff] p-3">
+            <header className="flex min-w-0 items-center gap-3">
+              <div className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-[20px] border border-white bg-white shadow-[0_1px_3px_rgba(21,33,59,0.08)]">
                 <img src="/images/default-pet-profile.png" alt="" className="h-full w-full object-contain" />
               </div>
-              <div className="min-w-0 flex-1 pt-0.5">
-                <p className="flex min-w-0 items-baseline gap-1.5 leading-6">
+              <div className="min-w-0 flex-1">
+                <p className="relative flex min-w-0 items-center gap-1.5 pr-12 leading-6">
                   <span className="min-w-0 truncate text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#0f172a]">{selectedBooking.pet}</span>
-                  <span className="shrink-0 truncate text-[14px] font-normal leading-5 text-[#64748b]">{breedLabel}</span>
+                  <span className="shrink-0 truncate text-[16px] font-normal leading-6 text-[#64748b]">{breedLabel}</span>
+                  {selectedPet?.pricing_group?.trim() ? (
+                    <span className="min-w-0 truncate text-[15px] font-normal leading-5 text-[#64748b]">· {selectedPet.pricing_group}</span>
+                  ) : null}
+                  <button
+                    ref={closeButtonRef}
+                    type="button"
+                    onClick={() => setPetProfileEditing((current) => !current)}
+                    aria-expanded={petProfileEditing}
+                    aria-label={petProfileEditing ? "반려동물 프로필 편집 닫기" : "반려동물 프로필 간편 편집"}
+                    className="absolute right-0 top-1/2 inline-flex min-h-11 shrink-0 -translate-y-1/2 items-center justify-center rounded-full p-0 text-[14px] font-medium leading-5 text-[#4778c7] transition hover:text-[#285eae] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#93b7ed]"
+                  >
+                    <span className="inline-flex h-8 items-center gap-1 rounded-full bg-[#f1f6ff] px-2.5">
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      {petProfileEditing ? "완료" : "편집"}
+                    </span>
+                  </button>
                 </p>
-                <p className="mt-0.5 flex min-w-0 items-center gap-2 text-[14px] font-normal leading-5 text-[#334155]">
+                <p className="mt-0.5 flex min-w-0 items-center gap-2 text-[16px] font-normal leading-6 text-[#334155]">
                   <span className="min-w-0 truncate">{selectedBooking.customer} 보호자</span>
                   <span className="h-1 w-1 shrink-0 rounded-full bg-[#cbd5e1]" aria-hidden="true" />
-                  <span className="shrink-0 tabular-nums">{panelPhoneLabel}</span>
+                  <span className="min-w-0 truncate tabular-nums">{panelPhoneLabel}</span>
                 </p>
               </div>
-              <button
-                ref={closeButtonRef}
-                type="button"
-                aria-label="예약 상세 닫기"
-                onClick={onClose}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
-              >
-                <X className="h-4 w-4" />
-              </button>
             </header>
 
-            <section className="mt-4 border-b border-[#eef0f2] pb-4">
+            <section
+              className={
+                petProfileEditing || selectedPet?.birthday?.trim() || (selectedPet && normalizePetBiteLevel(selectedPet.bite_level ?? selectedBooking.petBiteLevel) !== "none") || detailNotice
+                  ? petProfileEditing
+                    ? "mt-3 border-t border-[#e6edf6] pt-3"
+                    : "mt-3 pb-1"
+                  : "hidden"
+              }
+            >
+              {petProfileEditing ? (
+              <>
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[16px] font-semibold leading-6 text-[#15213b]">반려동물 프로필 편집</p>
+                  <p className="mt-0.5 text-[13px] leading-5 text-[#64748b]">항목을 변경하면 자동 저장됩니다.</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-[#e8f0fe] px-2 py-1 text-[12px] font-medium leading-4 text-[#315f9f]">편집 중</span>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block min-w-0">
-                  <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">프로필 몸무게</span>
-                  <span className="relative block">
-                    <input
-                      value={petProfileDraft.weight}
-                      onChange={(event) => setPetProfileDraft((current) => ({ ...current, weight: event.target.value }))}
-                      onBlur={() => void savePetProfile()}
-                      inputMode="decimal"
-                      placeholder="kg"
-                      className="min-h-11 w-full rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-9 text-[16px] font-normal leading-6 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#aab2bc]"
-                    />
-                    {petProfileDraft.weight.trim() ? (
-                      <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[14px] text-[#64748b]">kg</span>
-                    ) : null}
-                  </span>
-                </label>
-                <label className="block min-w-0">
-                  <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">생일</span>
+                  <span className="mb-1 block text-[16px] font-medium leading-6 text-[#334155]">생일</span>
                   <input
                     type="date"
                     value={petProfileDraft.birthday}
@@ -2255,7 +2307,7 @@ function BookingSidePanel({
                   />
                 </label>
                 <label className="block min-w-0">
-                  <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">그룹</span>
+                  <span className="mb-1 block text-[16px] font-medium leading-6 text-[#334155]">그룹</span>
                   <select
                     value={petProfileDraft.pricingGroup}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, pricingGroup: event.target.value }))}
@@ -2270,7 +2322,7 @@ function BookingSidePanel({
                   </select>
                 </label>
                 <label className="block min-w-0">
-                  <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">입질</span>
+                  <span className="mb-1 block text-[16px] font-medium leading-6 text-[#334155]">입질</span>
                   <select
                     value={petProfileDraft.biteLevel}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, biteLevel: normalizePetBiteLevel(event.target.value) }))}
@@ -2285,6 +2337,17 @@ function BookingSidePanel({
                   </select>
                 </label>
               </div>
+              </>
+              ) : (
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                  {selectedPet?.birthday?.trim() ? (
+                    <p className={`${OWNER_TYPOGRAPHY.body} text-[#334155]`}><span className="text-[#64748b]">생일 </span>{selectedPet.birthday}</p>
+                  ) : null}
+                  {selectedPet && normalizePetBiteLevel(selectedPet.bite_level ?? selectedBooking.petBiteLevel) !== "none" ? (
+                    <p className={`${OWNER_TYPOGRAPHY.body} text-[#334155]`}><span className="text-[#64748b]">입질 </span>{getPetBiteLevelLabel(normalizePetBiteLevel(selectedPet.bite_level ?? selectedBooking.petBiteLevel))}</p>
+                  ) : null}
+                </div>
+              )}
               {detailNotice ? (
                 <p className={cn("mt-1.5 text-[13px] leading-5", detailNotice === "저장되었습니다." ? "text-[#2f7866]" : "text-[#64748b]")}>
                   {detailNotice}
@@ -2293,9 +2356,10 @@ function BookingSidePanel({
             </section>
 
             <AppointmentVisitWeightEditor shopId={shopId} appointmentId={selectedBooking.id} />
+            </div>
 
             {benefitSummary ? (
-              <section className="pt-4">
+              <section className="pt-2">
                 <div className="border-b border-[#f0f2f4] pb-4">
                   <div className="grid gap-2">
                     {benefitSummary.coupons.map((coupon) => (
@@ -2325,16 +2389,23 @@ function BookingSidePanel({
               </section>
             ) : null}
 
-            <section className="pt-4">
-              <BookingPreparationPanel key={selectedBooking.id} shopId={shopId} appointmentId={selectedBooking.id} />
-              <h3 className="text-[14px] font-medium leading-5 text-[#334155]">서비스 내역</h3>
+            <section className="pt-1">
+              <BookingPreparationPanel
+                key={selectedBooking.id}
+                shopId={shopId}
+                appointmentId={selectedBooking.id}
+                cancelAction={preparationCancelAction?.bookingId === selectedBooking.id ? preparationCancelAction : null}
+                onStatusChanged={(status) => onRefreshAfterStatusChange(selectedBooking.id, selectedBooking.date, status)}
+              />
+              <h3 className="px-3.5 text-[16px] font-semibold leading-6 text-[#15213b]">서비스 내역</h3>
               {selectedGuardianAlimtalkBlockedReason ? (
-                <div className="mb-2 rounded-[10px] border border-[#f3c6cf] bg-[#fff7f8] px-3 py-2 text-[13px] leading-5 text-[#9f3448]">
+                <div className="mb-2 rounded-[10px] border border-[#f3c6cf] bg-[#fff7f8] px-3 py-2 text-[16px] leading-6 text-[#9f3448]">
                   {selectedGuardianAlimtalkBlockedReason} 예약 확정 알림톡은 발송되지 않습니다.
                 </div>
               ) : null}
-              <div className="mt-2 overflow-hidden rounded-[10px] border border-[#e5e8ec] bg-white">
-                <div className="flex min-w-0 items-center gap-3 border-b border-[#f0f2f4] bg-white px-3.5 py-2.5 text-[14px] font-normal leading-5 text-[#334155]">
+              <div ref={serviceMenuRef} className="relative mt-2">
+                <div className="overflow-hidden rounded-[10px] border border-[#e5e8ec] bg-white">
+                <div className="flex min-w-0 items-center gap-3 border-b border-[#f0f2f4] bg-white px-3.5 py-2.5 text-[16px] font-normal leading-6 text-[#15213b]">
                   <span className="inline-flex min-w-0 items-center gap-1.5 tabular-nums">
                     <Clock className="h-4 w-4 shrink-0 text-[#94a3b8]" />
                     {timeRange}
@@ -2345,92 +2416,95 @@ function BookingSidePanel({
                     <span className="truncate">{staffLabel} 담당자</span>
                   </span>
                 </div>
-                <div className="grid gap-2 px-3.5 py-3">
-                  <label className="grid gap-1">
-                    <span className="text-[12px] font-normal leading-4 text-[#64748b]">서비스명</span>
-                    <div className="grid grid-cols-[minmax(0,1fr)_72px] gap-2">
-                      <input
-                        value={editableServiceName}
-                        onChange={(event) => setEditableServiceName(event.target.value)}
-                        onFocus={() => setDetailEditMode("service")}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            void saveEditableDetail();
-                            setDetailEditMode(null);
-                          }
-                        }}
-                        className="min-h-11 min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal leading-5 text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[#607080]"
-                        placeholder="서비스명을 입력해 주세요"
-                      />
-                      <button
-                        type="button"
-                        disabled={detailSaving || editableServiceName.trim().length === 0}
-                        onClick={() => {
-                          void saveEditableDetail();
-                          setDetailEditMode(null);
-                        }}
-                        className="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:border-[#607080] hover:text-[#0f172a] disabled:cursor-not-allowed disabled:text-[#b9c3cf]"
-                      >
-                        저장
-                      </button>
-                    </div>
-                  </label>
+                <button
+                  type="button"
+                  aria-label={`서비스 선택, 현재 ${selectedBooking.service}`}
+                  aria-expanded={detailEditMode === "service"}
+                  onClick={() => {
+                    setDetailNotice("");
+                    setDetailEditMode((current) => current === "service" ? null : "service");
+                  }}
+                  className="group flex min-h-11 w-full min-w-0 items-center gap-3 rounded-b-[10px] px-3.5 py-1 text-left transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#93b7ed]"
+                >
+                  <span className="shrink-0 text-[16px] font-normal leading-6 text-[#15213b]">서비스명</span>
+                  <span className="inline-flex min-w-0 flex-1 items-center gap-2 truncate rounded-full border border-[#e1eaf6] bg-[#f4f8fe] px-3 py-1 text-[16px] font-normal leading-5 text-[#24466f]" title={selectedBooking.service}>
+                    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#6f9bd4]" />
+                    <span className="truncate">{selectedBooking.service}</span>
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-[#94a3b8] transition group-hover:text-[#64748b]" aria-hidden="true" />
+                </button>
                 </div>
+                {detailEditMode === "service" ? (
+                  <div role="group" aria-label="등록된 서비스" className="absolute left-[78px] right-0 top-full z-30 mt-1 max-h-48 overflow-y-auto rounded-[10px] border border-[#e1eaf6] bg-white p-1.5 shadow-[0_8px_24px_rgba(21,33,59,0.14)]">
+                    {editableServiceOptions.map((serviceName) => (
+                      <button
+                        key={serviceName}
+                        type="button"
+                        aria-pressed={serviceName === selectedBooking.service}
+                        disabled={detailSaving}
+                        onClick={() => {
+                          setEditableServiceName(serviceName);
+                          void saveEditableDetail({ serviceName }).finally(() => setDetailEditMode(null));
+                        }}
+                        className="flex min-h-10 w-full items-center rounded-[7px] px-3 text-left text-[16px] font-medium leading-6 text-[#15213b] transition hover:bg-[#f4f8fe] aria-pressed:bg-[#f4f8fe] disabled:opacity-60"
+                      >
+                        {serviceName}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-              {detailSaving ? <p className="mt-1.5 text-[13px] leading-5 text-[#64748b]">저장 중입니다.</p> : null}
+              {detailSaving ? <p className="mt-1.5 text-[16px] leading-6 text-[#64748b]">저장 중입니다.</p> : null}
             </section>
 
             <section className="pt-4">
-              <h3 className="text-[14px] font-medium leading-5 text-[#334155]">요청사항</h3>
-              <div className="mt-2 min-h-[58px] rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 text-[14px] font-normal leading-5 text-[#334155]">
+              <h3 className="px-3.5 text-[16px] font-semibold leading-6 text-[#15213b]">요청사항</h3>
+              <div className={`mt-2 min-h-12 rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>
                 {hasRequestText ? (
-                  requestText.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
+                  <>
+                    {requestText.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)}
+                  </>
                 ) : (
-                  <p className="flex items-center gap-2 text-[#64748b]">
-                    <MessageCircle className="h-4 w-4 shrink-0" />
-                    고객 요청사항이 없습니다.
-                  </p>
+                  <p>고객 요청사항이 없습니다.</p>
                 )}
               </div>
             </section>
 
             {selectedBooking.customerMemo?.trim() ? (
               <section className="pt-4">
-                <h3 className="text-[14px] font-medium leading-5 text-[#334155]">고객 메모</h3>
-                <p className="mt-2 whitespace-pre-wrap break-words rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 text-[16px] font-normal leading-6 text-[#334155]">{selectedBooking.customerMemo.trim()}</p>
+                <h3 className="px-3.5 text-[16px] font-semibold leading-6 text-[#15213b]">고객 메모</h3>
+                <p className={`mt-2 whitespace-pre-wrap break-words rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>{selectedBooking.customerMemo.trim()}</p>
               </section>
             ) : null}
 
             <section className="pt-4">
-              <h3 className="text-[14px] font-medium leading-5 text-[#334155]">코멘트</h3>
-              <div className="mt-2 min-h-[58px] rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 text-[14px] font-normal leading-5 text-[#334155]">
+              <h3 className="px-3.5 text-[16px] font-semibold leading-6 text-[#15213b]">코멘트</h3>
+              <div className={`mt-2 min-h-12 rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>
                 {hasStaffComment ? (
-                  staffComment.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
+                  <>
+                    {staffComment.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)}
+                  </>
                 ) : (
-                  <p className="flex items-center gap-2 text-[#64748b]">
-                    <NotebookPen className="h-4 w-4 shrink-0" />
-                    공유 코멘트가 없습니다.
-                  </p>
+                  <p>공유 코멘트가 없습니다.</p>
                 )}
               </div>
             </section>
 
             <section className="pb-2 pt-4">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[14px] font-medium leading-5 text-[#334155]">최근 방문이력</h3>
-                <span className="text-[13px] font-normal leading-5 text-[#64748b]">총 {recentVisitHistory.totalCount}회</span>
+              <div className="flex items-center justify-between gap-3 px-3.5">
+                <h3 className="text-[16px] font-semibold leading-6 text-[#15213b]">최근 방문이력</h3>
+                <span className="text-[16px] font-normal leading-6 text-[#64748b]">총 {recentVisitHistory.totalCount}회</span>
               </div>
-              <div className="mt-2 rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-1">
+              <div className={`mt-2 rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-1 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>
                 {recentVisitHistory.items.length > 0 ? (
                   recentVisitHistory.items.map((visit) => (
                     <div key={visit.id} className="grid grid-cols-[86px_minmax(0,1fr)] gap-4 border-b border-[#f0f2f4] py-3 last:border-b-0">
-                      <span className="text-[14px] font-normal leading-5 tabular-nums text-[#64748b]">{visit.date}</span>
-                      <p className="min-w-0 truncate text-[14px] font-normal leading-5 text-[#0f172a]">{visit.service}</p>
+                      <span className="tabular-nums">{visit.date}</span>
+                      <p className="min-w-0 truncate">{visit.service}</p>
                     </div>
                   ))
                 ) : (
-                  <p className="py-3 text-[14px] font-normal leading-5 text-[#94a3b8]">방문이력이 없습니다.</p>
+                  <p className="py-3">방문이력이 없습니다.</p>
                 )}
               </div>
             </section>
@@ -2558,6 +2632,21 @@ function BookingSidePanel({
           }}
         />
       ) : null}
+      {cancellationDialog ? (
+        <OwnerConfirmDialog
+          title="예약을 취소할까요?"
+          message=""
+          cancelLabel="아니요"
+          confirmLabel="예약 취소"
+          danger
+          onClose={() => setCancellationDialog(null)}
+          onConfirm={() => {
+            const { bookingId } = cancellationDialog;
+            setCancellationDialog(null);
+            setPreparationCancelAction({ bookingId, kind: "owner", nonce: Date.now() });
+          }}
+        />
+      ) : null}
       </div>
     </div>
   );
@@ -2589,6 +2678,7 @@ function OwnerNoticeDialog({ title, message, onClose }: { title: string; message
 function OwnerConfirmDialog({
   title,
   message,
+  cancelLabel = "취소",
   confirmLabel,
   danger,
   onClose,
@@ -2596,6 +2686,7 @@ function OwnerConfirmDialog({
 }: {
   title: string;
   message: string;
+  cancelLabel?: string;
   confirmLabel: string;
   danger?: boolean;
   onClose: () => void;
@@ -2608,10 +2699,10 @@ function OwnerConfirmDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <h3 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">{title}</h3>
-        <p className="mt-3 text-[16px] font-normal leading-6 text-[#475569]">{message}</p>
+        {message ? <p className="mt-3 text-[16px] font-normal leading-6 text-[#475569]">{message}</p> : null}
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] font-medium leading-6 text-[#334155] transition hover:bg-[#f8fafc]">
-            취소
+            {cancelLabel}
           </button>
           <button
             type="button"
@@ -5594,6 +5685,21 @@ export default function CalendarManagementScreen({
               onSavePetProfile={persistBookingPetProfileChange}
               onSaveNotificationTiming={persistBookingNotificationTiming}
               onClose={closeBookingDetail}
+            onRefreshAfterStatusChange={(bookingId, date, status) => {
+              const statusLabel = appointmentStatusLabels[status as AppointmentStatus] ?? status;
+              const createdAt = Date.now();
+              recentStatusOverridesRef.current[bookingId] = { status: status as AppointmentStatus, createdAt };
+              const optimisticData = {
+                ...bootstrapData,
+                appointments: bootstrapData.appointments.map((appointment) => appointment.id === bookingId ? { ...appointment, status: status as AppointmentStatus } : appointment),
+              };
+              setBootstrapData(optimisticData);
+              onDataChange?.(optimisticData);
+              setBookings((current) => current.map((booking) => booking.id === bookingId
+                ? { ...booking, status: statusLabel, sourceStatus: statusLabel }
+                : booking));
+              void refreshScheduleRangeAfterStatusChange(date, optimisticData);
+            }}
             />
         </div>
       </div>

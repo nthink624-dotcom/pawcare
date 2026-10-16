@@ -40,7 +40,7 @@ function db() {
 function databaseError(error: { code?: string; message?: string } | null): never {
   if (error?.message?.includes("BOOKING_DEPOSIT_EXPIRED")) throw new OwnerApiError("입금 신고 기한이 지나 예약 시간이 해제되었습니다. 이체하지 말고 매장에 문의해 주세요.", 409);
   if (error?.message?.includes("VERSION_CONFLICT")) throw new OwnerApiError("다른 화면에서 변경되었습니다. 새로 불러온 뒤 다시 처리해 주세요.", 409);
-  if (error?.message?.includes("BOOKING_SIGNED_DOCUMENT_IMMUTABLE")) throw new OwnerApiError("이미 서명한 동의서는 변경할 수 없습니다.", 409);
+  if (error?.message?.includes("BOOKING_SIGNED_DOCUMENT_IMMUTABLE")) throw new OwnerApiError("이미 동의한 동의서는 변경할 수 없습니다.", 409);
   if (error?.code === "23P01" || /BOOKING_(DEPOSIT_REQUIRED|CONSENT_REQUIRED|ONLINE_RESTRICTED|DEPOSIT_NOT_CONFIGURED|POLICY_CHANGED|NOSHOW_NOT_STARTED)/.test(error?.message ?? ""))
     throw new OwnerApiError(getAppointmentWriteErrorMessage(error ?? {}), 409);
   if (error?.code === "42P01" || error?.code === "PGRST205" || error?.code === "PGRST202")
@@ -197,6 +197,10 @@ export async function getPreparation(shopId: string, appointmentId: string, owne
     ]);
     if (condition.error || noshows.error) databaseError(condition.error ?? noshows.error);
     result.nextBookingRule = condition.data?.rule ?? ((noshows.count ?? 0) >= 2 ? livePolicy.policy.repeatNoshowRule : (noshows.count ?? 0) === 1 ? livePolicy.policy.firstNoshowRule : "normal");
+    result.currentPolicyFeatures = {
+      depositMode: livePolicy.policy.depositMode,
+      consentTemplates: livePolicy.policy.templates.map(({ id, version, enabled, archivedAt, scope, audience }) => ({ id, version, enabled, archivedAt, scope, audience })),
+    };
     const petTemplates = result.data.policy.templates.filter(t => t.enabled && !t.archivedAt && t.scope === "pet");
     const signedIds = new Set(result.data.consents.filter(c => c.scope === "pet" && c.status === "signed" && petTemplates.some(t => t.id === c.id && t.version === c.version)).map(c => c.id));
     const unresolvedTemplates = petTemplates.filter(t => !signedIds.has(t.id));
@@ -304,7 +308,7 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
           .contains("data", { consents: [{ id: template.id, version: template.version, status: "signed" }] }).order("updated_at", { ascending: false }).limit(1).maybeSingle();
         if (old.error) databaseError(old.error);
         signed = (old.data?.data as BookingPreparation | undefined)?.consents.find(t => t.id === template.id && t.version === template.version && t.status === "signed");
-        if (signed) throw new OwnerApiError("이 반려동물은 현재 동의서에 이미 서명했습니다.");
+        if (signed) throw new OwnerApiError("이 반려동물은 현재 동의서에 이미 동의했습니다.");
       }
       data.consents = data.consents.filter(t => !(t.id === template.id && t.version === template.version && t.status === "superseded"));
       data.consents.push({ ...template, status: "pending" }); break;
@@ -367,7 +371,7 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       const points = input.signature.flat();
       if (points.length > 12000 || Math.max(...points.map(p => p.x)) - Math.min(...points.map(p => p.x)) < 0.02)
         throw new OwnerApiError("서명창에 직접 서명해 주세요.");
-      doc.status = "signed"; doc.signerName = input.signerName; doc.signedAt = now; doc.signature = input.signature; break;
+      doc.status = "signed"; doc.signerName = input.signerName; doc.signedAt = now; doc.signature = input.signature; doc.acceptanceMethod = "signature"; break;
     }
     case "waive_consent": {
       const doc = data.consents.find(t => t.id === input.templateId && t.version === input.templateVersion);
@@ -432,6 +436,19 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       ? `${input.note} · 이전 입금 ${previousReceipt}원 · 현재 입금 ${deposit.receivedAmount}원 · 누적 환불 ${deposit.refundedAmount}원` : input.note });
   const result = await db().rpc("save_booking_preparation", { p_shop: current.shopId, p_appointment: current.appointmentId, p_version: current.version, p_data: data, p_status: nextStatus, p_rule: nextRule, p_preferences: preferences });
   if (result.error) databaseError(result.error);
+  if (input.action === "cancel") {
+    if (data.cancellation?.kind === "owner") {
+      const task = () => deliverCustomerBookingNotificationSafely({ shopId: current.shopId, appointmentId: current.appointmentId,
+        guardianId: current.guardianId, petId: current.petId, type: "booking_cancelled", channel: "alimtalk", skipIfExists: true }, dispatchNotification);
+      try { after(task); } catch { await task(); }
+    }
+    return {
+      ...current,
+      appointmentStatus: nextStatus ?? current.appointmentStatus,
+      version: Number(result.data ?? current.version + 1),
+      data,
+    };
+  }
   for (const guidance of guidanceRequests) {
     const createdRequest = data.requests.find(item => item.id === guidance.id);
     let requestStatus: BookingPreparation["requests"][number]["status"] = createdRequest?.status === "blocked" ? "blocked" : "failed";
@@ -478,11 +495,11 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
     if (settledResult.error) databaseError(settledResult.error);
   }
 
-  if ((nextStatus === "confirmed" && input.action !== "correct_noshow") || (input.action === "cancel" && data.cancellation?.kind === "owner")) {
-    const type = nextStatus === "confirmed" ? "booking_confirmed" as const : "booking_cancelled" as const;
+  if (nextStatus === "confirmed" && input.action !== "correct_noshow") {
+    const type = "booking_confirmed" as const;
     const task = () => deliverCustomerBookingNotificationSafely({ shopId: current.shopId, appointmentId: current.appointmentId,
       guardianId: current.guardianId, petId: current.petId, type, channel: "alimtalk", skipIfExists: true }, dispatchNotification)
-      .then(() => nextStatus === "confirmed" ? requestRequiredConsentAfterConfirmation(current.shopId, current.appointmentId) : undefined);
+      .then(() => requestRequiredConsentAfterConfirmation(current.shopId, current.appointmentId));
     try { after(task); } catch { await task(); }
   } else if (input.action === "set_preferences" && preferences?.consent && current.appointmentStatus === "confirmed") {
     try { after(() => requestRequiredConsentAfterConfirmation(current.shopId, current.appointmentId)); }

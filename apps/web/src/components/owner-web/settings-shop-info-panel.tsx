@@ -11,7 +11,7 @@ import { mergeResolvedProfileImageUrls } from "@/lib/media/profile-image-collect
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 import { cn } from "@/lib/utils";
 import BookingPolicyPanel from "@/components/owner-web/booking-policy-panel";
-import { OWNER_SETTINGS_TAB_HEADER_CLASS } from "@/components/owner-web/owner-settings-tab-header";
+import { OWNER_SETTINGS_TABBAR_CLASS, OWNER_SETTINGS_TAB_CLASS, OWNER_SETTINGS_TAB_HEADER_CLASS } from "@/components/owner-web/owner-settings-tab-header";
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
 import type { BootstrapStaffMember, OwnerProfile, Service, Shop } from "@/types/domain";
 
@@ -658,7 +658,7 @@ export default function ShopInfoSettingsPanel({
               <div
                 role="tablist"
                 aria-label="설정 메뉴"
-                className="owner-settings-tabbar flex-1"
+                className={`${OWNER_SETTINGS_TABBAR_CLASS} flex-1`}
               >
                 {sectionTabs.map((tab) => (
                   <button
@@ -671,7 +671,7 @@ export default function ShopInfoSettingsPanel({
                     tabIndex={activeSectionId === tab.id ? 0 : -1}
                     onClick={() => changeActiveSection(tab.id)}
                     onKeyDown={(event) => handleSectionTabKeyDown(event, tab.id)} data-owner-control-size='content'
-                    className="owner-settings-tab"
+                    className={OWNER_SETTINGS_TAB_CLASS}
                   >
                     {tab.label}
                   </button>
@@ -691,7 +691,7 @@ export default function ShopInfoSettingsPanel({
           <div
             ref={settingsScrollRef}
             data-shop-info-scroll-region
-            className={cn("no-scrollbar min-h-0 min-w-0 overflow-y-auto rounded-[14px] bg-white px-3 pt-1 pb-1 sm:px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", activeSectionId !== "policy" && "border border-[#e1e4ea]", activeSectionId === "policy" && "xl:flex xl:flex-col")}
+            className={cn("no-scrollbar min-h-0 min-w-0 overflow-y-auto rounded-[14px] bg-white px-3 pt-1 pb-1 sm:px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", activeSectionId !== "policy" && "border border-[#e1e4ea]", activeSectionId === "policy" && "xl:flex xl:flex-col xl:overflow-hidden")}
           >
             <div className={cn("min-w-0 w-full space-y-[18px]", activeSectionId === "policy" && "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col")}>
               <div id="shop-info-panel-basic" role="tabpanel" aria-labelledby="shop-info-tab-basic" hidden={activeSectionId !== "basic"}>

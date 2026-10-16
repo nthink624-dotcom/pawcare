@@ -28,6 +28,8 @@ export type SignaturePoint = { x: number; y: number };
 export type ConsentRecord = ConsentTemplate & {
   status: "pending" | "signed" | "waived" | "superseded";
   signerName?: string; signedAt?: string; signature?: SignaturePoint[][];
+  /** New records use checkbox acceptance; keep signature for legacy and explicitly signed records. */
+  acceptanceMethod?: "checkbox" | "signature";
   waivedReason?: string;
 };
 export type BookingPreparation = {
@@ -55,6 +57,11 @@ export type PreparationResponse = {
   appointmentStatus: string; startAt: string; version: number; data: BookingPreparation;
   manageUrl?: string;
   nextBookingRule?: NextBookingRule;
+  /** Latest shop feature settings for owner-side visibility; appointment data remains a historical snapshot. */
+  currentPolicyFeatures?: {
+    depositMode: BookingPolicy["depositMode"];
+    consentTemplates: Array<Pick<ConsentTemplate, "id" | "version" | "enabled" | "archivedAt" | "scope" | "audience">>;
+  };
   serviceAmount?: number | null;
   remainingAmount?: number | null;
   excessDeposit?: number;

@@ -1,5 +1,6 @@
 export type DataImportSource = "teepee" | "generic";
 export type DataImportAction = "create" | "merge" | "skip";
+export type ConsentImportDecision = "request" | "consider_received";
 
 export type DataImportPreviewCustomer = {
   rowNumber: number;

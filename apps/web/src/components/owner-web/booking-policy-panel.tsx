@@ -6,6 +6,17 @@ import { fetchApiJsonWithAuth } from "@/lib/api";
 import { OWNER_SETTINGS_TAB_HEADER_CLASS, OWNER_SETTINGS_TABBAR_CLASS, OWNER_SETTINGS_TAB_CLASS } from "@/components/owner-web/owner-settings-tab-header";
 import { BookingDepositAlimtalkPreview } from "@/components/owner-web/booking-deposit-alimtalk-preview";
 const field = "h-10 w-full rounded-[8px] border border-slate-300 bg-white px-3 text-[16px] outline-none focus:ring-2 focus:ring-blue-200";
+const policyFooterClass = "flex shrink-0 items-center gap-3 border-t border-[#edf0f4] bg-white px-5 py-3";
+const policyCancelButtonClass = "min-h-11 rounded-[10px] border border-[#e1e4ea] bg-white px-4 text-[16px] text-slate-600 disabled:opacity-50";
+const policySaveButtonClass = "min-h-11 rounded-[10px] bg-[#1976ff] px-5 text-[16px] font-medium text-white disabled:opacity-50";
+const BANK_OPTIONS = ["KB국민은행", "NH농협은행", "신한은행", "우리은행", "하나은행", "IBK기업은행", "카카오뱅크", "토스뱅크", "케이뱅크", "iM뱅크", "부산은행", "경남은행", "대구은행", "광주은행", "전북은행", "제주은행", "수협은행", "새마을금고", "신협", "우체국", "산업은행", "SC제일은행", "한국씨티은행"];
+const HANGUL_INITIALS = ["ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"];
+function bankSearchKey(value: string) {
+  return [...value.toLowerCase().replace(/[\s_-]/g, "")].map(char => {
+    const code = char.charCodeAt(0) - 0xac00;
+    return code >= 0 && code <= 11171 ? HANGUL_INITIALS[Math.floor(code / 588)] : char;
+  }).join("");
+}
 type ConsentDraft = { templateId: string | null; title: string; body: string };
 const LEGACY_DEFAULT_CONSENT_BODY = `보호자는 반려동물의 질병과 과거 병력, 알레르기, 복용 중인 약, 피부·관절 상태, 최근 치료 여부를 미용 전에 정확히 알려주세요. 특히 노령이거나 기저질환이 있는 경우 미용 중 스트레스나 컨디션 변화가 생길 수 있으므로 관련 정보를 충분히 전달해 주세요.
 
@@ -91,12 +102,23 @@ function Label({ title, children }: { title: string; children: ReactNode }) { re
 export default function BookingPolicyPanel({ shopId, editable = true }: { shopId: string; editable?: boolean }) {
   const [policy, setPolicy] = useState<BookingPolicy>(() => ensureDefaultConsent(DEFAULT_BOOKING_POLICY)), [version, setVersion] = useState(0);
   const [busy, setBusy] = useState(false), [loaded, setLoaded] = useState(false), [message, setMessage] = useState("");
+  const [depositModeSaving, setDepositModeSaving] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [tab, setTab] = useState("deposit");
   const [depositSection, setDepositSection] = useState("settings");
   const policyDirty = useRef(false);
   const policyReadVersion = useRef(0);
   const [depositBeforeEdit, setDepositBeforeEdit] = useState<Partial<BookingPolicy> | null>(null);
+  const bankPickerRef = useRef<HTMLDivElement>(null);
+  const [bankMenuOpen, setBankMenuOpen] = useState(false);
+  const [bankActiveIndex, setBankActiveIndex] = useState(0);
+  const bankMatches = BANK_OPTIONS.filter(name => bankSearchKey(name).includes(bankSearchKey(policy.bankName)) || name.toLowerCase().includes(policy.bankName.trim().toLowerCase()));
+  useEffect(() => {
+    if (!bankMenuOpen) return;
+    const closeOnOutside = (event: PointerEvent) => { if (!bankPickerRef.current?.contains(event.target as Node)) setBankMenuOpen(false); };
+    document.addEventListener("pointerdown", closeOnOutside);
+    return () => document.removeEventListener("pointerdown", closeOnOutside);
+  }, [bankMenuOpen]);
   useEffect(() => {
     setDepositBeforeEdit(null);
     policyDirty.current = false;
@@ -104,6 +126,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
   }, [shopId]);
   const [consentDraft, setConsentDraft] = useState<ConsentDraft | null>(null);
   const [selectedConsentId, setSelectedConsentId] = useState<string | null>(null);
+  const [showReconsentPrompt, setShowReconsentPrompt] = useState(false);
   const depositHoldMinutesExceedsMax = (policy.depositHoldMinutes ?? 20) > 1440;
   useEffect(() => {
     let active = true;
@@ -128,6 +151,37 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     try { const r = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PUT", body: JSON.stringify({ shopId, policy: nextPolicy, version }), headers: { "Content-Type": "application/json" } }); policyReadVersion.current++; setPolicy(ensureDefaultConsent(r.policy)); setVersion(r.version); setDepositBeforeEdit(null); policyDirty.current = false; publishBookingPolicyChange(shopId); setMessage(""); return true; }
     catch (e) { setMessage(e instanceof Error ? e.message : "저장하지 못했습니다."); return false; } finally { setBusy(false); }
   }
+  async function updateDepositMode(nextMode: BookingPolicy["depositMode"]) {
+    if (!loaded || busy || !editable || nextMode === policy.depositMode) return;
+    if (depositBeforeEdit) {
+      setDepositModeSaving(true);
+      try { await save({ ...policy, depositMode: nextMode }); }
+      finally { setDepositModeSaving(false); }
+      return;
+    }
+    const previousMode = policy.depositMode;
+    setBusy(true);
+    setDepositModeSaving(true);
+    setMessage("");
+    setPolicy(current => ({ ...current, depositMode: nextMode }));
+    try {
+      const result = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", {
+        method: "PATCH",
+        body: JSON.stringify({ shopId, version, depositMode: nextMode }),
+        headers: { "Content-Type": "application/json" },
+      });
+      policyReadVersion.current++;
+      setVersion(result.version);
+      setPolicy(current => ({ ...current, depositMode: result.policy.depositMode }));
+      publishBookingPolicyChange(shopId);
+    } catch (error) {
+      setPolicy(current => ({ ...current, depositMode: previousMode }));
+      setMessage(error instanceof Error ? error.message : "예약금 사용 설정을 저장하지 못했습니다.");
+    } finally {
+      setDepositModeSaving(false);
+      setBusy(false);
+    }
+  }
   useEffect(() => {
     let active = true;
     const unsubscribe = subscribeBookingPolicyChange(shopId, () => {
@@ -141,15 +195,19 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     });
     return () => { active = false; unsubscribe(); };
   }, [shopId, loaded, busy, version]);
-  async function saveConsentDraft() {
+  async function saveConsentDraft(reconsentExisting?: boolean) {
     if (!consentDraft) return;
     const title = consentDraft.title.trim(), body = consentDraft.body.trim();
     if (!title || !body) { setMessage("동의서 제목과 내용을 입력해 주세요."); return; }
+    const previous = consentDraft.templateId ? policy.templates.find(t => t.id === consentDraft.templateId) : null;
+    const contentChanged = !previous || previous.title !== title || previous.body !== body;
+    if (contentChanged && reconsentExisting === undefined) { setShowReconsentPrompt(true); return; }
     const templateId = consentDraft.templateId ?? crypto.randomUUID();
+    const replacedTemplateId = consentDraft.templateId ? null : selectedConsentId ?? policy.templates.find(template => template.id === DEFAULT_BOOKING_CONSENT_ID && template.enabled)?.id ?? null;
     const nextPolicy: BookingPolicy = consentDraft.templateId
-      ? { ...policy, templates: policy.templates.map(t => t.id === consentDraft.templateId ? { ...t, title, body } : t) }
-      : { ...policy, templates: [...policy.templates, { id: templateId, version: 1, title, body, required: true, scope: "pet", enabled: true }] };
-    if (await save(nextPolicy)) { setSelectedConsentId(templateId); setConsentDraft({ templateId, title, body }); }
+      ? { ...policy, templates: policy.templates.map(t => t.id === consentDraft.templateId ? { ...t, title, body, required: true, reconsentExisting: reconsentExisting ?? t.reconsentExisting ?? true } : t) }
+      : { ...policy, templates: [...policy.templates.map(t => t.id === replacedTemplateId ? { ...t, enabled: false } : t), { id: templateId, version: 1, title, body, required: true, scope: "pet", enabled: true, audience: "all", reconsentExisting: reconsentExisting ?? true }] };
+    if (await save(nextPolicy)) { setSelectedConsentId(templateId); setConsentDraft({ templateId, title, body }); setShowReconsentPrompt(false); }
   }
   async function setConsentTemplateEnabled(templateId: string, enabled: boolean) {
     await save({ ...policy, templates: policy.templates.map(template => template.id === templateId ? { ...template, enabled } : template) });
@@ -223,17 +281,18 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
         <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white xl:h-full">
           <header className="flex min-h-[58px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#edf0f4] px-5 py-2 xl:h-[58px] xl:flex-nowrap xl:py-0">
             <h3 className="text-[20px] font-semibold leading-7">{depositSection === "settings" ? "예약금 설정" : "취소·환불 안내"}</h3>
-            <button type="button" role="switch" aria-label="예약금 사용" aria-checked={policy.depositMode !== "off"} data-owner-control-size="content" onClick={() => change("depositMode", policy.depositMode === "off" ? "optional" : "off")} className="flex min-h-11 items-center gap-2 rounded-[8px] text-[16px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
+            <button type="button" role="switch" aria-label="예약금 사용" aria-checked={policy.depositMode !== "off"} aria-busy={depositModeSaving} disabled={busy || !editable} data-owner-control-size="content" onClick={() => void updateDepositMode(policy.depositMode === "off" ? "optional" : "off")} className="flex min-h-11 items-center gap-2 rounded-[8px] text-[16px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
               <span className={`rounded-full px-2 py-1 text-[12px] font-medium leading-4 ${policy.depositMode !== "off" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>{policy.depositMode !== "off" ? "켜짐" : "꺼짐"}</span>
+              {depositModeSaving && <span role="status" className="text-[13px] font-normal text-slate-500">저장 중</span>}
               <span aria-hidden="true" className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full ${policy.depositMode !== "off" ? "bg-[#1976ff]" : "bg-slate-300"}`}><span className={`h-5 w-5 rounded-full bg-white transition-transform motion-reduce:transition-none ${policy.depositMode !== "off" ? "translate-x-6" : "translate-x-1"}`} /></span>
             </button>
           </header>
-          <fieldset disabled={policy.depositMode === "off" && depositSection === "settings"} aria-disabled={policy.depositMode === "off" && depositSection === "settings"} className={`m-0 flex min-h-0 min-w-0 flex-1 flex-col border-0 p-0 ${policy.depositMode === "off" && depositSection === "settings" ? "opacity-50" : ""}`}>
+          <fieldset className="m-0 flex min-h-0 min-w-0 flex-1 flex-col border-0 p-0">
           <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 text-[16px] font-normal leading-6 [&_input]:min-h-11 [&_select]:min-h-11">
           {depositSection === "settings" && <>
             <div className="divide-y divide-[#edf0f4] rounded-[14px] bg-[#f8fafc] px-4 sm:px-5 [&>label]:grid [&>label]:min-w-0 [&>label]:items-center [&>label]:gap-2 [&>label]:py-4 sm:[&>label]:grid-cols-[112px_minmax(0,1fr)] sm:[&>label]:gap-4">
+              {[['bankHolder', '예금주'], ['bankName', '입금 은행'], ['bankAccount', '입금 계좌']].map(([key, title]) => <label key={key}><span className="text-slate-600">{title}</span>{key === 'bankName' ? <div ref={bankPickerRef} className="relative w-full min-w-0 max-w-[480px]"><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400"><svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m16 16 4 4"/></svg></span><input className={`${field} min-w-0 rounded-[10px] border-[#d7deea] bg-white pl-10 pr-11 shadow-sm transition-colors focus:border-[#1976ff] focus:bg-white focus:ring-4 focus:ring-blue-100`} role="combobox" aria-label="입금 은행" aria-autocomplete="list" aria-expanded={bankMenuOpen} aria-controls="booking-bank-options" placeholder="은행 검색 또는 초성 입력" value={policy.bankName} onFocus={() => setBankMenuOpen(true)} onChange={e => { change('bankName', e.target.value); setBankActiveIndex(0); setBankMenuOpen(true); }} onKeyDown={e => { if (e.key === 'Escape') { setBankMenuOpen(false); return; } if (e.key === 'ArrowDown') { e.preventDefault(); setBankMenuOpen(true); setBankActiveIndex(i => Math.min(i + 1, Math.max(0, bankMatches.length - 1))); } if (e.key === 'ArrowUp') setBankActiveIndex(i => Math.max(0, i - 1)); if (e.key === 'Enter' && bankMenuOpen && bankMatches.length) { e.preventDefault(); change('bankName', bankMatches[bankActiveIndex] ?? bankMatches[0]); setBankMenuOpen(false); } }} /><button type="button" aria-label="은행 목록 열기" aria-expanded={bankMenuOpen} onClick={() => setBankMenuOpen(open => !open)} className="absolute inset-y-0 right-1 flex w-10 items-center justify-center rounded-r-[10px] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"><svg aria-hidden="true" viewBox="0 0 20 20" className={`h-4 w-4 transition-transform ${bankMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m5 7.5 5 5 5-5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>{bankMenuOpen && <div id="booking-bank-options" role="listbox" className="absolute left-0 right-0 top-full z-30 mt-2 max-h-64 overflow-y-auto rounded-[12px] border border-slate-200 bg-white p-1.5 shadow-[0_12px_32px_rgba(15,23,42,0.14)]">{bankMatches.map((name, index) => <button key={name} type="button" role="option" aria-selected={policy.bankName === name} id={`booking-bank-option-${index}`} onMouseDown={e => e.preventDefault()} onClick={() => { change('bankName', name); setBankMenuOpen(false); }} className={`flex min-h-11 w-full items-center rounded-[9px] px-3 text-left text-[16px] transition-colors ${policy.bankName === name ? 'bg-blue-50 font-medium text-[#1769d2]' : index === bankActiveIndex ? 'bg-slate-50 text-[#15213b]' : 'text-slate-700 hover:bg-slate-50'}`}>{name}{policy.bankName === name && <span aria-hidden="true" className="ml-auto text-[14px] text-[#1769d2]">✓</span>}</button>)}{bankMatches.length === 0 && <div className="px-3 py-3 text-[14px] text-slate-500">일치하는 은행이 없어요. 입력한 이름을 그대로 사용할 수 있어요.</div>}</div>}</div> : <input className={`${field} max-w-[480px]`} placeholder={`${title} 입력`} value={policy[key as 'bankName' | 'bankAccount' | 'bankHolder']} onChange={e => change(key as 'bankName' | 'bankAccount' | 'bankHolder', e.target.value)} />}</label>)}
               <label><span className="text-slate-600">예약금</span><span className="flex min-w-0 items-center gap-3"><input aria-label="예약금 (원)" className={`${field} max-w-[480px]`} type="number" min={1} value={policy.depositAmount} onChange={e => change("depositAmount", Number(e.target.value))} /><span>원</span></span></label>
-              {[["bankName", "은행"], ["bankAccount", "입금 계좌"], ["bankHolder", "예금주"]].map(([key, title]) => <label key={key}><span className="text-slate-600">{title}</span><input className={`${field} max-w-[480px]`} placeholder={`${title} 입력`} value={policy[key as "bankName" | "bankAccount" | "bankHolder"]} onChange={e => change(key as "bankName" | "bankAccount" | "bankHolder", e.target.value)} /></label>)}
               <label><span className="text-slate-600">입금 신고 기한</span><span className="flex min-w-0 items-center gap-3"><span className="shrink-0">요청 후</span><input aria-label="입금 신고 기한 (분)" aria-invalid={depositHoldMinutesExceedsMax} aria-describedby={depositHoldMinutesExceedsMax ? "deposit-hold-minutes-error" : undefined} className={`${field} max-w-[160px]`} type="number" min={1} max={1440} step={1} value={policy.depositHoldMinutes ?? 20} onChange={e => change("depositHoldMinutes", Number(e.target.value))} /><span className="shrink-0">분</span></span></label>
             </div>
             {depositHoldMinutesExceedsMax && <p id="deposit-hold-minutes-error" role="alert" className="mt-2 text-[14px] text-[#9a5e4e]">최대 24시간입니다.</p>}
@@ -245,9 +304,9 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
           </>}
           </div>
           </fieldset>
-          <footer className="flex shrink-0 justify-end gap-3 border-t border-[#edf0f4] px-5 py-3">
-            <button type="button" data-owner-control-size="content" disabled={!depositBeforeEdit || busy} onClick={() => { if (depositBeforeEdit) setPolicy(current => ({ ...current, ...depositBeforeEdit })); setDepositBeforeEdit(null); setMessage(""); }} className="min-h-11 rounded-[10px] border border-[#e1e4ea] px-4 text-[16px] text-slate-600 disabled:opacity-100">취소</button>
-            <button type="button" data-owner-control-size="content" disabled={!loaded || busy || !editable || depositHoldMinutesExceedsMax} onClick={() => void save()} className="min-h-11 rounded-[10px] bg-[#1976ff] px-5 text-[16px] font-medium text-white disabled:opacity-100 disabled:cursor-not-allowed">{busy ? "저장 중" : "저장"}</button>
+          <footer className={`${policyFooterClass} justify-end`}>
+            <button type="button" data-owner-control-size="content" disabled={!depositBeforeEdit || busy} onClick={() => { if (depositBeforeEdit) setPolicy(current => ({ ...current, ...depositBeforeEdit })); setDepositBeforeEdit(null); setMessage(""); }} className={policyCancelButtonClass}>취소</button>
+            <button type="button" data-owner-control-size="content" disabled={!loaded || busy || !editable || !depositBeforeEdit || depositHoldMinutesExceedsMax} onClick={() => void save()} className={`${policySaveButtonClass} disabled:cursor-not-allowed`}>{busy ? "저장 중" : "저장"}</button>
           </footer>
         </section>
         </div>
@@ -274,7 +333,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
             </aside>
             <section className="flex min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white xl:h-full xl:min-h-0">
               <header className="flex h-auto min-h-[58px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#edf0f4] px-4 py-2 sm:h-[58px] sm:min-h-[58px] sm:flex-nowrap sm:gap-3 sm:px-5 sm:py-0">
-                <div className="flex min-w-0 items-center gap-3"><h3 className="truncate text-[20px] font-semibold">{consentDraft?.templateId ? policy.templates.find(template => template.id === consentDraft.templateId)?.title || "동의서 수정" : consentDraft ? "새 동의서" : "동의서 양식"}</h3><span className="shrink-0 rounded-[7px] bg-[#e9f7ef] px-2.5 py-1 text-[14px] font-medium text-[#16834a]">{consentDraft?.templateId === DEFAULT_CONSENT_TEMPLATE.id ? "기본 양식" : consentDraft ? "직접 작성" : "양식 선택"}</span></div>
+                <div className="flex min-w-0 items-center"><h3 className="truncate text-[20px] font-semibold">{consentDraft?.templateId === DEFAULT_CONSENT_TEMPLATE.id ? "미용 동의서" : consentDraft?.templateId ? policy.templates.find(template => template.id === consentDraft.templateId)?.title || "동의서 수정" : consentDraft ? "새 동의서" : "동의서 양식"}</h3></div>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                   {consentDraft?.templateId && (() => {
                     const template = policy.templates.find(item => item.id === consentDraft.templateId);
@@ -292,7 +351,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
                   <label className="grid min-h-0 grid-cols-[52px_minmax(0,1fr)] items-start gap-3 text-[16px] font-medium"><span className="pt-3">본문:</span><textarea aria-label="동의서 본문" className="no-scrollbar h-[300px] min-h-[260px] w-full min-w-0 resize-none rounded-[9px] border border-[#e1e4ea] bg-white px-4 py-3 text-[16px] font-normal leading-7 outline-none focus:border-[#1976ff] focus:ring-2 focus:ring-[#1976ff]/15 sm:h-[376px] sm:min-h-[300px]" placeholder="동의서 내용을 입력해 주세요." value={consentDraft.body} maxLength={12000} onChange={e => setConsentDraft({ ...consentDraft, body: e.target.value })} /></label>
                   {consentDraft.templateId === DEFAULT_CONSENT_TEMPLATE.id && <button type="button" className="text-left text-[14px] font-medium text-[#1976ff] underline underline-offset-2" onClick={() => { if (window.confirm("현재 기본 동의서 편집 내용을 표준 문안으로 바꿀까요? 변경 후 저장을 눌러야 반영됩니다.")) setConsentDraft({ ...consentDraft, title: DEFAULT_CONSENT_TEMPLATE.title, body: DEFAULT_CONSENT_TEMPLATE.body }); }}>표준 문안으로 복원</button>}
                 </div>
-                <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#edf0f4] bg-white px-4 py-3 sm:px-5"><div>{consentDraft.templateId && consentDraft.templateId !== DEFAULT_BOOKING_CONSENT_ID && <button type="button" disabled={busy || !editable} title="보관 후에도 목록에서 복구할 수 있어요." className="h-10 rounded-[9px] border border-[#e1e4ea] px-4 text-[14px] text-slate-600 disabled:opacity-50" onClick={() => void archiveConsentTemplate(consentDraft.templateId!)}>보관</button>}</div><div className="flex gap-3"><button type="button" disabled={busy} className="h-10 rounded-[9px] border border-[#e1e4ea] bg-white px-4 text-[16px] text-slate-600 disabled:opacity-50" onClick={cancelConsentEdit}>취소</button><button type="button" disabled={busy || !editable || !consentDraft.title.trim() || !consentDraft.body.trim()} className="h-10 rounded-[9px] bg-[#1976ff] px-5 text-[16px] font-medium text-white disabled:opacity-50" onClick={() => void saveConsentDraft()}>{busy ? "저장 중" : "저장"}</button></div></footer>
+                <footer className={`${policyFooterClass} justify-between`}><div>{consentDraft.templateId && consentDraft.templateId !== DEFAULT_BOOKING_CONSENT_ID && <button type="button" disabled={busy || !editable} title="보관 후에도 목록에서 복구할 수 있어요." className="h-10 rounded-[9px] border border-[#e1e4ea] px-4 text-[14px] text-slate-600 disabled:opacity-50" onClick={() => void archiveConsentTemplate(consentDraft.templateId!)}>보관</button>}</div><div className="flex gap-3"><button type="button" disabled={busy} data-owner-control-size="content" className={policyCancelButtonClass} onClick={cancelConsentEdit}>취소</button><button type="button" disabled={busy || !editable || !consentDraft.title.trim() || !consentDraft.body.trim()} data-owner-control-size="content" className={policySaveButtonClass} onClick={() => void saveConsentDraft()}>{busy ? "저장 중" : "저장"}</button></div></footer>
               </> : <div className="flex flex-1 items-center justify-center text-slate-500">왼쪽에서 동의서를 선택해 주세요.</div>}
             </section>
           </div>
@@ -328,5 +387,6 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
       {message && <button type="button" className="min-h-11 rounded-[10px] border border-[#e1e4ea] bg-white px-4 text-[16px] text-[#15213b]" onClick={() => { setMessage(""); setLoadAttempt(attempt => attempt + 1); }}>{"다시 불러오기"}</button>}
     </div>}
     </div>
+    {showReconsentPrompt && consentDraft && <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[#0f172a]/35 p-4" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setShowReconsentPrompt(false); }}><section role="dialog" aria-modal="true" aria-labelledby="consent-reconsent-title" className="w-full max-w-[440px] space-y-4 rounded-[14px] border border-[#dce3eb] bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.2)]"><h3 id="consent-reconsent-title" className="text-[18px] font-semibold text-[#15213b]">기존 동의서에 동의한 고객도 새 동의를 해야 하나요?</h3><p className="text-[14px] leading-5 text-slate-600">저장하면 이 동의서를 바로 사용합니다.</p><div className="grid gap-2 sm:grid-cols-2"><button type="button" disabled={busy} className="min-h-11 rounded-[9px] bg-[#1976ff] px-3 text-[14px] font-medium text-white disabled:opacity-60" onClick={() => void saveConsentDraft(true)}>네, 새로 동의받을게요</button><button type="button" disabled={busy} className="min-h-11 rounded-[9px] border border-[#d9e0e8] px-3 text-[14px] font-medium text-[#334155] disabled:opacity-60" onClick={() => void saveConsentDraft(false)}>아니요, 기존 동의로 인정할게요</button></div><button type="button" disabled={busy} className="min-h-11 px-3 text-[14px] text-slate-500" onClick={() => setShowReconsentPrompt(false)}>취소</button></section></div>}
   </section>;
 }

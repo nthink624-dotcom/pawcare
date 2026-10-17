@@ -4,6 +4,8 @@ import { Check, ChevronLeft, UserRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import CustomerBreedAutocomplete from "@/components/customer/customer-breed-autocomplete";
+import BookingSignaturePad from "@petmanager/shared/components/booking-signature-pad";
+import type { SignaturePoint } from "@petmanager/shared/contracts/booking-preparation";
 import { formatCustomerServiceDuration, type CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { getStaffCustomerName } from "@/lib/staff-display";
 import { formatServicePrice, phoneNormalize } from "@/lib/utils";
@@ -36,6 +38,9 @@ type BookingCompletion = {
   appointment: Appointment;
   bookingManageUrl: string;
 };
+
+type BookingConsentPreview = { enabled: boolean; legacyGrace: boolean; documents: Array<{ id: string; version: number; title: string; body: string; scope: "pet" | "appointment" }> };
+type BookingConsentAcceptance = { templateId: string; version: number; signerName: string; signature: SignaturePoint[][]; agreed: boolean };
 
 function isValidBookingPhoneNumber(value: string) {
   const digits = phoneNormalize(value);
@@ -258,6 +263,11 @@ export default function CustomerFirstVisitClaudeFlow({
   onSubmit,
   policyNotice,
   policyReady = true,
+  bookingConsentPreview,
+  bookingConsentLoading,
+  bookingConsentError,
+  bookingConsentAcceptances,
+  onBookingConsentAcceptanceChange,
   onServiceSelect,
   onStaffSelect,
   onDateSelect,
@@ -297,6 +307,11 @@ export default function CustomerFirstVisitClaudeFlow({
   onSubmit: () => Promise<void>;
   policyNotice?: import("react").ReactNode;
   policyReady?: boolean;
+  bookingConsentPreview: BookingConsentPreview | null;
+  bookingConsentLoading: boolean;
+  bookingConsentError: string;
+  bookingConsentAcceptances: BookingConsentAcceptance[];
+  onBookingConsentAcceptanceChange: (templateId: string, version: number, update: Partial<BookingConsentAcceptance>) => void;
   onOpenShopInfo: () => void;
   onServiceSelect: (serviceOptionId: string) => void;
   onStaffSelect: (staffId: string) => void;
@@ -661,6 +676,20 @@ export default function CustomerFirstVisitClaudeFlow({
                 <div className="confirm-row"><span className="k">담당</span><span className="v">{staffMembers.find((staff) => staff.id === firstVisit.staffId) ? getStaffCustomerName(staffMembers.find((staff) => staff.id === firstVisit.staffId)!) : staffMembers.length === 1 ? getStaffCustomerName(staffMembers[0]) : "빠른 예약"}</span></div>
               </div>
             </div>
+
+            {bookingConsentLoading && <p role="status" className="rounded-[10px] border border-[#dfe5ec] bg-white p-3 text-[14px] text-[#64748b]">필요한 동의서를 확인하고 있어요.</p>}
+            {bookingConsentError && <p role="alert" className="rounded-[10px] border border-[#f0c5cb] bg-[#fff5f6] p-3 text-[14px] text-[#9f384b]">{bookingConsentError} 입력한 고객 정보를 확인해 주세요.</p>}
+            {bookingConsentPreview?.legacyGrace && <p className="rounded-[10px] border border-[#dfe5ec] bg-white p-3 text-[14px] leading-5 text-[#64748b]">기존 고객은 예약 후 다음 방문 전에 동의서를 작성해 주세요.</p>}
+            {bookingConsentPreview?.documents.map(document => {
+              const acceptance = bookingConsentAcceptances.find(item => item.templateId === document.id && item.version === document.version);
+              return <section key={`${document.id}:${document.version}`} className="sec rounded-[12px] border border-[#dfe5ec] bg-white p-4">
+                <h3>{document.title}</h3>
+                <p className="max-h-[220px] overflow-auto whitespace-pre-wrap rounded-[8px] bg-[#f8fafc] p-3 text-[14px] leading-6 text-[#526174]">{document.body}</p>
+                <label className="mt-3 flex min-h-11 items-start gap-2 text-[14px] leading-6"><input className="mt-1 h-4 w-4 shrink-0" type="checkbox" checked={acceptance?.agreed ?? false} onChange={event => onBookingConsentAcceptanceChange(document.id, document.version, { agreed: event.target.checked })} />위 내용을 읽고 동의합니다.</label>
+                <label className="mt-2 grid gap-1 text-[14px]">서명자 이름<input className="h-11 rounded-[8px] border border-[#dfe5ec] px-3 text-[16px]" value={acceptance?.signerName ?? firstVisit.ownerName} onChange={event => onBookingConsentAcceptanceChange(document.id, document.version, { signerName: event.target.value })} maxLength={50} /></label>
+                <div className="mt-2"><BookingSignaturePad value={acceptance?.signature ?? []} onChange={signature => onBookingConsentAcceptanceChange(document.id, document.version, { signature })} disabled={submitting} /></div>
+              </section>;
+            })}
           </div>
           <div className="dock">
             {policyNotice}

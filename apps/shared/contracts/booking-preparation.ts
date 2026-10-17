@@ -5,6 +5,8 @@ export type ConsentTemplate = {
   id: string; version: number; title: string; body: string;
   required: boolean; scope: "pet" | "appointment"; enabled: boolean;
   audience?: "all" | "new" | "unsigned" | "manual";
+  /** A prior signed version remains valid when false, for pet-level forms. */
+  reconsentExisting?: boolean;
   archivedAt?: string;
 };
 export type BookingPolicy = {
@@ -26,10 +28,11 @@ export const DEFAULT_BOOKING_POLICY: BookingPolicy = {
 };
 export type SignaturePoint = { x: number; y: number };
 export type ConsentRecord = ConsentTemplate & {
-  status: "pending" | "signed" | "waived" | "superseded";
+  status: "pending" | "signed" | "recognized" | "waived" | "superseded";
   signerName?: string; signedAt?: string; signature?: SignaturePoint[][];
   /** New records use checkbox acceptance; keep signature for legacy and explicitly signed records. */
   acceptanceMethod?: "checkbox" | "signature";
+  recognizedAt?: string;
   waivedReason?: string;
 };
 export type BookingPreparation = {
@@ -60,6 +63,7 @@ export type PreparationResponse = {
   /** Latest shop feature settings for owner-side visibility; appointment data remains a historical snapshot. */
   currentPolicyFeatures?: {
     depositMode: BookingPolicy["depositMode"];
+    consentEnabled: boolean;
     consentTemplates: Array<Pick<ConsentTemplate, "id" | "version" | "enabled" | "archivedAt" | "scope" | "audience">>;
   };
   serviceAmount?: number | null;

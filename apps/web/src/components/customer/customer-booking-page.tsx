@@ -19,6 +19,7 @@ import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-grou
 import { CUSTOMER_BOOKING_HORIZON_DAYS } from "@/lib/customer-booking-window";
 import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
+import type { SignaturePoint } from "@petmanager/shared/contracts/booking-preparation";
 
 type ActiveMode = "first" | "manage" | null;
 type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
@@ -79,6 +80,9 @@ type CustomerLookupProfilePayload = {
   pets?: BookingProfilePet[];
   visitType?: "first_visit" | "revisit";
 };
+
+type BookingConsentAcceptance = { templateId: string; version: number; signerName: string; signature: SignaturePoint[][]; agreed: boolean };
+type CustomerBookingConsentPreview = { enabled: boolean; legacyGrace: boolean; documents: Array<{ id: string; version: number; title: string; body: string; scope: "pet" | "appointment" }> };
 
 const initialFirstVisitState: FirstVisitState = {
   ownerName: "",
@@ -461,6 +465,10 @@ export default function CustomerBookingPage({
   const [completionManageAccessToken, setCompletionManageAccessToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [policyAcceptance, setPolicyAcceptance] = useState({ version: 0, accepted: false });
+  const [bookingConsentPreview, setBookingConsentPreview] = useState<CustomerBookingConsentPreview | null>(null);
+  const [bookingConsentLoading, setBookingConsentLoading] = useState(false);
+  const [bookingConsentError, setBookingConsentError] = useState("");
+  const [bookingConsentAcceptances, setBookingConsentAcceptances] = useState<BookingConsentAcceptance[]>([]);
   const [firstVisitSlots, setFirstVisitSlots] = useState<string[]>([]);
   const [firstVisitRecommendedSlots, setFirstVisitRecommendedSlots] = useState<string[]>([]);
   const [firstVisitRecommendationSource, setFirstVisitRecommendationSource] = useState<CustomerAvailabilityPayload["recommendationSource"]>();
@@ -499,6 +507,29 @@ export default function CustomerBookingPage({
   const firstVisitUsesCustomService = firstVisit.serviceId === CUSTOM_SERVICE_ID;
   const hasInitialFirstVisitSlot = Boolean(initialDate && initialTime);
   const shouldSkipFirstVisitDateTimeStep = false;
+
+  useEffect(() => {
+    if (activeMode !== "first" || firstVisitStep !== 4 || previewOnly || !firstVisit.ownerName.trim() || phoneNormalize(firstVisit.phone).length < 10 || !firstVisit.petName.trim()) {
+      setBookingConsentPreview(null);
+      setBookingConsentLoading(false);
+      setBookingConsentError("");
+      setBookingConsentAcceptances([]);
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setBookingConsentLoading(true);
+      setBookingConsentError("");
+      setBookingConsentAcceptances([]);
+      void fetchJson<CustomerBookingConsentPreview>("/api/customer-booking-consent", {
+        method: "POST",
+        body: JSON.stringify({ shopId, guardianName: firstVisit.ownerName, phone: phoneNormalize(firstVisit.phone), petName: firstVisit.petName }),
+      }).then(result => { if (active) setBookingConsentPreview(result); })
+        .catch(error => { if (active) { setBookingConsentPreview(null); setBookingConsentError(error instanceof Error ? error.message : "동의서를 확인하지 못했습니다."); } })
+        .finally(() => { if (active) setBookingConsentLoading(false); });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [activeMode, firstVisit.ownerName, firstVisit.petName, firstVisit.phone, firstVisitStep, previewOnly, shopId]);
 
   useEffect(() => {
     if (!detectedBreedPricingGroup || customerServiceOptions.length === 0) return;
@@ -879,6 +910,13 @@ export default function CustomerBookingPage({
       });
       return;
     }
+    if (bookingConsentLoading || !bookingConsentPreview || bookingConsentError || (bookingConsentPreview.enabled && bookingConsentPreview.documents.some(document => {
+      const acceptance = bookingConsentAcceptances.find(item => item.templateId === document.id && item.version === document.version);
+      return !acceptance?.agreed || !acceptance.signerName.trim() || acceptance.signature.length === 0;
+    }))) {
+      setSubmitFeedback({ type: "error", title: "동의서 작성을 확인해 주세요", message: bookingConsentError || "필요한 동의서를 확인하고 서명해 주세요.", action: "dismiss" });
+      return;
+    }
 
     setSubmitting(true);
     setSubmitFeedback(null);
@@ -887,6 +925,7 @@ export default function CustomerBookingPage({
         shopId,
         bookingPolicyVersion: policyAcceptance.version,
         bookingPolicyAccepted: policyAcceptance.accepted,
+        consentAcceptances: bookingConsentAcceptances,
         guardianName: firstVisit.ownerName,
         phone: phoneNormalize(firstVisit.phone),
         petName: firstVisit.petName,
@@ -990,8 +1029,20 @@ export default function CustomerBookingPage({
               submitting={submitting}
               completedBooking={completedFirstVisitBooking}
               previewOnly={previewOnly}
-              policyReady={previewOnly || policyAcceptance.accepted}
+              policyReady={previewOnly || (policyAcceptance.accepted && bookingConsentPreview !== null && !bookingConsentLoading && !bookingConsentError && (!bookingConsentPreview.enabled || bookingConsentPreview.documents.every(document => {
+                const acceptance = bookingConsentAcceptances.find(item => item.templateId === document.id && item.version === document.version);
+                return Boolean(acceptance?.agreed && acceptance.signerName.trim() && acceptance.signature.length);
+              })))}
               policyNotice={previewOnly ? null : <BookingPolicyNotice shopId={shopId} onChange={setPolicyAcceptance} />}
+              bookingConsentPreview={bookingConsentPreview}
+              bookingConsentLoading={bookingConsentLoading}
+              bookingConsentError={bookingConsentError}
+              bookingConsentAcceptances={bookingConsentAcceptances}
+              onBookingConsentAcceptanceChange={(templateId, version, update) => setBookingConsentAcceptances(current => {
+                const previous = current.find(item => item.templateId === templateId && item.version === version);
+                const next = { templateId, version, signerName: previous?.signerName ?? firstVisit.ownerName, signature: previous?.signature ?? [], agreed: previous?.agreed ?? false, ...update };
+                return [...current.filter(item => item.templateId !== templateId || item.version !== version), next];
+              })}
               onBackToEntry={resetView}
               onStepBack={() => {
                 if (lockFirstVisitStep) return;

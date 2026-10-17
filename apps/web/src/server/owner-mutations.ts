@@ -25,7 +25,6 @@ import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
 import { getBootstrap } from "@/server/bootstrap";
-import { requestRequiredConsentAfterConfirmation } from "@/server/booking-preparation";
 import { readCurrentVisitWeightForCompletion } from "@/server/appointment-visit-weight";
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { dispatchNotification } from "@/server/notification-dispatch";
@@ -2319,7 +2318,6 @@ export async function createAppointment(input: unknown, options?: AppointmentMut
             appointment,
             type: "booking_confirmed",
           });
-          await requestRequiredConsentAfterConfirmation(appointment.shop_id, appointment.id);
         },
         options,
       );
@@ -2399,7 +2397,6 @@ export async function createAppointment(input: unknown, options?: AppointmentMut
               appointment,
               type: "booking_confirmed",
             });
-            await requestRequiredConsentAfterConfirmation(appointment.shop_id, appointment.id);
           },
           options,
         );
@@ -2417,7 +2414,6 @@ export async function createAppointment(input: unknown, options?: AppointmentMut
           appointment,
           type: "booking_confirmed",
         });
-        await requestRequiredConsentAfterConfirmation(appointment.shop_id, appointment.id);
       },
       options,
     );
@@ -2602,12 +2598,6 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
         }
       }, options);
     }
-    if (payload.status === "confirmed") {
-      await runAppointmentNotificationTask(
-        () => requestRequiredConsentAfterConfirmation(appointment.shop_id, appointment.id),
-        options,
-      );
-    }
     return appointment;
   }
 
@@ -2755,12 +2745,6 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
         }
       }
     }, options);
-  }
-  if (payload.status === "confirmed") {
-    await runAppointmentNotificationTask(
-      () => requestRequiredConsentAfterConfirmation(resolvedAppointment.shop_id, resolvedAppointment.id),
-      options,
-    );
   }
 
   return resolvedAppointment;

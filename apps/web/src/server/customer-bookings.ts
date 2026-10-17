@@ -40,7 +40,8 @@ import {
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { createAppointment } from "@/server/owner-mutations";
 import { dispatchNotification } from "@/server/notification-dispatch";
-import { cancellationCutoffHours, readOptionalBookingPolicy, requestRequiredConsentAfterConfirmation } from "@/server/booking-preparation";
+import { actOnPreparation, cancellationCutoffHours, initializePreparation, readOptionalBookingPolicy } from "@/server/booking-preparation";
+import { previewCustomerBookingConsents } from "@/server/customer-booking-consents";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type { Appointment, Guardian, Pet, Shop } from "@/types/domain";
 
@@ -78,6 +79,11 @@ const customerBookingCreateSchema = z.object({
   expectedFinalAmount: z.coerce.number().int().min(0).optional(),
   rebookingAccessToken: z.string().trim().optional().default(""),
   rebookingPetId: z.string().trim().optional().default(""),
+  consentAcceptances: z.array(z.object({
+    templateId: z.string().uuid(), version: z.number().int().positive(), signerName: z.string().trim().min(1).max(50),
+    signature: z.array(z.array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })).min(1)).min(1).max(40),
+    agreed: z.literal(true),
+  })).max(20).default([]),
 });
 
 const customerBookingUpdateSchema = z.discriminatedUnion("action", [
@@ -262,6 +268,7 @@ function createCustomerBookingRequestHashes(
     appointmentTime: payload.appointmentTime,
     memo: payload.memo.trim(),
     rebookingPetId: payload.rebookingPetId,
+    consentAcceptances: payload.consentAcceptances,
     ...(payment ? { paymentId: payment.paymentId, providerOrderId: payment.providerOrderId } : {}),
   });
   const canonicalPayloadHash = createHash("sha256").update(canonicalPayload).digest("hex");
@@ -319,6 +326,7 @@ async function createSupabaseCustomerBookingAtomically(params: {
     discountSnapshot: params.discountSnapshot,
     rebookingGuardianId: params.guardianIdFromRebooking,
     rebookingPetId: params.petIdFromRebooking,
+    consentAcceptances: params.payload.consentAcceptances,
     ...(params.payment
       ? { paymentId: params.payment.paymentId, providerOrderId: params.payment.providerOrderId }
       : {}),
@@ -728,6 +736,10 @@ export async function createCustomerBooking(
   options: { trustedDiscountQuote?: CustomerDiscountQuoteResponse; payment?: CustomerBookingPaymentContext } = {},
 ) {
   const payload = customerBookingCreateSchema.parse(input);
+  const consentPreview = await previewCustomerBookingConsents({ shopId: payload.shopId, guardianName: payload.guardianName, phone: payload.phone, petName: payload.petName });
+  if (consentPreview.enabled && consentPreview.documents.some(document => !payload.consentAcceptances.some(acceptance => acceptance.templateId === document.id && acceptance.version === document.version && acceptance.agreed))) {
+    throw new OwnerApiError("예약 전에 필요한 동의서를 읽고 서명해 주세요.", 409);
+  }
   const bookingPolicy = await readOptionalBookingPolicy(payload.shopId);
   if (bookingPolicy && (payload.bookingPolicyAccepted !== true || payload.bookingPolicyVersion !== bookingPolicy.version)) {
     throw new OwnerApiError("예약 정책이 변경되었거나 확인되지 않았습니다. 새로 불러온 뒤 안내를 확인해 주세요.", 409);
@@ -860,6 +872,18 @@ export async function createCustomerBooking(
     });
   }
 
+  if (consentPreview.enabled && payload.consentAcceptances.length) {
+    let preparation = await initializePreparation(appointment.shop_id, appointment.id);
+    for (const acceptance of payload.consentAcceptances) {
+      if (!consentPreview.documents.some(document => document.id === acceptance.templateId && document.version === acceptance.version)) continue;
+      if (preparation.data.consents.find(document => document.id === acceptance.templateId && document.version === acceptance.version)?.status !== "pending") continue;
+      preparation = await actOnPreparation(preparation, {
+        action: "sign", templateId: acceptance.templateId, templateVersion: acceptance.version,
+        signerName: acceptance.signerName, signature: acceptance.signature, agreed: true, version: preparation.version,
+      }, { kind: "customer", userId: null });
+    }
+  }
+
   scheduleCustomerBookingNotification({
     shopId: appointment.shop_id,
     appointmentId: appointment.id,
@@ -887,7 +911,7 @@ export async function createCustomerBooking(
     scheduleCustomerBookingNotification({
       shopId: appointment.shop_id, appointmentId: appointment.id, guardianId: appointment.guardian_id,
       petId: appointment.pet_id, type: "booking_confirmed", channel: "alimtalk", skipIfExists: true,
-    }, () => requestRequiredConsentAfterConfirmation(appointment.shop_id, appointment.id));
+    });
   }
 
   const bookingAccessToken = createBookingAccessToken({

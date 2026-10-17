@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { normalizeImportPhone, type ParsedCustomerRow, type ParsedPriceGuideRow, type ParsedVisitRow } from "@/server/data-import-parser";
 import { buildDataImportPreview, dataImportRowKey } from "@/server/data-import-preview";
-import type { DataImportCommitResult, DataImportSource } from "@/types/data-import";
+import type { ConsentImportDecision, DataImportCommitResult, DataImportSource } from "@/types/data-import";
 
 type GuardianRow = {
   id: string;
@@ -166,6 +166,7 @@ export async function commitDataImport(params: {
   shopId: string;
   userId: string | null;
   source: DataImportSource;
+  consentDecision: ConsentImportDecision;
   fileName: string;
   buffer: Buffer;
 }): Promise<DataImportCommitResult> {
@@ -317,6 +318,15 @@ export async function commitDataImport(params: {
     if (petUpserts.length > 0) {
       const result = await supabase.from("pets").upsert(petUpserts, { onConflict: "id" });
       if (result.error) throw new Error(result.error.message);
+    }
+    const consentRows = customers.flatMap(customer => {
+      const guardian = guardianRowsByPhone.get(normalizeImportPhone(customer.phone));
+      const pet = guardian ? petByKey.get(`${guardian.id}|${normalizedName(customer.petName)}`) : null;
+      return guardian && pet ? [{ shop_id: params.shopId, pet_id: pet.id, status: params.consentDecision === "consider_received" ? "recognized" : "needs_consent", import_batch_id: batchId, updated_at: timestamp }] : [];
+    });
+    if (consentRows.length) {
+      const result = await supabase.from("pet_consent_import_status").upsert(consentRows, { onConflict: "shop_id,pet_id" });
+      if (result.error) throw new Error(result.error.message.includes("pet_consent_import_status") ? "동의서 이관 기록 저장소 적용이 필요합니다." : result.error.message);
     }
 
     const serviceByName = new Map(services.map((service) => [normalizedName(service.name), service]));

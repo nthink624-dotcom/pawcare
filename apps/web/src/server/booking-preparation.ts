@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { after } from "next/server";
-import { DEFAULT_BOOKING_CONSENT_ID, DEFAULT_BOOKING_POLICY, type BookingPolicy, type BookingPreparation, type PreparationResponse } from "@petmanager/shared/contracts/booking-preparation";
+import { DEFAULT_BOOKING_CONSENT_ID, DEFAULT_BOOKING_POLICY, type BookingPolicy, type BookingPreparation, type ConsentRecord, type PreparationResponse } from "@petmanager/shared/contracts/booking-preparation";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { createBookingAccessToken, verifyBookingAccessToken } from "@/server/booking-access-token";
 import { OwnerApiError } from "@/server/owner-api-auth";
@@ -10,7 +10,6 @@ import { dispatchNotification } from "@/server/notification-dispatch";
 import { deliverCustomerBookingNotificationSafely } from "@/lib/customer-booking-notification";
 import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors";
 import { depositHoldDeadline, expireUnreportedDeposits } from "@/server/booking-deposit-hold";
-import { logOperationalEvent } from "@/server/observability";
 
 const rule = z.enum(["normal", "approval", "deposit", "blocked"]);
 export const bookingPolicySchema = z.object({
@@ -24,6 +23,7 @@ export const bookingPolicySchema = z.object({
     id: z.string().uuid(), version: z.number().int().positive(), title: z.string().trim().min(1).max(100),
     body: z.string().trim().min(1).max(12000), required: z.boolean(), scope: z.enum(["pet", "appointment"]), enabled: z.boolean(),
     audience: z.enum(["all", "new", "unsigned", "manual"]).default("all"),
+    reconsentExisting: z.boolean().default(true),
     archivedAt: z.string().datetime().optional(),
   })).max(100),
 }).superRefine((p, ctx) => {
@@ -60,6 +60,7 @@ export async function readOptionalBookingPolicy(shopId: string) {
 }
 export async function saveBookingPolicy(shopId: string, input: unknown, version: number) {
   const policy = bookingPolicySchema.parse(input);
+  policy.templates = policy.templates.map(template => ({ ...template, required: true, audience: "all", reconsentExisting: template.reconsentExisting ?? true }));
   if (!policy.templates.some(template => template.id === DEFAULT_BOOKING_CONSENT_ID && !template.archivedAt))
     throw new OwnerApiError("기본 동의서는 삭제할 수 없습니다. 필요하지 않으면 사용을 꺼 주세요.", 400);
   const current = await readBookingPolicy(shopId);
@@ -70,7 +71,6 @@ export async function saveBookingPolicy(shopId: string, input: unknown, version:
     if (!old) { template.version = 1; continue; }
     const changed = ["title", "body", "required", "scope"].some(k => old[k as keyof typeof old] !== template[k as keyof typeof template]);
     template.version = old.version + (changed ? 1 : 0);
-    if (changed) template.audience = "new";
   }
   const result = version === 0
     ? await db().from("shop_booking_policies").insert({ shop_id: shopId, policy }).select("version").single()
@@ -100,20 +100,11 @@ async function syncActiveBookingConsentVersions(shopId: string, policy: BookingP
       catch (error) {
         if (!(error instanceof OwnerApiError && error.status === 404)) throw error;
         current = await initializePreparation(shopId, row.id);
-        if (current.appointmentStatus === "confirmed") await requestRequiredConsentAfterConfirmation(shopId, row.id);
         continue;
       }
       const data = structuredClone(current.data);
       let changed = false;
-      const visits = await admin.from("appointments").select("id", { head: true, count: "exact" })
-        .eq("shop_id", shopId).eq("guardian_id", current.guardianId).in("status", ["completed", "in_progress", "almost_done"]);
-      if (visits.error) databaseError(visits.error);
-      // Consent form revisions apply automatically to new customers only.
-      // Keep existing customers' booking snapshots and signatures unchanged;
-      // the new version will apply when they create a new booking.
-      if (visits.count) continue;
-      const eligible = policy.templates.filter(template => template.enabled && !template.archivedAt
-        && template.audience !== "manual" && (template.audience !== "new" || !visits.count));
+      const eligible = policy.templates.filter(template => template.enabled && !template.archivedAt);
       const latestById = new Map<string, typeof policy.templates[number]>();
       for (const template of policy.templates) latestById.set(template.id, template);
 
@@ -121,12 +112,11 @@ async function syncActiveBookingConsentVersions(shopId: string, policy: BookingP
         const template = latestById.get(consent.id);
         if (consent.status !== "pending") return consent;
         if (template && consent.version === template.version) return consent;
-        if (template && template.enabled && !template.archivedAt && template.audience !== "manual"
-          && (template.audience !== "new" || !visits.count)) {
+        if (template && template.enabled && !template.archivedAt) {
           changed = true;
           return { ...consent, status: "superseded" as const };
         }
-        if (!template || !template.enabled || template.archivedAt || template.audience === "manual") {
+        if (!template || !template.enabled || template.archivedAt) {
           changed = true;
           return { ...consent, status: "superseded" as const };
         }
@@ -141,6 +131,21 @@ async function syncActiveBookingConsentVersions(shopId: string, policy: BookingP
             .limit(1).maybeSingle();
           if (signed.error) databaseError(signed.error);
           if (signed.data) continue;
+          if (template.reconsentExisting === false) {
+            const previous = await admin.from("booking_preparations").select("data")
+              .eq("shop_id", shopId).eq("guardian_id", current.guardianId).eq("pet_id", current.petId)
+              .contains("data", { consents: [{ status: "signed" }] })
+              .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+            if (previous.error) databaseError(previous.error);
+            const oldSigned = (previous.data?.data as BookingPreparation | undefined)?.consents.find(c => c.status === "signed");
+            const imported = await admin.from("pet_consent_import_status").select("status").eq("shop_id", shopId).eq("pet_id", current.petId).maybeSingle();
+            if (imported.error) databaseError(imported.error);
+            if (oldSigned || imported.data?.status === "recognized") {
+              data.consents.push({ ...template, status: "recognized", recognizedAt: now });
+              changed = true;
+              continue;
+            }
+          }
         }
         data.consents.push({ ...template, status: "pending" });
         changed = true;
@@ -161,7 +166,6 @@ async function syncActiveBookingConsentVersions(shopId: string, policy: BookingP
         p_status: null, p_rule: null, p_preferences: null,
       });
       if (saved.error) databaseError(saved.error);
-      if (current.appointmentStatus === "confirmed") await requestRequiredConsentAfterConfirmation(shopId, row.id);
     }
     if (rows.length < pageSize) break;
   }
@@ -189,18 +193,21 @@ export async function getPreparation(shopId: string, appointmentId: string, owne
   if (guardian.error || !guardian.data) throw new OwnerApiError("고객 수신 설정을 확인할 수 없습니다.");
   const settings = guardian.data.notification_settings;
   result.notificationPreferences = { enabled: settings?.enabled !== false, consent: settings?.consent_request_enabled !== false, deposit: settings?.deposit_request_enabled !== false };
+  const livePolicy = owner ? await readBookingPolicy(shopId) : await readOptionalBookingPolicy(shopId);
+  if (owner && !livePolicy) throw new OwnerApiError("예약 정책을 확인할 수 없습니다.");
+  if (livePolicy) result.currentPolicyFeatures = {
+    depositMode: livePolicy.policy.depositMode,
+    consentEnabled: livePolicy.policy.consentBeforeStart,
+    consentTemplates: livePolicy.policy.consentBeforeStart ? livePolicy.policy.templates.map(({ id, version, enabled, archivedAt, scope, audience }) => ({ id, version, enabled, archivedAt, scope, audience })) : [],
+  };
   if (owner) {
-    const [condition, noshows, livePolicy] = await Promise.all([
+    const ownerPolicy = livePolicy ?? await readBookingPolicy(shopId);
+    const [condition, noshows] = await Promise.all([
       admin.from("guardian_booking_conditions").select("rule").eq("shop_id", shopId).eq("guardian_id", a.guardian_id).maybeSingle(),
       admin.from("appointments").select("id", { count: "exact", head: true }).eq("shop_id", shopId).eq("guardian_id", a.guardian_id).eq("status", "noshow"),
-      readBookingPolicy(shopId),
     ]);
     if (condition.error || noshows.error) databaseError(condition.error ?? noshows.error);
-    result.nextBookingRule = condition.data?.rule ?? ((noshows.count ?? 0) >= 2 ? livePolicy.policy.repeatNoshowRule : (noshows.count ?? 0) === 1 ? livePolicy.policy.firstNoshowRule : "normal");
-    result.currentPolicyFeatures = {
-      depositMode: livePolicy.policy.depositMode,
-      consentTemplates: livePolicy.policy.templates.map(({ id, version, enabled, archivedAt, scope, audience }) => ({ id, version, enabled, archivedAt, scope, audience })),
-    };
+    result.nextBookingRule = condition.data?.rule ?? ((noshows.count ?? 0) >= 2 ? ownerPolicy.policy.repeatNoshowRule : (noshows.count ?? 0) === 1 ? ownerPolicy.policy.firstNoshowRule : "normal");
     const petTemplates = result.data.policy.templates.filter(t => t.enabled && !t.archivedAt && t.scope === "pet");
     const signedIds = new Set(result.data.consents.filter(c => c.scope === "pet" && c.status === "signed" && petTemplates.some(t => t.id === c.id && t.version === c.version)).map(c => c.id));
     const unresolvedTemplates = petTemplates.filter(t => !signedIds.has(t.id));
@@ -225,12 +232,10 @@ export async function initializePreparation(shopId: string, appointmentId: strin
   if (!p.version) throw new OwnerApiError("매장 정보에서 예약 정책을 먼저 저장해 주세요.");
   const a = await admin.from("appointments").select("id,guardian_id,pet_id,status").eq("shop_id", shopId).eq("id", appointmentId).maybeSingle();
   if (!a.data || !["pending", "confirmed"].includes(a.data.status)) throw new OwnerApiError("대기·확정 예약에서만 요청을 만들 수 있습니다.");
-  const visits = await admin.from("appointments").select("id", { head: true, count: "exact" }).eq("shop_id", shopId).eq("guardian_id", a.data.guardian_id).in("status", ["completed", "in_progress", "almost_done"]);
-  if (visits.error) databaseError(visits.error);
   const data: BookingPreparation = {
     policy: p.policy, policyVersion: p.version,
     deposit: { status: "not_requested", required: false, amount: p.policy.depositAmount, receivedAmount: 0, refundedAmount: 0, dueAt: null, payerName: "", reportedAt: null, confirmedAt: null, confirmedBy: null },
-    consents: p.policy.templates.filter(t => t.enabled && !t.archivedAt && t.audience !== "manual" && (t.audience !== "new" || !visits.count)).map(t => ({ ...t, status: "pending" as const })),
+    consents: p.policy.templates.filter(t => t.enabled && !t.archivedAt).map(t => ({ ...t, status: "pending" as const })),
     cancellation: null, history: [], requests: [],
   };
   const [guardian, pet] = await Promise.all([
@@ -239,13 +244,19 @@ export async function initializePreparation(shopId: string, appointmentId: strin
   ]);
   if (guardian.error || pet.error || !guardian.data || !pet.data) throw new OwnerApiError("예약자와 반려동물 정보를 확인할 수 없습니다.");
   data.guardianName = guardian.data.name; data.petName = pet.data.name;
+  const [priorRows, importStatus] = await Promise.all([
+    admin.from("booking_preparations").select("data").eq("shop_id", shopId).eq("guardian_id", a.data.guardian_id).eq("pet_id", a.data.pet_id).limit(1000),
+    admin.from("pet_consent_import_status").select("status").eq("shop_id", shopId).eq("pet_id", a.data.pet_id).maybeSingle(),
+  ]);
+  if (priorRows.error || importStatus.error) databaseError(priorRows.error ?? importStatus.error);
+  const priorConsents = (priorRows.data ?? []).flatMap(row => Array.isArray(row.data?.consents) ? row.data.consents : []);
   for (const template of data.consents) {
     if (template.scope !== "pet") continue;
-    const old = await admin.from("booking_preparations").select("data").eq("shop_id", shopId).eq("guardian_id", a.data.guardian_id).eq("pet_id", a.data.pet_id)
-      .contains("data", { consents: [{ id: template.id, version: template.version, status: "signed" }] }).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-    if (old.error) databaseError(old.error);
-    const signed = (old.data?.data as BookingPreparation | undefined)?.consents.find(c => c.id === template.id && c.version === template.version && c.status === "signed");
+    const signed = priorConsents.find((c: ConsentRecord) => c.id === template.id && c.version === template.version && c.status === "signed");
     if (signed) data.consents[data.consents.indexOf(template)] = signed;
+    else if (template.reconsentExisting === false && (priorConsents.some((c: ConsentRecord) => ["signed", "recognized"].includes(c.status)) || importStatus.data?.status === "recognized")) {
+      data.consents[data.consents.indexOf(template)] = { ...template, status: "recognized", recognizedAt: new Date().toISOString() };
+    }
   }
   // Existing bookings are not retroactively made deposit-required without owner action.
   const r = await admin.from("booking_preparations").insert({ appointment_id: appointmentId, shop_id: shopId, guardian_id: a.data.guardian_id, pet_id: a.data.pet_id, data });
@@ -266,12 +277,24 @@ export async function authorizePreparationToken(token: string, appointmentId: st
   try { access = verifyBookingAccessToken(token); }
   catch { throw new OwnerApiError("예약 확인 링크가 만료되었거나 올바르지 않습니다.", 401); }
   if (access.action !== "manage" || (access.appointmentId && access.appointmentId !== appointmentId)) throw new OwnerApiError("이 예약에 접근할 수 없습니다.", 403);
-  const result = await getPreparation(access.shopId, appointmentId);
+  let result: PreparationResponse;
+  try {
+    result = await getPreparation(access.shopId, appointmentId);
+  } catch (error) {
+    // Older reservations may predate preparation snapshots. If consent is now
+    // required, let the customer manage link create the snapshot so they can
+    // complete the required consent before service begins.
+    if (!(error instanceof OwnerApiError) || error.status !== 404) throw error;
+    const policy = await readOptionalBookingPolicy(access.shopId);
+    if (!policy?.policy.consentBeforeStart) throw error;
+    await initializePreparation(access.shopId, appointmentId);
+    result = await getPreparation(access.shopId, appointmentId);
+  }
   if (result.guardianId !== access.guardianId || result.petId !== access.petId) throw new OwnerApiError("이 예약에 접근할 수 없습니다.", 403);
   return result;
 }
 export const preparationActionSchema = z.object({
-  action: z.enum(["request_deposit", "report_deposit", "confirm_deposit", "correct_deposit", "waive_deposit", "refund_record", "sign", "add_consent", "waive_consent", "cancel", "request_cancel", "noshow", "correct_noshow", "set_condition", "set_preferences", "approve", "request_guidance", "auto_request_required_consent"]),
+  action: z.enum(["request_deposit", "report_deposit", "confirm_deposit", "correct_deposit", "waive_deposit", "refund_record", "sign", "add_consent", "waive_consent", "cancel", "request_cancel", "noshow", "correct_noshow", "set_condition", "set_preferences", "approve", "request_guidance"]),
   rule: rule.optional(),
   cancellationKind: z.enum(["owner", "customer", "late_customer"]).optional(),
   version: z.number().int().positive(), note: z.string().trim().max(2000).default(""),
@@ -283,8 +306,7 @@ export const preparationActionSchema = z.object({
 });
 export async function actOnPreparation(current: PreparationResponse, raw: unknown, actor: { kind: "owner" | "customer" | "system"; userId: string | null }) {
   const input = preparationActionSchema.parse(raw);
-  if (actor.kind === "system" && input.action !== "auto_request_required_consent") throw new OwnerApiError("처리 권한이 없습니다.", 403);
-  if (input.action === "auto_request_required_consent" && actor.kind !== "system") throw new OwnerApiError("처리 권한이 없습니다.", 403);
+  if (actor.kind === "system") throw new OwnerApiError("처리 권한이 없습니다.", 403);
   if (input.version !== current.version) throw new OwnerApiError("예약 내용이 변경되었습니다. 다시 불러와 주세요.", 409);
   if (actor.kind === "customer" && !["report_deposit", "sign", "cancel", "request_cancel", "set_preferences"].includes(input.action)) throw new OwnerApiError("처리 권한이 없습니다.", 403);
   if (actor.kind === "owner" && ["sign", "set_preferences"].includes(input.action)) throw new OwnerApiError("보호자가 직접 처리해야 합니다.", 403);
@@ -292,7 +314,7 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
   const previousReceipt = deposit.receivedAmount;
   const active = ["pending", "confirmed"].includes(current.appointmentStatus);
   let nextStatus: string | null = null, nextRule: string | null = null;
-  const guidanceRequests: Array<{ id: string; purpose: "consent" | "deposit" }> = [];
+  const guidanceRequests: Array<{ id: string; purpose: "deposit" }> = [];
   let preferences: { consent: boolean; deposit: boolean } | null = null;
   if (!active && !["refund_record", "correct_noshow", "set_condition", "set_preferences"].includes(input.action)) throw new OwnerApiError("진행 중이거나 종료된 예약은 이 작업을 처리할 수 없습니다.", 409);
   switch (input.action) {
@@ -365,6 +387,8 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       if (deposit.refundedAmount === deposit.receivedAmount) deposit.status = "refunded";
       break;
     case "sign": {
+      const currentPolicy = await readOptionalBookingPolicy(current.shopId);
+      if (!currentPolicy?.policy.consentBeforeStart) throw new OwnerApiError("이 매장은 현재 동의서 요청 기능을 사용하지 않습니다.", 409);
       const doc = data.consents.find(t => t.id === input.templateId && t.version === input.templateVersion);
       if (!doc || doc.status !== "pending") throw new OwnerApiError("작성 대기 중인 동의서를 찾을 수 없습니다.", 409);
       if (!input.signature || !input.signerName || input.agreed !== true) throw new OwnerApiError("내용 확인과 서명을 완료해 주세요.");
@@ -392,46 +416,20 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       if (current.appointmentStatus !== "pending") throw new OwnerApiError("승인 대기 중인 예약이 아닙니다.");
       if (deposit.required && !["confirmed", "waived"].includes(deposit.status)) throw new OwnerApiError("예약금을 확인하거나 면제한 뒤 승인해 주세요.");
       nextStatus = "confirmed"; break;
-    case "request_guidance": case "auto_request_required_consent": {
-      const automatic = input.action === "auto_request_required_consent";
-      if (automatic) {
-        if (current.appointmentStatus !== "confirmed" || !data.consents.some(c => c.required && c.status === "pending")) break;
-        if (deposit.required && !["confirmed", "waived"].includes(deposit.status)) break;
-      } else {
-        if (!input.consent && !input.deposit) throw new OwnerApiError("보낼 안내를 선택해 주세요.");
-        if (input.deposit) {
-          const prefs = current.notificationPreferences;
-          if (prefs?.enabled === false || prefs?.deposit === false) throw new OwnerApiError("고객이 예약금 요청 알림 수신을 꺼 두었습니다.", 409);
-          if (!["pending", "reported"].includes(deposit.status) || !deposit.dueAt || Date.parse(deposit.dueAt) <= Date.now()) throw new OwnerApiError("납부 대기 중인 예약금과 유효한 기한을 확인해 주세요.");
-          if (data.requests.some(r => r.purposes.includes("deposit") && ["sending", "queued", "sent"].includes(r.status))) throw new OwnerApiError("이 예약의 예약금 안내는 이미 발송했거나 처리 중입니다.", 409);
-          const id = randomUUID();
-          guidanceRequests.push({ id, purpose: "deposit" });
-          data.requests.push({ id, at: now, purposes: ["deposit"], status: "sending", reason: "알림톡 발송을 확인하고 있습니다." });
-        }
-        if (!input.consent) break;
-        if (!data.consents.some(c => c.status === "pending")) throw new OwnerApiError("\uC791\uC131 \uB300\uAE30 \uC911\uC778 \uB3D9\uC758\uC11C\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
-      }
+    case "request_guidance": {
+      if (input.consent) throw new OwnerApiError("동의서는 예약 과정에서 작성합니다.");
+      if (!input.deposit) throw new OwnerApiError("보낼 예약금 안내를 선택해 주세요.");
       const prefs = current.notificationPreferences;
-      const preferenceBlocked = prefs?.enabled === false || prefs?.consent === false;
-      if (preferenceBlocked && !automatic) throw new OwnerApiError("고객이 동의서 요청 알림 수신을 꺼 두었습니다.", 409);
-      const consentVersions = Object.fromEntries(data.consents.filter(c => c.status === "pending").map(c => [c.id, c.version]));
-      const coveredByPreviousRequest = data.requests.some(request => {
-        if (!request.purposes.includes("consent") || !["sending", "queued", "sent"].includes(request.status)) return false;
-        if (request.consentVersions) return Object.entries(consentVersions).every(([id, version]) => request.consentVersions?.[id] === version);
-        return !data.history.some(entry => entry.action === "consent_policy_updated" && Date.parse(entry.at) > Date.parse(request.at));
-      });
-      if (coveredByPreviousRequest) {
-        if (automatic) break;
-        throw new OwnerApiError("이 예약의 현재 동의서 요청은 이미 발송했거나 처리 중입니다.", 409);
-      }
-      if (automatic && !Object.keys(consentVersions).length) break;
-      const consentRequestId = randomUUID();
-      guidanceRequests.push({ id: consentRequestId, purpose: "consent" });
-      data.requests.push({ id: consentRequestId, at: now, purposes: ["consent"], consentVersions, status: preferenceBlocked ? "blocked" : "sending", reason: preferenceBlocked ? "고객이 동의서 알림 수신을 꺼 두었습니다." : "알림톡 발송을 확인하고 있습니다." });
+      if (prefs?.enabled === false || prefs?.deposit === false) throw new OwnerApiError("고객이 예약금 요청 알림 수신을 꺼 두었습니다.", 409);
+      if (!["pending", "reported"].includes(deposit.status) || !deposit.dueAt || Date.parse(deposit.dueAt) <= Date.now()) throw new OwnerApiError("납부 대기 중인 예약금과 유효한 기한을 확인해 주세요.");
+      if (data.requests.some(r => r.purposes.includes("deposit") && ["sending", "queued", "sent"].includes(r.status))) throw new OwnerApiError("이 예약의 예약금 안내는 이미 발송했거나 처리 중입니다.", 409);
+      const id = randomUUID();
+      guidanceRequests.push({ id, purpose: "deposit" });
+      data.requests.push({ id, at: now, purposes: ["deposit"], status: "sending", reason: "알림톡 발송을 확인하고 있습니다." });
       break;
     }
   }
-  data.history.push({ action: input.action, at: now, actor: actor.kind === "system" ? "system" : actor.kind === "customer" ? "customer" : actor.userId ?? "owner", note:
+  data.history.push({ action: input.action, at: now, actor: actor.kind === "customer" ? "customer" : actor.userId ?? "owner", note:
     ["confirm_deposit", "correct_deposit", "refund_record"].includes(input.action)
       ? `${input.note} · 이전 입금 ${previousReceipt}원 · 현재 입금 ${deposit.receivedAmount}원 · 누적 환불 ${deposit.refundedAmount}원` : input.note });
   const result = await db().rpc("save_booking_preparation", { p_shop: current.shopId, p_appointment: current.appointmentId, p_version: current.version, p_data: data, p_status: nextStatus, p_rule: nextRule, p_preferences: preferences });
@@ -487,7 +485,7 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
     const settled = structuredClone(latest.data);
     const request = settled.requests.find(item => item.id === guidance.id);
     if (request) { request.status = requestStatus; request.reason = requestReason; }
-    settled.history.push({ action: input.action, at: new Date().toISOString(), actor: actor.kind === "system" ? "system" : actor.userId ?? "owner", note: requestReason });
+    settled.history.push({ action: input.action, at: new Date().toISOString(), actor: actor.userId ?? "owner", note: requestReason });
     const settledResult = await db().rpc("save_booking_preparation", {
       p_shop: current.shopId, p_appointment: current.appointmentId, p_version: latest.version,
       p_data: settled, p_status: null, p_rule: null, p_preferences: null,
@@ -498,41 +496,10 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
   if (nextStatus === "confirmed" && input.action !== "correct_noshow") {
     const type = "booking_confirmed" as const;
     const task = () => deliverCustomerBookingNotificationSafely({ shopId: current.shopId, appointmentId: current.appointmentId,
-      guardianId: current.guardianId, petId: current.petId, type, channel: "alimtalk", skipIfExists: true }, dispatchNotification)
-      .then(() => requestRequiredConsentAfterConfirmation(current.shopId, current.appointmentId));
+      guardianId: current.guardianId, petId: current.petId, type, channel: "alimtalk", skipIfExists: true }, dispatchNotification);
     try { after(task); } catch { await task(); }
-  } else if (input.action === "set_preferences" && preferences?.consent && current.appointmentStatus === "confirmed") {
-    try { after(() => requestRequiredConsentAfterConfirmation(current.shopId, current.appointmentId)); }
-    catch { await requestRequiredConsentAfterConfirmation(current.shopId, current.appointmentId); }
   }
   return getPreparation(current.shopId, current.appointmentId, actor.kind === "owner");
-}
-
-/** Automatically requests only required, still-pending consent after the booking is confirmed. */
-export async function requestRequiredConsentAfterConfirmation(shopId: string, appointmentId: string) {
-  try {
-    const current = await getPreparation(shopId, appointmentId, true);
-    if (current.appointmentStatus !== "confirmed") return;
-    if (!current.data.consents.some(consent => consent.required && consent.status === "pending")) return;
-    if (current.data.deposit.required && !["confirmed", "waived"].includes(current.data.deposit.status)) return;
-    const pendingRequired = current.data.consents.filter(consent => consent.required && consent.status === "pending");
-    const versions = Object.fromEntries(pendingRequired.map(consent => [consent.id, consent.version]));
-    const alreadyRequested = current.data.requests.some(request => {
-      if (!request.purposes.includes("consent") || !["sending", "queued", "sent"].includes(request.status)) return false;
-      if (request.consentVersions) return Object.entries(versions).every(([id, version]) => request.consentVersions?.[id] === version);
-      return !current.data.history.some(entry => entry.action === "consent_policy_updated" && Date.parse(entry.at) > Date.parse(request.at));
-    });
-    if (alreadyRequested) return;
-    await actOnPreparation(current, { action: "auto_request_required_consent", version: current.version }, { kind: "system", userId: null });
-  } catch (error) {
-    if (!(error instanceof OwnerApiError && [404, 409].includes(error.status))) {
-      logOperationalEvent("booking_consent_auto_request.failed", {
-        operation: "booking_consent_auto_request",
-        code: error instanceof OwnerApiError ? `http_${error.status}` : "unexpected",
-        status: error instanceof OwnerApiError ? error.status : 500,
-      });
-    }
-  }
 }
 
 /** Existing installations keep their legacy cutoff until the new migration/policy exists. */

@@ -364,6 +364,7 @@ Rules:
 - Missing historical services may be created only as inactive history-link services. They must not appear in customer booking.
 - Imported price rows become an inactive detailed-price-guide draft. They never overwrite or activate the current price guide automatically.
 - `shop_data_import_batches` and `shop_data_import_rows` store fingerprints, counts, linked IDs, statuses, and error codes only. Raw workbook files and raw PII rows are not retained.
+- `pet_consent_import_status` stores each imported pet's owner-selected consent transition state (`needs_consent` or `recognized`) independently of the consent feature toggle. It is not a signature artifact; new signatures remain in the booking preparation consent records.
 - The two audit tables have RLS enabled and no `anon` or `authenticated` table privileges. PC/backend service-role code is the write authority.
 - Mobile may consume completed imported customer/history data through existing shared APIs, but must not implement a separate importer or direct Supabase writes.
 

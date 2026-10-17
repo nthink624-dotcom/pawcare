@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { DataImportCommitResult, DataImportPreview, DataImportSource } from "@/types/data-import";
+import type { ConsentImportDecision, DataImportCommitResult, DataImportPreview, DataImportSource } from "@/types/data-import";
 
 type PreviewTab = "customers" | "visits" | "priceGuide";
 
@@ -42,6 +42,8 @@ export default function DataImportDialog({
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [error, setError] = useState("");
+  const [consentDecision, setConsentDecision] = useState<ConsentImportDecision | null>(null);
+  const [confirmImportOpen, setConfirmImportOpen] = useState(false);
 
   if (!open) return null;
 
@@ -55,6 +57,7 @@ export default function DataImportDialog({
     formData.set("source", source);
     formData.set("mode", mode);
     formData.set("file", file);
+    if (mode === "commit" && consentDecision) formData.set("consentDecision", consentDecision);
     setError("");
     if (mode === "preview") setLoading(true);
     else setCommitting(true);
@@ -84,6 +87,8 @@ export default function DataImportDialog({
   function resetFile(nextFile: File | null) {
     setFile(nextFile);
     setPreview(null);
+    setConsentDecision(null);
+    setConfirmImportOpen(false);
     setError("");
   }
 
@@ -169,9 +174,10 @@ export default function DataImportDialog({
 
         <footer className="flex items-center justify-between gap-3 border-t border-[#e2e7ee] bg-white px-5 py-3">
           <div>{error ? <p className="break-keep text-[13px] font-medium leading-5 text-[#a04455] [overflow-wrap:anywhere]">{error}</p> : preview ? <p className="flex items-start gap-1.5 break-keep text-[13px] font-normal leading-5 text-[#607080] [overflow-wrap:anywhere]"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#2f7568]" />확정 후 같은 파일을 다시 올려도 중복 등록되지 않습니다.</p> : null}</div>
-          <div className="flex flex-wrap items-center justify-end gap-2"><button type="button" onClick={onClose} disabled={committing} className="min-h-11 rounded-[8px] border border-[#dfe5ec] px-4 py-2 text-[14px] font-medium leading-5 text-[#526174]">취소</button><button type="button" onClick={() => void submit("commit")} disabled={!preview || committing || loading} className="min-h-11 rounded-[8px] bg-[#1f6f5f] px-5 py-2 text-[14px] font-medium leading-5 text-white disabled:opacity-45">{committing ? "안전하게 이전 중..." : "이 결과대로 이전"}</button></div>
+          <div className="flex flex-wrap items-center justify-end gap-2"><button type="button" onClick={onClose} disabled={committing} className="min-h-11 rounded-[8px] border border-[#dfe5ec] px-4 py-2 text-[14px] font-medium leading-5 text-[#526174]">취소</button><button type="button" onClick={() => setConfirmImportOpen(true)} disabled={!preview || committing || loading} className="min-h-11 rounded-[8px] bg-[#1f6f5f] px-5 py-2 text-[14px] font-medium leading-5 text-white disabled:opacity-45">{committing ? "안전하게 이전 중..." : "이 결과대로 이전"}</button></div>
         </footer>
       </section>
+      {confirmImportOpen && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#0f172a]/40 p-4" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !committing) setConfirmImportOpen(false); }}><section role="dialog" aria-modal="true" aria-labelledby="import-consent-title" className="w-full max-w-[520px] space-y-4 rounded-[14px] border border-[#dce3eb] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.22)]"><div><h3 id="import-consent-title" className="text-[18px] font-semibold text-[#172033]">이관 고객의 동의서를 어떻게 할까요?</h3><p className="mt-1 text-[14px] leading-5 text-[#64748b]">동의서 기능을 켰는지와 관계없이 이관할 때마다 선택해요.</p></div><div className="space-y-2"><label className={`flex cursor-pointer gap-3 rounded-[10px] border p-3 ${consentDecision === "request" ? "border-[#1976ff] bg-[#f5f9ff]" : "border-[#dfe5ec]"}`}><input type="radio" name="consent-import-decision" className="mt-1" checked={consentDecision === "request"} onChange={() => setConsentDecision("request")} /><span><span className="block text-[15px] font-medium text-[#172033]">동의서 받기</span><span className="mt-1 block text-[13px] leading-5 text-[#64748b]">이관한 고객은 동의서 작성이 필요해요.</span></span></label><label className={`flex cursor-pointer gap-3 rounded-[10px] border p-3 ${consentDecision === "consider_received" ? "border-[#1976ff] bg-[#f5f9ff]" : "border-[#dfe5ec]"}`}><input type="radio" name="consent-import-decision" className="mt-1" checked={consentDecision === "consider_received"} onChange={() => setConsentDecision("consider_received")} /><span><span className="block text-[15px] font-medium text-[#172033]">받은 것으로 처리</span><span className="mt-1 block text-[13px] leading-5 text-[#64748b]">이관한 고객은 기존 동의서를 작성한 것으로 처리해요. 실제로 동의서를 받은 고객에게만 선택해 주세요.</span></span></label></div><div className="flex justify-end gap-2"><button type="button" disabled={committing} className="min-h-11 rounded-[8px] border border-[#dfe5ec] px-4 text-[14px] text-[#526174]" onClick={() => setConfirmImportOpen(false)}>취소</button><button type="button" disabled={!consentDecision || committing} className="min-h-11 rounded-[8px] bg-[#1f6f5f] px-4 text-[14px] font-medium text-white disabled:opacity-45" onClick={() => void submit("commit")}>{committing ? "이전 중..." : "선택하고 이전"}</button></div></section></div>}
     </div>
   );
 }

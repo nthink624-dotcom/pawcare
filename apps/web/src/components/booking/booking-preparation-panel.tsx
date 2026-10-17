@@ -72,6 +72,7 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
 }) {
   const owner = !accessToken, endpoint = owner ? "/api/owner/booking-preparation" : "/api/customer-booking-preparation";
   const [result, setResult] = useState<PreparationResponse | null>(null), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
+  const [hidden, setHidden] = useState(false);
   const [payerName, setPayerName] = useState(""), [amount, setAmount] = useState(0), [note, setNote] = useState("");
   const [signerName, setSignerName] = useState(""), [signature, setSignature] = useState<SignaturePoint[][]>([]), [agreed, setAgreed] = useState(false), [signingId, setSigningId] = useState("");
   const [sendConsent, setSendConsent] = useState(true), [sendDeposit, setSendDeposit] = useState(false);
@@ -83,9 +84,18 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
     const response = await (owner ? fetchApiJsonWithAuth<PreparationResponse>(`${endpoint}?${q}`) : fetchApiJson<PreparationResponse>(`${endpoint}?${q}`));
     return response;
   }, [shopId, appointmentId, accessToken, owner, endpoint]);
-  useEffect(() => { let active = true; setResult(null); setMessage(""); setSigningId(""); setSignature([]); setAgreed(false);
-    load().then(r => { if (active) { setResult(r); setPayerName(r.data.deposit.payerName); setAmount(r.data.deposit.receivedAmount || r.data.deposit.amount); setSendConsent(r.data.consents.some(c => c.status === "pending")); setSendDeposit(false); } }).catch(e => { if (active) setMessage(e.message); }); return () => { active = false; };
-  }, [load]);
+  useEffect(() => { let active = true; setResult(null); setMessage(""); setHidden(false); setSigningId(""); setSignature([]); setAgreed(false);
+    load().then(r => { if (active) { setResult(r); setPayerName(r.data.deposit.payerName); setAmount(r.data.deposit.receivedAmount || r.data.deposit.amount); setSendConsent(r.data.consents.some(c => c.status === "pending")); setSendDeposit(false); } }).catch(async e => {
+      if (!active) return;
+      if (owner) {
+        try {
+          const current = await fetchApiJsonWithAuth<{ policy: { depositMode: "off" | "optional" | "required" } }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`);
+          if (active && current.policy.depositMode === "off") { setHidden(true); return; }
+        } catch { /* Keep the visible error when feature state cannot be read. */ }
+      }
+      if (active) setMessage(e.message);
+    }); return () => { active = false; };
+  }, [load, owner, shopId]);
   const releaseDeadline = result?.data.deposit.releaseIfUnreported && result.data.deposit.status === "pending"
     && ["pending", "confirmed"].includes(result.appointmentStatus) ? result.data.deposit.dueAt : null;
   const deadlinePassed = Boolean(releaseDeadline && Date.parse(releaseDeadline) <= now);
@@ -126,24 +136,25 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
     try { await navigator.clipboard.writeText(new URL(result.manageUrl, location.origin).toString()); setMessage("예약 확인 링크를 복사했습니다."); }
     catch { setMessage("링크를 복사하지 못했습니다. 브라우저 권한을 확인해 주세요."); }
   }
-  if (!result) return <section className="space-y-2 py-4 text-[16px]"><p role="status" className="text-slate-600">{message || "예약 준비를 불러오는 중입니다."}</p>{owner && message.includes("이 예약에는") && <button type="button" className={button} disabled={busy} onClick={async () => {
+  if (hidden) return null;
+  if (!result) return message ? <section className="space-y-2 py-4 text-[16px]"><p role="status" className="text-slate-600">{message}</p>{owner && message.includes("이 예약에는") && <button type="button" className={button} disabled={busy} onClick={async () => {
     setBusy(true); try { setResult(await fetchApiJsonWithAuth<PreparationResponse>(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shopId, appointmentId, action: "initialize" }) })); setMessage(""); } catch (e) { setMessage(e instanceof Error ? e.message : "요청을 만들지 못했습니다."); } finally { setBusy(false); }
-  }}>이 예약에 동의서·예약금 요청 추가</button>}</section>;
+  }}>예약금 관리 준비하기</button>}</section> : null;
   const { data } = result, d = data.deposit, active = ["pending", "confirmed"].includes(result.appointmentStatus);
   const currentPolicyFeatures = result.currentPolicyFeatures;
   const showDeposit = (currentPolicyFeatures?.depositMode ?? data.policy.depositMode) !== "off";
-  const activeConsentTemplates = (currentPolicyFeatures?.consentTemplates ?? data.policy.templates).filter(template => template.enabled && !template.archivedAt);
+  const activeConsentTemplates = (currentPolicyFeatures?.consentEnabled === false ? [] : currentPolicyFeatures?.consentTemplates ?? data.policy.templates).filter(template => template.enabled && !template.archivedAt);
   const hasPendingConsent = data.consents.some(consent => consent.status === "pending"
     && activeConsentTemplates.some(template => template.id === consent.id && template.version === consent.version));
   const hasManualConsentTemplate = activeConsentTemplates.some(template =>
     template.audience === "manual" && !hasCurrentConsent(result, template.id, template.version)
     && !(template.scope === "pet" && result.signedPetConsentIds?.includes(template.id)));
-  const showConsent = activeConsentTemplates.length > 0 && (hasPendingConsent || hasManualConsentTemplate);
-  const showPreparation = showDeposit || showConsent;
+  const showConsent = !owner && activeConsentTemplates.length > 0 && (hasPendingConsent || hasManualConsentTemplate);
+  const showPreparation = showDeposit;
   const latestConsentRequest = [...data.requests].reverse().find(request => request.purposes.includes("consent"));
   const balance = d.receivedAmount - d.refundedAmount;
-  return <section className="min-w-0 space-y-3 py-2 text-[16px] leading-6 text-[#15213b]" aria-label="예약금 및 동의서 관리">
-    {showPreparation && <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-[20px] font-semibold">예약금 · 동의서</h3><button type="button" className={button} disabled={busy} onClick={() => void load().then(setResult).catch(e => setMessage(e.message))}>새로고침</button></div>}
+  return <section className="min-w-0 space-y-3 py-2 text-[16px] leading-6 text-[#15213b]" aria-label={owner ? "예약금 관리" : "예약 준비"}>
+    {showPreparation && <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-[20px] font-semibold">예약금</h3><button type="button" className={button} disabled={busy} onClick={() => void load().then(setResult).catch(e => setMessage(e.message))}>새로고침</button></div>}
     {showDeposit && <div className="space-y-2"><div className="flex flex-wrap justify-between gap-2"><span>예약금 · {DEPOSIT_STATUS_LABELS[d.status]}</span><span>{d.amount.toLocaleString()}원{d.required ? " · 필수" : ""}</span></div>
       {d.status !== "not_requested" && <>
         <p className="break-all text-slate-600">{data.policy.bankName} {data.policy.bankAccount} · {data.policy.bankHolder}</p>
@@ -190,9 +201,8 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
         </div>
       </details>})}
     </div>}
-    {!owner && <div className="space-y-2 border-t pt-3"><h4 className="font-medium">요청 알림 수신</h4>
+    {!owner && showDeposit && <div className="space-y-2 border-t pt-3"><h4 className="font-medium">예약금 요청 알림</h4>
       {result.notificationPreferences?.enabled === false && <p className="text-slate-600">현재 이 매장의 알림톡 전체 수신이 꺼져 있습니다.</p>}
-      <label className="flex items-center gap-2"><input type="checkbox" disabled={busy || result.notificationPreferences?.enabled === false} checked={result.notificationPreferences?.consent ?? true} onChange={e => void act("set_preferences", { consent: e.target.checked, deposit: result.notificationPreferences?.deposit ?? true, note: "" })} />동의서 요청 알림</label>
       <label className="flex items-center gap-2"><input type="checkbox" disabled={busy || result.notificationPreferences?.enabled === false} checked={result.notificationPreferences?.deposit ?? true} onChange={e => void act("set_preferences", { deposit: e.target.checked, consent: result.notificationPreferences?.consent ?? true, note: "" })} />예약금 요청 알림</label>
     </div>}
     {data.cancelRequest && <p className="break-words text-amber-800">취소 요청 대기: {data.cancelRequest.reason}</p>}

@@ -74,6 +74,7 @@ export default function OwnerDepositControls({ d, busy, appointmentStatus, remai
     <div id={detailsId} data-deposit-details hidden={!expanded} className="space-y-1">
       {loading && <p className={helper}>내역을 불러오는 중입니다.</p>}{error && <p role="status" className={helper}>{error}</p>}
       <div data-deposit-breakdown className="space-y-1 tabular-nums">
+        {d.receiptTotal > 0 && <p>{money(d.receiptTotal)} 입금 확인</p>}
         {d.movements?.filter(movement => movement.direction === "in").map((movement, index) => <p key={index}>{movement.date} 예약금 {money(movement.amount)}을 이어서 사용{movement.petName ? ` · ${movement.petName}` : ""}</p>)}
         {d.usedTotal > 0 && <p>→ 미용 요금에 {money(d.usedTotal)} 사용{d.bookingCount > 1 ? " (같은 날 예약 합계)" : ""}</p>}
         {d.forfeitedTotal > 0 && <p>→ 취소·노쇼 수수료 {money(d.forfeitedTotal)}</p>}

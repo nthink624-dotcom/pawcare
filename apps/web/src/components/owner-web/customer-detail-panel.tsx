@@ -140,7 +140,7 @@ export default function CustomerDetailPanel({
       breed: selectedPet.breed ?? "",
       pricingGroup: selectedPet.pricing_group ?? "",
       birthday: selectedPet.birthday ?? "",
-      birthdayPrecision: selectedPet.birthday_precision === "month" ? "month" : "day",
+      birthdayPrecision: selectedPet.birthday_precision === "month" ? "month" as const : "day" as const,
       age: typeof selectedPet.age === "number" ? String(selectedPet.age) : "",
       weight: typeof selectedPet.weight === "number" ? String(selectedPet.weight) : "",
       notes: selectedPet.notes ?? "",

@@ -48,5 +48,6 @@ test('mobile services resolve canonical source directories; only web owns cron j
     '/api/cron/operational-errors/cleanup',
     '/api/notifications/visit-reminders',
     '/api/media/cleanup-expired?dryRun=false',
+    '/api/cron/booking-deposit-expiry',
   ]);
 });

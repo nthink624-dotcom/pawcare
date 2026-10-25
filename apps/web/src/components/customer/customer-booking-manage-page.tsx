@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useSyncExternalStore, type CSSProperties } from "react";
 
 import CustomerBookingManagePanel, {
   type CustomerBookingManageLookupPayload,
@@ -10,6 +10,14 @@ import {
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import type { BootstrapStaffMember, Service, Shop } from "@/types/domain";
+
+function subscribeHashToken(onChange: () => void) {
+  window.addEventListener("hashchange", onChange);
+  window.addEventListener("pageshow", onChange);
+  return () => { window.removeEventListener("hashchange", onChange); window.removeEventListener("pageshow", onChange); };
+}
+const readHashToken = () => new URLSearchParams(window.location.hash.slice(1)).get("t") ?? undefined;
+const emptyHashToken = () => undefined;
 
 export default function CustomerBookingManagePage({
   shopId,
@@ -30,8 +38,8 @@ export default function CustomerBookingManagePage({
   entryHref: string;
   operationsLocked?: boolean;
 }) {
-  const [accessToken, setAccessToken] = useState(initialAccessToken);
-  useEffect(() => { if (!initialAccessToken) setAccessToken(new URLSearchParams(window.location.hash.slice(1)).get("t") ?? undefined); }, [initialAccessToken]);
+  const hashToken = useSyncExternalStore(subscribeHashToken, readHashToken, emptyHashToken);
+  const accessToken = initialAccessToken ?? hashToken;
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
   const staffMembers = useMemo(() => initialStaffMembers.filter((staff) => staff.name.trim()), [initialStaffMembers]);
   const customerServiceOptions = useMemo(

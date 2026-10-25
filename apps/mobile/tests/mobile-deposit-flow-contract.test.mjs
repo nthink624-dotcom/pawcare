@@ -4,8 +4,8 @@ import test from "node:test";
 import ts from "typescript";
 const read = p => fs.readFileSync(new URL(p, import.meta.url), "utf8");
 const output = ts.transpileModule(read("../src/lib/owner-customer-pet-integrity.ts"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const module = { exports: {} }; Function("module", "exports", output)(module, module.exports);
-const { resolveOwnerMobileRoleContext: role } = module.exports;
+const loadedModule = { exports: {} }; Function("module", "exports", output)(loadedModule, loadedModule.exports);
+const { resolveOwnerMobileRoleContext: role } = loadedModule.exports;
 const base = { shop: { id: "a" }, ownerProfile: null, staffMembers: [{ id: "s" }], appointments: [{ staff_id: "s" }] };
 
 test("server-authorized owner membership does not become staff because primary profile is absent", () => {

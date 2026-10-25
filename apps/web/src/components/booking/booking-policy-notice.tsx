@@ -5,13 +5,17 @@ import { NEXT_BOOKING_RULE_LABELS } from "@petmanager/shared/contracts/booking-p
 import { fetchApiJson } from "@/lib/api";
 type PolicyResult = { policy: PublicBookingPolicy | null; version: number };
 type PolicyAcceptance = { version: number; accepted: boolean; depositChoice: boolean | null };
-export default function BookingPolicyNotice({ shopId, depositOptions, onChange }: {
+function BookingPolicyNoticeContent({ shopId, depositOptions, onChange }: {
   shopId: string; depositOptions: CustomerBookingDepositOptions | null; onChange: (value: PolicyAcceptance) => void;
 }) {
-  const [result, setResult] = useState<PolicyResult | null>(null), [accepted, setAccepted] = useState(false), [message, setMessage] = useState("");
+  const [loaded, setLoaded] = useState<{ shopId: string; result: PolicyResult | null; message: string } | null>(null);
+  const [acceptance, setAcceptance] = useState<{ shopId: string; accepted: boolean } | null>(null);
+  const result = loaded?.shopId === shopId ? loaded.result : null;
+  const message = loaded?.shopId === shopId ? loaded.message : "";
+  const accepted = acceptance?.shopId === shopId ? acceptance.accepted : Boolean(result && !result.policy);
   useEffect(() => {
-    let active = true; setResult(null); setAccepted(false); onChange({ version: 0, accepted: false, depositChoice: null });
-    void fetchApiJson<PolicyResult>(`/api/booking-policy?shopId=${encodeURIComponent(shopId)}`).then(r => { if (active) { setResult(r); setAccepted(!r.policy); } }).catch(() => { if (active) setMessage("예약 정책을 확인하지 못했습니다. 다시 불러와 주세요."); });
+    let active = true; onChange({ version: 0, accepted: false, depositChoice: null });
+    void fetchApiJson<PolicyResult>(`/api/booking-policy?shopId=${encodeURIComponent(shopId)}`).then(result => { if (active) setLoaded({ shopId, result, message: "" }); }).catch(() => { if (active) setLoaded({ shopId, result: null, message: "예약 정책을 확인하지 못했습니다. 다시 불러와 주세요." }); });
     return () => { active = false; };
   }, [shopId, onChange]);
   useEffect(() => { if (result) onChange({ version: result.version, accepted, depositChoice: depositOptions ? depositOptions.required : null }); }, [result, accepted, depositOptions, onChange]);
@@ -30,7 +34,11 @@ export default function BookingPolicyNotice({ shopId, depositOptions, onChange }
       <p className="whitespace-pre-wrap break-words">{policy.cancellationNotice}</p>
       <p>직접 취소는 시작 {policy.cancellationCutoffHours}시간 전까지 가능합니다. 이후에는 매장에 취소를 요청해 주세요.</p>
       <p className="text-[13px] leading-5 text-slate-600">예약 제한: 노쇼 1회 {NEXT_BOOKING_RULE_LABELS[policy.firstNoshowRule]} · 2회 이상 {NEXT_BOOKING_RULE_LABELS[policy.repeatNoshowRule]}</p>
-      <label className="flex min-h-11 items-start gap-2"><input type="checkbox" className="mt-1" checked={accepted} onChange={e => setAccepted(e.target.checked)} /><span>예약금·취소·노쇼 안내를 확인했습니다.</span></label>
+      <label className="flex min-h-11 items-start gap-2"><input type="checkbox" className="mt-1" checked={accepted} onChange={e => setAcceptance({ shopId, accepted: e.target.checked })} /><span>예약금·취소·노쇼 안내를 확인했습니다.</span></label>
     </>}
   </section>;
+}
+
+export default function BookingPolicyNotice(props: Parameters<typeof BookingPolicyNoticeContent>[0]) {
+  return <BookingPolicyNoticeContent key={props.shopId} {...props} />;
 }

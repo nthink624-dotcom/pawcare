@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 /** Re-read server state when returning from another app or the browser back/forward cache. */
 export function useBookingResumeRefresh(enabled: boolean, refresh: () => Promise<unknown>) {
   const current = useRef(refresh);
-  current.current = refresh;
+  useEffect(() => { current.current = refresh; }, [refresh]);
   useEffect(() => {
     if (!enabled) return;
     let running = false;

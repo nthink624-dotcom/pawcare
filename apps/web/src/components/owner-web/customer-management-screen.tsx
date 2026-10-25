@@ -1149,7 +1149,7 @@ export default function CustomerManagementScreen({
                 pricing_group: nextPet.pricing_group,
                 birthday: nextPet.birthday,
                 birthday_precision: nextPet.birthday_precision,
-                age: nextPet.age,
+                age: nextPet.age ?? null,
                 age_reference_year: nextPet.age_reference_year,
                 weight: nextPet.weight,
                 notes: nextPet.notes,

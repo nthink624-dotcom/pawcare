@@ -5,6 +5,16 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 const { isApprovedAndUsableTemplate, hasApprovedBookingConsentTemplateContract } =
   await import("../../src/server/alimtalk-approved-template.ts");
+const { shouldSendByShopSettings } = await import("../../src/lib/notification-registry.ts");
+
+test("legacy consent and deposit switches coexist with the latest explicit per-template controls", () => {
+  const settings = { enabled: true, booking_consent_request_enabled: false, booking_deposit_request_enabled: false };
+  assert.equal(shouldSendByShopSettings(settings, "booking_consent_request"), false);
+  assert.equal(shouldSendByShopSettings(settings, "booking_deposit_request"), false);
+  assert.equal(shouldSendByShopSettings({ enabled: true }, "booking_deposit_request"), true);
+  assert.equal(shouldSendByShopSettings({ ...settings, alimtalk_type_enabled: { booking_deposit_request: true } }, "booking_deposit_request"), true);
+  assert.equal(shouldSendByShopSettings({ ...settings, enabled: false, alimtalk_type_enabled: { booking_deposit_request: true } }, "booking_deposit_request"), false);
+});
 
 test("notification dispatch keeps duplicate, scheduling, and failure states explicit", async () => {
   const dispatch = await read("src/server/notification-dispatch.ts");
@@ -18,13 +28,14 @@ test("notification dispatch keeps duplicate, scheduling, and failure states expl
   assert.match(dispatch, /provider_message_id: providerMessageId/);
 });
 
-test("consent template resolves from relay alias after review without a Vercel env edit", async () => {
+test("consent templates require an explicit approved mapping rather than adopting a reviewed draft", async () => {
   const resolver = await read("src/server/alimtalk-approved-template.ts");
   const dispatch = await read("src/server/notification-dispatch.ts");
 
-  assert.match(resolver, /item\.alias === alias && \(!configuredCode \|\| item\.configuredCode === configuredCode\)/);
-  assert.match(resolver, /configuredCode \|\| aliasEntry\?\.configuredCode/);
-  assert.match(resolver, /isApprovedAndUsableTemplate\(detail\)/);
+  assert.match(resolver, /getPlatformMappedTemplate\(alias\)/);
+  assert.match(resolver, /item\.templateCode === mapping\.provider_template_code/);
+  assert.match(resolver, /readShopAlimtalkSelections\(shopId, aliases\)/);
+  assert.match(resolver, /matchesShopTemplateSnapshot\(selected, detail\)/);
   assert.match(dispatch, /booking_consent_request" && connectedTemplate\?\.source !== "ssodaa_approved"/);
 });
 

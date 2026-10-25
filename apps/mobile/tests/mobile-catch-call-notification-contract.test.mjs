@@ -47,6 +47,23 @@ test("registered caller notification offers reservation or phone-only; phone-onl
   assert.match(plugin, /queueAndSendChoice\(getContext\(\), providerCallId, "reservation_selected"\)/);
 });
 
+test("matched owner caller name is returned by the owner-scoped API and displayed for the active call only", async () => {
+  const notification = await read(mobileRoot, "android/app/src/main/java/kr/petmanager/owner/OwnerCallNotification.java");
+  const store = await read(mobileRoot, "android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningStore.java");
+  const transport = await read(mobileRoot, "android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningTransport.java");
+  const route = await read(repoRoot, "apps/web/src/app/api/owner/call-events/android/events/route.ts");
+
+  assert.match(route, /const owner = await requireOwnerShop\(request, body\.shopId\)/);
+  assert.match(route, /guardianName: body\.eventType === "incoming" && matches\.length === 1 \? matches\[0\]\.name\.trim\(\) : null/);
+  assert.match(store, /setActiveCallerName\(Context context, String providerCallId, String guardianName\)/);
+  assert.match(store, /providerCallId\.equals\(config\.optString\("activeProviderCallId"/);
+  assert.match(store, /config\.remove\("activeCallerName"\)/);
+  assert.match(transport, /response\.optString\("guardianName"/);
+  assert.match(transport, /OwnerCallNotification\.updateIncoming\(context, providerCallId, callerNumber, guardianName\)/);
+  assert.match(notification, /safeGuardianName \+ " 보호자"/);
+  assert.match(notification, /VISIBILITY_PRIVATE/);
+});
+
 test("choice uploads are queued, ordered after call events, owner-scoped, idempotent, and contain no phone data", async () => {
   const plugin = await read(mobileRoot, "android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningPlugin.java");
   const store = await read(mobileRoot, "android/app/src/main/java/kr/petmanager/owner/OwnerCallScreeningStore.java");

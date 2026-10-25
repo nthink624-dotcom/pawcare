@@ -4,6 +4,7 @@ import type {
   ShopNotificationSettings,
 } from "@/types/domain";
 import { APPROVED_ALIMTALK_CONTRACTS } from "@petmanager/shared/contracts/alimtalk";
+import { DEPOSIT_ALIMTALK_REVIEW_CONTRACTS } from "@petmanager/shared/contracts/deposit-alimtalk-review";
 
 export type NotificationTarget = "guardian" | "owner" | "system";
 export type NotificationChannel = "alimtalk" | "in_app" | "data_only";
@@ -26,6 +27,9 @@ export type AlimtalkTemplateAlias =
   | "booking_received"
   | "booking_consent_request"
   | "booking_deposit_request"
+  | "booking_deposit_expired"
+  | "booking_deposit_refunded"
+  | "booking_deposit_cancelled"
   | "booking_confirmed"
   | "booking_cancelled"
   | "appointment_reminder_10m"
@@ -74,18 +78,36 @@ export type NotificationTemplateVariables = Record<string, string | null | undef
 
 export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   {
+    type: "booking_deposit_cancelled", title: "예약금 예약 취소", target: "guardian", channel: "alimtalk",
+    trigger: "예약금 연계 예약을 고객이 취소했을 때", dispatchSource: "src/server/booking-deposit-ledger.ts",
+    templateAlias: "booking_deposit_cancelled", templateConfigKey: null, shopSettingKey: "enabled", guardianSettingKey: "deposit_request_enabled",
+    notes: "전용 템플릿 승인 확인 전 실제 발송 차단", draftBody: DEPOSIT_ALIMTALK_REVIEW_CONTRACTS.booking_deposit_cancelled.body,
+  },
+  {
+    type: "booking_deposit_expired", title: "예약금 기한 만료", target: "guardian", channel: "alimtalk",
+    trigger: "입금 신고 기한 경과로 예약이 취소되었을 때", dispatchSource: "src/server/booking-deposit-ledger.ts",
+    templateAlias: "booking_deposit_expired", templateConfigKey: null, shopSettingKey: "enabled", guardianSettingKey: "deposit_request_enabled",
+    notes: "전용 템플릿 승인 확인 전 실제 발송 차단", draftBody: DEPOSIT_ALIMTALK_REVIEW_CONTRACTS.booking_deposit_expired.body,
+  },
+  {
+    type: "booking_deposit_refunded", title: "예약금 환불 완료", target: "guardian", channel: "alimtalk",
+    trigger: "오너가 직접 송금 후 환불 완료를 기록했을 때", dispatchSource: "src/server/booking-deposit-ledger.ts",
+    templateAlias: "booking_deposit_refunded", templateConfigKey: null, shopSettingKey: "enabled", guardianSettingKey: "deposit_request_enabled",
+    notes: "전용 템플릿 승인 확인 전 실제 발송 차단", draftBody: DEPOSIT_ALIMTALK_REVIEW_CONTRACTS.booking_deposit_refunded.body,
+  },
+  {
     type: "booking_deposit_request",
     title: "예약금 납부 요청",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "오너가 예약별로 예약금 요청 안내를 선택했을 때 수동 발송",
+    trigger: "예약금 대상 예약 접수 또는 오너의 입금 재요청 시",
     dispatchSource: "src/server/booking-preparation.ts",
     templateAlias: "booking_deposit_request",
     templateConfigKey: "templateBookingDepositRequest",
     shopSettingKey: "enabled",
     guardianSettingKey: "deposit_request_enabled",
     notes: "승인된 예약금 전용 템플릿으로 금액·계좌·기한과 입금 신고 링크를 안내합니다.",
-    draftBody: APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request.body,
+    draftBody: DEPOSIT_ALIMTALK_REVIEW_CONTRACTS.booking_deposit_request.body,
   },
   {
     type: "booking_received",
@@ -334,6 +356,9 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
 export const ACTIVE_ALIMTALK_TEMPLATE_ALIASES: readonly AlimtalkTemplateAlias[] = [
   "booking_consent_request",
   "booking_deposit_request",
+  "booking_deposit_cancelled",
+  "booking_deposit_expired",
+  "booking_deposit_refunded",
   "booking_confirmed",
   "booking_cancelled",
   "appointment_reminder_10m",
@@ -352,15 +377,52 @@ export const ALIMTALK_NOTIFICATION_REGISTRY = NOTIFICATION_REGISTRY.filter(
   (item): item is NotificationRegistryItem & {
     channel: "alimtalk";
     templateAlias: AlimtalkTemplateAlias;
-    templateConfigKey: AlimtalkTemplateConfigKey;
+    templateConfigKey: AlimtalkTemplateConfigKey | null;
     draftBody: string;
   } =>
     item.channel === "alimtalk" &&
     Boolean(item.templateAlias) &&
     activeAlimtalkTemplateAliases.has(item.templateAlias as AlimtalkTemplateAlias) &&
-    Boolean(item.templateConfigKey) &&
+    (Boolean(item.templateConfigKey) || item.templateAlias! in DEPOSIT_ALIMTALK_REVIEW_CONTRACTS) &&
     typeof item.draftBody === "string",
 );
+
+export type NotificationVariableBindings = Record<string, string>;
+export const NOTIFICATION_TEMPLATE_VARIABLE_KEYS = Array.from(new Set([
+  ...NOTIFICATION_REGISTRY.flatMap(item => Array.from((item.draftBody ?? "").matchAll(/#\{([^{}]+)\}/g), match => match[1].trim())),
+  "매장ID", "예약관리토큰", "예약 확인 링크", "예약 링크", "예약관리링크", "예약시간변경링크",
+  "예약시간변경토큰", "bookingRescheduleToken", "bookingRescheduleUrl", "길찾기링크",
+  "방문전알림분", "방문전알림안내", "픽업예상분", "픽업예상시간", "픽업안내", "pickupReadyEtaMinutes", "pickupGuide",
+])).sort((a, b) => a.localeCompare(b, "ko"));
+
+export function getNotificationTemplateVariables(sources: string[]) {
+  return Array.from(new Set(sources.flatMap(source => Array.from(source.matchAll(/#\{([^{}]+)\}/g), match => match[1].trim()))));
+}
+
+export function validateNotificationVariableBindings(sources: string[], bindings: NotificationVariableBindings = {}) {
+  const variables = getNotificationTemplateVariables(sources), allowed = new Set(NOTIFICATION_TEMPLATE_VARIABLE_KEYS);
+  if (!bindings || typeof bindings !== "object" || Array.isArray(bindings)) throw new Error("템플릿 자동 입력 연결을 확인해 주세요.");
+  for (const [variable, key] of Object.entries(bindings)) {
+    if (!variables.includes(variable) || !allowed.has(key)) throw new Error("템플릿에 없는 변수이거나 사용할 수 없는 자동 입력 항목입니다.");
+  }
+  for (const variable of variables) {
+    const key = Object.hasOwn(bindings, variable) ? bindings[variable] : variable;
+    if (!allowed.has(key)) throw new Error(`'${variable}'에 넣을 자동 입력 항목을 연결해 주세요.`);
+  }
+  return variables;
+}
+
+export function bindNotificationTemplateVariables(sources: string[], values: NotificationTemplateVariables, bindings: NotificationVariableBindings = {}) {
+  const variables = validateNotificationVariableBindings(sources, bindings);
+  const result: NotificationTemplateVariables = Object.assign(Object.create(null), values);
+  for (const variable of variables) {
+    const key = Object.hasOwn(bindings, variable) ? bindings[variable] : variable;
+    const value = values[key];
+    if (value == null || !String(value).trim()) throw new Error(`'${variable}'에 필요한 예약 정보가 없어 발송을 중단했습니다.`);
+    result[variable] = value;
+  }
+  return result;
+}
 
 export function fillNotificationTemplate(template: string, values: NotificationTemplateVariables) {
   return Object.entries(values).reduce((message, [key, value]) => {
@@ -421,12 +483,13 @@ export function getGuardianSettingEnabled(
 export function shouldSendByShopSettings(
   settings: ShopNotificationSettings | null,
   type: NotificationType,
+  resolvedAlias: string | null = getAlimtalkTemplateAlias(type),
 ) {
   if (!settings) return null;
-  // Deposit requests have one source of truth in the booking policy. The general
-  // reservation/grooming switch must not silently disable an explicit request.
-  if (type === "booking_deposit_request") return true;
   if (!settings.enabled) return false;
+  const override = resolvedAlias ? settings.alimtalk_type_enabled?.[resolvedAlias] : undefined;
+  if (typeof override === "boolean") return override;
+  if (["booking_deposit_request", "booking_deposit_expired", "booking_deposit_refunded", "booking_deposit_cancelled"].includes(type)) return true;
 
   switch (type) {
     case "booking_received":
@@ -470,6 +533,9 @@ export function shouldSendByGuardianSettings(
     case "booking_consent_request":
       return settings.consent_request_enabled ?? true;
     case "booking_deposit_request":
+    case "booking_deposit_expired":
+    case "booking_deposit_refunded":
+    case "booking_deposit_cancelled":
       return settings.deposit_request_enabled ?? true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;

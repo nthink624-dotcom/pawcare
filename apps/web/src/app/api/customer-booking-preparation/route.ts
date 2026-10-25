@@ -4,13 +4,15 @@ import { actOnPreparation, authorizePreparationToken } from "@/server/booking-pr
 import { OwnerApiError } from "@/server/owner-api-auth";
 const headers = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" };
 function customerView(result: Awaited<ReturnType<typeof authorizePreparationToken>>) {
+  result = { ...result, availableDeposits: undefined };
+  if (result.ledger) result = { ...result, ledger: { ...result.ledger, history: result.ledger.history.map(event => ({ ...event, details: { total: event.details.total, refunded: event.details.refunded, payerName: event.details.payerName } })) } };
   // Internal notes, processor identifiers and dispatch history are owner-only.
   return { ...result, data: { ...result.data, consents: result.data.consents.map(({ waivedReason: _private, ...doc }) => doc), policy: { ...result.data.policy, templates: [] }, history: [], requests: [], deposit: { ...result.data.deposit, confirmedBy: null } } };
 }
 export async function GET(request: NextRequest) {
   try {
     const id = z.string().uuid().parse(request.nextUrl.searchParams.get("appointmentId"));
-    const token = z.string().min(1).max(4000).parse(request.nextUrl.searchParams.get("t"));
+    const token = z.string().min(1).max(4000).parse(request.headers.get("x-booking-access-token") ?? request.nextUrl.searchParams.get("t"));
     return NextResponse.json(customerView(await authorizePreparationToken(token, id)), { headers });
   } catch (e) { return failure(e); }
 }

@@ -5,6 +5,15 @@ const { maskGuardianPhone, scopeBootstrapForStaff } = await import("../../src/se
 
 const baseTimestamp = "2026-01-01T00:00:00+09:00";
 
+it("keeps the deposit first-paint projection owner-only", () => {
+  const payload = makePayload();
+  payload.appointments[0].deposit_summary = { id: "fixture-deposit", requestedAmount: 20000, payerName: "가상 입금자" };
+  const scoped = scopeBootstrapForStaff(payload, { role: "staff", staffId: payload.appointments[0].staff_id });
+  assert.ok(scoped.appointments.length > 0);
+  assert.ok(scoped.appointments.every(appointment => !("deposit_summary" in appointment)));
+  assert.equal(scopeBootstrapForStaff(payload, { role: "owner", staffId: null }).appointments[0].deposit_summary.id, "fixture-deposit");
+});
+
 function makeAppointment(id, staffId, guardianId, petId) {
   return {
     id,

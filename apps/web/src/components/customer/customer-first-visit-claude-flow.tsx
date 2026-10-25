@@ -9,6 +9,7 @@ import type { SignaturePoint } from "@petmanager/shared/contracts/booking-prepar
 import { formatCustomerServiceDuration, type CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { getStaffCustomerName } from "@/lib/staff-display";
 import { formatServicePrice, phoneNormalize } from "@/lib/utils";
+import { env } from "@/lib/env";
 import type { Appointment, BootstrapStaffMember, Service, Shop } from "@/types/domain";
 
 type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
@@ -37,6 +38,7 @@ type FirstVisitForm = {
 type BookingCompletion = {
   appointment: Appointment;
   bookingManageUrl: string;
+  depositInfo?: { amount: number; dueAt: string | null; bankName: string; bankAccount: string; bankHolder: string } | null;
 };
 
 type BookingConsentPreview = { enabled: boolean; legacyGrace: boolean; documents: Array<{ id: string; version: number; title: string; body: string; scope: "pet" | "appointment" }> };
@@ -216,7 +218,7 @@ function ClaudeStyles() {
       .pm-proto .rcard .ry{display:flex;align-items:center;font-size:16px;line-height:24px;padding:13px 0}
       .pm-proto .rcard .ry + .ry{border-top:1px solid var(--borderSoft)}
       .pm-proto .rcard .ry .k{color:var(--textMuted);width:72px;flex-shrink:0}
-      .pm-proto .rcard .ry .v{font-weight:600;letter-spacing:-.02em}
+      .pm-proto .rcard .ry .v{min-width:0;overflow-wrap:anywhere;font-weight:600;letter-spacing:-.02em}
       .pm-proto .rcard .ry .v.amt{color:var(--primaryDk)}
     `}</style>
   );
@@ -354,20 +356,34 @@ export default function CustomerFirstVisitClaudeFlow({
     return (
       <div className="pm-proto">
         <ClaudeStyles />
+        {env.supabaseEnvName === "development" && <p className="px-4 py-2 text-[13px] leading-5 text-[#8a5b11]">테스트 화면 · 실제 송금 및 메시지 발송 금지</p>}
         <div className="done">
           <div className="ic">
             <Check size={42} strokeWidth={2.2} />
           </div>
-          <h2>{previewOnly ? "예약 흐름을 확인했습니다" : "예약이 등록되었습니다!"}</h2>
+          <h2>{previewOnly ? "예약 흐름을 확인했습니다" : appointment?.status === "pending" ? "예약금 입금 대기" : appointment?.status === "confirmed" ? "예약이 확정되었습니다" : "예약이 접수되었습니다"}</h2>
           <div className="rcard">
             <div className="ry"><span className="k">예약 번호</span><span className="v">{buildReservationNumber(appointment)}</span></div>
             <div className="ry"><span className="k">예약 날짜</span><span className="v">{formatDateForSummary(summaryDate)}</span></div>
             <div className="ry"><span className="k">예약 시간</span><span className="v">{formatTimeForSummary(summaryTime)}</span></div>
             <div className="ry"><span className="k">서비스</span><span className="v">{serviceSummaryName}</span></div>
           </div>
+          {completedBooking?.depositInfo ? (
+            <>
+              <p className="text-[16px] font-medium text-[#15213b]">예약금 입금 대기로 접수되었습니다. 입금 신고 후 매장에서 실제 입금을 확인하면 확정됩니다.</p>
+              <div className="rcard">
+                <div className="ry"><span className="k">예약금</span><span className="v">{completedBooking.depositInfo.amount.toLocaleString()}원</span></div>
+                <div className="ry"><span className="k">입금 은행</span><span className="v">{completedBooking.depositInfo.bankName}</span></div>
+                <div className="ry"><span className="k">계좌번호</span><span className="v">{completedBooking.depositInfo.bankAccount}</span></div>
+                <div className="ry"><span className="k">예금주</span><span className="v">{completedBooking.depositInfo.bankHolder}</span></div>
+                {completedBooking.depositInfo.dueAt && <div className="ry"><span className="k">입금 신고 기한</span><span className="v">{new Date(completedBooking.depositInfo.dueAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</span></div>}
+              </div>
+              <p className="text-[14px] leading-5 text-slate-600">입금한 뒤 아래 입금 안내에서 실제 입금자명을 입력하고 ‘입금했어요’를 눌러 주세요. 기한 안에 신고하지 않으면 예약이 취소됩니다.</p>
+            </>
+          ) : null}
           <div style={{ flex: 1 }} />
           <div className="btnrow">
-            <button className="btn primary" type="button" onClick={onGoManage}>{previewOnly ? "미리보기 처음으로" : "예약 내역 보기"}</button>
+            <button className="btn primary" type="button" onClick={onGoManage}>{previewOnly ? "미리보기 처음으로" : completedBooking?.depositInfo ? "입금 안내·신고" : "예약 내역 보기"}</button>
             <button className="btn ghost" type="button" onClick={onAddBooking}>{previewOnly ? "다시 확인하기" : "추가 예약하기"}</button>
           </div>
         </div>
@@ -378,6 +394,7 @@ export default function CustomerFirstVisitClaudeFlow({
   return (
     <div className="pm-proto">
       <ClaudeStyles />
+      {env.supabaseEnvName === "development" && <p className="px-4 py-2 text-[13px] leading-5 text-[#8a5b11]">테스트 화면 · 실제 송금 및 메시지 발송 금지</p>}
 
       {step === 1 ? (
         <>
@@ -393,7 +410,7 @@ export default function CustomerFirstVisitClaudeFlow({
                     const active = selectedSavedPet?.id === pet.id;
                     return (
                       <button
-                        key={pet.id}
+                        key={`${pet.id}:${pet.name}`}
                         type="button"
                         className={`pet-card${active ? " sel" : ""}`}
                         onClick={() => {
@@ -679,7 +696,6 @@ export default function CustomerFirstVisitClaudeFlow({
 
             {bookingConsentLoading && <p role="status" className="rounded-[10px] border border-[#dfe5ec] bg-white p-3 text-[14px] text-[#64748b]">필요한 동의서를 확인하고 있어요.</p>}
             {bookingConsentError && <p role="alert" className="rounded-[10px] border border-[#f0c5cb] bg-[#fff5f6] p-3 text-[14px] text-[#9f384b]">{bookingConsentError} 입력한 고객 정보를 확인해 주세요.</p>}
-            {bookingConsentPreview?.legacyGrace && <p className="rounded-[10px] border border-[#dfe5ec] bg-white p-3 text-[14px] leading-5 text-[#64748b]">기존 고객은 예약 후 다음 방문 전에 동의서를 작성해 주세요.</p>}
             {bookingConsentPreview?.documents.map(document => {
               const acceptance = bookingConsentAcceptances.find(item => item.templateId === document.id && item.version === document.version);
               return <section key={`${document.id}:${document.version}`} className="sec rounded-[12px] border border-[#dfe5ec] bg-white p-4">

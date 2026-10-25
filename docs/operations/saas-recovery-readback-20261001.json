@@ -1,109 +1,120 @@
 {
-    "readAt":  "2026-10-14",
-    "scope":  "Database proof updated 2026-10-14; media and paid Auth readiness remain separately unverified",
-    "database":  {
-                     "provider":  "Supabase",
-                     "organizationPlan":  "FREE",
-                     "protection":  {
-                                        "dailyBackupsEnabled":  false,
-                                        "dailyBackupsReadbackStatus":  "DISABLED_BY_PLAN",
-                                        "pitrEnabled":  false,
-                                        "pitrReadbackStatus":  "NOT_INCLUDED; PRO ADD-ON STARTS AT 100 USD PER MONTH",
-                                        "walGEnabled":  true,
-                                        "encryptedOffsiteBackupEnabled":  true,
-                                        "encryptedOffsiteBackupMode":  "DAILY_AUTOMATED",
-                                        "latestRecoveryPointReadbackStatus":  "VERIFIED",
-                                        "latestRecoveryPointAt":  "2026-10-13T15:34:00Z",
-                                        "managedAvailableBackups":  0,
-                                        "availableBackups":  2,
-                                        "encryptedOffsiteBackup":  {
-                                                                       "status":  "UPLOADED_AND_READ_BACK",
-                                                                       "fileName":  "petmanager-prod-20261014-003400.pmdump",
-                                                                       "provider":  "Cloudflare R2",
-                                                                       "bucket":  "petmanager-db-backups",
-                                                                       "bytes":  1114760,
-                                                                       "sha256":  "4014bf232db44d0cfbc6db7114e462867823dc09aa813be21ca5747e38c87f43",
-                                                                       "recoveryKeyBytes":  32,
-                                                                       "secondDeviceReadback":  "NOT_VERIFIED",
-                                                                       "currentDeviceUsbRestoreEvidenceRef":  "docs/operations/production-database-usb-restore-20261014.json",
-                                                                       "schedule":  "daily 03:15 Asia/Seoul",
-                                                                       "schedulerLastResult":  0,
-                                                                       "requiresLoggedInPoweredOnWindowsPc":  true
-                                                                   },
-                                        "source":  "Scheduled encrypted backup succeeded after fixing persistent CA and owner-only file ACL. R2 download matched size/SHA256. Offline restore includes object ACLs and verifies server-only RPC permissions. Daily job depends on this Windows PC being on and logged in."
-                                    },
-                     "restoreDrill":  {
-                                          "status":  "PASS",
-                                          "isolatedTargetVerified":  true,
-                                          "recoverablePointAt":  "2026-10-13T15:34:00.3317657+00:00",
-                                          "incidentStartedAt":  "2026-10-13T16:05:53.9313331+00:00",
-                                          "serviceVerifiedAt":  "2026-10-13T16:06:04.9002647+00:00",
-                                          "completedAt":  "2026-10-13T16:06:06.6362622+00:00",
-                                          "rpoMinutes":  32,
-                                          "rtoMinutes":  1,
-                                          "evidenceRef":  "docs/operations/production-database-restore-20261014.json",
-                                          "source":  "Local PostgreSQL 18 isolated restore, 130 tables, 97 RLS tables, service-only RPC ACLs and service-role reads verified; no production restore or customer writes"
-                                      }
-                 },
-    "media":  {
-                  "provider":  "R2_CONFIGURED; DEPLOYMENT_RUNTIME_AND_OBJECT_LOCATION_UNVERIFIED",
-                  "runtimeEnvironmentReadback":  {
-                                                     "status":  "VERIFIED_R2_CONFIGURATION; DEPLOYMENT_SNAPSHOT_UNVERIFIED",
-                                                     "evidenceRef":  "docs/operations/vercel-media-provider-readback-20261001.json",
-                                                     "observedOutput":  "The latest recorded read-only production environment check reports configured=r2 and effective=r2, complete R2 credentials, configured buckets, and default endpoints for both explicit Vercel projects. Secret values were not retained.",
-                                                     "reason":  "This verifies the current Vercel production environment configuration only. It does not prove the environment snapshot used by the live deployments, where existing objects are stored, or Cloudflare R2 lifecycle, retention, and object restore."
-                                                 },
-                  "runtimeEnvironmentVariablesPresent":  {
-                                                             "web":  true,
-                                                             "mobile":  true
-                                                         },
-                  "objectRecovery":  {
-                                         "configured":  false,
-                                         "status":  "UNVERIFIED",
-                                         "reason":  "R2 is selected in the current Vercel production configuration, but Cloudflare bucket lifecycle, versioning, retention, object inventory, and restore permissions were not confirmed"
-                                     },
-                  "restoreDrill":  {
-                                       "status":  "NOT_RUN",
-                                       "completedAt":  null,
-                                       "isolatedTargetVerified":  false,
-                                       "rpoMinutes":  null,
-                                       "rtoMinutes":  null,
-                                       "evidenceRef":  null,
-                                       "reason":  "R2 object inventory and recovery settings are unverified"
-                                   }
-              },
-    "priceGuideAi":  {
-                         "projectName":  "petmanager",
-                         "route":  "/api/owner/price-guide-photo-import",
-                         "enabled":  null,
-                         "featureSetting":  "unset",
-                         "apiKeyPresent":  true,
-                         "effectiveModel":  "gpt-6-luna",
-                         "modelSupported":  true,
-                         "status":  "UNVERIFIED",
-                         "source":  "Sensitive Vercel values are redacted from CLI exports; runtime configuration readback must be verified after the readiness endpoint is deployed. Do not interpret export markers as invalid credentials or a disabled feature."
-                     },
-    "productionLaunchGate":  {
-                                 "expectedRelease":  "19916fbc126b0b4af74e44084e526f06979acbc9",
-                                 "status":  "BLOCKED",
-                                 "readAt":  "2026-10-14",
-                                 "verified":  [
-                                                  "web and mobile production health/readiness endpoints returned HTTP 200 with matching release and request IDs",
-                                                  "production Supabase RLS has zero public tables without RLS and zero anon/authenticated table grants",
-                                                  "production Alimtalk and PortOne environment readbacks passed",
-                                                  "production release ancestry and release migration history match current master refs and production schema",
-                                                  "development cross-tenant acquisition and tester-feedback fixtures passed with zero cleanup residue"
-                                              ],
-                                 "remainingBlockers":  [
-                                                           "media provider configuration is R2 in both current Vercel production projects, but the live deployment environment snapshot and existing media object locations are unverified",
-                                                           "Supabase leaked-password protection remains WARN on development and production; current organization plan is FREE",
-                                                           "production media object retention/recovery configuration is not verified",
-                                                           "production media restore drill is not verified",
-                                                           "production web error-alert destination and test delivery are not verified",
-                                                           "production mobile error-alert destination and test delivery are not verified",
-                                                           "production database USB recovery has not been verified on a second device",
-                                                           "production AI photo price-guide runtime configuration readback is pending"
-                                                       ]
-                             },
-    "interpretation":  "Database backup scheduling and current-device offline data/schema/ACL restore now pass. Second-device USB recovery, media object recovery and remaining launch checks are not verified. Do not interpret this receipt as full launch approval."
+  "readAt": "2026-10-17",
+  "scope": "Database proof updated 2026-10-14; media and paid Auth readiness remain separately unverified",
+  "database": {
+    "provider": "Supabase",
+    "organizationPlan": "FREE",
+    "protection": {
+      "dailyBackupsEnabled": false,
+      "dailyBackupsReadbackStatus": "DISABLED_BY_PLAN",
+      "pitrEnabled": false,
+      "pitrReadbackStatus": "NOT_ENABLED; SEPARATE PAID ADD-ON",
+      "walGEnabled": true,
+      "encryptedOffsiteBackupEnabled": true,
+      "encryptedOffsiteBackupMode": "DAILY_AUTOMATED",
+      "latestRecoveryPointReadbackStatus": "VERIFIED",
+      "latestRecoveryPointAt": "2026-10-17T08:58:13.8794358+00:00",
+      "managedAvailableBackups": 0,
+      "availableBackups": 2,
+      "encryptedOffsiteBackup": {
+        "status": "UPLOADED_AND_READ_BACK",
+        "fileName": "petmanager-prod-20261017-175813.pmdump",
+        "provider": "Cloudflare R2",
+        "bucket": "petmanager-db-backups",
+        "bytes": 1133064,
+        "sha256": "91c0960ab8787d6702ff420f0690ad8ef7d4e7e65e760b4553d40367fdce5e90",
+        "rawArchiveBytes": 1133001,
+        "rawArchiveSha256": "1a00c5893322f02801a7732e517ce7587719811b080e9729637dad7e9267c00f",
+        "recoveryKeyBytes": 32,
+        "recoveryKeyWrittenTo": "removable USB; path intentionally omitted",
+        "secondDeviceReadback": "NOT_VERIFIED",
+        "secondDeviceEvidenceRef": null,
+        "currentDeviceUsbRestoreEvidenceRef": null,
+        "schedule": "daily 03:15 Asia/Seoul",
+        "rawDumpRemoved": true,
+        "readback": "byte-for-byte SHA256 match",
+        "verifiedAt": "2026-10-17T08:58:43.2247131+00:00"
+      },
+      "source": "The scheduled daily task returned exit code 1 at 03:15 KST. A manual run at 17:58 KST then completed an encrypted production dump, uploaded it to Cloudflare R2, downloaded it again, and verified identical byte count and SHA-256. The 32-byte portable recovery key was written to the connected removable USB. The plain dump and temporary R2 readback were removed. Scheduled-task failure cause and second-device restore remain unverified.",
+      "schedulerLastResult": 1,
+      "schedulerLastAttemptAt": "2026-10-17T03:15:01+09:00",
+      "manualBackupRunVerifiedAt": "2026-10-17T17:58:43+09:00"
+    },
+    "restoreDrill": {
+      "status": "PASS",
+      "isolatedTargetVerified": true,
+      "recoverablePointAt": "2026-10-13T15:34:00.3317657+00:00",
+      "incidentStartedAt": "2026-10-13T16:05:53.9313331+00:00",
+      "serviceVerifiedAt": "2026-10-13T16:06:04.9002647+00:00",
+      "completedAt": "2026-10-13T16:06:06.6362622+00:00",
+      "rpoMinutes": 32,
+      "rtoMinutes": 1,
+      "evidenceRef": "docs/operations/production-database-restore-20261014.json",
+      "source": "Local PostgreSQL 18 isolated restore, 130 tables, 97 RLS tables, service-only RPC ACLs and service-role reads verified; no production restore or customer writes"
+    }
+  },
+  "media": {
+    "provider": "R2_CONFIGURED; DEPLOYMENT_RUNTIME_AND_OBJECT_LOCATION_UNVERIFIED",
+    "runtimeEnvironmentReadback": {
+      "status": "VERIFIED_R2_CONFIGURATION; DEPLOYMENT_SNAPSHOT_UNVERIFIED",
+      "evidenceRef": "docs/operations/vercel-media-provider-readback-20261001.json",
+      "observedOutput": "The latest recorded read-only production environment check reports configured=r2 and effective=r2, complete R2 credentials, configured buckets, and default endpoints for both explicit Vercel projects. Secret values were not retained.",
+      "reason": "This verifies the current Vercel production environment configuration only. It does not prove the environment snapshot used by the live deployments, where existing objects are stored, or Cloudflare R2 lifecycle, retention, and object restore."
+    },
+    "runtimeEnvironmentVariablesPresent": {
+      "web": true,
+      "mobile": true
+    },
+    "objectRecovery": {
+      "configured": false,
+      "status": "UNVERIFIED",
+      "reason": "R2 is selected in the current Vercel production configuration, but Cloudflare bucket lifecycle, versioning, retention, object inventory, and restore permissions were not confirmed"
+    },
+    "restoreDrill": {
+      "status": "NOT_RUN",
+      "completedAt": null,
+      "isolatedTargetVerified": false,
+      "rpoMinutes": null,
+      "rtoMinutes": null,
+      "evidenceRef": null,
+      "reason": "R2 object inventory and recovery settings are unverified"
+    }
+  },
+  "priceGuideAi": {
+    "projectName": "petmanager",
+    "route": "/api/owner/price-guide-photo-import",
+    "enabled": true,
+    "featureSetting": "true",
+    "apiKeyPresent": true,
+    "effectiveModel": "gpt-6-luna",
+    "modelSupported": true,
+    "status": "PASS",
+    "source": "Current production /api/readyz response; values recorded as booleans only",
+    "readAt": "2026-10-17"
+  },
+  "productionLaunchGate": {
+    "expectedRelease": "5f02f63a441e9def6d5d720ccf11a1ccc8c45479",
+    "status": "BLOCKED",
+    "readAt": "2026-10-17",
+    "verified": [
+      "Both production Vercel projects are READY on the current master release; health and readiness returned HTTP 200 with matching release and request IDs.",
+      "Production Supabase is ACTIVE_HEALTHY with migrations through 20261017130000, matching the release migration tree.",
+      "Production public tables have RLS enabled and zero effective anon/authenticated table grants.",
+      "A fresh encrypted database backup was uploaded to R2 and downloaded back with matching SHA-256; the plaintext dump was removed.",
+      "Production operational_error_events is present with RLS, service-role read/insert, no anon/authenticated SELECT, and five sanitized events from the prior seven days.",
+      "Current production Vercel configuration has R2 provider and required R2 environment variables present for web and mobile; the live deployment snapshot is not proven."
+    ],
+    "remainingBlockers": [
+      "Supabase leaked-password protection remains WARN on development and production.",
+      "The 03:15 KST scheduled backup attempt failed once; the immediate manual backup succeeded, but the scheduled-task failure cause needs diagnosis.",
+      "The new portable recovery key has not been tested from a second Windows device.",
+      "Production media-provider configuration is R2, but the live deployment environment snapshot remains unverified.",
+      "Production media object retention/recovery configuration is not verified; Cloudflare R2 lifecycle access returned AccessDenied.",
+      "Production media restore drill is not verified.",
+      "Production admin error inbox and cleanup cron have current schema/config evidence, but authenticated admin delivery and scheduled invocation are not verified.",
+      "Production web error-alert destination and test delivery remain unverified.",
+      "Production mobile error-alert destination and test delivery remain unverified."
+    ]
+  },
+  "interpretation": "Database backup scheduling and current-device offline data/schema/ACL restore now pass. Second-device USB recovery, media object recovery and remaining launch checks are not verified. Do not interpret this receipt as full launch approval."
 }

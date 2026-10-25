@@ -234,8 +234,8 @@ function hasPublishedCareReport(
   return Boolean(record?.care_report_owner_confirmed_at && record.care_report_data?.reportText?.trim());
 }
 
-function shouldSendNotification(shop: BootstrapPayload["shop"], type: NotificationType) {
-  return shouldSendByShopSettings(shop.notification_settings, type) ?? false;
+function shouldSendNotification(shop: BootstrapPayload["shop"], type: NotificationType, alias?: string | null) {
+  return shouldSendByShopSettings(shop.notification_settings, type, alias) ?? false;
 }
 
 function shouldSendGuardianNotification(
@@ -787,6 +787,12 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       ? normalizePhone(guardian.phone)
       : "";
   const recipientName = input.recipientName?.trim() ? input.recipientName.trim() : guardian?.name ?? null;
+  if (input.type === "booking_consent_request") {
+    if (!appointment || !guardian || !pet || !["pending", "confirmed"].includes(appointment.status)) throw new Error("동의서를 요청할 수 있는 예약이 아닙니다.");
+    const state = await getSupabaseAdmin()?.rpc("pm_customer_consent_state", { p_shop: input.shopId, p_guardian: guardian.id, p_pet: pet.id, p_appointment: appointment.id });
+    if (!state || state.error) throw new Error("현재 동의서 상태를 확인하지 못해 발송을 중단합니다.");
+    if (!state.data?.enabled || !state.data.documents?.some((doc: { status: string }) => doc.status === "pending")) throw new Error("새로 작성할 동의서가 없어 발송하지 않습니다.");
+  }
   const groomingCompletedHasReport = input.type === "grooming_completed"
     ? hasPublishedCareReport(bootstrap, appointment)
     : false;
@@ -797,6 +803,21 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
         ? "grooming_completed"
         : "grooming_completed_without_report"
       : getTemplateKey(input.type));
+  if (serverEnv.supabaseEnvName === "development" && hasSupabaseServerEnv() && (input.channel ?? "alimtalk") !== "in_app") {
+    // Run the real consent gates, but never contact a provider or pretend a template is approved.
+    const shopAllowed = shouldSendNotification(bootstrap.shop, input.type, templateAlias);
+    const guardianAllowed = shouldSendGuardianNotification(guardian, input.type);
+    const notification = {
+      id: randomUUID(), shop_id: input.shopId, appointment_id: appointment?.id ?? null,
+      guardian_id: guardian?.id ?? null, pet_id: pet?.id ?? null, type: input.type,
+      channel: "mock" as const, message: "개발 검증용 모의 알림 · 실제 발송 아님", status: !shopAllowed || !guardianAllowed ? "skipped" as const : !recipientPhone ? "failed" as const : "mocked" as const,
+      provider: "development_mock", fail_reason: !shopAllowed ? "Notification disabled by shop settings." : !guardianAllowed ? getGuardianNotificationBlockReason(guardian, input.type) : !recipientPhone ? "Recipient phone number not found." : "승인 템플릿은 검증하지 않았습니다.",
+      created_at: nowIso(), sent_at: null, metadata: { ...(input.metadata ?? {}), simulation: true, approvedTemplateVerified: false },
+    } as Notification;
+    const admin = getSupabaseAdmin();
+    if (admin) { const saved = await admin.from("notifications").insert(notification); if (saved.error) throw new Error("모의 발송 기록을 저장하지 못했습니다."); }
+    return { notification, skipped: notification.status === "skipped", alreadyExists: false };
+  }
   const usesAlimtalkRelay = Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret);
   const configuredTemplateKey = getConfiguredAlimtalkTemplateKey(templateAlias);
   const templateKey = usesAlimtalkRelay ? configuredTemplateKey : resolveAlimtalkTemplateKey(templateAlias);
@@ -854,6 +875,14 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       .select("data").eq("shop_id", input.shopId).eq("appointment_id", appointment.id).maybeSingle();
     if (!preparation || preparation.error || !preparation.data) throw new Error("예약금 요청 정보를 확인할 수 없습니다.");
     const data = preparation.data.data as BookingPreparation;
+    const ledger = await getSupabaseAdmin()?.rpc("pm_deposit_view", { p_shop: input.shopId, p_appointment: appointment.id });
+    if (ledger?.error) throw new Error("예약금 원장을 확인하지 못해 안내 발송을 중단합니다.");
+    if (ledger?.data) {
+      // Reuse the existing approved variable contract, but never replace original account terms with current shop settings.
+      const saved = ledger.data;
+      data.policy = { ...data.policy, bankName: saved.bankName, bankAccount: saved.bankAccount, bankHolder: saved.bankHolder };
+      data.deposit = { ...data.deposit, amount: saved.requestedAmount, dueAt: saved.retryDueAt ?? saved.dueAt, status: saved.state };
+    }
     assertDepositNotificationValues(data);
     if (!["pending", "reported"].includes(data.deposit.status) || !data.deposit.dueAt
       || !Number.isFinite(Date.parse(data.deposit.dueAt))
@@ -863,17 +892,21 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     }
     Object.assign(notificationTemplateValues, buildDepositTemplateValues(data.policy, data.deposit));
   }
-  const connectedTemplate = await getApprovedSsodaaNotificationTemplate(
+  // Disabled customer notifications do not require or resolve a sendable template.
+  const canSendShop = shouldSendNotification(bootstrap.shop, input.type, templateAlias);
+  const canSendGuardian = shouldSendGuardianNotification(guardian, input.type);
+  const canSend = canSendShop && canSendGuardian;
+  const connectedTemplate = canSend && (input.channel ?? "alimtalk") !== "in_app" ? await getApprovedSsodaaNotificationTemplate(
     input.type,
     notificationTemplateValues,
     templateAlias,
     input.shopId,
-  );
-  const templateKeyForDelivery = connectedTemplate?.templateCode ?? templateKey;
+  ) : null;
+  const templateKeyForDelivery = connectedTemplate?.templateCode ?? (requiresApprovedSsodaaTemplate() ? null : templateKey);
   const message =
     (input.channel ?? "alimtalk") === "in_app" && input.message?.trim()
       ? input.message.trim()
-      : buildNotificationMessage({
+      : !canSend ? "" : buildNotificationMessage({
           type: input.type,
           shopName: bootstrap.shop.name,
           shopAddress: bootstrap.shop.address ?? null,
@@ -909,9 +942,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const alimtalkSenderConfig = getAlimtalkSenderConfig(bootstrap.shop);
   const scheduledAt = input.scheduledAt ?? null;
   const shouldSendNow = !scheduledAt || new Date(scheduledAt).getTime() <= Date.now();
-  const canSendShop = input.force ? true : shouldSendNotification(bootstrap.shop, input.type);
-  const canSendGuardian = shouldSendGuardianNotification(guardian, input.type);
-  const canSend = canSendShop && canSendGuardian;
+  // force is never consent: all paths obey the shop master switch and guardian preferences.
   const guardianBlockReason = canSendGuardian ? null : getGuardianNotificationBlockReason(guardian, input.type);
   const mediaAttachments =
     bootstrap.mode === "supabase" && mediaAssetIds.length > 0
@@ -981,6 +1012,11 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       type: input.type,
       appointmentId: input.appointmentId ?? appointment?.id ?? null,
     });
+  } else if (serverEnv.supabaseEnvName === "development" && (input.channel ?? "alimtalk") !== "in_app") {
+    // Development has a hard provider boundary, including SMS and relay/webhook paths.
+    status = "mocked";
+    provider = "development_mock";
+    failReason = "개발 검증용 모의 발송입니다. 실제 메시지는 발송하지 않았습니다.";
   } else if ((input.channel ?? "alimtalk") !== "in_app" && !recipientPhone) {
     status = "failed";
     failReason = "Recipient phone number not found.";
@@ -993,6 +1029,9 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     status = "sent";
     provider = "in_app";
     sentAt = nowIso();
+  } else if (["booking_deposit_expired", "booking_deposit_refunded", "booking_deposit_cancelled"].includes(input.type) && connectedTemplate?.source !== "ssodaa_approved") {
+    status = "failed";
+    failReason = "예약금 전용 알림톡 템플릿의 승인·연결 확인이 필요합니다.";
   } else if (input.type === "booking_consent_request" && connectedTemplate?.source !== "ssodaa_approved") {
     status = "failed";
     failReason = "동의서 요청 알림톡 템플릿이 아직 카카오 승인·연결되지 않았습니다.";

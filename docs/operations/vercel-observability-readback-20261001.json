@@ -1,11 +1,11 @@
 {
-  "readAt": "2026-10-01",
+  "readAt": "2026-10-17",
   "scope": "Read-only production runtime error and alert-route readback",
   "source": "Connected Vercel tools; grouped production runtime logs for the prior 24 hours",
   "projects": {
     "web": {
       "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
-      "runtimeErrorCountLast24h": 0,
+      "runtimeErrorCountLast24h": 13,
       "alerting": {
         "status": "UNVERIFIED",
         "destinationConfigured": null,
@@ -15,7 +15,7 @@
     },
     "mobile": {
       "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
-      "runtimeErrorCountLast24h": 0,
+      "runtimeErrorCountLast24h": 1,
       "alerting": {
         "status": "UNVERIFIED",
         "destinationConfigured": null,
@@ -24,5 +24,5 @@
       }
     }
   },
-  "interpretation": "Zero grouped runtime error/fatal entries in the prior 24 hours does not prove that future failures will notify an operator. Both production alert routes and test delivery remain unverified. No alerting configuration was changed."
+  "interpretation": "Web produced 13 and mobile 1 error-level log entries in the prior 24 hours. Web entries include transient Supabase readiness failures and one appointment notification dispatch failure. Vercel alert-route inventory and test delivery remain unverified; no alert settings were changed."
 }

@@ -1,27 +1,42 @@
 {
-  "readAt": "2026-10-01",
-  "scope": "Read-only Supabase project, migration, advisor, RLS and browser-grant readback",
+  "readAt": "2026-10-17",
+  "scope": "Current read-only Supabase project, migration, advisor, RLS and effective browser-grant readback",
   "projects": {
     "development": {
       "name": "petmanager-dev",
       "ref": "qefxdtmdtvnzgupmjlom",
       "status": "ACTIVE_HEALTHY",
       "region": "ap-southeast-2",
-      "migrationCount": 167,
-      "lastMigration": "20260930151901",
+      "migrationCount": 170,
+      "lastMigration": "20261006141418",
       "securityAdvisors": {
-        "rls_enabled_no_policy": { "level": "INFO", "count": 78 },
-        "auth_leaked_password_protection": { "level": "WARN", "count": 1 }
+        "rls_enabled_no_policy": {
+          "level": "INFO",
+          "count": 82
+        },
+        "auth_leaked_password_protection": {
+          "level": "WARN",
+          "count": 1
+        }
       },
       "performanceAdvisors": {
-        "unindexed_foreign_keys": { "level": "INFO", "count": 137 },
-        "unused_index": { "level": "INFO", "count": 57 }
+        "unindexed_foreign_keys": {
+          "level": "INFO",
+          "count": 139
+        },
+        "unused_index": {
+          "level": "INFO",
+          "count": 55
+        }
       },
       "publicTableRlsReadback": {
-        "tableCount": 92,
+        "tableCount": 96,
         "tablesWithoutRls": 0,
-        "tablesWithoutPolicies": 75,
-        "browserTableGrantRows": { "anon": 0, "authenticated": 0 }
+        "tablesWithoutPolicies": 79,
+        "browserTableGrantRows": {
+          "anon": 0,
+          "authenticated": 0
+        }
       }
     },
     "production": {
@@ -29,23 +44,38 @@
       "ref": "ysxykikqnneuhypybjry",
       "status": "ACTIVE_HEALTHY",
       "region": "ap-southeast-1",
-      "migrationCount": 166,
-      "lastMigration": "20260929131500",
+      "migrationCount": 180,
+      "lastMigration": "20261017130000",
       "securityAdvisors": {
-        "rls_enabled_no_policy": { "level": "INFO", "count": 79 },
-        "auth_leaked_password_protection": { "level": "WARN", "count": 1 }
+        "rls_enabled_no_policy": {
+          "level": "INFO",
+          "count": 86
+        },
+        "auth_leaked_password_protection": {
+          "level": "WARN",
+          "count": 1
+        }
       },
       "performanceAdvisors": {
-        "unindexed_foreign_keys": { "level": "INFO", "count": 136 },
-        "unused_index": { "level": "INFO", "count": 79 }
+        "unindexed_foreign_keys": {
+          "level": "INFO",
+          "count": 143
+        },
+        "unused_index": {
+          "level": "INFO",
+          "count": 74
+        }
       },
       "publicTableRlsReadback": {
-        "tableCount": 92,
+        "tableCount": 99,
         "tablesWithoutRls": 0,
-        "tablesWithoutPolicies": 76,
-        "browserTableGrantRows": { "anon": 0, "authenticated": 0 }
+        "tablesWithoutPolicies": 83,
+        "browserTableGrantRows": {
+          "anon": 0,
+          "authenticated": 0
+        }
       }
     }
   },
-  "interpretation": "Both projects are ACTIVE_HEALTHY. Development is one migration ahead of production (20260930151901); no production migration was applied. All 92 public tables on both projects have RLS enabled and both anon/authenticated effective browser table grant counts are zero. Leaked-password protection remains WARN on both projects."
+  "interpretation": "Both Supabase projects are ACTIVE_HEALTHY. Production has 180 applied migrations through 20261017130000, matching the current production release. All public tables have RLS enabled and current effective anon/authenticated table grants are zero. Leaked-password protection remains WARN in both projects."
 }

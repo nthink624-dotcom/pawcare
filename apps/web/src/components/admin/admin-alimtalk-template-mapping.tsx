@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getAdminErrorMessage } from "@/components/admin/admin-error-message";
 import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 import { fetchApiJson } from "@/lib/api";
+import { type NotificationVariableBindings } from "@/lib/notification-registry";
 
 type TemplateOption = {
   templateCode: string;
@@ -14,11 +15,13 @@ type TemplateOption = {
   inspectionStatus: string;
   serviceStatus: string;
   buttons: Array<{ name: string; type: string }>;
+  variables: string[];
 };
 
 type MappingResponse = {
   templates: TemplateOption[];
   providerTemplates: TemplateOption[];
+  variableKeys: string[];
   notificationMappings: Array<{
     type: string;
     title: string;
@@ -34,6 +37,9 @@ type MappingResponse = {
     serviceStatus: string | null;
     buttons: Array<{ name: string; type: string }>;
     usable: boolean;
+    mappingId: string | null;
+    updatedAt: string | null;
+    variableBindings: NotificationVariableBindings;
   }>;
   connection: {
     relayConnected: boolean;
@@ -52,9 +58,9 @@ export default function AdminAlimtalkTemplateMapping() {
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [notificationMappings, setNotificationMappings] = useState<MappingResponse["notificationMappings"]>([]);
   const [connection, setConnection] = useState<MappingResponse["connection"] | null>(null);
-  const [selectedCode, setSelectedCode] = useState("");
-  const [savedCode, setSavedCode] = useState("");
-  const [savedName, setSavedName] = useState<string | null>(null);
+  const [draftCodes, setDraftCodes] = useState<Record<string,string>>({});
+  const [draftBindings,setDraftBindings]=useState<Record<string,NotificationVariableBindings>>({});
+  const [variableKeys,setVariableKeys]=useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,9 +74,9 @@ export default function AdminAlimtalkTemplateMapping() {
       setTemplates(response.templates);
       setNotificationMappings(response.notificationMappings);
       setConnection(response.connection);
-      setSelectedCode(response.selectedCode);
-      setSavedCode(response.persistedCode);
-      setSavedName(response.selectedName);
+      setDraftCodes(Object.fromEntries(response.notificationMappings.map(mapping=>[mapping.alias,mapping.templateCode ?? ""])));
+      setDraftBindings(Object.fromEntries(response.notificationMappings.map(mapping=>[mapping.alias,mapping.variableBindings ?? {}])));
+      setVariableKeys(response.variableKeys);
       setError(null);
     } catch (cause) {
       setError(getAdminErrorMessage(cause, "쏘다에서 승인된 예약 확정 템플릿을 불러오지 못했습니다."));
@@ -84,7 +90,6 @@ export default function AdminAlimtalkTemplateMapping() {
     return () => window.cancelAnimationFrame(frame);
   }, [load]);
 
-  const isDirty = !savedCode || selectedCode !== savedCode;
   const sendableCount = notificationMappings.filter((mapping) => mapping.templateCode && mapping.usable).length;
   const stoppedCount = notificationMappings.filter((mapping) =>
     Boolean(mapping.templateCode) && ["S", "STP", "STOP", "STOPPED"].includes(mapping.serviceStatus?.toUpperCase() ?? ""),
@@ -104,7 +109,7 @@ export default function AdminAlimtalkTemplateMapping() {
     {
       key: "reservation-prep",
       title: "예약 전 준비",
-      aliases: ["booking_consent_request"],
+      aliases: ["booking_consent_request","booking_deposit_request","booking_deposit_cancelled","booking_deposit_expired","booking_deposit_refunded"],
     },
     {
       key: "reservation-guide",
@@ -141,7 +146,7 @@ export default function AdminAlimtalkTemplateMapping() {
       if (!normalized) return "검수 상태 미확인";
       return `검수 확인 필요 (${code})`;
     }
-    if (["R", "RDY", "READY", "ACT", "ACTIVE"].includes(normalized)) return "발송 가능";
+    if (["A", "R", "RDY", "READY", "ACT", "ACTIVE"].includes(normalized)) return "발송 가능";
     if (["S", "STP", "STOP", "STOPPED"].includes(normalized)) return "중지 · 발송 불가";
     if (["DMT", "DORMANT"].includes(normalized)) return "휴면";
     if (["BLK", "BLOCKED"].includes(normalized)) return "차단 · 발송 불가";
@@ -164,8 +169,9 @@ export default function AdminAlimtalkTemplateMapping() {
     return { label: "상태 확인 필요", tone: "warning" as const };
   }
 
-  async function save() {
-    if (!selectedCode || !isDirty) return;
+  async function save(mapping: MappingResponse["notificationMappings"][number]) {
+    const selectedCode=draftCodes[mapping.alias];
+    if (!selectedCode) return;
     setSaving(true);
     setError(null);
     setNotice(null);
@@ -175,13 +181,11 @@ export default function AdminAlimtalkTemplateMapping() {
         {
           method: "PUT",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ templateCode: selectedCode }),
+          body: JSON.stringify({ templateAlias:mapping.alias,templateCode:selectedCode,variableBindings:draftBindings[mapping.alias] ?? {},expectedCurrentId:mapping.mappingId,expectedUpdatedAt:mapping.updatedAt }),
         },
       );
-      setSelectedCode(response.selectedCode);
-      setSavedCode(response.selectedCode);
-      setSavedName(response.selectedName);
       setNotice("저장됨");
+      await load();
     } catch (cause) {
       setError(getAdminErrorMessage(cause, "저장 실패"));
     } finally {
@@ -245,6 +249,11 @@ export default function AdminAlimtalkTemplateMapping() {
               </div>
               <ul className="divide-y divide-[#E8EDF3]">
           {group.mappings.map((mapping) => {
+            const selectedCode=draftCodes[mapping.alias] ?? "";
+            const selected=templates.find(template=>template.templateCode===selectedCode);
+            const bindings=draftBindings[mapping.alias] ?? {};
+            const isDirty=selectedCode!==(mapping.templateCode ?? "")||JSON.stringify(bindings)!==JSON.stringify(mapping.variableBindings ?? {});
+            const missingBinding=(selected?.variables ?? []).some(variable=>!variableKeys.includes(bindings[variable] ?? variable));
             const status = getMappingStatus(mapping);
             const statusClass = status.tone === "success"
               ? "bg-[#EAF7F1] text-[#1F6B5B]"
@@ -261,7 +270,7 @@ export default function AdminAlimtalkTemplateMapping() {
                 {duplicateCount > 1 ? <span className={`text-[#8B6429] ${ADMIN_TYPOGRAPHY.badge}`}>중복 {duplicateCount}</span> : null}
                 <span className={`rounded-full px-2 py-0.5 ${statusClass} ${ADMIN_TYPOGRAPHY.badge}`}>{status.label}</span>
                 <details className="basis-full sm:ml-auto sm:basis-auto">
-                <summary className={`min-h-8 cursor-pointer text-[#2563EB] ${ADMIN_TYPOGRAPHY.helper}`}>연결 정보{mapping.alias === "booking_confirmed" ? " · 템플릿 변경" : ""}</summary>
+                <summary className={`min-h-11 cursor-pointer text-[#2563EB] ${ADMIN_TYPOGRAPHY.helper}`}>연결 정보 · 템플릿 변경</summary>
                 <div className="mt-2 rounded-[8px] bg-[#F8FAFC] p-3">
                   <p className={`break-all text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>
                     PetManager 코드 <code className="font-medium">{mapping.alias}</code> · {formatMappingSource(mapping.source)}
@@ -275,20 +284,21 @@ export default function AdminAlimtalkTemplateMapping() {
                     {mapping.templateContent}
                     {mapping.buttons.length ? <p className="mt-2">버튼: {mapping.buttons.map((button) => button.name).join(", ")}</p> : null}
                   </div> : null}
-                  {mapping.alias === "booking_confirmed" ? <div className="mt-3 grid gap-2 border-t border-[#E8EDF3] pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <div className="mt-3 grid gap-2 border-t border-[#E8EDF3] pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                     <label className="block min-w-0">
-                      <span className={`mb-1 block text-[#475569] ${ADMIN_TYPOGRAPHY.label}`}>승인된 예약 확정 템플릿</span>
-                      <select value={selectedCode} onChange={(event) => { setSelectedCode(event.target.value); setNotice(null); }} disabled={loading || saving || templates.length === 0} className={`min-h-11 w-full rounded-[8px] border border-[#D9E0E8] bg-white px-3 text-[#15213B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] disabled:bg-[#F8FAFC] ${ADMIN_TYPOGRAPHY.control}`}>
+                      <span className={`mb-1 block text-[#475569] ${ADMIN_TYPOGRAPHY.label}`}>승인된 템플릿</span>
+                      <select aria-label={`${mapping.title} 연결 템플릿`} value={selectedCode} onChange={(event) => { setDraftCodes(current=>({...current,[mapping.alias]:event.target.value}));setDraftBindings(current=>({...current,[mapping.alias]:{}})); setNotice(null); }} disabled={loading || saving || templates.length === 0} className={`min-h-11 w-full rounded-[8px] border border-[#D9E0E8] bg-white px-3 text-[#15213B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] disabled:bg-[#F8FAFC] ${ADMIN_TYPOGRAPHY.control}`}>
                         <option value="">템플릿 선택</option>
-                        {selectedCode && !templates.some((template) => template.templateCode === selectedCode) ? <option value={selectedCode}>{savedName || selectedCode} · 현재 연결됨</option> : null}
+                        {selectedCode && !templates.some((template) => template.templateCode === selectedCode) ? <option value={selectedCode}>{mapping.templateName || selectedCode} · 현재 연결 · 사용 확인 필요</option> : null}
                         {templates.map((template) => <option key={template.templateCode} value={template.templateCode}>{template.templateName} · {template.templateCode}</option>)}
                       </select>
                     </label>
-                    <button type="button" onClick={() => void save()} disabled={loading || saving || !selectedCode || !isDirty} className={`inline-flex min-h-11 items-center justify-center rounded-[8px] bg-[#111A30] px-4 text-white hover:bg-[#1A294A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}>
+                    <button type="button" onClick={() => void save(mapping)} disabled={loading || saving || !selected || !isDirty || missingBinding} className={`inline-flex min-h-11 items-center justify-center rounded-[8px] bg-[#111A30] px-4 text-white hover:bg-[#1A294A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${ADMIN_TYPOGRAPHY.control}`}>
                       {saving ? "적용 중" : "적용"}
                     </button>
-                    {templates.length === 0 ? <p className={`sm:col-span-2 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>쏘다에 사용 가능한 예약 확정 템플릿이 없습니다.</p> : null}
-                  </div> : null}
+                    {selected ? <div className="space-y-2 sm:col-span-2"><p className={`whitespace-pre-wrap text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>{selected.templateContent}</p>{selected.variables.map(variable=><label key={variable} className="grid min-w-0 gap-1 sm:grid-cols-2"><span className={`break-all text-[#475569] ${ADMIN_TYPOGRAPHY.label}`}>{`#{${variable}}`}</span><select aria-label={`${mapping.title} ${variable} 자동 입력`} value={bindings[variable] ?? (variableKeys.includes(variable)?variable:"")} onChange={event=>setDraftBindings(current=>({...current,[mapping.alias]:{...bindings,[variable]:event.target.value}}))} className="min-h-11 min-w-0 rounded-[8px] border border-[#d9e0e8] bg-white px-2 text-[14px]"><option value="">자동 입력 항목 선택</option>{variableKeys.map(key=><option key={key} value={key}>{key}</option>)}</select></label>)}</div> : null}
+                    {templates.length === 0 ? <p className={`sm:col-span-2 text-[#64748B] ${ADMIN_TYPOGRAPHY.helper}`}>쏘다에 승인되어 사용 가능한 템플릿이 없습니다.</p> : null}
+                  </div>
                 </div>
                 </details>
               </div>

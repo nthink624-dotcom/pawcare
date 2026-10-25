@@ -13,6 +13,7 @@ import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-set
 import { deriveOwnerInitialSetupReadiness } from "@/lib/owner-initial-setup-readiness";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { expireUnreportedDeposits } from "@/server/booking-deposit-hold";
+import { DEPOSIT_PREVIEW_SELECT, projectDepositPreview } from "@petmanager/shared/contracts/booking-deposit-preview";
 import { defaultStaffProfileMessage, getStaffProfileMessage } from "@/lib/staff-display";
 import { isStaffProfileFallbackKey } from "@/lib/staff-profile-fallback";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -46,6 +47,7 @@ import type {
 } from "@/types/domain";
 
 type BootstrapOptions = {
+  includeDepositPreview?: boolean;
   onTiming?: (phase: "deposit_expiry" | "data_queries", durationMs: number) => void;
   allowMock?: boolean;
   includeLanding?: boolean;
@@ -470,10 +472,11 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   }
 
   const buildAppointmentsQuery = () => {
-    let query = supabase.from("appointments").select("*").eq("shop_id", shopId).order("appointment_date").order("appointment_time");
+    const selection: string = options.includeDepositPreview ? DEPOSIT_PREVIEW_SELECT : "*";
+    let query = supabase.from("appointments").select(selection).eq("shop_id", shopId).order("appointment_date").order("appointment_time");
     if (appointmentsFrom) query = query.gte("appointment_date", appointmentsFrom);
     if (appointmentsTo) query = query.lte("appointment_date", appointmentsTo);
-    return query;
+    return query.returns<Array<Appointment & { booking_deposit_links?: unknown }>>();
   };
   const appointmentsQuery = buildAppointmentsQuery();
   let appointmentChangeEventsQuery: any = includeAppointmentChangeEvents
@@ -604,7 +607,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     ((appointmentsRes.data ?? []) as Appointment[])
       .filter((appointment) => activeGuardianIds.has(appointment.guardian_id) && activePetIds.has(appointment.pet_id)),
     appointmentChangeEvents,
-  ).map(normalizeAppointmentForBootstrap);
+  ).map(projectDepositPreview).map(normalizeAppointmentForBootstrap);
 
   const normalizedOwnerProfile = ownerProfileRes.error
     ? null

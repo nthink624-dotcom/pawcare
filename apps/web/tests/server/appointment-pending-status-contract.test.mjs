@@ -40,6 +40,8 @@ function setFirstAppointmentStatus(status) {
   const appointmentDate = addDate(currentDateInTimeZone(), 14);
   setMockStore({
     ...store,
+    shop: { ...store.shop, regular_closed_days: [], business_hours: Object.fromEntries(Array.from({ length: 7 }, (_, day) => [day, { open: "00:00", close: "23:59", enabled: true }])) },
+    staffMembers: store.staffMembers.map(member => ({ ...member, defaultDays: ["sun", "mon", "tue", "wed", "thu", "fri", "sat"], startTime: "00:00", endTime: "23:59", regularOff: "" })),
     appointments: store.appointments.map((item) =>
       item.id === appointment.id
         ? {

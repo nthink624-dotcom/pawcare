@@ -19,7 +19,7 @@ import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-grou
 import { CUSTOMER_BOOKING_HORIZON_DAYS } from "@/lib/customer-booking-window";
 import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
-import type { SignaturePoint } from "@petmanager/shared/contracts/booking-preparation";
+import type { CustomerBookingDepositOptions, SignaturePoint } from "@petmanager/shared/contracts/booking-preparation";
 
 type ActiveMode = "first" | "manage" | null;
 type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
@@ -74,6 +74,7 @@ type BookingCreateResponse = {
   bookingAccessToken: string;
   bookingManageUrl: string;
   profilePets?: BookingProfilePet[];
+  depositInfo?: { amount: number; dueAt: string | null; bankName: string; bankAccount: string; bankHolder: string } | null;
 };
 
 type CustomerLookupProfilePayload = {
@@ -82,7 +83,7 @@ type CustomerLookupProfilePayload = {
 };
 
 type BookingConsentAcceptance = { templateId: string; version: number; signerName: string; signature: SignaturePoint[][]; agreed: boolean };
-type CustomerBookingConsentPreview = { enabled: boolean; legacyGrace: boolean; documents: Array<{ id: string; version: number; title: string; body: string; scope: "pet" | "appointment" }> };
+type CustomerBookingConsentPreview = { enabled: boolean; legacyGrace: boolean; documents: Array<{ id: string; version: number; title: string; body: string; scope: "pet" | "appointment" }>; depositOptions: CustomerBookingDepositOptions };
 
 const initialFirstVisitState: FirstVisitState = {
   ownerName: "",
@@ -464,7 +465,7 @@ export default function CustomerBookingPage({
   const [completedFirstVisitBooking, setCompletedFirstVisitBooking] = useState<BookingCreateResponse | null>(null);
   const [completionManageAccessToken, setCompletionManageAccessToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [policyAcceptance, setPolicyAcceptance] = useState({ version: 0, accepted: false });
+  const [policyAcceptance, setPolicyAcceptance] = useState<{ version: number; accepted: boolean; depositChoice: boolean | null }>({ version: 0, accepted: false, depositChoice: null });
   const [bookingConsentPreview, setBookingConsentPreview] = useState<CustomerBookingConsentPreview | null>(null);
   const [bookingConsentLoading, setBookingConsentLoading] = useState(false);
   const [bookingConsentError, setBookingConsentError] = useState("");
@@ -523,13 +524,13 @@ export default function CustomerBookingPage({
       setBookingConsentAcceptances([]);
       void fetchJson<CustomerBookingConsentPreview>("/api/customer-booking-consent", {
         method: "POST",
-        body: JSON.stringify({ shopId, guardianName: firstVisit.ownerName, phone: phoneNormalize(firstVisit.phone), petName: firstVisit.petName }),
+        body: JSON.stringify({ shopId, guardianName: firstVisit.ownerName, phone: phoneNormalize(firstVisit.phone), petName: firstVisit.petName, appointmentDate: firstVisit.date || undefined }),
       }).then(result => { if (active) setBookingConsentPreview(result); })
         .catch(error => { if (active) { setBookingConsentPreview(null); setBookingConsentError(error instanceof Error ? error.message : "동의서를 확인하지 못했습니다."); } })
         .finally(() => { if (active) setBookingConsentLoading(false); });
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [activeMode, firstVisit.ownerName, firstVisit.petName, firstVisit.phone, firstVisitStep, previewOnly, shopId]);
+  }, [activeMode, firstVisit.ownerName, firstVisit.petName, firstVisit.phone, firstVisitStep, previewOnly, shopId, firstVisit.date]);
 
   useEffect(() => {
     if (!detectedBreedPricingGroup || customerServiceOptions.length === 0) return;
@@ -778,8 +779,8 @@ export default function CustomerBookingPage({
     if (!token) return [];
 
     try {
-      const query = new URLSearchParams({ shopId, t: token });
-      const result = await fetchJson<CustomerLookupProfilePayload>(`/api/customer-lookup?${query.toString()}`, { cache: "no-store" });
+      const query = new URLSearchParams({ shopId });
+      const result = await fetchJson<CustomerLookupProfilePayload>(`/api/customer-lookup?${query.toString()}`, { cache: "no-store", headers: { "x-booking-access-token": token } });
       return normalizeLookupPets(result.pets);
     } catch {
       return [];
@@ -787,6 +788,7 @@ export default function CustomerBookingPage({
   }
 
   async function startAdditionalBooking() {
+    window.history.replaceState(null, "", `/book/${encodeURIComponent(shopId)}`);
     const defaultServiceOption = customerServiceOptions[0];
     const defaultServiceId = defaultServiceOption?.serviceId || "";
     const defaultServiceOptionId = defaultServiceOption?.id || "";
@@ -925,6 +927,7 @@ export default function CustomerBookingPage({
         shopId,
         bookingPolicyVersion: policyAcceptance.version,
         bookingPolicyAccepted: policyAcceptance.accepted,
+        depositChoice: policyAcceptance.depositChoice,
         consentAcceptances: bookingConsentAcceptances,
         guardianName: firstVisit.ownerName,
         phone: phoneNormalize(firstVisit.phone),
@@ -975,6 +978,11 @@ export default function CustomerBookingPage({
       }
 
       setCompletedFirstVisitBooking(createdBooking);
+      // Keep the existing receipt visible; reload/back re-entry must resolve to this booking,
+      // not the reusable new-booking draft. The signed token stays out of server URL logs.
+      if (createdBooking.bookingAccessToken) {
+        window.history.replaceState(null, "", `/book/${encodeURIComponent(shopId)}/manage#t=${encodeURIComponent(createdBooking.bookingAccessToken)}`);
+      }
       setFirstVisitStep(5);
     } catch (error) {
       setSubmitFeedback({
@@ -1029,11 +1037,11 @@ export default function CustomerBookingPage({
               submitting={submitting}
               completedBooking={completedFirstVisitBooking}
               previewOnly={previewOnly}
-              policyReady={previewOnly || (policyAcceptance.accepted && bookingConsentPreview !== null && !bookingConsentLoading && !bookingConsentError && (!bookingConsentPreview.enabled || bookingConsentPreview.documents.every(document => {
+              policyReady={previewOnly || (policyAcceptance.accepted && policyAcceptance.depositChoice !== null && bookingConsentPreview !== null && !bookingConsentLoading && !bookingConsentError && (!bookingConsentPreview.enabled || bookingConsentPreview.documents.every(document => {
                 const acceptance = bookingConsentAcceptances.find(item => item.templateId === document.id && item.version === document.version);
                 return Boolean(acceptance?.agreed && acceptance.signerName.trim() && acceptance.signature.length);
               })))}
-              policyNotice={previewOnly ? null : <BookingPolicyNotice shopId={shopId} onChange={setPolicyAcceptance} />}
+              policyNotice={previewOnly ? null : <BookingPolicyNotice shopId={shopId} onChange={setPolicyAcceptance} depositOptions={bookingConsentPreview?.depositOptions ?? null} />}
               bookingConsentPreview={bookingConsentPreview}
               bookingConsentLoading={bookingConsentLoading}
               bookingConsentError={bookingConsentError}
@@ -1089,8 +1097,8 @@ export default function CustomerBookingPage({
               onNoteChange={(value) => setFirstVisit((prev) => ({ ...prev, note: value }))}
               onGoManage={() => {
                 if (completedFirstVisitBooking?.bookingAccessToken) {
-                  setCompletionManageAccessToken(completedFirstVisitBooking.bookingAccessToken);
-                  setActiveMode("manage");
+                  window.history.replaceState(null, "", `/book/${encodeURIComponent(shopId)}/manage#t=${encodeURIComponent(completedFirstVisitBooking.bookingAccessToken)}`);
+                  window.location.reload();
                   return;
                 }
                 resetView();

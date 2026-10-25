@@ -1,3 +1,4 @@
+import { shouldSendByShopSettings } from "@/lib/notification-registry";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -23,6 +24,12 @@ const automaticVisitNoticeTypes: AutomaticVisitNoticeType[] = [
   "visit_reminder_notice",
   "appointment_reminder_10m",
 ];
+
+function isAutomaticVisitNoticeEnabled(settings: ShopNotificationSettings, type: AutomaticVisitNoticeType) {
+  const preference = settings.alimtalk_type_enabled?.[type];
+  return (typeof preference === "boolean" || settings.appointment_reminder_10m_mode === "auto")
+    && Boolean(shouldSendByShopSettings(settings, type));
+}
 
 const handledAutomaticVisitNoticeStatuses = ["queued", "sent", "mocked"];
 
@@ -267,9 +274,7 @@ export async function processAutomaticVisitReminders(options?: {
 
     const settings = normalizeShopNotificationSettings(shop.notification_settings);
     if (
-      !settings.enabled ||
-      !settings.appointment_reminder_10m_enabled ||
-      settings.appointment_reminder_10m_mode !== "auto"
+      !automaticVisitNoticeTypes.some(type => isAutomaticVisitNoticeEnabled(settings, type))
     ) {
       result.skipped += 1;
       pushReason(result, appointment.id, "Automatic visit reminder is disabled by shop settings.");
@@ -286,6 +291,7 @@ export async function processAutomaticVisitReminders(options?: {
     }
 
     for (const type of noticeTypes) {
+      if (!isAutomaticVisitNoticeEnabled(settings, type)) { result.skipped += 1; pushReason(result, appointment.id, "This visit notice is disabled by shop settings."); continue; }
       try {
         const dispatchResult = await dispatchAutomaticVisitNotice({ appointment, type });
 

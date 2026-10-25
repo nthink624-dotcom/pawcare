@@ -1,5 +1,7 @@
+import { readCustomerConsentState } from "@/server/customer-consent-state";
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { after } from "next/server";
 import { DEFAULT_BOOKING_CONSENT_ID, DEFAULT_BOOKING_POLICY, type BookingPolicy, type BookingPreparation, type ConsentRecord, type PreparationResponse } from "@petmanager/shared/contracts/booking-preparation";
@@ -9,13 +11,19 @@ import { OwnerApiError } from "@/server/owner-api-auth";
 import { dispatchNotification } from "@/server/notification-dispatch";
 import { deliverCustomerBookingNotificationSafely } from "@/lib/customer-booking-notification";
 import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors";
-import { depositHoldDeadline, expireUnreportedDeposits } from "@/server/booking-deposit-hold";
+import { depositHoldDeadline } from "@/server/booking-deposit-hold";
+import { readDepositLedger, actOnDepositLedger, isLedgerAction, flushDepositOutbox, readDepositRetryDelivery } from "@/server/booking-deposit-ledger";
 
 const rule = z.enum(["normal", "approval", "deposit", "blocked"]);
 export const bookingPolicySchema = z.object({
   depositMode: z.enum(["off", "optional", "required"]), depositAudience: z.enum(["all", "new", "noshow"]),
   depositAmount: z.number().int().min(1).max(10000000), depositDueHours: z.number().int().min(1).max(720),
   depositHoldMinutes: z.number().int().min(1).max(1440).default(20),
+  depositBase: z.enum(["all", "first_visit", "none"]).optional(),
+  depositNoShowEnabled: z.boolean().optional(), depositNoShowDays: z.number().int().min(1).max(3650).optional(),
+  depositNoShowCount: z.number().int().min(1).max(100).optional(), depositReviewMinutes: z.number().int().min(1).max(1440).optional(),
+  depositRefundRules: z.array(z.object({ hoursBefore: z.number().int().min(0).max(8760), percent: z.number().int().min(0).max(100) })).min(1).max(8).optional(),
+  depositNoShowRefundPercent: z.number().int().min(0).max(100).optional(),
   bankName: z.string().trim().max(50), bankAccount: z.string().trim().max(60), bankHolder: z.string().trim().max(50),
   cancellationCutoffHours: z.number().int().min(0).max(720), cancellationNotice: z.string().trim().max(3000),
   firstNoshowRule: rule, repeatNoshowRule: rule, consentBeforeStart: z.boolean(),
@@ -23,11 +31,12 @@ export const bookingPolicySchema = z.object({
     id: z.string().uuid(), version: z.number().int().positive(), title: z.string().trim().min(1).max(100),
     body: z.string().trim().min(1).max(12000), required: z.boolean(), scope: z.enum(["pet", "appointment"]), enabled: z.boolean(),
     audience: z.enum(["all", "new", "unsigned", "manual"]).default("all"),
-    reconsentExisting: z.boolean().default(true),
+    reconsentExisting: z.boolean().default(true), previousTemplateId: z.string().min(1).optional(),
     archivedAt: z.string().datetime().optional(),
   })).max(100),
 }).superRefine((p, ctx) => {
-  if ((p.depositMode !== "off" || p.firstNoshowRule === "deposit" || p.repeatNoshowRule === "deposit") && (!p.bankName || !p.bankAccount || !p.bankHolder))
+  // OFF is the feature gate. Retained customer/no-show rules do not enable it.
+  if (p.depositMode !== "off" && (!p.bankName || !p.bankAccount || !p.bankHolder))
     ctx.addIssue({ code: "custom", message: "예약금 사용 시 입금 계좌를 모두 입력해 주세요." });
   if (new Set(p.templates.map(t => t.id)).size !== p.templates.length)
     ctx.addIssue({ code: "custom", message: "문서 식별자가 중복되었습니다." });
@@ -37,6 +46,7 @@ function db() {
   if (!admin) throw new OwnerApiError("예약 관리 저장소가 연결되지 않았습니다.", 503);
   return admin;
 }
+
 function databaseError(error: { code?: string; message?: string } | null): never {
   if (error?.message?.includes("BOOKING_DEPOSIT_EXPIRED")) throw new OwnerApiError("입금 신고 기한이 지나 예약 시간이 해제되었습니다. 이체하지 말고 매장에 문의해 주세요.", 409);
   if (error?.message?.includes("VERSION_CONFLICT")) throw new OwnerApiError("다른 화면에서 변경되었습니다. 새로 불러온 뒤 다시 처리해 주세요.", 409);
@@ -69,8 +79,8 @@ export async function saveBookingPolicy(shopId: string, input: unknown, version:
   for (const template of policy.templates) {
     const old = current.policy.templates.find(t => t.id === template.id);
     if (!old) { template.version = 1; continue; }
-    const changed = ["title", "body", "required", "scope"].some(k => old[k as keyof typeof old] !== template[k as keyof typeof template]);
-    template.version = old.version + (changed ? 1 : 0);
+    const changed = ["title", "body", "required", "scope", "previousTemplateId"].some(k => old[k as keyof typeof old] !== template[k as keyof typeof template]);
+    template.version = old.version + (changed || (old.reconsentExisting === false && template.reconsentExisting === true) ? 1 : 0);
   }
   const result = version === 0
     ? await db().from("shop_booking_policies").insert({ shop_id: shopId, policy }).select("version").single()
@@ -79,7 +89,10 @@ export async function saveBookingPolicy(shopId: string, input: unknown, version:
   if (result.error) databaseError(result.error);
   if (!result.data) throw new OwnerApiError("매장 설정이 변경되었습니다. 다시 불러와 주세요.", 409);
   const savedVersion = Number(result.data.version);
-  await syncActiveBookingConsentVersions(shopId, policy, savedVersion);
+  // Deposit-only edits do not rewrite the version or terms of accepted bookings.
+  if (current.policy.consentBeforeStart !== policy.consentBeforeStart || !isDeepStrictEqual(current.policy.templates, policy.templates)) {
+    await syncActiveBookingConsentVersions(shopId, policy, savedVersion);
+  }
   return { policy, version: savedVersion };
 }
 
@@ -124,30 +137,9 @@ async function syncActiveBookingConsentVersions(shopId: string, policy: BookingP
       });
       for (const template of eligible) {
         if (data.consents.some(consent => consent.id === template.id && consent.version === template.version)) continue;
-        if (template.scope === "pet") {
-          const signed = await admin.from("booking_preparations").select("appointment_id")
-            .eq("shop_id", shopId).eq("guardian_id", current.guardianId).eq("pet_id", current.petId)
-            .contains("data", { consents: [{ id: template.id, version: template.version, status: "signed" }] })
-            .limit(1).maybeSingle();
-          if (signed.error) databaseError(signed.error);
-          if (signed.data) continue;
-          if (template.reconsentExisting === false) {
-            const previous = await admin.from("booking_preparations").select("data")
-              .eq("shop_id", shopId).eq("guardian_id", current.guardianId).eq("pet_id", current.petId)
-              .contains("data", { consents: [{ status: "signed" }] })
-              .order("updated_at", { ascending: false }).limit(1).maybeSingle();
-            if (previous.error) databaseError(previous.error);
-            const oldSigned = (previous.data?.data as BookingPreparation | undefined)?.consents.find(c => c.status === "signed");
-            const imported = await admin.from("pet_consent_import_status").select("status").eq("shop_id", shopId).eq("pet_id", current.petId).maybeSingle();
-            if (imported.error) databaseError(imported.error);
-            if (oldSigned || imported.data?.status === "recognized") {
-              data.consents.push({ ...template, status: "recognized", recognizedAt: now });
-              changed = true;
-              continue;
-            }
-          }
-        }
-        data.consents.push({ ...template, status: "pending" });
+        const state = await readCustomerConsentState(shopId, current.guardianId, current.petId, current.appointmentId);
+        const resolved = state.documents.find(doc => doc.id === template.id && doc.version === template.version);
+        data.consents.push(resolved ?? { ...template, status: "pending" });
         changed = true;
       }
       const activeIds = new Set(policy.templates.filter(template => template.enabled && !template.archivedAt).map(template => template.id));
@@ -158,7 +150,7 @@ async function syncActiveBookingConsentVersions(shopId: string, policy: BookingP
         }
       }
       if (!changed && data.policyVersion === policyVersion) continue;
-      data.policy = { ...data.policy, templates: policy.templates };
+      data.policy = { ...data.policy, templates: policy.templates, consentBeforeStart: policy.consentBeforeStart };
       data.policyVersion = policyVersion;
       if (changed) data.history.push({ action: "consent_policy_updated", at: now, actor: "system", note: "새 동의서 버전을 예약에 반영했습니다." });
       const saved = await admin.rpc("save_booking_preparation", {
@@ -170,12 +162,17 @@ async function syncActiveBookingConsentVersions(shopId: string, policy: BookingP
     if (rows.length < pageSize) break;
   }
 }
-export async function getPreparation(shopId: string, appointmentId: string, owner = false): Promise<PreparationResponse> {
+export async function getPreparation(shopId: string, appointmentId: string, owner = false, includeDetails = true): Promise<PreparationResponse> {
   const admin = db();
-  await expireUnreportedDeposits(admin, shopId, appointmentId);
-  const [booking, preparation] = await Promise.all([
-    admin.from("appointments").select("id,shop_id,guardian_id,pet_id,status,start_at,final_service_price").eq("shop_id", shopId).eq("id", appointmentId).maybeSingle(),
+  // A detail read/refresh must not mutate payment or reservation state.
+  // Time-based transitions remain owned by the existing maintenance path.
+  const [booking, preparation, ledger, livePolicy, available, previousRefunds] = await Promise.all([
+    admin.from("appointments").select("id,shop_id,guardian_id,pet_id,status,start_at,end_at,appointment_date,appointment_time,service_id,staff_id,memo,final_service_price").eq("shop_id", shopId).eq("id", appointmentId).maybeSingle(),
     admin.from("booking_preparations").select("version,data").eq("shop_id", shopId).eq("appointment_id", appointmentId).maybeSingle(),
+    readDepositLedger(shopId, appointmentId, includeDetails, owner),
+    owner ? readBookingPolicy(shopId) : readOptionalBookingPolicy(shopId),
+    owner && includeDetails ? admin.rpc("pm_deposit_available", { p_shop: shopId, p_appointment: appointmentId }) : Promise.resolve({ data: [], error: null }),
+    owner && includeDetails ? admin.from("booking_deposit_events").select("details,created_at").eq("appointment_id", appointmentId).eq("action", "refund") : Promise.resolve({ data: [], error: null }),
   ]);
   if (preparation.error) databaseError(preparation.error);
   if (booking.error || !booking.data) throw new OwnerApiError("예약을 찾을 수 없습니다.", 404);
@@ -184,28 +181,44 @@ export async function getPreparation(shopId: string, appointmentId: string, owne
   const result: PreparationResponse = {
     appointmentId: a.id, shopId: a.shop_id, guardianId: a.guardian_id, petId: a.pet_id,
     appointmentStatus: a.status, startAt: a.start_at, version: preparation.data.version, data: preparation.data.data as BookingPreparation,
+    schedule: { date: a.appointment_date, time: a.appointment_time.slice(0, 5), durationMinutes: Math.round((Date.parse(a.end_at) - Date.parse(a.start_at)) / 60000), serviceId: a.service_id, staffId: a.staff_id, memo: a.memo ?? "" },
   };
   const balance = result.data.deposit.receivedAmount - result.data.deposit.refundedAmount;
+  result.ledger = ledger;
+  if (available.error) databaseError(available.error);
+  result.availableDeposits = available.data ?? [];
+  if (previousRefunds.error) databaseError(previousRefunds.error);
+  result.previousDepositRefunds = (previousRefunds.data ?? []).flatMap(event => event.details.sourceDate ? [{ date: String(event.details.sourceDate), amount: Number(event.details.refunded) - Number(event.details.previousRefund), at: event.created_at }] : []);
   result.serviceAmount = a.final_service_price ?? null;
   result.remainingAmount = a.final_service_price == null ? null : Math.max(0, a.final_service_price - balance);
   result.excessDeposit = a.final_service_price == null ? 0 : Math.max(0, balance - a.final_service_price);
-  const guardian = await admin.from("guardians").select("notification_settings").eq("shop_id", shopId).eq("id", a.guardian_id).maybeSingle();
-  if (guardian.error || !guardian.data) throw new OwnerApiError("고객 수신 설정을 확인할 수 없습니다.");
+  if (result.ledger) {
+    result.remainingAmount = a.final_service_price == null ? null : Math.max(0, a.final_service_price - result.ledger.allocatedAmount);
+    result.excessDeposit = result.ledger.refundDue;
+  }
+  const [guardian, condition, noshows] = await Promise.all([
+    admin.from("guardians").select("notification_settings").eq("shop_id", shopId).eq("id", a.guardian_id).maybeSingle(),
+    owner ? admin.from("guardian_booking_conditions").select("rule").eq("shop_id", shopId).eq("guardian_id", a.guardian_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    owner ? admin.from("appointments").select("id", { count: "exact", head: true }).eq("shop_id", shopId).eq("guardian_id", a.guardian_id).eq("status", "noshow") : Promise.resolve({ count: 0, error: null }),
+  ]);
+  if (guardian.error || !guardian.data) throw new OwnerApiError("고객 수신 설정을 확인할 수 없습니다.", 503);
   const settings = guardian.data.notification_settings;
   result.notificationPreferences = { enabled: settings?.enabled !== false, consent: settings?.consent_request_enabled !== false, deposit: settings?.deposit_request_enabled !== false };
-  const livePolicy = owner ? await readBookingPolicy(shopId) : await readOptionalBookingPolicy(shopId);
   if (owner && !livePolicy) throw new OwnerApiError("예약 정책을 확인할 수 없습니다.");
   if (livePolicy) result.currentPolicyFeatures = {
     depositMode: livePolicy.policy.depositMode,
     consentEnabled: livePolicy.policy.consentBeforeStart,
     consentTemplates: livePolicy.policy.consentBeforeStart ? livePolicy.policy.templates.map(({ id, version, enabled, archivedAt, scope, audience }) => ({ id, version, enabled, archivedAt, scope, audience })) : [],
   };
+  const consentState = await readCustomerConsentState(shopId, a.guardian_id, a.pet_id, appointmentId);
+  result.consentStatus = {
+    enabled: consentState.enabled,
+    pendingCount: consentState.documents.filter(doc => doc.status === "pending").length,
+    recognizedCount: consentState.documents.filter(doc => doc.status === "recognized").length,
+    signedCount: consentState.documents.filter(doc => doc.status === "signed").length,
+  };
   if (owner) {
     const ownerPolicy = livePolicy ?? await readBookingPolicy(shopId);
-    const [condition, noshows] = await Promise.all([
-      admin.from("guardian_booking_conditions").select("rule").eq("shop_id", shopId).eq("guardian_id", a.guardian_id).maybeSingle(),
-      admin.from("appointments").select("id", { count: "exact", head: true }).eq("shop_id", shopId).eq("guardian_id", a.guardian_id).eq("status", "noshow"),
-    ]);
     if (condition.error || noshows.error) databaseError(condition.error ?? noshows.error);
     result.nextBookingRule = condition.data?.rule ?? ((noshows.count ?? 0) >= 2 ? ownerPolicy.policy.repeatNoshowRule : (noshows.count ?? 0) === 1 ? ownerPolicy.policy.firstNoshowRule : "normal");
     const petTemplates = result.data.policy.templates.filter(t => t.enabled && !t.archivedAt && t.scope === "pet");
@@ -223,7 +236,7 @@ export async function getPreparation(shopId: string, appointmentId: string, owne
     }
     result.signedPetConsentIds = [...signedIds];
     const token = createBookingAccessToken({ shopId, guardianId: a.guardian_id, petId: a.pet_id, appointmentId, action: "manage" });
-    result.manageUrl = `/book/${encodeURIComponent(shopId)}/manage?t=${encodeURIComponent(token)}`;
+    result.manageUrl = `/book/${encodeURIComponent(shopId)}/manage#t=${encodeURIComponent(token)}`;
   }
   return result;
 }
@@ -244,22 +257,11 @@ export async function initializePreparation(shopId: string, appointmentId: strin
   ]);
   if (guardian.error || pet.error || !guardian.data || !pet.data) throw new OwnerApiError("예약자와 반려동물 정보를 확인할 수 없습니다.");
   data.guardianName = guardian.data.name; data.petName = pet.data.name;
-  const [priorRows, importStatus] = await Promise.all([
-    admin.from("booking_preparations").select("data").eq("shop_id", shopId).eq("guardian_id", a.data.guardian_id).eq("pet_id", a.data.pet_id).limit(1000),
-    admin.from("pet_consent_import_status").select("status").eq("shop_id", shopId).eq("pet_id", a.data.pet_id).maybeSingle(),
-  ]);
-  if (priorRows.error || importStatus.error) databaseError(priorRows.error ?? importStatus.error);
-  const priorConsents = (priorRows.data ?? []).flatMap(row => Array.isArray(row.data?.consents) ? row.data.consents : []);
-  for (const template of data.consents) {
-    if (template.scope !== "pet") continue;
-    const signed = priorConsents.find((c: ConsentRecord) => c.id === template.id && c.version === template.version && c.status === "signed");
-    if (signed) data.consents[data.consents.indexOf(template)] = signed;
-    else if (template.reconsentExisting === false && (priorConsents.some((c: ConsentRecord) => ["signed", "recognized"].includes(c.status)) || importStatus.data?.status === "recognized")) {
-      data.consents[data.consents.indexOf(template)] = { ...template, status: "recognized", recognizedAt: new Date().toISOString() };
-    }
-  }
-  // Existing bookings are not retroactively made deposit-required without owner action.
-  const r = await admin.from("booking_preparations").insert({ appointment_id: appointmentId, shop_id: shopId, guardian_id: a.data.guardian_id, pet_id: a.data.pet_id, data });
+  const consentState = await readCustomerConsentState(shopId, a.data.guardian_id, a.data.pet_id, appointmentId);
+  data.consents = consentState.documents;
+  // Consent-only late initialization must not apply today's deposit policy to an existing booking.
+  // The insert trigger uses this server-only marker; normal booking snapshots remain unchanged.
+  const r = await admin.from("booking_preparations").insert({ appointment_id: appointmentId, shop_id: shopId, guardian_id: a.data.guardian_id, pet_id: a.data.pet_id, data: { ...data, depositInitialization: "existing_booking" } });
   if (r.error && r.error.code !== "23505") databaseError(r.error);
   return getPreparation(shopId, appointmentId, true);
 }
@@ -293,8 +295,16 @@ export async function authorizePreparationToken(token: string, appointmentId: st
   if (result.guardianId !== access.guardianId || result.petId !== access.petId) throw new OwnerApiError("이 예약에 접근할 수 없습니다.", 403);
   return result;
 }
+export function guidanceDeliveryOutcome(status: string, reason: string | null | undefined, purpose: "deposit" | "consent") {
+  if (status === "sent") return { status: "sent" as const, reason: purpose === "deposit" ? "예약금 요청 알림톡을 보냈습니다." : "동의서 요청 알림톡을 보냈습니다." };
+  if (status === "queued") return { status: "queued" as const, reason: reason || "알림톡 발송 대기 중입니다." };
+  if (status === "skipped") return { status: "blocked" as const, reason: reason || "수신 설정 또는 중복 발송 방지 조건으로 보내지 않았습니다." };
+  if (status === "mocked") return { status: "blocked" as const, reason: "테스트 모드에서는 실제 알림톡을 보내지 않았습니다." };
+  return { status: "failed" as const, reason: reason || "알림톡 발송을 완료하지 못했습니다. 작성 링크를 전달해 주세요." };
+}
 export const preparationActionSchema = z.object({
-  action: z.enum(["request_deposit", "report_deposit", "confirm_deposit", "correct_deposit", "waive_deposit", "refund_record", "sign", "add_consent", "waive_consent", "cancel", "request_cancel", "noshow", "correct_noshow", "set_condition", "set_preferences", "approve", "request_guidance"]),
+  action: z.enum(["request_deposit", "report_deposit", "confirm_deposit", "correct_deposit", "revoke_deposit", "waive_deposit", "refund_record", "retry_deposit", "sign", "add_consent", "waive_consent", "cancel", "request_cancel", "noshow", "correct_noshow", "set_condition", "set_preferences", "approve", "request_guidance"]),
+  requestKey: z.string().uuid().optional(), ledgerVersion: z.number().int().positive().optional(),
   rule: rule.optional(),
   cancellationKind: z.enum(["owner", "customer", "late_customer"]).optional(),
   version: z.number().int().positive(), note: z.string().trim().max(2000).default(""),
@@ -307,6 +317,29 @@ export const preparationActionSchema = z.object({
 export async function actOnPreparation(current: PreparationResponse, raw: unknown, actor: { kind: "owner" | "customer" | "system"; userId: string | null }) {
   const input = preparationActionSchema.parse(raw);
   if (actor.kind === "system") throw new OwnerApiError("처리 권한이 없습니다.", 403);
+  if (current.ledger && isLedgerAction(input.action)) {
+    if (input.action === "retry_deposit" && !["pending", "confirmed"].includes(current.appointmentStatus)) {
+      throw new OwnerApiError("취소되거나 종료된 예약에는 입금 재요청을 할 수 없습니다.", 409);
+    }
+    if (input.action === "retry_deposit" && current.ledger.state === "confirmed" && !current.ledger.unverified && !current.ledger.confirmationReviewRequired) {
+      throw new OwnerApiError("이미 입금이 확인되었습니다. 확인 금액이 잘못됐다면 입금액 수정을 이용해 주세요.", 409);
+    }
+    await actOnDepositLedger(current.shopId, current.appointmentId, input, actor);
+    if (input.action === "retry_deposit") {
+      const next = await getPreparation(current.shopId, current.appointmentId, actor.kind === "owner");
+      if (next.ledger) {
+        const target = { accountId: next.ledger.id, dedupeKey: `${next.ledger.id}:request:${next.ledger.retryCount}` };
+        await flushDepositOutbox(current.shopId, target);
+        next.depositDelivery = await readDepositRetryDelivery(current.shopId, target);
+      }
+      return next;
+    }
+    if (input.action !== "revoke_deposit") {
+      try { after(() => flushDepositOutbox(current.shopId)); } catch { await flushDepositOutbox(current.shopId); }
+    }
+    return getPreparation(current.shopId, current.appointmentId, actor.kind === "owner");
+  }
+  if (input.action === "revoke_deposit") throw new OwnerApiError("이 예약은 기존 정산 내역을 확인한 뒤 수동으로 처리해 주세요.", 409);
   if (input.version !== current.version) throw new OwnerApiError("예약 내용이 변경되었습니다. 다시 불러와 주세요.", 409);
   if (actor.kind === "customer" && !["report_deposit", "sign", "cancel", "request_cancel", "set_preferences"].includes(input.action)) throw new OwnerApiError("처리 권한이 없습니다.", 403);
   if (actor.kind === "owner" && ["sign", "set_preferences"].includes(input.action)) throw new OwnerApiError("보호자가 직접 처리해야 합니다.", 403);
@@ -314,7 +347,7 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
   const previousReceipt = deposit.receivedAmount;
   const active = ["pending", "confirmed"].includes(current.appointmentStatus);
   let nextStatus: string | null = null, nextRule: string | null = null;
-  const guidanceRequests: Array<{ id: string; purpose: "deposit" }> = [];
+  const guidanceRequests: Array<{ id: string; purpose: "deposit" | "consent" }> = [];
   let preferences: { consent: boolean; deposit: boolean } | null = null;
   if (!active && !["refund_record", "correct_noshow", "set_condition", "set_preferences"].includes(input.action)) throw new OwnerApiError("진행 중이거나 종료된 예약은 이 작업을 처리할 수 없습니다.", 409);
   switch (input.action) {
@@ -417,8 +450,26 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       if (deposit.required && !["confirmed", "waived"].includes(deposit.status)) throw new OwnerApiError("예약금을 확인하거나 면제한 뒤 승인해 주세요.");
       nextStatus = "confirmed"; break;
     case "request_guidance": {
-      if (input.consent) throw new OwnerApiError("동의서는 예약 과정에서 작성합니다.");
-      if (!input.deposit) throw new OwnerApiError("보낼 예약금 안내를 선택해 주세요.");
+      if (input.consent) {
+        const state = await readCustomerConsentState(current.shopId, current.guardianId, current.petId, current.appointmentId);
+        const pending = state.documents.filter(doc => doc.status === "pending");
+        if (!state.enabled || !pending.length) throw new OwnerApiError("새로 작성할 동의서가 없습니다.", 409);
+        // The existing optimistic preparation save claims the request before dispatch.
+        // Keep failed/uncertain requests too; an automatic callback must never resend.
+        if (data.requests.some(r => r.purposes.includes("consent"))) throw new OwnerApiError("이 예약에는 이미 동의서 요청 기록이 있습니다. 작성 링크를 전달해 주세요.", 409);
+        for (const doc of pending) {
+          const index = data.consents.findIndex(c => c.id === doc.id && c.version === doc.version);
+          if (index < 0) data.consents.push(doc);
+          else if (data.consents[index].status !== "signed") data.consents[index] = doc;
+        }
+        const id = randomUUID();
+        guidanceRequests.push({ id, purpose: "consent" });
+        data.requests.push({ id, at: now, purposes: ["consent"], status: "sending", reason: "동의서 알림톡 발송을 확인하고 있습니다.", consentVersions: Object.fromEntries(pending.map(doc => [doc.id, doc.version])) });
+      }
+      if (!input.deposit) {
+        if (!input.consent) throw new OwnerApiError("보낼 안내를 선택해 주세요.");
+        break;
+      }
       const prefs = current.notificationPreferences;
       if (prefs?.enabled === false || prefs?.deposit === false) throw new OwnerApiError("고객이 예약금 요청 알림 수신을 꺼 두었습니다.", 409);
       if (!["pending", "reported"].includes(deposit.status) || !deposit.dueAt || Date.parse(deposit.dueAt) <= Date.now()) throw new OwnerApiError("납부 대기 중인 예약금과 유효한 기한을 확인해 주세요.");
@@ -435,6 +486,10 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
   const result = await db().rpc("save_booking_preparation", { p_shop: current.shopId, p_appointment: current.appointmentId, p_version: current.version, p_data: data, p_status: nextStatus, p_rule: nextRule, p_preferences: preferences });
   if (result.error) databaseError(result.error);
   if (input.action === "cancel") {
+    if (current.ledger) {
+      try { after(() => flushDepositOutbox(current.shopId)); } catch { await flushDepositOutbox(current.shopId); }
+      return getPreparation(current.shopId, current.appointmentId, actor.kind === "owner");
+    }
     if (data.cancellation?.kind === "owner") {
       const task = () => deliverCustomerBookingNotificationSafely({ shopId: current.shopId, appointmentId: current.appointmentId,
         guardianId: current.guardianId, petId: current.petId, type: "booking_cancelled", channel: "alimtalk", skipIfExists: true }, dispatchNotification);
@@ -459,21 +514,9 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
           type: guidance.purpose === "deposit" ? "booking_deposit_request" : "booking_consent_request", channel: "alimtalk", skipIfExists: true,
           metadata: { bookingPreparationRequestId: guidance.id },
         });
-        if (delivery.notification.status === "sent") {
-          requestStatus = "sent";
-          requestReason = guidance.purpose === "deposit" ? "예약금 요청 알림톡을 보냈습니다." : "동의서 요청 알림톡을 보냈습니다.";
-        } else if (delivery.notification.status === "queued") {
-          requestStatus = "queued";
-          requestReason = delivery.notification.fail_reason || "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1 \uB300\uAE30 \uC911\uC785\uB2C8\uB2E4.";
-        } else if (delivery.notification.status === "skipped") {
-          requestStatus = "blocked";
-          requestReason = delivery.notification.fail_reason || "수신 설정 또는 중복 발송 방지 조건으로 보내지 않았습니다.";
-        } else if (delivery.notification.status === "mocked") {
-          requestStatus = "blocked";
-          requestReason = "테스트 모드에서는 실제 알림톡을 보내지 않았습니다.";
-        } else {
-          requestReason = delivery.notification.fail_reason || requestReason;
-        }
+        const outcome = guidanceDeliveryOutcome(delivery.notification.status, delivery.notification.fail_reason, guidance.purpose);
+        requestStatus = outcome.status;
+        requestReason = outcome.reason;
         if (requestReason.includes("Recipient phone number not found")) requestReason = "보호자 연락처가 없습니다. 번호를 등록한 뒤 다시 요청해 주세요.";
         else if (requestReason.includes("Missing Alimtalk template mapping")) requestReason = "알림톡 템플릿이 연결되지 않았습니다. 관리자 설정을 확인해 주세요.";
         else if (requestReason.includes("insufficient alimtalk credits")) requestReason = "알림톡 잔여 건수가 없습니다. 충전 후 다시 요청해 주세요.";
@@ -481,16 +524,22 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
         // Keep provider responses and secrets out of the owner UI.
       }
     }
-    const latest = await getPreparation(current.shopId, current.appointmentId, actor.kind === "owner");
-    const settled = structuredClone(latest.data);
-    const request = settled.requests.find(item => item.id === guidance.id);
-    if (request) { request.status = requestStatus; request.reason = requestReason; }
-    settled.history.push({ action: input.action, at: new Date().toISOString(), actor: actor.userId ?? "owner", note: requestReason });
-    const settledResult = await db().rpc("save_booking_preparation", {
-      p_shop: current.shopId, p_appointment: current.appointmentId, p_version: latest.version,
-      p_data: settled, p_status: null, p_rule: null, p_preferences: null,
-    });
-    if (settledResult.error) databaseError(settledResult.error);
+    // A customer can sign while delivery is running. Retry only the result save,
+    // against fresh data, so their signature survives and no message is resent.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const latest = await getPreparation(current.shopId, current.appointmentId, actor.kind === "owner");
+      const settled = structuredClone(latest.data);
+      const request = settled.requests.find(item => item.id === guidance.id);
+      if (request) { request.status = requestStatus; request.reason = requestReason; }
+      settled.history.push({ action: input.action, at: new Date().toISOString(), actor: actor.userId ?? "owner", note: requestReason });
+      const settledResult = await db().rpc("save_booking_preparation", {
+        p_shop: current.shopId, p_appointment: current.appointmentId, p_version: latest.version,
+        p_data: settled, p_status: null, p_rule: null, p_preferences: null,
+      });
+      if (!settledResult.error) break;
+      if (attempt < 2 && settledResult.error.message?.includes("VERSION_CONFLICT")) continue;
+      databaseError(settledResult.error);
+    }
   }
 
   if (nextStatus === "confirmed" && input.action !== "correct_noshow") {

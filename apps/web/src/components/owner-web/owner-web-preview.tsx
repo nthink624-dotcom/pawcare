@@ -7,6 +7,8 @@ import type { OwnerScheduleCreateRequest } from "@/components/owner-web/calendar
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import OwnerInitialSetupGuide from "@/components/owner-web/owner-initial-setup-guide";
 import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
+import BookingDepositAlerts, { useOwnerDepositNotices } from "@/components/booking/booking-deposit-alerts";
+import { useAlimtalkApprovalNotices } from "@/components/owner-web/use-alimtalk-approval-notices";
 import type { InitialSetupStaffSessionDraft } from "@/components/owner-web/initial-setup-staff-management-panel";
 import type { StaffProfilePhotoUploader } from "@/components/owner-web/staff-profile-photo-field";
 import {
@@ -367,6 +369,8 @@ export default function OwnerWebPreview({
   const initialSetupRefreshRef = useRef<{ shopId: string; promise: Promise<BootstrapPayload> } | null>(null);
   const initialSetupReturnScreenRef = useRef<OwnerWebScreenKey>("schedule");
   const demoMode = isDemoOwnerWebData(ownerData);
+  const depositNotices = useOwnerDepositNotices(ownerData.shop.id, !demoMode);
+  const approvalNotices = useAlimtalkApprovalNotices(ownerData.shop.id, !demoMode);
   const [liveStaffMembers, setLiveStaffMembers] = useState<OwnerWebStaffMember[]>(() => initialData.staffMembers ?? []);
   const [demoStaffMembers, setDemoStaffMembers] = useState<OwnerWebStaffMember[]>(() => {
     if (!demoMode) return [];
@@ -852,9 +856,12 @@ export default function OwnerWebPreview({
       } : undefined}
       isTester={ownerData.pilotCohort?.isPilotMember === true}
       feedbackFixtureMode={feedbackFixtureMode}
+      depositNotices={!demoMode ? <BookingDepositAlerts {...depositNotices} alwaysVisible triggerLabel="알림" error={depositNotices.error || approvalNotices.error} refresh={async () => { await Promise.all([depositNotices.refresh(), approvalNotices.refresh()]); }} approvalNotices={approvalNotices.notices} acknowledgeApproval={approvalNotices.acknowledge} onOpenApproval={notice => {
+        window.location.assign(`/owner?${new URLSearchParams({ shopId: ownerData.shop.id, screen: "alerts", templateAlias: notice.templateAlias, templateCode: notice.templateCode })}`);
+      }} onOpen={notice => { window.location.assign(`/owner?${new URLSearchParams({ shopId: ownerData.shop.id, screen: "schedule", depositAppointment: notice.appointmentId, depositDate: notice.date })}`); }} /> : undefined}
     >
-      <div className="h-full min-h-0 min-w-0">
-        <div className="h-full min-h-0 min-w-0" data-owner-screen-root={activeScreen}>
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
+        <div className="min-h-0 min-w-0 flex-1" data-owner-screen-root={activeScreen}>
           {renderScreen(
             activeScreen,
             ownerData,

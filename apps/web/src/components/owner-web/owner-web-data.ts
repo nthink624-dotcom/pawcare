@@ -26,7 +26,7 @@ export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string
   { key: "shopInfo", label: "매장 정보" },
   { key: "bookingPolicy", label: "예약 정책" },
   { key: "benefits", label: "혜택 관리" },
-  { key: "alerts", label: "알림 설정" },
+  { key: "alerts", label: "알림톡 설정" },
   { key: "help", label: "도움말" },
 ];
 
@@ -192,7 +192,7 @@ export const settingsTabs = [
   { key: "shop", label: "매장 정보" },
   { key: "hours", label: "운영 시간" },
   { key: "benefits", label: "혜택 관리" },
-  { key: "alerts", label: "알림 설정" },
+  { key: "alerts", label: "알림톡 설정" },
 ] as const;
 
 export type SettingsTabKey = (typeof settingsTabs)[number]["key"];

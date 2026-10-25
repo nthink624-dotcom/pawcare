@@ -406,6 +406,22 @@ test("owner mobile entry starts local prune before auth without blocking navigat
   assert.doesNotMatch(helper, /fetch\(|fetchApiJsonWithAuth|supabase|router|console\.|accountId|appointmentId|durableMediaAssetId/);
 });
 
+test("closing the grooming photo sheet or pressing device back deletes only that appointment's unconfirmed local photo", () => {
+  const cancelStart = ownerAppSource.indexOf("async function cancelMobilePhotoStatusAction()");
+  const cancelEnd = ownerAppSource.indexOf("\n  function requestMobileAppointmentStatusChange", cancelStart);
+  assert.ok(cancelStart >= 0 && cancelEnd > cancelStart);
+  const cancel = ownerAppSource.slice(cancelStart, cancelEnd);
+  assert.match(cancel, /await discardStagedMobilePhoto\(action\)/);
+  assert.match(cancel, /setPendingMobilePhoto\(null\)/);
+  assert.match(cancel, /setMobilePhotoStatusAction\(null\)/);
+
+  const backStart = ownerAppSource.indexOf("if (mobilePhotoStatusAction)", ownerAppSource.indexOf("hardwareBackHandlerRef.current = () =>"));
+  const backEnd = ownerAppSource.indexOf("if (mobileGroomingStartAction)", backStart);
+  assert.match(ownerAppSource.slice(backStart, backEnd), /void cancelMobilePhotoStatusAction\(\)/);
+  assert.match(ownerAppSource, /onClose=\{\(\) => \{ void cancelMobilePhotoStatusAction\(\); \}\}/);
+  assert.match(ownerAppSource, /onConfirm=\{\(\) => \{\s*if \(mobilePhotoPreviewFile\) void handleMobilePhotoStatusFile\(mobilePhotoPreviewFile\);/);
+});
+
 test("Owner UI checks expiry on login, photo open, and app resume without deleting server media", () => {
   assert.match(ownerAppSource, /pruneExpiredPendingOwnerStatusPhotos\(\)/);
   assert.match(ownerAppSource, /readPendingOwnerStatusPhotos\(pendingPhotoAccountId, data\.shop\.id\)/);

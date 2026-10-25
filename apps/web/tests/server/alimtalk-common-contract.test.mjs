@@ -38,7 +38,9 @@ test("PC와 모바일 알림톡 registry는 고객 흐름의 공통 템플릿 al
 
   for (const registry of [pc, mobile]) {
     assert.match(registry, /케어리포트/);
-    assert.match(registry, /마지막 방문: #\{마지막방문일\}/);
     assert.doesNotMatch(registry, /\(방긋\)/);
   }
+  // Preview copy was already different before the deposit change; assert each current contract explicitly.
+  assert.match(pc, /다음 미용 시기가 다가와 안내드려요/);
+  assert.match(mobile, /마지막 방문: #\{마지막방문일\}/);
 });

@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CircleHelp } from "lucide-react";
 import { APPROVED_ALIMTALK_CONTRACTS } from "@petmanager/shared/contracts/alimtalk";
+import { DEPOSIT_ALIMTALK_REVIEW_CONTRACTS } from "@petmanager/shared/contracts/deposit-alimtalk-review";
 
+import { AlertSettingsSwitch } from "@/components/owner-web/settings-alert-switch";
 import { AlimtalkKakaoChatPreview } from "@/components/owner-web/alimtalk-kakao-chat-preview";
 import { getAlimtalkPreviewAppointmentTime } from "@/lib/alimtalk-preview-sample";
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -65,127 +67,121 @@ const notificationHelp: Partial<Record<NotificationType, string>> = {
 };
 
 const statusNames: Record<string, string> = {
-  draft: "임시 저장",
-  submitting: "요청 중",
-  requested: "검수 접수",
-  reviewing: "검수 중",
-  approved: "승인",
-  rejected: "수정 필요",
-  unknown: "상태 확인 필요",
+ draft: "작성 중", submitting: "검수 요청 중", requested: "검수 요청 완료", reviewing: "심사 중",
+ approved: "승인 완료 · 아직 적용 안 함", rejected: "반려 · 수정 필요", unknown: "검수 상태 확인 필요",
 };
 
-const inputClass = "min-h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] leading-6 text-[#15213b] outline-none placeholder:text-[#94a3b8] focus:border-[#64748b] focus:ring-2 focus:ring-[#64748b]/15";
+const inputClass = "min-h-[44px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] leading-6 text-[#15213b] outline-none placeholder:text-[#94a3b8] focus:border-[#64748b] focus:ring-2 focus:ring-[#64748b]/15";
 
-export function OwnerAlimtalkTemplateEditor({
-  shopId,
-  shopName,
-  senderName = PETMANAGER_SERVICE_NAME,
-  selectedAlias,
-  options,
-  onSelectAlias,
-}: {
-  shopId: string;
-  shopName: string;
-  senderName?: string;
-  selectedAlias: AlimtalkTemplateAlias;
-  options: TemplateOption[];
-  onSelectAlias: (alias: AlimtalkTemplateAlias) => void;
+const EMPTY_BUTTONS: TemplateButton[] = [];
+
+type TemplateSource = "owner" | "petmanager";
+type SelectedTemplate = { code: string; name: string; content: string; buttons: string[]; source?: TemplateSource };
+type SelectionItem = { alias: AlimtalkTemplateAlias; title: string; version: number; current: SelectedTemplate | null; currentSource: TemplateSource | null; blocked: boolean; options: SelectedTemplate[] };
+type DeliveryState = { enabled: boolean; disabled: boolean };
+
+export function OwnerAlimtalkTemplateEditor({ shopId, shopName, senderName = PETMANAGER_SERVICE_NAME, selectedAlias, options, onSelectAlias, deliveryState, onToggleDelivery, deliverySettings, demoMode = false }: {
+ shopId: string; shopName: string; senderName?: string; selectedAlias: AlimtalkTemplateAlias; options: TemplateOption[]; onSelectAlias: (alias: AlimtalkTemplateAlias) => void;
+ deliveryState: (alias: AlimtalkTemplateAlias) => DeliveryState | undefined; onToggleDelivery: (alias: AlimtalkTemplateAlias) => void; deliverySettings?: ReactNode;
+ demoMode?: boolean;
 }) {
-  const selectedOption = options.find((option) => option.alias === selectedAlias) ?? options[0];
-  const notificationType = selectedOption.type;
-  const notificationTitle = selectedOption.title;
-  const [templates, setTemplates] = useState<ShopTemplate[]>([]);
-  const [approvedTemplates, setApprovedTemplates] = useState<Partial<Record<AlimtalkTemplateAlias, ApprovedTemplate>>>({});
-  const [categories, setCategories] = useState<TemplateCategory[]>([]);
-  const [buttonDefaults, setButtonDefaults] = useState<ButtonDefaults>({});
-  const [previewValues, setPreviewValues] = useState<Record<string, string>>({});
-  const [templateId, setTemplateId] = useState("");
-  const [templateContent, setTemplateContent] = useState(() => getNotificationDraftBodyByAlias(selectedAlias) ?? "");
-  const editedContentKey = useRef("");
-  const templateContentRef = useRef<HTMLTextAreaElement>(null);
-  const [categoryCode, setCategoryCode] = useState("");
-  const [buttonName, setButtonName] = useState("");
-  const [buttonUrl, setButtonUrl] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [newVersion, setNewVersion] = useState(false);
-  const [helpType, setHelpType] = useState<AlimtalkTemplateAlias | null>(null);
-  const helpOpen = helpType === selectedAlias;
-
-  const loadTemplates = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const response = await fetchApiJsonWithAuth<{ templates: ShopTemplate[]; categories: TemplateCategory[]; buttonDefaults: ButtonDefaults; approvedTemplates?: Partial<Record<AlimtalkTemplateAlias, ApprovedTemplate>>; previewValues?: Record<string, string> }>(
-        `/api/owner/alimtalk-templates?shopId=${encodeURIComponent(shopId)}`,
-        { cache: "no-store" },
-      );
-      setTemplates(response.templates);
-      setApprovedTemplates(response.approvedTemplates ?? {});
-      setCategories(response.categories);
-      setButtonDefaults(response.buttonDefaults ?? {});
-      setPreviewValues(response.previewValues ?? {});
-      setCategoryCode((current) => current || response.categories[0]?.code || "");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "템플릿을 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
+ const selectedOption = options.find(option => option.alias === selectedAlias) ?? options[0];
+ const notificationType = selectedOption.type, notificationTitle = selectedOption.title;
+ const [storedId, setStoredId] = useState("");
+ const [templates, setTemplates] = useState<ShopTemplate[]>([]);
+ const [selectionItems, setSelectionItems] = useState<SelectionItem[]>([]);
+ const [categories, setCategories] = useState<TemplateCategory[]>([]), [buttonDefaults, setButtonDefaults] = useState<ButtonDefaults>({});
+ const [previewValues, setPreviewValues] = useState<Record<string, string>>({});
+ const [view, setView] = useState<"current" | "approved" | "draft">("current"), [choice, setChoice] = useState("");
+ const [newVersion, setNewVersion] = useState(false), [cloneContent, setCloneContent] = useState("");
+ const [templateId, setTemplateId] = useState(""), [templateContent, setTemplateContent] = useState("");
+ const [categoryCode, setCategoryCode] = useState(""), [buttonName, setButtonName] = useState(""), [buttonUrl, setButtonUrl] = useState("");
+ const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
+ const [helpType, setHelpType] = useState<AlimtalkTemplateAlias | null>(null);
+ const editedContentKey = useRef(""), templateContentRef = useRef<HTMLTextAreaElement>(null), loadSequence = useRef(0);
+ const target = useRef<{ alias: string; code: string } | null>(null), editorRef = useRef<HTMLElement>(null);
+ const helpOpen = helpType === selectedAlias;
+ useEffect(() => { const p = new URLSearchParams(window.location.search); target.current = (!p.get("shopId") || p.get("shopId") === shopId) && p.get("templateAlias") && p.get("templateCode") ? { alias:p.get("templateAlias")!,code:p.get("templateCode")! } : null; }, [shopId]);
+ const loadTemplates = useCallback(async () => {
+   const sequence = ++loadSequence.current; setLoading(true); setError("");
+    if(demoMode){
+      setTemplates([]);setSelectionItems([]);setCategories([]);setButtonDefaults({});setPreviewValues({});setLoading(false);
+      return true;
     }
-  }, [shopId]);
-
-  useEffect(() => {
-    void loadTemplates();
-  }, [loadTemplates]);
-  useEffect(() => subscribeBookingPolicyChange(shopId, () => { void loadTemplates(); }), [shopId, loadTemplates]);
-
-  useEffect(() => {
-    const current = templates.find((template) => template.template_alias === selectedAlias);
-    const defaultButton = buttonDefaults[selectedAlias]?.[0];
-    const contentKey = `${shopId}:${selectedAlias}:${newVersion}`;
-    if (editedContentKey.current !== contentKey) {
-      editedContentKey.current = "";
-      const connectedContent = approvedTemplates[selectedAlias]?.templateContent;
-      const baseContent = current?.inspection_status === "approved" && connectedContent
-        ? connectedContent
-        : current?.template_content ?? connectedContent ?? getNotificationDraftBodyByAlias(selectedAlias) ?? "";
-      setTemplateContent(baseContent);
+   try {
+     const [response, selections] = await Promise.all([
+       fetchApiJsonWithAuth<{ templates: ShopTemplate[]; categories: TemplateCategory[]; buttonDefaults: ButtonDefaults; approvedTemplates?: Partial<Record<AlimtalkTemplateAlias, ApprovedTemplate>>; previewValues?: Record<string,string> }>(`/api/owner/alimtalk-templates?shopId=${encodeURIComponent(shopId)}`, { cache:"no-store" }),
+       fetchApiJsonWithAuth<{ items: SelectionItem[] }>(`/api/owner/alimtalk-template-selection?shopId=${encodeURIComponent(shopId)}`, { cache:"no-store" }),
+     ]);
+     if(sequence!==loadSequence.current)return false;
+     setTemplates(response.templates); setSelectionItems(selections.items);
+     setCategories(response.categories); setButtonDefaults(response.buttonDefaults??{}); setPreviewValues(response.previewValues??{});
+     return true;
+    } catch(cause) {
+      if(sequence===loadSequence.current) {
+        const message=cause instanceof Error?cause.message:"문구를 불러오지 못했습니다.";
+        setError(message==="소유한 매장이 없습니다."||message==="다른 매장 데이터에는 접근할 수 없습니다."
+          ?"현재 로그인한 계정에서 이 매장에 접근할 수 없습니다. 로그인 계정과 매장 연결을 확인해 주세요."
+          :message);
+      }
+      return false;
     }
-    setNotice("");
-    setError("");
-    if (!current || newVersion) {
-      setTemplateId("");
-      setButtonName(defaultButton?.buttonName ?? "");
-      setButtonUrl(defaultButton?.linkMobile ?? "");
-      setCategoryCode(current?.category_code || categories[0]?.code || "");
-      return;
-    }
-    setTemplateId(current.id);
-    setButtonName(defaultButton?.buttonName ?? current.template_buttons?.[0]?.buttonName ?? "");
-    setButtonUrl(defaultButton?.linkMobile ?? current.template_buttons?.[0]?.linkMobile ?? "");
-    setCategoryCode(current.category_code || categories[0]?.code || "");
-  }, [templates, approvedTemplates, buttonDefaults, selectedAlias, categories, newVersion, shopId]);
-
-  const currentTemplate = templates.find((template) => template.template_alias === selectedAlias);
-  const approvedTemplate = approvedTemplates[selectedAlias];
-  const selectedButtonDefaults = buttonDefaults[selectedAlias] ?? [];
-  const editable = !currentTemplate || currentTemplate.inspection_status === "draft" || newVersion;
-  const canCreateVersion = currentTemplate && ["approved", "rejected"].includes(currentTemplate.inspection_status);
-  const needsButton = requiredButtonAliases.includes(selectedAlias) || selectedButtonDefaults.length > 0;
-  const unsupportedButtonCount = selectedButtonDefaults.length > 1;
-  const fixedContract = selectedAlias === "booking_consent_request" || selectedAlias === "booking_deposit_request";
-  const contentVariables = Array.from(new Set(Array.from(templateContent.matchAll(/#\{([^}]+)\}/g), (match) => match[1])));
-  const automaticVariables = selectedAlias === "booking_deposit_request"
-    ? APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request.variables.filter((variable) => variable !== "예약관리토큰")
-    : Array.from(new Set(["매장명", "반려동물명", "보호자명", "예약일시", "서비스명", ...contentVariables]));
-  const sampleMessage = fillNotificationTemplate(templateContent, {
-    ...Object.fromEntries(contentVariables.map((variable) => [variable, `[${variable} 예시]`])),
-    매장명: shopName, 반려동물명: "반려동물 (예시)", 보호자명: "보호자 (예시)",
-    예약일시: getAlimtalkPreviewAppointmentTime(), 서비스명: "예약 서비스 (예시)", ...previewValues,
-  });
-  const templateVariables = automaticVariables.map((label) => ({ label, token: `#{${label}}` }));
-
+   finally { if(sequence===loadSequence.current)setLoading(false); }
+  },[demoMode,shopId]);
+ useEffect(()=>{void loadTemplates();return()=>{loadSequence.current++;};},[loadTemplates]);
+ useEffect(()=>subscribeBookingPolicyChange(shopId,()=>{void loadTemplates();}),[shopId,loadTemplates]);
+ useEffect(()=>{const refresh=()=>{if(document.visibilityState==="visible")void loadTemplates();};window.addEventListener("focus",refresh);document.addEventListener("visibilitychange",refresh);return()=>{window.removeEventListener("focus",refresh);document.removeEventListener("visibilitychange",refresh);};},[loadTemplates]);
+ useEffect(()=>{setView("current");setStoredId("");setNewVersion(false);setNotice("");setError("");editedContentKey.current="";},[selectedAlias]);
+ const relatedTemplates = templates.filter(t=>t.template_alias===selectedAlias);
+ const currentTemplate = relatedTemplates.find(t=>t.id===storedId)??relatedTemplates[0];
+ const selection = selectionItems.find(item=>item.alias===selectedAlias);
+ const activeTemplate = selection?.current??null;
+  const activeOwnerTemplate = selection?.currentSource === "owner"
+    ? relatedTemplates.find(row=>row.template_code===activeTemplate?.code)
+    : undefined;
+ const candidate = selection?.options.find(option=>option.code===choice)??null;
+ const defaultTemplate = useMemo<SelectedTemplate | null>(() => {
+   const content = getNotificationDraftBodyByAlias(selectedAlias);
+   if (!content) return null;
+   const contract = DEPOSIT_ALIMTALK_REVIEW_CONTRACTS[selectedAlias as keyof typeof DEPOSIT_ALIMTALK_REVIEW_CONTRACTS]
+     ?? APPROVED_ALIMTALK_CONTRACTS[selectedAlias as keyof typeof APPROVED_ALIMTALK_CONTRACTS];
+   return { code: "", name: notificationTitle + " 기본 문구", content, buttons: contract?.button ? [contract.button] : [] };
+ }, [selectedAlias, notificationTitle]);
+ const displayedCurrent = activeTemplate ?? defaultTemplate;
+ const displayTemplate = view==="approved"?candidate:displayedCurrent;
+ const selectedButtonDefaults=buttonDefaults[selectedAlias]??EMPTY_BUTTONS;
+ const fixedContract=selectedAlias==="booking_consent_request"||selectedAlias==="booking_deposit_request";
+ const editable=view==="draft"&&(newVersion||!currentTemplate||currentTemplate.inspection_status==="draft");
+ const needsButton=requiredButtonAliases.includes(selectedAlias)||selectedButtonDefaults.length>0;
+ const unsupportedButtonCount=selectedButtonDefaults.length>1;
+ const draftKey=`${shopId}:${selectedAlias}:${newVersion}:${storedId}`;
+ useEffect(()=>{
+   const requested=target.current;if(!selection||requested?.alias!==selectedAlias)return;
+   target.current=null;
+   if(selection.options.some(t=>t.code===requested.code)){setChoice(requested.code);setView("approved");requestAnimationFrame(()=>editorRef.current?.scrollIntoView({block:"start"}));}
+   else setError("해당 문구는 현재 사용할 수 없습니다. 기존 발송 문구는 유지됩니다.");
+ },[selection,selectedAlias]);
+ useEffect(()=>{
+   const defaultButton=selectedButtonDefaults[0];
+   if(view==="draft"){
+     if(editedContentKey.current!==draftKey){
+       setTemplateContent(newVersion?cloneContent:currentTemplate?.template_content??activeTemplate?.content??getNotificationDraftBodyByAlias(selectedAlias)??"");
+     }
+     setTemplateId(!newVersion&&currentTemplate?.inspection_status==="draft"?currentTemplate.id:"");
+     setButtonName(defaultButton?.buttonName??currentTemplate?.template_buttons[0]?.buttonName??"");
+     setButtonUrl(defaultButton?.linkMobile??currentTemplate?.template_buttons[0]?.linkMobile??"");
+     setCategoryCode(currentTemplate?.category_code||categories[0]?.code||"");
+   }else{
+     setTemplateContent(displayTemplate?.content??"");
+     setButtonName(displayTemplate?.buttons[0]??defaultButton?.buttonName??"");setButtonUrl(defaultButton?.linkMobile??"");
+   }
+ },[view,draftKey,newVersion,cloneContent,currentTemplate,activeTemplate,displayTemplate,selectedAlias,selectedButtonDefaults,categories]);
+ function beginDraft(content: string){editedContentKey.current="";setCloneContent(content);setNewVersion(true);setView("draft");setNotice("");setError("");}
+ function openStoredDraft(row: ShopTemplate){editedContentKey.current="";setStoredId(row.id);setNewVersion(false);setView("draft");setNotice("");setError("");}
+ const contentVariables=Array.from(new Set(Array.from(templateContent.matchAll(/#\{([^}]+)\}/g),match=>match[1])));
+ const automaticVariables=selectedAlias==="booking_deposit_request"?DEPOSIT_ALIMTALK_REVIEW_CONTRACTS.booking_deposit_request.variables.filter(variable=>variable!=="예약관리토큰"):Array.from(new Set(["매장명","반려동물명","보호자명","예약일시","서비스명",...contentVariables]));
+ const sampleMessage=fillNotificationTemplate(templateContent,{...Object.fromEntries(contentVariables.map(variable=>[variable,`[${variable} 예시]`])),매장명:shopName,반려동물명:"반려동물 (예시)",보호자명:"보호자 (예시)",예약일시:getAlimtalkPreviewAppointmentTime(),서비스명:"예약 서비스 (예시)",...previewValues});
+ const templateVariables=automaticVariables.map(label=>({label,token:`#{${label}}`}));
   function insertTemplateVariable(token: string) {
     const textarea = templateContentRef.current;
     if (!textarea || fixedContract || !editable) return;
@@ -195,7 +191,7 @@ export function OwnerAlimtalkTemplateEditor({
     const nextContent = `${templateContent.slice(0, start)}${token}${templateContent.slice(end)}`;
     if (nextContent.length > 1000) return;
 
-    editedContentKey.current = `${shopId}:${selectedAlias}:${newVersion}`;
+    editedContentKey.current = draftKey;
     setTemplateContent(nextContent);
     requestAnimationFrame(() => {
       const editor = templateContentRef.current;
@@ -206,111 +202,116 @@ export function OwnerAlimtalkTemplateEditor({
     });
   }
 
-  async function save(action: "save" | "submit") {
-    const templateName = currentTemplate?.template_name?.trim() || notificationTitle;
-    if (!templateContent.trim()) {
-      setError("보호자에게 보낼 내용을 입력해 주세요.");
-      return;
-    }
-    if (!categoryCode) {
-      setError("알림 분류를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    setNotice("");
-    try {
-      const response = await fetchApiJsonWithAuth<{ template: ShopTemplate }>("/api/owner/alimtalk-templates", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ shopId, templateAlias: selectedAlias, templateName, templateContent, categoryCode, action, ...(templateId ? { id: templateId } : {}) }),
-      });
-      setTemplates((current) => [response.template, ...current.filter((item) => item.id !== response.template.id)]);
-      setTemplateId(response.template.id);
-      setNewVersion(false);
-      setNotice(action === "submit" ? "검수 요청을 보냈습니다." : "임시 저장했습니다.");
-      if (action === "submit") await loadTemplates();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "저장하지 못했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  }
 
-  const preview = templateContent.trim() ? sampleMessage : "작성한 알림 문구가 여기에 표시됩니다.";
-  const groupedOptions = options.reduce<Record<string, TemplateOption[]>>((groups, option) => {
-    (groups[option.group] ??= []).push(option);
-    return groups;
-  }, {});
+ async function save(action:"save"|"submit"){
+   if(!editable||saving)return;
+   if(!templateContent.trim()||!categoryCode){setError("문구 내용과 알림 분류를 확인해 주세요.");return;}
+   setSaving(true);setError("");setNotice("");
+   try{
+     const response=await fetchApiJsonWithAuth<{template:ShopTemplate}>("/api/owner/alimtalk-templates",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({shopId,templateAlias:selectedAlias,templateName:notificationTitle,templateContent,categoryCode,action,...(templateId&&!newVersion?{id:templateId}:{})})});
+     setTemplates(rows=>[response.template,...rows.filter(row=>row.id!==response.template.id)]);setTemplateId(response.template.id);setStoredId(response.template.id);setNewVersion(false);editedContentKey.current="";
+     if(action==="submit")await loadTemplates();
+     setNotice(action==="submit"?"검수 요청을 보냈습니다. 기존 발송 문구는 유지됩니다.":"초안을 저장했습니다. 기존 발송 문구는 유지됩니다.");
+   }catch(cause){setError(cause instanceof Error?cause.message:"초안을 저장하지 못했습니다.");}finally{setSaving(false);}
+ }
+ const canApply=Boolean(candidate&&selection&&(!activeTemplate||selection.blocked||candidate.code!==activeTemplate.code||candidate.content!==activeTemplate.content||JSON.stringify(candidate.buttons)!==JSON.stringify(activeTemplate.buttons)));
+ async function apply(){
+   if(!selection||!candidate||saving||!canApply)return;setSaving(true);setError("");setNotice("");
+   try{await fetchApiJsonWithAuth("/api/owner/alimtalk-template-selection",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({shopId,templateAlias:selectedAlias,templateCode:candidate.code,expectedVersion:selection.version})});if(await loadTemplates()){setView("current");setNotice("이 매장에서 사용할 문구를 적용했습니다.");}}
+   catch(cause){setError(cause instanceof Error?cause.message:"기존 문구를 유지합니다. 다시 확인해 주세요.");}finally{setSaving(false);}
+ }
+ const preview=templateContent.trim()?sampleMessage:"작성할 문구가 여기에 표시됩니다.";
+ const previewButtons=view==="draft"?(buttonName&&buttonUrl?[buttonName]:[]):displayTemplate?.buttons??[];
+ const groupedOptions=options.reduce<Record<string,TemplateOption[]>>((groups,option)=>{(groups[option.group]??=[]).push(option);return groups;},{});
 
-  return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-white" data-owner-template-editor>
-      <div className="no-scrollbar mx-3 my-3 grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto sm:mx-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:overflow-hidden">
-        <div data-settings-body-container className="grid min-h-0 min-w-0 overflow-hidden rounded-[14px] border border-[#e1e4ea] bg-white lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]">
-              <nav aria-label="알림 종류" className="no-scrollbar min-w-0 border-b border-[#e8edf3] bg-white p-3 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-3">
-                <div className="flex gap-4 overflow-x-auto pb-1 lg:flex-col lg:gap-4 lg:overflow-visible">
-                  {Object.entries(groupedOptions).map(([group, groupOptions]) => (
-                    <section key={group} className="min-w-[190px] lg:min-w-0">
-                      <h3 className="mb-1.5 px-1 text-[18px] font-medium leading-[26px] text-[#15213b]">{group}</h3>
-                      <div className="flex gap-1.5 lg:flex-col">
-                        {groupOptions.map((option) => {
-                          const selected = option.alias === selectedAlias;
-                          const template = templates.find((item) => item.template_alias === option.alias);
-                          return <button key={option.alias} type="button" onClick={() => { setHelpType(null); setNewVersion(false); onSelectAlias(option.alias); }} aria-current={selected ? "page" : undefined} className={`flex min-h-11 shrink-0 items-center justify-between gap-2 rounded-[9px] border px-2.5 py-1.5 text-left transition lg:w-full ${selected ? "border-[#b8c9c2] bg-[#f3f8f6]" : "border-[#e8edf3] bg-white hover:bg-[#f8fafc]"}`}>
-                            <span className="text-[16px] font-normal leading-6 text-[#334155]">{option.title}</span>
-                            {template ? <span className="shrink-0 text-[12px] leading-4 text-[#64748b]">{statusNames[template.inspection_status] ?? "상태 확인 필요"}</span> : null}
-                          </button>;
-                        })}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              </nav>
-
-              <main className="no-scrollbar min-w-0 bg-white p-4 sm:p-5 lg:overflow-y-auto">
-                <div className="mb-3 flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-1"><h3 className="text-[18px] font-medium leading-[26px] text-[#15213b]">{notificationTitle}</h3><button type="button" aria-label={`${notificationTitle} 역할 도움말`} aria-expanded={helpOpen} aria-controls="owner-template-role-help" onClick={() => setHelpType(helpOpen ? null : selectedAlias)} onKeyDown={(event) => { if (event.key === "Escape") setHelpType(null); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"><CircleHelp className="h-4 w-4" aria-hidden="true" /></button></div>{currentTemplate ? <span className="shrink-0 rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] text-[#475569]">{statusNames[currentTemplate.inspection_status] ?? "상태 확인 필요"}</span> : null}</div>
-                <p id="owner-template-role-help" hidden={!helpOpen} className="mb-3 min-w-0 whitespace-normal break-words rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[14px] leading-5 text-[#475569] [overflow-wrap:anywhere]">{notificationHelp[notificationType]}</p>
-                <p data-template-policy className="mb-3 flex min-w-0 items-center gap-2 rounded-[8px] border border-[#f4e7bf] bg-[#fffaf0] px-3 py-1.5 text-[13px] leading-5 text-[#80631f]"><span aria-hidden="true" className="shrink-0 text-[14px]">ⓘ</span><span className="min-w-0">{!currentTemplate && !approvedTemplate?.templateContent ? "공통 초안" : currentTemplate ? "매장 초안" : "승인 문안 참고"} · 예시 시간 포함 · 홍보·이벤트 문구 제외 · 검수 승인 후 발송</span></p>
-                {loading ? <p className="mb-3 text-[16px] leading-6 text-[#64748b]">매장 템플릿을 불러오는 중입니다.</p> : null}
-                {!currentTemplate && approvedTemplate?.templateContent ? <p className="mb-3 rounded-[8px] bg-[#eef7f2] px-3 py-2 text-[14px] leading-5 text-[#276749]">실제 승인 문구 · {approvedTemplate.templateName || approvedTemplate.templateCode} · 이 원문을 새 매장 문구의 시작 내용으로 불러왔습니다.</p> : null}
-                {currentTemplate && !editable ? <div className="rounded-[10px] border border-[#e8edf3] bg-[#f8fafc] p-4">{approvedTemplate?.templateContent ? <p className="mb-2 text-[13px] leading-5 text-[#276749]">실제 승인 문구 · {approvedTemplate.templateName || approvedTemplate.templateCode}</p> : null}<p className="text-[18px] font-medium leading-[26px] text-[#15213b]">{approvedTemplate?.templateName || currentTemplate.template_name}</p><p className="mt-2 whitespace-pre-wrap text-[16px] leading-6 text-[#475569]">{approvedTemplate?.templateContent || currentTemplate.template_content}</p>{(approvedTemplate?.buttons ?? currentTemplate.template_buttons)?.map((button) => <p key={button.buttonName} className="mt-2 text-[16px] leading-6 text-[#475569]">버튼 · {button.buttonName}</p>)}<p className="mt-3 text-[16px] leading-6 text-[#64748b]">승인 전까지 기존 알림 문구가 유지됩니다.</p>{canCreateVersion ? <button type="button" onClick={() => setNewVersion(true)} className="mt-3 min-h-11 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#15213b]">새 문구 작성</button> : null}</div> : <div className="space-y-3">
+ const selectedDelivery=deliveryState(selectedAlias);
+ function sameSnapshot(a: SelectedTemplate | null, b: SelectedTemplate | null) {
+   return Boolean(a&&b&&a.code===b.code&&a.content===b.content&&JSON.stringify(a.buttons)===JSON.stringify(b.buttons));
+ }
+ function isAppliedRow(row: ShopTemplate) {return Boolean(activeTemplate&&!selection?.blocked&&row.template_code===activeTemplate.code&&row.template_content===activeTemplate.content&&JSON.stringify(row.template_buttons.map(button=>button.buttonName))===JSON.stringify(activeTemplate.buttons));}
+ function storedStatus(row: ShopTemplate) {return row.inspection_status==="approved"&&isAppliedRow(row)?"현재 사용 중":statusNames[row.inspection_status]??"상태 확인 필요";}
+  const ownedTemplates=relatedTemplates;
+ return <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-white" data-owner-template-editor>
+   <div className="no-scrollbar mx-3 my-3 grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto sm:mx-5 xl:auto-rows-auto xl:grid-cols-[minmax(0,1fr)_320px] xl:overflow-hidden">
+      <div data-settings-body-container className="grid min-h-max min-w-0 overflow-hidden rounded-[14px] border border-[#e1e4ea] bg-white lg:grid-cols-[280px_minmax(0,1fr)] xl:min-h-0">
+       <nav aria-label="알림 종류" className="no-scrollbar min-w-0 border-b border-[#e8edf3] bg-white p-3 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+         <div className="flex gap-4 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
+           {Object.entries(groupedOptions).map(([group,groupOptions])=><section key={group} className="min-w-[296px] lg:min-w-0">
+             <h3 className="mb-1.5 px-1 text-[18px] font-medium leading-[26px] text-[#15213b]">{group}</h3>
+             <div className="flex gap-1.5 lg:flex-col">{groupOptions.map(option=>{
+               const state=deliveryState(option.alias);
+               const inUse=Boolean(state?.enabled), selected=option.alias===selectedAlias;
+               return <button key={option.alias} data-owner-control-size="content" type="button" data-template-alias={option.alias} aria-current={selected?"page":undefined} disabled={saving} onClick={()=>{setHelpType(null);onSelectAlias(option.alias);}} className={`flex min-h-[44px] min-w-[296px] shrink-0 items-center justify-between gap-3 rounded-[9px] border px-3 py-2 text-left text-[16px] leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563eb] lg:min-w-0 lg:w-full ${selected?"border-[#94a9c0] bg-[#eef4fa] text-[#15213b]":"border-[#e8edf3] bg-white text-[#334155] hover:bg-[#f8fafc]"}`}>
+                  <span className="min-w-0 break-keep">{option.title}</span><span data-delivery-status className={`shrink-0 whitespace-nowrap rounded-full px-2 text-[12px] leading-5 ${inUse?"bg-[#edf7f1] !text-[#1f6b5b]":"bg-[#f1f3f5] text-[#64748b]"}`}>{inUse?"사용":"미사용"}</span>
+               </button>;
+             })}</div>
+           </section>)}
+         </div>
+       </nav>
+       <main ref={editorRef} data-alimtalk-workspace className="no-scrollbar min-w-0 bg-white p-4 sm:p-5 lg:overflow-y-auto">
+          <header className="-mx-4 -mt-4 mb-5 flex flex-wrap items-center justify-between gap-2 border-b-2 border-[#cbd5e1] bg-[#f8fafc] px-4 py-3 sm:-mx-5 sm:-mt-5 sm:px-5 sm:py-4">
+           <div className="flex min-w-0 items-center gap-1"><h3 className="text-[18px] font-medium leading-[26px] text-[#15213b]">{notificationTitle}</h3><button data-owner-control-size="content" type="button" aria-label={notificationTitle+" 역할 도움말"} aria-expanded={helpOpen} onClick={()=>setHelpType(helpOpen?null:selectedAlias)} className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-[8px] text-[#64748b] hover:bg-[#f8fafc]"><CircleHelp className="h-4 w-4" aria-hidden="true" /></button></div>
+            <div className="flex shrink-0 items-center gap-2 text-[13px] text-[#64748b]"><span>사용</span><AlertSettingsSwitch data-template-delivery-toggle checked={selectedDelivery?.enabled??false} disabled={!selectedDelivery||selectedDelivery.disabled||saving||loading||((!activeTemplate||selection?.blocked)&&!selectedDelivery.enabled)} aria-label={notificationTitle+" 사용"} onCheckedChange={()=>onToggleDelivery(selectedAlias)} /></div>
+         </header>
+         {helpOpen&&<p className="mb-3 text-[14px] leading-5 text-[#64748b]">{notificationHelp[notificationType]}</p>}
+         {loading&&<p role="status" className="mb-3 text-[14px] text-[#64748b]">문구를 불러오는 중입니다.</p>}
+          <section data-current-template className="space-y-3 border-b border-[#e8edf3] pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-[16px] font-medium text-[#15213b]">현재 사용 문구</h4>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span data-current-template-source className="rounded-full bg-[#eef4fa] px-2.5 py-1 text-[12px] text-[#36516f]">{activeTemplate ? selection?.currentSource === "owner" ? "내 문구" : selection?.currentSource === "petmanager" ? "펫매니저 기본" : "출처 확인 필요" : "예시 문구"}</span>
+                {activeTemplate&&<span className={`rounded-full px-2.5 py-1 text-[12px] ${selection?.blocked?"bg-[#fff5e9] text-[#8c6e53]":"bg-[#edf7f1] text-[#1f6b5b]"}`}>{selection?.blocked?"확인 필요":"적용됨"}</span>}
+              </div>
+            </div>
+            {displayedCurrent?<>
+              {activeTemplate&&<p data-current-template-name className="break-words text-[16px] font-medium text-[#15213b]">{activeOwnerTemplate?.template_name??displayedCurrent.name}</p>}
+             <div data-current-message={activeTemplate?"":undefined} data-default-message={!activeTemplate?"":undefined} className="whitespace-pre-wrap break-words text-[16px] leading-6 text-[#15213b]">{displayedCurrent.content}</div>
+            </>:null}
+           <div className="flex flex-wrap gap-2">
+              {view==="current"?<>
+                <button data-owner-control-size="content" type="button" disabled={loading||saving} onClick={()=>beginDraft(displayedCurrent?.content??"")} className="min-h-[44px] rounded-[8px] border border-[#dbe2ea] px-3 text-[14px]">내 문구 작성</button>
+                <button data-owner-control-size="content" type="button" disabled={loading||saving} onClick={()=>{setChoice(activeTemplate?.code??selection?.options[0]?.code??"");setView("approved");setNotice("");}} className="min-h-[44px] rounded-[8px] border border-[#dbe2ea] px-3 text-[14px]">승인 문구 선택</button>
+              </>:<button data-owner-control-size="content" type="button" disabled={saving} onClick={()=>setView("current")} className="min-h-[44px] rounded-[8px] px-3 text-[14px] text-[#64748b]">현재 사용 문구</button>}
+           </div>
+         </section>
+          {ownedTemplates.length>0&&<section data-template-work-list className="space-y-2 border-b border-[#e8edf3] py-4"><h4 className="text-[14px] font-medium text-[#475569]">내 문구</h4>{ownedTemplates.map(row=><button key={row.id} data-owned-template-id={row.id} data-owner-control-size="content" type="button" disabled={saving} onClick={()=>openStoredDraft(row)} className={`flex min-h-[44px] w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-[8px] px-2 py-2 text-left ${view==="draft"&&currentTemplate?.id===row.id&&!newVersion?"bg-[#f1f5f9]":"hover:bg-[#f8fafc]"}`}><span className="min-w-0 break-words text-[14px] text-[#15213b]">{row.template_name}</span><span className={`text-[12px] ${row.inspection_status==="approved"?"!text-[#1f6b5b]":"text-[#64748b]"}`}>{storedStatus(row)}</span></button>)}</section>}
+          {view==="approved"&&<section data-approved-template-choice className="space-y-3 border-t border-[#e8edf3] pt-4"><h4 className="text-[16px] font-medium text-[#15213b]">승인 문구 선택</h4><label className="grid gap-2 text-[14px]"><span>사용할 문구</span><select aria-label="사용할 문구" value={choice} disabled={saving} onChange={e=>setChoice(e.target.value)} className={`${inputClass} !h-[44px] !min-h-[44px]`}><option value="">문구 선택</option>{selection?.options.map(option=><option key={option.code} value={option.code}>{option.source==="owner"?"내 문구":"펫매니저 기본"} · {option.name}{sameSnapshot(option,activeTemplate)?" · 현재 적용":""}</option>)}</select></label>{!selection?.options.length&&<p className="text-[14px] text-[#64748b]">선택할 승인 문구가 없습니다.</p>}{candidate&&<><div className="flex flex-wrap items-center gap-2"><span data-candidate-source className="rounded-full bg-[#eef4fa] px-2.5 py-1 text-[12px] text-[#36516f]">{candidate.source==="owner"?"내 문구":"펫매니저 기본"}</span><span className="text-[14px] font-medium text-[#15213b]">{candidate.name}</span></div><div data-candidate-message className="whitespace-pre-wrap break-words text-[16px] leading-6 text-[#15213b]">{candidate.content}</div></>}<button data-owner-control-size="content" type="button" disabled={!canApply||saving||loading} onClick={()=>void apply()} className="min-h-[44px] rounded-[9px] bg-[#111a30] px-4 text-[16px] font-medium text-white disabled:opacity-50">{candidate&&sameSnapshot(candidate,activeTemplate)?"현재 사용 중":saving?"적용 중…":"이 문구 사용하기"}</button></section>}
+         {view==="draft"&&<section data-draft-workspace className="space-y-3 pt-4">
+           <div><p data-template-view-status className="text-[14px] font-medium text-[#15213b]">{editable?"초안 작성 중":currentTemplate?storedStatus(currentTemplate):"상태 확인 필요"}</p><p data-working-template-name className="mt-1 break-words text-[14px] text-[#64748b]">{newVersion?notificationTitle+" 새 초안":currentTemplate?.template_name}</p></div>
+           {editable?         <div className="space-y-3">
                   <div>
-                    <label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">보호자에게 보낼 내용</span><textarea ref={templateContentRef} value={templateContent} readOnly={fixedContract} onChange={(event) => { editedContentKey.current = `${shopId}:${selectedAlias}:${newVersion}`; setTemplateContent(event.target.value); }} maxLength={1000} rows={10} className="min-h-[220px] w-full resize-y rounded-[8px] border border-[#dbe2ea] px-3 py-2.5 text-[16px] leading-6 text-[#15213b] outline-none placeholder:text-[#94a3b8] focus:border-[#64748b] focus:ring-2 focus:ring-[#64748b]/15 read-only:bg-[#f8fafc]" placeholder="원하는 문구를 적어주세요. 예약일시, 반려동물명 등 필요한 정보를 함께 적을 수 있습니다." /></label>
-                    <div data-template-content-meta className="mt-1 flex items-start justify-between gap-3 text-[#64748b]">
+                    <label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">보호자에게 보낼 내용</span><textarea ref={templateContentRef} value={templateContent} readOnly={!editable || fixedContract} onChange={(event) => { editedContentKey.current = draftKey; setTemplateContent(event.target.value); }} maxLength={1000} rows={10} className="min-h-[220px] w-full resize-y rounded-[8px] border border-[#dbe2ea] px-3 py-2.5 text-[16px] leading-6 text-[#15213b] outline-none placeholder:text-[#94a3b8] focus:border-[#64748b] focus:ring-2 focus:ring-[#64748b]/15 read-only:bg-[#f8fafc]" placeholder="원하는 문구를 적어주세요. 예약일시, 반려동물명 등 필요한 정보를 함께 적을 수 있습니다." /></label>
+                    {view === "draft" && <div data-template-content-meta className="mt-1 flex items-start justify-between gap-3 text-[#64748b]">
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[13px] leading-5">
                         <span>자동 입력 값</span>
                         {templateVariables.map(({ label, token }) => (
-                          <button key={token} type="button" disabled={fixedContract} onClick={() => insertTemplateVariable(token)} aria-label={`${label} 변수 삽입`} title={token} className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[#d9e3ef] bg-[#f5f8fc] px-2.5 text-[#36516f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-default">
+                          <button data-owner-control-size="content" key={token} type="button" disabled={!editable || fixedContract} onClick={() => insertTemplateVariable(token)} aria-label={`${label} 변수 삽입`} title={token} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-[#d9e3ef] bg-[#f5f8fc] px-2.5 text-[#36516f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-default">
                             {label}<span aria-hidden="true">#</span>
                           </button>
                         ))}
                       </div>
                       <span className="shrink-0 whitespace-nowrap text-[12px] leading-5">{templateContent.length} / 1,000</span>
-                    </div>
+                    </div>}
                   </div>
-                  <details><summary className="flex min-h-11 cursor-pointer items-center text-[16px] font-medium leading-6 text-[#475569]">버튼 설정{needsButton ? " · 필수" : " · 선택"}</summary>
+                  {view === "draft" && <details><summary className="flex min-h-[44px] cursor-pointer items-center text-[16px] font-medium leading-6 text-[#475569]">버튼 설정{needsButton ? " · 필수" : " · 선택"}</summary>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">버튼 이름{needsButton ? " · 필수" : " · 선택"}</span><input value={buttonName} readOnly maxLength={14} className={`${inputClass} read-only:bg-[#f8fafc]`} placeholder={loading ? "승인된 버튼을 불러오는 중" : needsButton ? "승인된 버튼 확인 필요" : "버튼 없음"} /></label><label className="block"><span className="mb-1 block text-[16px] font-medium leading-6 text-[#475569]">버튼 링크 · 고정</span><input type="url" value={buttonUrl} readOnly className={`${inputClass} read-only:bg-[#f8fafc]`} placeholder={loading ? "승인된 링크를 불러오는 중" : needsButton ? "승인된 링크 확인 필요" : "버튼 없음"} /></label></div>
                   <p className="text-[13px] leading-5 text-[#64748b]">승인된 공통 템플릿의 버튼을 그대로 사용합니다.</p>
                   {needsButton && !loading && (!buttonName || !buttonUrl) ? <p role="alert" className="text-[13px] leading-5 text-[#9a5e4e]">승인된 공통 버튼을 불러오지 못해 저장할 수 없습니다.</p> : null}
                   {unsupportedButtonCount ? <p role="alert" className="text-[13px] leading-5 text-[#9a5e4e]">공통 템플릿에 버튼이 여러 개 있어 요청할 수 없습니다. 관리자에게 확인해 주세요.</p> : null}
-                  </details>
-                  <p className="text-[16px] leading-6 text-[#64748b]">검수가 완료되면 이 매장의 {notificationTitle} 알림에 적용됩니다.</p>
-                </div>}
-                {error ? <p role="alert" className="mt-3 text-[16px] leading-6 text-[#9a5e4e]">{error}</p> : null}{notice ? <p role="status" className="mt-3 text-[16px] leading-6 text-[#1f6b5b]">{notice}</p> : null}
-              </main>
-        </div>
+                  </details>}
+                  {view === "draft" && <p className="text-[14px] leading-5 text-[#64748b]">승인 후 ‘이 문구 사용하기’를 눌러야 적용됩니다.</p>}
 
-              <aside aria-label="카카오톡 알림톡 수신 화면" className="no-scrollbar min-w-0 rounded-[14px] border border-[#e1e4ea] bg-white p-4 sm:p-5 xl:overflow-y-auto">
-                <div className="mb-3"><p className="text-[18px] font-medium leading-[26px] text-[#15213b]">카카오톡 수신 화면</p></div>
-                <AlimtalkKakaoChatPreview
-                  message={preview}
-                  buttons={buttonName && buttonUrl ? [buttonName] : []}
-                  senderName={senderName}
-                />
-              </aside>
-      </div>
-
-      {editable ? <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[#e8edf3] bg-white px-4 py-2.5 sm:px-6"><button type="button" disabled={saving || loading || !categories.length || unsupportedButtonCount || (needsButton && (!buttonName || !buttonUrl))} onClick={() => void save("save")} className="min-h-11 rounded-[9px] border border-[#dbe2ea] bg-white px-4 text-[16px] font-medium leading-6 text-[#15213b] disabled:opacity-50">임시 저장</button><button type="button" disabled={saving || loading || !categories.length || unsupportedButtonCount || (needsButton && (!buttonName || !buttonUrl))} onClick={() => void save("submit")} className="min-h-11 rounded-[9px] bg-[#5850f5] px-5 text-[16px] font-medium leading-6 text-white disabled:opacity-50">{saving ? "요청 중…" : "검수 요청"}</button></footer> : null}
-    </section>
-  );
+         </div>
+:<div data-review-message className="whitespace-pre-wrap break-words text-[16px] leading-6 text-[#15213b]">{templateContent}</div>}
+           {!editable&&currentTemplate?.inspection_status==="rejected"&&<button data-owner-control-size="content" type="button" onClick={()=>beginDraft(templateContent)} className="min-h-[44px] rounded-[8px] border border-[#dbe2ea] px-3 text-[14px]">수정해 새 초안 만들기</button>}
+           {!editable&&currentTemplate?.inspection_status==="approved"&&selection?.options.some(option=>option.code===currentTemplate.template_code)&&!isAppliedRow(currentTemplate)&&<button data-owner-control-size="content" type="button" onClick={()=>{setChoice(currentTemplate.template_code);setView("approved");}} className="min-h-[44px] rounded-[8px] border border-[#dbe2ea] px-3 text-[14px]">승인 문구 확인하기</button>}
+         </section>}
+         {deliverySettings&&<div className="mt-4 border-t border-[#e8edf3] pt-3">{deliverySettings}</div>}
+         {error&&<p role="alert" className="mt-3 text-[14px] text-[#9a5e4e]">{error}</p>}{notice&&<p role="status" className="mt-3 text-[14px] !text-[#1f6b5b]">{notice}</p>}
+       </main>
+     </div>
+     <aside aria-label="카카오톡 알림톡 수신 화면" className="no-scrollbar min-w-0 rounded-[14px] border border-[#e1e4ea] bg-white p-4 sm:p-5 xl:overflow-y-auto"><p className="mb-3 text-[18px] font-medium leading-[26px] text-[#15213b]">카카오톡 수신 화면</p>{view!=="current"&&<p className="mb-2 text-[12px] text-[#64748b]">{view==="approved"?"선택한 문구 미리보기":editable?"작성 중인 문구":"내 문구"}</p>}<AlimtalkKakaoChatPreview message={preview} buttons={previewButtons} senderName={senderName} /></aside>
+   </div>
+   {editable&&<footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[#e8edf3] bg-white px-4 py-2.5 sm:px-6"><button data-owner-control-size="content" type="button" disabled={saving||loading||!categories.length||unsupportedButtonCount||(needsButton&&(!buttonName||!buttonUrl))} onClick={()=>void save("save")} className="min-h-[44px] rounded-[9px] border border-[#dbe2ea] px-4 text-[16px]">임시 저장</button><button data-owner-control-size="content" type="button" disabled={saving||loading||!categories.length||unsupportedButtonCount||(needsButton&&(!buttonName||!buttonUrl))} onClick={()=>void save("submit")} className="min-h-[44px] rounded-[9px] bg-[#111a30] px-5 text-[16px] font-medium text-white disabled:opacity-50">{saving?"요청 중…":"검수 요청"}</button></footer>}
+ </section>;
 }

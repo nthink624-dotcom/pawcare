@@ -1,4 +1,8 @@
 "use client";
+import BookingDevelopmentNotice from "@petmanager/shared/components/booking-development-notice";
+import { env } from "@/lib/env";
+import OwnerBookingDepositPanel from "@/components/owner/owner-booking-deposit-panel";
+import BookingDepositNotices, { useBookingDepositNotices } from "@petmanager/shared/components/booking-deposit-notices";
 
 import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, Store, UserRound, type LucideIcon } from "lucide-react";
 import Image from "next/image";
@@ -200,6 +204,7 @@ type AppointmentStatusUpdatePayload = {
   mediaAssetIds?: string[];
 };
 type AppointmentEditPayload = {
+  depositTransfer?: boolean;
   mode: "edit";
   serviceId: string;
   appointmentDate: string;
@@ -693,11 +698,7 @@ function OwnerAppContent({
     }
     if (mobilePhotoStatusAction) {
       if (mobilePhotoUploading || mobilePhotoPreparing || mobilePhotoStaging || saving) return;
-      pendingPhotoActionRequestRef.current += 1;
-      setMobilePhotoPreviewFile(null);
-      setPendingMobilePhoto(null);
-      setMobilePhotoStatusAction(null);
-      clearRootBackExitNotice();
+      void cancelMobilePhotoStatusAction();
       return;
     }
     if (mobileGroomingStartAction) {
@@ -793,6 +794,17 @@ function OwnerAppContent({
   }, []);
   const isOwnerDemo = isPreviewDemo || data.shop.id === "owner-demo";
   const isStaffApp = appRole === "staff";
+  const depositNotices = useBookingDepositNotices(data.shop.id, fetchApiJsonWithAuth, !isOwnerDemo && !isStaffApp);
+  async function openDepositNotice(appointmentId: string) {
+    const current = data.appointments.find(a => a.id === appointmentId);
+    if (current) { setModal({ type: "appointment", appointment: current }); return; }
+    try {
+      const next = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(data.shop.id)}`, { cache: "no-store" });
+      const appointment = next.appointments.find(a => a.id === appointmentId);
+      if (!appointment) { setError("해당 예약을 조회하지 못했습니다. 다시 확인해 주세요."); return; }
+      setData(next); setModal({ type: "appointment", appointment });
+    } catch { setError("예약을 불러오지 못했습니다. 다시 눌러 주세요."); }
+  }
   const isTesterFeedback = !isOwnerDemo && !isStaffApp && canUseTesterFeedback(data.pilotCohort);
   const pendingPhotoAccountId = resolvePendingPhotoAccountId(data, appRole, currentStaffId);
 
@@ -1308,7 +1320,7 @@ function OwnerAppContent({
     () => new Set(data.groomingRecords.map((record) => record.appointment_id).filter(Boolean)),
     [data.groomingRecords],
   );
-  const homeConfirmedAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeWorkDateKey && ["confirmed", "in_progress", "almost_done", "completed", "cancelled"].includes(item.status)), [data.appointments, homeWorkDateKey]);
+  const homeConfirmedAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeWorkDateKey && ["pending", "confirmed", "in_progress", "almost_done", "completed", "cancelled"].includes(item.status)), [data.appointments, homeWorkDateKey]);
   const homeMissedPendingAppointments = useMemo(
     () =>
       data.appointments
@@ -1319,9 +1331,9 @@ function OwnerAppContent({
   const homeActionAppointments = useMemo(
     () =>
       homeConfirmedAppointments
-        .filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status) && !recordCompletedAppointmentIds.has(item.id))
+        .filter((item) => (["confirmed", "in_progress", "almost_done"].includes(item.status) || (item.status === "pending" && !isMissedPendingAppointment(item, todayDate, currentHomeMinutes))) && !recordCompletedAppointmentIds.has(item.id))
         .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)),
-    [homeConfirmedAppointments, recordCompletedAppointmentIds],
+    [homeConfirmedAppointments, recordCompletedAppointmentIds, todayDate, currentHomeMinutes],
   );
   const homeHistoryAppointments = useMemo(
     () =>
@@ -1978,7 +1990,7 @@ function OwnerAppContent({
     if (isEditPayload) {
       await mutate("/api/appointments", {
         method: "PATCH",
-        body: JSON.stringify({ appointmentId, ...payload }),
+        body: JSON.stringify({ shopId: data.shop.id, appointmentId, ...payload }),
       }, options);
       return null;
     }
@@ -1990,7 +2002,7 @@ function OwnerAppContent({
     try {
       const authoritativeAppointment = await fetchJson<Appointment>("/api/appointments", {
         method: "PATCH",
-        body: JSON.stringify({ appointmentId, ...payload }),
+        body: JSON.stringify({ shopId: data.shop.id, appointmentId, ...payload }),
       });
       if (!authoritativeAppointment || authoritativeAppointment.id !== appointmentId) {
         throw new Error("예약 상태 응답을 확인하지 못했습니다.");
@@ -2091,6 +2103,19 @@ function OwnerAppContent({
     }
     setPendingMobilePhoto(null);
     setMobilePhotoPreviewFile(null);
+    return true;
+  }
+
+  async function cancelMobilePhotoStatusAction() {
+    if (mobilePhotoUploading || mobilePhotoPreparing || mobilePhotoStaging || saving) return false;
+    const action = mobilePhotoStatusAction;
+    if (action && !await discardStagedMobilePhoto(action)) return false;
+    pendingPhotoActionRequestRef.current += 1;
+    setMobilePhotoPreviewFile(null);
+    setPendingMobilePhoto(null);
+    setMobilePhotoStatusAction(null);
+    setPhotoNotice(null);
+    clearRootBackExitNotice();
     return true;
   }
 
@@ -3031,7 +3056,7 @@ function OwnerAppContent({
                     <p className="pm-home-header-label m-0 min-w-0 max-w-[172px] text-[18px] font-semibold leading-6! tracking-[-0.01em] text-[#0f172a] [overflow-wrap:anywhere]">{currentOwnedShop.name}</p>
                     <ChevronDown className="h-4 w-4 shrink-0 text-[#94a3b8]" />
                   </button>
-                  {!isStaffApp ? <HomeHeaderStaffSelect options={homeStaffFilterOptions} value={homeStaffFilter} onChange={setHomeStaffFilter} staffCount={data.staffMembers.length} /> : null}
+                  {!isStaffApp ? <><BookingDepositNotices {...depositNotices} onOpen={notice => void openDepositNotice(notice.appointmentId)} /><HomeHeaderStaffSelect compact={depositNotices.notices.length > 0} options={homeStaffFilterOptions} value={homeStaffFilter} onChange={setHomeStaffFilter} staffCount={data.staffMembers.length} /></> : null}
                 </div>
                 <div className="border-t border-[#edf1f5]">
                   <HomeScheduleTabs
@@ -3182,6 +3207,7 @@ function OwnerAppContent({
 {activeTab === "book" && (
   <section className="min-h-full space-y-3.5 bg-[#f6f9fc] p-0">
     <OwnerBookingDaySchedule
+      attention={!isStaffApp ? <BookingDepositNotices {...depositNotices} onOpen={notice => void openDepositNotice(notice.appointmentId)} /> : undefined}
       date={selectedVisitDate}
       appointments={bookingVisibleAppointments}
       petNames={Object.fromEntries(data.pets.map((pet) => [pet.id, pet.name]))}
@@ -3848,7 +3874,7 @@ function OwnerAppContent({
         </div>
       </nav>
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} initialPhone={modal.initialPhone} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={data.appointments.find(item => item.id === modal.appointment.id) ?? modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onReload={refreshSilently} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} initialPhone={modal.initialPhone} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
         if (isOwnerDemo) {
           setModal(null);
           return;
@@ -3913,15 +3939,7 @@ function OwnerAppContent({
           cameraAppsAvailability={externalCameraAppsAvailability}
           previewFile={mobilePhotoPreviewFile}
           allowSkip={mobilePhotoStatusAction.allowSkip !== false}
-          onClose={() => {
-            if (!mobilePhotoUploading && !mobilePhotoPreparing && !mobilePhotoStaging) {
-              pendingPhotoActionRequestRef.current += 1;
-              setMobilePhotoPreviewFile(null);
-              setPendingMobilePhoto(null);
-              setMobilePhotoStatusAction(null);
-              setPhotoNotice(null);
-            }
-          }}
+          onClose={() => { void cancelMobilePhotoStatusAction(); }}
           onSkip={() => {
             const action = mobilePhotoStatusAction;
             if (!action) return;
@@ -4162,6 +4180,7 @@ function HomeHeaderStaffSelect({
   value,
   onChange,
   staffCount,
+  compact = false,
 }: {
   options: Array<{
     key: HomeStaffFilterKey;
@@ -4173,6 +4192,7 @@ function HomeHeaderStaffSelect({
   value: HomeStaffFilterKey;
   onChange: (value: HomeStaffFilterKey) => void;
   staffCount: number;
+  compact?: boolean;
 }) {
   const selectedOption = options.find((option) => option.key === value) ?? options[0];
   const staffOptions = options.filter((option) => option.key !== "all" && option.key !== "unassigned");
@@ -4195,11 +4215,12 @@ function HomeHeaderStaffSelect({
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative h-10 min-w-[120px] shrink-0">
+    <div ref={rootRef} className={cn("relative shrink-0", compact ? "h-11 w-11" : "h-10 min-w-[120px]")}>
       <button
         type="button"
         className={cn(
           "flex h-full w-full items-center gap-2 rounded-[10px] bg-[#f4f6f9] px-3 pr-8 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]",
+          compact && "justify-center !gap-0 !px-0",
           open ? "bg-[#eef3fb] ring-1 ring-[#d8e4f5]" : "hover:bg-[#eef3fb]",
         )}
         onClick={() => setOpen((prev) => !prev)}
@@ -4207,7 +4228,7 @@ function HomeHeaderStaffSelect({
         aria-expanded={open}
         aria-label={showStaffStack ? `전체 담당자 ${staffOptions.length}명 선택` : `${selectedOption?.label ?? "담당자"} 담당자 선택`}
       >
-        {showStaffStack ? (
+        {compact ? <UserRound className="h-5 w-5 text-[#64748b]" aria-hidden="true" /> : showStaffStack ? (
           <div className="flex shrink-0 items-center" aria-hidden="true">
             {visibleStaffPhotos.map((staffOption, index) => (
               <span key={staffOption.key} className={cn("h-[22px] w-[22px] overflow-hidden rounded-full border-[1.5px] border-[#f4f6f9] bg-[#e8edf3]", index > 0 ? "-ml-2" : "")}>
@@ -4237,11 +4258,11 @@ function HomeHeaderStaffSelect({
             <UserRound className="h-4 w-4 shrink-0 text-[#64748b]" strokeWidth={1.8} />
           )
         )}
-        <span className="pm-home-header-label relative -top-px min-w-0 truncate text-[14px] font-medium leading-6! tracking-[-0.01em] text-[#334155]">
+        <span className={cn("pm-home-header-label relative -top-px min-w-0 truncate text-[14px] font-medium leading-6! tracking-[-0.01em] text-[#334155]", compact && "sr-only")}>
           {showStaffStack ? "전체" : selectedOption?.label ?? "담당자"}
         </span>
       </button>
-      <ChevronDown className={cn("pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8] transition", open ? "rotate-180" : "")} strokeWidth={2} />
+      {!compact && <ChevronDown className={cn("pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8] transition", open ? "rotate-180" : "")} strokeWidth={2} />}
 
       {open ? (
         <div className="absolute right-0 top-[50px] z-50 w-[164px] overflow-hidden rounded-[14px] border border-[#dbe5f1] bg-white p-1.5 shadow-[0_14px_32px_rgba(15,23,42,0.14)]" role="listbox">
@@ -4589,11 +4610,13 @@ function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string
   );
 }
 
-export function AppointmentDetail({ data, appointment, pet, guardian, service, saving, careReportLoading = false, isReadOnly = false, canViewGuardianContact = true, visitWeightTransport, showMediaHistory = true, onClose, onUpdate, onOpenCareReport }: { data: BootstrapPayload; appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; careReportLoading?: boolean; isReadOnly?: boolean; canViewGuardianContact?: boolean; visitWeightTransport?: OwnerAppointmentVisitWeightTransport; showMediaHistory?: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void; onOpenCareReport: () => void }) {
+export function AppointmentDetail({ data, appointment, pet, guardian, service, saving, careReportLoading = false, isReadOnly = false, canViewGuardianContact = true, visitWeightTransport, showMediaHistory = true, onClose, onUpdate, onOpenCareReport, onReload }: { data: BootstrapPayload; appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; careReportLoading?: boolean; isReadOnly?: boolean; canViewGuardianContact?: boolean; visitWeightTransport?: OwnerAppointmentVisitWeightTransport; showMediaHistory?: boolean; onReload?: () => Promise<void>; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void; onOpenCareReport: () => void }) {
   const [notificationPageState, setNotificationPageState] = useState({ appointmentId: appointment.id, page: 1 });
   const [careReportStatus, setCareReportStatus] = useState<"before" | "draft" | "published">("before");
   const canEditSchedule = ["pending", "confirmed"].includes(appointment.status);
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
+  const [depositTransfer, setDepositTransfer] = useState("");
+  const [hasDeposit, setHasDeposit] = useState(Boolean(appointment.deposit_summary));
   const [serviceId, setServiceId] = useState(appointment.service_id);
   const [date, setDate] = useState(appointment.appointment_date);
   const [time, setTime] = useState(appointment.appointment_time);
@@ -4674,7 +4697,8 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
     date !== appointment.appointment_date ||
     time !== appointment.appointment_time ||
     staffMemo !== (appointment.staff_memo ?? "");
-  const canSaveSchedule = Boolean(serviceId && time && hasEditChanges && !saving);
+  const needsTransferChoice = hasDeposit && date !== appointment.appointment_date;
+  const canSaveSchedule = Boolean(serviceId && time && hasEditChanges && !saving && (!needsTransferChoice || depositTransfer));
   const canCancelAppointment = ["pending", "confirmed", "in_progress", "almost_done"].includes(appointment.status);
   const notificationPageSize = 5;
   const appointmentNotifications = useMemo(
@@ -4707,7 +4731,7 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
     canEditSchedule && isEditingSchedule ? (
       <ActionButton
         disabled={!canSaveSchedule}
-        onClick={() => onUpdate({ mode: "edit", serviceId, appointmentDate: date, appointmentTime: time, staffMemo })}
+        onClick={() => onUpdate({ mode: "edit", serviceId, appointmentDate: date, appointmentTime: time, staffMemo, ...(needsTransferChoice ? { depositTransfer: depositTransfer === "yes" } : {}) })}
       >
         예약 수정 저장
       </ActionButton>
@@ -4772,6 +4796,7 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
       footer={appointmentFooter}
       prominentTitle
     >
+      <BookingDevelopmentNotice environment={env.supabaseEnvName} shopId={data.shop.id} />
       <div className="space-y-3">
         <div className="px-1 text-[16px] leading-6">
           <div className="flex min-w-0 items-start justify-between gap-3 max-[300px]:flex-col max-[300px]:items-stretch">
@@ -4914,6 +4939,7 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
                   <span className="font-medium text-[#101a31]">{selectedService.duration_minutes}분</span>
                 </div>
               </div>
+              {needsTransferChoice && <Field label="기존 예약금을 새 날짜에도 사용할까요?"><select aria-label="날짜 변경 예약금 승계" className="field" value={depositTransfer} onChange={e => setDepositTransfer(e.target.value)}><option value="">선택해 주세요</option><option value="yes">기존 예약금 사용</option><option value="no">새 날짜는 별도로 요청</option></select></Field>}
               <Field label="담당자 메모">
                 <textarea
                   value={staffMemo}
@@ -4925,6 +4951,7 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
             </div>
           ) : null}
         </div>
+        {!isEditingSchedule && !isReadOnly && canViewGuardianContact ? <OwnerBookingDepositPanel key={appointment.id} shopId={data.shop.id} appointmentId={appointment.id} guardianId={guardian.id} initialDeposit={appointment.deposit_summary} initialStatus={appointment.status} initialServiceAmount={appointment.final_service_price} onLedger={setHasDeposit} onReload={onReload} /> : null}
         {!isEditingSchedule && !isReadOnly ? <AppointmentVisitWeightEditor shopId={data.shop.id} appointmentId={appointment.id} disabled={saving} transport={visitWeightTransport} /> : null}
         {!isEditingSchedule && canCancelAppointment ? (
           <section className="border-b border-[#e8edf3] pb-3">
@@ -6454,6 +6481,7 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, petDisplayPhot
             onPointerCancel={(event) => event.stopPropagation()}
           >
             <div className="flex items-center">
+              {appointment.status === "pending" && <ActionButton className="w-full !min-h-11 !rounded-[10px] !text-[16px]" variant="ghost" onClick={onOpen}>예약 대기 확인</ActionButton>}
               {appointment.status === "confirmed" && (
                 <div className="grid w-full grid-cols-[1.15fr_0.85fr] gap-2">
                   <button

@@ -20,9 +20,12 @@ export function ScheduleDropdown({
   showMeta = true,
   showSelectedMeta = showMeta,
   showOptionMeta = showMeta,
+  inlineOptionMeta = false,
   searchable = false,
   searchPlaceholder = "검색",
   focusClassName,
+  open: controlledOpen,
+  onOpenChange,
   onChange,
 }: {
   label: string;
@@ -32,13 +35,21 @@ export function ScheduleDropdown({
   showMeta?: boolean;
   showSelectedMeta?: boolean;
   showOptionMeta?: boolean;
+  inlineOptionMeta?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
   /** Limits an alternate focus treatment to a parent surface such as the booking dialog. */
   focusClassName?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onChange: (value: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const [query, setQuery] = useState("");
   const selected = options.find((option) => option.value === value);
   const normalizedQuery = query.trim().toLowerCase();
@@ -57,8 +68,9 @@ export function ScheduleDropdown({
       <button
         type="button"
         onClick={() => {
-          setOpen((current) => !current);
-          if (open) setQuery("");
+          const nextOpen = !open;
+          setOpen(nextOpen);
+          if (!nextOpen) setQuery("");
         }}
         className={cn(
           "flex min-h-11 w-full items-center justify-between gap-3 rounded-[8px] border bg-white px-3 py-2 text-left text-[16px] font-medium leading-6 outline-none transition",
@@ -106,9 +118,11 @@ export function ScheduleDropdown({
                     option.value === value ? "bg-[#f8fafc] text-[#111827]" : "text-[#111827] hover:bg-[#f8fafc]",
                   )}
                 >
-                  <span className="min-w-0">
-                    <span className="block whitespace-normal break-words text-[14px] font-medium leading-5 [overflow-wrap:anywhere]">{option.label}</span>
-                    {showOptionMeta && option.meta ? <span className="mt-0.5 block whitespace-normal break-words text-[12px] font-medium leading-[18px] text-[#64748b] [overflow-wrap:anywhere]">{option.meta}</span> : null}
+                  <span className={cn("min-w-0", inlineOptionMeta ? "flex flex-1 items-baseline gap-2 overflow-hidden" : "")}>
+                    <span className={cn("text-[14px] font-medium", inlineOptionMeta ? "shrink-0 truncate leading-5" : "block whitespace-normal break-words leading-5 [overflow-wrap:anywhere]")}>{option.label}</span>
+                    {showOptionMeta && option.meta ? (
+                      <span className={cn("text-[12px] font-medium text-[#64748b]", inlineOptionMeta ? "min-w-0 truncate leading-5" : "mt-0.5 block whitespace-normal break-words leading-[18px] [overflow-wrap:anywhere]")}>{option.meta}</span>
+                    ) : null}
                   </span>
                 </button>
               ))

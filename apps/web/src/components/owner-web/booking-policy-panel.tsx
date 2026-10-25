@@ -1,4 +1,5 @@
 "use client";
+import BookingDepositPolicyFields from "@/components/booking/booking-deposit-policy-fields";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { publishBookingPolicyChange, subscribeBookingPolicyChange } from "@/lib/booking-policy-events";
 import { DEFAULT_BOOKING_CONSENT_ID, DEFAULT_BOOKING_POLICY, NEXT_BOOKING_RULE_LABELS, type BookingPolicy, type NextBookingRule } from "@petmanager/shared/contracts/booking-preparation";
@@ -103,6 +104,8 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
   const [policy, setPolicy] = useState<BookingPolicy>(() => ensureDefaultConsent(DEFAULT_BOOKING_POLICY)), [version, setVersion] = useState(0);
   const [busy, setBusy] = useState(false), [loaded, setLoaded] = useState(false), [message, setMessage] = useState("");
   const [depositModeSaving, setDepositModeSaving] = useState(false);
+  const [depositSetupOpen, setDepositSetupOpen] = useState(false);
+  const preparingDeposit = depositSetupOpen && policy.depositMode === "off";
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [tab, setTab] = useState("deposit");
   const [depositSection, setDepositSection] = useState("settings");
@@ -121,6 +124,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
   }, [bankMenuOpen]);
   useEffect(() => {
     setDepositBeforeEdit(null);
+    setDepositSetupOpen(false);
     policyDirty.current = false;
     policyReadVersion.current++;
   }, [shopId]);
@@ -146,9 +150,8 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
   }
   async function save(nextPolicy: BookingPolicy = policy): Promise<boolean> {
     if (tab === "deposit" && (nextPolicy.depositHoldMinutes ?? 20) > 1440) { setMessage("최대 24시간입니다."); return false; }
-    if (tab === "deposit") nextPolicy = { ...nextPolicy, depositMode: nextPolicy.depositMode === "off" ? "off" : "optional", depositAudience: "all" };
     setBusy(true); setMessage("");
-    try { const r = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PUT", body: JSON.stringify({ shopId, policy: nextPolicy, version }), headers: { "Content-Type": "application/json" } }); policyReadVersion.current++; setPolicy(ensureDefaultConsent(r.policy)); setVersion(r.version); setDepositBeforeEdit(null); policyDirty.current = false; publishBookingPolicyChange(shopId); setMessage(""); return true; }
+    try { const r = await fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>("/api/owner/booking-policy", { method: "PUT", body: JSON.stringify({ shopId, policy: nextPolicy, version }), headers: { "Content-Type": "application/json" } }); policyReadVersion.current++; setPolicy(ensureDefaultConsent(r.policy)); setVersion(r.version); setDepositBeforeEdit(null); setDepositSetupOpen(false); policyDirty.current = false; publishBookingPolicyChange(shopId); setMessage(""); return true; }
     catch (e) { setMessage(e instanceof Error ? e.message : "저장하지 못했습니다."); return false; } finally { setBusy(false); }
   }
   async function updateDepositMode(nextMode: BookingPolicy["depositMode"]) {
@@ -173,6 +176,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
       policyReadVersion.current++;
       setVersion(result.version);
       setPolicy(current => ({ ...current, depositMode: result.policy.depositMode }));
+      if (result.policy.depositMode === "off") setDepositSetupOpen(false);
       publishBookingPolicyChange(shopId);
     } catch (error) {
       setPolicy(current => ({ ...current, depositMode: previousMode }));
@@ -206,7 +210,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     const replacedTemplateId = consentDraft.templateId ? null : selectedConsentId ?? policy.templates.find(template => template.id === DEFAULT_BOOKING_CONSENT_ID && template.enabled)?.id ?? null;
     const nextPolicy: BookingPolicy = consentDraft.templateId
       ? { ...policy, templates: policy.templates.map(t => t.id === consentDraft.templateId ? { ...t, title, body, required: true, reconsentExisting: reconsentExisting ?? t.reconsentExisting ?? true } : t) }
-      : { ...policy, templates: [...policy.templates.map(t => t.id === replacedTemplateId ? { ...t, enabled: false } : t), { id: templateId, version: 1, title, body, required: true, scope: "pet", enabled: true, audience: "all", reconsentExisting: reconsentExisting ?? true }] };
+      : { ...policy, templates: [...policy.templates.map(t => t.id === replacedTemplateId ? { ...t, enabled: false } : t), { id: templateId, previousTemplateId: replacedTemplateId ?? undefined, version: 1, title, body, required: true, scope: "pet", enabled: true, audience: "all", reconsentExisting: reconsentExisting ?? true }] };
     if (await save(nextPolicy)) { setSelectedConsentId(templateId); setConsentDraft({ templateId, title, body }); setShowReconsentPrompt(false); }
   }
   async function setConsentTemplateEnabled(templateId: string, enabled: boolean) {
@@ -270,7 +274,13 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     <div data-settings-body-container className={`rounded-[14px] border border-[#e1e4ea] bg-white px-4 py-4 ${tab !== "noshow" ? "space-y-0 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:overflow-hidden" : "space-y-5"}`}>
     {loaded ? <>
     <fieldset disabled={busy || !editable} aria-busy={!loaded && !message} className={`min-w-0 space-y-4 disabled:opacity-100 ${tab !== "noshow" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
-      {tab === "deposit" && <div data-deposit-editor className="grid min-h-[440px] gap-5 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_360px] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
+      {tab === "deposit" && policy.depositMode === "off" && !depositSetupOpen && <section aria-label="예약금 사용 안내" className="space-y-3 px-3 py-4 text-[16px] leading-6 text-[#15213b]">
+        <h3 className="text-[20px] font-semibold leading-7">예약금을 받을까요?</h3>
+        <p className="text-slate-600">현재 사용 안 함</p>
+        <p className="max-w-[560px] text-slate-600">예약금을 사용하면 처음 오는 고객이나 예약하고 오지 않은 고객에게 예약금을 받을 수 있어요.</p>
+        <button type="button" disabled={busy || !editable} onClick={() => { setDepositSection("settings"); setDepositSetupOpen(true); }} className="!min-h-[44px] rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50">예약금 사용하기</button>
+      </section>}
+      {tab === "deposit" && (policy.depositMode !== "off" || depositSetupOpen) && <div data-deposit-editor className="grid min-h-[440px] gap-5 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_360px] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
         <div className="grid min-h-0 min-w-0 gap-5 lg:grid-cols-[260px_minmax(0,1fr)] xl:h-full xl:items-start">
         <aside className="min-h-0 overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white xl:h-full">
           <div className="flex h-[58px] min-h-[58px] shrink-0 items-center border-b border-[#edf0f4] px-5">
@@ -281,15 +291,16 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
         <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] border border-[#e4e7ec] bg-white xl:h-full">
           <header className="flex min-h-[58px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#edf0f4] px-5 py-2 xl:h-[58px] xl:flex-nowrap xl:py-0">
             <h3 className="text-[20px] font-semibold leading-7">{depositSection === "settings" ? "예약금 설정" : "취소·환불 안내"}</h3>
-            <button type="button" role="switch" aria-label="예약금 사용" aria-checked={policy.depositMode !== "off"} aria-busy={depositModeSaving} disabled={busy || !editable} data-owner-control-size="content" onClick={() => void updateDepositMode(policy.depositMode === "off" ? "optional" : "off")} className="flex min-h-11 items-center gap-2 rounded-[8px] text-[16px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
+            {preparingDeposit ? <span className="text-[14px] text-slate-600">설정 후 사용</span> : <button type="button" role="switch" aria-label="예약금 사용" aria-checked={policy.depositMode !== "off"} aria-busy={depositModeSaving} disabled={busy || !editable} data-owner-control-size="content" onClick={() => void updateDepositMode(policy.depositMode === "off" ? "required" : "off")} className="flex min-h-11 items-center gap-2 rounded-[8px] text-[16px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
               <span className={`rounded-full px-2 py-1 text-[12px] font-medium leading-4 ${policy.depositMode !== "off" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>{policy.depositMode !== "off" ? "켜짐" : "꺼짐"}</span>
               {depositModeSaving && <span role="status" className="text-[13px] font-normal text-slate-500">저장 중</span>}
               <span aria-hidden="true" className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full ${policy.depositMode !== "off" ? "bg-[#1976ff]" : "bg-slate-300"}`}><span className={`h-5 w-5 rounded-full bg-white transition-transform motion-reduce:transition-none ${policy.depositMode !== "off" ? "translate-x-6" : "translate-x-1"}`} /></span>
-            </button>
+            </button>}
           </header>
           <fieldset className="m-0 flex min-h-0 min-w-0 flex-1 flex-col border-0 p-0">
           <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 text-[16px] font-normal leading-6 [&_input]:min-h-11 [&_select]:min-h-11">
           {depositSection === "settings" && <>
+            <BookingDepositPolicyFields policy={policy} change={change} />
             <div className="divide-y divide-[#edf0f4] rounded-[14px] bg-[#f8fafc] px-4 sm:px-5 [&>label]:grid [&>label]:min-w-0 [&>label]:items-center [&>label]:gap-2 [&>label]:py-4 sm:[&>label]:grid-cols-[112px_minmax(0,1fr)] sm:[&>label]:gap-4">
               {[['bankHolder', '예금주'], ['bankName', '입금 은행'], ['bankAccount', '입금 계좌']].map(([key, title]) => <label key={key}><span className="text-slate-600">{title}</span>{key === 'bankName' ? <div ref={bankPickerRef} className="relative w-full min-w-0 max-w-[480px]"><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400"><svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m16 16 4 4"/></svg></span><input className={`${field} min-w-0 rounded-[10px] border-[#d7deea] bg-white pl-10 pr-11 shadow-sm transition-colors focus:border-[#1976ff] focus:bg-white focus:ring-4 focus:ring-blue-100`} role="combobox" aria-label="입금 은행" aria-autocomplete="list" aria-expanded={bankMenuOpen} aria-controls="booking-bank-options" placeholder="은행 검색 또는 초성 입력" value={policy.bankName} onFocus={() => setBankMenuOpen(true)} onChange={e => { change('bankName', e.target.value); setBankActiveIndex(0); setBankMenuOpen(true); }} onKeyDown={e => { if (e.key === 'Escape') { setBankMenuOpen(false); return; } if (e.key === 'ArrowDown') { e.preventDefault(); setBankMenuOpen(true); setBankActiveIndex(i => Math.min(i + 1, Math.max(0, bankMatches.length - 1))); } if (e.key === 'ArrowUp') setBankActiveIndex(i => Math.max(0, i - 1)); if (e.key === 'Enter' && bankMenuOpen && bankMatches.length) { e.preventDefault(); change('bankName', bankMatches[bankActiveIndex] ?? bankMatches[0]); setBankMenuOpen(false); } }} /><button type="button" aria-label="은행 목록 열기" aria-expanded={bankMenuOpen} onClick={() => setBankMenuOpen(open => !open)} className="absolute inset-y-0 right-1 flex w-10 items-center justify-center rounded-r-[10px] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"><svg aria-hidden="true" viewBox="0 0 20 20" className={`h-4 w-4 transition-transform ${bankMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m5 7.5 5 5 5-5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>{bankMenuOpen && <div id="booking-bank-options" role="listbox" className="absolute left-0 right-0 top-full z-30 mt-2 max-h-64 overflow-y-auto rounded-[12px] border border-slate-200 bg-white p-1.5 shadow-[0_12px_32px_rgba(15,23,42,0.14)]">{bankMatches.map((name, index) => <button key={name} type="button" role="option" aria-selected={policy.bankName === name} id={`booking-bank-option-${index}`} onMouseDown={e => e.preventDefault()} onClick={() => { change('bankName', name); setBankMenuOpen(false); }} className={`flex min-h-11 w-full items-center rounded-[9px] px-3 text-left text-[16px] transition-colors ${policy.bankName === name ? 'bg-blue-50 font-medium text-[#1769d2]' : index === bankActiveIndex ? 'bg-slate-50 text-[#15213b]' : 'text-slate-700 hover:bg-slate-50'}`}>{name}{policy.bankName === name && <span aria-hidden="true" className="ml-auto text-[14px] text-[#1769d2]">✓</span>}</button>)}{bankMatches.length === 0 && <div className="px-3 py-3 text-[14px] text-slate-500">일치하는 은행이 없어요. 입력한 이름을 그대로 사용할 수 있어요.</div>}</div>}</div> : <input className={`${field} max-w-[480px]`} placeholder={`${title} 입력`} value={policy[key as 'bankName' | 'bankAccount' | 'bankHolder']} onChange={e => change(key as 'bankName' | 'bankAccount' | 'bankHolder', e.target.value)} />}</label>)}
               <label><span className="text-slate-600">예약금</span><span className="flex min-w-0 items-center gap-3"><input aria-label="예약금 (원)" className={`${field} max-w-[480px]`} type="number" min={1} value={policy.depositAmount} onChange={e => change("depositAmount", Number(e.target.value))} /><span>원</span></span></label>
@@ -298,6 +309,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
             {depositHoldMinutesExceedsMax && <p id="deposit-hold-minutes-error" role="alert" className="mt-2 text-[14px] text-[#9a5e4e]">최대 24시간입니다.</p>}
           </>}
           {depositSection === "refund" && <>
+            <BookingDepositPolicyFields policy={policy} change={change} refund />
             <Label title="고객 직접 취소 마감 (예약 시작 전 시간)"><input className={field} type="number" min={0} max={720} value={policy.cancellationCutoffHours} onChange={e => change("cancellationCutoffHours", Number(e.target.value))} /></Label>
             <Label title="보호자에게 안내할 취소·환불 정책"><textarea className={`${field} h-auto min-h-[220px] py-3 leading-6`} value={policy.cancellationNotice} onChange={e => change("cancellationNotice", e.target.value)} /></Label>
             <p className="text-[13px] leading-5 text-slate-500">취소·노쇼 메뉴와 같은 설정입니다. 예약금 환불은 실제 반환 후 별도로 기록합니다.</p>
@@ -305,8 +317,8 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
           </div>
           </fieldset>
           <footer className={`${policyFooterClass} justify-end`}>
-            <button type="button" data-owner-control-size="content" disabled={!depositBeforeEdit || busy} onClick={() => { if (depositBeforeEdit) setPolicy(current => ({ ...current, ...depositBeforeEdit })); setDepositBeforeEdit(null); setMessage(""); }} className={policyCancelButtonClass}>취소</button>
-            <button type="button" data-owner-control-size="content" disabled={!loaded || busy || !editable || !depositBeforeEdit || depositHoldMinutesExceedsMax} onClick={() => void save()} className={`${policySaveButtonClass} disabled:cursor-not-allowed`}>{busy ? "저장 중" : "저장"}</button>
+            <button type="button" data-owner-control-size="content" disabled={(!depositBeforeEdit && !preparingDeposit) || busy} onClick={() => { if (depositBeforeEdit) setPolicy(current => ({ ...current, ...depositBeforeEdit })); setDepositBeforeEdit(null); setDepositSetupOpen(false); setMessage(""); }} className={policyCancelButtonClass}>취소</button>
+            <button type="button" data-owner-control-size="content" disabled={!loaded || busy || !editable || (!depositBeforeEdit && !preparingDeposit) || depositHoldMinutesExceedsMax} onClick={() => void save(preparingDeposit ? { ...policy, depositMode: "required" } : policy)} className={`${policySaveButtonClass} disabled:cursor-not-allowed`}>{busy ? "저장 중" : preparingDeposit ? "저장하고 사용하기" : "저장"}</button>
           </footer>
         </section>
         </div>

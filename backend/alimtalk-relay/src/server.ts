@@ -1748,7 +1748,7 @@ app.post("/alimtalk/send", async (request, response) => {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
     const payload = requestSchema.parse(request.body);
-    const resolvedTemplateKey = payload.templateKey ?? resolveTemplateKey(payload.templateAlias);
+    const resolvedTemplateKey = payload.templateKey?.trim();
 
     if (!resolvedTemplateKey) {
       throw new RelayHttpError(400, "릴레이 템플릿 연결이 필요합니다.");

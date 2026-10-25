@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent } from "react";
+import type { PointerEvent, ReactNode } from "react";
 import type { Appointment, StaffScheduleOverride } from "@/types/domain";
 import { addDate, currentDateInTimeZone, currentMinutesInTimeZone } from "@/lib/utils";
 import { assignAppointmentsToStaffLanes } from "@/lib/owner-schedule-lanes";
@@ -65,6 +65,7 @@ type Props = {
   onSelectDate: (date: string) => void;
   onOpenDatePicker: () => void;
   onOpenAppointment: (appointment: Appointment) => void;
+  attention?: ReactNode;
 };
 
 function clockMinutes(value: string) {
@@ -359,7 +360,7 @@ export default function OwnerBookingDaySchedule(props: Props) {
             <span data-testid="date-primary" className="whitespace-nowrap text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#172033] [font-variant-numeric:tabular-nums]">{dateLabel}</span>
             <span data-testid="weekday-label" className="whitespace-nowrap text-[14px] font-medium leading-5 text-[#64748b]">{selectedWeekdayLabel}</span>
           </button>
-          <span data-testid="date-total" className="shrink-0 whitespace-nowrap text-[14px] font-medium leading-5 text-[#37557a] [font-variant-numeric:tabular-nums]">예약 {visibleAppointments.length}건</span>
+          <div className="flex shrink-0 items-center gap-1">{props.attention}<span data-testid="date-total" className="shrink-0 whitespace-nowrap text-[14px] font-medium leading-5 text-[#37557a] [font-variant-numeric:tabular-nums]">예약 {visibleAppointments.length}건</span></div>
         </div>
         <div data-testid="schedule-week-strip" className="grid grid-cols-7 gap-0.5 px-2 pb-2">
           {weekDates.map((optionDate) => {

@@ -16,7 +16,8 @@ test("deposit controls stay readable while loading and the enable switch lives i
 test("deposit mode switch persists immediately through the scoped API", () => {
   assert.match(panel, /async function updateDepositMode\(nextMode: BookingPolicy\["depositMode"\]\)/);
   assert.match(panel, /method: "PATCH"[\s\S]*JSON\.stringify\(\{ shopId, version, depositMode: nextMode \}\)/);
-  assert.match(panel, /onClick=\{\(\) => void updateDepositMode\(policy\.depositMode === "off" \? "optional" : "off"\)\}/);
+  // Selected customers must pay before confirmation; the retired customer-optional mode is not the enable target.
+  assert.match(panel, /onClick=\{\(\) => void updateDepositMode\(policy\.depositMode === "off" \? "required" : "off"\)\}/);
   assert.match(panel, /if \(depositBeforeEdit\) \{\s*setDepositModeSaving\(true\);\s*try \{ await save\(\{ \.\.\.policy, depositMode: nextMode \}\); \}/);
   assert.match(panel, /disabled=\{!loaded \|\| busy \|\| !editable \|\| !depositBeforeEdit \|\| depositHoldMinutesExceedsMax\}/);
   assert.match(panel, /catch \(error\) \{\s*setPolicy\(current => \(\{ \.\.\.current, depositMode: previousMode \}\)\)/);

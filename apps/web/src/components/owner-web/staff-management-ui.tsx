@@ -567,7 +567,7 @@ export function StaffBoardTabs({
 }) {
   return (
     <div className="relative flex min-h-10 flex-wrap items-center gap-3 pb-2">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-1 rounded-[12px] bg-[#f1f4f8] p-1">
         {[
           { key: "monthly" as StaffBoardTab, label: "월간 근무표" },
           { key: "list" as StaffBoardTab, label: "직원 목록" },
@@ -577,8 +577,8 @@ export function StaffBoardTabs({
             type="button"
             onClick={() => onChange(tab.key)}
             className={cn(
-              "h-11 rounded-[8px] px-4 !text-[16px] !font-medium !leading-6 tracking-[-0.005em] transition",
-              activeTab === tab.key ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-sm" : "text-[#475569] hover:bg-[#f8fafc]",
+              "h-10 rounded-[9px] px-4 !text-[16px] !font-medium !leading-6 tracking-[-0.005em] transition",
+              activeTab === tab.key ? "bg-white text-[#15213b] shadow-[0_1px_3px_rgba(15,23,42,0.12)]" : "text-[#475569] hover:bg-white/70",
             )}
           >
             {tab.label}

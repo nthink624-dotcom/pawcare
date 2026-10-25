@@ -12,6 +12,9 @@ import {
 import type { CustomerWeightMeasurement } from "@/lib/customer-weight-history";
 import { fetchApiJson } from "@/lib/api";
 import BookingPreparationPanel from "@/components/booking/booking-preparation-panel";
+import BookingDevelopmentNotice from "@petmanager/shared/components/booking-development-notice";
+import { env } from "@/lib/env";
+import { useBookingResumeRefresh } from "@/lib/use-booking-resume-refresh";
 import { invalidateCustomerAvailability } from "@/lib/customer-availability";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { CUSTOMER_BOOKING_HORIZON_DAYS } from "@/lib/customer-booking-window";
@@ -120,7 +123,7 @@ function buildDateOptions(shop: Shop): DateOption[] {
 }
 
 function canManageAppointment(appointment: Appointment) {
-  if (appointment.status !== "confirmed") return false;
+  if (!["pending", "confirmed"].includes(appointment.status)) return false;
 
   const today = currentDateInTimeZone();
   if (appointment.appointment_date > today) return true;
@@ -236,6 +239,11 @@ export default function CustomerBookingManagePanel({
   const [manageSlots, setManageSlots] = useState<string[]>([]);
   const [manageRecommendedSlots, setManageRecommendedSlots] = useState<string[]>([]);
   const [loadingManageSlots, setLoadingManageSlots] = useState(false);
+  useBookingResumeRefresh(Boolean(initialAccessToken) && !submitting, async () => {
+    const query = new URLSearchParams({ shopId });
+    const latest = await fetchJson<LookupPayload>(`/api/customer-lookup?${query}`, { headers: { "x-booking-access-token": initialAccessToken ?? "" }, cache: "no-store" });
+    setLookupResult(latest);
+  });
 
   const petMap = useMemo(
     () => Object.fromEntries((lookupResult?.pets || []).map((pet) => [pet.id, pet])),
@@ -266,7 +274,8 @@ export default function CustomerBookingManagePanel({
       );
       return directResult ? [directResult] : [];
     }
-    return sortedAppointments.filter(canManageAppointment);
+    // A signed booking link must keep pending, cancelled and refunded states readable.
+    return lookupResult?.access?.appointmentId ? sortedAppointments.filter(a => a.id === lookupResult.access?.appointmentId) : sortedAppointments.filter(canManageAppointment);
   }, [lookupResult?.access?.action, lookupResult?.access?.appointmentId, sortedAppointments]);
   const latestAppointments = useMemo(() => visibleAppointments.slice(0, 1), [visibleAppointments]);
   const selectedServiceOption = customerServiceOptions.find(
@@ -318,8 +327,8 @@ export default function CustomerBookingManagePanel({
 
       try {
         setLookupError(null);
-        const query = new URLSearchParams({ shopId, t: initialAccessToken });
-        const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
+        const query = new URLSearchParams({ shopId });
+        const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`, { headers: { "x-booking-access-token": initialAccessToken } });
         if (!active) return;
 
         setLookupResult(result);
@@ -353,7 +362,7 @@ export default function CustomerBookingManagePanel({
         setOpenAppointmentId(null);
         setManageForm(null);
 
-        if (result.access?.action !== "result" && !result.appointments.some(canManageAppointment)) {
+        if (result.access?.action !== "result" && result.appointments.length === 0) {
           setLookupError("확인 가능한 예약이 없어요. 진행 전 예약만 조회할 수 있어요.");
         }
 
@@ -380,13 +389,13 @@ export default function CustomerBookingManagePanel({
     if (!initialAccessToken) return;
     try {
       setLookupError(null);
-      const query = new URLSearchParams({ shopId, t: initialAccessToken });
-      const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
+      const query = new URLSearchParams({ shopId });
+      const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`, { headers: { "x-booking-access-token": initialAccessToken } });
       setLookupResult(result);
       setOpenAppointmentId(null);
       setManageForm(null);
       setFeedback(null);
-      if (!result.appointments.some(canManageAppointment)) {
+      if (result.appointments.length === 0) {
         setLookupError("확인 가능한 예약이 없어요. 진행 전 예약만 조회할 수 있어요.");
       }
     } catch (error) {
@@ -535,6 +544,7 @@ export default function CustomerBookingManagePanel({
 
   return (
     <>
+      <BookingDevelopmentNotice environment={env.supabaseEnvName} shopId={shopId} />
       {operationsLocked ? (
         <p className="rounded-[14px] border border-[#e8edf3] bg-white px-5 py-6 text-center text-[16px] font-medium leading-6 text-[#15213b]">
           매장 준비를 먼저 완료해 주세요
@@ -631,7 +641,7 @@ export default function CustomerBookingManagePanel({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-[14px] font-medium leading-5 tracking-[-0.01em] text-[#64748b]">예약 내역</p>
-                      <h3 className="mt-2 truncate text-[24px] font-semibold tracking-[-0.03em] text-[#101a31]">
+                      <h3 className="mt-2 break-words text-[24px] font-semibold tracking-[-0.03em] text-[#101a31]">
                         {pet?.name || "예약"} · {lookupResult.guardians[0]?.name || "보호자"}
                       </h3>
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[16px] leading-6 font-medium text-[#475569]">

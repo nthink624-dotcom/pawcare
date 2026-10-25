@@ -320,6 +320,29 @@ test("stateless relay security contract", async (t) => {
     assert.ok(Date.now() - startedAt < 2_000);
   });
 
+  await t.test("a selected new code, rendered body and buttons override the old alias mapping", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    globalThis.fetch = (async (input, init) => {
+      const url = String(input);
+      if (url === "https://apis.ssodaa.com/kakao/send/alimtalk") {
+        calls.push(JSON.parse(String(init?.body ?? "{}")));
+        return jsonResponse({ code: 200, content: { sent_messages: [{ msg_id: "new-code-stub" }] } });
+      }
+      if (url === "https://apis.ssodaa.com/kakao/alimtalk/sent/list") return jsonResponse({ code: 200, result: [{ msg_id: "new-code-stub", status: "성공", dest_phone: "01012345678", msg_body: "새 승인 문구 · 합성 고객" }] });
+      throw new Error("Unapproved provider target.");
+    }) as typeof fetch;
+    const response = await requestRelay({ method: "POST", path: "/alimtalk/send", headers: { "x-relay-secret": "relay-test-secret" }, body: {
+      ...validSendBody(), templateAlias: "booking_confirmed", templateKey: "new_approved_code_D", message: "새 승인 문구 · 합성 고객",
+      buttons: [{ name: "새 예약 확인", type: "WL", linkMobile: "https://www.petmanager.co.kr/m?t=synthetic-new", linkPc: "https://www.petmanager.co.kr/m?t=synthetic-new" }],
+    } });
+    assert.equal(response.status, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].template_code, "new_approved_code_D");
+    assert.notEqual(calls[0].template_code, "approved_template_1");
+    assert.equal(calls[0].msg_body, "새 승인 문구 · 합성 고객");
+    assert.deepEqual(calls[0].button, [{ name: "새 예약 확인", type: "WL", url_mobile: "https://www.petmanager.co.kr/m?t=synthetic-new", url_pc: "https://www.petmanager.co.kr/m?t=synthetic-new" }]);
+  });
+
   await t.test("normal stubbed send uses approved targets and one send POST", async () => {
     const outboundCalls: Array<{ url: string; method: string; body: Record<string, unknown> }> = [];
     globalThis.fetch = (async (input, init) => {

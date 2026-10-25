@@ -16,6 +16,9 @@ export type AppointmentStatus =
     | "booking_received"
     | "booking_consent_request"
     | "booking_deposit_request"
+    | "booking_deposit_expired"
+    | "booking_deposit_refunded"
+    | "booking_deposit_cancelled"
     | "booking_confirmed"
   | "owner_booking_requested"
   | "booking_cancelled"
@@ -56,6 +59,7 @@ export type NotificationMediaAttachmentRole = "message_image" | "before_photo" |
 export type MediaSendStatus = "queued" | "sent" | "failed" | "skipped";
 
 export type ShopNotificationSettings = {
+  alimtalk_type_enabled?: Record<string, boolean>;
   enabled: boolean;
   alimtalk_sender_mode: AlimtalkSenderMode;
   alimtalk_shop_channel_status: AlimtalkShopChannelStatus;
@@ -291,6 +295,7 @@ export type Service = {
 };
 
 export type Appointment = {
+  deposit_summary?: import("@petmanager/shared/contracts/booking-deposit-preview").BookingDepositPreview | null;
   id: string;
   shop_id: string;
   guardian_id: string;
@@ -584,6 +589,7 @@ export type LandingFeedback = {
 };
 
 export type BootstrapPayload = {
+  actor?: import("@petmanager/shared/contracts/bootstrap-actor").BootstrapActor;
   mode: "mock" | "supabase";
   shop: Shop;
   initialSetupReadiness?: OwnerInitialSetupReadiness;

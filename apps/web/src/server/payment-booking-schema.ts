@@ -10,6 +10,7 @@ export const paymentBookingSchema = z.object({
     shopId: z.string().min(1),
     bookingPolicyVersion: z.number().int().nonnegative().optional(),
     bookingPolicyAccepted: z.boolean().optional(),
+    depositChoice: z.boolean().optional(),
     guardianName: z.string().trim().min(1),
     phone: z.string().trim().min(10),
     petName: z.string().trim().min(1),

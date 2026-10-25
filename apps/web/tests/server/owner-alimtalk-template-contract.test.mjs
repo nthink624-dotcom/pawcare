@@ -21,7 +21,7 @@ test("owner template requests are shop scoped, owner authenticated, and reviewed
   assert.match(migration, /shop_id text not null references public\.shops\(id\)/i);
   assert.match(migration, /one_active_review_idx[\s\S]*?where inspection_status in \('submitting', 'requested', 'reviewing', 'unknown'\)/i);
   assert.match(route, /getApprovedSsodaaTemplateDetails\(aliases, owner\.shopId\)/);
-  assert.match(dispatch, /input\.shopId,\s*\);/);
+  assert.match(dispatch, /getApprovedSsodaaNotificationTemplate\(\s*input\.type,\s*notificationTemplateValues,\s*templateAlias,\s*input\.shopId,\s*\)/);
 });
 
 test("owner template form exposes draft, review, status, and compact preview actions", async () => {
@@ -69,4 +69,10 @@ test("owner template editor uses compact variable chips and an explicitly labele
   assert.match(settings, /예약일시: getAlimtalkPreviewAppointmentTime\(\)/);
   assert.match(sampleHelper, /Asia\/Seoul/);
   assert.match(sampleHelper, /오후 2:30/);
+});
+
+test("owner template actions remain in content-sized mobile rows and new drafts are not labeled live", async () => {
+  const editor=await read("../../src/components/owner-web/owner-alimtalk-template-editor.tsx");
+  assert.match(editor,/auto-rows-max[^"]*xl:auto-rows-auto/);
+  assert.match(editor,/newVersion \? "작성 중" : currentInUse \? "사용 중"/);
 });

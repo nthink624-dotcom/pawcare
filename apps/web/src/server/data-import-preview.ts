@@ -1,3 +1,5 @@
+import { readOptionalBookingPolicy } from "@/server/booking-preparation";
+import { guardianImportKey } from "@/server/data-import-identity";
 import { createHash } from "node:crypto";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -39,7 +41,7 @@ export function dataImportRowKey(fileSha256: string, sheetName: string, rowNumbe
 function uniqueCustomers(rows: ParsedCustomerRow[]) {
   const byKey = new Map<string, ParsedCustomerRow>();
   for (const row of rows) {
-    const key = `${normalizeImportPhone(row.phone)}|${normalizedName(row.petName)}`;
+    const key = `${guardianImportKey(row.guardianName, row.phone)}|${normalizedName(row.petName)}`;
     const previous = byKey.get(key);
     byKey.set(key, previous ? {
       ...previous,
@@ -56,7 +58,7 @@ function uniqueCustomers(rows: ParsedCustomerRow[]) {
 function uniqueVisits(rows: ParsedVisitRow[]) {
   const byKey = new Map<string, ParsedVisitRow>();
   for (const row of rows) {
-    const key = [normalizeImportPhone(row.phone), normalizedName(row.petName), row.visitDate, normalizedName(row.serviceName)].join("|");
+    const key = [guardianImportKey(row.guardianName, row.phone), normalizedName(row.petName), row.visitDate, normalizedName(row.serviceName)].join("|");
     if (!byKey.has(key)) byKey.set(key, row);
   }
   return Array.from(byKey.values());
@@ -65,7 +67,7 @@ function uniqueVisits(rows: ParsedVisitRow[]) {
 function visitCountByCustomer(rows: ParsedVisitRow[]) {
   const counts = new Map<string, number>();
   for (const row of rows) {
-    const key = `${normalizeImportPhone(row.phone)}|${normalizedName(row.petName)}`;
+    const key = `${guardianImportKey(row.guardianName, row.phone)}|${normalizedName(row.petName)}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
@@ -92,15 +94,20 @@ export async function buildDataImportPreview(params: {
   fileName: string;
   buffer: Buffer;
 }): Promise<{ preview: DataImportPreview; parsed: ParsedDataImport }> {
-  const [parsed, existing] = await Promise.all([
+  const [parsed, existing, policy] = await Promise.all([
     parseDataImportFile(params.buffer, params.fileName),
     loadExistingData(params.shopId),
+    readOptionalBookingPolicy(params.shopId),
   ]);
   const fileSha256 = dataImportFileSha256(params.buffer);
   const existingGuardianByPhone = new Map<string, ExistingGuardian>();
   for (const guardian of existing.guardians.sort((left, right) => Number(Boolean(left.deleted_at)) - Number(Boolean(right.deleted_at)))) {
-    const key = normalizeImportPhone(guardian.phone);
+    const key = guardianImportKey(guardian.name, guardian.phone);
     if (key && !existingGuardianByPhone.has(key)) existingGuardianByPhone.set(key, guardian);
+  }
+  for (const row of parsed.customers) {
+    const matches = existing.guardians.filter(g => !g.deleted_at && guardianImportKey(g.name, g.phone) === guardianImportKey(row.guardianName, row.phone));
+    if (matches.length > 1) throw new Error("이름과 연락처가 같은 기존 고객이 여러 명입니다. 고객 정보를 확인한 뒤 다시 이전해 주세요.");
   }
   const existingPetKeys = new Set(
     existing.pets.map((pet) => `${pet.guardian_id}|${normalizedName(pet.name)}`),
@@ -108,16 +115,16 @@ export async function buildDataImportPreview(params: {
   const customers = uniqueCustomers(parsed.customers);
   const visits = uniqueVisits(parsed.visits);
   const visitsByCustomer = visitCountByCustomer(visits);
-  const fileCustomerKeys = new Set(customers.map((row) => `${normalizeImportPhone(row.phone)}|${normalizedName(row.petName)}`));
+  const fileCustomerKeys = new Set(customers.map((row) => `${guardianImportKey(row.guardianName, row.phone)}|${normalizedName(row.petName)}`));
   const guardianActionByPhone = new Map<string, "create" | "merge">();
   const petActionByKey = new Map<string, "create" | "merge">();
 
   const previewCustomers = customers.map((row) => {
     const phoneKey = normalizeImportPhone(row.phone);
-    const existingGuardian = existingGuardianByPhone.get(phoneKey);
+    const existingGuardian = existingGuardianByPhone.get(guardianImportKey(row.guardianName, row.phone));
     const guardianAction = existingGuardian ? "merge" : "create";
-    guardianActionByPhone.set(phoneKey, guardianAction);
-    const customerKey = `${phoneKey}|${normalizedName(row.petName)}`;
+    guardianActionByPhone.set(guardianImportKey(row.guardianName, row.phone), guardianAction);
+    const customerKey = `${guardianImportKey(row.guardianName, row.phone)}|${normalizedName(row.petName)}`;
     const petAction = existingGuardian && existingPetKeys.has(`${existingGuardian.id}|${normalizedName(row.petName)}`) ? "merge" : "create";
     petActionByKey.set(customerKey, petAction);
     const issues: string[] = [];
@@ -140,8 +147,8 @@ export async function buildDataImportPreview(params: {
   });
 
   const previewVisits = visits.map((row) => {
-    const customerKey = `${normalizeImportPhone(row.phone)}|${normalizedName(row.petName)}`;
-    const guardian = existingGuardianByPhone.get(normalizeImportPhone(row.phone));
+    const customerKey = `${guardianImportKey(row.guardianName, row.phone)}|${normalizedName(row.petName)}`;
+    const guardian = existingGuardianByPhone.get(guardianImportKey(row.guardianName, row.phone));
     const canResolveExistingPet = guardian && existingPetKeys.has(`${guardian.id}|${normalizedName(row.petName)}`);
     const issues: string[] = [];
     if (!normalizeImportPhone(row.phone)) issues.push("연결할 전화번호가 없습니다.");
@@ -191,6 +198,12 @@ export async function buildDataImportPreview(params: {
       source: params.source,
       fileName: params.fileName,
       fileSha256,
+      consentPolicy: {
+        enabled: policy?.policy.consentBeforeStart === true,
+        version: policy?.version ?? 0,
+        recognizableTemplates: (policy?.policy.consentBeforeStart ? policy.policy.templates : []).filter(t => t.enabled && !t.archivedAt && t.scope === "pet").map(({ id, version, title }) => ({ id, version, title })),
+        appointmentTemplateTitles: (policy?.policy.consentBeforeStart ? policy.policy.templates : []).filter(t => t.enabled && !t.archivedAt && t.scope === "appointment").map(t => t.title),
+      },
       summary: {
         totalRows: parsed.totalRows,
         customerRows: previewCustomers.length,

@@ -10,6 +10,7 @@ const schema = z.object({
   guardianName: z.string().trim().min(1).max(100),
   phone: z.string().trim().min(10).max(20),
   petName: z.string().trim().min(1).max(100),
+  appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export async function POST(request: NextRequest) {

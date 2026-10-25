@@ -16,8 +16,11 @@ export function getAppointmentWriteErrorMessage(
   fallback = "예약을 저장하지 못했습니다.",
 ) {
   const detail = [error.message, error.details, error.hint].filter(Boolean).join(" ").toLowerCase();
+  if (detail.includes("deposit_transfer_decision_required")) return "날짜를 바꿀 때 예약금 승계 여부를 선택해 주세요.";
+  if (detail.includes("deposit_transfer_review_required")) return "변경할 날짜의 예약금 조건이 다릅니다. 기존 금액을 먼저 정리해 주세요.";
   if (detail.includes("booking_deposit_expired")) return "예약금 입금 신고 기한이 지나 예약 시간이 해제되었습니다. 예약을 다시 진행해 주세요.";
   if (detail.includes("booking_deposit_required")) return "예약금을 확인하거나 면제한 뒤 진행해 주세요.";
+  if (detail.includes("booking_deposit_not_available")) return "이 예약은 예약금 대상이 아닙니다. 안내를 새로 확인해 주세요.";
   if (detail.includes("booking_consent_required")) return "필수 동의서 작성을 완료한 뒤 미용을 시작해 주세요.";
   if (detail.includes("booking_online_restricted")) return "현재 온라인 예약이 제한되어 있습니다. 매장에 문의해 주세요.";
   if (detail.includes("booking_deposit_not_configured")) return "매장의 예약금 계좌 설정을 확인해 주세요.";

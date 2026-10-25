@@ -1,5 +1,5 @@
 {
-  "readAt": "2026-10-01",
+  "readAt": "2026-10-17",
   "scope": "Admin-only operational error inbox delivery verification",
   "status": "UNVERIFIED",
   "route": "/admin/operational-errors",
@@ -32,5 +32,21 @@
       "releaseSha": null
     }
   },
-  "interpretation": "The development migration and schema readback passed. The app-level delivery test is not run. Production migration, deployment, and event readback from each Vercel project have not been performed."
+  "interpretation": "Production schema, least-privilege access, five sanitized event rows, the deployed route, and anonymous 401 protection are verified. An authenticated admin read and a dedicated end-to-end test delivery have not been run, so inbox status remains UNVERIFIED.",
+  "productionDatabase": {
+    "projectRef": "ysxykikqnneuhypybjry",
+    "migrationVersion": "20261014025923",
+    "schemaReadback": "PASS",
+    "tableExists": true,
+    "rlsEnabled": true,
+    "anonSelect": false,
+    "authenticatedSelect": false,
+    "serviceRoleSelect": true,
+    "serviceRoleInsert": true,
+    "rowCount": 5,
+    "last7dRows": 5,
+    "retentionTriggerPresent": true,
+    "unauthenticatedApiStatus": 401,
+    "apiDeliveryTest": "NOT_RUN"
+  }
 }

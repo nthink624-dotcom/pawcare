@@ -1,3 +1,4 @@
+import { guardianImportKey } from "@/server/data-import-identity";
 import { createHash, randomUUID } from "node:crypto";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -70,7 +71,7 @@ function defaultGuardianNotifications(enabled: boolean) {
 function uniqueCustomerRows(rows: ParsedCustomerRow[]) {
   const byKey = new Map<string, ParsedCustomerRow>();
   for (const row of rows) {
-    const key = `${normalizeImportPhone(row.phone)}|${normalizedName(row.petName)}`;
+    const key = `${guardianImportKey(row.guardianName, row.phone)}|${normalizedName(row.petName)}`;
     const previous = byKey.get(key);
     byKey.set(key, previous ? {
       ...previous,
@@ -88,7 +89,7 @@ function uniqueCustomerRows(rows: ParsedCustomerRow[]) {
 function uniqueVisitRows(rows: ParsedVisitRow[]) {
   const byKey = new Map<string, ParsedVisitRow>();
   for (const row of rows) {
-    const key = [normalizeImportPhone(row.phone), normalizedName(row.petName), row.visitDate, normalizedName(row.serviceName)].join("|");
+    const key = [guardianImportKey(row.guardianName, row.phone), normalizedName(row.petName), row.visitDate, normalizedName(row.serviceName)].join("|");
     if (!byKey.has(key)) byKey.set(key, row);
   }
   return Array.from(byKey.values());
@@ -167,6 +168,7 @@ export async function commitDataImport(params: {
   userId: string | null;
   source: DataImportSource;
   consentDecision: ConsentImportDecision;
+  consentPolicyVersion?: number;
   fileName: string;
   buffer: Buffer;
 }): Promise<DataImportCommitResult> {
@@ -187,6 +189,10 @@ export async function commitDataImport(params: {
   }
   if (existingBatchResult.data?.status === "completed") return resultFromBatch(existingBatchResult.data);
 
+  if (params.consentDecision === "consider_received") {
+    if (!params.userId || !preview.consentPolicy.enabled || !preview.consentPolicy.recognizableTemplates.length || params.consentPolicyVersion !== preview.consentPolicy.version)
+      throw new Error("동의서 설정이 변경되었습니다. 미리보기를 다시 확인해 주세요. 예약마다 작성하는 문서는 기존 동의로 인정할 수 없습니다.");
+  }
   const batchId = existingBatchResult.data?.id ?? randomUUID();
   const timestamp = new Date().toISOString();
   const batchStart = await supabase.from("shop_data_import_batches").upsert({
@@ -221,7 +227,7 @@ export async function commitDataImport(params: {
     const importedRecordKeys = new Set((importedRecordsResult.data ?? []).map((row) => row.external_record_key));
     const guardianByPhone = new Map<string, GuardianRow>();
     for (const guardian of guardians.sort((left, right) => Number(Boolean(left.deleted_at)) - Number(Boolean(right.deleted_at)))) {
-      const key = normalizeImportPhone(guardian.phone);
+      const key = guardianImportKey(guardian.name, guardian.phone);
       if (key && !guardianByPhone.has(key)) guardianByPhone.set(key, guardian);
     }
 
@@ -230,8 +236,8 @@ export async function commitDataImport(params: {
     const customerByPhone = new Map<string, ParsedCustomerRow>();
     for (const customer of customers) {
       const phoneKey = normalizeImportPhone(customer.phone);
-      const previous = customerByPhone.get(phoneKey);
-      customerByPhone.set(phoneKey, previous ? {
+      const previous = customerByPhone.get(guardianImportKey(customer.guardianName, customer.phone));
+      customerByPhone.set(guardianImportKey(customer.guardianName, customer.phone), previous ? {
         ...previous,
         guardianMemo: appendMemo(previous.guardianMemo, customer.guardianMemo),
         notificationEnabled: previous.notificationEnabled && customer.notificationEnabled,
@@ -244,7 +250,7 @@ export async function commitDataImport(params: {
     for (const customer of customerByPhone.values()) {
       const phoneKey = normalizeImportPhone(customer.phone);
       if (phoneKey.length < 10) continue;
-      const existing = guardianRowsByPhone.get(phoneKey);
+      const existing = guardianRowsByPhone.get(guardianImportKey(customer.guardianName, customer.phone));
       if (existing) {
         const notificationSettings = existing.notification_settings ?? defaultGuardianNotifications(true);
         const next: GuardianRow = {
@@ -254,7 +260,7 @@ export async function commitDataImport(params: {
           notification_settings: customer.notificationEnabled ? notificationSettings : { ...notificationSettings, enabled: false },
           deleted_at: null,
         };
-        guardianRowsByPhone.set(phoneKey, next);
+        guardianRowsByPhone.set(guardianImportKey(customer.guardianName, customer.phone), next);
         guardianUpserts.push({ ...next, shop_id: params.shopId, deleted_restore_until: null, updated_at: timestamp });
         mergedGuardians += 1;
       } else {
@@ -267,7 +273,7 @@ export async function commitDataImport(params: {
           deleted_at: null,
           created_at: timestamp,
         };
-        guardianRowsByPhone.set(phoneKey, next);
+        guardianRowsByPhone.set(guardianImportKey(customer.guardianName, customer.phone), next);
         guardianUpserts.push({ ...next, shop_id: params.shopId, updated_at: timestamp });
         importedGuardians += 1;
       }
@@ -282,7 +288,7 @@ export async function commitDataImport(params: {
     let importedPets = 0;
     let mergedPets = 0;
     for (const customer of customers) {
-      const guardian = guardianRowsByPhone.get(normalizeImportPhone(customer.phone));
+      const guardian = guardianRowsByPhone.get(guardianImportKey(customer.guardianName, customer.phone));
       if (!guardian) continue;
       const key = `${guardian.id}|${normalizedName(customer.petName)}`;
       const existing = petByKey.get(key);
@@ -320,7 +326,7 @@ export async function commitDataImport(params: {
       if (result.error) throw new Error(result.error.message);
     }
     const consentRows = customers.flatMap(customer => {
-      const guardian = guardianRowsByPhone.get(normalizeImportPhone(customer.phone));
+      const guardian = guardianRowsByPhone.get(guardianImportKey(customer.guardianName, customer.phone));
       const pet = guardian ? petByKey.get(`${guardian.id}|${normalizedName(customer.petName)}`) : null;
       return guardian && pet ? [{ shop_id: params.shopId, pet_id: pet.id, status: params.consentDecision === "consider_received" ? "recognized" : "needs_consent", import_batch_id: batchId, updated_at: timestamp }] : [];
     });
@@ -329,6 +335,10 @@ export async function commitDataImport(params: {
       if (result.error) throw new Error(result.error.message.includes("pet_consent_import_status") ? "동의서 이관 기록 저장소 적용이 필요합니다." : result.error.message);
     }
 
+    if (params.consentDecision === "consider_received" && consentRows.length) {
+      const recognized = await supabase.rpc("pm_recognize_import_consents", { p_shop: params.shopId, p_actor: params.userId, p_policy_version: params.consentPolicyVersion, p_pet_ids: consentRows.map(row => row.pet_id), p_batch: batchId });
+      if (recognized.error) throw new Error("동의서 설정이 변경되었거나 기존 동의 인정을 저장하지 못했습니다. 미리보기를 다시 확인해 주세요.");
+    }
     const serviceByName = new Map(services.map((service) => [normalizedName(service.name), service]));
     const serviceUpserts: Array<Record<string, unknown>> = [];
     for (const visit of visits) {
@@ -395,7 +405,7 @@ export async function commitDataImport(params: {
     let importedVisits = importedRecordKeys.size;
 
     for (const customer of customers) {
-      const guardian = guardianRowsByPhone.get(normalizeImportPhone(customer.phone));
+      const guardian = guardianRowsByPhone.get(guardianImportKey(customer.guardianName, customer.phone));
       const pet = guardian ? petByKey.get(`${guardian.id}|${normalizedName(customer.petName)}`) : null;
       if (!guardian || !pet) continue;
       const existed = guardians.some((row) => row.id === guardian.id) || pets.some((row) => row.id === pet.id);
@@ -404,7 +414,7 @@ export async function commitDataImport(params: {
         shop_id: params.shopId,
         row_number: customer.rowNumber,
         entity_type: "customer",
-        row_fingerprint: rowFingerprint(`${normalizeImportPhone(customer.phone)}|${normalizedName(customer.petName)}`),
+        row_fingerprint: rowFingerprint(`${guardianImportKey(customer.guardianName, customer.phone)}|${normalizedName(customer.petName)}`),
         status: existed ? "merged" : "imported",
         guardian_id: guardian.id,
         pet_id: pet.id,
@@ -414,7 +424,7 @@ export async function commitDataImport(params: {
     for (const visit of visits) {
       const externalRecordKey = dataImportRowKey(preview.fileSha256, visit.sheetName, visit.rowNumber);
       if (importedRecordKeys.has(externalRecordKey)) continue;
-      const guardian = guardianRowsByPhone.get(normalizeImportPhone(visit.phone));
+      const guardian = guardianRowsByPhone.get(guardianImportKey(visit.guardianName, visit.phone));
       const pet = guardian ? petByKey.get(`${guardian.id}|${normalizedName(visit.petName)}`) : null;
       const service = serviceByName.get(normalizedName(visit.serviceName));
       if (!guardian || !pet || !service) {

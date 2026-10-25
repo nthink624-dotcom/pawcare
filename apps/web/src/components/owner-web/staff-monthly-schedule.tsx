@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type KeyboardEvent } from "react";
 
-import { getDotIndicatorClass, getWrapIndicatorClass } from "@/components/owner-web/status-indicators";
+import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import {
   applyScheduleToCell,
   formatShortDate,
@@ -40,17 +40,42 @@ export function StaffMonthlySchedule({
   return (
     <>
       <div className="flex h-full min-h-0 max-w-full flex-col overflow-hidden bg-white">
-        <div className="min-h-0 max-w-full flex-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex h-full w-full min-w-[1120px] flex-col">
-            <div className="grid min-w-0 shrink-0 grid-cols-7 border-l border-t border-[#e1e1dd] bg-[#f7f7f4] text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#6f747a]">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:hidden">
+          <div className="space-y-2">
+            {monthDates.filter((day) => day.isCurrentMonth).map((day) => {
+              const workingCells = buildDailyCells(staff, day, requests, overrides).filter(({ cell }) => cell.status === "work");
+              return (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => setSelectedDay(day)}
+                  className="flex min-h-11 w-full items-center gap-3 rounded-[12px] border border-[#e8edf3] bg-white px-3 py-2 text-left transition hover:bg-[#f8fafc]"
+                >
+                  <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-[10px] text-[16px] font-semibold", day.isToday ? "bg-[#15213b] text-white" : "bg-[#f1f4f8] text-[#334155]")}>{day.dayNumber}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-medium leading-5 text-[#15213b]">{day.label}요일 · {workingCells.length}명 근무</span>
+                    <span className="mt-0.5 block truncate text-[14px] leading-5 text-[#64748b]">
+                      {workingCells.slice(0, 2).map(({ staffMember, cell }) => `${staffMember.name} ${cell.label}`).join(" · ") || "근무 일정 없음"}
+                      {workingCells.length > 2 ? ` 외 ${workingCells.length - 2}명` : ""}
+                    </span>
+                  </span>
+                  {day.isToday && <span className="shrink-0 rounded-full bg-[#eef3fb] px-2.5 py-1 text-[12px] font-medium text-[#334155]">오늘</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="hidden min-h-0 max-w-full flex-1 overflow-x-auto overflow-y-hidden p-2 sm:block [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex h-full w-full min-w-[1120px] flex-col gap-1.5">
+            <div className="grid min-w-0 shrink-0 grid-cols-7 gap-1.5 text-[15px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">
               {monthlyWeekdayColumns.map((day, index) => (
-                <div key={day.key} className={cn("flex h-[34px] items-center justify-center border-b border-r border-[#e1e1dd] pt-px", index === 0 && "border-l-0")}>
+                <div key={day.key} className={cn("flex h-8 items-center justify-center rounded-[9px] bg-[#f5f7fa]", index === 0 && "text-[#8a5a52]", index === 6 && "text-[#41668b]")}>
                   {day.label}
                 </div>
               ))}
             </div>
             <div
-              className="grid min-h-0 flex-1 min-w-0 grid-cols-7 border-l border-[#e1e1dd]"
+              className="grid min-h-0 min-w-0 flex-1 grid-cols-7 gap-2"
               style={{ gridTemplateRows: `repeat(${weekCount}, minmax(0, 1fr))` }}
             >
               {weeks.flatMap((week) =>
@@ -61,6 +86,7 @@ export function StaffMonthlySchedule({
                     staff={staff}
                     requests={requests}
                     overrides={overrides}
+                    maxVisibleStaff={weekCount >= 6 ? 3 : 4}
                     onOpenDateDetail={setSelectedDay}
                     onOpenScheduleEditor={onOpenScheduleEditor}
                   />
@@ -100,6 +126,7 @@ function MonthlyDayCell({
   staff,
   requests,
   overrides,
+  maxVisibleStaff,
   onOpenDateDetail,
   onOpenScheduleEditor,
 }: {
@@ -107,6 +134,7 @@ function MonthlyDayCell({
   staff: StaffMember[];
   requests: LeaveRequest[];
   overrides: ScheduleOverride[];
+  maxVisibleStaff: number;
   onOpenDateDetail: (day: MonthDay) => void;
   onOpenScheduleEditor: (staffMember: StaffMember, day: { key: WeekdayKey; label: string; date: string }) => void;
 }) {
@@ -129,24 +157,31 @@ function MonthlyDayCell({
       onClick={openDateDetail}
       onKeyDown={handleKeyDown}
       className={cn(
-        "flex min-h-0 min-w-0 flex-col border-b border-r border-[#e1e1dd] bg-white px-[8px] py-[6px] outline-none transition",
-        day.isCurrentMonth && "cursor-pointer hover:bg-[#fbfcfd] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#94a3b8]/25",
-        !day.isCurrentMonth && "bg-[#fafafa] text-[#9a9a94]",
+        "flex min-h-0 min-w-0 flex-col rounded-[11px] border border-[#e8edf3] bg-white px-2 py-1.5 outline-none transition",
+        day.isCurrentMonth && "cursor-pointer hover:border-[#cbd5e1] hover:bg-[#fbfcfd] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#94a3b8]/35",
+        !day.isCurrentMonth && "border-transparent bg-transparent text-[#9a9a94]",
       )}
     >
-      <div className="mb-[3px] flex h-5 shrink-0 items-center justify-between gap-2">
+      <div className="mb-0.5 flex h-5 shrink-0 items-center justify-between gap-2">
         <span
           className={cn(
-            "inline-flex h-6 min-w-6 items-center justify-center rounded-[7px] px-1.5 text-[16px] font-normal leading-6",
-            day.isToday ? "bg-[#30312f] text-white" : day.isCurrentMonth ? "text-[#202124]" : "text-[#9a9a94]",
+            "inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[18px] font-semibold leading-5",
+            day.isToday ? "bg-[#15213b] text-white" : day.isCurrentMonth ? "text-[#15213b]" : "text-[#9a9a94]",
           )}
         >
           {day.dayNumber}
         </span>
-        {day.isToday ? <span className="text-[12px] font-medium leading-[18px] text-[#6f747a]">오늘</span> : null}
+        <span className="flex items-center gap-1.5">
+          {workingCells.length > 0 ? (
+            <span className="rounded-full bg-[#f1f4f8] px-1.5 py-0.5 text-[12px] font-medium leading-4 text-[#64748b]">
+              {workingCells.length}명
+            </span>
+          ) : null}
+          {day.isToday ? <span className="text-[12px] font-medium leading-[18px] text-[#64748b]">오늘</span> : null}
+        </span>
       </div>
-      <div className="min-h-0 min-w-0 flex-1 space-y-[3px] overflow-y-auto overscroll-contain py-1 pr-1 [scrollbar-width:thin]">
-        {workingCells.map(({ staffMember, cell }) => {
+      <div className="min-h-0 min-w-0 flex-1 space-y-px overflow-hidden">
+        {workingCells.slice(0, maxVisibleStaff).map(({ staffMember, cell }) => {
           const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex);
           return (
             <button
@@ -157,15 +192,14 @@ function MonthlyDayCell({
                 onOpenScheduleEditor(staffMember, day);
               }}
               className={cn(
-                "pm-wrap-indicator flex h-7 w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[6px] border bg-white px-[7px] text-left !text-[14px] !font-medium !leading-5 transition hover:bg-[#f7f7f4]",
-                getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
+                "flex h-[18px] w-full min-w-0 items-center gap-1 overflow-hidden rounded-[5px] border-l-[2px] px-1.5 text-left text-[13px] font-medium leading-[18px] transition hover:bg-[#f1f4f8]",
               )}
-              style={{ "--pm-wrap-indicator-color": staffTone.selectedBackground } as CSSProperties}
+              style={{ borderLeftColor: staffTone.selectedBackground, backgroundColor: `${staffTone.selectedBackground}12` } as CSSProperties}
             >
-              <span className="inline-flex min-w-0 items-center truncate text-[14px] font-medium leading-5" style={{ color: staffTone.text }}>
+              <span className="inline-flex min-w-0 flex-1 items-center truncate text-[14px] font-medium leading-[18px]" style={{ color: staffTone.text }}>
                 {staffMember.name}
               </span>
-              <span className="inline-flex shrink-0 items-center text-[14px] font-medium leading-5 tabular-nums text-[#6f747a]">{cell.label}</span>
+              <span className="inline-flex shrink-0 items-center text-[14px] font-medium leading-[18px] tabular-nums tracking-[-0.025em] text-[#586579]">{cell.label}</span>
             </button>
           );
         })}

@@ -156,7 +156,7 @@ function isActiveBookingStatus(status: string) {
 }
 
 function isPendingBookingStatus(status: string) {
-  return false;
+  return status === "예약 대기";
 }
 
 function isOverduePendingBookingStatus(status: string) {

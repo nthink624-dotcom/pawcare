@@ -4,6 +4,8 @@ import android.content.Context;
 
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -53,13 +55,33 @@ final class OwnerCallScreeningTransport {
             try (OutputStream output = connection.getOutputStream()) {
                 output.write(body);
             }
-            if (connection.getResponseCode() < 200 || connection.getResponseCode() >= 300) {
+            int responseCode = connection.getResponseCode();
+            if (responseCode < 200 || responseCode >= 300) {
                 OwnerCallScreeningStore.enqueue(context, event);
+            } else if ("incoming".equals(event.optString("eventType", ""))) {
+                JSONObject response = new JSONObject(readResponseBody(connection.getInputStream()));
+                String guardianName = response.optString("guardianName", "").trim();
+                String providerCallId = event.optJSONObject("metadata") == null
+                    ? ""
+                    : event.optJSONObject("metadata").optString("providerCallId", "");
+                if (!guardianName.isEmpty() && OwnerCallScreeningStore.setActiveCallerName(context, providerCallId, guardianName)) {
+                    String callerNumber = event.optString("callerNumber", "");
+                    OwnerCallNotification.updateIncoming(context, providerCallId, callerNumber, guardianName);
+                }
             }
         } catch (Exception ignored) {
             OwnerCallScreeningStore.enqueue(context, event);
         } finally {
             if (connection != null) connection.disconnect();
+        }
+    }
+
+    private static String readResponseBody(InputStream input) throws Exception {
+        try (InputStream stream = input; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[1024];
+            int read;
+            while ((read = stream.read(buffer)) != -1) output.write(buffer, 0, read);
+            return output.toString(StandardCharsets.UTF_8.name());
         }
     }
 

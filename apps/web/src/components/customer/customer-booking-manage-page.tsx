@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import CustomerBookingManagePanel, {
   type CustomerBookingManageLookupPayload,
@@ -30,6 +30,8 @@ export default function CustomerBookingManagePage({
   entryHref: string;
   operationsLocked?: boolean;
 }) {
+  const [accessToken, setAccessToken] = useState(initialAccessToken);
+  useEffect(() => { if (!initialAccessToken) setAccessToken(new URLSearchParams(window.location.hash.slice(1)).get("t") ?? undefined); }, [initialAccessToken]);
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
   const staffMembers = useMemo(() => initialStaffMembers.filter((staff) => staff.name.trim()), [initialStaffMembers]);
   const customerServiceOptions = useMemo(
@@ -70,7 +72,7 @@ export default function CustomerBookingManagePage({
         services={initialServices}
         customerServiceOptions={customerServiceOptions}
         staffMembers={staffMembers}
-        initialAccessToken={initialAccessToken}
+        initialAccessToken={accessToken}
         initialLookupResult={initialLookupResult}
         operationsLocked={operationsLocked}
         onBack={() => {

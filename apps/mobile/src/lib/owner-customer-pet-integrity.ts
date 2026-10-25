@@ -94,8 +94,15 @@ const appointmentStatuses = new Set<AppointmentStatus>([
 ]);
 
 export function resolveOwnerMobileRoleContext(
-  value: Pick<BootstrapPayload, "ownerProfile" | "staffMembers" | "appointments">,
+  value: Pick<BootstrapPayload, "ownerProfile" | "staffMembers" | "appointments"> & Partial<Pick<BootstrapPayload, "actor" | "shop">>,
 ): OwnerMobileRoleContext {
+  if (value.actor !== undefined) {
+    const actor = value.actor;
+    if (!actor || actor.shopId !== value.shop?.id) throw new Error(OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE);
+    if (actor.role === "owner" || actor.role === "manager") return { appRole: "owner", currentStaffId: null };
+    if (actor.role !== "staff" || !actor.staffId || value.staffMembers.length !== 1 || value.staffMembers[0]?.id !== actor.staffId || value.appointments.some(item => item.staff_id !== actor.staffId)) throw new Error(OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE);
+    return { appRole: "staff", currentStaffId: actor.staffId };
+  }
   if (value.ownerProfile !== null) {
     if (typeof value.ownerProfile?.user_id === "string" && value.ownerProfile.user_id.trim()) {
       return { appRole: "owner", currentStaffId: null };

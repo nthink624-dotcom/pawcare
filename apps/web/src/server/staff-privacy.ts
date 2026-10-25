@@ -55,7 +55,7 @@ export function scopeBootstrapForStaff(data: BootstrapPayload, owner: Pick<Owner
   }
 
   const staffId = owner.staffId!;
-  const appointments = data.appointments.filter((appointment) => appointment.staff_id === staffId);
+  const appointments = data.appointments.filter((appointment) => appointment.staff_id === staffId).map(({ deposit_summary: _deposit, ...appointment }) => appointment);
   const assignedAppointmentIds = new Set(appointments.map((appointment) => appointment.id));
   const assignedGuardianIds = new Set(appointments.map((appointment) => appointment.guardian_id));
   const assignedPetIds = new Set(appointments.map((appointment) => appointment.pet_id));

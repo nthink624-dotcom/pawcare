@@ -84,8 +84,28 @@ final class OwnerCallScreeningStore {
         JSONObject config = readObject(context, CONFIG_KEY);
         config.remove("activeProviderCallId");
         config.remove("activeCallerNumber");
+        config.remove("activeCallerName");
         config.remove("activeAnswered");
         writeObject(context, CONFIG_KEY, config);
+    }
+
+    static synchronized boolean setActiveCallerName(Context context, String providerCallId, String guardianName) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        if (providerCallId == null || !providerCallId.equals(config.optString("activeProviderCallId", ""))) return false;
+        String name = guardianName == null ? "" : guardianName.trim();
+        if (name.isEmpty()) return false;
+        try {
+            config.put("activeCallerName", name);
+        } catch (Exception ignored) {
+            return false;
+        }
+        writeObject(context, CONFIG_KEY, config);
+        return true;
+    }
+
+    static synchronized String getActiveCallerName(Context context) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        return config.optString("activeCallerName", "").trim();
     }
 
     static synchronized String getActiveProviderCallId(Context context) {

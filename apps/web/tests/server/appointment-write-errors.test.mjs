@@ -72,6 +72,7 @@ for (const mode of ["mock", "supabase"]) {
       assertCustomerCanChangeBooking: () => {},
       nowIso: () => "2026-09-25T00:00:00.000Z",
       hasSupabaseServerEnv: () => mode === "supabase",
+      readDepositLedger: async () => null,
       updateMockAppointment: (id, update) => persist(id, update(original)),
       updateSupabaseAppointment: persist,
       dispatchNotification: () => assert.fail("customer cancellation must not dispatch"),

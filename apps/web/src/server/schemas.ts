@@ -64,6 +64,7 @@ export const appointmentStatusSchema = z.object({
 });
 
 export const appointmentEditSchema = z.object({
+  depositTransfer: z.boolean().optional(),
   appointmentId: z.string(),
   shopId: z.string(),
   serviceId: z.string(),
@@ -266,6 +267,7 @@ export const shopSettingsSchema = z.object({
     alimtalkTemplateRequestUpdatedAt: z.string().nullable().optional().default(null),
     revisitEnabled: z.boolean(),
     revisitReminderDefaultDays: z.coerce.number().int().min(1).max(365).default(45),
+    alimtalkTypeEnabled: z.record(z.string().max(100), z.boolean()).refine(value => Object.keys(value).length <= 32).optional(),
     bookingConfirmedEnabled: z.boolean(),
     bookingCancelledEnabled: z.boolean(),
     bookingRescheduledEnabled: z.boolean(),

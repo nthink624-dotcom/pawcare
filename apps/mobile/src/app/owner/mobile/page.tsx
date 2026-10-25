@@ -531,7 +531,10 @@ export default function OwnerMobilePage() {
         // notice when needed. Browsers still resolve it first because they may
         // redirect to the billing page before exposing the owner surface.
         const isAndroidApp = Capacitor.getPlatform() === "android";
-        const shouldResolveSubscriptionBeforeRender = !isAndroidApp;
+        // A delegated owner can operate this shop but cannot read the primary owner's
+        // billing-management endpoint. Bootstrap has already enforced shop access and
+        // subscription access; do not turn that billing 403 into a broken booking screen.
+        const shouldResolveSubscriptionBeforeRender = !isAndroidApp && Boolean(canonicalBootstrap.ownerProfile);
         const subscription = roleContext.appRole === "owner" && readiness.completed && shouldResolveSubscriptionBeforeRender
           ? await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
               `/api/subscription?shopId=${encodeURIComponent(resolvedShopId)}`,

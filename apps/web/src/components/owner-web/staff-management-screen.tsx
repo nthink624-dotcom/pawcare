@@ -770,11 +770,11 @@ export default function StaffManagementScreen({
           onChange={setBoardTab}
           trailing={
             boardTab === "monthly" ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-[12px] border border-[#e8edf3] bg-[#f5f7fa] p-1">
                 <button
                   type="button"
                   onClick={() => setMonthStart((current) => formatMonthShift(current, -1))}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] text-[#475569] transition hover:bg-white hover:text-[#15213b]"
                   aria-label="이전 달"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -782,14 +782,14 @@ export default function StaffManagementScreen({
                 <button
                   type="button"
                   onClick={() => setMonthStart(getMonthStart())}
-                  className="h-11 min-w-[72px] rounded-[8px] px-3 !text-[16px] !font-medium !leading-6 text-[#111827] hover:bg-[#f8fafc]"
+                  className="h-10 min-w-[112px] rounded-[9px] px-3 !text-[16px] !font-semibold !leading-6 text-[#15213b] hover:bg-white/70"
                 >
-                  {formatMonthLabel(monthStart).replace(/^\d{4}년\s*/, "")}
+                  {formatMonthLabel(monthStart)}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMonthStart((current) => formatMonthShift(current, 1))}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] text-[#475569] transition hover:bg-white hover:text-[#15213b]"
                   aria-label="다음 달"
                 >
                   <ChevronRight className="h-4 w-4" />

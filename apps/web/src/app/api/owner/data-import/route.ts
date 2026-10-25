@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const shopId = String(formData.get("shopId") ?? "").trim();
     const mode = formData.get("mode") === "commit" ? "commit" : "preview";
     const source = parseSource(formData.get("source"));
-    const consentDecision = formData.get("consentDecision");
+    const consentDecision = formData.get("consentDecision") ?? "request";
     if (!(file instanceof File) || file.size === 0) {
       throw new OwnerApiError("이전할 엑셀 파일을 선택해 주세요.", 400);
     }
@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
       if (consentDecision !== "request" && consentDecision !== "consider_received") {
         throw new OwnerApiError("고객의 동의서 상태를 선택해 주세요.", 400);
       }
+      if (consentDecision === "consider_received" && owner.role !== "owner") throw new OwnerApiError("기존 동의 인정은 오너가 확인해 주세요.", 403);
       const result = await commitDataImport({
         shopId: owner.shopId,
         userId: owner.userId,
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
         fileName: file.name,
         buffer,
         consentDecision: consentDecision as ConsentImportDecision,
+        consentPolicyVersion: Number(formData.get("consentPolicyVersion")),
       });
       return NextResponse.json(result);
     }

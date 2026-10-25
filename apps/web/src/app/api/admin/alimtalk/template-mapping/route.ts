@@ -1,20 +1,20 @@
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 
-import { getConfiguredAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
-import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
+import { ALIMTALK_NOTIFICATION_REGISTRY, NOTIFICATION_TEMPLATE_VARIABLE_KEYS, getNotificationTemplateVariables } from "@/lib/notification-registry";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
   getRelayTemplateCatalog,
   isApprovedAndUsableTemplate,
+  validateAlimtalkTemplateForAlias,
   type ConnectedTemplateDetail,
 } from "@/server/alimtalk-approved-template";
 import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
+import { matchesShopTemplateSnapshot } from "@/server/shop-alimtalk-template-contract";
 
 export const dynamic = "force-dynamic";
 
 const alias = "booking_confirmed";
-const configKey = "templateBookingConfirmed";
 const codeSchema = z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/);
 
 function templateSummary(template: ConnectedTemplateDetail) {
@@ -25,18 +25,13 @@ function templateSummary(template: ConnectedTemplateDetail) {
     inspectionStatus: template.inspectionStatus ?? "",
     serviceStatus: template.serviceStatus ?? "",
     buttons: template.buttons.map((button) => ({ name: button.name, type: button.type })),
+    variables: getNotificationTemplateVariables([template.templateContent ?? "", ...template.buttons.flatMap(button => [button.name,button.linkMobile,button.linkPc ?? ""])]),
   };
-}
-
-function isReservationConfirmationTemplate(template: ConnectedTemplateDetail) {
-  return /예약.*확정|확정.*예약/.test(template.templateName ?? "")
-    && template.buttons.length > 0
-    && isApprovedAndUsableTemplate(template);
 }
 
 function getAvailableTemplates(catalog: Awaited<ReturnType<typeof getRelayTemplateCatalog>>) {
   return (catalog?.allTemplates ?? [])
-    .filter(isReservationConfirmationTemplate)
+    .filter(template=>isApprovedAndUsableTemplate(template))
     .map(templateSummary)
     .sort((left, right) => left.templateName.localeCompare(right.templateName, "ko"));
 }
@@ -44,34 +39,31 @@ function getAvailableTemplates(catalog: Awaited<ReturnType<typeof getRelayTempla
 function buildNotificationMappings(
   catalog: Awaited<ReturnType<typeof getRelayTemplateCatalog>>,
   rows: Array<{
+    id: string;
     template_alias: string | null;
     provider_template_code: string | null;
     template_name: string | null;
     inspection_status: string;
     service_status: string;
+    updated_at: string;
+    variable_bindings?: Record<string,string>;
+    template_content: string;
+    buttons: unknown;
   }>,
 ) {
   return ALIMTALK_NOTIFICATION_REGISTRY.map((item) => {
     const platformMapping = rows.find((row) =>
       row.template_alias === item.templateAlias
-      && row.inspection_status === "approved"
       && row.service_status === "active"
       && Boolean(row.provider_template_code?.trim()),
     );
-    const envCode = getConfiguredAlimtalkTemplateKey(item.templateAlias)?.trim() ?? "";
-    const relayItem = catalog?.items?.find((entry) => entry.alias === item.templateAlias);
-    const relayCode = relayItem?.configuredCode?.trim() ?? "";
-    const code = platformMapping?.provider_template_code?.trim() || envCode || relayCode;
-    const source = platformMapping?.provider_template_code?.trim()
-      ? "platform"
-      : envCode
-        ? "environment"
-        : relayCode
-          ? "relay"
-          : "none";
-    const detail = (relayItem?.configuredCode === code ? relayItem.detail : null)
-      ?? catalog?.allTemplates?.find((template) => template.templateCode === code)
-      ?? null;
+    const code = platformMapping?.provider_template_code?.trim();
+    const source = code ? "platform" : "none";
+    const detail = catalog?.allTemplates?.find(template => template.templateCode === code) ?? null;
+    let usable = false;
+    if (detail && platformMapping?.inspection_status === "approved") {
+      try { validateAlimtalkTemplateForAlias(item.templateAlias,detail,platformMapping.variable_bindings ?? {}); usable=matchesShopTemplateSnapshot({template_code:code,template_content:platformMapping.template_content,template_buttons:platformMapping.buttons},detail); } catch { /* keep the selected mapping visible but blocked */ }
+    }
 
     return {
       type: item.type,
@@ -81,13 +73,16 @@ function buildNotificationMappings(
       configKey: item.templateConfigKey,
       notes: item.notes,
       source,
+      mappingId: platformMapping?.id ?? null,
+      updatedAt: platformMapping?.updated_at ?? null,
+      variableBindings: platformMapping?.variable_bindings ?? {},
       templateCode: code || null,
       templateName: detail?.templateName ?? platformMapping?.template_name ?? null,
       templateContent: detail?.templateContent ?? null,
-      inspectionStatus: detail?.inspectionStatus ?? (platformMapping ? "APR" : null),
-      serviceStatus: detail?.serviceStatus ?? (platformMapping ? "ACT" : null),
+      inspectionStatus: detail?.inspectionStatus ?? null,
+      serviceStatus: detail?.serviceStatus ?? null,
       buttons: (detail?.buttons ?? []).map((button) => ({ name: button.name, type: button.type })),
-      usable: Boolean(detail && isApprovedAndUsableTemplate(detail)),
+      usable,
     };
   });
 }
@@ -98,35 +93,26 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     if (!admin) throw new AdminApiError("알림 설정 저장소를 확인해 주세요.", 503);
 
-    const [catalog, mappingResult, mappingsResult] = await Promise.all([
+    const [catalog, mappingsResult] = await Promise.all([
       getRelayTemplateCatalog(),
       admin
         .from("platform_alimtalk_templates")
-        .select("provider_template_code,template_name,updated_at")
-        .eq("provider", "ssodaa")
-        .eq("template_alias", alias)
-        .eq("inspection_status", "approved")
-        .eq("service_status", "active")
-        .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-      admin
-        .from("platform_alimtalk_templates")
-        .select("template_alias,provider_template_code,template_name,inspection_status,service_status,updated_at")
+        .select("id,template_alias,provider_template_code,template_name,template_content,buttons,inspection_status,service_status,variable_bindings,updated_at")
         .eq("provider", "ssodaa")
         .order("updated_at", { ascending: false }),
     ]);
     if (!catalog) throw new AdminApiError("쏘다 릴레이에 연결하지 못했습니다.", 503);
-    if (mappingResult.error) throw new AdminApiError("현재 알림톡 템플릿을 불러오지 못했습니다.", 503);
     if (mappingsResult.error) throw new AdminApiError("PetManager 알림 연결 정보를 불러오지 못했습니다.", 503);
 
     const providerTemplates = (catalog.allTemplates ?? []).map(templateSummary);
     const templates = getAvailableTemplates(catalog);
     const approvedCount = providerTemplates.filter((template) => template.inspectionStatus.toUpperCase() === "APR").length;
+    const current = (mappingsResult.data ?? []).find(row=>row.template_alias===alias&&row.service_status==='active');
 
     return Response.json({
       templates,
       providerTemplates,
+      variableKeys: NOTIFICATION_TEMPLATE_VARIABLE_KEYS,
       notificationMappings: buildNotificationMappings(catalog, mappingsResult.data ?? []),
       connection: {
         relayConnected: true,
@@ -136,9 +122,9 @@ export async function GET(request: NextRequest) {
         approvedCount,
         reservationTemplateCount: templates.length,
       },
-      selectedCode: mappingResult.data?.provider_template_code ?? serverEnv.alimtalkTemplateBookingConfirmed ?? "",
-      persistedCode: mappingResult.data?.provider_template_code ?? "",
-      selectedName: mappingResult.data?.template_name ?? null,
+      selectedCode: current?.provider_template_code ?? "",
+      persistedCode: current?.provider_template_code ?? "",
+      selectedName: current?.template_name ?? null,
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const status = error instanceof AdminApiError ? error.status : 500;
@@ -149,16 +135,21 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     await requireAdminSession(request);
-    const payload = z.object({ templateCode: codeSchema }).parse(await request.json());
+    const payload = z.object({
+      templateAlias:z.string().min(1),templateCode:codeSchema,
+      variableBindings:z.record(z.string(),z.string()).default({}),
+      expectedCurrentId:z.uuid().nullable(),expectedUpdatedAt:z.string().nullable(),
+    }).parse(await request.json());
+    const spec=ALIMTALK_NOTIFICATION_REGISTRY.find(item=>item.templateAlias===payload.templateAlias);
+    if(!spec)throw new AdminApiError("알림 종류를 확인해 주세요.",400);
     const admin = getSupabaseAdmin();
     if (!admin) throw new AdminApiError("알림 설정 저장소를 확인해 주세요.", 503);
 
     const catalog = await getRelayTemplateCatalog();
     if (!catalog) throw new AdminApiError("쏘다 템플릿 목록에 연결하지 못했습니다.", 503);
     const selected = catalog.allTemplates?.find((item) => item.templateCode === payload.templateCode);
-    if (!selected || !isReservationConfirmationTemplate(selected)) {
-      throw new AdminApiError("승인되어 발송할 수 있는 예약 확정 템플릿만 선택할 수 있습니다.", 409);
-    }
+    if (!selected) throw new AdminApiError("선택한 쏘다 템플릿을 확인하지 못했습니다.",409);
+    validateAlimtalkTemplateForAlias(spec.templateAlias,selected,payload.variableBindings);
 
     const conflictingMapping = await admin
       .from("platform_alimtalk_templates")
@@ -166,64 +157,21 @@ export async function PUT(request: NextRequest) {
       .eq("provider", "ssodaa")
       .eq("provider_template_code", payload.templateCode)
       .eq("service_status", "active")
-      .neq("template_alias", alias)
+      .neq("template_alias", spec.templateAlias)
       .maybeSingle();
     if (conflictingMapping.error) throw new AdminApiError("다른 알림 템플릿의 사용 상태를 확인하지 못했습니다.", 503);
     if (conflictingMapping.data) throw new AdminApiError("다른 알림에 이미 연결된 템플릿입니다. 쏘다에서 별도의 예약 확정 템플릿을 선택해 주세요.", 409);
 
-    const now = new Date().toISOString();
-    const existingMapping = await admin
-      .from("platform_alimtalk_templates")
-      .select("id,provider_template_code")
-      .eq("provider", "ssodaa")
-      .eq("template_alias", alias)
-      .eq("service_status", "active")
-      .maybeSingle();
-    if (existingMapping.error) throw new AdminApiError("현재 알림톡 템플릿 설정을 확인하지 못했습니다.", 503);
-
-    if (existingMapping.data && existingMapping.data.provider_template_code !== payload.templateCode) {
-      const disabled = await admin
-        .from("platform_alimtalk_templates")
-        .update({ service_status: "inactive", updated_at: now })
-        .eq("id", existingMapping.data.id)
-        .eq("template_alias", alias);
-      if (disabled.error) throw new AdminApiError("이전 템플릿 설정을 변경하지 못했습니다.", 503);
-    }
-
-    const categoryCode = String((selected as ConnectedTemplateDetail & { categoryCode?: string }).categoryCode ?? "");
-    const saved = await admin.from("platform_alimtalk_templates").upsert({
-      template_alias: alias,
-      notification_type: alias,
-      template_config_key: configKey,
-      provider: "ssodaa",
-      provider_template_code: selected.templateCode,
-      template_name: selected.templateName ?? "",
-      template_content: selected.templateContent ?? "",
-      category_code: categoryCode,
-      message_type: "BA",
-      emphasize_type: "NONE",
-      buttons: selected.buttons,
-      inspection_status: "approved",
-      service_status: "active",
-      rejection_reason: "",
-      is_custom: false,
-      last_synced_at: now,
-      updated_at: now,
-    }, { onConflict: "provider,provider_template_code" }).select("provider_template_code,template_name").single();
-    if (saved.error || !saved.data) throw new AdminApiError("예약 확정 템플릿을 저장하지 못했습니다.", 503);
-
-    await admin.from("platform_alimtalk_template_events").insert({
-      template_alias: alias,
-      provider_template_code: payload.templateCode,
-      event_type: "mapped",
-      previous_status: existingMapping.data ? "active" : null,
-      next_status: "active",
-      message: "예약 확정 알림 템플릿 적용",
+    const saved = await admin.rpc("replace_platform_alimtalk_template", {
+      p_alias:spec.templateAlias,p_type:spec.type,p_config_key:spec.templateConfigKey,
+      p_template:selected,p_bindings:payload.variableBindings,
+      p_expected_current:payload.expectedCurrentId,p_expected_updated_at:payload.expectedUpdatedAt,
     });
+    if(saved.error||!saved.data)throw new AdminApiError("연결이 변경되었거나 교체하지 못했습니다. 기존 연결은 유지됩니다. 새로고침 후 다시 확인해 주세요.",409);
 
     return Response.json({
-      selectedCode: saved.data.provider_template_code,
-      selectedName: saved.data.template_name,
+      selectedCode: selected.templateCode,
+      selectedName: selected.templateName,
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const status = error instanceof AdminApiError ? error.status : 400;

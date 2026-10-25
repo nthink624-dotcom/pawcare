@@ -126,6 +126,7 @@ function normalizeButtons(value: AlimtalkButton[] | null | undefined) {
 }
 
 export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<SendAlimtalkResult> {
+  if (serverEnv.alimtalkProvider === "ssodaa" && !input.templateKey?.trim()) throw new Error("검증된 현재 템플릿 연결이 없어 발송을 중단했습니다.");
   const requestId = crypto.randomUUID();
   const { relayUrlHost, relayUrlPathname } = getRelayUrlParts(serverEnv.alimtalkRelayUrl);
   const hasRelayUrl = Boolean(serverEnv.alimtalkRelayUrl);

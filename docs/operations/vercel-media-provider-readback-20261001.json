@@ -1,7 +1,7 @@
 {
-  "readAt": "2026-10-01",
+  "readAt": "2026-10-17",
   "scope": "Read-only Vercel production media environment readback; secret values were not retained",
-  "sourceCommand": "npm run check:media-provider:vercel --workspace=@petmanager/web",
+  "sourceCommand": "Vercel MCP read-only environment key inventory and a single-value MEDIA_STORAGE_PROVIDER readback; secret values not retained",
   "projects": {
     "web": {
       "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",

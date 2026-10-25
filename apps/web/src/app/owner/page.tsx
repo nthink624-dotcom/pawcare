@@ -255,7 +255,10 @@ export default function OwnerPage() {
         setCurrentOwnerAccessToken(ownerAccess.accessToken);
         setAccessToken(ownerAccess.accessToken);
 
-        const storedShopId = readCurrentOwnerShopId();
+        // A shared inspection/bookmark link must not replace the user's default shop.
+        // The API still authorizes this shop against the signed-in owner's membership.
+        const requestedShopId = new URLSearchParams(window.location.search).get("shopId")?.trim() || null;
+        const storedShopId = requestedShopId || readCurrentOwnerShopId();
         const loadSubscription = async (shopId: string | null | undefined = resolvedShopId) => {
           const query = shopId ? `?shopId=${encodeURIComponent(shopId)}` : "";
           const subscription = await withOwnerLoadTimeout(
@@ -263,7 +266,7 @@ export default function OwnerPage() {
             "구독 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
           );
           if (active) {
-            writeOwnerBillingSummaryCache(subscription);
+            if (!requestedShopId) writeOwnerBillingSummaryCache(subscription);
             setSubscriptionSummary(subscription);
           }
           return subscription;
@@ -287,6 +290,7 @@ export default function OwnerPage() {
             try {
               bootstrap = await loadBootstrap(resolvedShopId);
             } catch (storedShopError) {
+              if (requestedShopId) throw storedShopError;
               const shops = await loadOwnedShops();
               if (shops.length === 0) {
                 throw new Error("소유한 매장이 없습니다.");
@@ -315,7 +319,7 @@ export default function OwnerPage() {
         }
 
         if (!active) return;
-        writeCurrentOwnerShopId(resolvedShopId);
+        if (!requestedShopId) writeCurrentOwnerShopId(resolvedShopId);
         setSelectedShopId(resolvedShopId);
         setData(bootstrap);
         window.performance.mark("petmanager:owner-login:owner-usable");

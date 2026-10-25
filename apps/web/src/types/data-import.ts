@@ -46,6 +46,11 @@ export type DataImportPreview = {
   source: DataImportSource;
   fileName: string;
   fileSha256: string;
+  consentPolicy: {
+    enabled: boolean; version: number;
+    recognizableTemplates: Array<{ id: string; version: number; title: string }>;
+    appointmentTemplateTitles: string[];
+  };
   summary: {
     totalRows: number;
     customerRows: number;

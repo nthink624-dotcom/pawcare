@@ -28,7 +28,7 @@ import {
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { ScheduleCreateDialog } from "@/components/owner-web/calendar-create-dialog";
+import { ScheduleCreateDialog, ScheduleConsentChoiceDialog, type ScheduleConsentChoice, type ScheduleConsentPrompt } from "@/components/owner-web/calendar-create-dialog";
 import { AppointmentVisitWeightEditor } from "@/components/owner-web/appointment-visit-weight-editor";
 import {
   CalendarGroomingCompletionFields,
@@ -102,6 +102,8 @@ import { getPetBiteLevelLabel, normalizePetBiteLevel } from "@/lib/pet-bite-leve
 import { buildPetGroupOptions } from "@/lib/pet-group-options";
 import { addDate, cn, currentDateInTimeZone, currentMinutesInTimeZone } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, MediaKind, Notification, NotificationType, Pet, PetBiteLevel, PetStaffNote, Service } from "@/types/domain";
+import BookingDevelopmentNotice from "@petmanager/shared/components/booking-development-notice";
+import { env } from "@/lib/env";
 
 type SummaryMetricKey = "today" | "completed" | "changes";
 type ReservationStatusFilter = "all" | "confirmed";
@@ -208,6 +210,7 @@ const appointmentStatusLabels: Partial<Record<AppointmentStatus, string>> = {
 };
 
 const bookingStatusToAppointmentStatus: Partial<Record<string, AppointmentStatus>> = {
+  "예약 대기": "pending",
   확정: "confirmed",
   "진행 중": "in_progress",
   "픽업 준비": "almost_done",
@@ -411,6 +414,7 @@ function getTimedBookingStatus(
   selectedDate: string,
   currentHour: number,
 ) {
+  if (booking.status === "예약 대기") return booking.status;
   if (isChangeBookingStatus(booking.status) || isCompletedBookingStatus(booking.status)) {
     return booking.status;
   }
@@ -853,6 +857,7 @@ function appointmentToDailyBooking(
     originalServicePrice: appointment.original_service_price,
     discountAmount: appointment.discount_amount,
     finalServicePrice: appointment.final_service_price,
+    depositSummary: appointment.deposit_summary,
     discountSnapshot: appointment.discount_snapshot ?? null,
     visitReminderOffsetMinutes: appointment.visit_reminder_offset_minutes ?? 10,
     pickupReadyEtaMinutes: appointment.pickup_ready_eta_minutes ?? 5,
@@ -872,6 +877,7 @@ const baseDailyBookings = calendarBookings.map((booking) => ({
 }));
 
 type DailyBooking = {
+  depositSummary?: Appointment["deposit_summary"];
   customerMemo?: string;
   petPhotoUrl?: string | null;
   id: string;
@@ -1665,7 +1671,7 @@ function BookingSidePanel({
   onSaveBookingPhone: (booking: DailyBooking, phone: string) => Promise<void>;
   onSaveBookingDetail: (
     booking: DailyBooking,
-    values: { startTime: string; endTime: string; phone: string; serviceName: string; price: number },
+    values: { startTime: string; endTime: string; phone: string; serviceName: string; price: number; date?: string; depositTransfer?: boolean },
   ) => Promise<void>;
   onSavePetProfile: (
     booking: DailyBooking,
@@ -1716,7 +1722,11 @@ function BookingSidePanel({
   } | null>(null);
   const [cancellationDialog, setCancellationDialog] = useState<{ bookingId: string } | null>(null);
   const [preparationCancelAction, setPreparationCancelAction] = useState<{ bookingId: string; kind: "owner" | "customer"; nonce: number } | null>(null);
+  const [depositReady, setDepositReady] = useState(false);
+  const depositPanelRef = useRef<HTMLDivElement>(null);
   const [editableStartTime, setEditableStartTime] = useState("");
+  const [editableDate, setEditableDate] = useState("");
+  const [depositTransfer, setDepositTransfer] = useState("");
   const [editableEndTime, setEditableEndTime] = useState("");
   const [editablePhone, setEditablePhone] = useState("");
   const [editableServiceName, setEditableServiceName] = useState("");
@@ -1940,6 +1950,7 @@ function BookingSidePanel({
   useEffect(() => {
     if (!selectedBooking) return;
     setEditableStartTime(formatHourLabel(selectedBooking.start));
+    setEditableDate(selectedBooking.appointmentDate ?? ""); setDepositTransfer("");
     setEditableEndTime(formatHourLabel(selectedBooking.start + selectedBooking.duration));
     setEditablePhone(formatSchedulePhone(selectedBooking.guardianPhone ?? ""));
     setEditableServiceName(selectedBooking.service);
@@ -1977,7 +1988,7 @@ function BookingSidePanel({
 
     const handlePointerDown = (event: MouseEvent) => {
       if (timeEditorRef.current?.contains(event.target as Node)) return;
-      commitTimeEdit();
+      setDetailEditMode(null);
     };
 
     document.addEventListener("mousedown", handlePointerDown);
@@ -2034,13 +2045,16 @@ function BookingSidePanel({
     : null;
   const selectedGuardianNotificationSettings = selectedGuardianForBooking?.notification_settings ?? null;
   const selectedGuardianAlimtalkBlockedReason =
-    selectedGuardianNotificationSettings && !selectedGuardianNotificationSettings.enabled
-      ? "이 고객은 이 매장의 알림톡 수신을 거부했습니다."
+    bootstrapData.shop.notification_settings.enabled &&
+    selectedGuardianNotificationSettings &&
+    !selectedGuardianNotificationSettings.enabled
+      ? "알림톡 수신 거부 고객이에요. 예약 확정 알림은 보내지 않아요."
       : selectedGuardianNotificationSettings &&
+          bootstrapData.shop.notification_settings.enabled &&
           sourceStatus === "확정" &&
           selectedBooking.source === "owner" &&
           selectedGuardianNotificationSettings.booking_confirmed_enabled === false
-        ? "이 고객은 예약 확정 알림톡 수신이 꺼져 있습니다."
+        ? "고객이 예약 확정 알림을 받지 않도록 설정했어요."
         : null;
   const benefitSummary = buildBookingBenefitSummary(bootstrapData, selectedBooking);
 
@@ -2157,7 +2171,10 @@ function BookingSidePanel({
     setDetailSaving(true);
     setDetailNotice("");
     try {
-      await onSaveBookingDetail(selectedBooking, { startTime, endTime, phone, serviceName, price });
+      const dateChanged = editableDate !== selectedBooking.appointmentDate;
+      if (dateChanged && selectedBooking.depositSummary && !depositTransfer) throw new Error("기존 예약금을 새 날짜에 사용할지 선택해 주세요.");
+      await onSaveBookingDetail(selectedBooking, { startTime, endTime, phone, serviceName, price, date: editableDate, ...(dateChanged && selectedBooking.depositSummary ? { depositTransfer: depositTransfer === "yes" } : {}) });
+      setDetailEditMode(null);
       showTemporaryDetailNotice("저장되었습니다.");
     } catch (error) {
       showTemporaryDetailNotice(getApiErrorMessage(error, "예약 상세 저장 중 문제가 발생했습니다."));
@@ -2241,6 +2258,7 @@ function BookingSidePanel({
       >
       <style>{`.pm-booking-side-panel-scroll { scrollbar-width: none; -ms-overflow-style: none; } .pm-booking-side-panel-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }`}</style>
       <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-0">
+        <BookingDevelopmentNotice environment={env.supabaseEnvName} shopId={shopId} />
         <div className="pm-booking-side-panel-scroll min-h-0 flex-1 overflow-y-auto">
           <div className="bg-white px-4 pb-3 pt-5">
             <div className="rounded-[16px] border border-[#e6edf6] bg-[#f8fbff] p-3">
@@ -2389,22 +2407,30 @@ function BookingSidePanel({
               </section>
             ) : null}
 
-            <section className="pt-1">
-              <BookingPreparationPanel
+            <section className="pt-3">
+              <div ref={depositPanelRef} className="[&_.pm-deposit-header]:px-3.5"><BookingPreparationPanel
                 key={selectedBooking.id}
                 shopId={shopId}
                 appointmentId={selectedBooking.id}
+                initialDeposit={selectedBooking.depositSummary}
+                initialStatus={bookingStatusToAppointmentStatus[selectedBooking.sourceStatus ?? selectedBooking.status] ?? selectedBooking.sourceStatus}
+                initialServiceAmount={selectedBooking.finalServicePrice}
+                onDepositReady={setDepositReady}
                 cancelAction={preparationCancelAction?.bookingId === selectedBooking.id ? preparationCancelAction : null}
-                onStatusChanged={(status) => onRefreshAfterStatusChange(selectedBooking.id, selectedBooking.date, status)}
-              />
-              <h3 className="px-3.5 text-[16px] font-semibold leading-6 text-[#15213b]">서비스 내역</h3>
+                onStatusChanged={(status) => onRefreshAfterStatusChange(selectedBooking.id, selectedBooking.appointmentDate ?? selectedBooking.date, status)}
+              /></div>
+              {detailEditMode === "time" && <div ref={timeEditorRef} className="space-y-3 rounded-[10px] border border-[#e5e8ec] p-3"><label className="grid gap-1.5 text-[16px]">예약 날짜<input aria-label="변경할 예약 날짜" type="date" className="min-h-11 w-full rounded-[10px] border border-[#dbe2ea] px-3" value={editableDate} onChange={e => setEditableDate(e.target.value)} /></label><div className="grid grid-cols-2 gap-3"><label className="grid gap-1.5">시작<input aria-label="변경할 시작 시간" type="time" className="min-h-11 w-full min-w-0 rounded-[10px] border border-[#dbe2ea] px-3" value={editableStartTime} onChange={e => setEditableStartTime(e.target.value)} /></label><label className="grid gap-1.5">종료<input aria-label="변경할 종료 시간" type="time" className="min-h-11 w-full min-w-0 rounded-[10px] border border-[#dbe2ea] px-3" value={editableEndTime} onChange={e => setEditableEndTime(e.target.value)} /></label></div>{editableDate !== selectedBooking.appointmentDate && selectedBooking.depositSummary && <label className="grid gap-1.5">기존 예약금을 새 날짜에도 사용할까요?<select className="min-h-11 rounded-[10px] border border-[#dbe2ea] px-3" aria-label="날짜 변경 예약금 승계" value={depositTransfer} onChange={e => setDepositTransfer(e.target.value)}><option value="">선택해 주세요</option><option value="yes">기존 예약금 사용</option><option value="no">새 날짜는 별도로 요청</option></select></label>}<button type="button" disabled={detailSaving} className="min-h-11 w-full rounded-[10px] bg-[#111a30] px-3 text-[16px] text-white disabled:opacity-50" onClick={() => void saveEditableDetail()}>예약 수정 저장</button></div>}
               {selectedGuardianAlimtalkBlockedReason ? (
-                <div className="mb-2 rounded-[10px] border border-[#f3c6cf] bg-[#fff7f8] px-3 py-2 text-[16px] leading-6 text-[#9f3448]">
-                  {selectedGuardianAlimtalkBlockedReason} 예약 확정 알림톡은 발송되지 않습니다.
+                <div className="mb-2 rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[14px] leading-5 text-[#475569]">
+                  {selectedGuardianAlimtalkBlockedReason}
                 </div>
               ) : null}
               <div ref={serviceMenuRef} className="relative mt-2">
                 <div className="overflow-hidden rounded-[10px] border border-[#e5e8ec] bg-white">
+                <div className="flex min-h-11 items-center justify-between gap-3 border-b border-[#f0f2f4] px-3.5 py-2">
+                  <h3 className="text-[16px] font-semibold leading-6 text-[#15213b]">서비스 내역</h3>
+                  {["대기", "확정", "예약 확정", "예약 대기"].includes(selectedBooking.status) && <button type="button" className="min-h-11 shrink-0 text-[14px] text-[#4778c7]" onClick={() => setDetailEditMode(current => current === "time" ? null : "time")}>일정 변경</button>}
+                </div>
                 <div className="flex min-w-0 items-center gap-3 border-b border-[#f0f2f4] bg-white px-3.5 py-2.5 text-[16px] font-normal leading-6 text-[#15213b]">
                   <span className="inline-flex min-w-0 items-center gap-1.5 tabular-nums">
                     <Clock className="h-4 w-4 shrink-0 text-[#94a3b8]" />
@@ -2458,8 +2484,9 @@ function BookingSidePanel({
             </section>
 
             <section className="pt-4">
-              <h3 className="px-3.5 text-[16px] font-semibold leading-6 text-[#15213b]">요청사항</h3>
-              <div className={`mt-2 min-h-12 rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>
+              <div className="overflow-hidden rounded-[10px] border border-[#e5e8ec] bg-white">
+              <h3 className="border-b border-[#f0f2f4] px-3.5 py-2.5 text-[16px] font-semibold leading-6 text-[#15213b]">요청사항</h3>
+              <div className={`min-h-12 px-3.5 py-3 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>
                 {hasRequestText ? (
                   <>
                     {requestText.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)}
@@ -2468,18 +2495,22 @@ function BookingSidePanel({
                   <p>고객 요청사항이 없습니다.</p>
                 )}
               </div>
+              </div>
             </section>
 
             {selectedBooking.customerMemo?.trim() ? (
               <section className="pt-4">
-                <h3 className="px-3.5 text-[16px] font-semibold leading-6 text-[#15213b]">고객 메모</h3>
-                <p className={`mt-2 whitespace-pre-wrap break-words rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>{selectedBooking.customerMemo.trim()}</p>
+                <div className="overflow-hidden rounded-[10px] border border-[#e5e8ec] bg-white">
+                  <h3 className="border-b border-[#f0f2f4] px-3.5 py-2.5 text-[16px] font-semibold leading-6 text-[#15213b]">고객 메모</h3>
+                  <p className={`whitespace-pre-wrap break-words px-3.5 py-3 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>{selectedBooking.customerMemo.trim()}</p>
+                </div>
               </section>
             ) : null}
 
             <section className="pt-4">
-              <h3 className="px-3.5 text-[16px] font-semibold leading-6 text-[#15213b]">코멘트</h3>
-              <div className={`mt-2 min-h-12 rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>
+              <div className="overflow-hidden rounded-[10px] border border-[#e5e8ec] bg-white">
+              <h3 className="border-b border-[#f0f2f4] px-3.5 py-2.5 text-[16px] font-semibold leading-6 text-[#15213b]">코멘트</h3>
+              <div className={`min-h-12 px-3.5 py-3 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>
                 {hasStaffComment ? (
                   <>
                     {staffComment.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)}
@@ -2488,14 +2519,16 @@ function BookingSidePanel({
                   <p>공유 코멘트가 없습니다.</p>
                 )}
               </div>
+              </div>
             </section>
 
             <section className="pb-2 pt-4">
-              <div className="flex items-center justify-between gap-3 px-3.5">
+              <div className="overflow-hidden rounded-[10px] border border-[#e5e8ec] bg-white">
+              <div className="flex min-h-11 items-center justify-between gap-3 border-b border-[#f0f2f4] px-3.5 py-2.5">
                 <h3 className="text-[16px] font-semibold leading-6 text-[#15213b]">최근 방문이력</h3>
-                <span className="text-[16px] font-normal leading-6 text-[#64748b]">총 {recentVisitHistory.totalCount}회</span>
+                <span className="text-[14px] font-normal leading-5 text-[#64748b]">총 {recentVisitHistory.totalCount}회</span>
               </div>
-              <div className={`mt-2 rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-1 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>
+              <div className={`px-3.5 py-1 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>
                 {recentVisitHistory.items.length > 0 ? (
                   recentVisitHistory.items.map((visit) => (
                     <div key={visit.id} className="grid grid-cols-[86px_minmax(0,1fr)] gap-4 border-b border-[#f0f2f4] py-3 last:border-b-0">
@@ -2506,6 +2539,7 @@ function BookingSidePanel({
                 ) : (
                   <p className="py-3">방문이력이 없습니다.</p>
                 )}
+              </div>
               </div>
             </section>
           </div>
@@ -2587,9 +2621,9 @@ function BookingSidePanel({
                 <div className="flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] text-[14px] font-normal leading-5 text-[#64748b]">
                   처리 완료
                 </div>
-              ) : (
+              ) : depositReady ? null : (
                 <div className="flex min-h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] text-[14px] font-normal leading-5 text-[#94a3b8]">
-                  처리할 상태 없음
+                  예약 준비 확인 후 미용을 시작할 수 있습니다.
                 </div>
               )}
 
@@ -4169,7 +4203,7 @@ export default function CalendarManagementScreen({
   const [selectedDate, setSelectedDate] = useState(() =>
     initialData.mode !== "supabase" || initialData.shop.id === "owner-demo"
       ? addDate(currentDateInTimeZone(), 1)
-      : currentDateInTimeZone(),
+      : (typeof window !== "undefined" && /^\d{4}-\d{2}-\d{2}$/.test(new URLSearchParams(window.location.search).get("depositDate") ?? "") ? new URLSearchParams(window.location.search).get("depositDate")! : currentDateInTimeZone()),
   );
   const visibleStaff = useMemo(() => {
     return staffMembers.map(toOwnerWebStaffColumn);
@@ -4214,6 +4248,7 @@ export default function CalendarManagementScreen({
   );
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
+  const [scheduleConsentPrompt, setScheduleConsentPrompt] = useState<ScheduleConsentPrompt | null>(null);
   const [boardError, setBoardError] = useState("");
   const [pendingOutOfHoursMove, setPendingOutOfHoursMove] = useState<PendingOutOfHoursMove | null>(null);
   const [statusChanging, setStatusChanging] = useState(false);
@@ -4478,6 +4513,11 @@ export default function CalendarManagementScreen({
   );
 
   const selectedBooking = filteredBookings.find((item) => item.id === selectedBookingId);
+  const depositOpenRequest = useRef(typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("depositAppointment") : null);
+  useEffect(() => {
+    const id = depositOpenRequest.current;
+    if (id && filteredBookings.some(booking => booking.id === id)) { setSelectedBookingId(id); depositOpenRequest.current = null; }
+  }, [filteredBookings]);
   const wideBookingViewport = useSyncExternalStore(subscribeToDockedBookingViewport, getDockedBookingViewport, () => false);
   const dockedBookingDetail = wideBookingViewport && visibleStaff.length > 0 && (visibleStaff.length === 1 || staff !== "전체 직원");
 
@@ -4568,7 +4608,7 @@ export default function CalendarManagementScreen({
 
   async function persistBookingDetailChange(
     booking: DailyBooking,
-    values: { startTime: string; endTime: string; phone: string; serviceName: string; price: number },
+    values: { startTime: string; endTime: string; phone: string; serviceName: string; price: number; date?: string; depositTransfer?: boolean },
   ) {
     const appointment = bootstrapData.appointments.find((item) => item.id === booking.id);
     if (!appointment) throw new Error("예약 정보를 찾을 수 없습니다.");
@@ -4685,19 +4725,22 @@ export default function CalendarManagementScreen({
       nextServiceId = customServiceId;
     }
 
-    if (serviceChanged || timeChanged) {
+    const dateChanged = Boolean(values.date && values.date !== appointment.appointment_date);
+    if (serviceChanged || timeChanged || dateChanged) {
       const updatedAppointment = await fetchApiJsonWithAuth<Appointment>("/api/appointments", {
         method: "PATCH",
         body: JSON.stringify({
+          shopId: bootstrapData.shop.id,
           appointmentId: appointment.id,
           serviceId: nextServiceId,
           staffId: appointment.staff_id ?? booking.staffKey,
-          appointmentDate: appointment.appointment_date,
+          appointmentDate: values.date || appointment.appointment_date,
           appointmentTime: values.startTime,
           durationMinutes,
           memo: appointment.memo ?? "",
-          enforceShopCapacity: false,
-          allowOutsideShopHours: true,
+          enforceShopCapacity: timeChanged || dateChanged,
+          allowOutsideShopHours: !timeChanged && !dateChanged,
+          depositTransfer: values.depositTransfer,
           notifyCustomer: false,
           preserveStatus: true,
         }),
@@ -5253,7 +5296,8 @@ export default function CalendarManagementScreen({
     setScheduleDialogOpen(true);
   }
 
-  async function handleCreateSchedule() {
+  async function handleCreateSchedule(consentChoice?: ScheduleConsentChoice) {
+    if (scheduleSaving) return;
     let selectedPet = bootstrapData.pets.find((pet) => pet.id === scheduleForm.petId) ?? null;
     let selectedGuardian = selectedPet ? bootstrapData.guardians.find((guardian) => guardian.id === selectedPet?.guardian_id) ?? null : null;
     const selectedService = bootstrapData.services.find((service) => service.id === scheduleForm.serviceId);
@@ -5319,6 +5363,7 @@ export default function CalendarManagementScreen({
     let createdPet: Pet | null = null;
 
     const applyCreatedAppointment = (appointment: Appointment) => {
+      setScheduleConsentPrompt(null);
       const nextAssignments = { ...staffAssignments, [appointment.id]: targetStaff.key };
       const nextGuardian = createdGuardian;
       const nextPet = createdPet;
@@ -5469,6 +5514,23 @@ export default function CalendarManagementScreen({
       return;
     }
 
+    if (scheduleForm.customerMode === "existing" && !consentChoice) {
+      try {
+        const query = new URLSearchParams({ shopId: bootstrapData.shop.id, guardianId: selectedGuardian.id, petId: selectedPet.id });
+        const state = await fetchApiJsonWithAuth<ScheduleConsentPrompt & { enabled: boolean }>(`/api/owner/customer-consents?${query}`, { cache: "no-store" });
+        const pending = state.documents.filter(doc => doc.status === "pending");
+        if (state.enabled && pending.length) {
+          setScheduleConsentPrompt({ policyVersion: state.policyVersion, documents: pending });
+          setScheduleSaving(false);
+          return;
+        }
+      } catch {
+        setScheduleError("동의서 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
+        setScheduleSaving(false);
+        return;
+      }
+    }
+
     const payload = {
       shopId: bootstrapData.shop.id,
       customerMode: "existing" as const,
@@ -5479,6 +5541,7 @@ export default function CalendarManagementScreen({
       appointmentDate: scheduleForm.date,
       appointmentTime: scheduleForm.time,
       memo: scheduleForm.memo,
+      consentChoice,
     };
 
     try {
@@ -5531,16 +5594,18 @@ export default function CalendarManagementScreen({
           getAvailableSlots={getScheduleCreateAvailableSlots}
           saving={scheduleSaving}
           error={scheduleError}
-          onChange={setScheduleForm}
+          onChange={form => { setScheduleForm(form); setScheduleConsentPrompt(null); }}
           onClose={() => {
             if (!scheduleSaving) {
               setScheduleDialogOpen(false);
               setScheduleError("");
+              setScheduleConsentPrompt(null);
             }
           }}
-          onSubmit={handleCreateSchedule}
+          onSubmit={() => void handleCreateSchedule()}
         />
       ) : null}
+      {scheduleDialogOpen && scheduleConsentPrompt && <ScheduleConsentChoiceDialog prompt={scheduleConsentPrompt} saving={scheduleSaving} error={scheduleError} onCancel={() => { setScheduleConsentPrompt(null); setScheduleError(""); }} onConfirm={choice => void handleCreateSchedule(choice)} />}
       {pendingOutOfHoursMove ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/25 px-4" onClick={cancelOutOfHoursMove}>
           <div

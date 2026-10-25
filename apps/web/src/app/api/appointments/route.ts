@@ -8,6 +8,8 @@ import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mo
 import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { createAppointment, updateAppointmentDetails, updateAppointmentStatus } from "@/server/owner-mutations";
 import { appointmentBelongsToStaff } from "@/server/staff-privacy";
+import { flushDepositOutbox } from "@/server/booking-deposit-ledger";
+import { validateOwnerBookingConsentChoice, processOwnerBookingConsent } from "@/server/owner-booking-consent";
 
 const APPOINTMENTS_CORS = { methods: "POST, PATCH, OPTIONS" } as const;
 
@@ -23,10 +25,15 @@ export async function POST(request: NextRequest) {
     const owner = await requireOwnerShop(request, body?.shopId);
     assertOwnerOrManager(owner);
     await assertOwnerInitialSetupComplete(owner.shopId);
+    const consentChoice = await validateOwnerBookingConsentChoice(owner, { guardianId: body.guardianId, petId: body.petId }, body.consentChoice);
     const result = await createAppointment(
       { ...body, source: "owner" },
       { deferNotifications: (task) => after(task) },
     );
+    after(() => flushDepositOutbox(owner.shopId));
+    const consentTask = () => processOwnerBookingConsent(owner, { id: result.id, guardianId: result.guardian_id, petId: result.pet_id }, consentChoice);
+    if (consentChoice) await consentTask(); // Persist an explicit owner assertion before returning.
+    else after(consentTask);
     return ownerMobileCorsJson(request, result, undefined, APPOINTMENTS_CORS);
   } catch (error) {
     if (error instanceof OwnerApiError) {
@@ -55,7 +62,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const owner = await requireOwnerShop(request);
+    const owner = await requireOwnerShop(request, typeof body?.shopId === "string" ? body.shopId : undefined);
     await assertOwnerInitialSetupComplete(owner.shopId);
 
     if (typeof body?.status === "string") {

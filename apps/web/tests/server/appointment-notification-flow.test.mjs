@@ -20,7 +20,7 @@ const { ACTIVE_ALIMTALK_TEMPLATE_ALIASES } = await import(
 const { dispatchNotification } = await import(
   "../../src/server/notification-dispatch.ts"
 );
-const { getMockStore, resetMockStore } = await import("../../src/server/mock-store.ts");
+const { getMockStore, resetMockStore, setMockStore } = await import("../../src/server/mock-store.ts");
 const {
   createAppointment,
   updateAppointmentDetails,
@@ -120,6 +120,9 @@ describe("appointment and alimtalk flow guards", () => {
     assert.deepEqual(ACTIVE_ALIMTALK_TEMPLATE_ALIASES, [
       "booking_consent_request",
       "booking_deposit_request",
+      "booking_deposit_cancelled",
+      "booking_deposit_expired",
+      "booking_deposit_refunded",
       "booking_confirmed",
       "booking_cancelled",
       "appointment_reminder_10m",
@@ -316,5 +319,26 @@ describe("appointment and alimtalk flow guards", () => {
     assert.equal(cancellation.status, "skipped");
     assert.equal(cancellation.metadata.guardianNotificationBlocked, true);
     assert.equal(cancellation.metadata.notificationOptOutScope, "shop_guardian");
+  });
+
+  it("keeps grooming status and records while respecting the shop-wide notification switch", async () => {
+    const store = getMockStore();
+    store.shop.notification_settings.enabled = false;
+    setMockStore(store);
+
+    const appointment = await createAvailableOwnerAppointment();
+    await updateAppointmentStatus({ appointmentId: appointment.id, status: "in_progress", mediaAssetIds: [] });
+    await updateAppointmentStatus({ appointmentId: appointment.id, status: "almost_done", mediaAssetIds: [] });
+    await updateAppointmentStatus({ appointmentId: appointment.id, status: "completed" });
+
+    assert.equal(getAppointment(appointment.id).status, "completed");
+    assert.equal(
+      getMockStore().groomingRecords.filter((record) => record.appointment_id === appointment.id).length,
+      1,
+    );
+    for (const type of ["grooming_started", "grooming_almost_done", "grooming_completed"]) {
+      assert.equal(notificationsFor(appointment.id, type).length, 1);
+      assert.equal(notificationsFor(appointment.id, type)[0].status, "skipped");
+    }
   });
 });

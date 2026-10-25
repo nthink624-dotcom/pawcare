@@ -46,7 +46,7 @@ export async function assertOwnerInitialSetupComplete(
   shopId: string,
   loadBootstrap: typeof getBootstrap = getBootstrap,
 ) {
-  await requireOwnerInitialSetupCompleteBootstrap(shopId, loadBootstrap);
+  return requireOwnerInitialSetupCompleteBootstrap(shopId, loadBootstrap);
 }
 
 export async function loadOwnerInitialSetupBootstrap(

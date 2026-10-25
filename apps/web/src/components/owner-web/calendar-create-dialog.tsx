@@ -7,6 +7,43 @@ import { ScheduleDropdown, type ScheduleDropdownOption } from "@/components/owne
 import type { OwnerWebStaffColumn } from "@/components/owner-web/owner-web-staff-data";
 import { addDate, cn, currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
+import type { ConsentRecord } from "@petmanager/shared/contracts/booking-preparation";
+
+export type ScheduleConsentPrompt = { policyVersion: number; documents: ConsentRecord[] };
+export type ScheduleConsentChoice = { decision: "send" | "recognize"; policyVersion: number; documents: Array<{ id: string; version: number }> };
+
+export function ScheduleConsentChoiceDialog({ prompt, saving, error, onCancel, onConfirm }: { prompt: ScheduleConsentPrompt; saving: boolean; error: string; onCancel: () => void; onConfirm: (choice: ScheduleConsentChoice) => void }) {
+  const [decision, setDecision] = useState<"send" | "recognize">("send");
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLInputElement>("input:not(:disabled)")?.focus();
+    const keydown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && !saving) { event.preventDefault(); event.stopPropagation(); onCancel(); }
+      if (event.key !== "Tab" || !dialog) return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>("input:not(:disabled),button:not(:disabled)")).filter(control => !(control instanceof HTMLInputElement) || control.type !== "radio" || control.checked);
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    dialog?.addEventListener("keydown", keydown);
+    return () => { dialog?.removeEventListener("keydown", keydown); if (previous?.isConnected) previous.focus(); };
+  }, [saving, onCancel]);
+  const eligible = prompt.documents.filter(doc => doc.scope === "pet");
+  return <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/25 p-4" onClick={() => { if (!saving) onCancel(); }}>
+    <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="schedule-consent-title" className="max-h-[90dvh] w-full max-w-[480px] space-y-4 overflow-y-auto rounded-[14px] border border-[#e2e8f0] bg-white p-5 shadow-lg" onClick={event => event.stopPropagation()}>
+      <h2 id="schedule-consent-title" className="text-[20px] font-semibold leading-7 text-[#15213b]">동의서는 어떻게 할까요?</h2>
+      {error && <p role="alert" className="text-[14px] leading-5 text-[#9a5e4e]">{error}</p>}
+      <div className="space-y-2 text-[16px] leading-6 text-[#15213b]">
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e2e8f0] p-3"><input className="mt-1.5" type="radio" name="schedule-consent" checked={decision === "send"} disabled={saving} onChange={() => setDecision("send")} /><span>고객에게 동의서 보내기<span className="mt-1 block text-[14px] text-[#64748b]">예약 등록 후 작성 알림톡을 보냅니다.</span></span></label>
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e2e8f0] p-3"><input className="mt-1.5" type="radio" name="schedule-consent" checked={decision === "recognize"} disabled={saving || !eligible.length} onChange={() => setDecision("recognize")} /><span>기존에 받은 동의서 인정하기<span className="mt-1 block text-[14px] text-[#64748b]">아래 문서와 같은 내용의 동의를 실제로 받은 경우에만 선택해 주세요. 고객 전자서명과 구분해 기록합니다.</span></span></label>
+      </div>
+      <div className="space-y-1 text-[14px] leading-5 text-[#64748b]">{eligible.map(doc => <p key={doc.id}>{doc.title} · 버전 {doc.version}</p>)}{prompt.documents.some(doc => doc.scope === "appointment") && <p>예약마다 작성하는 문서는 고객에게 요청합니다.</p>}</div>
+      <div className="flex justify-end gap-2"><button type="button" disabled={saving} className="min-h-11 rounded-[8px] border border-[#e2e8f0] px-4 text-[16px] text-[#475569]" onClick={onCancel}>돌아가기</button><button type="button" disabled={saving} className="min-h-11 rounded-[8px] bg-[#111a30] px-4 text-[16px] font-medium text-white disabled:opacity-50" onClick={() => onConfirm({ decision, policyVersion: prompt.policyVersion, documents: eligible.map(({ id, version }) => ({ id, version })) })}>{saving ? "등록 중" : "선택하고 예약 등록"}</button></div>
+    </section>
+  </div>;
+}
 
 type StaffKey = string;
 type StaffFilter = "전체 직원" | StaffKey;
@@ -164,7 +201,15 @@ export function ScheduleCreateDialog({
   const duration = selectedService ? selectedService.duration_minutes / 60 : 1;
   const availabilityKey = `${form.date}|${form.serviceId}|${form.staffKey}`;
   const [computedAvailabilityKey, setComputedAvailabilityKey] = useState("");
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const availabilityReady = computedAvailabilityKey === availabilityKey;
+
+  function dropdownProps(id: string) {
+    return {
+      open: activeDropdown === id,
+      onOpenChange: (open: boolean) => setActiveDropdown(open ? id : (current) => current === id ? null : current),
+    };
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => setComputedAvailabilityKey(availabilityKey), 0);
@@ -260,6 +305,7 @@ export function ScheduleCreateDialog({
 
         <div className="mt-4 space-y-3">
           <ScheduleDropdown
+            {...dropdownProps("customer-mode")}
             label="고객 등록 방식"
             value={form.customerMode}
             options={customerModeOptions}
@@ -271,6 +317,7 @@ export function ScheduleCreateDialog({
           {form.customerMode === "existing" ? (
             <div className="space-y-2">
               <ScheduleDropdown
+                {...dropdownProps("customer")}
                 label="보호자 / 반려동물 찾기"
                 value={selectedCustomerRow?.value ?? ""}
                 options={customerOptions}
@@ -278,6 +325,7 @@ export function ScheduleCreateDialog({
                 showMeta
                 showSelectedMeta={false}
                 showOptionMeta
+                inlineOptionMeta
                 searchable
                 searchPlaceholder="고객명, 반려동물명, 연락처 검색"
                 focusClassName={bookingFieldFocusClassName}
@@ -351,6 +399,7 @@ export function ScheduleCreateDialog({
 
           <div className="grid gap-2.5 md:grid-cols-2">
             <ScheduleDropdown
+              {...dropdownProps("service")}
               label="서비스"
               value={form.serviceId}
               options={serviceOptions}
@@ -359,6 +408,7 @@ export function ScheduleCreateDialog({
               onChange={(value) => onChange({ ...form, serviceId: value, time: "" })}
             />
             <ScheduleDropdown
+              {...dropdownProps("staff")}
               label="담당"
               value={form.staffKey}
               options={staffOptions}

@@ -276,6 +276,8 @@ export type Service = {
 };
 
 export type Appointment = {
+  deposit_summary?: import("@petmanager/shared/contracts/booking-deposit-preview").BookingDepositPreview | null;
+  final_service_price?: number;
   id: string;
   shop_id: string;
   guardian_id: string;
@@ -559,6 +561,7 @@ export type PetDisplayPhotoProjection = {
 };
 
 export type BootstrapPayload = {
+  actor?: import("@petmanager/shared/contracts/bootstrap-actor").BootstrapActor;
   mode: "mock" | "supabase";
   shop: Shop;
   ownerProfile?: OwnerProfile | null;

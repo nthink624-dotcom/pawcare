@@ -67,6 +67,7 @@ function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | n
   const normalized = normalizeShopNotificationSettings(settings);
   return {
     enabled: normalized.enabled,
+    alimtalkTypeEnabled: normalized.alimtalk_type_enabled,
     alimtalkSenderMode: normalized.alimtalk_sender_mode,
     alimtalkShopChannelStatus: normalized.alimtalk_shop_channel_status,
     alimtalkShopChannelName: normalized.alimtalk_shop_channel_name ?? "",
@@ -101,6 +102,7 @@ function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | n
 function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotificationSettings {
   return {
     enabled: draft.enabled,
+    alimtalk_type_enabled: draft.alimtalkTypeEnabled,
     alimtalk_sender_mode: draft.alimtalkSenderMode,
     alimtalk_shop_channel_status: draft.alimtalkShopChannelStatus,
     alimtalk_shop_channel_name: draft.alimtalkShopChannelName,
@@ -1994,6 +1996,7 @@ export default function SettingsManagementScreen({
               shopId={shop?.id ?? "owner-demo"}
               shopName={shop?.name ?? "내 매장"}
               automaticVisitReminderAvailable={automaticVisitReminderAvailable}
+              demoMode={!persistShopProfile}
             />
           ) : activeTab === "profile" ? (
             <OwnerProfileSettingsPanel

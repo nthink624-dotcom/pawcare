@@ -66,8 +66,8 @@ const ownerWebNavigationGroups: Array<{
       { key: "schedule", label: "오늘" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
-      { key: "staff", label: "직원 관리" },
       { key: "profitability", label: "매출 분석" },
+      { key: "staff", label: "직원 관리" },
     ],
   },
   {
@@ -75,8 +75,8 @@ const ownerWebNavigationGroups: Array<{
     items: [
       { key: "shopInfo", label: "매장 정보" },
       { key: "bookingPolicy", label: "예약 정책" },
+      { key: "alerts", label: "알림톡 설정" },
       { key: "benefits", label: "혜택 관리" },
-      { key: "alerts", label: "알림 설정" },
     ],
   },
 ];
@@ -91,8 +91,8 @@ const ownerWebSidebarGroups: Array<{
       { key: "schedule", label: "오늘" },
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
-      { key: "staff", label: "직원 관리" },
       { key: "profitability", label: "매출 분석" },
+      { key: "staff", label: "직원 관리" },
     ],
   },
   {
@@ -100,8 +100,8 @@ const ownerWebSidebarGroups: Array<{
     items: [
       { key: "shopInfo", label: "매장 정보" },
       { key: "bookingPolicy", label: "예약 정책" },
+      { key: "alerts", label: "알림톡 설정" },
       { key: "benefits", label: "혜택 관리" },
-      { key: "alerts", label: "알림 설정" },
     ],
   },
 ];
@@ -132,7 +132,10 @@ function OwnerWebSidebarIcon({ screen }: { screen: OwnerWebNavigationKey }) {
 }
 
 const OWNER_HEADER_UTILITY_BUTTON_CLASS =
-  "inline-flex h-11 items-center justify-center gap-1.5 rounded-[10px] border border-transparent bg-transparent px-3 text-[14px] font-medium leading-5 text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]";
+  "inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-transparent bg-transparent px-3 text-[14px] font-medium leading-5 text-[#526175] transition-colors hover:bg-white hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
+
+const OWNER_HEADER_MOBILE_UTILITY_CLASS =
+  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-transparent bg-transparent text-[14px] font-medium leading-5 text-[#526175] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
 
 export default function OwnerWebAppShell({
   activeScreen,
@@ -162,6 +165,7 @@ export default function OwnerWebAppShell({
   setupReminder,
   setupMode = false,
   backgroundBlocked = false,
+  depositNotices,
   children,
 }: {
   activeScreen: OwnerWebScreenKey;
@@ -194,6 +198,7 @@ export default function OwnerWebAppShell({
   };
   setupMode?: boolean;
   backgroundBlocked?: boolean;
+  depositNotices?: ReactNode;
   children: ReactNode;
 }) {
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
@@ -291,40 +296,45 @@ export default function OwnerWebAppShell({
             <input className="min-w-0 flex-1 bg-transparent text-[14px] font-normal leading-5 text-[var(--ink)] outline-none placeholder:text-[var(--mut)]" placeholder="검색" />
           </label>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div data-owner-header-actions className="ml-auto flex shrink-0 items-center gap-3">
+            <div className="flex items-center gap-0.5 rounded-full bg-[#f3f5f8] p-1">
+            {depositNotices}
             <button
               type="button"
+              data-owner-control-size="content"
               onClick={() => setFeatureRequestOpen(true)}
               className={cn(
                 OWNER_HEADER_UTILITY_BUTTON_CLASS,
                 isTester && "!border-[#decda9] !bg-[#fffaf0] !text-[#80643f] hover:!bg-[#fbf2df] hover:!text-[#6f5534]",
               )}
             >
-              <MessageSquareWarning className="h-4 w-4" strokeWidth={1.8} />
+              <MessageSquareWarning className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} />
               함께 고쳐요
             </button>
             <button
               type="button"
+              data-owner-control-size="content"
               onClick={onOpenHelp}
               className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
             >
-              <HelpCircle className="h-4 w-4" strokeWidth={1.8} />
+              <HelpCircle className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} />
               도움 문의
             </button>
-            <div className="mx-2 h-6 w-px bg-[var(--line2)]" />
+            </div>
             <div ref={storeMenuRef} className="relative">
               <button
                 type="button"
+                data-owner-control-size="content"
                 onClick={onStoreMenuToggle}
-                className="grid min-h-11 min-w-[178px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[10px] px-2.5 py-0.5 text-left transition hover:bg-[#eef1f5]"
+                className="grid min-h-[48px] min-w-[178px] max-w-[240px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] border border-[#e8edf3] bg-white px-2.5 py-1.5 text-left transition-colors hover:border-[#cbd5e1] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
                 aria-expanded={storeMenuOpen}
               >
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[var(--acc-soft)] text-[12px] font-medium leading-[18px] text-[var(--acc-dk)]">
+                <span className="inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#edf1f5] px-1.5 text-[12px] font-medium leading-[18px] text-[#475569]">
                   {shopInitials}
                 </span>
                 <span className="min-w-0">
                   <span className="block whitespace-normal break-keep text-[14px] font-semibold leading-5 tracking-[-0.01em] text-[var(--ink)] [overflow-wrap:anywhere]">{shopDisplayName}</span>
-                  <span className="block truncate text-[12px] font-medium leading-[18px] text-[var(--mut)]">운영 계정</span>
+                  <span className="block text-[12px] font-normal leading-[18px] text-[#64748b]">운영 계정</span>
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-[var(--mid)]" strokeWidth={1.6} />
               </button>
@@ -363,27 +373,32 @@ export default function OwnerWebAppShell({
             />
           </div>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
+            <div className="flex shrink-0 items-center gap-0.5 rounded-full bg-[#f3f5f8] p-1">
+            {depositNotices}
             <button
               type="button"
+              data-owner-control-size="content"
               onClick={() => setFeatureRequestOpen(true)}
               className={cn(
-                "inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]",
+                OWNER_HEADER_MOBILE_UTILITY_CLASS,
                 isTester && "!border-[#decda9] !bg-[#fffaf0] !text-[#80643f]",
               )}
               aria-label="함께 고쳐요"
               title="함께 고쳐요"
             >
-              <MessageSquareWarning className="h-4.5 w-4.5" strokeWidth={1.8} />
+              <MessageSquareWarning className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} />
             </button>
             <button
               type="button"
+              data-owner-control-size="content"
               onClick={onOpenHelp}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
+              className={OWNER_HEADER_MOBILE_UTILITY_CLASS}
               aria-label="도움 문의"
               title="도움 문의"
             >
-              <HelpCircle className="h-4.5 w-4.5" strokeWidth={1.8} />
+              <HelpCircle className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} />
             </button>
+            </div>
             <SoftSelect<OwnerWebScreenKey>
               value={activeScreen === "bookingLink" || activeScreen === "bookingPageManagement" ? "shopInfo" : activeScreen}
               onChange={onScreenSelect}

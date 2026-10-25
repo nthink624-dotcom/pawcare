@@ -2,7 +2,7 @@
 
 import BenefitManagementTable from "@/components/owner-web/benefit-management-table";
 import BenefitRegistrationForm from "@/components/owner-web/benefit-registration-form";
-import { OWNER_SETTINGS_TAB_HEADER_CLASS } from "@/components/owner-web/owner-settings-tab-header";
+import { OWNER_SETTINGS_TAB_HEADER_CLASS, OWNER_SETTINGS_TABBAR_CLASS, OWNER_SETTINGS_TAB_CLASS } from "@/components/owner-web/owner-settings-tab-header";
 import {
   OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
   OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
@@ -38,7 +38,7 @@ export function BenefitsManagementToolbar({ view, onViewChange }: ToolbarProps) 
   return (
     <>
       <div className={OWNER_SETTINGS_TAB_HEADER_CLASS}>
-        <div className="owner-settings-tabbar min-w-0 w-full" role="tablist" aria-label="혜택 관리 보기">
+        <div className={`${OWNER_SETTINGS_TABBAR_CLASS} w-full`} role="tablist" aria-label="혜택 관리 보기">
           <button
             type="button"
             id="benefit-register-tab"
@@ -47,7 +47,7 @@ export function BenefitsManagementToolbar({ view, onViewChange }: ToolbarProps) 
             aria-controls="benefit-register-panel"
             onClick={() => onViewChange("register")}
             data-owner-control-size="content"
-            className="owner-settings-tab"
+            className={OWNER_SETTINGS_TAB_CLASS}
           >
             혜택 등록
           </button>
@@ -59,7 +59,7 @@ export function BenefitsManagementToolbar({ view, onViewChange }: ToolbarProps) 
             aria-controls="benefit-manage-panel"
             onClick={() => onViewChange("manage")}
             data-owner-control-size="content"
-            className="owner-settings-tab"
+            className={OWNER_SETTINGS_TAB_CLASS}
           >
             혜택 조회/수정
           </button>

@@ -1,6 +1,7 @@
 ﻿import { createHash, createHmac, randomUUID } from "node:crypto";
 
 import { after } from "next/server";
+import { flushDepositOutbox, readDepositLedger } from "@/server/booking-deposit-ledger";
 import { z } from "zod";
 
 import { computeAvailableSlots } from "@/lib/availability";
@@ -38,9 +39,9 @@ import {
   verifyBookingAccessToken,
 } from "@/server/booking-access-token";
 import { getMockStore, setMockStore } from "@/server/mock-store";
-import { createAppointment } from "@/server/owner-mutations";
+import { createAppointment, updateAppointmentDetails } from "@/server/owner-mutations";
 import { dispatchNotification } from "@/server/notification-dispatch";
-import { actOnPreparation, cancellationCutoffHours, initializePreparation, readOptionalBookingPolicy } from "@/server/booking-preparation";
+import { actOnPreparation, cancellationCutoffHours, getPreparation, initializePreparation, readOptionalBookingPolicy } from "@/server/booking-preparation";
 import { previewCustomerBookingConsents } from "@/server/customer-booking-consents";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type { Appointment, Guardian, Pet, Shop } from "@/types/domain";
@@ -55,6 +56,7 @@ const customerBookingCreateSchema = z.object({
   shopId: z.string().min(1),
   bookingPolicyVersion: z.number().int().nonnegative().optional(),
   bookingPolicyAccepted: z.boolean().optional(),
+  depositChoice: z.boolean().optional(),
   guardianName: z.string().trim().min(1),
   phone: z.string().trim().min(10),
   petName: z.string().trim().min(1),
@@ -123,7 +125,7 @@ function buildAppointmentWindow(date: string, time: string, durationMinutes: num
 }
 
 function canManageAppointment(appointment: Appointment) {
-  if (appointment.status !== "confirmed") return false;
+  if (!["pending", "confirmed"].includes(appointment.status)) return false;
 
   const today = currentDateInTimeZone();
   if (appointment.appointment_date > today) return true;
@@ -736,16 +738,27 @@ export async function createCustomerBooking(
   options: { trustedDiscountQuote?: CustomerDiscountQuoteResponse; payment?: CustomerBookingPaymentContext } = {},
 ) {
   const payload = customerBookingCreateSchema.parse(input);
-  const consentPreview = await previewCustomerBookingConsents({ shopId: payload.shopId, guardianName: payload.guardianName, phone: payload.phone, petName: payload.petName });
-  if (consentPreview.enabled && consentPreview.documents.some(document => !payload.consentAcceptances.some(acceptance => acceptance.templateId === document.id && acceptance.version === document.version && acceptance.agreed))) {
-    throw new OwnerApiError("예약 전에 필요한 동의서를 읽고 서명해 주세요.", 409);
-  }
   const bookingPolicy = await readOptionalBookingPolicy(payload.shopId);
   if (bookingPolicy && (payload.bookingPolicyAccepted !== true || payload.bookingPolicyVersion !== bookingPolicy.version)) {
     throw new OwnerApiError("예약 정책이 변경되었거나 확인되지 않았습니다. 새로 불러온 뒤 안내를 확인해 주세요.", 409);
   }
   assertCustomerBookingDate(payload.appointmentDate);
   const bootstrap = await requireOwnerInitialSetupCompleteBootstrap(payload.shopId);
+  const bookingSnapshot = { guardians: bootstrap.guardians, appointments: bootstrap.appointments };
+  const consentPreview = await previewCustomerBookingConsents(
+    { shopId: payload.shopId, guardianName: payload.guardianName, phone: payload.phone, petName: payload.petName, appointmentDate: payload.appointmentDate },
+    bookingPolicy,
+    bookingSnapshot,
+  );
+  if (consentPreview.enabled && consentPreview.documents.some(document => !payload.consentAcceptances.some(acceptance => acceptance.templateId === document.id && acceptance.version === document.version && acceptance.agreed))) {
+    throw new OwnerApiError("예약 전에 필요한 동의서를 읽고 서명해 주세요.", 409);
+  }
+  const depositOptions = consentPreview.depositOptions;
+  // Legacy clients may still send depositChoice; it cannot select or evade the policy.
+  const depositChoice = depositOptions.required;
+  if (depositChoice && (!depositOptions.bankName || !depositOptions.bankAccount || !depositOptions.bankHolder || depositOptions.amount <= 0)) {
+    throw new OwnerApiError("매장의 예약금 계좌 설정을 확인해 주세요.", 409);
+  }
   const discountQuote =
     options.trustedDiscountQuote ??
     (await quoteCustomerDiscount({
@@ -811,6 +824,7 @@ export async function createCustomerBooking(
   const discountSnapshot = {
     ...discountQuote,
     bookingPolicyVersion: bookingPolicy?.version ?? null,
+    depositChoice,
     customerServiceOptionId: selectedCustomerServiceOption?.id ?? discountQuote.customerServiceOptionId,
     customerServiceOptionName: selectedCustomerServiceOption?.name ?? null,
     customerServiceOptionDurationMinutes: selectedCustomerServiceOption?.durationMinutes ?? null,
@@ -870,6 +884,9 @@ export async function createCustomerBooking(
       finalServicePrice: discountQuote.finalAmount,
       discountSnapshot,
     });
+    if (depositChoice) {
+      appointment = await updateMockAppointment(appointment.id, current => ({ ...current, status: "pending" }));
+    }
   }
 
   if (consentPreview.enabled && payload.consentAcceptances.length) {
@@ -894,7 +911,7 @@ export async function createCustomerBooking(
     force: true,
     skipIfExists: true,
     message: [
-      "새 예약이 확정되었어요.",
+      depositChoice ? "새 예약이 접수되었어요. 예약금 입금 후 매장에서 확인해 드릴게요." : "새 예약이 확정되었어요.",
       `${payload.guardianName.trim()} / ${payload.petName.trim()}`,
       `${payload.appointmentDate} ${formatClockTime(payload.appointmentTime)}`,
     ].join("\n"),
@@ -914,6 +931,8 @@ export async function createCustomerBooking(
     });
   }
 
+  if (runsAgainstSupabase) { try { after(() => flushDepositOutbox(appointment.shop_id)); } catch { await flushDepositOutbox(appointment.shop_id); } }
+
   const bookingAccessToken = createBookingAccessToken({
     shopId: payload.shopId,
     guardianId: entityIds.guardianId,
@@ -926,6 +945,17 @@ export async function createCustomerBooking(
     includeGroomingRecords: false,
     includeLanding: false,
   });
+  let resolvedDepositInfo: { amount: number; dueAt: string | null; bankName: string; bankAccount: string; bankHolder: string } | null = null;
+  if (depositChoice && runsAgainstSupabase) {
+    const preparation = await getPreparation(payload.shopId, appointment.id);
+    resolvedDepositInfo = {
+      amount: preparation.data.deposit.amount,
+      dueAt: preparation.data.deposit.dueAt,
+      bankName: preparation.data.policy.bankName,
+      bankAccount: preparation.data.policy.bankAccount,
+      bankHolder: preparation.data.policy.bankHolder,
+    };
+  }
 
   return {
     appointment,
@@ -933,6 +963,7 @@ export async function createCustomerBooking(
     bookingManageUrl: buildBookingManageUrl(payload.shopId, bookingAccessToken),
     profilePets: getGuardianPetsForProfile(updatedBootstrap, entityIds.guardianId),
     discountQuote,
+    depositInfo: resolvedDepositInfo,
   };
 }
 
@@ -1150,6 +1181,13 @@ export async function updateCustomerBooking(input: unknown) {
   await assertCustomerCanChangeBooking(bootstrap.shop, appointment);
 
   if (payload.action === "cancel") {
+    if (bootstrap.mode === "supabase" && hasSupabaseServerEnv()) {
+      if (await readDepositLedger(payload.shopId, payload.appointmentId)) {
+        const current = await getPreparation(payload.shopId, payload.appointmentId);
+        const cancelled = await actOnPreparation(current, { action: "cancel", version: current.version, cancellationKind: "customer", note: "고객 직접 취소" }, { kind: "customer", userId: null });
+        return { ...appointment, status: cancelled.appointmentStatus as Appointment["status"], updated_at: nowIso() };
+      }
+    }
     const nextValues = {
       status: "cancelled" as const,
       updated_at: nowIso(),
@@ -1214,6 +1252,15 @@ export async function updateCustomerBooking(input: unknown) {
     throw new Error("선택한 시간에는 예약할 수 없습니다.");
   }
 
+  if (bootstrap.mode === "supabase" && hasSupabaseServerEnv()) {
+    if (await readDepositLedger(payload.shopId, payload.appointmentId)) {
+      if (payload.appointmentDate !== appointment.appointment_date) throw new OwnerApiError("예약금이 연결된 예약의 날짜 변경은 매장에 요청해 주세요. 당일 시간은 직접 변경할 수 있습니다.", 409);
+      // Reuse the atomic owner mutation only after the signed-customer ownership and availability checks above.
+      return updateAppointmentDetails({ shopId: payload.shopId, appointmentId: payload.appointmentId, serviceId: payload.serviceId, staffId: appointment.staff_id,
+        appointmentDate: payload.appointmentDate, appointmentTime: payload.appointmentTime, durationMinutes: selectedCustomerServiceOption.durationMinutes, memo: payload.memo.trim(), preserveStatus: true, notifyCustomer: false });
+    }
+  }
+
   const appointmentWindow = buildAppointmentWindow(
     payload.appointmentDate,
     payload.appointmentTime,
@@ -1224,7 +1271,7 @@ export async function updateCustomerBooking(input: unknown) {
     appointment_date: payload.appointmentDate,
     appointment_time: payload.appointmentTime,
     memo: payload.memo.trim(),
-    status: "confirmed" as const,
+    status: appointment.status,
     rejection_reason: null,
     start_at: appointmentWindow.start_at,
     end_at: appointmentWindow.end_at,

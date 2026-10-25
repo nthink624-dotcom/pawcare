@@ -25,6 +25,7 @@ import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
 import { getBootstrap } from "@/server/bootstrap";
+import type { BootstrapPayload } from "@/types/domain";
 import { readCurrentVisitWeightForCompletion } from "@/server/appointment-visit-weight";
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { dispatchNotification } from "@/server/notification-dispatch";
@@ -530,6 +531,7 @@ type AppointmentStatusNotificationType =
 
 type AppointmentMutationOptions = {
   deferNotifications?: (task: () => Promise<void>) => void;
+  bootstrapData?: BootstrapPayload;
   ownerReadinessTest?: {
     createdByOwnerUserId: string;
     requestId: string;
@@ -629,6 +631,7 @@ export async function updateShopSettings(
   const payload = shopSettingsSchema.parse(input);
   const nextNotificationSettings = {
     enabled: payload.notificationSettings.enabled,
+    alimtalk_type_enabled: payload.notificationSettings.alimtalkTypeEnabled,
     alimtalk_sender_mode: payload.notificationSettings.alimtalkSenderMode,
     alimtalk_shop_channel_status: payload.notificationSettings.alimtalkShopChannelStatus,
     alimtalk_shop_channel_name: payload.notificationSettings.alimtalkShopChannelName,
@@ -683,6 +686,7 @@ export async function updateShopSettings(
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
+    if (payload.notificationSettings.alimtalkTypeEnabled === undefined) normalizedNotificationSettings.alimtalk_type_enabled = store.shop.notification_settings.alimtalk_type_enabled;
     store.shop = {
       ...store.shop,
       id: payload.shopId,
@@ -715,16 +719,21 @@ export async function updateShopSettings(
 
   const currentShopResult = await supabase
     .from("shops")
-    .select("name,phone,address")
+    .select("name,phone,address,notification_settings")
     .eq("id", payload.shopId)
     .maybeSingle<{
       name: string | null;
       phone: string | null;
       address: string | null;
+      notification_settings: { alimtalk_type_enabled?: Record<string, boolean> } | null;
     }>();
 
   if (currentShopResult.error) {
     throw new Error(currentShopResult.error.message);
+  }
+
+  if (payload.notificationSettings.alimtalkTypeEnabled === undefined) {
+    normalizedNotificationSettings.alimtalk_type_enabled = currentShopResult.data?.notification_settings?.alimtalk_type_enabled;
   }
 
   const identityChanges = buildShopIdentityChanges({
@@ -2183,7 +2192,7 @@ export async function deletePet(input: unknown) {
 
 export async function createAppointment(input: unknown, options?: AppointmentMutationOptions) {
   const payload = appointmentInputSchema.parse(input);
-  const data = await getBootstrap(payload.shopId, {
+  const data = options?.bootstrapData ?? await getBootstrap(payload.shopId, {
     includeLanding: false,
     includeNotifications: false,
     includeGroomingRecords: false,
@@ -2562,7 +2571,6 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
           appointment,
           type: "grooming_started",
           mediaAssetIds: statusMediaAssetIds,
-          force: true,
         });
       }, options);
     }
@@ -2573,7 +2581,6 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
           appointment,
           type: "grooming_almost_done",
           mediaAssetIds: statusMediaAssetIds,
-          force: true,
         });
       }, options);
     }
@@ -2584,7 +2591,6 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
           appointment,
           type: "grooming_completed",
           mediaAssetIds: statusMediaAssetIds,
-          force: true,
         });
         if (completedGroomingRecordId && completionNotification?.notification) {
           const latestStore = getMutableStore();
@@ -2700,7 +2706,6 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
         appointment: resolvedAppointment,
         type: "grooming_started",
         mediaAssetIds: statusMediaAssetIds,
-        force: true,
       });
     }, options);
   }
@@ -2711,7 +2716,6 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
         appointment: resolvedAppointment,
         type: "grooming_almost_done",
         mediaAssetIds: statusMediaAssetIds,
-        force: true,
       });
     }, options);
   }
@@ -2722,7 +2726,6 @@ export async function updateAppointmentStatus(input: unknown, options?: Appointm
         appointment: resolvedAppointment,
         type: "grooming_completed",
         mediaAssetIds: statusMediaAssetIds,
-        force: true,
       });
       if (completedGroomingRecordId && completionNotification?.notification) {
         const notificationLink = await supabase
@@ -2763,8 +2766,8 @@ export async function updateAppointmentDetails(input: unknown) {
     !payload.notifyCustomer;
   const scheduleBoardAdjustment = payload.preserveStatus || !payload.notifyCustomer || payload.enforceShopCapacity === false;
   const editableStatuses = scheduleBoardAdjustment
-    ? ["confirmed", "in_progress", "almost_done", ...(completedServiceCorrection ? ["completed"] : [])]
-    : ["confirmed", "cancelled"];
+    ? ["pending", "confirmed", "in_progress", "almost_done", ...(completedServiceCorrection ? ["completed"] : [])]
+    : ["pending", "confirmed", "cancelled"];
   if (!editableStatuses.includes(appointment.status)) {
     throw new Error("현재 예약 상태에서는 일정 수정이 어렵습니다.");
   }
@@ -2847,7 +2850,7 @@ export async function updateAppointmentDetails(input: unknown) {
     appointment_date: payload.appointmentDate,
     appointment_time: payload.appointmentTime,
     memo: payload.memo.trim(),
-    status: payload.preserveStatus ? appointment.status : ("confirmed" as const),
+    status: payload.preserveStatus || appointment.status === "pending" ? appointment.status : ("confirmed" as const),
     rejection_reason: payload.preserveStatus ? appointment.rejection_reason : null,
     start_at: appointmentWindow.start_at,
     end_at: appointmentWindow.end_at,
@@ -2895,12 +2898,10 @@ export async function updateAppointmentDetails(input: unknown) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
 
-  const { data: updatedAppointment, error } = await supabase
-    .from("appointments")
-    .update(nextValues)
-    .eq("id", payload.appointmentId)
-    .select("*")
-    .single();
+  const { data: updatedAppointment, error } = await supabase.rpc("pm_deposit_move_booking", {
+    p_shop: payload.shopId, p_appointment: payload.appointmentId,
+    p_values: nextValues, p_transfer: payload.depositTransfer ?? null,
+  });
 
   let resolvedAppointment = updatedAppointment;
 

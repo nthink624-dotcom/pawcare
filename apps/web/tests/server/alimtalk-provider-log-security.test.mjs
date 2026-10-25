@@ -10,7 +10,9 @@ const source = fs.readFileSync(sourcePath, "utf8");
 const consoleCalls = source.match(/console\.(?:log|info|warn|error)\([\s\S]*?\n\s*\}\);/g) ?? [];
 
 test("Alimtalk provider logs expose only fixed, non-sensitive diagnostics", () => {
-  assert.equal(consoleCalls.length, 4, "Every provider console call must stay covered by this test.");
+  const actualCalls = source.match(/console\.(?:log|info|warn|error)\(/g) ?? [];
+  assert.ok(actualCalls.length > 0);
+  assert.equal(consoleCalls.length, actualCalls.length, "Every provider console call must stay covered by this test.");
 
   for (const consoleCall of consoleCalls) {
     assert.match(consoleCall, /eventCode:/);

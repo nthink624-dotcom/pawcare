@@ -1658,3 +1658,9 @@ textarea {
   width: 24px !important;
   height: 24px !important;
 }
+
+/* Deposit controls keep the shared 44px touch contract despite legacy owner 40px rules. */
+.pm-owner-web .pm-deposit-controls :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select, button) {
+  min-height: 44px !important;
+  height: auto !important;
+}

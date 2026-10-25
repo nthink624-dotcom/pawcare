@@ -1,12 +1,12 @@
 {
-  "readAt": "2026-10-01",
-  "scope": "Read-only effective table-privilege and RLS metadata query across public schema; no row data returned",
+  "readAt": "2026-10-17",
+  "scope": "Current read-only effective table-privilege and RLS metadata query across the public schema; no row data returned",
   "projects": {
     "development": {
       "name": "petmanager-dev",
       "projectRef": "qefxdtmdtvnzgupmjlom",
-      "migrationCount": 167,
-      "lastMigration": "20260930151901",
+      "migrationCount": 170,
+      "lastMigration": "20261006141418",
       "publicTablesWithoutRls": 0,
       "browserGrantRows": {
         "anon": 0,
@@ -22,8 +22,8 @@
     "production": {
       "name": "petmanager",
       "projectRef": "ysxykikqnneuhypybjry",
-      "migrationCount": 166,
-      "lastMigration": "20260929131500",
+      "migrationCount": 180,
+      "lastMigration": "20261017130000",
       "publicTablesWithoutRls": 0,
       "browserGrantRows": {
         "anon": 0,

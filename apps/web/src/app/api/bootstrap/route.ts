@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
     const initialWindow = getOwnerInitialDataWindow();
     const bootstrapStartedAt = performance.now();
     const data = await getBootstrap(owner.shopId, {
+      includeDepositPreview: owner.role !== "staff",
       allowMock: false,
       includeLanding: false,
       appointmentsFrom: initialWindow.from,
@@ -92,6 +93,7 @@ export async function GET(request: NextRequest) {
     const scoped = scopeBootstrapForStaff(data, owner);
     const response = ownerMobileCorsJson(request, {
       ...scoped,
+      actor: { shopId: owner.shopId, role: owner.role, staffId: owner.staffId },
       services: projectCanonicalPriceGuidesForRead(scoped.services),
       priceGuideCore: getPriceGuideCoreContract(),
     });

@@ -91,13 +91,31 @@ export async function POST(request: NextRequest) {
       if (inserted.error.code === "23505") {
         const existing = await admin.from("call_events").select("id,match_status,matched_guardian_id").eq("integration_id", body.integrationId).eq("provider_event_id", body.providerEventId).maybeSingle();
         if (existing.data?.id) await finalizeEnded(existing.data.id);
-        return ownerMobileCorsJson(request, { ok: true, accepted: true, replayed: true, eventId: existing.data?.id ?? null, matchStatus: existing.data?.match_status ?? null }, undefined, EVENTS_CORS);
+        const existingMatch = existing.data?.match_status === "matched" && existing.data.matched_guardian_id === matchedGuardianId;
+        const guardianName = body.eventType === "incoming" && existingMatch && matches.length === 1
+          ? matches[0].name.trim()
+          : null;
+        return ownerMobileCorsJson(request, {
+          ok: true,
+          accepted: true,
+          replayed: true,
+          eventId: existing.data?.id ?? null,
+          matchStatus: existing.data?.match_status ?? null,
+          guardianName,
+        }, undefined, EVENTS_CORS);
       }
       return message(request, "캐치콜 이벤트를 저장하지 못했습니다.", 500);
     }
 
     await finalizeEnded(inserted.data.id);
-    return ownerMobileCorsJson(request, { ok: true, accepted: true, replayed: false, eventId: inserted.data.id, matchStatus }, undefined, EVENTS_CORS);
+    return ownerMobileCorsJson(request, {
+      ok: true,
+      accepted: true,
+      replayed: false,
+      eventId: inserted.data.id,
+      matchStatus,
+      guardianName: body.eventType === "incoming" && matches.length === 1 ? matches[0].name.trim() : null,
+    }, undefined, EVENTS_CORS);
   } catch (error) {
     if (error instanceof z.ZodError) return message(request, "Android 통화 이벤트 형식을 확인해 주세요.", 400);
     if (error instanceof OwnerApiError) return message(request, error.message, error.status);

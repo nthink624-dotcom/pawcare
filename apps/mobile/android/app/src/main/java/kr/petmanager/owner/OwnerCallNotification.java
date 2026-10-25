@@ -31,18 +31,22 @@ final class OwnerCallNotification {
     private OwnerCallNotification() {}
 
     static void showIncoming(Context context, String providerCallId, String callerNumber) {
-        showIncoming(context, providerCallId, callerNumber, null, true);
+        showIncoming(context, providerCallId, callerNumber, null, null, true);
     }
 
     static void showIncoming(Context context, String providerCallId, String callerNumber, String actionFailureMessage) {
-        showIncoming(context, providerCallId, callerNumber, actionFailureMessage, true);
+        showIncoming(context, providerCallId, callerNumber, actionFailureMessage, null, true);
     }
 
     static void showIncoming(Context context, String providerCallId, String callerNumber, boolean registeredCaller) {
-        showIncoming(context, providerCallId, callerNumber, null, registeredCaller);
+        showIncoming(context, providerCallId, callerNumber, null, null, registeredCaller);
     }
 
-    private static void showIncoming(Context context, String providerCallId, String callerNumber, String actionFailureMessage, boolean registeredCaller) {
+    static void updateIncoming(Context context, String providerCallId, String callerNumber, String guardianName) {
+        showIncoming(context, providerCallId, callerNumber, null, guardianName, true);
+    }
+
+    private static void showIncoming(Context context, String providerCallId, String callerNumber, String actionFailureMessage, String guardianName, boolean registeredCaller) {
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
 
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -87,6 +91,7 @@ final class OwnerCallNotification {
         );
 
         String phoneNumber = callerNumber == null ? "" : callerNumber.trim();
+        String safeGuardianName = guardianName == null ? "" : guardianName.trim();
         String formattedNumber = PhoneNumberUtils.formatNumber(phoneNumber, "KR");
         if (formattedNumber == null || formattedNumber.trim().isEmpty()) formattedNumber = phoneNumber;
         String contentText = actionFailureMessage != null && !actionFailureMessage.trim().isEmpty()
@@ -96,7 +101,9 @@ final class OwnerCallNotification {
                 : formattedNumber + (registeredCaller ? " · 예약을 바로 접수할 수 있어요." : " · 새 고객으로 등록할 수 있어요.");
         NotificationCompat.Builder actionable = new NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(kr.petmanager.owner.R.drawable.ic_stat_paw)
-            .setContentTitle(registeredCaller ? "등록 고객에게 전화가 왔어요" : "새 번호로 전화가 왔어요")
+            .setContentTitle(registeredCaller && !safeGuardianName.isEmpty()
+                ? safeGuardianName + " 보호자"
+                : registeredCaller ? "등록 고객에게 전화가 왔어요" : "새 번호로 전화가 왔어요")
             .setContentText(contentText)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

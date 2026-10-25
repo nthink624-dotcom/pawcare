@@ -6,6 +6,8 @@ import { createAppointment, createGuardian, createPet } from "@/server/owner-mut
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
 import { scopeBootstrapForStaff } from "@/server/staff-privacy";
+import { validateOwnerBookingConsentChoice, processOwnerBookingConsent } from "@/server/owner-booking-consent";
+import { flushDepositOutbox } from "@/server/booking-deposit-ledger";
 
 function isDateString(value: string | null) {
   return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
@@ -24,6 +26,7 @@ export async function GET(request: NextRequest) {
 
     const owner = await requireOwnerShop(request, requestedShopId);
     const data = await getBootstrap(owner.shopId, {
+      includeDepositPreview: owner.role !== "staff",
       allowMock: false,
       includeLanding: false,
       includeNotifications: true,
@@ -70,8 +73,16 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const owner = await requireOwnerShop(request, getBodyString(body, "shopId") || undefined);
     assertOwnerOrManager(owner);
-    await assertOwnerInitialSetupComplete(owner.shopId);
     const shopId = owner.shopId;
+    const appointmentDate = getBodyString(body, "appointmentDate");
+    const setupBootstrap = await assertOwnerInitialSetupComplete(shopId, (requestedShopId, options) =>
+      getBootstrap(requestedShopId, {
+        ...options,
+        appointmentsFrom: isDateString(appointmentDate) ? appointmentDate : undefined,
+        appointmentsTo: isDateString(appointmentDate) ? appointmentDate : undefined,
+        includeAppointmentChangeEvents: false,
+      }),
+    );
     const customerMode = getBodyString(body, "customerMode");
 
     let guardianId = getBodyString(body, "guardianId");
@@ -109,6 +120,8 @@ export async function POST(request: NextRequest) {
       return ownerMobileCorsJson(request, { message: "고객과 반려동물 정보를 확인해 주세요." }, { status: 400 });
     }
 
+    const consentChoice = await validateOwnerBookingConsentChoice(owner, { guardianId, petId }, body.consentChoice, customerMode === "new");
+
     const appointment = await createAppointment(
       {
         shopId,
@@ -121,8 +134,13 @@ export async function POST(request: NextRequest) {
         memo: getBodyString(body, "memo"),
         source: "owner",
       },
-      { deferNotifications: (task) => after(task) },
+      { deferNotifications: (task) => after(task), bootstrapData: setupBootstrap },
     );
+
+    const consentTask = () => processOwnerBookingConsent(owner, { id: appointment.id, guardianId, petId }, consentChoice);
+    if (consentChoice) await consentTask();
+    else after(consentTask);
+    after(() => flushDepositOutbox(shopId));
 
     return ownerMobileCorsJson(request, { guardian, pet, appointment });
   } catch (error) {

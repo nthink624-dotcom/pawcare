@@ -1,8 +1,8 @@
 {
-  "verifiedAt": "2026-10-02",
+  "verifiedAt": "2026-10-17",
   "scope": "Read-only production schema check and local operational-error inbox contract test",
   "localImplementation": {
-    "migrationFile": "supabase/migrations/20261001120000_add_admin_operational_error_events.sql",
+    "migrationFile": "supabase/migrations/20261014025923_admin_operational_error_inbox.sql",
     "routeFile": "apps/web/src/app/api/admin/operational-errors/route.ts",
     "contractTests": {
       "status": "PASS",
@@ -17,14 +17,23 @@
         "30-day and 5,000-row retention bounds"
       ]
     },
-    "gitState": "route and migration are untracked local files; not committed or deployed"
+    "gitState": "Implemented in current production master release 5f02f63a441e9def6d5d720ccf11a1ccc8c45479"
   },
   "productionReadback": {
     "projectRef": "ysxykikqnneuhypybjry",
-    "migrationVersion": "20261001120000",
-    "migrationApplied": false,
-    "operationalErrorEventsTableExists": false,
-    "remoteWrites": 0
+    "migrationVersion": "20261014025923",
+    "migrationApplied": true,
+    "operationalErrorEventsTableExists": true,
+    "remoteWrites": 0,
+    "totalEventRows": 5,
+    "last7dEventRows": 5,
+    "rlsEnabled": true,
+    "anonSelect": false,
+    "authenticatedSelect": false,
+    "serviceRoleSelect": true,
+    "serviceRoleInsert": true,
+    "retentionTriggerPresent": true,
+    "verifiedAt": "2026-10-17T09:04:26Z"
   },
   "retentionCleanup": {
     "localImplementation": {
@@ -37,7 +46,7 @@
     "productionReadback": {
       "status": "UNVERIFIED",
       "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
-      "migrationApplied": false,
+      "migrationApplied": true,
       "vercelCronSecretConfigured": true,
       "vercelCronSecretReadback": {
         "projectSlug": "petmanager",
@@ -45,15 +54,19 @@
         "variableName": "CRON_SECRET",
         "present": true,
         "valueRevealed": false,
-        "verifiedAt": "2026-10-02T20:51:53+09:00",
-        "source": "Vercel dashboard environment-variable list"
+        "verifiedAt": "2026-10-17T09:04:26Z",
+        "source": "Vercel MCP environment key inventory; values not decrypted"
       },
       "scheduledJobReadback": {
         "globalCronJobsEnabled": true,
-        "operationalErrorCleanupConfigured": false,
-        "verifiedAt": "2026-10-02T20:55:21+09:00",
-        "source": "Vercel dashboard project settings > Cron Jobs",
+        "operationalErrorCleanupConfigured": true,
+        "verifiedAt": "2026-10-17T09:04:26Z",
+        "source": "Current deployed apps/web/vercel.json declares the daily job; Vercel platform cron-job listing is unavailable through the connected read-only tools",
         "productionJobs": [
+          {
+            "path": "/api/cron/operational-errors/cleanup",
+            "scheduleUtc": "40 18 * * *"
+          },
           {
             "path": "/api/media/cleanup-expired?dryRun=false",
             "scheduleUtc": "20 18 * * *"
@@ -62,7 +75,8 @@
             "path": "/api/notifications/visit-reminders",
             "scheduleUtc": "0 0 * * *"
           }
-        ]
+        ],
+        "platformCronReadbackStatus": "UNVERIFIED"
       },
       "lastInvocation": {
         "status": "NOT_RUN",
@@ -73,5 +87,5 @@
       }
     }
   },
-  "interpretation": "The production CRON_SECRET variable is present, but the 30-day cleanup job is not in the Vercel production cron list, the production operational_error_events table is absent, and no cleanup invocation has been verified. Production alert persistence and retention cleanup are therefore not operational. Applying the migration and deploying the route requires separate approval; neither was performed."
+  "interpretation": "Production migration 20261014025923 and table are present, service-role access works, browser SELECT is denied, five sanitized runtime events are stored, and the anonymous admin route returns 401. The current release declares the daily cleanup cron and CRON_SECRET is present, but platform schedule readback, an authenticated admin test, and a successful cron invocation are not verified."
 }

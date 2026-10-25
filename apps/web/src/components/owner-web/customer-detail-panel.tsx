@@ -1,4 +1,5 @@
 "use client";
+import CustomerConsentCard from "@/components/owner-web/customer-consent-card";
 
 import { CalendarPlus, Check, Copy, ImagePlus, Sparkles, X } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
@@ -23,6 +24,7 @@ import {
   OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
 } from "@/components/owner-web/owner-web-action-button-styles";
 import { CustomerCareReportHistoryCard } from "@/components/owner-web/customer-care-report-history-card";
+import BookingDepositCustomerPreference from "@/components/booking/booking-deposit-customer-preference";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   filterDiscountCouponsForVisitType,
@@ -259,6 +261,8 @@ export default function CustomerDetailPanel({
                 })
               }
             />
+            <BookingDepositCustomerPreference shopId={detail.guardian.shop_id} guardianId={detail.guardian.id} />
+            {selectedPet && <CustomerConsentCard key={selectedPet.id} shopId={detail.guardian.shop_id} guardianId={detail.guardian.id} petId={selectedPet.id} />}
           </aside>
 
           <main className="min-h-0 overflow-y-auto px-4 py-4 lg:py-4 lg:pl-4 lg:pr-1">

@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, PawPrint, X } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchOwnerScheduleRange, replaceScheduleRangeInBootstrap } from "@/components/owner-web/calendar-owner-api";
@@ -11,6 +12,8 @@ import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, ty
 import { isShopClosedOnDate } from "@/lib/availability";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
 import type { AppointmentChangeEvent, AppointmentStatus, BootstrapPayload } from "@/types/domain";
+
+const BookingPreparationPanel = dynamic(() => import("@/components/booking/booking-preparation-panel"));
 
 type GroomingCalendarRecord = {
   id: string;
@@ -1023,6 +1026,14 @@ export default function CalendarRecordsScreen({
           )}
           services={initialData.services}
           staffMembers={initialData.staffMembers}
+          onPreparationChanged={() => {
+            const { from, to } = getMonthRange(monthAnchor);
+            void fetchOwnerScheduleRange(initialData.shop.id, from, to).then((range) => {
+              const nextData = replaceScheduleRangeInBootstrap(latestDataRef.current, range);
+              latestDataRef.current = nextData;
+              onDataChangeRef.current?.(nextData);
+            }).catch(() => { /* Keep the readable detail; normal synchronization can retry. */ });
+          }}
           onClose={() => setSelectedItem(null)}
         />
       ) : null}
@@ -1361,6 +1372,7 @@ function GroomingRecordSheet({
   changeEvents,
   services,
   staffMembers,
+  onPreparationChanged,
   onClose,
 }: {
   shopId: string;
@@ -1368,6 +1380,7 @@ function GroomingRecordSheet({
   changeEvents: AppointmentChangeEvent[];
   services: BootstrapPayload["services"];
   staffMembers: BootstrapPayload["staffMembers"];
+  onPreparationChanged: () => void;
   onClose: () => void;
 }) {
   const sourceLabel = item.channel ?? (item.type === "record" ? "기록 등록" : "예약");
@@ -1427,6 +1440,17 @@ function GroomingRecordSheet({
               </span>
             </div>
           </section>
+
+          {item.appointmentId ? (
+            <div className="mt-3 [&_.pm-deposit-header]:px-3 [&_.pm-deposit-controls]:pb-2.5 [&_.pm-deposit-controls_h3]:text-[14px] [&_.pm-deposit-controls_h3]:font-medium [&_.pm-deposit-controls_h3]:leading-5 [&_.pm-deposit-controls_h3]:text-[#64748b]">
+              <BookingPreparationPanel
+                key={item.appointmentId}
+                shopId={shopId}
+                appointmentId={item.appointmentId}
+                onStatusChanged={onPreparationChanged}
+              />
+            </div>
+          ) : null}
 
           <RecordMemoCard title="고객 요청사항" value={customerRequest} empty={!hasCustomerRequest} highlighted />
           <RecordMemoCard title="직원 코멘트" value={staffComment} empty={!hasStaffComment} />

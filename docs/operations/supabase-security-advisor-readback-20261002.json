@@ -1,6 +1,6 @@
 {
-  "readAt": "2026-10-02",
-  "capturedAt": "2026-10-02T07:41:38Z",
+  "readAt": "2026-10-17",
+  "capturedAt": "2026-10-17T09:04:26Z",
   "source": "Supabase MCP get_advisors(type=security)",
   "readOnly": true,
   "projects": {

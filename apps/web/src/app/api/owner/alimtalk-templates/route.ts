@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { APPROVED_ALIMTALK_CONTRACTS } from "@petmanager/shared/contracts/alimtalk";
+import { DEPOSIT_ALIMTALK_REVIEW_CONTRACTS } from "@petmanager/shared/contracts/deposit-alimtalk-review";
 import { buildDepositTemplateValues } from "@petmanager/shared/lib/deposit-template-values";
 import { readBookingPolicy } from "@/server/booking-preparation";
 import { z } from "zod";
@@ -11,6 +11,7 @@ import { getApprovedSsodaaTemplateButtonDefaults } from "@/server/alimtalk-appro
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { getApprovedSsodaaTemplateDetails } from "@/server/alimtalk-approved-template";
+import { matchesShopTemplateSnapshot, shopTemplateInspectionState } from "@/server/shop-alimtalk-template-contract";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ const templateSchema = z.object({
     "예약시간변경토큰", "bookingRescheduleToken", "bookingRescheduleUrl", "길찾기링크",
     "방문전알림분", "방문전알림안내", "픽업예상분", "픽업예상시간", "픽업안내",
     "pickupReadyEtaMinutes", "pickupGuide",
-    ...APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request.variables,
+    ...DEPOSIT_ALIMTALK_REVIEW_CONTRACTS.booking_deposit_request.variables,
   ]);
   const unknownVariables = Array.from(value.templateContent.matchAll(/#\{([^}]+)\}/g))
     .map((match) => match[1]?.trim() ?? "")
@@ -53,7 +54,7 @@ const templateSchema = z.object({
   if (unknownVariables.length > 0) {
     context.addIssue({ code: "custom", path: ["templateContent"], message: "사용할 수 없는 자동 입력 항목이 있습니다." });
   }
-  if (value.templateAlias === "booking_deposit_request" && value.templateContent !== APPROVED_ALIMTALK_CONTRACTS.booking_deposit_request.body) {
+  if (value.templateAlias === "booking_deposit_request" && value.templateContent !== DEPOSIT_ALIMTALK_REVIEW_CONTRACTS.booking_deposit_request.body) {
     context.addIssue({ code: "custom", path: ["templateContent"], message: "예약금 요청은 입금 계좌와 기한 안내가 포함된 기본 문안을 사용해 주세요." });
   }
 });
@@ -85,12 +86,7 @@ async function callRelay(path: string, method = "GET", payload?: unknown) {
 }
 
 function inspectionState(value: unknown) {
-  const status = String(value ?? "").toUpperCase();
-  if (["APR", "APPROVED", "COMPLETE"].includes(status)) return "approved";
-  if (["REJ", "REJECTED"].includes(status)) return "rejected";
-  if (["ING", "REVIEWING", "PROCESSING"].includes(status)) return "reviewing";
-  if (["REQ", "REQUESTED", "WAIT", "WAITING"].includes(status)) return "requested";
-  return "unknown";
+  return shopTemplateInspectionState(value);
 }
 
 export async function GET(request: NextRequest) {
@@ -115,6 +111,7 @@ export async function GET(request: NextRequest) {
       if (!provider || row.inspection_status === "draft") return row;
       const serviceStatus = String(provider.serviceStatus ?? "unknown").toLowerCase();
       const nextStatus = inspectionState(provider.inspectionStatus);
+      if (nextStatus === "approved" && !matchesShopTemplateSnapshot(row, provider)) return row;
       if (nextStatus === row.inspection_status && serviceStatus === row.service_status) return row;
       const update = await admin.from("shop_alimtalk_template_requests").update({
         inspection_status: nextStatus,

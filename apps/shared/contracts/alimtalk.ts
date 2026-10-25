@@ -4,7 +4,7 @@
  * 이 파일은 DB·Supabase·Ssodaa에 쓰지 않습니다.
  * 승인된 템플릿의 코드·본문·버튼·변수 계약만 소스에서 공유합니다.
  */
-export const ALIMTALK_CONTRACT_VERSION = "2026-09-25" as const;
+export const ALIMTALK_CONTRACT_VERSION = "2026-10-17" as const;
 
 export type AlimtalkContract = {
   code: string;

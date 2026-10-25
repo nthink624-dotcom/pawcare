@@ -106,7 +106,10 @@ const ownerWebFlushCoreScreens = new Set<OwnerWebScreenKey>([
 function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey; active: boolean }) {
   return (
     <span
-      className={cn("block h-[18px] w-[18px] shrink-0 transition-colors", active ? "bg-[var(--acc)]" : "bg-[#9aa3af]")}
+      className={cn(
+        "block h-5 w-5 shrink-0 transition-colors",
+        active ? "bg-[var(--acc)]" : "bg-[#9aa3af]",
+      )}
       style={
         {
           WebkitMaskImage: `url(${screenIconPaths[screen]})`,

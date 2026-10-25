@@ -54,7 +54,18 @@ type ApiMessage = {
 };
 
 type ResetStep = "account" | "preparing" | "password";
+const AUTH_REQUEST_TIMEOUT_MS = 10_000;
 const successMessagePatterns = ["완료", "변경", "보냈어요", "준비했어요", "확인했어요"];
+
+function waitForClientAbort(signal: AbortSignal) {
+  return new Promise<never>((_, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Request timed out", "AbortError"));
+      return;
+    }
+    signal.addEventListener("abort", () => reject(new DOMException("Request timed out", "AbortError")), { once: true });
+  });
+}
 
 export default function ResetPasswordForm({
   initialEmail,

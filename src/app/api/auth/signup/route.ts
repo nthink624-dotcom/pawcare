@@ -2,7 +2,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-
 import {
   acceptsAtomicOwnerSignupContract,
   ATOMIC_OWNER_SIGNUP_SUPPORTED_VERSIONS,

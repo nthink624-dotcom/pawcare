@@ -362,6 +362,11 @@ export default function OwnerPage({ mobileRoute = false }: { mobileRoute?: boole
   }, [accessToken, data]);
 
   useEffect(() => {
+    if (!accessToken || data) return;
+    window.performance.mark("petmanager:owner-login:owner-usable");
+  }, [accessToken, data]);
+
+  useEffect(() => {
     if (!selectedShopId || !accessToken || typeof window === "undefined") return;
 
     let active = true;

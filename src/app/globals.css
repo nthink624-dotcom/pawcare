@@ -168,6 +168,13 @@ button[class*="hover:bg-[#293548]"]:hover {
   line-height: var(--type-micro-line);
 }
 
+/* Compact tabs remain Label text after the owner-font inheritance reset. */
+.pm-owner-web.owner-font .benefit-management-panel .benefit-management-tab {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
 .pm-owner-web {
   --pm-ui-border: #e8edf3;
   --pm-owner-main-surface-background: #ffffff;

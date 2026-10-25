@@ -44,13 +44,14 @@ export type MediaKind =
   | "price_guide_source"
   | "feedback_screenshot"
   | "customer_shared"
+  | "feedback_screenshot"
   | "memo_attachment";
 export type MediaVisibility = "private" | "customer_shared" | "public";
 export type MediaStatus = "uploading" | "uploaded" | "processing" | "ready" | "failed" | "deleted";
 export type MediaRetentionPolicy = "transient" | "standard" | "archive";
 export type MediaUploadSource = "owner_web" | "owner_mobile" | "customer_page" | "system";
 export type MediaVariantKey = "thumbnail" | "preview" | "optimized" | "provider_ready";
-export type NotificationMediaAttachmentRole = "message_image" | "before_photo" | "after_photo" | "result_photo" | "receipt" | "other";
+export type NotificationMediaAttachmentRole = "message_image" | "before_photo" | "after_photo" | "result_photo" | "receipt" | "feedback_screenshot" | "other";
 export type MediaSendStatus = "queued" | "sent" | "failed" | "skipped";
 
 export type ShopNotificationSettings = {
@@ -601,6 +602,3 @@ export type BootstrapPayload = {
   landingInterests: LandingInterest[];
   landingFeedback: LandingFeedback[];
 };
-
-
-

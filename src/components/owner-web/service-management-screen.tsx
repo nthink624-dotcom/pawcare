@@ -105,6 +105,22 @@ function getLegacyPriceGuideSummaryProjection(guide: ServicePriceGuide) {
   return null;
 }
 
+function getLegacyPriceGuideSummaryProjection(guide: ServicePriceGuide) {
+  if (guide.canonicalV2) return null;
+  for (const section of guide.sections ?? []) {
+    for (const item of section.items) {
+      for (const band of section.weightBands) {
+        const cell = item.cells[band];
+        const firstPrice = cell?.price.match(/[0-9][0-9,]*/)?.[0];
+        const price = Number(firstPrice?.replaceAll(",", "") ?? 0);
+        const durationMinutes = Number(cell?.durationMinutes ?? 0);
+        if (price > 0 && durationMinutes >= 5) return { price, durationMinutes };
+      }
+    }
+  }
+  return null;
+}
+
 function formatPriceInput(value: string) {
   return formatServicePriceInput(value);
 }
@@ -859,6 +875,37 @@ export default function ServiceManagementScreen({
     if (embedded) return onboardingContent;
     return (
       <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={canonicalServices} staffMembers={staffMembers} ownerProfile={ownerProfile} hidePreview>
+        {onboardingContent}
+      </CustomerPagePreviewLayout>
+    );
+  }
+
+  const priceGuideWorkspace = (
+    <PriceGuidePhotoOnboarding
+      shopId={shopId}
+      fixtureMode={demoMode}
+      initialDocument={canonicalPriceGuideDocument}
+      onApply={(guide) => updatePriceGuide(guide, true, true)}
+      onSaveActionReady={priceGuideOnboarding ? registerInitialSetupPriceGuideSaveAction : undefined}
+    />
+  );
+
+  if (priceGuideOnboarding) {
+    const onboardingContent = (
+      <div className="min-w-0" data-testid="owner-initial-setup-services">
+        <OwnerInitialSetupSaveNextActions
+          onSave={() => initialSetupPriceGuideSaveAction?.()}
+          onNext={() => runInitialSetupServiceNext(onInitialSetupNext)}
+          saveDisabled={!initialSetupPriceGuideSaveAction}
+        />
+        {priceGuideWorkspace}
+        {formError ? <p className="mt-3 text-[13px] font-medium leading-5 text-[#a04455]" role="alert">{formError}</p> : null}
+      </div>
+    );
+
+    if (embedded) return onboardingContent;
+    return (
+      <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={previewServices} staffMembers={staffMembers} ownerProfile={ownerProfile} hidePreview>
         {onboardingContent}
       </CustomerPagePreviewLayout>
     );

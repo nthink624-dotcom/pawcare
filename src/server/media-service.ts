@@ -88,6 +88,7 @@ const attachmentRoles = new Set<NotificationMediaAttachmentRole>([
   "after_photo",
   "result_photo",
   "receipt",
+  "feedback_screenshot",
   "other",
 ]);
 const transientKinds = new Set<MediaKind>([

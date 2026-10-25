@@ -46,6 +46,7 @@ import type {
 
 type BootstrapOptions = {
   allowMock?: boolean;
+  includePilotCohort?: boolean;
   includeLanding?: boolean;
   includeNotifications?: boolean;
   includeGroomingRecords?: boolean;
@@ -64,6 +65,7 @@ type BootstrapOptions = {
 
 function buildMockBootstrap(shopId?: string): BootstrapPayload {
   const store = normalizeBootstrapNotifications(getMockStore());
+  store.pilotCohort = emptyOwnerPilotCohortProjection(false);
   store.shop = {
     ...normalizeShopBookingSettings(store.shop),
     id: shopId || store.shop.id,
@@ -425,6 +427,7 @@ function hydrateAppointmentActualTimesFromEvents(
 }
 
 export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptions = {}): Promise<BootstrapPayload> {
+  const includePilotCohort = options.includePilotCohort ?? true;
   const includeLanding = options.includeLanding ?? true;
   const includeNotifications = options.includeNotifications ?? true;
   const includeGroomingRecords = options.includeGroomingRecords ?? true;

@@ -4,6 +4,9 @@ import { z } from "zod";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import { deleteService, upsertService } from "@/server/owner-mutations";
+import { redactPriceGuideRawTextForStorage } from "@/server/price-guide-photo-import";
+
+const WRITE_CORS = { methods: "POST, DELETE, OPTIONS" };
 
 const WRITE_CORS = { methods: "POST, DELETE, OPTIONS" };
 

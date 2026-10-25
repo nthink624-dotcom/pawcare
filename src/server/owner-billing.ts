@@ -1974,6 +1974,13 @@ export async function syncOwnerSubscriptionFromPayment(
         )
       : benefitAdjustedRecord ?? saved;
 
+  // The common payment ledger can add the initial-partner period in the same
+  // database transaction. Refresh before constructing the confirmation body.
+  const { record: benefitAdjustedRecord, profile: benefitAdjustedProfile } =
+    payment.status === "PAID"
+      ? await readOrCreateSubscription(userResult.data.user as BillingIdentity, shopId)
+      : { record: saved, profile };
+
   return await buildOwnerSubscriptionSummary(
     {
       id: userId,

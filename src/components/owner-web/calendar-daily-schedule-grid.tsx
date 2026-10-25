@@ -919,6 +919,17 @@ export function DailyScheduleGrid({
                                       <span className="font-normal">{requestNote || "없음"}</span>
                                     </p>
                                   ) : null}
+                                  {showRequestNote ? (
+                                    <p
+                                      className="col-span-2 min-w-0 truncate text-[12px] leading-[18px] text-[#56687b]"
+                                      title={requestNoteText}
+                                      aria-label={requestNoteText}
+                                      data-booking-request-note={requestNote ? "present" : "empty"}
+                                    >
+                                      <span className="font-medium text-[#475569]">요청사항</span>{" "}
+                                      <span className="font-normal">{requestNote || "없음"}</span>
+                                    </p>
+                                  ) : null}
                                 </div>
                               </div>
                               {selected && canAdjustBookingTime ? (

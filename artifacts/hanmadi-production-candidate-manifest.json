@@ -1,0 +1,45 @@
+{
+  "format": "hanmadi-runtime-manifest-v2",
+  "baseCommit": "58fdda558ab3bd5c2fbc8040f23a957ac05cd4fa",
+  "canonicalEvidenceCommit": "22d0b02b59483f8a32965308e24860e5643d645e",
+  "migration": {
+    "sha256": "D615BD78ECB45C92A0500433385540743D4AE005774069C2752E279A4AC6725F",
+    "path": "supabase/migrations/20260909110000_hanmadi_shared_feedback_and_tester_access.sql",
+    "rawEncoding": "UTF-8 no-BOM LF"
+  },
+  "runtimeFiles": {
+    "src/app/admin/tester-feedback/page.tsx": "036D41F09AE2A7A9DA5381E45CCBEBF7070CCBF6005CE1F6501D99EF80511210",
+    "src/app/api/admin/tester-feedback/route.ts": "54A6D6D632C7D70225D52F68D3BF435AD10FCFAF48CE581E0F7DEA371EBA065D",
+    "src/app/api/owner/tester-feedback/route.ts": "84A6C3F7C843139326491B71C12E4E48A5E8035B717D5EC2F00731849EED95AA",
+    "src/components/admin/admin-section-nav.tsx": "4FE248E470221C30454CD9409E0AC513D21C5937E4DD68042B10CC506A0362D7",
+    "src/components/admin/admin-tester-feedback-screen.tsx": "B30CFE8FF61363C5C9E7F5956A5FBB1871A051D1D7CEBAA537714F4605A193B8",
+    "src/components/owner-web/owner-feedback-adapter.ts": "9E00F9DB31C2A6558322DCBE5761A6C3DE3E78AF04E4C25CD51124DAEC12D2AB",
+    "src/components/owner-web/owner-feature-request-dialog.tsx": "06EF55499F2C7CFE4B49CF41D30971BBE715C4A7E85FEE23440A5A26A3F647CC",
+    "src/components/owner-web/owner-web-app-shell.tsx": "55C61281D15BEBC6B285636D57D24CFE1C6E5F5F621B51F4D5956F2FE9FDAB0E",
+    "src/components/owner-web/owner-web-preview.tsx": "18C4E7FA12915A93757A225F165E5BE3FCA6178AFC52870C2A05B4A41EEB742B",
+    "src/lib/billing/owner-pilot-benefit.ts": "3AB3C0BABE9CFB60A61AB64FA7769A88852D1314DA67B8A34E403DFA5FB83DD7",
+    "src/lib/billing/owner-pilot-cohort.ts": "1AC20642357B2FB50A1A5C275B37D970070146C69B3D8083EDE47061B95CAA6F",
+    "src/lib/media/owner-media-client.ts": "825709AF22F5EDB41D03E979BC6D92E7B87123A53BAE8DC1112D297A510BC48B",
+    "src/lib/tester-feedback.ts": "4888D634478F22464FC88E4A688907C9EB5FD8D2CF1C6F148C87C68B8D598FBE",
+    "src/server/bootstrap.ts": "0F7C2817EEE5C9AEEDCC6A6E6205CB79DB4DBF459C298F10DACB05231C35D7DF",
+    "src/server/media-service.ts": "8258BB3740C18DD279300A9D3887A718E5BD85D07690C8F1D5239EFF0F0591DD",
+    "src/server/owner-pilot-benefits.ts": "B46582370A722EED8813778FFA86000174DB5C76DBF9BD28C2655B184F23CE67",
+    "src/server/owner-pilot-cohort.ts": "9F8D5AC91615ABCD009663ABC9D984A845D874369C56C9C1C3D938E11EC8FC40",
+    "src/server/tester-feedback.ts": "051FA54A4D150D58B5EBDB219DFB03BF5300D8D25080D6F74BA8DDB023FD3F1D",
+    "src/types/domain.ts": "7097D22359808E500382BDF99D645206B2ADB90EA16073D63E0A62344C7C45FA",
+    "supabase/migrations/20260909110000_hanmadi_shared_feedback_and_tester_access.sql": "D615BD78ECB45C92A0500433385540743D4AE005774069C2752E279A4AC6725F"
+  },
+  "excluded": [
+    "src/app/dev/**",
+    "tests/**",
+    "fixtures/**",
+    ".env*",
+    "generated/**",
+    "unrelated canonical dirty hunks"
+  ],
+  "notes": [
+    "Hashes contain source paths and SHA-256 only.",
+    "The manifest excludes itself to avoid recursive hashing.",
+    "No secrets, credentials, media identifiers, or deployment configuration are included."
+  ]
+}

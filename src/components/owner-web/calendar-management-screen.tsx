@@ -3581,6 +3581,10 @@ function PhotoStatusDialog({
   }, [action.bookingId, isCompletionMode]);
 
   useEffect(() => {
+    if (isCompletionMode) closeButtonRef.current?.focus();
+  }, [action.bookingId, isCompletionMode]);
+
+  useEffect(() => {
     setSelectedServiceId(action.serviceId ?? "");
     setSelectedServiceName(action.serviceName ?? "");
   }, [action.bookingId, action.serviceId, action.serviceName]);

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   try {
     await requireAdminSession(request);
     const admin = getSupabaseAdmin();
-    if (!admin) throw new AdminApiError("Supabase configuration is unavailable.", 503);
+    if (!admin) throw new AdminApiError("Supabase 설정을 확인해 주세요.", 503);
 
     const today = kstToday();
     const [appointments, inquiries] = await Promise.all([
@@ -40,6 +40,6 @@ export async function GET(request: NextRequest) {
     if (error instanceof AdminApiError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
-    return NextResponse.json({ message: "Unable to load administrator overview metrics." }, { status: 503 });
+    return NextResponse.json({ message: "관리자 요약 정보를 불러오지 못했습니다." }, { status: 503 });
   }
 }

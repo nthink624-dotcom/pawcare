@@ -68,6 +68,13 @@ function isMissingPetProfileColumn(error: { message?: string; code?: string } | 
   );
 }
 
+function isMissingPetAgeColumn(error: { message?: string; code?: string } | null | undefined) {
+  return Boolean(
+    error?.message?.includes("schema cache") &&
+      (error.message.includes("birthday_precision") || error.message.includes("age_reference_year")),
+  );
+}
+
 function buildAppointmentWindow(date: string, time: string, durationMinutes: number) {
   const endMinute = minutesFromTime(time) + durationMinutes;
 
@@ -646,6 +653,7 @@ export async function updateShopSettings(
     revisit_reminder_default_days: payload.notificationSettings.revisitReminderDefaultDays,
     booking_confirmed_enabled: payload.notificationSettings.bookingConfirmedEnabled,
     booking_cancelled_enabled: payload.notificationSettings.bookingCancelledEnabled,
+    booking_consent_request_enabled: payload.notificationSettings.bookingConsentRequestEnabled,
     booking_rescheduled_enabled: payload.notificationSettings.bookingRescheduledEnabled,
     appointment_reminder_10m_enabled: payload.notificationSettings.appointmentReminder10mEnabled,
     appointment_reminder_10m_mode: payload.notificationSettings.appointmentReminder10mMode,
@@ -1953,6 +1961,7 @@ export async function restoreGuardians(input: unknown) {
 
 export async function createPet(input: unknown) {
   const payload = petInputSchema.parse(input);
+  const hasBirthday = Boolean(payload.birthday);
   const pet: Pet = {
     id: randomUUID(),
     shop_id: payload.shopId,
@@ -1961,10 +1970,12 @@ export async function createPet(input: unknown) {
     breed: payload.breed,
     pricing_group: payload.pricingGroup ?? null,
     weight: payload.weight ?? null,
-    age: payload.age ?? null,
+    age: hasBirthday ? null : payload.age ?? null,
+    age_reference_year: hasBirthday || payload.age == null ? null : Number(currentDateInTimeZone().slice(0, 4)),
     notes: payload.notes ?? "",
     bite_level: payload.biteLevel ?? "none",
     birthday: payload.birthday ?? null,
+    birthday_precision: hasBirthday ? payload.birthdayPrecision ?? "day" : "day",
     grooming_cycle_weeks: payload.groomingCycleWeeks,
     avatar_seed: payload.name.trim().slice(0, 1) || "P",
     created_at: nowIso(),
@@ -1988,6 +1999,7 @@ export async function createPet(input: unknown) {
 
   const { data, error } = await supabase.from("pets").insert(pet).select("*").single();
   if (error) {
+    if (isMissingPetAgeColumn(error)) throw new Error("반려동물 나이 저장에 필요한 데이터 구조가 준비되지 않았습니다.");
     if (isMissingPetProfileColumn(error)) {
       const { bite_level: _biteLevel, pricing_group: _pricingGroup, ...petWithoutProfileFields } = pet;
       const retry = await supabase.from("pets").insert(petWithoutProfileFields).select("*").single();
@@ -2001,6 +2013,25 @@ export async function createPet(input: unknown) {
 
 export async function updatePet(input: unknown) {
   const payload = petUpdateSchema.parse(input);
+  const hasBirthdayUpdate = payload.birthday !== undefined;
+  const hasAgeUpdate = payload.age !== undefined;
+  const ageSourceUpdate = payload.birthday
+    ? {
+        birthday: payload.birthday ?? null,
+        birthday_precision: payload.birthdayPrecision ?? "day",
+        age: null,
+        age_reference_year: null,
+      }
+    : hasAgeUpdate
+      ? {
+          birthday: null,
+          birthday_precision: "day" as const,
+          age: payload.age ?? null,
+          age_reference_year: payload.age == null ? null : Number(currentDateInTimeZone().slice(0, 4)),
+        }
+      : hasBirthdayUpdate
+        ? { birthday: null, birthday_precision: "day" as const }
+        : {};
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
@@ -2010,9 +2041,10 @@ export async function updatePet(input: unknown) {
     pet.name = payload.name;
     pet.breed = payload.breed;
     if (payload.pricingGroup !== undefined) pet.pricing_group = payload.pricingGroup;
-    pet.birthday = payload.birthday ?? null;
+    if (hasBirthdayUpdate || hasAgeUpdate) {
+      Object.assign(pet, ageSourceUpdate);
+    }
     if (payload.weight !== undefined) pet.weight = payload.weight;
-    if (payload.age !== undefined) pet.age = payload.age;
     if (payload.notes !== undefined) pet.notes = payload.notes;
     if (payload.biteLevel !== undefined) pet.bite_level = payload.biteLevel;
     if (payload.groomingCycleWeeks !== undefined) pet.grooming_cycle_weeks = payload.groomingCycleWeeks;
@@ -2030,9 +2062,8 @@ export async function updatePet(input: unknown) {
       name: payload.name,
       breed: payload.breed,
       ...(payload.pricingGroup !== undefined ? { pricing_group: payload.pricingGroup } : {}),
-      birthday: payload.birthday ?? null,
+      ...ageSourceUpdate,
       ...(payload.weight !== undefined ? { weight: payload.weight } : {}),
-      ...(payload.age !== undefined ? { age: payload.age } : {}),
       ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
       ...(payload.biteLevel !== undefined ? { bite_level: payload.biteLevel } : {}),
       ...(payload.groomingCycleWeeks !== undefined ? { grooming_cycle_weeks: payload.groomingCycleWeeks } : {}),
@@ -2044,15 +2075,15 @@ export async function updatePet(input: unknown) {
   const { data, error } = await updateQuery.select("*").single();
 
   if (error) {
+    if (isMissingPetAgeColumn(error)) throw new Error("반려동물 나이 저장에 필요한 데이터 구조가 준비되지 않았습니다.");
     if (isMissingPetProfileColumn(error)) {
       let retryQuery = supabase
         .from("pets")
         .update({
           name: payload.name,
           breed: payload.breed,
-          birthday: payload.birthday ?? null,
+          ...(hasBirthdayUpdate ? { birthday: payload.birthday ?? null } : {}),
           ...(payload.weight !== undefined ? { weight: payload.weight } : {}),
-          ...(payload.age !== undefined ? { age: payload.age } : {}),
           ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
           ...(payload.groomingCycleWeeks !== undefined ? { grooming_cycle_weeks: payload.groomingCycleWeeks } : {}),
           updated_at: nowIso(),

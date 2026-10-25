@@ -38,7 +38,7 @@ type CustomerViewRow = {
   name: string;
   phone: string;
   pets: string[];
-  petDetails: Array<Pick<Pet, "id" | "name" | "breed" | "pricing_group" | "weight" | "notes" | "birthday" | "bite_level" | "grooming_cycle_weeks">>;
+  petDetails: Array<Pick<Pet, "id" | "name" | "breed" | "pricing_group" | "weight" | "notes" | "birthday" | "bite_level" | "grooming_cycle_weeks"> & Partial<Pick<Pet, "birthday_precision" | "age" | "age_reference_year" | "created_at">>>;
   tags: string[];
   recentVisit: string;
   recentVisitDate: string | null;
@@ -83,6 +83,8 @@ type PetAddInput = {
   name: string;
   breed?: string;
   birthday?: string;
+  birthdayPrecision?: "day" | "month";
+  age?: string;
   weight?: string;
   biteLevel?: PetBiteLevel;
   profilePhoto?: File | null;
@@ -313,6 +315,10 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
         weight: pet.weight,
         notes: pet.notes,
         birthday: pet.birthday ?? null,
+        birthday_precision: pet.birthday_precision,
+        age: pet.age,
+        age_reference_year: pet.age_reference_year,
+        created_at: pet.created_at,
         bite_level: normalizePetBiteLevel(pet.bite_level),
         grooming_cycle_weeks: pet.grooming_cycle_weeks,
       })),
@@ -578,7 +584,7 @@ export default function CustomerManagementScreen({
         customerGrade,
         recentVisitDate: row.recentVisitDate,
         recentService: row.recentService,
-        pets: row.petDetails.map((pet) => ({ name: pet.name, birthday: pet.birthday })),
+        pets: row.petDetails.map((pet) => ({ name: pet.name, birthday: pet.birthday, birthday_precision: pet.birthday_precision, age: pet.age ?? null, age_reference_year: pet.age_reference_year, created_at: pet.created_at })),
       };
     });
   }, [bootstrapData.guardians, displayedCustomers]);
@@ -687,17 +693,6 @@ export default function CustomerManagementScreen({
     } finally {
       setCreatingCustomer(false);
     }
-  }
-
-  function handleCustomersImported({ guardians, pets }: { guardians: Guardian[]; pets: Pet[] }) {
-    if (guardians.length === 0 && pets.length === 0) return;
-
-    setBootstrapData((current) => ({
-      ...current,
-      guardians: [...current.guardians.filter((guardian) => !guardians.some((item) => item.id === guardian.id)), ...guardians],
-      pets: [...current.pets.filter((pet) => !pets.some((item) => item.id === pet.id)), ...pets],
-    }));
-    setSelectedCustomerId((current) => current || guardians[0]?.id || pets[0]?.guardian_id || "");
   }
 
   function toggleDelete(id: string) {
@@ -1098,7 +1093,7 @@ export default function CustomerManagementScreen({
   async function updatePetDetail(
     customerId: string,
     petId: string,
-    patch: { name: string; breed: string; pricingGroup: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string },
+    patch: { name: string; breed: string; pricingGroup: string; birthday: string; birthdayPrecision: "day" | "month"; age: string; weight: string; notes: string; groomingCycleWeeks: string },
   ) {
     const currentCustomer = customers.find((row) => row.id === customerId);
     const targetPet = currentCustomer?.petDetails.find((pet) => pet.id === petId);
@@ -1111,12 +1106,18 @@ export default function CustomerManagementScreen({
     const nextWeight = Number.isFinite(parsedWeight) ? parsedWeight : null;
     const parsedCycle = Number.parseInt(patch.groomingCycleWeeks, 10);
     const nextCycle = Number.isFinite(parsedCycle) && parsedCycle > 0 ? parsedCycle : 4;
+    const nextBirthday = patch.birthday.trim() || null;
+    const nextAge = patch.age.trim() ? Number.parseInt(patch.age, 10) : null;
+    const ageSourceChanged = nextBirthday !== targetPet.birthday || patch.birthdayPrecision !== (targetPet.birthday_precision ?? "day") || nextAge !== targetPet.age;
     const nextPet = {
       ...targetPet,
       name,
       breed: patch.breed.trim(),
       pricing_group: patch.pricingGroup.trim() || null,
-      birthday: patch.birthday.trim() || null,
+      birthday: ageSourceChanged ? nextBirthday : targetPet.birthday,
+      birthday_precision: ageSourceChanged ? patch.birthdayPrecision : targetPet.birthday_precision,
+      age: ageSourceChanged ? nextAge : targetPet.age,
+      age_reference_year: ageSourceChanged ? (nextAge === null ? null : Number(currentDateInTimeZone().slice(0, 4))) : targetPet.age_reference_year,
       weight: nextWeight,
       notes: patch.notes,
       grooming_cycle_weeks: nextCycle,
@@ -1147,6 +1148,9 @@ export default function CustomerManagementScreen({
                 breed: nextPet.breed,
                 pricing_group: nextPet.pricing_group,
                 birthday: nextPet.birthday,
+                birthday_precision: nextPet.birthday_precision,
+                age: nextPet.age,
+                age_reference_year: nextPet.age_reference_year,
                 weight: nextPet.weight,
                 notes: nextPet.notes,
                 grooming_cycle_weeks: nextPet.grooming_cycle_weeks,
@@ -1161,18 +1165,23 @@ export default function CustomerManagementScreen({
     if (isLocalOnlyCustomer(currentCustomer) || petId.startsWith("local-pet-") || petId.startsWith("mock-pet-")) return;
 
     try {
-      const savedPet = await patchOwnerPet({
+      const petUpdate: Record<string, unknown> = {
         shopId: initialData.shop.id,
         petId,
         name: nextPet.name,
         breed: nextPet.breed || "미입력",
         pricingGroup: nextPet.pricing_group,
-        birthday: nextPet.birthday,
         weight: nextPet.weight,
         notes: nextPet.notes,
         biteLevel: normalizePetBiteLevel(targetPet.bite_level),
         groomingCycleWeeks: nextPet.grooming_cycle_weeks,
-      });
+      };
+      if (ageSourceChanged) {
+        petUpdate.birthday = nextPet.birthday;
+        petUpdate.birthdayPrecision = nextPet.birthday_precision;
+        petUpdate.age = nextPet.age;
+      }
+      const savedPet = await patchOwnerPet(petUpdate);
       setBootstrapData((current) => {
         const nextData = {
           ...current,
@@ -1205,10 +1214,12 @@ export default function CustomerManagementScreen({
     const previousBootstrapData = bootstrapData;
     const breed = payload.breed?.trim() || "미입력";
     const birthday = payload.birthday?.trim() || null;
+    const age = payload.age?.trim() ? Number.parseInt(payload.age, 10) : null;
+    const birthdayPrecision = payload.birthdayPrecision ?? "month";
     const parsedWeight = payload.weight?.trim() ? Number(payload.weight.replace(/[^0-9.]/g, "")) : null;
     const weight = parsedWeight && Number.isFinite(parsedWeight) && parsedWeight > 0 ? parsedWeight : null;
     const biteLevel = normalizePetBiteLevel(payload.biteLevel);
-    const tempPet = { id: `local-pet-${Date.now()}`, name, breed: "미입력", weight: null, notes: "", birthday: null, bite_level: biteLevel, grooming_cycle_weeks: 4 };
+    const tempPet = { id: `local-pet-${Date.now()}`, name, breed: "미입력", weight: null, notes: "", birthday: null, birthday_precision: birthdayPrecision, age, age_reference_year: age === null ? null : Number(currentDateInTimeZone().slice(0, 4)), bite_level: biteLevel, grooming_cycle_weeks: 4 };
     setSaveError("");
     setCustomers((current) =>
       current.map((row) =>
@@ -1233,7 +1244,9 @@ export default function CustomerManagementScreen({
           name: tempPet.name,
           breed,
           age: null,
+          age_reference_year: null,
           birthday,
+          birthday_precision: birthdayPrecision,
           weight,
           notes: tempPet.notes,
           avatar_seed: tempPet.name.slice(0, 1) || "P",
@@ -1254,6 +1267,8 @@ export default function CustomerManagementScreen({
         name,
         breed: "미입력",
         birthday: null,
+        age: null,
+        birthdayPrecision,
         notes: "",
         biteLevel,
         groomingCycleWeeks: 4,
@@ -1264,6 +1279,8 @@ export default function CustomerManagementScreen({
         name,
         breed,
         birthday,
+        birthdayPrecision,
+        age,
         weight,
         notes: "",
         biteLevel,
@@ -1284,7 +1301,7 @@ export default function CustomerManagementScreen({
                 ...row,
                 petDetails: row.petDetails.map((item) =>
                   item.id === tempPet.id
-                    ? { id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null, bite_level: normalizePetBiteLevel(pet.bite_level), grooming_cycle_weeks: pet.grooming_cycle_weeks }
+                    ? { id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null, birthday_precision: pet.birthday_precision, age: pet.age, age_reference_year: pet.age_reference_year, created_at: pet.created_at, bite_level: normalizePetBiteLevel(pet.bite_level), grooming_cycle_weeks: pet.grooming_cycle_weeks }
                     : item,
                 ),
               }
@@ -1423,11 +1440,9 @@ export default function CustomerManagementScreen({
               />
             </label>
             <CustomerExcelTools
-              shopId={initialData.shop.id}
               guardians={bootstrapData.guardians}
               pets={bootstrapData.pets}
               disabled={deleteMode}
-              onImported={handleCustomersImported}
             />
             <button
               type="button"

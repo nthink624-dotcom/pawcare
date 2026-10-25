@@ -73,6 +73,7 @@ export type ShopNotificationSettings = {
   alimtalk_template_request_updated_at?: string | null;
   revisit_enabled: boolean;
   revisit_reminder_default_days: number;
+  booking_consent_request_enabled?: boolean;
   booking_confirmed_enabled: boolean;
   booking_cancelled_enabled: boolean;
   booking_rescheduled_enabled: boolean;
@@ -257,9 +258,11 @@ export type Pet = {
   pricing_group?: string | null;
   weight: number | null;
   age: number | null;
+  age_reference_year?: number | null;
   notes: string;
   bite_level?: PetBiteLevel;
   birthday: string | null;
+  birthday_precision?: "day" | "month";
   grooming_cycle_weeks: number;
   avatar_seed: string;
   created_at: string;

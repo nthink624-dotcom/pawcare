@@ -248,9 +248,11 @@ export type Pet = {
   pricing_group?: string | null;
   weight: number | null;
   age: number | null;
+  age_reference_year?: number | null;
   notes: string;
   bite_level?: PetBiteLevel;
   birthday: string | null;
+  birthday_precision?: "day" | "month";
   grooming_cycle_weeks: number;
   avatar_seed: string;
   created_at: string;

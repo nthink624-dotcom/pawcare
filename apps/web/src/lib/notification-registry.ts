@@ -12,6 +12,7 @@ export type NotificationChannel = "alimtalk" | "in_app" | "data_only";
 export type ShopSettingKey =
   | "enabled"
   | "revisit_enabled"
+  | "booking_consent_request_enabled"
   | "booking_confirmed_enabled"
   | "booking_cancelled_enabled"
   | "booking_rescheduled_enabled"

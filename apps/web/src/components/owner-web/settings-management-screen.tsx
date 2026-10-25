@@ -82,6 +82,7 @@ function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | n
     revisitReminderDefaultDays: normalized.revisit_reminder_default_days,
     bookingConfirmedEnabled: normalized.booking_confirmed_enabled,
     bookingCancelledEnabled: normalized.booking_cancelled_enabled,
+    bookingConsentRequestEnabled: normalized.booking_consent_request_enabled !== false,
     bookingRescheduledEnabled: normalized.booking_rescheduled_enabled,
     appointmentReminder10mEnabled:
       normalized.appointment_reminder_10m_enabled && normalized.appointment_reminder_10m_mode === "auto",
@@ -117,6 +118,7 @@ function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotifi
     revisit_reminder_default_days: draft.revisitReminderDefaultDays,
     booking_confirmed_enabled: draft.bookingConfirmedEnabled,
     booking_cancelled_enabled: draft.bookingCancelledEnabled,
+    booking_consent_request_enabled: draft.bookingConsentRequestEnabled,
     booking_rescheduled_enabled: draft.bookingRescheduledEnabled,
     appointment_reminder_10m_enabled: draft.appointmentReminder10mEnabled,
     appointment_reminder_10m_mode: draft.appointmentReminder10mEnabled ? "auto" : "manual",

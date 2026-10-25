@@ -1,19 +1,14 @@
 "use client";
 
-import { ArrowRightLeft, FileDown } from "lucide-react";
-import { useState } from "react";
+import { FileDown } from "lucide-react";
 
-import DataImportDialog from "@/components/owner-web/data-import-dialog";
 import { OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
-import type { DataImportCommitResult } from "@/types/data-import";
 import type { Guardian, Pet } from "@/types/domain";
 
 type CustomerExcelToolsProps = {
-  shopId: string;
   guardians: Guardian[];
   pets: Pet[];
   disabled?: boolean;
-  onImported: (result: { guardians: Guardian[]; pets: Pet[] }) => void;
 };
 
 const templateHeaders = [
@@ -55,10 +50,7 @@ function downloadCsv(fileName: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
-export default function CustomerExcelTools({ shopId, guardians, pets, disabled }: CustomerExcelToolsProps) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [message, setMessage] = useState("");
-  const importDisabled = disabled || shopId === "demo-shop" || shopId === "owner-demo";
+export default function CustomerExcelTools({ guardians, pets, disabled }: CustomerExcelToolsProps) {
 
   function downloadTemplate() {
     downloadCsv("petmanager-data-migration-template.csv", [
@@ -83,7 +75,7 @@ export default function CustomerExcelTools({ shopId, guardians, pets, disabled }
         pet.name,
         pet.breed,
         pet.weight == null ? "" : String(pet.weight),
-        pet.birthday ?? "",
+        pet.birthday_precision === "month" ? pet.birthday?.slice(0, 7) ?? "" : pet.birthday ?? "",
         pet.notes,
         "",
         "",
@@ -100,15 +92,6 @@ export default function CustomerExcelTools({ shopId, guardians, pets, disabled }
     downloadCsv(`petmanager-customers-${new Date().toISOString().slice(0, 10)}.csv`, [templateHeaders, ...rows]);
   }
 
-  function handleCompleted(result: DataImportCommitResult) {
-    const summary = result.summary;
-    setDialogOpen(false);
-    setMessage(result.alreadyImported
-      ? "이미 이전한 파일입니다. 중복 등록하지 않았습니다."
-      : `이전 완료 · 고객 ${summary.importedGuardians}명, 반려동물 ${summary.importedPets}마리, 방문기록 ${summary.importedVisits}건`);
-    window.setTimeout(() => window.location.reload(), 700);
-  }
-
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
@@ -116,17 +99,11 @@ export default function CustomerExcelTools({ shopId, guardians, pets, disabled }
           <FileDown className="h-4 w-4" />
           이전 양식
         </button>
-        <button type="button" onClick={() => setDialogOpen(true)} disabled={importDisabled} title={importDisabled && !disabled ? "데모에서는 실제 데이터를 이전하지 않습니다." : undefined} className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}>
-          <ArrowRightLeft className="h-4 w-4" />
-          티피에서 이전
-        </button>
         <button type="button" onClick={exportCustomers} disabled={disabled || guardians.length === 0} className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}>
           <FileDown className="h-4 w-4" />
           내보내기
         </button>
-        {message ? <span className="text-[12px] font-medium text-[#526174]">{message}</span> : null}
       </div>
-      <DataImportDialog open={dialogOpen} shopId={shopId} onClose={() => setDialogOpen(false)} onCompleted={handleCompleted} />
     </>
   );
 }

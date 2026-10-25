@@ -8,6 +8,9 @@ import dotenv from "dotenv";
 import express, { type ErrorRequestHandler, type Response as ExpressResponse } from "express";
 import { z } from "zod";
 
+import { collectTemplatePages, mapTemplateDetails, sharedTemplateCatalog, targetedTemplateReader } from "./template-catalog.js";
+
+import { retireTemplate } from "./template-retirement.js";
 import { requireHttpsTransportUrl } from "./https-transport-url.js";
 
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -26,6 +29,8 @@ const APPROVED_SSODAA_PATHS = new Set([
   "/kakao/template/request",
   "/kakao/template/category/all",
   "/kakao/template/list",
+  "/kakao/template/stop",
+  "/kakao/template/request/cancel",
 ]);
 const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -1020,6 +1025,8 @@ async function fetchSsodaaTemplateDetail(templateCode: string) {
   }
 
   const detailRecord = findTemplateRecord(parsedResponseBody, templateCode) ?? getResponseContentRecord(parsedResponseBody);
+  const returnedCode = detailRecord ? getStringValue(detailRecord, ["templateCode", "template_code", "templtCode", "templt_code"]) : null;
+  if (returnedCode && returnedCode !== templateCode) throw new RelayHttpError(502, "Provider template identity mismatch");
   return normalizeSsodaaTemplateDetail(templateCode, detailRecord);
 }
 
@@ -1159,31 +1166,14 @@ async function fetchSsodaaTemplateListPage(page: number, count: number) {
     count: String(count),
   });
 
-  return extractTemplateRecords(responseBody);
+  const content = asRecord(asRecord(responseBody)?.content);
+  const number = (value: unknown) => value !== null && value !== undefined && Number.isInteger(Number(value)) && Number(value) >= 0 ? Number(value) : undefined;
+  return { records: extractTemplateRecords(responseBody), totalPage: number(content?.totalPage), totalCount: number(content?.totalCount) };
 }
 
 async function fetchSsodaaTemplateList() {
-  const pageSize = 100;
-  const maxPages = 20;
-  const records: Record<string, unknown>[] = [];
-  const seenCodes = new Set<string>();
-
-  for (let page = 1; page <= maxPages; page += 1) {
-    const pageRecords = await fetchSsodaaTemplateListPage(page, pageSize);
-    let addedCount = 0;
-
-    for (const record of pageRecords) {
-      const code = getStringValue(record, ["templateCode", "template_code", "templtCode", "templt_code"]);
-      if (!code || seenCodes.has(code)) continue;
-      seenCodes.add(code);
-      records.push(record);
-      addedCount += 1;
-    }
-
-    if (pageRecords.length < pageSize || addedCount === 0) break;
-  }
-
-  return records;
+  return collectTemplatePages(fetchSsodaaTemplateListPage, record =>
+    getStringValue(record, ["templateCode", "template_code", "templtCode", "templt_code"]) ?? "");
 }
 
 function mapTemplateCodeToRelayConfig(configKey: RelayTemplateConfigKey, templateCode: string) {
@@ -1195,24 +1185,26 @@ function mapTemplateCodeToRelayConfig(configKey: RelayTemplateConfigKey, templat
   applyRelayConfig(nextConfig);
 }
 
+const readTargetedTemplate = targetedTemplateReader(async (code: string): Promise<SsodaaTemplateDetail> => {
+  try { return await fetchSsodaaTemplateDetail(code); }
+  catch { return { templateCode: code, templateName: null, templateContent: null, inspectionStatus: null, serviceStatus: null, buttons: [], rawKeys: [] }; }
+}, detail => detail.inspectionStatus === "APR" ? 300_000 : 60_000);
+
+const templateDetailCache = new Map<string, { revision: string; expires: number; detail: SsodaaTemplateDetail }>();
+const readSharedTemplateCatalog = sharedTemplateCatalog(buildSsodaaTemplateCatalog, 60_000);
+
 async function buildSsodaaTemplateCatalog() {
   const aliasEntries = templateAliases.map((alias) => ({
     alias,
     configuredCode: resolveTemplateKey(alias) ?? "",
   }));
-  let listRecords: Record<string, unknown>[] = [];
-  let providerConnected = false;
-  let providerCheckedAt: string | null = null;
+  const listRecords = await fetchSsodaaTemplateList();
+  const providerConnected = true;
+  const providerCheckedAt = new Date().toISOString();
+  const liveCodes = new Set(listRecords.map(row => getStringValue(row, ["templateCode", "template_code", "templtCode", "templt_code"])));
+  for (const code of templateDetailCache.keys()) if (!liveCodes.has(code)) templateDetailCache.delete(code);
 
-  try {
-    listRecords = await fetchSsodaaTemplateList();
-    providerConnected = true;
-    providerCheckedAt = new Date().toISOString();
-  } catch (error) {
-    providerCheckedAt = new Date().toISOString();
-    console.warn("[relay] Ssodaa template list fetch failed");
-  }
-
+  const listRowsByCode = new Map(listRecords.map(row => [getStringValue(row, ["templateCode", "template_code", "templtCode", "templt_code"]), row]));
   const allTemplatesFromList = listRecords
     .map((record) => {
       const code = getStringValue(record, ["templateCode", "template_code", "templtCode", "templt_code"]);
@@ -1221,10 +1213,14 @@ async function buildSsodaaTemplateCatalog() {
     })
     .filter((item): item is SsodaaTemplateDetail => Boolean(item));
 
-  const allTemplates = await Promise.all(
-    allTemplatesFromList.map(async (detailFromList) => {
+  const allTemplates = await mapTemplateDetails(allTemplatesFromList, 6, async (detailFromList) => {
       try {
-        const detailFromApi = await fetchSsodaaTemplateDetail(detailFromList.templateCode);
+        const listRow = listRowsByCode.get(detailFromList.templateCode);
+        const revision = JSON.stringify([listRow?.modifiedAt, detailFromList.serviceStatus, detailFromList.inspectionStatus]);
+        const cached = templateDetailCache.get(detailFromList.templateCode);
+        const detailFromApi = cached && cached.revision === revision && cached.expires > Date.now()
+          ? cached.detail : await fetchSsodaaTemplateDetail(detailFromList.templateCode);
+        templateDetailCache.set(detailFromList.templateCode, { revision, detail: detailFromApi, expires: cached?.detail === detailFromApi ? cached.expires : Date.now() + 300_000 });
         return {
           templateCode: detailFromApi.templateCode || detailFromList.templateCode,
           templateName: detailFromApi.templateName ?? detailFromList.templateName,
@@ -1235,10 +1231,11 @@ async function buildSsodaaTemplateCatalog() {
           rawKeys: Array.from(new Set([...detailFromApi.rawKeys, ...detailFromList.rawKeys])),
         } satisfies SsodaaTemplateDetail;
       } catch {
-        return detailFromList;
+        // One unavailable template must not disable every other shop. Its list row
+        // alone cannot prove approval or the body/buttons, so this code is unusable.
+        return { ...detailFromList, templateContent: null, inspectionStatus: null, buttons: [] };
       }
-    }),
-  );
+    });
   const allTemplatesByCode = new Map(allTemplates.map((template) => [template.templateCode, template]));
 
   const detailEntries = await Promise.all(
@@ -1625,7 +1622,15 @@ app.get("/admin/templates", async (request, response) => {
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
-    const catalog = await buildSsodaaTemplateCatalog();
+    const codeFilter = request.query.codes;
+    if (codeFilter !== undefined && (typeof codeFilter !== "string" || codeFilter.length > 20_000 || !codeFilter.split(",").every(code => /^[A-Za-z0-9_-]{1,100}$/.test(code)))) {
+      throw new RelayHttpError(400, "템플릿 조회 코드를 확인해 주세요.");
+    }
+    const requestedCodes = typeof codeFilter === "string" ? [...new Set(codeFilter.split(","))] : null;
+    if (requestedCodes && requestedCodes.length > 100) throw new RelayHttpError(400, "Too many template codes");
+    const catalog = requestedCodes
+      ? { items: [], allTemplates: await Promise.all(requestedCodes.map(code => readTargetedTemplate.read(code))), providerStatus: { connected: true, checkedAt: new Date().toISOString(), templateCount: requestedCodes.length } }
+      : await readSharedTemplateCatalog();
     response.json({
       ok: true,
       items: catalog.items.map((item) => ({
@@ -1640,6 +1645,20 @@ app.get("/admin/templates", async (request, response) => {
   } catch (error) {
     respondWithRouteError(response, error, "릴레이 템플릿 목록을 확인하지 못했습니다.");
   }
+});
+
+app.post("/admin/templates/retire", async (request, response) => {
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    ensureProviderConfig();
+    const payload = z.object({ templateCode: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/) }).strict().parse(request.body);
+    readTargetedTemplate.invalidate(payload.templateCode);
+    const state = await retireTemplate(payload.templateCode, fetchSsodaaTemplateDetail,
+      code => postSsodaaJson("/kakao/template/stop", { senderKey: env.ssodaaSenderKey, templateCode: code }),
+      code => postSsodaaJson("/kakao/template/request/cancel", { senderKey: env.ssodaaSenderKey, templateCode: code }));
+    readTargetedTemplate.invalidate(payload.templateCode);
+    response.json({ ok: true, state });
+  } catch (error) { respondWithRouteError(response, error, "Template retirement could not be verified"); }
 });
 
 app.post("/admin/templates/code-check", async (request, response) => {

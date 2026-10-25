@@ -10,6 +10,8 @@ import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
 import { getApprovedSsodaaTemplateButtonDefaults } from "@/server/alimtalk-approved-template";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { readAlimtalkRows } from "@/server/alimtalk-template-pages";
+import { getRelayTemplateCatalog } from "@/server/alimtalk-approved-template";
 import { getApprovedSsodaaTemplateDetails } from "@/server/alimtalk-approved-template";
 import { matchesShopTemplateSnapshot, shopTemplateInspectionState } from "@/server/shop-alimtalk-template-contract";
 
@@ -97,15 +99,12 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     if (!admin) throw new OwnerApiError("템플릿 저장 설정을 확인해 주세요.", 503);
 
-    const [rowsResult, categoriesResult, catalogResult] = await Promise.all([
-      admin.from("shop_alimtalk_template_requests").select("*").eq("shop_id", owner.shopId).order("created_at", { ascending: false }),
+    const [rows, categoriesResult] = await Promise.all([
+      readAlimtalkRows((from, to) => admin.from("shop_alimtalk_template_requests").select("*").eq("shop_id", owner.shopId).order("created_at", { ascending: false }).order("id").range(from, to)),
       callRelay("/admin/templates/categories").catch(() => null),
-      callRelay("/admin/templates").catch(() => null),
     ]);
-    if (rowsResult.error) throw new OwnerApiError("매장 템플릿을 불러오지 못했습니다.", 503);
-
-    const catalog = Array.isArray(catalogResult?.allTemplates) ? catalogResult.allTemplates as Array<Record<string, unknown>> : [];
-    const rows = (rowsResult.data ?? []) as Array<Record<string, unknown>>;
+    const catalogResult = await getRelayTemplateCatalog(rows.filter(row => row.inspection_status !== "draft").map(row => row.template_code));
+    const catalog = catalogResult?.allTemplates ?? [];
     const synced = await Promise.all(rows.map(async (row) => {
       const provider = catalog.find((item) => item.templateCode === row.template_code);
       if (!provider || row.inspection_status === "draft") return row;

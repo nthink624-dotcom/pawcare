@@ -3,6 +3,7 @@
 export type AlimtalkMetadata = Record<string, string | boolean | number | null | undefined>;
 
 import { logOperationalEvent } from "@/server/observability";
+import { assertAlimtalkTemplateAccess } from "@/server/alimtalk-template-ownership";
 
 export type AlimtalkMediaAttachment = {
   attachmentId?: string | null;
@@ -24,6 +25,7 @@ export type AlimtalkButton = {
 };
 
 type SendAlimtalkInput = {
+  shopId?: string;
   to: string;
   message: string;
   templateAlias?: string | null;
@@ -127,6 +129,7 @@ function normalizeButtons(value: AlimtalkButton[] | null | undefined) {
 
 export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<SendAlimtalkResult> {
   if (serverEnv.alimtalkProvider === "ssodaa" && !input.templateKey?.trim()) throw new Error("검증된 현재 템플릿 연결이 없어 발송을 중단했습니다.");
+  if (serverEnv.alimtalkProvider === "ssodaa") await assertAlimtalkTemplateAccess(input.templateKey!.trim(), input.shopId);
   const requestId = crypto.randomUUID();
   const { relayUrlHost, relayUrlPathname } = getRelayUrlParts(serverEnv.alimtalkRelayUrl);
   const hasRelayUrl = Boolean(serverEnv.alimtalkRelayUrl);

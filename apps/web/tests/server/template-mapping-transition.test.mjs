@@ -1,16 +1,18 @@
+import {alimtalkStorageFixture,uncachedCatalogFixture} from '../helpers/alimtalk-storage-fixture.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {registerHooks} from 'node:module';
 const stub=code=>({shortCircuit:true,url:'data:text/javascript,'+encodeURIComponent(code)});
+let privateRows=[],registryOverrides=[];
 let mappings=[],catalog={},failRPC=false,rpcCalls=0,adminAllowed=true;
 const clone=value=>structuredClone(value);
 class Query{
-  constructor(){this.filters=[];} select(){return this;} order(){return this;} limit(){return this;}
+  constructor(){this.filters=[];} select(){return this;}or(){this.filters.push(r=>r.service_status==='active'||['requested','reviewing','unknown','pending'].includes(r.inspection_status));return this;} order(){return this;} limit(){return this;}
   eq(k,v){this.filters.push(r=>r[k]===v);return this;}neq(k,v){this.filters.push(r=>r[k]!==v);return this;}
   async read(single=false){const result=mappings.filter(r=>this.filters.every(f=>f(r)));return {data:clone(single?result[0]??null:result),error:null};}
   maybeSingle(){return this.read(true);}then(r,j){return this.read().then(r,j);}
 }
-const admin={from:table=>{assert.equal(table,'platform_alimtalk_templates');return new Query()},rpc:async(name,p)=>{
+const admin={from:table=>alimtalkStorageFixture(table,()=>({platform:mappings,requests:privateRows,registry:registryOverrides}))??new Query(),rpc:async(name,p)=>{
   assert.equal(name,'replace_platform_alimtalk_template');rpcCalls++;
   const prior=mappings.find(r=>r.template_alias===p.p_alias&&r.service_status==='active');
   if(failRPC||prior?.id!==(p.p_expected_current??undefined)||prior?.updated_at!==(p.p_expected_updated_at??undefined))return {data:null,error:{code:'40001'}};
@@ -19,6 +21,9 @@ const admin={from:table=>{assert.equal(table,'platform_alimtalk_templates');retu
 }};
 globalThis.__templateMappingTest={admin,allowed:()=>adminAllowed};
 registerHooks({resolve(s,c,next){
+  if(s==='@/server/alimtalk-provider-catalog-cache')return stub(uncachedCatalogFixture);
+
+  if(s==='@/server/observability')return stub('export const logOperationalEvent=()=>{};');
   if(s==='@/lib/supabase/server')return stub('export const getSupabaseAdmin=()=>globalThis.__templateMappingTest.admin;');
   if(s==='@/lib/server-env')return stub('export const serverEnv={alimtalkProvider:"ssodaa",alimtalkRelayUrl:"https://relay.fixture.invalid/send",alimtalkRelaySecret:"mock-only"};export const getConfiguredAlimtalkTemplateKey=()=>"old_env_code";');
   if(s==='@/server/admin-api-auth')return stub('export class AdminApiError extends Error{constructor(m,s){super(m);this.status=s}}export const requireAdminSession=async()=>{if(!globalThis.__templateMappingTest.allowed())throw new AdminApiError("관리자 권한 필요",403)}');
@@ -29,7 +34,7 @@ const {getApprovedSsodaaNotificationTemplate}=await import('../../src/server/ali
 const {DEPOSIT_ALIMTALK_REVIEW_CONTRACTS:fixedDeposit}=await import('@petmanager/shared/contracts/deposit-alimtalk-review');
 const oldId='00000000-0000-4000-8000-000000000001',oldAt='2026-10-20T00:00:00Z';
 const values={'보호자명':'김민수','반려동물명':'보리','예약 확인 링크':'https://www.petmanager.co.kr/m?t=fixture'};
-function reset(){failRPC=false;rpcCalls=0;adminAllowed=true;
+function reset(){privateRows=[];registryOverrides=[];failRPC=false;rpcCalls=0;adminAllowed=true;
   const a={templateCode:'code_A',templateName:'템플릿명 A',templateContent:'#{보호자명}님, 미용을 시작했어요.',inspectionStatus:'APR',serviceStatus:'A',buttons:[]};
   const d={templateCode:'code_D',templateName:'이름으로 용도를 판단할 수 없음',templateContent:'#{고객이름}님, #{아이이름} 미용 중이에요.',inspectionStatus:'APR',serviceStatus:'A',buttons:[{type:'WL',name:'진행 확인',linkMobile:'#{안내링크}',linkPc:'#{안내링크}'}]};
   catalog={items:[{alias:'grooming_started',configuredCode:'old_env_code',detail:a}],allTemplates:[a,d]};
@@ -69,4 +74,20 @@ test('deposit provider code may be explicitly changed only with exact mandatory 
   assert.equal((await PUT(request(payload))).status,200);
   assert.notEqual((await PUT(request({...payload,variableBindings:{'예약금액':'보호자명'}}))).status,200);
   changed.templateContent+=' 변경된 환불 조건';assert.notEqual((await PUT(request(payload))).status,200);
+});
+
+const {sendAlimtalkMessage}=await import('../../src/server/alimtalk-provider.ts');
+test('private code cannot be published globally by admin, including after owner request deletion',async()=>{
+ reset();privateRows=[{shop_id:'private-a',template_alias:'grooming_started',template_code:'code_D'}];
+ const response=await PUT(request());assert.equal(response.status,400);assert.equal(rpcCalls,0);assert.equal(mappings[0].provider_template_code,'code_A');
+ privateRows=[];registryOverrides=[{template_code:'code_D',scope:'shop',owner_shop_id:null,retired_at:'2026-10-25T00:00:00Z'}];
+ assert.equal((await PUT(request())).status,400);assert.equal(rpcCalls,0);
+});
+test('corrupt legacy public mapping to private owner code blocks runtime and final transport without a send',async()=>{
+ reset();privateRows=[{shop_id:'private-a',template_alias:'grooming_started',template_code:'code_D'}];
+ const d=catalog.allTemplates[1];Object.assign(mappings[0],{provider_template_code:d.templateCode,template_content:d.templateContent,buttons:d.buttons,variable_bindings:bindings});
+ let sends=0;const previous=globalThis.fetch;globalThis.fetch=async(...args)=>{if(args[1]?.method==='POST')sends++;return previous(...args);};
+ await assert.rejects(getApprovedSsodaaNotificationTemplate('grooming_started',values,null,'different-b'));
+ await assert.rejects(sendAlimtalkMessage({shopId:'different-b',templateKey:'code_D',message:'fixture',to:'01000000000'}));
+ assert.equal(sends,0);
 });

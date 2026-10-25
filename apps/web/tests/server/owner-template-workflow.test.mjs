@@ -1,3 +1,4 @@
+import {alimtalkStorageFixture,uncachedCatalogFixture} from '../helpers/alimtalk-storage-fixture.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {registerHooks} from 'node:module';
@@ -7,7 +8,7 @@ let rows=[],catalog={},platformRows=[],registered=[],sequence=0,queries=[],simul
 const clone=value=>structuredClone(value);
 class Query {
   constructor(table){this.table=table;this.filters=[];this.operation='select';this.payload=null;this.maximum=Infinity;}
-  select(){return this;} order(){return this;} limit(n){this.maximum=n;return this;}
+  select(){return this;}or(){this.filters.push(r=>r.service_status==='active'||['requested','reviewing','unknown','pending'].includes(r.inspection_status));return this;} range(from,to){this.window=[from,to];return this;} order(){return this;} limit(n){this.maximum=n;return this;}
   eq(k,v){this.filters.push(r=>r[k]===v);return this;} neq(k,v){this.filters.push(r=>r[k]!==v);return this;}
   in(k,v){this.filters.push(r=>v.includes(r[k]));return this;}
   insert(v){this.operation='insert';this.payload=v;return this;}
@@ -18,7 +19,7 @@ class Query {
     if(this.table==='platform_alimtalk_templates'){const found=platformRows.filter(r=>this.filters.every(f=>f(r)));return {data:clone(single?found[0]??null:found),error:null};}
     assert.equal(this.table,'shop_alimtalk_template_requests');
     if(simulateSaveFailure&&this.operation==='update')return {data:null,error:{code:'MOCK_FAILURE'}};
-    let found=rows.filter(r=>this.filters.every(f=>f(r))).slice(0,this.maximum);
+    let found=rows.filter(r=>this.filters.every(f=>f(r))).slice(0,this.maximum);if(this.window)found=found.slice(this.window[0],this.window[1]+1);
     if(this.operation==='insert'){
       const row={id:'00000000-0000-4000-8000-'+String(++sequence).padStart(12,'0'),inspection_status:'draft',service_status:'unknown',created_at:new Date().toISOString(),...this.payload};rows.unshift(row);found=[row];
     }else if(this.operation==='update'){found.forEach(r=>Object.assign(r,this.payload));}
@@ -27,7 +28,7 @@ class Query {
   single(){return this.execute(true);} maybeSingle(){return this.execute(true);}
   then(resolve,reject){return this.execute().then(resolve,reject);}
 }
-const admin={from:table=>new Query(table),rpc:async(name,p)=>{
+const admin={from:table=>alimtalkStorageFixture(table,()=>({requests:rows,platform:platformRows}))??new Query(table),rpc:async(name,p)=>{
   assert.equal(name,'activate_shop_alimtalk_template');const target=rows.find(r=>r.id===p.p_request&&r.shop_id===p.p_shop),old=rows.find(r=>r.shop_id===p.p_shop&&r.template_alias===target?.template_alias&&r.is_current);
   if(!target||old?.id!==(p.p_expected_current??undefined))return {data:null,error:{code:'40001'}};
   rows.filter(r=>r.shop_id===p.p_shop&&r.template_alias===target.template_alias).forEach(r=>{r.is_current=r.id===target.id});return {data:target.id,error:null};
@@ -37,6 +38,8 @@ globalThis.__ownerTemplateTest={admin,auth:async(request,shopId)=>{
   return {shopId:'fixture-a',userId:'owner-fixture'};
 }};
 registerHooks({resolve(s,c,next){
+  if(s==='@/server/alimtalk-provider-catalog-cache')return stub(uncachedCatalogFixture);
+
   if(s==='@/lib/supabase/server')return stub('export const getSupabaseAdmin=()=>globalThis.__ownerTemplateTest.admin;');
   if(s==='@/lib/server-env')return stub('export const serverEnv={alimtalkProvider:"ssodaa",alimtalkRelayUrl:"https://relay.fixture.invalid/send",alimtalkRelaySecret:"mock-only"};export const getConfiguredAlimtalkTemplateKey=()=>null;');
   if(s==='@/server/booking-preparation')return stub('export const readBookingPolicy=async()=>({policy:{}});');

@@ -1088,6 +1088,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           });
         } else {
           const delivery = await sendAlimtalkMessage({
+            shopId: input.shopId,
             to: recipientPhone,
             message,
             templateAlias,

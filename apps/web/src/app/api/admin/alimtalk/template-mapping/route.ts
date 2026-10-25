@@ -11,6 +11,7 @@ import {
 } from "@/server/alimtalk-approved-template";
 import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
 import { matchesShopTemplateSnapshot } from "@/server/shop-alimtalk-template-contract";
+import { assertPlatformAlimtalkCandidate } from "@/server/alimtalk-template-ownership";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
     if (!admin) throw new AdminApiError("알림 설정 저장소를 확인해 주세요.", 503);
 
     const [catalog, mappingsResult] = await Promise.all([
-      getRelayTemplateCatalog(),
+      getRelayTemplateCatalog(undefined, true),
       admin
         .from("platform_alimtalk_templates")
         .select("id,template_alias,provider_template_code,template_name,template_content,buttons,inspection_status,service_status,variable_bindings,updated_at")
@@ -145,7 +146,8 @@ export async function PUT(request: NextRequest) {
     const admin = getSupabaseAdmin();
     if (!admin) throw new AdminApiError("알림 설정 저장소를 확인해 주세요.", 503);
 
-    const catalog = await getRelayTemplateCatalog();
+    await assertPlatformAlimtalkCandidate(payload.templateCode);
+    const catalog = await getRelayTemplateCatalog([payload.templateCode]);
     if (!catalog) throw new AdminApiError("쏘다 템플릿 목록에 연결하지 못했습니다.", 503);
     const selected = catalog.allTemplates?.find((item) => item.templateCode === payload.templateCode);
     if (!selected) throw new AdminApiError("선택한 쏘다 템플릿을 확인하지 못했습니다.",409);

@@ -10,7 +10,7 @@
     "build": "npm run typecheck",
     "dev": "tsx src/server.ts",
     "start": "tsx src/server.ts",
-    "test": "tsx --test test/security.test.ts",
+    "test": "tsx --test test/security.test.ts test/template-catalog.test.ts test/template-catalog-http.test.ts test/template-retirement.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

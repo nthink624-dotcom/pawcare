@@ -1,0 +1,19 @@
+import { NextRequest } from "next/server";
+import { z } from "zod";
+
+import { applyMockCallEvent, getCallIdState, markDraftReady, saveCallDraft, updateCallback } from "@/server/call-id-store";
+import { getBootstrap } from "@/server/bootstrap";
+import { MockCallEventProvider } from "@/server/mock-call-event-provider";
+import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+
+const eventSchema = z.object({ action: z.literal("event"), eventId: z.string().min(8).max(100), type: z.enum(["inbound_ringing", "answered", "ended", "missed"]), phone: z.string().min(7).max(30) });
+const draftSchema = z.object({ action: z.literal("draft"), callId: z.string(), guardianId: z.string(), petId: z.string(), serviceId: z.string().nullable(), staffId: z.string().nullable(), startAt: z.string().nullable(), memo: z.string().max(500) });
+const confirmSchema = z.object({ action: z.literal("confirm_draft"), draftId: z.string() });
+const callbackSchema = z.object({ action: z.literal("callback"), id: z.string(), assigneeLabel: z.string().min(1).max(80).optional(), nextContactAt: z.string().nullable().optional(), status: z.enum(["pending", "scheduled", "completed"]).optional(), result: z.string().max(300).nullable().optional(), bookingDraftId: z.string().nullable().optional() });
+const bodySchema = z.discriminatedUnion("action", [eventSchema, draftSchema, confirmSchema, callbackSchema]);
+
+async function context(request: NextRequest) { const url = new URL(request.url); const owner = await requireOwnerShop(request, url.searchParams.get("shopId") || undefined); assertOwnerOrManager(owner); return { owner, bootstrap: await getBootstrap(owner.shopId) }; }
+function projection(bootstrap: Awaited<ReturnType<typeof getBootstrap>>, shopId: string) { const stored = getCallIdState(shopId); return { ...stored, guardians: bootstrap.guardians.map((guardian) => ({ id: guardian.id, name: guardian.name })), pets: bootstrap.pets.map((pet) => ({ id: pet.id, guardianId: pet.guardian_id, name: pet.name, breed: pet.breed })), recentAppointments: bootstrap.appointments.slice().sort((a, b) => b.start_at.localeCompare(a.start_at)).slice(0, 20).map((item) => ({ id: item.id, guardianId: item.guardian_id, petId: item.pet_id, startAt: item.start_at, serviceId: item.service_id })), services: bootstrap.services.filter((item) => item.is_active).map((item) => ({ id: item.id, name: item.name, durationMinutes: item.duration_minutes })), staff: bootstrap.staffMembers.map((item) => ({ id: item.id, name: item.name })) }; }
+export async function GET(request: NextRequest) { try { const { owner, bootstrap } = await context(request); return Response.json(projection(bootstrap, owner.shopId)); } catch (error) { return failure(error); } }
+export async function POST(request: NextRequest) { try { const { owner, bootstrap } = await context(request); const body = bodySchema.parse(await request.json()); if (body.action === "event") { const event = await new MockCallEventProvider().nextEvent(body); applyMockCallEvent({ ...event, shopId: owner.shopId, guardians: bootstrap.guardians }); } else if (body.action === "draft") { const { action: _action, ...draft } = body; void _action; saveCallDraft(owner.shopId, draft); } else if (body.action === "confirm_draft") markDraftReady(owner.shopId, body.draftId); else updateCallback(owner.shopId, body.id, body); return Response.json(projection(bootstrap, owner.shopId)); } catch (error) { return failure(error); } }
+function failure(error: unknown) { if (error instanceof OwnerApiError) return Response.json({ message: error.message }, { status: error.status }); if (error instanceof z.ZodError) return Response.json({ message: "입력값을 확인해 주세요." }, { status: 400 }); return Response.json({ message: error instanceof Error ? error.message : "전화 접수 상태를 처리하지 못했습니다." }, { status: 500 }); }

@@ -1,0 +1,30 @@
+{
+  "readAt": "2026-10-03T14:19:24Z",
+  "source": "Supabase MCP list_migrations metadata",
+  "scope": "Read-only migration version/name metadata; no SQL, table rows, customer data, or database writes",
+  "development": {
+    "projectRef": "qefxdtmdtvnzgupmjlom",
+    "latestApplied": {
+      "version": "20261001120000",
+      "name": "add_admin_operational_error_events"
+    },
+    "candidateMigrations": {
+      "20261002062725_notification_dispatch_claims": false,
+      "20261003133407_operational_error_retention_60_days": false
+    }
+  },
+  "production": {
+    "projectRef": "ysxykikqnneuhypybjry",
+    "latestApplied": {
+      "version": "20261003095820",
+      "name": "shop_alimtalk_template_requests"
+    },
+    "candidateMigrations": {
+      "20261001120000_add_admin_operational_error_events": false,
+      "20261002062725_notification_dispatch_claims": false,
+      "20261003133407_operational_error_retention_60_days": false
+    }
+  },
+  "remoteWrites": 0,
+  "interpretation": "The 60-day cleanup migration is not applied in Development or Production. Development has the original operational-error table migration; Production does not. The notification-dispatch-claims migration is also absent from both. Applying any migration requires separate approval."
+}

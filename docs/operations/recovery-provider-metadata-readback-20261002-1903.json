@@ -1,0 +1,39 @@
+{
+  "readAt": "2026-10-02T19:03:32+09:00",
+  "scope": "Read-only provider metadata for the approved Google Drive backup folder and Supabase project/organization metadata",
+  "googleDrive": {
+    "folder": "PetManager 암호화 백업",
+    "visibleItemCount": 1,
+    "latestBackup": {
+      "id": "1QeBFxaoGK61A1blykqJJ23XZ5WjYB12k",
+      "name": "petmanager-prod-20261001.pmdump",
+      "mimeType": "application/octet-stream",
+      "sizeBytes": 1072024,
+      "createdAt": "2026-10-01T03:32:42.652Z",
+      "modifiedAt": "2026-10-01T03:32:42.652Z",
+      "shared": false,
+      "canDownload": true
+    },
+    "folderListingComplete": true,
+    "fileContentsDownloaded": false,
+    "driveWrites": false
+  },
+  "supabase": {
+    "organizationPlan": "free",
+    "productionProject": {
+      "ref": "ysxykikqnneuhypybjry",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.084"
+    },
+    "developmentProject": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.105"
+    },
+    "managedBackupStatusReturnedByMetadataRead": false,
+    "databaseQueries": 0,
+    "databaseWrites": 0
+  },
+  "recoveryKeyContentsRead": false,
+  "interpretation": "The approved Drive folder still contains only the previously recorded encrypted archive. Its Drive modified time is about 30.5 hours before this readback, but Drive metadata is not the snapshot timestamp; the 24-hour RPO is not proven. Current Supabase project metadata confirms the Free organization and healthy projects but does not expose managed-backup status. The prior dashboard readback reporting no managed backups remains the latest evidence for that setting. RTO, second-device restore, and media-object recovery remain unverified."
+}

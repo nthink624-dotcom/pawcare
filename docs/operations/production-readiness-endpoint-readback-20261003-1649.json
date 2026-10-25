@@ -1,0 +1,36 @@
+{
+  "readAtUtc": "2026-10-03T16:49:43Z",
+  "source": "npm run check:production-endpoints -- --report-only --include-readiness; direct HTTPS GET /api/readyz",
+  "readOnly": true,
+  "remoteWrites": 0,
+  "queryContract": {
+    "table": "shops",
+    "selectedColumn": "id",
+    "maximumRows": 1,
+    "timeoutMilliseconds": 2000,
+    "dataIncludedInEndpointResponse": false
+  },
+  "endpoints": {
+    "web": {
+      "url": "https://www.petmanager.co.kr/api/readyz",
+      "httpStatus": 200,
+      "status": "ok",
+      "supabase": "ok",
+      "requestIdMatchesResponse": true,
+      "release": "374524ddf1b262811858ee05179ac9c7e64ffc35"
+    },
+    "mobile": {
+      "url": "https://app.petmanager.co.kr/api/readyz",
+      "httpStatus": 200,
+      "status": "ok",
+      "supabase": "ok",
+      "requestIdMatchesResponse": true,
+      "release": "374524ddf1b262811858ee05179ac9c7e64ffc35"
+    }
+  },
+  "releaseParity": true,
+  "limitations": [
+    "Each endpoint performed at most one server-side shops.id read with a 2-second timeout and returned only readiness status; this is not a tenant-isolation or business-write test.",
+    "No customer-table query, Vercel project-setting readback, schema change, or database write was performed."
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "readAt": "2026-10-03T15:07:51Z",
+  "scope": "Read-only Google Drive folder listing and file metadata for the approved encrypted production backup folder; no file contents, database rows, or recovery-key bytes were read",
+  "googleDrive": {
+    "folder": {
+      "id": "1jrDncb5E5Ukhj_HCo9HiWXYb4LeAyrnO",
+      "name": "PetManager 암호화 백업",
+      "visibleItemCount": 1
+    },
+    "latestBackup": {
+      "id": "1QeBFxaoGK61A1blykqJJ23XZ5WjYB12k",
+      "name": "petmanager-prod-20261001.pmdump",
+      "mimeType": "application/octet-stream",
+      "sizeBytes": 1072024,
+      "createdAt": "2026-10-01T03:32:42.652Z",
+      "modifiedAt": "2026-10-01T03:32:42.652Z",
+      "ageHoursAtReadback": 59.59,
+      "rpoTargetHours": 24,
+      "rpoExceededHours": 35.59,
+      "retentionTargetDays": 60,
+      "parentFolderId": "1jrDncb5E5Ukhj_HCo9HiWXYb4LeAyrnO"
+    },
+    "fileContentsDownloaded": false,
+    "driveWrites": false,
+    "lifecycleOrExpiryVerified": false
+  },
+  "recoveryKeyContentsRead": false,
+  "databaseQueries": 0,
+  "databaseWrites": 0,
+  "interpretation": "The representative-confirmed encrypted off-site backup retention target is 60 days. Only one backup is visible in the approved Drive folder, and its Drive metadata age exceeds the 24-hour RPO target by 35.59 hours. Drive metadata does not establish the encrypted dump's internal snapshot time or prove an automated upload schedule. Google Drive lifecycle/expiry behavior remains unverified. No file contents, recovery-key bytes, or database rows were read; no Drive or database writes occurred."
+}

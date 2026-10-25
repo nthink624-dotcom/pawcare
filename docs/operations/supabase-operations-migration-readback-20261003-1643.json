@@ -1,0 +1,35 @@
+{
+  "readAtUtc": "2026-10-03T16:43:45Z",
+  "source": "Supabase MCP list_migrations and get_project",
+  "scope": "Read-only project metadata and migration version/name history for the named Development and Production projects; no application table rows or customer records were read",
+  "rowsRead": false,
+  "customerRowsRead": false,
+  "writesPerformed": false,
+  "projects": {
+    "production": {
+      "ref": "ysxykikqnneuhypybjry",
+      "name": "petmanager",
+      "status": "ACTIVE_HEALTHY",
+      "latestMigration": {
+        "version": "20261003095820",
+        "name": "shop_alimtalk_template_requests"
+      },
+      "appliedTargetMigrations": []
+    },
+    "development": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "name": "petmanager-dev",
+      "status": "ACTIVE_HEALTHY",
+      "latestMigration": {
+        "version": "20261001120000",
+        "name": "add_admin_operational_error_events"
+      },
+      "appliedTargetMigrations": [
+        {
+          "version": "20261001120000",
+          "name": "add_admin_operational_error_events"
+        }
+      ]
+    }
+  }
+}

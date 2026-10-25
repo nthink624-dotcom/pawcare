@@ -1,0 +1,29 @@
+{
+  "readAt": "2026-10-03T13:41:37Z",
+  "scope": "Read-only Google Drive metadata for the approved encrypted production backup folder; no file contents, database rows, or recovery-key bytes were read",
+  "googleDrive": {
+    "folder": {
+      "id": "1jrDncb5E5Ukhj_HCo9HiWXYb4LeAyrnO",
+      "name": "PetManager 암호화 백업",
+      "visibleItemCount": 1
+    },
+    "latestBackup": {
+      "id": "1QeBFxaoGK61A1blykqJJ23XZ5WjYB12k",
+      "name": "petmanager-prod-20261001.pmdump",
+      "mimeType": "application/octet-stream",
+      "sizeBytes": 1072024,
+      "createdAt": "2026-10-01T03:32:42.652Z",
+      "modifiedAt": "2026-10-01T03:32:42.652Z",
+      "ageHoursAtReadback": 58.15,
+      "rpoTargetHours": 24,
+      "rpoExceededHours": 34.15,
+      "trashed": false
+    },
+    "fileContentsDownloaded": false,
+    "driveWrites": false
+  },
+  "recoveryKeyContentsRead": false,
+  "databaseQueries": 0,
+  "databaseWrites": 0,
+  "interpretation": "The approved folder still contains only the October 1 backup metadata and exceeds the 24-hour RPO target by about 34.15 hours. Drive modified time does not establish the encrypted snapshot time. No recurring uploader or successful fresh backup is verified."
+}

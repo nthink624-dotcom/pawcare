@@ -1,0 +1,97 @@
+{
+  "verifiedAt": "2026-10-02T11:40:33+09:00",
+  "scope": "Read-only production deployment metadata and health endpoint readback",
+  "projects": {
+    "web": {
+      "name": "petmanager",
+      "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
+      "rootDirectoryFromLocalManifest": "apps/web",
+      "latestProductionDeployment": {
+        "id": "dpl_41LYcnXXEmzjVLgna51rB1rqcBFX",
+        "state": "ERROR",
+        "source": "git",
+        "gitRef": "master",
+        "gitSha": "27e1b08a7d0fa8cce8ed9dd790808e61f6c4115c",
+        "errorCode": "BUILD_UTILS_SPAWN_1",
+        "errorStep": "buildStep",
+        "summary": "npm run build exited with 1",
+        "buildFailure": {
+          "stage": "prebuild test:reliability",
+          "failingContract": "CatchCall test expected READ_CALL_LOG/requestOwnerCallLogAccess/callLogGranted, which the current implementation intentionally does not use",
+          "localCurrentWorktreeFocusedCheck": "PASS; catch-call-reservation-contract.test.mjs 9/9 with uncommitted contract updates"
+        }
+      },
+      "latestReadyProductionDeployment": {
+        "id": "dpl_7qomM1FqkpyAes8oCYHZ4WiJqGo2",
+        "source": "cli",
+        "gitMetadataPresent": false,
+        "aliasesReported": [
+          "www.petmanager.co.kr",
+          "petmanager.co.kr"
+        ]
+      },
+      "healthEndpoint": {
+        "url": "https://www.petmanager.co.kr/api/healthz",
+        "httpStatus": 200,
+        "status": "ok",
+        "release": "unknown"
+      }
+    },
+    "mobile": {
+      "name": "petmanager-app",
+      "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
+      "rootDirectoryFromLocalManifest": "apps/mobile",
+      "latestProductionDeployment": {
+        "id": "dpl_DMx45EpBTYxaNq2WaV9yx9TWp8ci",
+        "state": "READY",
+        "source": "git",
+        "gitRef": "master",
+        "gitSha": "27e1b08a7d0fa8cce8ed9dd790808e61f6c4115c",
+        "aliasesReported": [
+          "app.petmanager.co.kr"
+        ]
+      },
+      "healthEndpoint": {
+        "url": "https://app.petmanager.co.kr/api/healthz",
+        "httpStatus": 200,
+        "status": "ok",
+        "release": "27e1b08a7d0fa8cce8ed9dd790808e61f6c4115c"
+      },
+      "readinessEndpoint": {
+        "url": "https://app.petmanager.co.kr/api/readyz",
+        "httpStatus": 200,
+        "status": "ok",
+        "databaseCheck": "ok",
+        "release": "27e1b08a7d0fa8cce8ed9dd790808e61f6c4115c"
+      }
+    }
+  },
+  "latestLiveHealthProbe": {
+    "verifiedAt": "2026-10-02T12:07:59+09:00",
+    "expectedRelease": "e346318112c5ab5e8c91a0b8e1128856c65d681f",
+    "databaseReadinessRequested": false,
+    "web": {
+      "url": "https://www.petmanager.co.kr/api/healthz",
+      "httpStatus": 200,
+      "status": "ok",
+      "release": "unknown",
+      "requestIdHeaderMatchesBody": true
+    },
+    "mobile": {
+      "url": "https://app.petmanager.co.kr/api/healthz",
+      "httpStatus": 200,
+      "status": "ok",
+      "release": "e346318112c5ab5e8c91a0b8e1128856c65d681f",
+      "requestIdHeaderMatchesBody": true
+    }
+  },
+  "verification": {
+    "productionBuildSourceContract": "PASS; 3 tests",
+    "dirtyLocalCheckoutProductionGate": "BLOCKED_AS_EXPECTED",
+    "localWebBuild": "PASS_WITH_CURRENT_UNCOMMITTED_WORKTREE; not an exact reproduction of the deployed Git commit",
+      "detailedWebBuildLogs": "AVAILABLE_FROM_READ_ONLY_VERCEL_REST_API",
+      "localCatchCallContract": "PASS; 9/9 focused tests in the current dirty worktree",
+    "remoteWrites": 0
+  },
+  "interpretation": "Both latest production deployment records use Git SHA 27e1b08a7d0fa8cce8ed9dd790808e61f6c4115c: mobile is READY, while web fails during prebuild reliability tests. The public web health and readiness endpoints return HTTP 200 with release=unknown; mobile health and readiness return HTTP 200 with the expected SHA and database check ok. Vercel REST build logs identify stale CatchCall READ_CALL_LOG expectations, and the current dirty-worktree focused CatchCall contract passes 9/9. The CatchCall test update is uncommitted, so no deployment or repository release was changed."
+}

@@ -1,0 +1,33 @@
+{
+  "readAtUtc": "2026-10-03T16:48:28Z",
+  "source": "HTTPS GET /api/healthz; git ls-remote origin refs/heads/master; local git rev-list",
+  "readOnly": true,
+  "databaseReadinessRequested": false,
+  "remoteWrites": 0,
+  "endpoints": {
+    "web": {
+      "url": "https://www.petmanager.co.kr/api/healthz",
+      "httpStatus": 200,
+      "requestIdMatchesResponse": true,
+      "release": "374524ddf1b262811858ee05179ac9c7e64ffc35"
+    },
+    "mobile": {
+      "url": "https://app.petmanager.co.kr/api/healthz",
+      "httpStatus": 200,
+      "requestIdMatchesResponse": true,
+      "release": "374524ddf1b262811858ee05179ac9c7e64ffc35"
+    }
+  },
+  "releaseParity": true,
+  "git": {
+    "remoteMaster": "374524ddf1b262811858ee05179ac9c7e64ffc35",
+    "deployedReleaseMatchesRemoteMaster": true,
+    "localMasterHead": "c14eed1b410936002a7b1e158a06df1e99c94912",
+    "localMasterCommitsBehindRemoteMaster": 30,
+    "remoteRefWasFetched": false
+  },
+  "limitations": [
+    "The health endpoints prove HTTP health and release identity only; /api/readyz and database connectivity were not queried.",
+    "This does not re-verify Vercel project root-directory settings or imply that local uncommitted changes are deployed."
+  ]
+}

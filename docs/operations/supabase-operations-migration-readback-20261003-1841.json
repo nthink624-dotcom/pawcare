@@ -1,0 +1,35 @@
+{
+  "readAtUtc": "2026-10-03T18:41:03Z",
+  "source": "Supabase MCP list_migrations and get_project",
+  "scope": "Read-only project status, Postgres version, and migration version/name history for Development and Production; no application table rows or customer records were read",
+  "rowsRead": false,
+  "customerRowsRead": false,
+  "writesPerformed": false,
+  "projects": {
+    "development": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "name": "petmanager-dev",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.105",
+      "latestMigration": {
+        "version": "20261001120000",
+        "name": "add_admin_operational_error_events"
+      },
+      "appliedTargetMigrations": [
+        { "version": "20261001120000", "name": "add_admin_operational_error_events" }
+      ]
+    },
+    "production": {
+      "ref": "ysxykikqnneuhypybjry",
+      "name": "petmanager",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.084",
+      "latestMigration": {
+        "version": "20261003095820",
+        "name": "shop_alimtalk_template_requests"
+      },
+      "appliedTargetMigrations": []
+    }
+  },
+  "interpretation": "Both projects are ACTIVE_HEALTHY. Development has only the operational-error inbox migration of the three required operations migrations. Production has advanced its general migration history with revoke_owner_push_tokens_browser_grants but still lacks all three required operations migrations. This readback changed no schema, settings, or data."
+}

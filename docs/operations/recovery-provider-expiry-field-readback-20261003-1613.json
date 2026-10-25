@@ -1,0 +1,13 @@
+{
+  "readAt": "2026-10-03T16:13:19Z",
+  "scope": "Read-only Google Drive file metadata request for the approved encrypted production backup; no file contents or settings were changed",
+  "fileName": "petmanager-prod-20261001.pmdump",
+  "requestedMetadataField": "expirationTime",
+  "readbackStatus": "UNAVAILABLE_FIELD_REJECTED",
+  "httpStatus": 400,
+  "providerError": "Invalid field selection expirationTime",
+  "lifecycleOrExpiryVerified": false,
+  "fileContentsDownloaded": false,
+  "driveWrites": false,
+  "interpretation": "Google Drive rejected expirationTime in the file metadata field selection. This read path therefore cannot verify an expiry timestamp; the rejection does not establish whether an administrative retention or deletion policy is configured. A separate approved Drive or Workspace administration readback is still required. No file contents were read and no Drive changes were made."
+}

@@ -1,0 +1,25 @@
+{
+  "readAt": "2026-10-02T15:09:28+09:00",
+  "scope": "Read-only Google Drive metadata check for the approved encrypted-backup folder; no file contents, production database, or recovery-key contents were read",
+  "folder": {
+    "name": "PetManager 암호화 백업",
+    "visibleItemCount": 1,
+    "matchingBackupOrDumpCount": 1,
+    "parentMatchVerified": true
+  },
+  "latestBackupFile": {
+    "matchedExistingReadback": true,
+    "sizeBytes": 1072024,
+    "modifiedAt": "2026-10-01T03:32:42.652Z",
+    "ageHoursAtReadback": 26.6,
+    "trashed": false
+  },
+  "verificationLimits": {
+    "fileContentsDownloaded": false,
+    "encryptedSnapshotTimestampRead": false,
+    "productionDatabaseRead": false,
+    "recoveryKeyRead": false,
+    "driveWrites": false
+  },
+  "interpretation": "The only backup-like file in the approved folder has Drive metadata older than the 24-hour RPO target. Because the encrypted snapshot timestamp was not inspected, treat the latest recovery point as stale/unverified; do not claim the RPO target is met."
+}

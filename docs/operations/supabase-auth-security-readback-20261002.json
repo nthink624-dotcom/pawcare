@@ -1,0 +1,20 @@
+{
+  "verifiedAt": "2026-10-02",
+  "scope": "Read-only production Auth security advisory and organization-plan check",
+  "project": {
+    "ref": "ysxykikqnneuhypybjry",
+    "status": "ACTIVE_HEALTHY",
+    "organizationPlan": "free"
+  },
+  "securityAdvisory": {
+    "name": "auth_leaked_password_protection",
+    "title": "Leaked Password Protection Disabled",
+    "description": "Leaked password protection is currently disabled."
+  },
+  "featureAvailability": {
+    "requiredPlan": "Pro or above",
+    "officialDocumentation": "https://supabase.com/docs/guides/auth/password-security"
+  },
+  "remoteWrites": 0,
+  "interpretation": "The production project is on the Free plan, while Supabase documents leaked-password protection as Pro-and-above. Enabling this protection therefore requires a separate plan decision and subsequent Auth setting change; neither was performed."
+}

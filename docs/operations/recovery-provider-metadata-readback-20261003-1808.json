@@ -1,0 +1,31 @@
+{
+  "readAt": "2026-10-03T18:08:51Z",
+  "scope": "Read-only metadata listing of the approved encrypted production backup Drive folder and metadata read of its existing dump; no file contents, database rows, or recovery-key bytes were read",
+  "googleDrive": {
+    "folder": {
+      "id": "1jrDncb5E5Ukhj_HCo9HiWXYb4LeAyrnO",
+      "name": "PetManager 암호화 백업",
+      "visibleItemCount": 1
+    },
+    "latestBackup": {
+      "id": "1QeBFxaoGK61A1blykqJJ23XZ5WjYB12k",
+      "name": "petmanager-prod-20261001.pmdump",
+      "mimeType": "application/octet-stream",
+      "sizeBytes": 1072024,
+      "createdAt": "2026-10-01T03:32:42.652Z",
+      "modifiedAt": "2026-10-01T03:32:42.652Z",
+      "ageHoursAtReadback": 62.6,
+      "rpoTargetHours": 24,
+      "rpoExceededHours": 38.6,
+      "retentionTargetDays": 60,
+      "parentFolderId": "1jrDncb5E5Ukhj_HCo9HiWXYb4LeAyrn"
+    },
+    "fileContentsDownloaded": false,
+    "driveWrites": false,
+    "lifecycleOrExpiryVerified": false
+  },
+  "recoveryKeyContentsRead": false,
+  "databaseQueries": 0,
+  "databaseWrites": 0,
+  "interpretation": "The 60-day backup retention target is confirmed policy, but the approved folder contains one visible dump whose Drive metadata is 62.6 hours old, exceeding the 24-hour RPO by 38.6 hours. Modification time does not establish the dump's internal snapshot time. Drive lifecycle/expiry and recurring upload remain unverified. Only metadata was read; no backup contents, recovery key, database records, or Drive settings were accessed or changed."
+}

@@ -1,0 +1,43 @@
+{
+  "readAt": "2026-10-03",
+  "capturedAt": "2026-10-03T16:46:19Z",
+  "source": "Supabase MCP get_advisors(type=security)",
+  "readOnly": true,
+  "projects": {
+    "development": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "securityAdvisors": {
+        "rls_enabled_no_policy": { "level": "INFO", "count": 79 },
+        "auth_leaked_password_protection": {
+          "level": "WARN",
+          "count": 1,
+          "findingObservedAt": null
+        }
+      },
+      "policylessRlsCatalogCheck": {
+        "rlsEnabledNoPolicyTables": 79,
+        "noPolicyTablesWithAnonOrAuthenticatedTablePrivileges": 0
+      }
+    },
+    "production": {
+      "ref": "ysxykikqnneuhypybjry",
+      "securityAdvisors": {
+        "rls_enabled_no_policy": { "level": "INFO", "count": 80 },
+        "auth_leaked_password_protection": {
+          "level": "WARN",
+          "count": 1,
+          "findingObservedAt": null
+        }
+      },
+      "policylessRlsCatalogCheck": {
+        "rlsEnabledNoPolicyTables": 80,
+        "noPolicyTablesWithAnonOrAuthenticatedTablePrivileges": 0
+      }
+    }
+  },
+  "remoteWrites": 0,
+  "limitations": [
+    "The no-policy advisor counts were reconciled to read-only system-catalog counts and effective anon/authenticated table privileges; this does not evaluate application service-role authorization or tenant isolation.",
+    "The leaked-password-protection advisor finding did not provide a per-finding observed_at timestamp; no setting, plan, database row, or customer record was read or changed."
+  ]
+}

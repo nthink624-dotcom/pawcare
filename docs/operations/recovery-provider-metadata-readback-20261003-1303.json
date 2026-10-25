@@ -1,0 +1,28 @@
+{
+  "readAt": "2026-10-03T13:03:40Z",
+  "scope": "Read-only metadata for the approved encrypted production backup folder; no file contents, database rows, or recovery-key bytes were read",
+  "googleDrive": {
+    "folderListingComplete": true,
+    "visibleItemCount": 1,
+    "latestBackup": {
+      "name": "petmanager-prod-20261001.pmdump",
+      "mimeType": "application/octet-stream",
+      "sizeBytes": 1072024,
+      "createdAt": "2026-10-01T03:32:42.652Z",
+      "modifiedAt": "2026-10-01T03:32:42.652Z",
+      "ageHoursAtReadback": 57.5,
+      "rpoTargetHours": 24,
+      "rpoExceededHours": 33.5
+    },
+    "fileContentsDownloaded": false,
+    "driveWrites": false
+  },
+  "recoveryKeyContentsRead": false,
+  "databaseQueries": 0,
+  "databaseWrites": 0,
+  "automationSearch": {
+    "scope": [".github/workflows", "scripts", "package.json", "apps/web/package.json"],
+    "recurringDriveUploaderFound": false
+  },
+  "interpretation": "The only backup-like file remains older than the 24-hour RPO target by metadata. Drive modified time does not prove the encrypted snapshot timestamp. Automated upload and RPO are not verified."
+}

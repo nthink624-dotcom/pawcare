@@ -1,0 +1,46 @@
+{
+  "verifiedAt": "2026-10-02T11:57:36+09:00",
+  "scope": "Read-only production PostgreSQL minor-update advisory screening; no row values read",
+  "project": {
+    "ref": "ysxykikqnneuhypybjry",
+    "status": "ACTIVE_HEALTHY",
+    "engine": "17",
+    "version": "17.6.1.084",
+    "pgcrypto": "1.3"
+  },
+  "advisory": {
+    "source": "https://supabase.com/changelog/postgres-15-19-17-11-breaking-changes",
+    "published": "2026-09-25",
+    "targetMinor": "17.11",
+    "summary": "Supabase reports 44 CVEs fixed and conditional checks for ltree, legacy pgcrypto PGP ciphers, btree_gist float indexes, and custom operators."
+  },
+  "readOnlyChecks": {
+    "installedRelevantExtensions": ["pgcrypto 1.3"],
+    "nonExtensionFunctionsWithPgpLegacyCipherCalls": 0,
+    "ltreeIndexFindings": 0,
+    "btreeGistFloatIndexFindings": 0,
+    "customOperatorFindings": 0,
+    "encryptedValueScanPerformed": false
+  },
+  "savedPreflightExecution": {
+    "executedAt": "2026-10-02T12:03:49+09:00",
+    "artifact": "supabase/verification/verify_postgres_minor_release_readiness.sql",
+    "status": "PASS",
+    "selectStatements": 5,
+    "serverVersion": "17.6",
+    "extensions": {"pgcrypto": "1.3"},
+    "resultRows": {
+      "legacyPgpFunctionReferences": 0,
+      "ltreeIndexes": 0,
+      "btreeGistFloatIndexes": 0,
+      "customOperators": 0
+    },
+    "applicationTableValuesScanned": false
+  },
+  "limitations": [
+    "No database table values were scanned; direct SQL-created encrypted PGP values outside tracked app functions and migrations are not ruled out.",
+    "No project upgrade, extension change, index maintenance, or database write was performed.",
+    "The current production server remains on PostgreSQL 17.6.1.084; the advisory's 17.11 rollout status must be confirmed with Supabase before any upgrade decision."
+  ],
+  "remoteWrites": 0
+}

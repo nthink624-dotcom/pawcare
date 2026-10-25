@@ -1,0 +1,45 @@
+{
+  "readAtUtc": "2026-10-03T18:02:03Z",
+  "source": "Supabase MCP list_migrations and get_project",
+  "scope": "Read-only project identity, health, Postgres version, and migration version/name history for Development and Production; no application table rows or customer records were read",
+  "rowsRead": false,
+  "customerRowsRead": false,
+  "writesPerformed": false,
+  "projects": {
+    "production": {
+      "ref": "ysxykikqnneuhypybjry",
+      "name": "petmanager",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.084",
+      "latestMigration": {
+        "version": "20261003095820",
+        "name": "shop_alimtalk_template_requests"
+      },
+      "appliedTargetMigrations": [],
+      "mediaTransientRetentionMigrations": [
+        { "version": "20260921095436", "name": "media_transient_retention_60_days" },
+        { "version": "20260921105933", "name": "media_transient_retention_60_days" },
+        { "version": "20260922033440", "name": "media_transient_retention_60_days_reconcile" }
+      ]
+    },
+    "development": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "name": "petmanager-dev",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.105",
+      "latestMigration": {
+        "version": "20261001120000",
+        "name": "add_admin_operational_error_events"
+      },
+      "appliedTargetMigrations": [
+        { "version": "20261001120000", "name": "add_admin_operational_error_events" }
+      ],
+      "mediaTransientRetentionMigrations": [
+        { "version": "20260921095436", "name": "media_transient_retention_60_days" },
+        { "version": "20260921105933", "name": "media_transient_retention_60_days" },
+        { "version": "20260922033440", "name": "media_transient_retention_60_days_reconcile" }
+      ]
+    }
+  },
+  "interpretation": "Both Supabase projects are healthy and both list the selected 60-day media-retention migration. Development lists the operational-error inbox migration, but Production does not. Neither environment lists the separate 60-day operational-error cleanup migration or durable notification-dispatch claims migration. This readback changed no schema, settings, or data."
+}

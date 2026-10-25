@@ -1,0 +1,22 @@
+{
+  "readAt": "2026-10-03T14:24:49Z",
+  "source": "Supabase MCP read-only system-catalog SELECT",
+  "scope": "Counts only for RLS-enabled tables without policies in public/private; checks anon/authenticated SELECT, INSERT, UPDATE, DELETE table privileges",
+  "development": {
+    "projectRef": "qefxdtmdtvnzgupmjlom",
+    "schemas": {
+      "private": { "rlsWithoutPolicyTables": 3, "browserGrantTables": 0 },
+      "public": { "rlsWithoutPolicyTables": 76, "browserGrantTables": 0 }
+    }
+  },
+  "production": {
+    "projectRef": "ysxykikqnneuhypybjry",
+    "schemas": {
+      "private": { "rlsWithoutPolicyTables": 3, "browserGrantTables": 0 },
+      "public": { "rlsWithoutPolicyTables": 77, "browserGrantTables": 0 }
+    }
+  },
+  "customerRowsRead": false,
+  "remoteWrites": 0,
+  "interpretation": "The RLS-enabled/no-policy advisor findings have no direct anon/authenticated table privileges in either schema. This explains the INFO findings for this specific object set; it does not prove policy correctness for tables that do have policies or application-level tenant isolation."
+}

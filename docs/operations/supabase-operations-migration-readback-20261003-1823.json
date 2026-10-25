@@ -1,0 +1,35 @@
+{
+  "readAtUtc": "2026-10-03T18:23:15Z",
+  "source": "Supabase MCP list_migrations and get_project",
+  "scope": "Read-only project health, Postgres version, and migration version/name history for Development and Production; no application table rows or customer records were read",
+  "rowsRead": false,
+  "customerRowsRead": false,
+  "writesPerformed": false,
+  "projects": {
+    "development": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "name": "petmanager-dev",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.105",
+      "latestMigration": {
+        "version": "20261001120000",
+        "name": "add_admin_operational_error_events"
+      },
+      "appliedTargetMigrations": [
+        { "version": "20261001120000", "name": "add_admin_operational_error_events" }
+      ]
+    },
+    "production": {
+      "ref": "ysxykikqnneuhypybjry",
+      "name": "petmanager",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.084",
+      "latestMigration": {
+        "version": "20261003095820",
+        "name": "shop_alimtalk_template_requests"
+      },
+      "appliedTargetMigrations": []
+    }
+  },
+  "interpretation": "Both projects are ACTIVE_HEALTHY. Development has the operational-error inbox migration; Production does not. Neither environment has the separate 60-day operational-error cleanup or durable notification-dispatch claims migration. This readback changed no schema, settings, or data."
+}

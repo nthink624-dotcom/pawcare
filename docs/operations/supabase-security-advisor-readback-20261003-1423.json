@@ -1,0 +1,36 @@
+{
+  "readAt": "2026-10-03",
+  "capturedAt": "2026-10-03T14:23:56Z",
+  "source": "Supabase MCP get_advisors(type=security)",
+  "readOnly": true,
+  "projects": {
+    "development": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "securityAdvisors": {
+        "rls_enabled_no_policy": { "level": "INFO", "count": 79 },
+        "auth_leaked_password_protection": {
+          "level": "WARN",
+          "count": 1,
+          "findingObservedAt": null
+        }
+      }
+    },
+    "production": {
+      "ref": "ysxykikqnneuhypybjry",
+      "securityAdvisors": {
+        "rls_enabled_no_policy": { "level": "INFO", "count": 80 },
+        "auth_leaked_password_protection": {
+          "level": "WARN",
+          "count": 1,
+          "findingObservedAt": null
+        }
+      }
+    }
+  },
+  "remoteWrites": 0,
+  "limitations": [
+    "The advisor response did not include a per-finding observed_at timestamp in the normalized readback.",
+    "RLS-without-policy findings require grant and schema context before security classification.",
+    "No project configuration, plan, billing, or database rows were read or changed; no remote setting or schema was changed."
+  ]
+}

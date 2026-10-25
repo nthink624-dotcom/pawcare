@@ -1,0 +1,77 @@
+{
+  "readAtUtc": "2026-10-03T15:26:30Z",
+  "scope": "Read-only migration metadata, catalog table/ACL metadata, and Supabase security advisor summary for the named Production and Development projects; no customer rows or application records were read",
+  "projects": {
+    "production": {
+      "ref": "ysxykikqnneuhypybjry",
+      "name": "petmanager",
+      "status": "ACTIVE_HEALTHY",
+      "latestMigration": {
+        "version": "20261003095820",
+        "name": "shop_alimtalk_template_requests"
+      },
+      "migrationReadback": {
+        "operationalErrorEvents": false,
+        "operationalErrorRetention60Days": false,
+        "notificationDispatchClaims": false,
+        "mediaTransientRetention60Days": true,
+        "shopAlimtalkTemplateRequests": true
+      },
+      "selectedTableAclReadback": [
+        {
+          "table": "public.shop_alimtalk_template_requests",
+          "exists": true,
+          "rlsEnabled": true,
+          "anonCanSelect": false,
+          "authenticatedCanSelect": false,
+          "serviceRoleCanSelectInsertDelete": true
+        }
+      ],
+      "securityAdvisor": {
+        "leakedPasswordProtection": "WARN_DISABLED",
+        "rlsEnabledNoPolicy": {
+          "level": "INFO",
+          "count": 80,
+          "observedAt": "2026-10-03T15:26:17.344Z"
+        }
+      }
+    },
+    "development": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "name": "petmanager-dev",
+      "status": "ACTIVE_HEALTHY",
+      "latestMigration": {
+        "version": "20261001120000",
+        "name": "add_admin_operational_error_events"
+      },
+      "migrationReadback": {
+        "operationalErrorEvents": true,
+        "operationalErrorRetention60Days": false,
+        "notificationDispatchClaims": false,
+        "mediaTransientRetention60Days": true,
+        "shopAlimtalkTemplateRequests": false
+      },
+      "selectedTableAclReadback": [
+        {
+          "table": "public.operational_error_events",
+          "exists": true,
+          "rlsEnabled": true,
+          "anonCanSelect": false,
+          "authenticatedCanSelect": false,
+          "serviceRoleCanSelectInsertDelete": true
+        }
+      ],
+      "securityAdvisor": {
+        "leakedPasswordProtection": "WARN_DISABLED",
+        "rlsEnabledNoPolicy": {
+          "level": "INFO",
+          "count": 79,
+          "observedAt": "2026-10-03T15:26:17.663Z"
+        }
+      }
+    }
+  },
+  "customerRowsRead": 0,
+  "databaseWrites": 0,
+  "interpretation": "Production and Development migration histories currently differ. The server-only operational_error_events table is present with browser-role SELECT denied in Development but absent in Production. The 60-day media retention migration is applied in both; the local 60-day operational-error cleanup migration and durable notification-dispatch claim migration are absent in both. Both security advisors report leaked-password protection disabled. The policyless-RLS findings are INFO and require privilege-boundary interpretation; they are not proof of browser access."
+}

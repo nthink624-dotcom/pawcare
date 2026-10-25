@@ -1,0 +1,27 @@
+{
+    "status":  "PASS",
+    "isolatedTargetVerified":  true,
+    "temporaryHostAuth":  "scram-sha-256",
+    "verifiedAt":  "2026-10-14T12:26:20.1980289+00:00",
+    "recoverablePointAt":  "2026-10-14T05:12:46.3951751+00:00",
+    "incidentStartedAt":  "2026-10-14T12:26:09.1732156+00:00",
+    "serviceVerifiedAt":  "2026-10-14T12:26:20.1980289+00:00",
+    "completedAt":  "2026-10-14T12:26:21.9338457+00:00",
+    "rpoMinutes":  434,
+    "rtoMinutes":  1,
+    "archiveSha256":  "bb741bcbcf12dee58e4b5947b57c45df41e9c9056ac2ca51e98db5828a9be24a",
+    "keySource":  "removable_usb",
+    "deviceType":  "current_windows_pc",
+    "networkAccess":  "none",
+    "remoteWrites":  0,
+    "summary":  {
+                    "tables":  131,
+                    "rlsEnabledTables":  98,
+                    "bookingExpiryRestored":  true,
+                    "feedbackRestored":  true,
+                    "serverOnlyRpcPrivilegesVerified":  true,
+                    "serviceRoleReadVerified":  true
+                },
+    "temporaryClusterCleanup":  "PASS",
+    "deviceFingerprint":  "da1ab51b6626266a430a03d4120fde7b99132ec42143662582ca590afc407741"
+}

@@ -1,0 +1,32 @@
+{
+  "readAt": "2026-10-03T12:26:40Z",
+  "scope": "Read-only metadata for the known encrypted production backup in the approved Google Drive folder; no content, database rows, or recovery-key bytes were read",
+  "googleDrive": {
+    "folderId": "1jrDncb5E5Ukhj_HCo9HiWXYb4LeAyrnO",
+    "folderListingComplete": true,
+    "visibleItemCount": 1,
+    "latestBackup": {
+      "id": "1QeBFxaoGK61A1blykqJJ23XZ5WjYB12k",
+      "name": "petmanager-prod-20261001.pmdump",
+      "mimeType": "application/octet-stream",
+      "sizeBytes": 1072024,
+      "createdAt": "2026-10-01T03:32:42.652Z",
+      "modifiedAt": "2026-10-01T03:32:42.652Z",
+      "ageHoursAtReadback": 56.9,
+      "rpoTargetHours": 24,
+      "rpoExceededHours": 32.9,
+      "canDownload": true,
+      "shared": false
+    },
+    "fileContentsDownloaded": false,
+    "driveWrites": false
+  },
+  "recoveryKeyContentsRead": false,
+  "databaseQueries": 0,
+  "databaseWrites": 0,
+  "automationSearch": {
+    "scope": [".github/workflows", "scripts", "package.json", "apps/web/package.json"],
+    "recurringDriveUploaderFound": false
+  },
+  "interpretation": "The approved Drive folder contains only the known encrypted archive, whose Drive modified time is 56.9 hours old and exceeds the 24-hour RPO target by 32.9 hours. Drive modified time does not prove the archive snapshot timestamp. No recurring uploader is present in the searched repository paths. RPO is not met or verified."
+}

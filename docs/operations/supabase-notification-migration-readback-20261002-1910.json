@@ -1,0 +1,37 @@
+{
+  "readAt": "2026-10-02T19:10:37+09:00",
+  "projectMetadataReadAt": "2026-10-02T19:13:03+09:00",
+  "scope": "Supabase migration-history metadata readback only; no SQL queries or writes",
+  "expectedLocalMigration": {
+    "version": "20261002062725",
+    "name": "notification_dispatch_claims",
+    "localWorktreeState": "UNTRACKED_LOCAL_MIGRATION",
+    "requiredByWebAndMobileSource": true
+  },
+  "production": {
+    "projectRef": "ysxykikqnneuhypybjry",
+    "status": "ACTIVE_HEALTHY",
+    "postgresVersion": "17.6.1.084",
+    "appliedMigrationCount": 166,
+    "latestAppliedVersion": "20260929131500",
+    "notificationDispatchClaimsMigrationApplied": false,
+    "adminOperationalErrorEventsMigrationApplied": false
+  },
+  "development": {
+    "projectRef": "qefxdtmdtvnzgupmjlom",
+    "status": "ACTIVE_HEALTHY",
+    "postgresVersion": "17.6.1.105",
+    "appliedMigrationCount": 168,
+    "latestAppliedVersion": "20261001120000",
+    "notificationDispatchClaimsMigrationApplied": false,
+    "adminOperationalErrorEventsMigrationApplied": true
+  },
+  "verificationLimits": {
+    "migrationHistoryOnly": true,
+    "tableContentsRead": false,
+    "schemaQueried": false,
+    "sqlExecuted": false,
+    "databaseWrites": 0
+  },
+  "interpretation": "The notification-dispatch source currently references notification_dispatch_claims, but its migration is absent from both hosted projects. Do not release that source before the migration is reviewed, applied to development, and verified; production application requires a separate approval. The operational-error inbox migration is present in development but absent from production, so that inbox also lacks its required production schema today."
+}

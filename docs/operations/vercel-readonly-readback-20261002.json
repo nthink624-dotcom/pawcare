@@ -1,0 +1,78 @@
+{
+  "readAt": "2026-10-02T15:02:32+09:00",
+  "scope": "Read-only Vercel production deployment metadata and public /api/healthz checks; no database readiness, environment-variable, or account-setting reads",
+  "projects": {
+    "web": {
+      "projectId": "prj_v3zjDSALc0VTY3yLRaNO5Il43uwO",
+      "projectName": "petmanager",
+      "rootDirectory": "apps/web",
+      "productionDomain": "https://www.petmanager.co.kr",
+      "liveAliasDeployment": {
+        "deploymentId": "dpl_7qomM1FqkpyAes8oCYHZ4WiJqGo2",
+        "state": "READY",
+        "source": "cli",
+        "commitSha": null,
+        "aliases": [
+          "www.petmanager.co.kr",
+          "petmanager.co.kr",
+          "petmanager-nthink624-3015s-projects.vercel.app"
+        ]
+      },
+      "latestGitProductionDeployment": {
+        "deploymentId": "dpl_69E82Jy97rHhFhoCwQMCZkrP11ms",
+        "state": "ERROR",
+        "source": "git",
+        "commitSha": "4ec1ed741c7ea6b093332935a0a073fe0fa338ad",
+        "errorCode": "BUILD_UTILS_SPAWN_1",
+        "errorStep": "buildStep",
+        "errorMessage": "Command \"npm run build\" exited with 1",
+        "commitTreeMissingFiles": [
+          "scripts/lib/recovery-objectives.cjs",
+          "scripts/lib/launch-readback-consistency.cjs"
+        ],
+        "missingFilesVerifiedWith": "git cat-file -e <commit>:<path>"
+      },
+      "recentGitProductionDeploymentErrors": {
+        "returnedWindow": 20,
+        "newestConsecutiveErrors": 11,
+        "nextOlderReadyDeploymentId": "dpl_7qomM1FqkpyAes8oCYHZ4WiJqGo2",
+        "nextOlderReadySource": "cli"
+      },
+      "healthz": {
+        "httpStatus": 200,
+        "status": "ok",
+        "release": "unknown"
+      }
+    },
+    "mobile": {
+      "projectId": "prj_uzTnmmuozy84cziu7T9IL1vOTdK4",
+      "projectName": "petmanager-app",
+      "rootDirectory": "apps/mobile",
+      "productionDomain": "https://app.petmanager.co.kr",
+      "liveAliasDeployment": {
+        "deploymentId": "dpl_7pR8iNizy2auKQnhii7SBZU4pyo2",
+        "state": "READY",
+        "source": "git",
+        "commitSha": "4ec1ed741c7ea6b093332935a0a073fe0fa338ad",
+        "aliases": [
+          "app.petmanager.co.kr",
+          "petmanager-app.vercel.app",
+          "petmanager-app-nthink624-3015s-projects.vercel.app",
+          "petmanager-app-git-master-nthink624-3015s-projects.vercel.app"
+        ]
+      },
+      "healthz": {
+        "httpStatus": 200,
+        "status": "ok",
+        "release": "4ec1ed741c7ea6b093332935a0a073fe0fa338ad"
+      }
+    }
+  },
+  "verificationLimits": {
+    "readyzCalled": false,
+    "productionDatabaseRead": false,
+    "environmentVariablesRead": false,
+    "deploymentBuildLogs": "UNAVAILABLE: connected build-log tool returned not found and Vercel CLI is not installed",
+    "domainOrDeploymentChanges": false
+  }
+}

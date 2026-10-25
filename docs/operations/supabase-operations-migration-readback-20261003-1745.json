@@ -1,0 +1,36 @@
+{
+  "readAtUtc": "2026-10-03T17:45:46Z",
+  "source": "Supabase MCP list_migrations and get_project",
+  "scope": "Read-only project identity, health, and migration version/name history for the named Development and Production projects; no application table rows or customer records were read",
+  "rowsRead": false,
+  "customerRowsRead": false,
+  "writesPerformed": false,
+  "projects": {
+    "production": {
+      "ref": "ysxykikqnneuhypybjry",
+      "name": "petmanager",
+      "status": "ACTIVE_HEALTHY",
+      "latestMigration": {
+        "version": "20261003095820",
+        "name": "shop_alimtalk_template_requests"
+      },
+      "appliedTargetMigrations": []
+    },
+    "development": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "name": "petmanager-dev",
+      "status": "ACTIVE_HEALTHY",
+      "latestMigration": {
+        "version": "20261001120000",
+        "name": "add_admin_operational_error_events"
+      },
+      "appliedTargetMigrations": [
+        {
+          "version": "20261001120000",
+          "name": "add_admin_operational_error_events"
+        }
+      ]
+    }
+  },
+  "interpretation": "The server-side operational error inbox migration is verified only in Development. Production lacks that migration. Neither environment lists the 60-day operational-error retention cleanup migration or durable notification-dispatch claims migration. Metadata only was read; no customer rows or provider data were accessed and no schema or data was changed."
+}

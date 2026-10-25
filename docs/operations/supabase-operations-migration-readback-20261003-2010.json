@@ -1,0 +1,75 @@
+{
+  "readAtUtc": "2026-10-03T20:10:37Z",
+  "source": "Supabase MCP list_migrations and get_project",
+  "scope": "Project status, Postgres version, migration versions/names, and matching local migration filenames only; no SQL, schema definitions, application rows, or customer records were read",
+  "rowsRead": false,
+  "customerRowsRead": false,
+  "writesPerformed": false,
+  "projects": {
+    "development": {
+      "ref": "qefxdtmdtvnzgupmjlom",
+      "name": "petmanager-dev",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.105",
+      "migrationCount": 168,
+      "latestMigration": {
+        "version": "20261001120000",
+        "name": "add_admin_operational_error_events"
+      },
+      "appliedTargetMigrations": [
+        { "version": "20261001120000", "name": "add_admin_operational_error_events" }
+      ]
+    },
+    "production": {
+      "ref": "ysxykikqnneuhypybjry",
+      "name": "petmanager",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.084",
+      "migrationCount": 168,
+      "latestMigration": {
+        "version": "20261003095820",
+        "name": "shop_alimtalk_template_requests"
+      },
+      "appliedTargetMigrations": []
+    }
+  },
+  "migrationHistoryDifferences": {
+    "productionOnly": [
+      { "version": "20261002145432", "name": "revoke_owner_push_tokens_browser_grants" },
+      { "version": "20261003095820", "name": "shop_alimtalk_template_requests" }
+    ],
+    "developmentOnly": [
+      { "version": "20260930151901", "name": "revoke_owner_push_tokens_browser_grants" },
+      { "version": "20261001120000", "name": "add_admin_operational_error_events" }
+    ]
+  },
+  "localMigrationSources": {
+    "present": [
+      "supabase/migrations/20260930151901_revoke_owner_push_tokens_browser_grants.sql",
+      "supabase/migrations/20261001120000_add_admin_operational_error_events.sql",
+      "supabase/migrations/20261002062725_notification_dispatch_claims.sql",
+      "supabase/migrations/20261003133407_operational_error_retention_60_days.sql"
+    ],
+    "productionHistorySourcesNotFound": [
+      "20261002145432_revoke_owner_push_tokens_browser_grants.sql",
+      "20261003095820_shop_alimtalk_template_requests.sql"
+    ],
+    "sourceEquivalentAliases": [
+      {
+        "productionVersionedFile": "20261002145432_revoke_owner_push_tokens_browser_grants.sql",
+        "localCanonicalFile": "20260930151901_revoke_owner_push_tokens_browser_grants.sql",
+        "contentIdentityVerified": true,
+        "historicalCommit": "43ccf24a1918546047ab556c146ae1d34d8f2b21"
+      }
+    ],
+    "migrationSourceNotFoundInCurrentDirectoryOrReachableGit": [
+      "20261003095820_shop_alimtalk_template_requests.sql"
+    ],
+    "preservedArchiveSearch": {
+      "directories": ["archive", ".migration-backup"],
+      "query": "shop_alimtalk_template_requests OR 20261003095820",
+      "matchFound": false
+    }
+  },
+  "interpretation": "Both projects are ACTIVE_HEALTHY with 168 migrations, but their histories differ. Development has only the operational-error inbox migration among the three release-gated operations migrations; Production has none. The Production-only push-token ACL migration uses a different version but its blob is identical to the current canonical local source, verified against the recorded historical commit. The Production-only shop_alimtalk_template_requests migration source is absent from the current directory and reachable Git history per the existing upstream-source investigation. Preserve the ACL alias handling and do not reconstruct or replay the AlimTalk template-request migration until its approved source is found. This metadata-only read changed no remote state."
+}

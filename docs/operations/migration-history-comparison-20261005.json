@@ -1,0 +1,1388 @@
+{
+  "readAtUtc": "2026-10-05T03:05:32Z",
+  "source": "Supabase MCP list_migrations",
+  "rowsRead": false,
+  "writesPerformed": false,
+  "production": {
+    "ref": "ysxykikqnneuhypybjry",
+    "migrations": [
+      {
+        "version": "202603160001",
+        "name": "init"
+      },
+      {
+        "version": "202603280001",
+        "name": "owner_auth"
+      },
+      {
+        "version": "202603290001",
+        "name": "owner_profiles"
+      },
+      {
+        "version": "202604010001",
+        "name": "owner_identity_verification"
+      },
+      {
+        "version": "202604040001",
+        "name": "shop_display_columns"
+      },
+      {
+        "version": "202604040002",
+        "name": "runtime_feature_columns"
+      },
+      {
+        "version": "202604070001",
+        "name": "owner_subscription_billing"
+      },
+      {
+        "version": "202604140003",
+        "name": "notification_delivery_columns"
+      },
+      {
+        "version": "202604140004",
+        "name": "guardian_soft_delete"
+      },
+      {
+        "version": "202604150001",
+        "name": "social_signup_relax_owner_profile"
+      },
+      {
+        "version": "202604170001",
+        "name": "owner_admin_events"
+      },
+      {
+        "version": "202604190001",
+        "name": "admin_accounts"
+      },
+      {
+        "version": "202604200001",
+        "name": "owner_subscription_free_plan"
+      },
+      {
+        "version": "202604210001",
+        "name": "owner_billing_security"
+      },
+      {
+        "version": "202604230001",
+        "name": "owner_identity_verification_security"
+      },
+      {
+        "version": "202604230002",
+        "name": "owner_profile_identity_hashes"
+      },
+      {
+        "version": "202604290001",
+        "name": "shop_booking_slot_settings"
+      },
+      {
+        "version": "202605120001",
+        "name": "booking_capacity_policy"
+      },
+      {
+        "version": "202605150001",
+        "name": "owner_admin_temporary_password_event"
+      },
+      {
+        "version": "202605180001",
+        "name": "owner_defaults_and_staff"
+      },
+      {
+        "version": "202605180002",
+        "name": "owner_scale_indexes"
+      },
+      {
+        "version": "202605180003",
+        "name": "media_assets_and_notification_attachments"
+      },
+      {
+        "version": "202605180004",
+        "name": "media_cost_controls"
+      },
+      {
+        "version": "202605180005",
+        "name": "shop_media_limits"
+      },
+      {
+        "version": "202605180006",
+        "name": "shop_revenue_ledger"
+      },
+      {
+        "version": "202605190001",
+        "name": "appointment_staff_assignment"
+      },
+      {
+        "version": "202605190002",
+        "name": "staff_schedule_overrides"
+      },
+      {
+        "version": "202605190004",
+        "name": "owner_identity_unique_indexes"
+      },
+      {
+        "version": "202605190005",
+        "name": "multi_shop_foundation"
+      },
+      {
+        "version": "202605190006",
+        "name": "shop_alimtalk_credits"
+      },
+      {
+        "version": "202605200001",
+        "name": "ensure_owner_staff_member"
+      },
+      {
+        "version": "202605200002",
+        "name": "owner_login_sessions"
+      },
+      {
+        "version": "202605220001",
+        "name": "service_management_metadata"
+      },
+      {
+        "version": "202605220002",
+        "name": "shop_settings_readiness"
+      },
+      {
+        "version": "202605220003",
+        "name": "pet_staff_notes"
+      },
+      {
+        "version": "202605220004",
+        "name": "appointment_status_events"
+      },
+      {
+        "version": "202605220005",
+        "name": "alimtalk_template_registry"
+      },
+      {
+        "version": "202605220006",
+        "name": "customer_labels"
+      },
+      {
+        "version": "202605220007",
+        "name": "notification_delivery_audit"
+      },
+      {
+        "version": "202605220008",
+        "name": "appointment_customer_requests"
+      },
+      {
+        "version": "202605220009",
+        "name": "grooming_record_media_links"
+      },
+      {
+        "version": "202605220010",
+        "name": "appointment_pet_participants"
+      },
+      {
+        "version": "202605220011",
+        "name": "customer_search_profiles"
+      },
+      {
+        "version": "202605220012",
+        "name": "appointment_status_sync_metadata"
+      },
+      {
+        "version": "202605220013",
+        "name": "owner_activity_events"
+      },
+      {
+        "version": "202605220014",
+        "name": "appointment_staff_overlap_guard"
+      },
+      {
+        "version": "202605220015",
+        "name": "booking_slot_15_minute_default"
+      },
+      {
+        "version": "202605240001",
+        "name": "booking_available_time_window"
+      },
+      {
+        "version": "202605250001",
+        "name": "regular_closed_cycle"
+      },
+      {
+        "version": "202605250002",
+        "name": "booking_time_proposed_notification"
+      },
+      {
+        "version": "202605260001",
+        "name": "reservation_policy_pending_hold_default"
+      },
+      {
+        "version": "202605270001",
+        "name": "pet_bite_level"
+      },
+      {
+        "version": "202605280001",
+        "name": "extend_pet_bite_level"
+      },
+      {
+        "version": "202605280002",
+        "name": "appointment_actual_grooming_times"
+      },
+      {
+        "version": "202605290001",
+        "name": "backfill_customer_page_settings"
+      },
+      {
+        "version": "202606050001",
+        "name": "staff_display_name_position"
+      },
+      {
+        "version": "202606060001",
+        "name": "staff_profile_image_url"
+      },
+      {
+        "version": "202606070001",
+        "name": "staff_profile_image_url_backfill"
+      },
+      {
+        "version": "202606070002",
+        "name": "staff_title_prefix"
+      },
+      {
+        "version": "202606070003",
+        "name": "staff_profile_image_url"
+      },
+      {
+        "version": "202606070004",
+        "name": "appointment_notification_timing_backfill"
+      },
+      {
+        "version": "202606110001",
+        "name": "staff_chip_color_index"
+      },
+      {
+        "version": "202606110002",
+        "name": "disable_pending_overlap"
+      },
+      {
+        "version": "202606110003",
+        "name": "regular_closed_monthly_cycles"
+      },
+      {
+        "version": "202606170001",
+        "name": "appointment_change_events"
+      },
+      {
+        "version": "202606280001",
+        "name": "alimtalk_template_overrides"
+      },
+      {
+        "version": "202606290001",
+        "name": "staff_profile_message"
+      },
+      {
+        "version": "202606300001",
+        "name": "remove_reservation_pending_flow"
+      },
+      {
+        "version": "202606300002",
+        "name": "backfill_completed_status_from_grooming_records"
+      },
+      {
+        "version": "202607010001",
+        "name": "staff_profile_image_urls"
+      },
+      {
+        "version": "202607010002",
+        "name": "alimtalk_template_overrides_visit_aliases"
+      },
+      {
+        "version": "202607030001",
+        "name": "alimtalk_opt_in_defaults"
+      },
+      {
+        "version": "202607060001",
+        "name": "owner_support_requests"
+      },
+      {
+        "version": "202607060002",
+        "name": "media_kind_staff_profile_constraint"
+      },
+      {
+        "version": "202607090001",
+        "name": "owner_support_request_threads"
+      },
+      {
+        "version": "202607090002",
+        "name": "shop_identity_change_events"
+      },
+      {
+        "version": "202607100001",
+        "name": "staff_account_privacy"
+      },
+      {
+        "version": "202607100002",
+        "name": "guardian_notification_contract"
+      },
+      {
+        "version": "202607110001",
+        "name": "shop_identity_change_limits"
+      },
+      {
+        "version": "202607110002",
+        "name": "customer_discount_quotes"
+      },
+      {
+        "version": "202607120001",
+        "name": "pet_pricing_group"
+      },
+      {
+        "version": "202607220001",
+        "name": "enable_rls_on_internal_public_tables"
+      },
+      {
+        "version": "20260731115035",
+        "name": "idempotent_alimtalk_credit_purchase"
+      },
+      {
+        "version": "20260803145206",
+        "name": "serialize_staff_appointment_overlap_checks"
+      },
+      {
+        "version": "20260803162637",
+        "name": "grooming_record_outcomes"
+      },
+      {
+        "version": "20260803172356",
+        "name": "profitability_and_external_data_imports"
+      },
+      {
+        "version": "20260804030815",
+        "name": "grooming_record_drafts_and_internal_notes"
+      },
+      {
+        "version": "20260804160718",
+        "name": "owner_email_auth"
+      },
+      {
+        "version": "20260806013153",
+        "name": "protect_business_data_deletion"
+      },
+      {
+        "version": "20260806015102",
+        "name": "secure_shop_identity_change_events"
+      },
+      {
+        "version": "20260810055830",
+        "name": "owner_push_tokens_dev_text_ids"
+      },
+      {
+        "version": "20260818100210",
+        "name": "appointment_staff_memo"
+      },
+      {
+        "version": "20260818141708",
+        "name": "ai_care_report_contract"
+      },
+      {
+        "version": "202608210001",
+        "name": "revisit_reminder_dedupe"
+      },
+      {
+        "version": "20260821164152",
+        "name": "publish_care_report_atomically"
+      },
+      {
+        "version": "202608220001",
+        "name": "repair_booking_available_time_window"
+      },
+      {
+        "version": "202608240001",
+        "name": "repair_shop_revenue_ledger"
+      },
+      {
+        "version": "20260824042550",
+        "name": "add_price_guide_source_media_kind"
+      },
+      {
+        "version": "20260826034028",
+        "name": "secure_owner_shop_memberships"
+      },
+      {
+        "version": "20260826111854",
+        "name": "lock_product_booking_defaults"
+      },
+      {
+        "version": "20260826130954",
+        "name": "marketing_work_ledger"
+      },
+      {
+        "version": "20260826133614",
+        "name": "marketing_work_ledger"
+      },
+      {
+        "version": "202608270001",
+        "name": "atomic_owner_signup_draft"
+      },
+      {
+        "version": "20260827020524",
+        "name": "secure_signup_ai_price_guide"
+      },
+      {
+        "version": "20260827031414",
+        "name": "secure_signup_ai_price_guide_metering"
+      },
+      {
+        "version": "20260827064926",
+        "name": "reused_phone_single_trial_signup"
+      },
+      {
+        "version": "20260827152726",
+        "name": "signup_phone_reuse_trial_once"
+      },
+      {
+        "version": "20260827153014",
+        "name": "repair_signup_phone_trial_trigger"
+      },
+      {
+        "version": "20260827153221",
+        "name": "ensure_signup_membership_dependency"
+      },
+      {
+        "version": "20260829023403",
+        "name": "harden_atomic_owner_signup"
+      },
+      {
+        "version": "20260829080000",
+        "name": "restore_shop_revenue_summary_views"
+      },
+      {
+        "version": "20260829084203",
+        "name": "harden_sensitive_database_permissions"
+      },
+      {
+        "version": "20260830090000",
+        "name": "allow_empty_owner_signup_services"
+      },
+      {
+        "version": "20260831110000",
+        "name": "owner_staff_identity_defaults"
+      },
+      {
+        "version": "20260831135511",
+        "name": "guardian_customer_classification"
+      },
+      {
+        "version": "20260831184626",
+        "name": "admin_auth_rate_limit"
+      },
+      {
+        "version": "20260901033659",
+        "name": "early_partner_benefits"
+      },
+      {
+        "version": "20260901034949",
+        "name": "ensure_single_monthly_billing_contract"
+      },
+      {
+        "version": "20260901045307",
+        "name": "separate_initial_partner_issue_compensation_cap"
+      },
+      {
+        "version": "20260901143000",
+        "name": "owner_account_deletion_contract"
+      },
+      {
+        "version": "20260903003614",
+        "name": "booking_payment_tenant_integrity"
+      },
+      {
+        "version": "20260903020522",
+        "name": "booking_payment_pending_repair"
+      },
+      {
+        "version": "20260903023147",
+        "name": "pending_rejected_status_rpc_repair"
+      },
+      {
+        "version": "20260903025911",
+        "name": "assigned_staff_overlap_trigger_repair"
+      },
+      {
+        "version": "20260903044404",
+        "name": "harden_revenue_alimtalk_acl"
+      },
+      {
+        "version": "20260903063534",
+        "name": "owner_service_save_idempotency"
+      },
+      {
+        "version": "20260903064102",
+        "name": "bind_owner_identity_request_state"
+      },
+      {
+        "version": "20260903080556",
+        "name": "booking_last_start_cutoff"
+      },
+      {
+        "version": "20260903212814",
+        "name": "staff_avatar_display_mode"
+      },
+      {
+        "version": "20260904021251",
+        "name": "expand_staff_chip_color_index_palette"
+      },
+      {
+        "version": "20260904183118",
+        "name": "grant_service_role_private_media_integrity"
+      },
+      {
+        "version": "20260904195032",
+        "name": "repair_grooming_record_id_ambiguity"
+      },
+      {
+        "version": "20260907090000",
+        "name": "owner_pilot_pre_payment_benefits"
+      },
+      {
+        "version": "20260907091000",
+        "name": "owner_pilot_cohort_authority"
+      },
+      {
+        "version": "20260908011614",
+        "name": "canonical_booking_start_window_close_grace"
+      },
+      {
+        "version": "20260908025208",
+        "name": "tester_feedback_intake"
+      },
+      {
+        "version": "20260908090000",
+        "name": "marketing_acquisition_first_touch"
+      },
+      {
+        "version": "20260908100000",
+        "name": "marketing_owner_readiness_activity"
+      },
+      {
+        "version": "20260908112107",
+        "name": "appointment_visit_weight_measurements"
+      },
+      {
+        "version": "20260909110000",
+        "name": "hanmadi_shared_feedback_and_tester_access"
+      },
+      {
+        "version": "20260910053252",
+        "name": "staff_profile_fallback_key"
+      },
+      {
+        "version": "20260914145435",
+        "name": "single_monthly_billing_contract_v2"
+      },
+      {
+        "version": "20260914202804",
+        "name": "staff_profile_fallback_key"
+      },
+      {
+        "version": "20260914214756",
+        "name": "repair_appointment_atomic_write_overlap_guard"
+      },
+      {
+        "version": "20260918025422",
+        "name": "signup_v6_consent_prerequisites"
+      },
+      {
+        "version": "20260919142648",
+        "name": "production_signup_billing_corrective"
+      },
+      {
+        "version": "20260921095436",
+        "name": "media_transient_retention_60_days"
+      },
+      {
+        "version": "20260921105933",
+        "name": "media_transient_retention_60_days"
+      },
+      {
+        "version": "20260921114000",
+        "name": "close_public_database_security_gaps"
+      },
+      {
+        "version": "20260921114442",
+        "name": "close_public_database_security_gaps"
+      },
+      {
+        "version": "20260921120000",
+        "name": "call_id_foundation"
+      },
+      {
+        "version": "20260922031133",
+        "name": "harden_sensitive_shared_data_rls"
+      },
+      {
+        "version": "20260922031234",
+        "name": "harden_sensitive_shared_data_rls"
+      },
+      {
+        "version": "20260922031431",
+        "name": "add_explicit_sensitive_data_deny_policies"
+      },
+      {
+        "version": "20260922031432",
+        "name": "add_explicit_sensitive_data_deny_policies"
+      },
+      {
+        "version": "20260922033440",
+        "name": "media_transient_retention_60_days_reconcile"
+      },
+      {
+        "version": "20260922100000",
+        "name": "harden_sensitive_shared_data_rls"
+      },
+      {
+        "version": "20260922102000",
+        "name": "add_explicit_sensitive_data_deny_policies"
+      },
+      {
+        "version": "20260926130000",
+        "name": "catch_call_reservation_flow"
+      },
+      {
+        "version": "20260926204611",
+        "name": "20260921120000_call_id_foundation"
+      },
+      {
+        "version": "20260926204624",
+        "name": "20260926130000_catch_call_reservation_flow"
+      },
+      {
+        "version": "20260926204831",
+        "name": "20260921120000_call_id_foundation"
+      },
+      {
+        "version": "20260926204837",
+        "name": "20260926130000_catch_call_reservation_flow"
+      },
+      {
+        "version": "20260928124710",
+        "name": "20260824042550_add_price_guide_source_media_kind"
+      },
+      {
+        "version": "20260929130000",
+        "name": "remove_redundant_notification_index"
+      },
+      {
+        "version": "20260929131500",
+        "name": "revoke_policyless_browser_grants"
+      },
+      {
+        "version": "20261002145432",
+        "name": "revoke_owner_push_tokens_browser_grants"
+      },
+      {
+        "version": "20261003095820",
+        "name": "shop_alimtalk_template_requests"
+      }
+    ]
+  },
+  "development": {
+    "ref": "qefxdtmdtvnzgupmjlom",
+    "migrations": [
+      {
+        "version": "202603160001",
+        "name": "init"
+      },
+      {
+        "version": "202603280001",
+        "name": "owner_auth"
+      },
+      {
+        "version": "202603290001",
+        "name": "owner_profiles"
+      },
+      {
+        "version": "202604010001",
+        "name": "owner_identity_verification"
+      },
+      {
+        "version": "202604040001",
+        "name": "shop_display_columns"
+      },
+      {
+        "version": "202604040002",
+        "name": "runtime_feature_columns"
+      },
+      {
+        "version": "202604070001",
+        "name": "owner_subscription_billing"
+      },
+      {
+        "version": "202604140003",
+        "name": "notification_delivery_columns"
+      },
+      {
+        "version": "202604140004",
+        "name": "guardian_soft_delete"
+      },
+      {
+        "version": "202604150001",
+        "name": "social_signup_relax_owner_profile"
+      },
+      {
+        "version": "202604170001",
+        "name": "owner_admin_events"
+      },
+      {
+        "version": "202604190001",
+        "name": "admin_accounts"
+      },
+      {
+        "version": "202604200001",
+        "name": "owner_subscription_free_plan"
+      },
+      {
+        "version": "202604210001",
+        "name": "owner_billing_security"
+      },
+      {
+        "version": "202604230001",
+        "name": "owner_identity_verification_security"
+      },
+      {
+        "version": "202604230002",
+        "name": "owner_profile_identity_hashes"
+      },
+      {
+        "version": "202604290001",
+        "name": "shop_booking_slot_settings"
+      },
+      {
+        "version": "202605120001",
+        "name": "booking_capacity_policy"
+      },
+      {
+        "version": "202605150001",
+        "name": "owner_admin_temporary_password_event"
+      },
+      {
+        "version": "202605180001",
+        "name": "owner_defaults_and_staff"
+      },
+      {
+        "version": "202605180002",
+        "name": "owner_scale_indexes"
+      },
+      {
+        "version": "202605180003",
+        "name": "media_assets_and_notification_attachments"
+      },
+      {
+        "version": "202605180004",
+        "name": "media_cost_controls"
+      },
+      {
+        "version": "202605180005",
+        "name": "shop_media_limits"
+      },
+      {
+        "version": "202605180006",
+        "name": "shop_revenue_ledger"
+      },
+      {
+        "version": "202605190001",
+        "name": "appointment_staff_assignment"
+      },
+      {
+        "version": "202605190002",
+        "name": "staff_schedule_overrides"
+      },
+      {
+        "version": "202605190004",
+        "name": "owner_identity_unique_indexes"
+      },
+      {
+        "version": "202605190005",
+        "name": "multi_shop_foundation"
+      },
+      {
+        "version": "202605190006",
+        "name": "shop_alimtalk_credits"
+      },
+      {
+        "version": "202605200001",
+        "name": "ensure_owner_staff_member"
+      },
+      {
+        "version": "202605200002",
+        "name": "owner_login_sessions"
+      },
+      {
+        "version": "202605220001",
+        "name": "service_management_metadata"
+      },
+      {
+        "version": "202605220002",
+        "name": "shop_settings_readiness"
+      },
+      {
+        "version": "202605220003",
+        "name": "pet_staff_notes"
+      },
+      {
+        "version": "202605220004",
+        "name": "appointment_status_events"
+      },
+      {
+        "version": "202605220005",
+        "name": "alimtalk_template_registry"
+      },
+      {
+        "version": "202605220006",
+        "name": "customer_labels"
+      },
+      {
+        "version": "202605220007",
+        "name": "notification_delivery_audit"
+      },
+      {
+        "version": "202605220008",
+        "name": "appointment_customer_requests"
+      },
+      {
+        "version": "202605220009",
+        "name": "grooming_record_media_links"
+      },
+      {
+        "version": "202605220010",
+        "name": "appointment_pet_participants"
+      },
+      {
+        "version": "202605220011",
+        "name": "customer_search_profiles"
+      },
+      {
+        "version": "202605220012",
+        "name": "appointment_status_sync_metadata"
+      },
+      {
+        "version": "202605220013",
+        "name": "owner_activity_events"
+      },
+      {
+        "version": "202605220014",
+        "name": "appointment_staff_overlap_guard"
+      },
+      {
+        "version": "202605220015",
+        "name": "booking_slot_15_minute_default"
+      },
+      {
+        "version": "202605240001",
+        "name": "booking_available_time_window"
+      },
+      {
+        "version": "202605250001",
+        "name": "regular_closed_cycle"
+      },
+      {
+        "version": "202605250002",
+        "name": "booking_time_proposed_notification"
+      },
+      {
+        "version": "202605260001",
+        "name": "reservation_policy_pending_hold_default"
+      },
+      {
+        "version": "202605270001",
+        "name": "pet_bite_level"
+      },
+      {
+        "version": "202605280001",
+        "name": "extend_pet_bite_level"
+      },
+      {
+        "version": "202605280002",
+        "name": "appointment_actual_grooming_times"
+      },
+      {
+        "version": "202605290001",
+        "name": "backfill_customer_page_settings"
+      },
+      {
+        "version": "202606050001",
+        "name": "staff_display_name_position"
+      },
+      {
+        "version": "202606060001",
+        "name": "appointment_notification_timing"
+      },
+      {
+        "version": "202606070001",
+        "name": "staff_profile_image_url_backfill"
+      },
+      {
+        "version": "202606070002",
+        "name": "staff_title_prefix"
+      },
+      {
+        "version": "202606070003",
+        "name": "staff_profile_image_url"
+      },
+      {
+        "version": "202606070004",
+        "name": "appointment_notification_timing_backfill"
+      },
+      {
+        "version": "202606110001",
+        "name": "staff_chip_color_index"
+      },
+      {
+        "version": "202606110002",
+        "name": "disable_pending_overlap"
+      },
+      {
+        "version": "202606110003",
+        "name": "regular_closed_monthly_cycles"
+      },
+      {
+        "version": "202606170001",
+        "name": "appointment_change_events"
+      },
+      {
+        "version": "202606280001",
+        "name": "alimtalk_template_overrides"
+      },
+      {
+        "version": "202606290001",
+        "name": "staff_profile_message"
+      },
+      {
+        "version": "202606300001",
+        "name": "remove_reservation_pending_flow"
+      },
+      {
+        "version": "202606300002",
+        "name": "backfill_completed_status_from_grooming_records"
+      },
+      {
+        "version": "202607010001",
+        "name": "staff_profile_image_urls"
+      },
+      {
+        "version": "202607010002",
+        "name": "alimtalk_template_overrides_visit_aliases"
+      },
+      {
+        "version": "202607030001",
+        "name": "alimtalk_opt_in_defaults"
+      },
+      {
+        "version": "202607060001",
+        "name": "owner_support_requests"
+      },
+      {
+        "version": "202607060002",
+        "name": "media_kind_staff_profile_constraint"
+      },
+      {
+        "version": "202607090001",
+        "name": "owner_support_request_threads"
+      },
+      {
+        "version": "202607090002",
+        "name": "shop_identity_change_events"
+      },
+      {
+        "version": "202607100001",
+        "name": "staff_account_privacy"
+      },
+      {
+        "version": "202607100002",
+        "name": "guardian_notification_contract"
+      },
+      {
+        "version": "202607110001",
+        "name": "shop_identity_change_limits"
+      },
+      {
+        "version": "202607110002",
+        "name": "customer_discount_quotes"
+      },
+      {
+        "version": "202607120001",
+        "name": "pet_pricing_group"
+      },
+      {
+        "version": "202607220001",
+        "name": "enable_rls_on_internal_public_tables"
+      },
+      {
+        "version": "20260731115035",
+        "name": "idempotent_alimtalk_credit_purchase"
+      },
+      {
+        "version": "20260803145206",
+        "name": "serialize_staff_appointment_overlap_checks"
+      },
+      {
+        "version": "20260803162637",
+        "name": "grooming_record_outcomes"
+      },
+      {
+        "version": "20260803172356",
+        "name": "profitability_and_external_data_imports"
+      },
+      {
+        "version": "20260804030815",
+        "name": "grooming_record_drafts_and_internal_notes"
+      },
+      {
+        "version": "20260804160718",
+        "name": "owner_email_auth"
+      },
+      {
+        "version": "20260806013153",
+        "name": "protect_business_data_deletion"
+      },
+      {
+        "version": "20260806015102",
+        "name": "secure_shop_identity_change_events"
+      },
+      {
+        "version": "20260810055830",
+        "name": "owner_push_tokens_dev_text_ids"
+      },
+      {
+        "version": "20260818100210",
+        "name": "appointment_staff_memo"
+      },
+      {
+        "version": "20260818141708",
+        "name": "ai_care_report_contract"
+      },
+      {
+        "version": "202608210001",
+        "name": "revisit_reminder_dedupe"
+      },
+      {
+        "version": "20260821164152",
+        "name": "publish_care_report_atomically"
+      },
+      {
+        "version": "202608220001",
+        "name": "repair_booking_available_time_window"
+      },
+      {
+        "version": "202608240001",
+        "name": "repair_shop_revenue_ledger"
+      },
+      {
+        "version": "20260824042550",
+        "name": "add_price_guide_source_media_kind"
+      },
+      {
+        "version": "20260826034028",
+        "name": "secure_owner_shop_memberships"
+      },
+      {
+        "version": "20260826111854",
+        "name": "lock_product_booking_defaults"
+      },
+      {
+        "version": "20260826130954",
+        "name": "marketing_work_ledger"
+      },
+      {
+        "version": "20260826133614",
+        "name": "marketing_work_ledger"
+      },
+      {
+        "version": "202608270001",
+        "name": "atomic_owner_signup_draft"
+      },
+      {
+        "version": "20260827020524",
+        "name": "secure_signup_ai_price_guide"
+      },
+      {
+        "version": "20260827031414",
+        "name": "secure_signup_ai_price_guide_metering"
+      },
+      {
+        "version": "20260827064926",
+        "name": "reused_phone_single_trial_signup"
+      },
+      {
+        "version": "20260827152726",
+        "name": "signup_phone_reuse_trial_once"
+      },
+      {
+        "version": "20260827153014",
+        "name": "repair_signup_phone_trial_trigger"
+      },
+      {
+        "version": "20260827153221",
+        "name": "ensure_signup_membership_dependency"
+      },
+      {
+        "version": "20260829023403",
+        "name": "harden_atomic_owner_signup"
+      },
+      {
+        "version": "20260829080000",
+        "name": "restore_shop_revenue_summary_views"
+      },
+      {
+        "version": "20260829084203",
+        "name": "harden_sensitive_database_permissions"
+      },
+      {
+        "version": "20260830090000",
+        "name": "allow_empty_owner_signup_services"
+      },
+      {
+        "version": "20260831110000",
+        "name": "owner_staff_identity_defaults"
+      },
+      {
+        "version": "20260831135511",
+        "name": "guardian_customer_classification"
+      },
+      {
+        "version": "20260831184626",
+        "name": "admin_auth_rate_limit"
+      },
+      {
+        "version": "20260901033659",
+        "name": "early_partner_benefits"
+      },
+      {
+        "version": "20260901034949",
+        "name": "ensure_single_monthly_billing_contract"
+      },
+      {
+        "version": "20260901045307",
+        "name": "separate_initial_partner_issue_compensation_cap"
+      },
+      {
+        "version": "20260901143000",
+        "name": "owner_account_deletion_contract"
+      },
+      {
+        "version": "20260903003614",
+        "name": "booking_payment_tenant_integrity"
+      },
+      {
+        "version": "20260903020522",
+        "name": "booking_payment_pending_repair"
+      },
+      {
+        "version": "20260903023147",
+        "name": "pending_rejected_status_rpc_repair"
+      },
+      {
+        "version": "20260903025911",
+        "name": "assigned_staff_overlap_trigger_repair"
+      },
+      {
+        "version": "20260903044404",
+        "name": "harden_revenue_alimtalk_acl"
+      },
+      {
+        "version": "20260903063534",
+        "name": "owner_service_save_idempotency"
+      },
+      {
+        "version": "20260903064102",
+        "name": "bind_owner_identity_request_state"
+      },
+      {
+        "version": "20260903080556",
+        "name": "booking_last_start_cutoff"
+      },
+      {
+        "version": "20260903212814",
+        "name": "staff_avatar_display_mode"
+      },
+      {
+        "version": "20260904021251",
+        "name": "expand_staff_chip_color_index_palette"
+      },
+      {
+        "version": "20260904183118",
+        "name": "grant_service_role_private_media_integrity"
+      },
+      {
+        "version": "20260904195032",
+        "name": "repair_grooming_record_id_ambiguity"
+      },
+      {
+        "version": "20260907090000",
+        "name": "owner_pilot_pre_payment_benefits"
+      },
+      {
+        "version": "20260907091000",
+        "name": "owner_pilot_cohort_authority"
+      },
+      {
+        "version": "20260908011614",
+        "name": "canonical_booking_start_window_close_grace"
+      },
+      {
+        "version": "20260908025208",
+        "name": "tester_feedback_intake"
+      },
+      {
+        "version": "20260908090000",
+        "name": "marketing_acquisition_first_touch"
+      },
+      {
+        "version": "20260908100000",
+        "name": "marketing_owner_readiness_activity"
+      },
+      {
+        "version": "20260908112107",
+        "name": "appointment_visit_weight_measurements"
+      },
+      {
+        "version": "20260909110000",
+        "name": "hanmadi_shared_feedback_and_tester_access"
+      },
+      {
+        "version": "20260910053252",
+        "name": "staff_profile_fallback_key"
+      },
+      {
+        "version": "20260914145435",
+        "name": "single_monthly_billing_contract_v2"
+      },
+      {
+        "version": "20260914202804",
+        "name": "staff_profile_fallback_key"
+      },
+      {
+        "version": "20260914214756",
+        "name": "repair_appointment_atomic_write_overlap_guard"
+      },
+      {
+        "version": "20260918025422",
+        "name": "signup_v6_consent_prerequisites"
+      },
+      {
+        "version": "20260919142648",
+        "name": "production_signup_billing_corrective"
+      },
+      {
+        "version": "20260921095436",
+        "name": "media_transient_retention_60_days"
+      },
+      {
+        "version": "20260921105933",
+        "name": "media_transient_retention_60_days"
+      },
+      {
+        "version": "20260921114000",
+        "name": "close_public_database_security_gaps"
+      },
+      {
+        "version": "20260921114442",
+        "name": "close_public_database_security_gaps"
+      },
+      {
+        "version": "20260921120000",
+        "name": "call_id_foundation"
+      },
+      {
+        "version": "20260922031133",
+        "name": "harden_sensitive_shared_data_rls"
+      },
+      {
+        "version": "20260922031234",
+        "name": "harden_sensitive_shared_data_rls"
+      },
+      {
+        "version": "20260922031431",
+        "name": "add_explicit_sensitive_data_deny_policies"
+      },
+      {
+        "version": "20260922031432",
+        "name": "add_explicit_sensitive_data_deny_policies"
+      },
+      {
+        "version": "20260922033440",
+        "name": "media_transient_retention_60_days_reconcile"
+      },
+      {
+        "version": "20260922100000",
+        "name": "harden_sensitive_shared_data_rls"
+      },
+      {
+        "version": "20260922102000",
+        "name": "add_explicit_sensitive_data_deny_policies"
+      },
+      {
+        "version": "20260926130000",
+        "name": "catch_call_reservation_flow"
+      },
+      {
+        "version": "20260926204611",
+        "name": "20260921120000_call_id_foundation"
+      },
+      {
+        "version": "20260926204624",
+        "name": "20260926130000_catch_call_reservation_flow"
+      },
+      {
+        "version": "20260926204831",
+        "name": "20260921120000_call_id_foundation"
+      },
+      {
+        "version": "20260926204837",
+        "name": "20260926130000_catch_call_reservation_flow"
+      },
+      {
+        "version": "20260928124710",
+        "name": "20260824042550_add_price_guide_source_media_kind"
+      },
+      {
+        "version": "20260929130000",
+        "name": "remove_redundant_notification_index"
+      },
+      {
+        "version": "20260929131500",
+        "name": "revoke_policyless_browser_grants"
+      },
+      {
+        "version": "20260930151901",
+        "name": "revoke_owner_push_tokens_browser_grants"
+      },
+      {
+        "version": "20261001120000",
+        "name": "add_admin_operational_error_events"
+      }
+    ]
+  },
+  "differences": {
+    "productionOnly": [
+      {
+        "version": "20261002145432",
+        "name": "revoke_owner_push_tokens_browser_grants"
+      },
+      {
+        "version": "20261003095820",
+        "name": "shop_alimtalk_template_requests"
+      }
+    ],
+    "developmentOnly": [
+      {
+        "version": "20260930151901",
+        "name": "revoke_owner_push_tokens_browser_grants"
+      },
+      {
+        "version": "20261001120000",
+        "name": "add_admin_operational_error_events"
+      }
+    ],
+    "sameVersionDifferentName": [
+      {
+        "version": "202606060001",
+        "name": "staff_profile_image_url"
+      }
+    ]
+  }
+}

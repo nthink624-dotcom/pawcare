@@ -1,0 +1,44 @@
+{
+  "verifiedAt": "2026-10-02",
+  "scope": "Repeat offline restore test of the existing encrypted production database backup; no Supabase or Google Drive access",
+  "target": {
+    "projectRef": "ysxykikqnneuhypybjry",
+    "databaseRestoreVersion": "18.4"
+  },
+  "artifact": {
+    "localPath": "%LOCALAPPDATA%\\Temp\\petmanager-prod-20261001.pmdump",
+    "bytes": 1072024,
+    "sha256": "9c306638d5ceef477cedbb100fdab1da74b495675827b58176e391b82def5876"
+  },
+  "recoveryKey": {
+    "path": "E:\\PetManagerRecovery\\petmanager-prod-20261001.key",
+    "bytes": 32,
+    "contentRead": false,
+    "modified": false
+  },
+  "restore": {
+    "status": "PASS",
+    "tables": 125,
+    "sequences": 1,
+    "schemaObjects": 3387,
+    "validatedCheckConstraints": 371,
+    "postgresMajorVarianceConstraintsPresent": 9,
+    "postgresMajorVarianceConstraintsValidated": 9,
+    "constraintBehaviorMatrix": "PASS",
+    "constraintBehaviorProbeCount": 73,
+    "offlineRestoreCommandElapsedSeconds": 12.75,
+    "offlineRestoreCommandMeasurementScope": "PowerShell process launch through successful exit, including local cluster setup, decryption, restore, validation, and cleanup; excludes Drive retrieval and restore into a separate Supabase project; not end-to-end RTO",
+    "networkAccess": "none",
+    "remoteReads": 0,
+    "remoteWrites": 0,
+    "sourceArchiveModified": false,
+    "temporaryClusterCleanup": "PASS; process exited, port 55441 closed, temporary directory removed"
+  },
+  "stillUnverified": [
+    "PostgreSQL 17.6 source-to-18.4 restore semantic equivalence and source fingerprint comparison",
+    "using the E: recovery key from a second recovery device",
+    "measured RPO and end-to-end RTO (the 12.75-second local offline restore command is only one recovery component)",
+    "restore into a separate Supabase project",
+    "media-object backup and restore"
+  ]
+}

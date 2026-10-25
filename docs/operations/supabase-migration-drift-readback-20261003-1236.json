@@ -1,0 +1,63 @@
+{
+  "readAt": "2026-10-03T12:36:32Z",
+  "source": "Read-only Supabase list_migrations metadata plus local migration filename comparison",
+  "scope": "Migration version/name metadata only; no SQL definitions, database tables, customer rows, or writes",
+  "development": {
+    "projectRef": "qefxdtmdtvnzgupmjlom",
+    "appliedMigrationCount": 168,
+    "latestApplied": {
+      "version": "20261001120000",
+      "name": "add_admin_operational_error_events"
+    },
+    "versionsNotAppliedInProduction": [
+      {
+        "version": "20260930151901",
+        "name": "revoke_owner_push_tokens_browser_grants"
+      },
+      {
+        "version": "20261001120000",
+        "name": "add_admin_operational_error_events"
+      }
+    ]
+  },
+  "production": {
+    "projectRef": "ysxykikqnneuhypybjry",
+    "appliedMigrationCount": 168,
+    "latestApplied": {
+      "version": "20261003095820",
+      "name": "shop_alimtalk_template_requests"
+    },
+    "versionsNotAppliedInDevelopment": [
+      {
+        "version": "20261002145432",
+        "name": "revoke_owner_push_tokens_browser_grants"
+      },
+      {
+        "version": "20261003095820",
+        "name": "shop_alimtalk_template_requests"
+      }
+    ]
+  },
+  "localRepository": {
+    "migrationVersionCount": 169,
+    "notAppliedInEitherEnvironment": [
+      {
+        "version": "20261002062725",
+        "name": "notification_dispatch_claims"
+      }
+    ],
+    "versionAlignment": "Local has the Development revoke version, not the Production version."
+  },
+  "sourceRecoverySearch": {
+    "completedAt": "2026-10-03T12:43:22Z",
+    "archiveAndMigrationBackupExactNameOrContentHits": 0,
+    "unreachableGitCommitsInspected": 30,
+    "unreachableCommitPathOrContentHits": 0,
+    "unreachableBlobObjectsScanned": 1877,
+    "unreachableBlobMaximumScannedBytes": 262144,
+    "unreachableBlobContentHits": 0,
+    "migrationSourceRecovered": false
+  },
+  "remoteWrites": 0,
+  "interpretation": "Development and Production both have 168 applied migrations but have two different migration versions each. The local candidate notification-dispatch-claims migration is not applied in either environment. The Production-only shop_alimtalk_template_requests source remains unrecovered; do not reconstruct or apply a replacement from partial metadata."
+}

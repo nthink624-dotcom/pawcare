@@ -1,0 +1,49 @@
+{
+  "verifiedAt": "2026-10-02",
+  "scope": "Read-only PostgreSQL catalog inspection for core customer and appointment tables; no customer rows queried",
+  "projectRef": "ysxykikqnneuhypybjry",
+  "tables": {
+    "appointments": { "exists": true, "rlsEnabled": true, "anonCrud": false, "authenticatedCrud": false, "denyDirectAccessPolicy": true },
+    "shops": { "exists": true, "rlsEnabled": true, "anonCrud": false, "authenticatedCrud": false, "denyDirectAccessPolicy": true },
+    "guardians": { "exists": true, "rlsEnabled": true, "anonCrud": false, "authenticatedCrud": false, "denyDirectAccessPolicy": true },
+    "pets": { "exists": true, "rlsEnabled": true, "anonCrud": false, "authenticatedCrud": false, "denyDirectAccessPolicy": true },
+    "grooming_records": { "exists": true, "rlsEnabled": true, "anonCrud": false, "authenticatedCrud": false, "denyDirectAccessPolicy": true },
+    "media_assets": { "exists": true, "rlsEnabled": true, "anonCrud": false, "authenticatedCrud": false, "denyDirectAccessPolicy": true },
+    "owner_shop_memberships": { "exists": true, "rlsEnabled": true, "anonCrud": false, "authenticatedCrud": false, "denyDirectAccessPolicy": true }
+  },
+  "publicRelations": {
+    "browserReadableViews": [
+      {
+        "name": "appointment_staff_overlap_conflicts",
+        "anonSelectPrivilege": true,
+        "authenticatedSelectPrivilege": true,
+        "securityInvoker": true,
+        "baseRelation": "appointments",
+        "baseRlsEnabled": true,
+        "baseAnonSelectPrivilege": false,
+        "baseAuthenticatedSelectPrivilege": false,
+        "denyDirectAccessPolicy": true,
+        "applicationSourceReferences": 0,
+        "assessment": "view privileges alone do not expose rows because the view runs with caller privileges and callers lack SELECT on the base table"
+      }
+    ],
+    "browserReadableSecurityDefinerViews": 0,
+    "unsafeBrowserReadableViewViolations": 0,
+    "readOnlyVerificationSql": "supabase/verification/verify_public_browser_view_grants.sql",
+    "customerRowsQueried": 0
+  },
+  "applicationGuardReadback": {
+    "ownerTenantRouteGuardCheck": "PASS",
+    "guardedRoutes": 41,
+    "checkType": "static route contract; not a production cross-tenant API execution test",
+    "browserViewGrantContractTest": "PASS; 5 tests",
+    "tenantIsolationContractCheck": "PASS"
+  },
+  "notVerified": [
+    "production cross-tenant requests through the service-role API path",
+    "runtime write attempts across two production shops"
+  ],
+  "remoteWrites": 0,
+  "customerRowsRead": 0,
+  "interpretation": "Direct anon/authenticated table access is blocked for the inspected core tables. One appointment-overlap view grants SELECT to browser roles, but it is security_invoker=true and its appointments base table denies browser SELECT with RLS enabled and a false policy; no application source references the view. This does not show a direct customer-row exposure. Because server APIs use privileged access, full tenant isolation still depends on application ownership guards; 41 guarded routes passed the static check, but a production cross-tenant runtime test was not performed."
+}

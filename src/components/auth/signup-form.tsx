@@ -394,7 +394,8 @@ export default function SignupForm({
     setLoading(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/auth/signup", {
+      const response = await waitForIdentityOperation(fetch("/api/auth/signup", {
+        signal,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -407,7 +408,7 @@ export default function SignupForm({
           name: fields.name,
           birthDate: fields.birthDate,
           phoneNumber: fields.phoneNumber,
-          identityVerificationToken: verificationToken,
+          identityVerificationToken: token,
           shopName: fields.shopName.trim(),
           shopPhone: fields.shopPhone,
           shopAddress: shopDetailAddress.trim()
@@ -454,7 +455,7 @@ export default function SignupForm({
     } catch {
       setMessage("회원가입 요청 중 문제가 발생했습니다. 다시 시도해 주세요.");
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   };
 

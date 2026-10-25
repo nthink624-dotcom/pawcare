@@ -26,8 +26,8 @@ test("app and selected Android channel blocks have truthful separate recovery ro
   assert.match(runtime, /listChannels\(\)/);
   assert.match(runtime, /Number\(selected\.importance\) === 0/);
   assert.match(settings, /runtime\.channelBlocked/);
-  assert.match(settings, /새 예약 알림 채널이 차단되어 있어요/);
-  assert.match(settings, /알림 권한은 켜져 있지만 기기 연결에 실패했어요/);
+  assert.match(settings, /새 예약 알림 차단됨/);
+  assert.match(settings, /기기 연결 실패/);
   assert.match(nativeSettings, /Settings\.ACTION_APP_NOTIFICATION_SETTINGS/);
   assert.match(nativeSettings, /Settings\.ACTION_CHANNEL_NOTIFICATION_SETTINGS/);
   assert.match(nativeSettings, /manager\.areNotificationsEnabled\(\)/);
@@ -44,9 +44,9 @@ test("runtime state keeps preference, app, channel, connecting, failure, and rec
   assert.match(settings, /!preferences\.enabled/);
   assert.match(settings, /runtime\.appNotificationsEnabled === false/);
   assert.match(settings, /runtime\.registrationFailed/);
-  assert.match(settings, /알림 연결 중이에요/);
-  assert.match(settings, /알림 권한은 켜져 있지만 기기 연결에 실패했어요/);
-  assert.match(settings, /알림 연결 중이에요/);
+  assert.match(settings, /연결 중/);
+  assert.match(settings, /기기 연결 실패/);
+  assert.match(settings, /연결 중/);
 });
 
 test("photo analysis requires a distinct just-in-time OpenAI disclosure and affirmative action", () => {

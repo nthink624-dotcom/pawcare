@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import {
   buildKakaoPostcodeAddress,
@@ -17,6 +17,44 @@ type KakaoPostcodeSheetProps = {
   onSelect: (selection: KakaoPostcodeSelection) => void;
 };
 
+type PostcodeViewportBaseline = {
+  width: number;
+  height: number;
+};
+
+function resolvePostcodeViewportFrame({
+  viewportHeight,
+  viewportWidth,
+  offsetTop,
+  layoutHeight,
+  screenHeight,
+  previousBaseline,
+}: {
+  viewportHeight: number;
+  viewportWidth: number;
+  offsetTop: number;
+  layoutHeight: number;
+  screenHeight: number;
+  previousBaseline: PostcodeViewportBaseline;
+}) {
+  const height = Math.max(1, Math.round(viewportHeight));
+  const width = Math.max(1, Math.round(viewportWidth));
+  const compactScreenBaseline = height < 560 && screenHeight - height > 80 ? screenHeight : 0;
+  const currentFullHeight = Math.max(height, Math.round(layoutHeight), Math.round(compactScreenBaseline));
+  const orientationChanged = previousBaseline.width > 0 && Math.abs(previousBaseline.width - width) > 80;
+  const baseline = {
+    width,
+    height: orientationChanged ? currentFullHeight : Math.max(previousBaseline.height, currentFullHeight),
+  };
+
+  return {
+    height,
+    offsetTop: Math.max(0, Math.round(offsetTop)),
+    keyboardVisible: baseline.height - height > 80,
+    baseline,
+  };
+}
+
 export default function KakaoPostcodeSheet({
   title = "주소 검색",
   description = "도로명이나 건물명으로 검색한 뒤 기본 주소를 선택해 주세요.",
@@ -27,9 +65,14 @@ export default function KakaoPostcodeSheet({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onSelectRef = useRef(onSelect);
   const initialQueryRef = useRef(initialQuery);
-  const [frameHeight, setFrameHeight] = useState(460);
+  const viewportBaselineRef = useRef<PostcodeViewportBaseline>({ width: 0, height: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [viewportFrame, setViewportFrame] = useState<{ height: number | null; offsetTop: number }>({
+    height: null,
+    offsetTop: 0,
+  });
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -40,30 +83,53 @@ export default function KakaoPostcodeSheet({
   }, [initialQuery]);
 
   useEffect(() => {
+    const viewport = window.visualViewport;
+    const syncViewport = () => {
+      const nextFrame = resolvePostcodeViewportFrame({
+        viewportHeight: viewport?.height ?? window.innerHeight,
+        viewportWidth: viewport?.width ?? window.innerWidth,
+        offsetTop: viewport?.offsetTop ?? 0,
+        layoutHeight: window.innerHeight,
+        screenHeight: window.screen?.availHeight ?? 0,
+        previousBaseline: viewportBaselineRef.current,
+      });
+      viewportBaselineRef.current = nextFrame.baseline;
+      setKeyboardVisible(nextFrame.keyboardVisible);
+      setViewportFrame({ height: nextFrame.height, offsetTop: nextFrame.offsetTop });
+    };
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("scroll", syncViewport);
+    return () => {
+      window.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("scroll", syncViewport);
+    };
+  }, []);
+
+  useEffect(() => {
     let active = true;
+    const container = containerRef.current;
 
     async function mountPostcode() {
       setLoading(true);
       setError(null);
-      setFrameHeight(460);
 
       try {
         await loadKakaoPostcodeScript();
 
-        if (!active || !containerRef.current || !window.daum?.Postcode) {
+        if (!active || !container || !window.daum?.Postcode) {
           return;
         }
 
-        containerRef.current.innerHTML = "";
+        container.innerHTML = "";
 
         const postcode = new window.daum.Postcode({
           oncomplete: (data: KakaoPostcodeData) => {
             if (!active) return;
             onSelectRef.current(buildKakaoPostcodeAddress(data));
-          },
-          onresize: (size) => {
-            if (!active) return;
-            setFrameHeight(Math.max(420, size.height));
           },
           width: "100%",
           height: "100%",
@@ -73,7 +139,7 @@ export default function KakaoPostcodeSheet({
           pleaseReadGuide: 5,
         });
 
-        postcode.embed(containerRef.current, {
+        postcode.embed(container, {
           q: initialQueryRef.current.trim() || undefined,
           autoClose: true,
         });
@@ -90,8 +156,8 @@ export default function KakaoPostcodeSheet({
 
     return () => {
       active = false;
-      if (containerRef.current) {
-        containerRef.current.innerHTML = "";
+      if (container) {
+        container.innerHTML = "";
       }
     };
   }, []);
@@ -113,7 +179,16 @@ export default function KakaoPostcodeSheet({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30" onClick={onClose}>
+    <div
+      className="fixed inset-x-0 z-50 flex items-end justify-center bg-black/30"
+      style={viewportStyle}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      data-testid="kakao-postcode-viewport"
+      data-keyboard-visible={keyboardVisible ? "true" : "false"}
+    >
       <div
         className="flex max-h-[calc(100vh-12px)] w-full max-w-[430px] flex-col overflow-hidden rounded-t-[28px] bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+16px)]"
         onClick={(event) => event.stopPropagation()}

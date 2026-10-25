@@ -302,9 +302,9 @@ export default function OwnerSettingsPanel({
   const operatingSaveCountRef = useRef(0);
   const [isBasicInfoEditing, setIsBasicInfoEditing] = useState(false);
   const [localActiveScreen, setLocalActiveScreen] = useState<SettingsScreen>(initialScreen ?? null);
-  const [isPriceGuideOpen, setIsPriceGuideOpen] = useState(false);
+  const priceGuideSessionKey = ownerPriceGuideSessionKey(data);
   const [priceGuideState, setPriceGuideState] = useState<PriceGuideSessionState | null>(() =>
-    readBootstrapPriceGuideState(data.services),
+    readOwnerPriceGuideSessionDraft(priceGuideSessionKey) ?? readBootstrapPriceGuideState(data.services),
   );
   const [notificationSettings, setNotificationSettings] = useState<ShopNotificationSettingsState>(
     mapShopNotificationSettingsState(data.shop.notification_settings),
@@ -372,6 +372,10 @@ export default function OwnerSettingsPanel({
       return;
     }
     setLocalActiveScreen(nextScreen);
+  }
+
+  function setIsPriceGuideOpen(isOpen: boolean) {
+    updateActiveScreen(isOpen ? "price" : null);
   }
 
   useEffect(() => {
@@ -1211,20 +1215,18 @@ export default function OwnerSettingsPanel({
   const closuresSection = (
     <>
       <div className="mb-3 rounded-[14px] border border-[#e2e7ed] bg-white p-3.5">
-        <button
-          type="button"
-          onClick={() => openBusinessHoursEditor("all")}
-          className="mb-1 flex w-full items-center justify-between gap-3 rounded-[10px] bg-[#eaf1fc] px-3 py-2.5 text-left"
-        >
-          <div className="min-w-0">
-            <p className="text-[20px] font-semibold leading-7 text-[#1d4d9e]">전체 시간 설정</p>
-            <p className="mt-0.5 truncate text-[16px] font-medium leading-6 text-[#4779c7]">{businessHoursSummary}</p>
-          </div>
-          <span className="inline-flex min-h-11 shrink-0 items-center rounded-[7px] border border-[#cfe0f7] bg-white px-3 text-[16px] font-medium leading-6 text-[#2f6fd6]">
-            일괄 적용
-          </span>
-        </button>
         <div className="divide-y divide-[#edf1f5]">
+          <button
+            type="button"
+            onClick={() => openBusinessHoursEditor("all")}
+            className="flex min-h-14 w-full items-center justify-between gap-3 px-1 text-left"
+          >
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="shrink-0 whitespace-nowrap text-[16px] font-medium leading-6 text-[#1e293b]">전체 시간 설정</span>
+              <p className="min-w-0 truncate text-[16px] font-medium leading-6 text-[#334155]">{businessHoursSummary}</p>
+            </div>
+            <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.8} />
+          </button>
           {businessHoursWeekOrder.map((day) => {
             const hours = getBusinessHour(day);
             const isClosed = regularClosedDays.includes(day);
@@ -1236,13 +1238,13 @@ export default function OwnerSettingsPanel({
                 className="flex min-h-14 w-full items-center justify-between gap-3 px-1 text-left"
               >
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <span className={`inline-flex w-10 shrink-0 items-center text-[14px] leading-5 ${businessHoursRowValueWeightClass} ${day === 0 ? "text-[#e0594f]" : day === 6 ? "text-[#2f6fd6]" : "text-[#1e293b]"}`}>
+                  <span className={`inline-flex w-14 shrink-0 items-center whitespace-nowrap text-[16px] leading-6 ${businessHoursRowValueWeightClass} ${day === 0 ? "text-[#e0594f]" : day === 6 ? "text-[#2f6fd6]" : "text-[#1e293b]"}`}>
                     {weekdayLabels[day]}요일
                   </span>
                   {isClosed ? (
                     <span className="inline-flex items-center rounded-[6px] bg-[#fdeeec] px-2 py-1 text-[14px] font-medium leading-5 text-[#b3453b]">휴무</span>
                   ) : (
-                    <p className={`min-w-0 truncate text-[16px] leading-5 text-[#334155] ${businessHoursRowValueWeightClass}`}>{formatBusinessHoursRange(hours)}</p>
+                    <p className={`min-w-0 truncate text-[16px] leading-6 text-[#334155] ${businessHoursRowValueWeightClass}`}>{formatBusinessHoursRange(hours)}</p>
                   )}
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.8} />
@@ -1276,7 +1278,7 @@ export default function OwnerSettingsPanel({
           <div className="flex gap-2">
             <button
               type="button"
-              className="flex h-[40px] flex-1 items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3 text-[13px] text-[#1e293b]"
+              className="flex min-h-11 flex-1 items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3 text-[16px] font-medium leading-6 text-[#1e293b]"
               onClick={() => setIsClosedDatePickerOpen(true)}
             >
               <span>{pendingClosedDate || "날짜 선택"}</span>
@@ -1284,7 +1286,7 @@ export default function OwnerSettingsPanel({
             </button>
             <button
               type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#2f6fd6] bg-[#2f6fd6] text-white disabled:opacity-50"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[9px] border border-[#2f6fd6] bg-[#2f6fd6] text-white disabled:opacity-50"
               disabled={!pendingClosedDate}
               onClick={() => {
                 addPendingClosedDate();
@@ -1299,11 +1301,11 @@ export default function OwnerSettingsPanel({
                 <button
                   key={date}
                   type="button"
-                  className="flex h-[38px] w-full items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[13px] font-medium text-[#1e293b]"
+                  className="flex min-h-11 w-full items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[14px] font-medium leading-5 text-[#1e293b]"
                   onClick={() => removeTemporaryClosedDate(date)}
                 >
                   <span>{date}</span>
-                  <span className="text-[12px] text-[#94a3b8]">삭제</span>
+                  <span className="text-[12px] font-medium leading-[18px] text-[#94a3b8]">삭제</span>
                 </button>
               ))}
             </div>
@@ -1916,12 +1918,15 @@ export default function OwnerSettingsPanel({
       initialRows={priceGuideState?.rows ?? null}
       initialDocument={priceGuideState?.document ?? null}
       initialServiceId={priceGuideState?.serviceId ?? null}
+      initialResumeMode={priceGuideState?.resumeMode}
       onComplete={(_rows, state) => {
         setPriceGuideState(state ?? null);
+        writeOwnerPriceGuideSessionDraft(priceGuideSessionKey, null);
         setIsPriceGuideOpen(false);
       }}
       onExit={(_rows, state) => {
         setPriceGuideState(state ?? null);
+        writeOwnerPriceGuideSessionDraft(priceGuideSessionKey, state ?? null);
         setIsPriceGuideOpen(false);
       }}
     />
@@ -1930,6 +1935,7 @@ export default function OwnerSettingsPanel({
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     shop: { title: "매장 기본 정보", content: shopSection },
     closures: { title: "영업·예약 시간", content: closuresSection },
+    price: { title: "서비스 요금 설정", content: priceGuideSection },
     notifications: { title: "고객 알림톡", content: notificationsSection },
     appNotifications: { title: "내 앱 알림", content: appNotificationsSection },
     appPermissions: { title: "앱 권한", content: appPermissionsSection },
@@ -1938,6 +1944,10 @@ export default function OwnerSettingsPanel({
     legal: { title: "약관 및 정책", content: legalSection },
     account: { title: "계정", content: accountSection },
   };
+
+  if (effectiveActiveScreen === "price") {
+    return <section className="min-h-full bg-[#F4F5F7] py-4">{priceGuideSection}</section>;
+  }
 
   if (effectiveActiveScreen) {
     const isShopScreen = effectiveActiveScreen === "shop";
@@ -2167,17 +2177,23 @@ function BusinessHoursSheet({
   const openInputId = useId();
   const closeInputId = useId();
   const rangeErrorId = useId();
+  const titleId = useId();
   const hasInvalidRange = !draft.closed && !isOrderedTimeRange(draft.open, draft.close);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={() => {
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 px-4 py-6" onClick={() => {
       if (!saving) onClose();
     }}>
-      <div className="w-full max-w-[430px] rounded-t-[28px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
-        <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-stone-200" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="max-h-[calc(100dvh-48px)] w-full max-w-[398px] overflow-y-auto rounded-[18px] bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.22)]"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="mb-3.5 flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
+            <h3 id={titleId} className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[var(--text)]">{title}</h3>
           </div>
           <button
             type="button"
@@ -2187,10 +2203,15 @@ function BusinessHoursSheet({
           >닫기</button>
         </div>
 
-        <div className="space-y-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
+        <div className="space-y-3">
           {showClosedToggle ? (
-            <div
-              className="flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 text-left"
+            <button
+              type="button"
+              role="switch"
+              aria-checked={draft.closed}
+              disabled={saving}
+              onClick={() => onChange({ ...draft, closed: !draft.closed })}
+              className="flex min-h-14 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="min-w-0">
                 <p className="text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">휴무일로 설정</p>
@@ -2276,23 +2297,23 @@ function ClosedDatePickerSheet({
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-semibold text-[var(--text)]">특정 휴무일 추가</h3>
+            <h3 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[var(--text)]">특정 휴무일 추가</h3>
           </div>
-          <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
+          <button className="min-h-11 min-w-11 text-[14px] font-medium leading-5 text-[var(--muted)]" onClick={onClose}>닫기</button>
         </div>
         <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="mb-4 flex items-center justify-between">
-            <button type="button" className="rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onPrevMonth}>
+            <button type="button" className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onPrevMonth}>
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <p className="text-sm font-semibold text-[var(--text)]">{monthLabel}</p>
-            <button type="button" className="rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onNextMonth}>
+            <p className="text-[14px] font-medium leading-5 text-[var(--text)]">{monthLabel}</p>
+            <button type="button" className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onNextMonth}>
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
           <div className="mb-2 grid grid-cols-7 gap-2">
             {weekdayLabels.map((label) => (
-              <div key={label} className="text-center text-xs font-semibold text-[var(--muted)]">{label}</div>
+              <div key={label} className="text-center text-[12px] font-medium leading-[18px] text-[var(--muted)]">{label}</div>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-2">
@@ -2304,7 +2325,7 @@ function ClosedDatePickerSheet({
                   key={date}
                   type="button"
                   onClick={() => onSelectDate(date)}
-                  className={`h-11 rounded-[16px] text-sm font-semibold transition ${
+                  className={`h-11 rounded-[16px] text-[14px] font-medium leading-5 transition ${
                     active ? "bg-[var(--accent)] text-white" : "border border-[var(--border)] bg-white text-[var(--text)]"
                   }`}
                 >
@@ -2349,35 +2370,39 @@ function SettingsCard({
 function SettingsNavRow({
   icon: Icon,
   title,
+  value,
   onClick,
-  accent = false,
+  href,
 }: {
   icon: LucideIcon;
   title: string;
-  onClick: () => void;
-  accent?: boolean;
+  value?: string;
+  onClick?: () => void;
+  href?: string;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex min-h-[68px] w-full items-center justify-between gap-3 px-4 py-3.5 text-left ${
-        accent ? "bg-[#f6fbf9]" : "bg-white"
-      }`}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <div className={`flex h-6 w-6 shrink-0 items-center justify-center ${
-          accent ? "text-[var(--accent)]" : "text-[var(--text)]"
-        }`}>
-          <Icon className="h-5 w-5" strokeWidth={1.9} />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[18px] font-normal tracking-[-0.02em] text-[var(--text)]">{title}</p>
-        </div>
+  const isActionable = Boolean(onClick || href);
+  const className =
+    "flex min-h-[56px] w-full items-center gap-3 bg-white px-4 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]";
+  const content = (
+    <>
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#f2f6fb] text-[#475467]">
+        <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
       </div>
-      <ChevronRight className={`h-4 w-4 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} />
-    </button>
+      <div className="min-w-0 flex-1">
+        <p className="text-[16px] font-medium leading-6 tracking-[-0.02em] text-[#101828]">{title}</p>
+        {value ? (
+          <p className="mt-0.5 break-words text-[14px] font-normal leading-5 text-[#667085] [overflow-wrap:anywhere]">
+            {value}
+          </p>
+        ) : null}
+      </div>
+      {isActionable ? <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" strokeWidth={1.9} /> : null}
+    </>
   );
+
+  if (href) return <a href={href} className={className}>{content}</a>;
+  if (onClick) return <button type="button" onClick={onClick} className={className}>{content}</button>;
+  return <div className={className}>{content}</div>;
 }
 
 function StaffSettingsHome({
@@ -2398,13 +2423,26 @@ function StaffSettingsHome({
   const appUpdateState = useOwnerPlayUpdateSnapshot();
   const staffName = staffMember?.displayName || staffMember?.name || "직원";
   const staffRole = staffMember?.position || "직원";
-  const staffInitial = staffName.trim().slice(0, 1) || "직";
+  const staffContext = [shopName, staffRole].filter(Boolean).join(" · ");
 
   return (
-    <section className="min-h-full bg-[#F4F5F7] p-4">
-      <div className="mb-4">
-        <h1 className="text-[24px] font-medium tracking-[-0.02em] text-[#101828]">설정</h1>
-      </div>
+    <section className="min-h-full bg-[#f6f9fc] px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-4">
+      <div className="space-y-5">
+        <section aria-labelledby="staff-settings-account-heading">
+          <h2 id="staff-settings-account-heading" className="mb-2 text-[14px] font-medium leading-5 text-[#667085]">
+            계정
+          </h2>
+          <div className="overflow-hidden rounded-[14px] border border-[#dfe7f0] bg-white divide-y divide-[#edf1f5]">
+            <SettingsNavRow
+              icon={UserRound}
+              title="내 계정"
+              value={`${staffName} · ${staffContext}`}
+              onClick={onAccountClick}
+            />
+            {accountEmail ? <SettingsNavRow icon={Mail} title="로그인 이메일" value={accountEmail} /> : null}
+            <SettingsNavRow href="/login/reset" icon={KeyRound} title="비밀번호 재설정" />
+          </div>
+        </section>
 
       <div className="space-y-3.5">
         {appUpdateState.available ? (
@@ -2438,43 +2476,7 @@ function StaffSettingsHome({
               <p className="mt-0.5 truncate text-[16px] text-[#667085]">{shopName} · {staffRole}</p>
             </div>
           </div>
-          <div className="mt-4 rounded-[14px] bg-[#f8fafc] px-3.5 py-3">
-            <p className="text-[16px] leading-6 text-[#475467]">
-              프로필 사진, 표시 이름, 담당 서비스는 오너가 관리해요. 변경이 필요하면 매장 관리자에게 요청해 주세요.
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-[18px] border border-[#dfe7f0] bg-white">
-          <p className="px-4 pt-4 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">계정 / 문의</p>
-          <div className="mt-2 overflow-hidden divide-y divide-[#edf1f5]">
-            {accountEmail ? <AccountRow icon={UserRound} label="로그인 이메일" value={accountEmail} /> : null}
-            <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
-            <button type="button" onClick={onSupportClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
-              <div className="flex min-w-0 items-center gap-3">
-                <MessageCircle className="h-[18px] w-[18px] shrink-0 text-[#101828]" strokeWidth={1.9} />
-                <p className="text-[16px] font-medium text-[#101828]">1:1 문의</p>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
-            </button>
-            <button type="button" onClick={onLegalClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
-              <div className="flex min-w-0 items-center gap-3">
-                <FileText className="h-[18px] w-[18px] shrink-0 text-[#101828]" strokeWidth={1.9} />
-                <p className="text-[16px] font-medium text-[#101828]">약관 및 정책</p>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
-            </button>
-            {onAccountClick ? (
-              <button type="button" onClick={onAccountClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
-                <div className="flex min-w-0 items-center gap-3">
-                  <LogOut className="h-[18px] w-[18px] shrink-0 text-[#c43d3d]" strokeWidth={1.9} />
-                  <p className="text-[16px] font-medium text-[#c43d3d]">로그아웃</p>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
-              </button>
-            ) : null}
-          </div>
-        </div>
+        </section>
       </div>
     </section>
   );

@@ -17,8 +17,27 @@ type ExternalCameraPlugin = {
 
 const ExternalCamera = registerPlugin<ExternalCameraPlugin>("ExternalCamera");
 
+export type ExternalCameraAppsAvailability =
+  | "checking"
+  | "available"
+  | "web"
+  | "plugin-unavailable"
+  | "camera-unavailable";
+
 export function canUseExternalCameraApps() {
-  return Capacitor.getPlatform() === "android";
+  return Capacitor.getPlatform() === "android" && Capacitor.isPluginAvailable("ExternalCamera");
+}
+
+export async function resolveExternalCameraAppsAvailability(): Promise<Exclude<ExternalCameraAppsAvailability, "checking">> {
+  if (Capacitor.getPlatform() !== "android") return "web";
+  if (!Capacitor.isPluginAvailable("ExternalCamera")) return "plugin-unavailable";
+
+  try {
+    const capability = await ExternalCamera.getCapabilities();
+    return capability.available && capability.handlerCount > 0 ? "available" : "camera-unavailable";
+  } catch {
+    return "plugin-unavailable";
+  }
 }
 
 export type ExternalCameraCapabilities = {

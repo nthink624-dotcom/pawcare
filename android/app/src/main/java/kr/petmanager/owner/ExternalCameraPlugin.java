@@ -26,6 +26,7 @@ import com.getcapacitor.annotation.PermissionCallback;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -55,6 +56,15 @@ public class ExternalCameraPlugin extends Plugin {
     protected void handleOnResume() {
         super.handleOnResume();
         if (pendingOutputFile == null) clearStaleOutputFiles();
+    }
+
+    @PluginMethod
+    public void getCapabilities(PluginCall call) {
+        List<ResolveInfo> handlers = getCameraHandlers(new Intent(MediaStore.ACTION_IMAGE_CAPTURE));
+        JSObject response = new JSObject();
+        response.put("available", !handlers.isEmpty());
+        response.put("handlerCount", handlers.size());
+        call.resolve(response);
     }
 
     @PluginMethod

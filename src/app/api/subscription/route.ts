@@ -1,5 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { NextRequest, NextResponse } from "next/server";
 
 import { OWNER_CANONICAL_PLAN_CODE } from "@/lib/billing/owner-plans";
 
@@ -40,14 +39,9 @@ export async function PATCH(request: NextRequest) {
     const summary = await updateOwnerSubscriptionPreferences(identity, shopId, body);
     return NextResponse.json(summary);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "구독 변경 요청 형식이 올바르지 않습니다." }, { status: 400 });
+    if (error instanceof OwnerApiError) {
+      return jsonNoStore({ message: error.message }, { status: error.status });
     }
-
-    if (error instanceof OwnerBillingError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
-    }
-
-    return NextResponse.json({ message: "구독 정보를 저장하지 못했습니다." }, { status: 500 });
+    return jsonNoStore({ message: "구독 정보를 저장하지 못했습니다." }, { status: 500 });
   }
 }

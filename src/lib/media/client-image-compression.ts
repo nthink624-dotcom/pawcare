@@ -24,6 +24,11 @@ export type PetmanagerCompressedImageVariant = PetmanagerCompressedImage & {
   variantKey: MediaVariantKey;
 };
 
+export type PetmanagerImageCompressionSession = Readonly<{
+  file: File;
+  image: HTMLImageElement;
+}>;
+
 const DEFAULT_MAX_LONG_EDGE = 1600;
 const DEFAULT_QUALITY = 0.72;
 const DEFAULT_MAX_BYTES = PETMANAGER_MEDIA_MAX_COMPRESSED_UPLOAD_BYTES;
@@ -54,6 +59,18 @@ function loadImage(file: File) {
     };
     image.src = url;
   });
+}
+
+export async function createPetmanagerImageCompressionSession(
+  file: File,
+): Promise<PetmanagerImageCompressionSession> {
+  assertBrowser();
+
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Only image files can be compressed.");
+  }
+
+  return { file, image: await loadImage(file) };
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
@@ -177,6 +194,14 @@ export async function compressImageForPetmanager(
 
 export async function compressImageVariantsForPetmanager(
   file: File,
+  options: PetmanagerImageCompressionOptions = {},
+): Promise<PetmanagerCompressedImage> {
+  const session = await createPetmanagerImageCompressionSession(file);
+  return compressImageForPetmanagerFromSession(session, options);
+}
+
+export async function compressImageVariantsForPetmanagerFromSession(
+  session: PetmanagerImageCompressionSession,
   variantKeys: MediaVariantKey[] = ["thumbnail", "preview", "provider_ready"],
 ): Promise<PetmanagerCompressedImageVariant[]> {
   assertBrowser();

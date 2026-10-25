@@ -230,6 +230,7 @@ test("schedule fixes the time rail and scrolls staff headers with their boards",
   assert.match(schedule, /min-\[410px\]:grid-cols-\[52px_minmax\(0,1fr\)\]/);
   assert.match(schedule, /selected\.offsetLeft - viewport\.offsetLeft/);
   assert.match(schedule, /viewport\.scrollTo\(\{ left, behavior: "smooth" \}\)/);
+  assert.match(schedule, /selected\.offsetLeft - viewport\.offsetLeft/);
   assert.doesNotMatch(schedule, /scrollIntoView/);
   assert.match(schedule, /onPointerDown=\{beginLaneDrag\}/);
   assert.match(schedule, /onPointerMove=\{moveLaneDrag\}/);
@@ -280,6 +281,9 @@ test("reservation chips keep booking information without rendering pet profile m
   assert.match(schedule, /petNames\[appointment\.pet_id\] \?\? "반려동물"/);
   assert.match(schedule, /guardianNames\[appointment\.guardian_id\] \?\? "보호자"/);
   assert.match(schedule, /serviceNames\[appointment\.service_id\] \?\? "서비스"/);
+  assert.match(schedule, /data-booking-density=\{detailedCard \? "detailed" : "compact"\}/);
+  assert.match(schedule, /data-booking-customer-memo=\{memo \? "present" : "empty"\}/);
+  assert.match(schedule, />고객 메모<\/span>/);
 });
 
 test("date navigation renders a selectable seven-day strip with selected date and count", () => {
@@ -338,7 +342,8 @@ test("appointment geometry and card hierarchy preserve canonical contracts", () 
   assert.match(schedule, /const BOARD_BOTTOM_CLEARANCE = 72/);
   assert.match(schedule, /BOARD_HEIGHT = BOARD_TOP_PADDING \+ \(END_HOUR - START_HOUR\) \* HOUR_HEIGHT \+ BOARD_BOTTOM_CLEARANCE/);
   assert.match(schedule, /data-appointment-id=\{appointment\.id\}/);
-  assert.match(schedule, /minutes >= 75/);
+  assert.match(schedule, /const DETAILED_BOOKING_MINUTES = 90/);
+  assert.match(schedule, /const detailedCard = minutes >= DETAILED_BOOKING_MINUTES/);
   assert.match(schedule, /미용 완료/);
   assert.match(schedule, /noshow: \{ label: "노쇼"/);
   assert.match(schedule, /border-l-\[3px\]/);

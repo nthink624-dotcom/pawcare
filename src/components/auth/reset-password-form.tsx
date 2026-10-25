@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form";
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
 import { createBoundedAbortController, type BoundedAbortController } from "@/lib/auth/bounded-abort-controller";
 import { env, hasPortoneBrowserEnv } from "@/lib/env";
+import { ownerFindEmailSchema } from "@/lib/auth/owner-find-email";
 import { ownerPasswordResetSchema, type OwnerPasswordResetInput } from "@/lib/auth/owner-password-reset";
 import {
   IDENTITY_API_TIMEOUT_MS,
@@ -95,6 +96,7 @@ export default function ResetPasswordForm({
     register,
     handleSubmit,
     getValues,
+    watch,
     setValue,
     trigger,
     formState: { errors, isSubmitting },
@@ -111,7 +113,44 @@ export default function ResetPasswordForm({
     },
   });
 
+  const attemptRef = useRef(0);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const verifiedIdentityRef = useRef<string | null>(null);
+  const identitySnapshot = () => {
+    const values = getValues();
+    return JSON.stringify([values.name, values.birthDate, values.phoneNumber, values.email]);
+  };
+  useEffect(() => {
+    mountedRef.current = true;
+    const subscription = watch((_values, { name }) => {
+      if (!["name", "birthDate", "phoneNumber", "email"].includes(name ?? "")) return;
+      attemptRef.current++;
+      busyRef.current = false;
+      verifiedIdentityRef.current = null;
+      setLoading(false);
+      setVerificationToken(null);
+      setValue("identityVerificationToken", "");
+      setStep("account");
+      setMessage(null);
+    });
+    return () => { subscription.unsubscribe(); mountedRef.current = false; busyRef.current = false; };
+  }, [watch, setValue]);
+  const beginAttempt = () => {
+    if (busyRef.current) return null;
+    busyRef.current = true;
+    const id = ++attemptRef.current;
+    const snapshot = identitySnapshot();
+    setLoading(true);
+    setMessage(null);
+    return {
+      current: () => mountedRef.current && attemptRef.current === id && identitySnapshot() === snapshot,
+      finish: () => { if (mountedRef.current && attemptRef.current === id) { busyRef.current = false; setLoading(false); } },
+    };
+  };
+
   const syncVerificationToken = (token: string | null) => {
+    verifiedIdentityRef.current = token ? identitySnapshot() : null;
     setVerificationToken(token);
     setValue("identityVerificationToken", token ?? "", { shouldValidate: true });
     if (token) {
@@ -126,6 +165,8 @@ export default function ResetPasswordForm({
   }, []);
 
   const goBack = () => {
+    attemptRef.current++; busyRef.current = false; setLoading(false);
+    syncVerificationToken(null);
     setMessage(null);
     if (step === "account") {
       router.replace("/login");
@@ -251,9 +292,8 @@ export default function ResetPasswordForm({
         setStep("account");
         return;
       }
-
-      syncVerificationToken(verifyResult.verificationToken);
-      setMessage(verifyResult.message ?? "휴대폰 본인인증이 완료됐어요. 새 비밀번호를 입력해 주세요.");
+      syncVerificationToken(verified.verificationToken);
+      setMessage("본인 인증이 완료되었습니다.");
     } catch {
       if (identityAttemptIdRef.current !== identityAttemptId) return;
       setMessage(
@@ -333,6 +373,7 @@ export default function ResetPasswordForm({
 
   const firstError =
     errors.email?.message ||
+    errors.name?.message || errors.birthDate?.message || errors.phoneNumber?.message ||
     errors.password?.message ||
     errors.passwordConfirm?.message;
 
@@ -351,7 +392,6 @@ export default function ResetPasswordForm({
       <div className="relative flex h-10 items-center justify-center">
         <MobileBackButton
           onClick={goBack}
-          disabled={step === "preparing"}
           label={step === "account" ? "로그인으로 이동" : "이전 단계"}
           className="absolute left-0 h-10 w-10 border-0 bg-transparent text-[#111827] shadow-none hover:bg-[#f8fafc] disabled:pointer-events-none disabled:opacity-0"
         />
@@ -372,6 +412,11 @@ export default function ResetPasswordForm({
                   className="h-[58px] w-full rounded-[12px] border border-[#dbe5f6] bg-[#eaf1ff] px-4 text-[16px] font-medium text-[#111827] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-[#a3b4d0] focus:border-[#15213b] focus:bg-[#eef4ff] focus:shadow-[0_0_0_3px_rgba(21,33,59,0.08)]"
                 />
               </label>
+              <div className="mt-4">
+                <FieldShell label="이름"><TextInput type="text" autoComplete="name" {...register("name")} placeholder="이름" /></FieldShell>
+                <FieldShell label="생년월일"><TextInput type="text" inputMode="numeric" maxLength={8} {...register("birthDate")} placeholder="예: 19990321" /></FieldShell>
+                <FieldShell label="휴대폰 번호"><TextInput type="tel" autoComplete="tel" inputMode="numeric" maxLength={11} {...register("phoneNumber")} placeholder="숫자만 입력" /></FieldShell>
+              </div>
             </section>
           ) : null}
 

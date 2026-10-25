@@ -40,6 +40,44 @@ function jsonNoStore(body: unknown, init?: ResponseInit) {
   return NextResponse.json(body, { ...init, headers });
 }
 
+function requireRecord(value: unknown, message: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new OwnerApiError(message, 502);
+  }
+  return value as Record<string, unknown>;
+}
+
+function projectPublicBootstrap(value: unknown) {
+  const data = requireRecord(value, "정본 공개 응답을 확인해 주세요.");
+  const shop = requireRecord(data.shop, "정본 공개 매장 정보를 확인해 주세요.");
+  if (!Array.isArray(data.services) || (data.mode !== "mock" && data.mode !== "supabase")) {
+    throw new OwnerApiError("정본 공개 응답 형식을 확인해 주세요.", 502);
+  }
+
+  return {
+    mode: data.mode,
+    shop,
+    services: data.services,
+    ...(data.priceGuideCore === undefined ? {} : { priceGuideCore: data.priceGuideCore }),
+  };
+}
+
+function assertOwnerBootstrapBoundary(value: unknown, requestedShopId?: string) {
+  const data = requireRecord(value, "정본 오너 응답을 확인해 주세요.");
+  const shop = requireRecord(data.shop, "정본 오너 매장 정보를 확인해 주세요.");
+  const responseShopId = typeof shop.id === "string" ? shop.id : "";
+  if (!responseShopId || (requestedShopId && responseShopId !== requestedShopId)) {
+    throw new OwnerApiError("선택한 매장의 정본 응답이 일치하지 않습니다.", 502);
+  }
+
+  const readiness = requireRecord(
+    data.initialSetupReadiness,
+    "매장 초기 설정 상태를 확인하지 못했습니다.",
+  );
+
+  return data;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

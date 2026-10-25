@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
 
@@ -10,6 +11,8 @@ const cleanupSource = await readFile(new URL("../src/lib/price-photo/mobile-pric
 const matrixSource = await readFile(new URL("../src/lib/price-photo/mobile-price-guide-matrix.ts", import.meta.url), "utf8");
 const harnessSource = await readFile(new URL("../src/components/auth/mobile-price-guide-save-reentry-fixture.tsx", import.meta.url), "utf8");
 const pageSource = await readFile(new URL("../src/app/dev/price-guide-save-reentry/page.tsx", import.meta.url), "utf8");
+const generatedCoreSource = await readFile(new URL("../src/lib/price-photo/generated-price-guide-core.ts", import.meta.url), "utf8");
+const nodeRequire = createRequire(import.meta.url);
 
 function transpile(sourceText, requireImpl = () => ({})) {
   const output = ts.transpileModule(sourceText, {
@@ -21,7 +24,14 @@ function transpile(sourceText, requireImpl = () => ({})) {
 }
 
 const cleanupModule = transpile(cleanupSource);
-const coordinatorModule = transpile(coordinatorSource);
+const generatedCoreModule = transpile(generatedCoreSource, (specifier) => {
+  if (specifier === "zod") return nodeRequire("zod");
+  throw new Error(`unexpected core import: ${specifier}`);
+});
+const coordinatorModule = transpile(coordinatorSource, (specifier) => {
+  if (specifier === "@/lib/price-photo/generated-price-guide-core") return generatedCoreModule;
+  throw new Error(`unexpected coordinator import: ${specifier}`);
+});
 const matrixModule = transpile(matrixSource, (specifier) => {
   if (specifier === "./mobile-price-photo-adapter") return coordinatorModule;
   throw new Error(`unexpected matrix import: ${specifier}`);
@@ -31,13 +41,17 @@ const adapterModule = transpile(adapterSource, (specifier) => {
   if (specifier === "@/lib/supabase/client") return { getSupabaseBrowserClient: () => null };
   if (specifier === "./mobile-price-photo-cleanup") return cleanupModule;
   if (specifier === "./mobile-price-photo-adapter") return coordinatorModule;
+  if (specifier === "./generated-price-guide-core") return generatedCoreModule;
   throw new Error(`unexpected adapter import: ${specifier}`);
 });
-const fixtureModule = transpile(fixtureSource);
+const fixtureModule = transpile(fixtureSource, (specifier) => {
+  if (specifier === "./generated-price-guide-core") return generatedCoreModule;
+  throw new Error(`unexpected fixture import: ${specifier}`);
+});
 
 const { createMobilePricePhotoCoordinator } = coordinatorModule;
 const { createMobilePricePhotoHttpAdapter } = adapterModule;
-const { updateMobilePriceGuideCell, updateMobilePriceGuideService, readMobilePriceGuideMatrix, writeMobilePriceGuideMatrix } = matrixModule;
+const { updateMobilePriceGuideCell, readMobilePriceGuideMatrix, writeMobilePriceGuideMatrix } = matrixModule;
 const { createInMemoryAuthenticatedOwnerTransport } = fixtureModule;
 
 test("dev fixture route is unavailable in Production and renders the real matrix harness otherwise", () => {
@@ -100,8 +114,7 @@ test("canonical bootstrap edit save and remount preserve the full PriceGuideV2 d
   assert.equal(initial.document.rows[1].durationMinutes, null);
 
   transport.resetSaveCycle();
-  const renamed = updateMobilePriceGuideService(initial.document, 0, 0, "스파 목욕");
-  const edited = updateMobilePriceGuideCell(renamed, 0, 0, 0, {
+  const edited = updateMobilePriceGuideCell(initial.document, 0, 0, 0, {
     priceKind: "fixed", priceMinKrw: 31_000, priceMaxKrw: null, durationMinutes: 50,
   });
   const persisted = await createMobilePricePhotoCoordinator(adapter).saveAndRequery(edited, initial.serviceId);
@@ -111,7 +124,7 @@ test("canonical bootstrap edit save and remount preserve the full PriceGuideV2 d
   assert.equal(snapshot.counts.bootstrapGet, 1);
   assert.equal(snapshot.noStoreBootstrap, true);
   assert.deepEqual(persisted.document, transport.canonicalDocument());
-  assert.equal(persisted.document.rows[0].serviceName, "스파 목욕");
+  assert.equal(persisted.document.rows[0].serviceName, "목욕");
   assert.equal(persisted.document.rows[0].sourceItemId, "pgi_fixture_bath_2kg");
   assert.equal(persisted.document.rows[0].priceMinKrw, 31_000);
   assert.equal(persisted.document.rows[0].durationMinutes, 50);

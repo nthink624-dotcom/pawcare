@@ -1,9 +1,8 @@
-﻿import { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 
-import { hasSupabaseServerEnv } from "@/lib/server-env";
-import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import type { BillingIdentity } from "@/server/owner-billing";
 import { OwnerBillingError } from "@/server/owner-billing";
+import { OwnerApiError, requireCanonicalOwnerIdentity } from "@/server/owner-api-auth";
 
 type OwnerBillingSession = {
   identity: BillingIdentity;

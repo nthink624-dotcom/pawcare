@@ -106,6 +106,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       verificationRequestId: result.verificationRequestId,
+      ...("providerIdentityVerificationId" in result ? {
+        providerIdentityVerificationId: result.providerIdentityVerificationId,
+        verificationState: result.verificationState,
+      } : {}),
       devVerificationCode: "devVerificationCode" in result ? result.devVerificationCode ?? null : null,
       message:
         false

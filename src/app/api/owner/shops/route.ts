@@ -107,20 +107,15 @@ function toMobileNotificationSettingsReadback(settings: Partial<ShopNotification
   };
 }
 
-export async function PATCH(request: NextRequest) {
-  try {
-    const body = await request.json();
-    await requireOwnerShop(request, body?.shopId);
-    const result = await updateShopSettings(body);
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof OwnerApiError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
-    }
-
-    const message = error instanceof Error ? error.message : "매장 정보를 저장하지 못했어요.";
-    return NextResponse.json({ message }, { status: 400 });
-  }
+async function forward(request: NextRequest, method: "GET" | "PATCH", body?: unknown) {
+  const result = await requestCanonicalApi({
+    request,
+    path: "/api/owner/shops",
+    method,
+    body,
+    auth: "required",
+  });
+  return jsonNoStore(result.body, { status: result.status });
 }
 
 export async function GET(request: NextRequest) {

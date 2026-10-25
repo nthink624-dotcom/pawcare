@@ -7,6 +7,7 @@ import { addDate, currentDateInTimeZone, currentMinutesInTimeZone } from "@/lib/
 import { assignAppointmentsToStaffLanes } from "@/lib/owner-schedule-lanes";
 import { getAdjacentScheduleCardEdgeInsets } from "@/lib/owner-schedule-card-gaps";
 import { getReservationDateDisplay } from "@/lib/reservation-date-display";
+import { getAppointmentIdentityTone } from "@/lib/appointment-identity-colors";
 import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
 
 const START_HOUR = 9;
@@ -17,6 +18,7 @@ const BOARD_TOP_PADDING = 0;
 // It keeps the final label and grid edge above the fixed bottom navigation and FAB.
 const BOARD_BOTTOM_CLEARANCE = 72;
 const BOARD_HEIGHT = BOARD_TOP_PADDING + (END_HOUR - START_HOUR) * HOUR_HEIGHT + BOARD_BOTTOM_CLEARANCE;
+const CURRENT_TIME_LABEL_COLLISION_DISTANCE = 24;
 
 const STATUS_PRESENTATION: Record<Appointment["status"], { label: string; color: string; tint: string }> = {
   pending: { label: "승인 대기", color: "#b98121", tint: "#f4f6f9" },
@@ -150,6 +152,11 @@ function ScheduleLane({
         const top = BOARD_TOP_PADDING + ((start - START_HOUR * 60) / 60) * HOUR_HEIGHT;
         const height = (minutes / 60) * HOUR_HEIGHT;
         const status = STATUS_PRESENTATION[appointment.status];
+        const identityTone = getAppointmentIdentityTone(appointment.pet_id || appointment.id);
+        const completed = appointment.status === "completed";
+        const detailedCard = minutes >= DETAILED_BOOKING_MINUTES;
+        const memo = appointment.memo?.trim() ?? "";
+        const memoLabel = memo ? `고객 메모 ${memo}` : "고객 메모 없음";
         const width = 100 / collisionColumns;
         const edgeInsets = cardEdgeInsets.get(appointment.id) ?? { top: 0, bottom: 0 };
         const startLabel = appointment.appointment_time.slice(0, 5);
@@ -192,8 +199,33 @@ function ScheduleLane({
                   <span className="block truncate text-[13px] font-normal leading-5 text-[#526174]">
                     {serviceName}{appointment.memo ? ` · ${appointment.memo}` : ""}
                   </span>
-                ) : null}
-              </span>
+                  <span className="block truncate text-[14px] font-medium leading-5" style={{ color: completed ? "#64748b" : identityTone.text }}>
+                    {petNames[appointment.pet_id] ?? "반려동물"} · {guardianNames[appointment.guardian_id] ?? "보호자"}
+                  </span>
+                  <span className="block truncate text-[13px] font-normal leading-5 text-[#526174]">
+                    {serviceNames[appointment.service_id] ?? "서비스"}
+                  </span>
+                  <span className="block truncate text-[12px] font-normal leading-[18px] text-[#64748b]" title={memoLabel} aria-label={memoLabel} data-booking-customer-memo={memo ? "present" : "empty"}>
+                    <span className="font-medium text-[#475569]">고객 메모</span>{" "}{memo || "없음"}
+                  </span>
+                </span>
+              ) : (
+                <span className="flex h-full min-w-0 items-center gap-1.5">
+                  <span className="min-w-0 flex-1 truncate text-[14px] font-medium leading-5" style={{ color: completed ? "#64748b" : identityTone.text }}>
+                    {petNames[appointment.pet_id] ?? "반려동물"}
+                  </span>
+                  <span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#526174] [font-variant-numeric:tabular-nums]">
+                    {appointment.appointment_time.slice(0, 5)}
+                  </span>
+                  <span
+                    data-testid="appointment-status-badge"
+                    className="shrink-0 rounded-full border px-1.5 text-[11px] font-medium leading-[18px]"
+                    style={{ color: status.color, backgroundColor: status.badgeBackground, borderColor: status.badgeBorder }}
+                  >
+                    {status.compactLabel}
+                  </span>
+                </span>
+              )}
             </span>
           </button>
         );
@@ -345,13 +377,16 @@ export default function OwnerBookingDaySchedule(props: Props) {
           <div className="sticky left-0 z-30 border-r border-[#e8edf3] bg-white">
             <div data-testid="time-header" aria-hidden="true" className="h-[72px] border-b border-[#e8edf3] bg-white" />
             <div data-testid="time-rail" className="relative bg-white" style={{ height: BOARD_HEIGHT }}>
-              {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, index) => (
-                <span key={index} className="absolute inset-x-0 top-0 flex -translate-y-1/2 justify-center whitespace-nowrap text-[13px] font-medium leading-5 text-[#526174] [font-variant-numeric:tabular-nums]" style={{ top: BOARD_TOP_PADDING + index * HOUR_HEIGHT }}>{formatClock(START_HOUR + index)}</span>
-              ))}
+              {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, index) => {
+                const hourTop = BOARD_TOP_PADDING + index * HOUR_HEIGHT;
+                return (
+                  <span key={index} className="absolute inset-x-0 top-0 flex -translate-y-1/2 justify-center whitespace-nowrap text-[13px] font-medium leading-5 text-[#526174] [font-variant-numeric:tabular-nums]" style={{ top: hourTop, visibility: showNow && currentTimeBadgeOverlapsHourLabel(nowTop, hourTop) ? "hidden" : undefined }}>{formatClock(START_HOUR + index)}</span>
+                );
+              })}
               {showNow ? (
-                <span data-testid="current-time-marker" className="absolute inset-x-0 z-20" style={{ top: nowTop }} aria-label={`현재 시간 ${formatMinutes(nowMinutes)}`}>
-                  <span data-testid="current-time-line" className="absolute inset-x-0 top-0 h-px bg-[#2563eb]" />
-                  <span data-testid="current-time-label" className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap bg-white px-0.5 text-[13px] font-medium leading-5 text-[#2563eb] [font-variant-numeric:tabular-nums]">{formatMinutes(nowMinutes)}</span>
+                <span data-testid="current-time-marker" className="absolute inset-x-0 z-20 flex -translate-y-1/2 items-center" style={{ top: nowTop }} aria-label={`현재 시간 ${formatMinutes(nowMinutes)}`}>
+                  <span data-testid="current-time-label" className="relative z-10 inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-full bg-[#2f5fb3] px-1.5 text-[13px] font-medium leading-5 text-white [font-variant-numeric:tabular-nums]">{formatMinutes(nowMinutes)}</span>
+                  <span data-testid="current-time-line" className="h-px min-w-0 flex-1 bg-[#2f5fb3]" />
                 </span>
               ) : null}
             </div>

@@ -124,7 +124,7 @@ export default function AdminResetPasswordForm() {
           type="button"
           onClick={() => void handleSubmit()}
           disabled={submitting || !canSubmit}
-          className="mt-6 flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[#0e8c6d] px-5 text-[18px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-6 flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[#0e8c6d] px-5 text-[18px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? "재설정 중..." : "비밀번호 재설정"}
         </button>

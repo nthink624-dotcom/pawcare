@@ -5,6 +5,7 @@ import test from "node:test";
 const settings = await readFile(new URL("../src/components/owner/owner-settings-panel.tsx", import.meta.url), "utf8");
 const fixture = await readFile(new URL("../src/components/auth/mobile-ai-price-guide-fixture.tsx", import.meta.url), "utf8");
 const matrix = await readFile(new URL("../src/components/auth/mobile-price-guide-matrix.tsx", import.meta.url), "utf8");
+const extras = await readFile(new URL("../src/components/auth/mobile-price-guide-extras.tsx", import.meta.url), "utf8");
 const matrixReducer = await readFile(new URL("../src/lib/price-photo/mobile-price-guide-matrix.ts", import.meta.url), "utf8");
 const httpAdapter = await readFile(new URL("../src/lib/price-photo/mobile-price-photo-http-adapter.ts", import.meta.url), "utf8");
 const photoSheet = await readFile(new URL("../src/components/owner/owner-external-photo-sheet.tsx", import.meta.url), "utf8");
@@ -22,33 +23,24 @@ test("owner settings exposes one local service price management entry", () => {
   assert.doesNotMatch(settings, /fetch\([^)]*(?:price|photo|media)/i);
 });
 
-test("camera click explains the privacy gate before dispatching rear camera capture", () => {
-  const chooseSurface = fixture.slice(fixture.indexOf('{mode === "choose"'), fixture.indexOf('{mode === "consent"'));
+test("service price settings offers camera, gallery, and direct entry immediately", () => {
+  const methodSurface = fixture.slice(fixture.indexOf('{mode === "method"'), fixture.indexOf('{mode === "consent"'));
   assert.match(fixture, /<ArrowLeft[^>]*aria-hidden="true"/);
-  assert.match(chooseSurface, /aria-label="서비스 요금 설정으로 돌아가기"/);
-  assert.match(chooseSurface, /className="[^"]*min-h-11[^"]*whitespace-nowrap[^"]*"/);
-  assert.match(chooseSurface, /<ArrowLeft[^>]*aria-hidden="true"[^>]*\/>서비스 요금 설정<\/button>/);
-  assert.match(chooseSurface, /onClick=\{requestExit\}/);
-  assert.match(chooseSurface, /<header[^>]*className="[^"]*fixed[^"]*top-0[^"]*bg-white[^"]*"[^>]*data-price-photo-app-bar>/);
-  assert.match(chooseSurface, /pt-\[env\(safe-area-inset-top\)\]/);
-  assert.match(chooseSurface, /<section[^>]*className="[^"]*bg-white[^"]*p-4[^"]*"[^>]*data-price-photo-registration-content>/);
-  assert.ok(chooseSurface.indexOf("data-price-photo-app-bar") < chooseSurface.indexOf("data-price-photo-registration-content"));
-  const registrationContent = chooseSurface.slice(chooseSurface.indexOf("data-price-photo-registration-content"));
-  assert.doesNotMatch(registrationContent, /서비스 요금 설정으로 돌아가기|>서비스 요금 설정<\/button>/);
-  assert.match(chooseSurface, />사진으로 요금표 등록<\/h2>/);
-  assert.doesNotMatch(chooseSurface, /뒤로가기|서비스 요금표|사진으로 요금표를 불러오세요/);
+  assert.match(methodSurface, /rounded-\[16px\] border border-slate-200 bg-white/);
+  assert.doesNotMatch(methodSurface, />서비스 요금 설정<\/h2>/);
+  assert.match(methodSurface, /사진으로 요금표 등록/);
+  assert.match(methodSurface, /앨범에서 선택/);
+  assert.match(methodSurface, />직접 입력<\/button>/);
+  assert.match(methodSurface, /onClick=\{\(\) => void openCamera\(\)\}/);
+  assert.match(methodSurface, /onClick=\{\(\) => fileInputRef\.current\?\.click\(\)\}/);
+  assert.match(methodSurface, /onClick=\{startManual\}/);
+  assert.match(fixture, /const selectionMode: Extract<Mode, "method" \| "choose"> = shopId \? "method" : "choose"/);
   assert.match(fixture, /capture="environment"/);
   assert.match(fixture, /canUseExternalCameraApps\(\)/);
   assert.match(fixture, /captureWithAndroidCameraApp\("default"\)/);
-  assert.match(fixture, /onClick=\{\(\) => void openCamera\(\)\}/);
-  assert.match(chooseSurface, /사진에 개인정보가 없어요/);
-  assert.doesNotMatch(chooseSurface, /고객 이름|전화번호/);
-  assert.match(fixture, /if \(!privacyConfirmed\) \{/);
-  assert.match(fixture, /privacyInputRef\.current\?\.focus\(\)/);
-  assert.match(fixture, /먼저 사진에 개인정보가 없는지 확인해 주세요/);
   assert.match(fixture, /disabled=\{openingCamera\}/);
-  assert.doesNotMatch(fixture, /disabled=\{!privacyConfirmed \|\| openingCamera\}/);
-  assert.doesNotMatch(chooseSurface, /사진 없이 직접 입력|startManual/);
+  assert.match(fixture, /원본 사진에 고객 이름, 전화번호 등 개인정보가 보이지 않는지 다시 확인/);
+  assert.match(fixture, /요금표 등록 방식으로 돌아가기/);
 });
 
 test("development registration preview mounts the real no-call surface and is unreachable in production", () => {
@@ -65,7 +57,7 @@ test("gallery remains a separate no-capture input path", () => {
   assert.match(fixture, /ref=\{cameraInputRef\}[\s\S]*?capture="environment"[\s\S]*?tabIndex=\{-1\}[\s\S]*?aria-hidden="true"[\s\S]*?className="sr-only"/);
   assert.match(fixture, /ref=\{fileInputRef\}[\s\S]*?tabIndex=\{-1\}[\s\S]*?aria-hidden="true"[\s\S]*?className="sr-only"/);
   assert.match(fixture, /onClick=\{\(\) => fileInputRef\.current\?\.click\(\)\}/);
-  assert.match(fixture, /카메라로 촬영/);
+  assert.match(fixture, /사진으로 요금표 등록/);
   assert.match(fixture, /앨범에서 선택/);
 });
 
@@ -112,7 +104,6 @@ test("service price surfaces remove duplicate helper copy without weakening cons
   ]) assert.doesNotMatch(fixture, new RegExp(copy));
   assert.doesNotMatch(matrix, /평균 시간이 비어 있으면 직접 입력해 주세요/);
   assert.doesNotMatch(fixture, /min-h-16/);
-  assert.match(fixture, /사진에 개인정보가 없어요/);
   assert.match(fixture, /비식별 파생 이미지를 OpenAI로 전송/);
   assert.match(fixture, /원본 사진에 고객 이름, 전화번호 등 개인정보가 보이지 않는지 다시 확인/);
   assert.match(fixture, /role="alert"/);
@@ -146,8 +137,22 @@ test("canonical requery state keeps the full document and persisted identity acr
 });
 
 test("price and duration are independent matrix cells with canonical bounds", () => {
+  assert.match(matrix, /PRICE_GUIDE_UI_HARD_CONTRACT: 16\/24 only; price left \+ duration right on one nowrap row/);
   assert.match(matrix, /data-mobile-price-cell/);
   assert.match(matrix, /data-mobile-price-duration-cell/);
+  assert.match(matrix, /data-mobile-price-left-time-right/);
+  assert.match(matrix, /data-price-side="left"/);
+  assert.match(matrix, /data-duration-side="right"/);
+  assert.match(matrix, /data-mobile-price-guide-service-subheaders/);
+  assert.match(matrix, /text-\[16px\] font-medium leading-6 tabular-nums/);
+  assert.match(matrix, /truncate whitespace-nowrap/);
+  assert.match(matrix, /min-w-0 whitespace-nowrap border-l/);
+  assert.match(matrix, /items-center[^\n]*text-\[16px\] font-medium leading-6[^\n]*data-mobile-price-guide-service-subheaders/);
+  assert.match(matrix, /className="sr-only">가격/);
+  assert.match(matrix, /className="sr-only">예상시간/);
+  assert.doesNotMatch(matrix, /text-\[(?:11|12|14)px\]/);
+  assert.match(matrix, /if \(row\.priceMinKrw === null\) return "미정"/);
+  assert.match(matrix, /row\.durationMinutes === null \? "미정"/);
   assert.match(matrix, /inputMode="numeric"/);
   assert.match(matrix, /MAX_SERVICE_PRICE_KRW/);
   assert.match(matrix, /min=\{1\}[\s\S]*?max=\{1440\}/);
@@ -156,18 +161,24 @@ test("price and duration are independent matrix cells with canonical bounds", ()
   assert.doesNotMatch(fixture, /가격 방식|priceKind.*select/);
 });
 
-test("one canonical matrix owns group, breed, weight, service, price and duration edits", () => {
+test("one canonical matrix owns dynamic service, group, breed, weight, price and duration edits", () => {
   assert.match(matrixReducer, /updateMobilePriceGuideGroup/);
-  assert.match(matrixReducer, /updateMobilePriceGuideService/);
   assert.match(matrixReducer, /updateMobilePriceGuideWeightBand/);
   assert.match(matrixReducer, /updateMobilePriceGuideCell/);
-  assert.match(matrixReducer, /addMobilePriceGuideService/);
-  assert.match(matrixReducer, /removeMobilePriceGuideService/);
   assert.match(matrixReducer, /addMobilePriceGuideWeightBand/);
   assert.match(matrixReducer, /removeMobilePriceGuideWeightBand/);
   assert.match(matrixReducer, /addMobilePriceGuideGroup/);
   assert.match(matrixReducer, /removeMobilePriceGuideGroup/);
   assert.match(matrix, /overflow-x-auto/);
+  assert.match(matrix, /updateMobilePriceGuideService/);
+  assert.match(matrix, /addMobilePriceGuideService/);
+  assert.match(matrix, /removeMobilePriceGuideService/);
+  assert.match(matrix, /data-mobile-custom-breed/);
+  assert.match(matrix, /customBreedMode \? "기타 품종명" : "추가할 품종"/);
+  assert.match(matrix, /customBreedMode \? "원하는 품종 입력" : "품종 검색 또는 입력"/);
+  assert.match(matrix, /min-w-\[72px\] whitespace-nowrap !text-\[16px\] !leading-6/);
+  assert.match(matrix, /className=\{`\$\{actionClass\} !text-\[16px\] !leading-6`\}/);
+  assert.doesNotMatch(matrix, /다른 분류에 배정된 품종은 목록에 나오지 않습니다/);
   assert.match(fixture, /mx-auto w-full min-w-0 max-w-\[430px\][^>]*style=\{reviewContentStyle\}/);
 });
 
@@ -175,10 +186,14 @@ test("the document stays shrinkable while the matrix contains its accessible lab
   assert.match(matrix, /className="min-w-0 max-w-full space-y-5" data-mobile-price-guide-matrix/);
   assert.match(matrix, /className="min-w-0 max-w-full overflow-hidden rounded-\[14px\]/);
   assert.match(matrix, /className="relative w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain" data-mobile-price-guide-matrix-scroll/);
-  assert.match(matrix, /<span className="sr-only">서비스 이름<\/span>/);
-  assert.match(matrix, /<span className="sr-only">체급<\/span>/);
-  assert.match(matrix, /<span className="sr-only">가격<\/span>/);
-  assert.match(matrix, /<span className="sr-only">평균 시간\(분\)<\/span>/);
+  assert.match(matrix, /이름 수정/);
+  assert.match(matrix, />몸무게<\/th>/);
+  assert.match(matrix, />가격<\/span>/);
+  assert.match(matrix, />예상시간<\/span>/);
+  assert.match(matrix, /<MobilePriceGuideExtras document=\{document\} onChange=\{onChange\}/);
+  assert.match(extras, /data-mobile-price-guide-extras/);
+  assert.match(extras, /추가 서비스·요금/);
+  assert.match(extras, /amountKrw/);
   assert.match(fixture, /mx-auto w-full min-w-0 max-w-\[430px\][^>]*style=\{reviewContentStyle\}/);
   assert.match(fixture, /min-w-0 max-w-full space-y-4 px-4 pt-2/);
   assert.doesNotMatch(matrix, /data-mobile-price-guide-matrix[^>]*(?:overflow-x-hidden|overflow-x-clip)/);

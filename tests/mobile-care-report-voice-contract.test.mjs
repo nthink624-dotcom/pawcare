@@ -101,10 +101,14 @@ test("voice transcript stays in the visible draft until the owner explicitly act
 
 test("care-report editor preserves the compact composer and uses one editable reportText plane", () => {
   const scrollRegionStart = careReport.indexOf('<div data-testid="care-report-scroll-region"');
+  const footerStart = careReport.indexOf('<footer data-testid="care-report-footer-unified"');
   const composerStart = careReport.indexOf('<section data-testid="care-report-composer"');
-  const editorSurface = careReport.slice(scrollRegionStart, composerStart);
+  const editorSurface = careReport.slice(scrollRegionStart, footerStart);
+  const footerSurface = careReport.slice(footerStart, careReport.indexOf("</footer>", footerStart));
   const composerSurface = careReport.slice(composerStart, careReport.indexOf("</section>", composerStart));
   const generationFlow = careReport.slice(careReport.indexOf("async function generate"), careReport.indexOf("function requestClose"));
+  assert.ok(scrollRegionStart >= 0 && scrollRegionStart < footerStart);
+  assert.ok(footerStart >= 0 && footerStart < composerStart);
   assert.match(careReport, /max-w-\[430px\] flex-col overflow-hidden bg-white/);
   assert.match(careReport, /role="region" aria-label="케어리포트 내용" tabIndex=\{0\} className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 \[scrollbar-width:none\] \[-ms-overflow-style:none\] \[&::-webkit-scrollbar\]:hidden/);
   assert.match(careReport, /data-testid="care-report-summary" className="divide-y divide-\[#e8edf3\]"/);
@@ -169,8 +173,17 @@ test("care-report editor preserves the compact composer and uses one editable re
   assert.match(careReport, /임시저장/);
   assert.equal([...editorSurface.matchAll(/aria-label="케어리포트 초안"/g)].length, 1);
   assert.match(editorSurface, /value=\{report\.reportText\}/);
-  assert.match(editorSurface, /setReport\(\{ reportText: event\.target\.value\.slice\(0, 4000\) \}\)/);
-  assert.doesNotMatch(editorSurface, /디자이너의 한마디|시술 내용|피부·피모 상태|미용 반응|홈케어 팁|다음 방문/);
+  assert.match(editorSurface, /직접 수정/);
+  assert.match(editorSurface, /다시 정리/);
+  assert.doesNotMatch(editorSurface, /이대로 보내기/);
+  assert.match(footerSurface, /이대로 보내기/);
+  assert.match(footerSurface, /임시저장/);
+  assert.match(composerSurface, /<textarea ref=\{composerTextareaRef\}/);
+  assert.match(composerSurface, /placeholder=\{report \? "수정할 부분을 적어 주세요" : "오늘 미용 내용을 적어 주세요"\}/);
+  assert.match(careReport, /aria-label=\{recording \? "음성 입력 중지" : "음성 입력 시작"\}/);
+  assert.match(careReport, /aria-label="케어리포트 만들기"/);
+  assert.match(careReport, /disabled=\{isPublished \|\| action !== null \|\| !hasComposerInput\}/);
+  assert.match(careReport, /if \(generationInFlightRef\.current\) return;/);
   assert.match(generationFlow, /currentReportText: report\.reportText, revisionRequest: revisionText/);
   assert.match(generationFlow, /sourceText: input, photoConsent/);
   assert.match(generationFlow, /setReport\(\{ reportText: result\.reportText \}\)/);

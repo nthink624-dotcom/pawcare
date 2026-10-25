@@ -3,10 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import MobilePriceGuideMatrix from "@/components/auth/mobile-price-guide-matrix";
-import {
-  updateMobilePriceGuideCell,
-  updateMobilePriceGuideService,
-} from "@/lib/price-photo/mobile-price-guide-matrix";
+import { updateMobilePriceGuideCell } from "@/lib/price-photo/mobile-price-guide-matrix";
 import { createMobilePricePhotoCoordinator, type MobilePriceGuideV2 } from "@/lib/price-photo/mobile-price-photo-adapter";
 import { createMobilePricePhotoHttpAdapter } from "@/lib/price-photo/mobile-price-photo-http-adapter";
 import {
@@ -69,8 +66,7 @@ export default function MobilePriceGuideSaveReentryFixture() {
 
   const applyFixtureEdit = () => {
     if (!document) return;
-    const renamed = updateMobilePriceGuideService(document, 0, 0, "스파 목욕");
-    const edited = updateMobilePriceGuideCell(renamed, 0, 0, 0, {
+    const edited = updateMobilePriceGuideCell(document, 0, 0, 0, {
       priceKind: "fixed",
       priceMinKrw: 31_000,
       priceMaxKrw: null,
@@ -79,7 +75,7 @@ export default function MobilePriceGuideSaveReentryFixture() {
     setDocument(edited);
     setStatus("edited");
     setReentryEqual(false);
-    setMessage("서비스명·가격·시간을 local draft에서만 바꿨어요.");
+    setMessage("가격·시간을 local draft에서만 바꿨어요.");
   };
 
   const saveAndRemount = async () => {

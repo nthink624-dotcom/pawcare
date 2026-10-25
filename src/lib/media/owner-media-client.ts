@@ -382,9 +382,9 @@ async function createProviderReadyVariant(
       width: variant.width,
       height: variant.height,
     }),
-  });
+  );
 
-  await uploadCompressedFile({
+  await traceOwnerMediaStep("upload-provider-ready", () => uploadCompressedFile({
     bucket: intent.upload.bucket,
     path: intent.upload.path,
     signedUrl: intent.upload.signedUrl,
@@ -392,20 +392,23 @@ async function createProviderReadyVariant(
     method: intent.upload.method,
     headers: intent.upload.headers,
     file: variant.file,
-  });
+  }));
 
-  const result = await fetchApiJsonWithAuth<VariantCompleteResponse>("/api/owner/media/variants/complete", {
-    method: "POST",
-    body: JSON.stringify({
-      shopId: context.shopId,
-      mediaAssetId,
-      variantKey: variant.variantKey,
-      contentType: variant.file.type,
-      byteSize: variant.file.size,
-      width: variant.width,
-      height: variant.height,
+  const result = await traceOwnerMediaStep(
+    "complete-provider-ready",
+    () => fetchApiJsonWithAuth<VariantCompleteResponse>("/api/owner/media/variants/complete", {
+      method: "POST",
+      body: JSON.stringify({
+        shopId: context.shopId,
+        mediaAssetId,
+        variantKey: variant.variantKey,
+        contentType: variant.file.type,
+        byteSize: variant.file.size,
+        width: variant.width,
+        height: variant.height,
+      }),
     }),
-  });
+  );
 
   return result.variant;
 }

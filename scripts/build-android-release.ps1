@@ -416,6 +416,9 @@ $verification = $null
 
 try {
   $env:CAPACITOR_SERVER_URL = $serverUrl
+  $env:CAPACITOR_BUILD_MODE = "release"
+  $env:NEXT_PUBLIC_SITE_URL = $productionOrigin
+  $env:NEXT_PUBLIC_API_BASE_URL = $apiBaseUrl
   $env:JAVA_HOME = $javaHome
   $env:ANDROID_HOME = $sdkRoot
   $env:PETMANAGER_ANDROID_VERSION_CODE = $versionCodeValue.ToString()
@@ -434,6 +437,15 @@ try {
     $bundleBackup = Join-Path ([IO.Path]::GetTempPath()) "petmanager-app-release-$([Guid]::NewGuid().ToString('N')).aab"
     Move-Item -LiteralPath $gradleBundle -Destination $bundleBackup
   }
+  if (-not (Test-Path -LiteralPath $apk)) {
+    throw "설치 확인용 출시 APK 파일이 생성되지 않았습니다."
+  }
+
+  & $endpointCheck -ExpectedServerUrl $serverUrl -ExpectedApiBaseUrl $apiBaseUrl -BundlePath $bundle -SkipLiveCheck
+  if ($LASTEXITCODE -ne 0) { throw "출시 AAB 내부 endpoint 검사에 실패했습니다." }
+
+  & $endpointCheck -ExpectedServerUrl $serverUrl -ExpectedApiBaseUrl $apiBaseUrl -BundlePath $bundle
+  if ($LASTEXITCODE -ne 0) { throw "운영 endpoint live 검사에 실패했습니다." }
 
   Invoke-TimedStage -Name "bundle_release" -Action {
     Push-Location (Join-Path $projectRoot "android")

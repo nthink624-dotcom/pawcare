@@ -211,8 +211,8 @@ export async function POST(request: NextRequest) {
 
       result.message = toKoreanPortoneIdentityMessage(result.message);
       return NextResponse.json(
-        { message: result.message ?? "본인확인 결과를 조회하지 못했습니다." },
-        { status: verificationResponse.ok ? 400 : verificationResponse.status || 400 },
+        { code: "IDENTITY_PROVIDER_UNAVAILABLE", message: "본인확인 결과를 확인하지 못했습니다. 인증 창을 닫고 다시 시도해 주세요." },
+        { status: 502 },
       );
     }
 
@@ -239,18 +239,10 @@ export async function POST(request: NextRequest) {
       message: "본인 확인이 완료되었습니다.",
     });
   } catch (error) {
-    if (!(error instanceof z.ZodError) && error instanceof Error) {
-      const mappedMessage = toKoreanPortoneIdentityMessage(error.message);
-      if (mappedMessage && mappedMessage !== error.message) {
-        return NextResponse.json({ message: mappedMessage }, { status: 400 });
-      }
-    }
-
     if (error instanceof z.ZodError) {
       return NextResponse.json({ message: "본인인증 요청 정보를 다시 확인해 주세요." }, { status: 400 });
     }
 
-    const message = error instanceof Error ? error.message : "본인확인 처리 중 문제가 발생했습니다.";
-    return NextResponse.json({ message }, { status: 400 });
+    return NextResponse.json({ code: "IDENTITY_VERIFY_FAILED", message: "본인확인 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
   }
 }

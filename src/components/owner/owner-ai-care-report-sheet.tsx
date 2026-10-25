@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowUp, Camera, Check, ImagePlus, LoaderCircle, Mic, Pause, Send, X } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -228,6 +229,7 @@ export default function OwnerAiCareReportSheet({
   const exitHistoryActiveRef = useRef(false);
   const exitAfterHistoryRef = useRef<"dismiss" | "close" | null>(null);
   const reminderHistoryActiveRef = useRef(false);
+  const viewportBaselineHeightRef = useRef(0);
   const initialRecoveredDraftRef = useRef(initialData?.recoveredDraft ?? null);
   const [items, setItems] = useState<MediaAssetListItem[]>(initialData?.items ?? []);
   const [selectedIds, setSelectedIds] = useState<Partial<Record<CareReportPhotoKind, string>>>(initialData?.selectedIds ?? {});
@@ -287,7 +289,7 @@ export default function OwnerAiCareReportSheet({
     syncHeight();
     window.addEventListener("resize", syncHeight);
     return () => window.removeEventListener("resize", syncHeight);
-  }, [report?.reportText]);
+  }, [isReportEditing, report?.reportText]);
 
   useEffect(() => {
     const syncHeight = () => resizeTextarea(composerTextareaRef.current, 84, 144);
@@ -295,6 +297,42 @@ export default function OwnerAiCareReportSheet({
     window.addEventListener("resize", syncHeight);
     return () => window.removeEventListener("resize", syncHeight);
   }, [composerText]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const syncViewport = () => {
+      const height = viewport?.height ?? window.innerHeight;
+      const offsetTop = viewport?.offsetTop ?? 0;
+      const activeElement = document.activeElement;
+      const isTextInput = activeElement instanceof HTMLTextAreaElement || activeElement instanceof HTMLInputElement;
+      if (!isTextInput) viewportBaselineHeightRef.current = Math.max(window.innerHeight, height + offsetTop);
+      if (!viewportBaselineHeightRef.current) viewportBaselineHeightRef.current = Math.max(window.innerHeight, height + offsetTop);
+      const keyboardOpen = isTextInput && viewportBaselineHeightRef.current - (height + offsetTop) > 120;
+      setVisualViewport({ height, offsetTop });
+      setIsKeyboardOpen(keyboardOpen);
+    };
+    const syncAfterFocusChange = () => requestAnimationFrame(syncViewport);
+    syncViewport();
+    viewport?.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    document.addEventListener("focusin", syncAfterFocusChange);
+    document.addEventListener("focusout", syncAfterFocusChange);
+    return () => {
+      viewport?.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      document.removeEventListener("focusin", syncAfterFocusChange);
+      document.removeEventListener("focusout", syncAfterFocusChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isKeyboardOpen) return;
+    const activeElement = document.activeElement;
+    if (!(activeElement instanceof HTMLElement)) return;
+    requestAnimationFrame(() => activeElement.scrollIntoView({ block: "center" }));
+  }, [isKeyboardOpen, visualViewport?.height]);
 
   useEffect(() => {
     if (!showExitConfirm) return;
@@ -832,11 +870,11 @@ export default function OwnerAiCareReportSheet({
           <section className="flex min-w-0 flex-wrap items-end justify-between gap-3 py-3" aria-label="예약 정보">
             <div className="min-w-0"><p className="text-[13px] leading-5 text-[#64748b]">예약 서비스</p><p className="truncate text-[16px] font-medium leading-6 text-[#20344c]">{selectedService?.name ?? "서비스 확인 필요"}</p></div>
             <div><p className="text-[13px] leading-5 text-[#64748b]">오늘 몸무게</p><p className="text-[16px] font-medium leading-6 tabular-nums text-[#20344c]">{visitWeightKg === null ? "미입력" : `${visitWeightKg}kg`}</p></div>
-            <button type="button" onClick={onReturnToDetail} className="min-h-11 shrink-0 rounded-[10px] border border-[#2f6fd6] bg-white px-3 text-[16px] font-medium leading-6 text-[#2f6fd6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">예약 정보 수정</button>
+            <button type="button" onClick={onReturnToDetail} aria-label="예약 정보 수정" className="min-h-11 shrink-0 rounded-[10px] border border-[#cbddec] bg-white px-4 text-[16px] font-medium leading-6 text-[#2f6fd6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">수정</button>
           </section>
-          <button data-testid="care-report-revisit-row" type="button" onClick={openReminderSettings} aria-haspopup="dialog" className="flex min-h-11 w-full items-center justify-between gap-3 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">
-            <span className="text-[16px] font-medium leading-6 text-[#526b84]">재예약 알림 설정</span>
-            <span className="min-w-0 text-right text-[14px] font-normal leading-5 text-[#64748b]">{nextDate ? `${reminderDaysBetween(today, nextDate)}일 후` : `매장 기본값 · ${defaultReminderDays}일 후`}</span>
+          <button data-testid="care-report-revisit-row" type="button" onClick={openReminderSettings} aria-haspopup="dialog" style={{ fontWeight: 400 }} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-b-[14px] border-x border-b border-[#e8edf3] bg-white px-3 py-0 text-left font-normal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">
+            <span className="text-[16px] font-normal leading-6 text-[#526b84]">재예약 알림 설정</span>
+            <span className="min-w-0 text-right text-[16px] font-normal leading-6 text-[#64748b]">{nextDate ? `${reminderDaysBetween(today, nextDate)}일 후` : `매장 기본값 · ${defaultReminderDays}일 후`} <span aria-hidden="true" className="text-[#a5b1bf]">›</span></span>
           </button>
           </div>
 

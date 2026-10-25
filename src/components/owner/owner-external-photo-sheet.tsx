@@ -28,7 +28,7 @@ const FOCUSABLE_SELECTOR = [
 export default function OwnerExternalPhotoSheet({
   action,
   busy,
-  canUseCameraApps,
+  cameraAppsAvailability,
   previewFile,
   recoveredPreview = false,
   allowSkip = true,
@@ -41,7 +41,7 @@ export default function OwnerExternalPhotoSheet({
 }: {
   action: PhotoAction;
   busy: boolean;
-  canUseCameraApps: boolean;
+  cameraAppsAvailability: ExternalCameraAppsAvailability;
   previewFile: File | null;
   recoveredPreview?: boolean;
   allowSkip?: boolean;
@@ -163,7 +163,7 @@ export default function OwnerExternalPhotoSheet({
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
-        </header>
+        </div>
 
         {isPreviewing ? (
           <div className="px-5 pb-[calc(env(safe-area-inset-bottom)+20px)]">
@@ -200,7 +200,26 @@ export default function OwnerExternalPhotoSheet({
             <input ref={libraryInputRef} id={libraryInputId} type="file" accept="image/*" tabIndex={-1} aria-hidden="true" className="sr-only" disabled={busy} onChange={(event) => chooseFile(event.target.files?.[0], event.currentTarget)} />
             <input ref={fallbackCameraInputRef} id={fallbackCameraInputId} type="file" accept="image/*" capture="environment" tabIndex={-1} aria-hidden="true" className="sr-only" disabled={busy} onChange={(event) => chooseFile(event.target.files?.[0], event.currentTarget)} />
 
-            {canUseCameraApps ? (
+            <button
+              type="button"
+              disabled={busy || cameraAppsAvailability === "checking"}
+              onClick={openDefaultCamera}
+              className="flex min-h-[72px] w-full items-center gap-3 rounded-[18px] border border-[#a9c8f4] bg-[#eaf3ff] px-4 py-3 text-left shadow-[0_8px_18px_rgba(62,125,210,0.12)] transition active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-55"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#286bd1] text-white shadow-[0_5px_11px_rgba(40,107,209,0.24)]"><Camera className="h-5 w-5" /></span>
+              <span className="min-w-0 flex-1 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#1b457c]">기본 카메라로 촬영</span>
+            </button>
+
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={busy || cameraAppsAvailability === "checking"}
+                onClick={openCameraAppChooser}
+                className="flex min-h-[64px] items-center gap-2.5 rounded-[16px] border border-[#e0e6ef] bg-white px-3 text-left active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#f0edfb] text-[#6751aa]"><Camera className="h-[18px] w-[18px]" /></span>
+                <span className="text-[16px] font-medium leading-6 text-[#3b3157]">다른 카메라 앱</span>
+              </button>
               <button
                 type="button"
                 disabled={controlsDisabled || chooserUnavailable}

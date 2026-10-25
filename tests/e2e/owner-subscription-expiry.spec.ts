@@ -11,8 +11,18 @@ async function seedOwnerAccessToken(page: Page) {
   });
 }
 
+function trackRuntimeErrors(page: Page) {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  return errors;
+}
+
 test("expired owners see the renewal screen from a protected owner route", async ({ page }) => {
   let bootstrapRequestCount = 0;
+  const runtimeErrors = trackRuntimeErrors(page);
 
   await seedOwnerAccessToken(page);
 
@@ -46,10 +56,22 @@ test("expired owners see the renewal screen from a protected owner route", async
     /\/owner\/billing\?.*notice=expired/,
   );
   expect(bootstrapRequestCount).toBe(0);
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.getByRole("heading", { name: /서비스 이용 기간이\s*종료되었습니다/ })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  }
+  expect(runtimeErrors).toEqual([]);
 });
 
 test("active owners continue to the requested owner route", async ({ page }) => {
   let bootstrapRequestCount = 0;
+  const runtimeErrors = trackRuntimeErrors(page);
 
   await seedOwnerAccessToken(page);
 
@@ -82,7 +104,18 @@ test("active owners continue to the requested owner route", async ({ page }) => 
   await page.goto("/owner/alimtalk-credits");
 
   await expect(
-    page.getByRole("heading", { name: "필요한 만큼 구매하는 알림톡 추가 발송 이용권" }),
+    page.getByRole("heading", { name: "추가 발송 이용권 판매가 종료되었습니다" }),
   ).toBeVisible();
-  expect(bootstrapRequestCount).toBe(1);
+  expect(bootstrapRequestCount).toBe(0);
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.getByRole("heading", { name: "추가 발송 이용권 판매가 종료되었습니다" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  }
+  expect(runtimeErrors).toEqual([]);
 });

@@ -39,7 +39,7 @@ export default function AppError({
           </a>
           <button
             type="button"
-            onClick={reset}
+            onClick={() => { reset(); router.refresh(); }}
             className="h-11 rounded-[8px] bg-[#111827] text-[14px] font-semibold text-white hover:bg-[#1f2937]"
           >
             다시 불러오기

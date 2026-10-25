@@ -1,6 +1,8 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { OWNER_CANONICAL_PLAN_CODE } from "@/lib/billing/owner-plans";
+
 import {
   getOwnerSubscriptionSummary,
   OwnerBillingError,

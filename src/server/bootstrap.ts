@@ -17,6 +17,8 @@ import { isStaffProfileFallbackKey } from "@/lib/staff-profile-fallback";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime } from "@/lib/utils";
 import { getMockStore } from "@/server/mock-store";
+import { isLandingDemoShopId } from "@/lib/development-demo";
+import { buildLandingDemoBootstrap } from "@/server/landing-demo-bootstrap";
 import { getOwnerMediaSignedUrls } from "@/server/media-service";
 import { getOwnerPilotCohortProjection } from "@/server/owner-pilot-cohort";
 import { loadLatestCompletedPetDisplayPhotos } from "@/server/latest-pet-display-photo";
@@ -445,6 +447,10 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
 
   if (shopId === "demo-shop") {
     return buildMockBootstrap(shopId);
+  }
+
+  if (isLandingDemoShopId(shopId)) {
+    return buildLandingDemoBootstrap();
   }
 
   if (!hasSupabaseServerEnv()) {

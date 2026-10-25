@@ -8,7 +8,7 @@ import { ADMIN_SURFACE, ADMIN_TYPOGRAPHY as T } from "@/components/admin/admin-t
 import { fetchApiJson } from "@/lib/api";
 import type { ControlPlaneNode, ControlPlaneSnapshot, ControlPlaneStatus } from "@/types/agent-control-plane";
 
-const STATUS: Record<ControlPlaneStatus, string> = { not_started: "시작 전", received: "지시 수신", in_progress: "진행 중", review: "검수 중", approval_waiting: "승인 대기", completed: "완료", blocked: "막힘", failed: "실패" };
+const STATUS: Partial<Record<ControlPlaneStatus, string>> = { not_started: "시작 전", received: "지시 수신", in_progress: "진행 중", review: "검수 중", approval_waiting: "승인 대기", completed: "완료", blocked: "막힘", failed: "실패" };
 
 export default function AgentControlPlanePreview({ mode = "operational" }: { mode?: "operational" | "demo" }) {
   const [snapshot, setSnapshot] = useState<ControlPlaneSnapshot | null>(null);

@@ -39,7 +39,7 @@ function isTrialSummary(summary: OwnerSubscriptionSummary) {
 }
 
 function getCurrentPlanLabel(summary: OwnerSubscriptionSummary) {
-  return isTrialSummary(summary) ? "체험 플랜" : getOwnerPlanDisplayName(summary.currentPlanCode);
+  return isTrialSummary(summary) ? "체험 플랜" : "펫매니저 단일 요금제";
 }
 
 function getResumePlanCode(summary: OwnerSubscriptionSummary) {
@@ -92,7 +92,7 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
           href="/owner/billing"
           className="mt-4 flex h-[46px] w-full items-center justify-center rounded-[10px] border border-[#d8dfda] bg-white px-4 text-[15px] font-medium tracking-[-0.02em] text-[#2f5f55]"
         >
-          업그레이드 플랜
+          요금제 확인
         </a>
       </div>
     </div>

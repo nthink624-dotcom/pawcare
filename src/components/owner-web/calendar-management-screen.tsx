@@ -1612,6 +1612,7 @@ function BookingSidePanel({
   onSavePetProfile,
   onSaveNotificationTiming,
   onClose,
+  desktopMode,
 }: {
   activeMetric: SummaryMetricKey;
   shopId: string;
@@ -1647,7 +1648,10 @@ function BookingSidePanel({
     values: { visitReminderOffsetMinutes?: number; pickupReadyEtaMinutes?: number },
   ) => Promise<void>;
   onClose: () => void;
+  desktopMode: "persistent" | "drawer";
 }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [desktopViewport, setDesktopViewport] = useState(false);
   const timeRange = selectedBooking
     ? `${formatHourLabel(selectedBooking.start)}–${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
     : "";
@@ -1932,7 +1936,14 @@ function BookingSidePanel({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [detailEditMode, editableStartTime, editableEndTime, editablePhone, editableServiceName, editablePrice]);
 
-  if (!selectedBooking) return null;
+  if (!selectedBooking) {
+    if (desktopMode === "drawer") return null;
+    return (
+      <aside className="hidden h-full min-h-0 border-l border-[#e5e7eb] bg-white lg:flex lg:items-center lg:justify-center" aria-label="예약 상세">
+        <p className="text-[15px] text-[#6b7280]">예약을 선택하세요</p>
+      </aside>
+    );
+  }
 
   const breedLabel = selectedBooking.petBreed || "견종 미입력";
   const biteLevel = normalizePetBiteLevel(selectedBooking.petBiteLevel);
@@ -2164,7 +2175,7 @@ function BookingSidePanel({
         ref={dialogRef}
         className="h-full w-full max-w-[430px] overflow-hidden border-l border-[#dbe2ea] bg-white shadow-[-18px_0_48px_rgba(15,23,42,0.16)]"
         role="dialog"
-        aria-modal="true"
+        aria-modal={!desktopViewport}
         aria-label="예약 상세"
         tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
@@ -2173,7 +2184,7 @@ function BookingSidePanel({
       <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-0">
         <div className="pm-booking-side-panel-scroll min-h-0 flex-1 overflow-y-auto">
           <div className="bg-white px-4 pb-4 pt-5">
-            <header className="flex min-w-0 items-start gap-3">
+            <header className="sticky top-0 z-[1] flex min-w-0 items-start gap-3 bg-white">
               <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[14px] border border-[#dbe2ea] bg-white">
                 <img src="/images/default-pet-profile.png" alt="" className="h-full w-full object-contain" />
               </div>
@@ -4336,6 +4347,29 @@ export default function CalendarManagementScreen({
   );
 
   const selectedBooking = filteredBookings.find((item) => item.id === selectedBookingId);
+  const usesContextualInspector = visibleStaff.length >= 3;
+
+  const closeBookingInspector = useCallback(() => {
+    const bookingId = selectedBookingId;
+    setSelectedBookingId("");
+    window.requestAnimationFrame(() => {
+      const trigger = bookingId
+        ? document.querySelector<HTMLElement>(`[data-booking-id="${CSS.escape(bookingId)}"]`)
+        : null;
+      (trigger ?? document.querySelector<HTMLElement>("[data-schedule-heading]"))?.focus();
+    });
+  }, [selectedBookingId]);
+
+  useEffect(() => {
+    if (!selectedBooking) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeBookingInspector();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [closeBookingInspector, selectedBooking]);
 
   useEffect(() => {
     if (selectedBookingId && !filteredBookings.some((booking) => booking.id === selectedBookingId)) {
@@ -5378,7 +5412,7 @@ export default function CalendarManagementScreen({
   );
 
   return (
-    <div className="space-y-2">
+    <div className="h-full min-h-0">
       {scheduleDialogOpen ? (
         <ScheduleCreateDialog
           data={bootstrapData}

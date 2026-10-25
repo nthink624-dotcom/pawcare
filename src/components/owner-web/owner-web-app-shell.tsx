@@ -265,7 +265,7 @@ export default function OwnerWebAppShell({
             href="/owner/billing?compare=1"
             prefetch
             aria-label={`${currentPlanLabel} 요금표 보기`}
-            className="block rounded-[13px] border border-[#dbe2ea] bg-white px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:border-[#b8c7dc] hover:bg-[#f8fbff]"
+            className="block rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-3 shadow-none transition hover:border-[#b8c7dc] hover:bg-[#f8fbff]"
           >
             <div className="flex items-center justify-between gap-3">
               <p className="min-w-0 truncate text-[14px] font-medium leading-5 text-[#273142]">{currentPlanLabel}</p>

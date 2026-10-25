@@ -104,6 +104,10 @@ function LivePhone({
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [reloadKey, setReloadKey] = useState(0);
+  const automaticRetryCountRef = useRef(0);
+  const retryTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -120,6 +124,58 @@ function LivePhone({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+    };
+  }, []);
+
+  const retry = useCallback((automatic = false) => {
+    if (!automatic) automaticRetryCountRef.current = 0;
+    setLoadState("loading");
+    setReloadKey((current) => current + 1);
+  }, []);
+
+  const handleFrameFailure = useCallback(() => {
+    if (automaticRetryCountRef.current === 0) {
+      automaticRetryCountRef.current = 1;
+      setLoadState("loading");
+      retryTimerRef.current = window.setTimeout(() => retry(true), 350);
+      return;
+    }
+
+    setLoadState("error");
+  }, [retry]);
+
+  const handleFrameLoad = useCallback((frame: HTMLIFrameElement) => {
+    let failed = false;
+    try {
+      const frameDocument = frame.contentDocument;
+      const frameText = frameDocument?.body?.innerText ?? "";
+      const frameUrl = frameDocument?.location?.href ?? "";
+      failed = !frameDocument ||
+        !frameUrl ||
+        frameUrl === "about:blank" ||
+        !frameDocument.body ||
+        frameText.trim().length === 0 ||
+        frameDocument.documentElement.id === "__next_error__" ||
+        frameText.includes("화면을 불러오지 못했습니다");
+    } catch {
+      failed = true;
+    }
+
+    if (!failed) {
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      setLoadState("ready");
+      return;
+    }
+
+    handleFrameFailure();
+  }, [handleFrameFailure]);
+
   const scale = viewportSize.width > 0 ? viewportSize.width / MOBILE_VIEWPORT_WIDTH : 1;
   const iframeHeight = scale > 0 ? viewportSize.height / scale : 0;
 
@@ -127,10 +183,11 @@ function LivePhone({
       <div ref={viewportRef} className="relative isolate h-full w-full overflow-hidden bg-white [contain:paint]">
         {viewportSize.width > 0 && viewportSize.height > 0 ? (
           <iframe
+            key={`${src}-${reloadKey}`}
             src={src}
             title={title}
             scrolling="no"
-            className="absolute left-0 top-0 block border-0 bg-white"
+            className={`absolute left-0 top-0 block border-0 bg-white transition-opacity duration-150 ${loadState === "ready" ? "opacity-100" : "opacity-0"}`}
             style={{
               width: `${MOBILE_VIEWPORT_WIDTH}px`,
               height: `${iframeHeight}px`,
@@ -138,7 +195,30 @@ function LivePhone({
               transformOrigin: "top left",
             }}
             loading="eager"
+            onLoad={(event) => handleFrameLoad(event.currentTarget)}
+            onError={handleFrameFailure}
           />
+        ) : null}
+        {loadState !== "ready" ? (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center bg-white px-6 text-center"
+            aria-live="polite"
+          >
+            {loadState === "error" ? (
+              <div>
+                <p className="text-[14px] font-medium leading-5 text-[#172033]">예약 데모를 준비하지 못했습니다.</p>
+                <button
+                  type="button"
+                  onClick={() => retry(false)}
+                  className="mt-3 min-h-11 rounded-lg border border-[#d5d9e0] bg-white px-4 text-[13px] font-medium text-[#172033]"
+                >
+                  다시 불러오기
+                </button>
+              </div>
+            ) : (
+              <p className="text-[13px] leading-5 text-[#64748b]">예약 화면을 준비하고 있습니다.</p>
+            )}
+          </div>
         ) : null}
       </div>
   );
@@ -226,6 +306,7 @@ export function CustomerBookingPhonePreview({
 
   return (
     <LivePhone
+      key={src}
       src={src}
       title={`${title} 실제 고객 예약 페이지`}
       className={`mx-auto w-full ${className}`}
@@ -270,6 +351,7 @@ export function BookingFlowCarousel({
             <span className={`${compact ? "text-[12px]" : "text-[14px]"} font-semibold text-[#172033]`}>{experience.title}</span>
           </figcaption>
           <LivePhone
+            key={experience.src}
             src={experience.src}
             title={`${experience.title} 실제 고객 예약 페이지`}
             className={`mx-auto w-full ${compact ? "max-w-[150px]" : "max-w-[225px]"} drop-shadow-[0_20px_36px_rgba(15,23,42,0.2)]`}

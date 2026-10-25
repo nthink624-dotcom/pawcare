@@ -62,7 +62,7 @@ function getRecommendedPlanCode(currentPlanCode: OwnerPlanCode): OwnerPlanCode {
 }
 
 function isCurrentVisiblePlan(currentPlanCode: OwnerPlanCode, planCode: OwnerPlanCode) {
-  return currentPlanCode === planCode || (currentPlanCode === "halfyearly" && planCode === "quarterly");
+  return currentPlanCode === planCode;
 }
 
 function PlanFact({ label, value }: { label: string; value: string }) {
@@ -78,18 +78,14 @@ function PlanCard({
   plan,
   current,
   selected,
-  recommended,
   loading,
-  totalShopCount,
   onSelect,
   onContinue,
 }: {
   plan: OwnerPlan;
   current: boolean;
   selected: boolean;
-  recommended: boolean;
   loading: boolean;
-  totalShopCount: number;
   onSelect: () => void;
   onContinue: () => void;
 }) {
@@ -101,19 +97,9 @@ function PlanCard({
 
   return (
     <article
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
       aria-current={current ? "true" : undefined}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
       className={cn(
-        "flex min-w-0 cursor-pointer flex-col rounded-[10px] border bg-white p-5 transition",
+        "flex min-w-0 flex-col rounded-[10px] border bg-white p-5 transition",
         selected
           ? "border-[#1677ff] bg-[#f8fbff] shadow-none"
           : "border-[#e8edf3] hover:border-[#bfd3ea]",
@@ -151,6 +137,9 @@ function PlanCard({
         <PlanFact label="직원 계정·권한" value={staffAccountLabel} />
       </div>
 
+      <p className="mt-4 text-[14px] leading-6 text-[#475569]">{OWNER_SINGLE_PLAN_INCLUDED_COPY}</p>
+      <p className="mt-2 text-[13px] leading-5 text-[#64748b]">{OWNER_SINGLE_PLAN_LIMIT_COPY}</p>
+
       <button
         type="button"
         onClick={(event) => {
@@ -177,7 +166,7 @@ export function OwnerBillingPlanPicker({
   plans,
   currentPlanCode,
   selectedPlanCode,
-  totalShopCount,
+  totalShopCount: _totalShopCount,
   onSelectPlanCode,
   onContinue,
   onBack,
@@ -190,7 +179,6 @@ export function OwnerBillingPlanPicker({
 }: OwnerBillingPlanPickerProps) {
   const visiblePlans = plans.filter((plan) => !plan.hidden);
   const selectedPlan = visiblePlans.find((plan) => plan.code === selectedPlanCode) ?? visiblePlans[0];
-  const recommendedPlanCode = getRecommendedPlanCode(currentPlanCode);
 
   if (!selectedPlan) return null;
 
@@ -253,9 +241,7 @@ export function OwnerBillingPlanPicker({
                 plan={plan}
                 current={isCurrentVisiblePlan(currentPlanCode, plan.code)}
                 selected={selectedPlan.code === plan.code}
-                recommended={recommendedPlanCode === plan.code}
                 loading={loading}
-                totalShopCount={totalShopCount}
                 onSelect={() => onSelectPlanCode(plan.code)}
                 onContinue={onContinue}
               />

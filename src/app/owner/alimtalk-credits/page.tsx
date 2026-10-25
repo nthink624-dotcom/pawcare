@@ -3,10 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import OwnerServiceExpiredScreen from "@/components/owner/owner-service-expired-screen";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache, waitForOwnerAuthHydration } from "@/lib/auth/owner-auth-handoff";
+import {
+  OWNER_SINGLE_PLAN_INCLUDED_COPY,
+  OWNER_SINGLE_PLAN_LIMIT_COPY,
+} from "@/lib/billing/owner-plans";
 import {
   isOwnerSubscriptionBlocked,
   type OwnerSubscriptionSummary,

@@ -101,10 +101,10 @@ export type OwnerDraft = {
 
 export const planOptions = [
   { value: "free", label: "체험 플랜" },
-  { value: "monthly", label: "1인 운영" },
-  { value: "quarterly", label: "2~4인 운영" },
-  { value: "halfyearly", label: "2~4인 운영(기존)" },
-  { value: "yearly", label: "5인 이상 운영" },
+  { value: "monthly", label: "기존 유료 플랜 (기록)" },
+  { value: "quarterly", label: "펫매니저 단일 요금제" },
+  { value: "halfyearly", label: "기존 유료 플랜 (기록)" },
+  { value: "yearly", label: "기존 유료 플랜 (기록)" },
 ] as const satisfies Array<{ value: OwnerPlanCode; label: string }>;
 
 export const statusOptions = [

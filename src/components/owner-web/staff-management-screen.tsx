@@ -26,7 +26,7 @@ import {
   type StaffProfilePhotoUploader,
 } from "@/components/owner-web/staff-profile-photo-field";
 import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
-import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { createOwnerStaffProfileImageFromFile } from "@/lib/media/owner-media-client";
 import { findAvailableStaffChipColorIndex, getStaffChipColorIndex, normalizeStaffChipColorIndex } from "@/lib/staff-chip-colors";
@@ -801,7 +801,10 @@ export default function StaffManagementScreen({
 
       <div className="grid min-h-0 flex-1 gap-5 xl:grid-cols-1">
         <div className="min-h-0 min-w-0">
-          <WebSurface className={cn("overflow-hidden", boardTab === "monthly" && "flex h-full min-h-0 flex-col")}>
+          <section
+            data-owner-screen-root="staff"
+            className={cn("overflow-hidden", boardTab === "monthly" && "flex h-full min-h-0 flex-col")}
+          >
             {boardTab !== "monthly" ? (
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-2.5">
               {boardTab === "schedule" ? (
@@ -869,7 +872,7 @@ export default function StaffManagementScreen({
                 onSelect={selectStaff}
               />
             )}
-          </WebSurface>
+          </section>
         </div>
 
       </div>

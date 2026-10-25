@@ -676,7 +676,7 @@ export default function ShopInfoSettingsPanel({
                         onTouchEnd={handleProfileTouchEnd}
                         disabled={!editable || profileImagesBusy}
                         className={cn(
-                          "group relative h-[276px] max-h-[276px] min-h-[276px] w-full overflow-hidden rounded-[13px] border bg-[#f6f8fb] text-[#2f6bd4] transition disabled:cursor-not-allowed disabled:opacity-70",
+                          "group relative h-[276px] max-h-[276px] min-h-[276px] w-full overflow-hidden rounded-[10px] border bg-[#f6f8fb] text-[#2f6bd4] transition disabled:cursor-not-allowed disabled:opacity-70",
                           activeProfileImage ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]" : "border-dashed border-[#cfd7e3] hover:border-[#2f6bd4]",
                         )}
                         aria-label="대표 매장 사진"
@@ -757,7 +757,7 @@ export default function ShopInfoSettingsPanel({
                       />
                     </div>
 
-                    <div className="h-[276px] max-h-[276px] min-h-[276px] min-w-0 overflow-hidden rounded-[13px] border border-[#e1e5ec] bg-[#fbfcfd] p-2">
+                    <div className="h-[276px] max-h-[276px] min-h-[276px] min-w-0 overflow-hidden rounded-[10px] border border-[#e1e5ec] bg-[#fbfcfd] p-2">
                       <div className="h-full overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]">
                         <div className="grid min-w-0 grid-cols-4 content-start gap-2">
                           {carouselProfileImages.map((imageUrl, imageIndex) => {
@@ -851,7 +851,7 @@ export default function ShopInfoSettingsPanel({
                   </div>
 
                   {hasProfileImages ? (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-[#e1e5ec] bg-[#f8fafc] px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-[#e1e5ec] bg-[#f8fafc] px-3 py-2">
                       <span className="text-[13px] font-medium text-[#64748b]">
                         {selectedProfileImageIndexes.length > 0 ? `선택 ${selectedProfileImageIndexes.length}장` : `사진 ${carouselProfileImages.length}장`}
                       </span>
@@ -865,7 +865,7 @@ export default function ShopInfoSettingsPanel({
                               return !current;
                             });
                           }}
-                          className="inline-flex h-8 items-center rounded-[9px] border border-[#d8dce3] bg-white px-3 text-[13px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-11 items-center rounded-[8px] border border-[#d8dce3] bg-white px-3 text-[13px] font-medium text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {profileImageSelectionMode ? "선택 종료" : "부분 선택"}
                         </button>
@@ -873,7 +873,7 @@ export default function ShopInfoSettingsPanel({
                           type="button"
                           disabled={!editable || profileImagesBusy}
                           onClick={toggleAllProfileImages}
-                          className="inline-flex h-8 items-center rounded-[9px] border border-[#d8dce3] bg-white px-3 text-[13px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-11 items-center rounded-[8px] border border-[#d8dce3] bg-white px-3 text-[13px] font-medium text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {allProfileImagesSelected ? "전체해제" : "전체선택"}
                         </button>
@@ -881,7 +881,7 @@ export default function ShopInfoSettingsPanel({
                           type="button"
                           disabled={!editable || profileImagesBusy || selectedProfileImageIndexes.length === 0}
                           onClick={removeSelectedProfileImages}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-[#e2b6be] bg-white px-3 text-[13px] font-semibold text-[#a04455] transition hover:border-[#a04455] disabled:cursor-not-allowed disabled:border-[#e5e7eb] disabled:text-[#b9c3cf]"
+                          className="inline-flex h-11 items-center gap-1.5 rounded-[8px] border border-[#e2b6be] bg-white px-3 text-[13px] font-medium text-[#a04455] transition hover:border-[#a04455] disabled:cursor-not-allowed disabled:border-[#e5e7eb] disabled:text-[#b9c3cf]"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           선택삭제

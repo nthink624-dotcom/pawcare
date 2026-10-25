@@ -49,7 +49,7 @@ export function ToolbarRow({ children, className }: { children: React.ReactNode;
 
 export function SearchField({ placeholder }: { placeholder: string }) {
   return (
-    <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[9px] border border-[#e8edf3] bg-white px-3 text-[#64748b] transition focus-within:border-[#93c5fd] focus-within:ring-[3px] focus-within:ring-[#dbeafe]/60">
+    <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#e8edf3] bg-white px-3 text-[#64748b] transition focus-within:border-[#93c5fd] focus-within:ring-[3px] focus-within:ring-[#dbeafe]/60">
       <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#94a3b8]" />
       <input
         className="w-full bg-transparent text-[16px] font-normal leading-6 text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
@@ -351,7 +351,7 @@ export function TableRow({
       onKeyDown={handleKeyDown}
       className={cn(
         "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155]/20",
-        "grid w-full border-b border-[#edf2f7] px-5 py-4 transition last:border-b-0",
+        "grid min-h-11 w-full border-b border-[#edf2f7] px-4 py-2 transition last:border-b-0",
         align === "center" ? "items-center text-center" : "text-left",
         active ? "bg-[#f8fafc]" : "bg-white hover:bg-[#f8fafc]",
         className,
@@ -408,12 +408,12 @@ export function MiniSection({
   children: React.ReactNode;
 }) {
   return (
-    <WebSurface className="p-5">
+    <WebSurface className="p-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#17211f]">{title}</h3>
         {action}
       </div>
-      <div className="mt-4">{children}</div>
+      <div className="mt-3">{children}</div>
     </WebSurface>
   );
 }

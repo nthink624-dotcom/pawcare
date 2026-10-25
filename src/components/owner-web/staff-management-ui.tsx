@@ -334,10 +334,10 @@ export function StaffDetailPanel({
         </Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="고정 출근 시간">
-            <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => ({ ...current, startTime }))} align="left" buttonClassName="h-10" />
+            <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => ({ ...current, startTime }))} align="left" buttonClassName="h-11" />
           </Field>
           <Field label="고정 퇴근 시간">
-            <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => ({ ...current, endTime }))} align="left" buttonClassName="h-10" />
+            <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => ({ ...current, endTime }))} align="left" buttonClassName="h-11" />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -566,7 +566,7 @@ export function StaffBoardTabs({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="relative flex min-h-10 flex-wrap items-center gap-3 pb-2">
+    <div className="relative flex min-h-11 flex-wrap items-center gap-3 pb-2">
       <div className="flex flex-wrap items-center gap-3">
         {[
           { key: "monthly" as StaffBoardTab, label: "월간 근무표" },
@@ -683,16 +683,16 @@ export function StaffScheduleEditModal({
               { value: "half", label: "반차" },
             ]}
             align="left"
-            buttonClassName="h-10"
+            buttonClassName="h-11"
           />
         </Field>
         {draft.status === "work" ? (
           <div className="grid grid-cols-2 gap-2">
             <Field label="출근 시간">
-              <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => (current ? { ...current, startTime } : current))} align="left" buttonClassName="h-10" />
+              <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => (current ? { ...current, startTime } : current))} align="left" buttonClassName="h-11" />
             </Field>
             <Field label="퇴근 시간">
-              <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => (current ? { ...current, endTime } : current))} align="left" buttonClassName="h-10" />
+              <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => (current ? { ...current, endTime } : current))} align="left" buttonClassName="h-11" />
             </Field>
           </div>
         ) : null}
@@ -706,7 +706,7 @@ export function StaffScheduleEditModal({
                 { value: "오후", label: "오후 반차" },
               ]}
               align="left"
-              buttonClassName="h-10"
+              buttonClassName="h-11"
             />
           </Field>
         ) : null}
@@ -737,10 +737,10 @@ export function StaffScheduleEditModal({
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Field label="출근 기준">
-                <TimeSelect value={draft.defaultStartTime} onChange={(defaultStartTime) => onDraftChange((current) => (current ? { ...current, defaultStartTime } : current))} align="left" buttonClassName="h-10" />
+                <TimeSelect value={draft.defaultStartTime} onChange={(defaultStartTime) => onDraftChange((current) => (current ? { ...current, defaultStartTime } : current))} align="left" buttonClassName="h-11" />
               </Field>
               <Field label="퇴근 기준">
-                <TimeSelect value={draft.defaultEndTime} onChange={(defaultEndTime) => onDraftChange((current) => (current ? { ...current, defaultEndTime } : current))} align="left" buttonClassName="h-10" />
+                <TimeSelect value={draft.defaultEndTime} onChange={(defaultEndTime) => onDraftChange((current) => (current ? { ...current, defaultEndTime } : current))} align="left" buttonClassName="h-11" />
               </Field>
             </div>
           </div>
@@ -773,7 +773,7 @@ export function StaffModal({ title, children, footer, onClose }: { title: string
           aria-modal="true"
           aria-label={title}
           className={cn(
-            "w-full max-w-[500px] rounded-[12px] border border-[#dbe2ea] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]",
+            "w-full max-w-[500px] rounded-[14px] border border-[#dbe2ea] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]",
             footer
               ? "flex h-[calc(100dvh-48px)] flex-col overflow-hidden"
               : "max-h-[calc(100dvh-48px)] overflow-y-auto p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",

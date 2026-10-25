@@ -151,6 +151,18 @@ export function CalendarCareReportCompletionPanel({
   }, [onPendingChange, previewMode]);
 
   useEffect(() => {
+    const scrollRegion = aiSummaryScrollRef.current;
+    if (!scrollRegion) return;
+    const containScrollEvent = (event: Event) => event.stopPropagation();
+    scrollRegion.addEventListener("wheel", containScrollEvent, { passive: true });
+    scrollRegion.addEventListener("touchmove", containScrollEvent, { passive: true });
+    return () => {
+      scrollRegion.removeEventListener("wheel", containScrollEvent);
+      scrollRegion.removeEventListener("touchmove", containScrollEvent);
+    };
+  }, []);
+
+  useEffect(() => {
     if (previewMode) return;
     setSourceText("");
     setReportText("");

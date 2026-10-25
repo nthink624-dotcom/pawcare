@@ -4,7 +4,11 @@ import { CheckCircle2, X } from "lucide-react";
 
 import { AppButton } from "@/components/ui/app-button";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel, type OwnerPlan } from "@/lib/billing/owner-plans";
+import {
+  getOwnerPlanDisplayName,
+  OWNER_SINGLE_PLAN_INCLUDED_COPY,
+  type OwnerPlan,
+} from "@/lib/billing/owner-plans";
 import { won } from "@/lib/utils";
 
 function formatDate(iso: string | null) {
@@ -13,7 +17,7 @@ function formatDate(iso: string | null) {
   return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? `${datePart.slice(2, 4)}.${datePart.slice(5, 7)}.${datePart.slice(8, 10)}` : datePart.replace(/-/g, ".");
 }
 
-function getPlanSummaryLine(plan: OwnerPlan, totalShopCount: number) {
+function getPlanSummaryLine(plan: OwnerPlan) {
   if (plan.code === "free") {
     return "무료체험";
   }
@@ -25,7 +29,7 @@ export function OwnerBillingSuccessCard({
   plan,
   endAt,
   paymentMethodLabel,
-  totalShopCount = 1,
+  totalShopCount: _totalShopCount = 1,
   message,
   onConfirm,
   onClose,
@@ -76,7 +80,7 @@ export function OwnerBillingSuccessCard({
               <p className="mt-1 text-[24px] font-extrabold tracking-[-0.03em] text-[var(--ink)]">
                 {getOwnerPlanDisplayName(plan.code)}
               </p>
-              <p className="mt-1 text-[13px] text-[var(--mid)]">{getPlanSummaryLine(plan, totalShopCount)}</p>
+              <p className="mt-1 text-[13px] text-[var(--mid)]">{getPlanSummaryLine(plan)}</p>
             </div>
             <div className="text-right">
               <p className="text-[13px] font-semibold text-[var(--mid)]">

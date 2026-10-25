@@ -493,7 +493,7 @@ export default function SettingsAlertsPanel({
       <div className="grid min-w-0 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 divide-y divide-[#e8edf3]">
           {showSenderChannelSettings ? (
-          <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
+          <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-[18px] font-semibold leading-[26px] text-[#111827]">알림톡 발신 채널</p>
@@ -564,7 +564,7 @@ export default function SettingsAlertsPanel({
                         })
                       }
                       placeholder="예: 우진만세"
-                      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7d68]"
+                      className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827] outline-none focus:border-[#2f7d68]"
                     />
                   </label>
                   <label className="block">
@@ -578,7 +578,7 @@ export default function SettingsAlertsPanel({
                         })
                       }
                       placeholder="카카오 채널 링크 또는 검색 가능한 이름"
-                      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7d68]"
+                      className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827] outline-none focus:border-[#2f7d68]"
                     />
                   </label>
                 </div>

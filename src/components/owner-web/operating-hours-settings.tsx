@@ -303,17 +303,23 @@ function ToggleSwitch({
       aria-label={label}
       onClick={onChange}
       className={cn(
-        "relative inline-flex translate-y-px shrink-0 items-center rounded-full align-middle transition",
-        compact ? "h-[26px] w-[48px]" : "h-[26px] w-[48px]",
-        checked ? "bg-[#2f7866]" : "bg-[#e2e8f0]",
+        "relative inline-flex shrink-0 items-center justify-center rounded-full align-middle",
+        "-my-[9px] h-11 w-[48px]",
       )}
     >
       <span
         className={cn(
-          "absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition",
-          checked ? "left-[24px]" : "left-[2px]",
+          "relative inline-flex h-[26px] w-[48px] translate-y-px items-center rounded-full transition",
+          checked ? "bg-[#2f7866]" : "bg-[#e2e8f0]",
         )}
-      />
+      >
+        <span
+          className={cn(
+            "absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition",
+            checked ? "left-[24px]" : "left-[2px]",
+          )}
+        />
+      </span>
     </button>
   );
 }
@@ -466,6 +472,12 @@ function TimeInput({
   const displayHourValue = hourOptions.includes(hourText) ? hourText : "10";
   const displayMinuteValue = minuteOptions.includes(minuteText) ? minuteText : "00";
   const displayValue = `${displayHourValue}:${displayMinuteValue}`;
+  const controlContents = (
+    <>
+      <span>{displayValue}</span>
+      <ChevronDown className={cn("text-[#64748b]", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+    </>
+  );
 
   const updatePopoverPosition = useCallback(() => {
     const rect = buttonRef.current?.getBoundingClientRect();
@@ -524,8 +536,14 @@ function TimeInput({
           compact ? "min-h-11 w-[88px] px-2" : "min-h-11 w-[116px] px-3",
         )}
       >
-        <span>{displayValue}</span>
-        <ChevronDown className={cn("text-[#64748b]", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+        <span
+          className={cn(
+            "inline-flex w-full items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white transition group-hover:bg-[#f8fafc] group-focus:border-[#94a3b8] group-focus:ring-[3px] group-focus:ring-[#64748b]/10 group-disabled:bg-[#f8fafc] group-disabled:text-[#94a3b8]",
+            compact ? "h-8 px-2" : "h-10 px-3",
+          )}
+        >
+          {controlContents}
+        </span>
       </button>
 
       {open ? (
@@ -933,7 +951,9 @@ export default function OperatingHoursSettings({
                 onClick={applyBulkTimeToAllDays}
                 className="min-h-11 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] leading-6 font-medium text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
               >
-                적용
+                <span className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 group-hover:bg-[#f8fafc]">
+                  적용
+                </span>
               </button>
             </div>
           </div>
@@ -1166,7 +1186,14 @@ export default function OperatingHoursSettings({
                           : "col-span-3 min-h-11 w-full px-4 text-[16px] font-medium leading-6 sm:col-span-1 sm:w-auto",
                     )}
                   >
-                    적용
+                    <span
+                      className={cn(
+                        "inline-flex items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white transition group-hover:border-[#94a3b8] group-hover:bg-[#f8fafc]",
+                        compact ? "h-8 px-3" : "h-10 px-4",
+                      )}
+                    >
+                      적용
+                    </span>
                   </button>
                 </div>
               </div>

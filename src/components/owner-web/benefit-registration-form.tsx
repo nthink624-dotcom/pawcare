@@ -255,7 +255,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
             </button>
           </div>
           {draft.service_scope === "specific" ? (
-          <div className="mt-3 grid max-h-[170px] gap-1 overflow-y-auto rounded-[6px] border border-[#dbe2ea] bg-white p-2 sm:grid-cols-2">
+          <div className="mt-3 grid max-h-[170px] gap-1 overflow-y-auto rounded-[8px] border border-[#dbe2ea] bg-white p-2 sm:grid-cols-2">
             {scopeOptions.length === 0 ? (
               <p className="col-span-full px-2 py-4 text-center text-[13px] text-[#64748b]">등록된 서비스가 없습니다.</p>
             ) : scopeOptions.map((option) => {

@@ -87,6 +87,13 @@ export function CalendarCareNoteInput({
   }, []);
 
   useEffect(() => {
+    const supportCheck = window.setTimeout(() => {
+      setSpeechSupported(Boolean(getSpeechRecognitionConstructor()));
+    }, 0);
+    return () => window.clearTimeout(supportCheck);
+  }, []);
+
+  useEffect(() => {
     valueRef.current = value;
   }, [value]);
 

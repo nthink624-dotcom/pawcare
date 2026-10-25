@@ -180,9 +180,10 @@ function WeekBookingCard({
   return (
     <button
       type="button"
+      data-booking-id={booking.id}
       onClick={onClick}
       className={cn(
-        "h-full w-full overflow-hidden rounded-[6px] border text-left outline-none transition hover:brightness-[0.985] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
+        "h-full w-full overflow-hidden rounded-[8px] border text-left outline-none transition hover:brightness-[0.985] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
         compact ? "px-2 py-1.5" : "px-2.5 py-2",
         getBookingToneClass(booking),
       )}
@@ -316,7 +317,7 @@ function AllStaffWeeklyOverview({
             return (
               <section
                 key={date}
-                className={`flex min-h-0 flex-col overflow-hidden rounded-xl border bg-white ${
+                className={`flex min-h-0 flex-col overflow-hidden rounded-[10px] border bg-white ${
                   isSelected ? "border-[#93c5fd] shadow-[0_4px_12px_rgba(37,99,235,0.08)]" : "border-[#e2e8f0]"
                 }`}
               >
@@ -329,7 +330,7 @@ function AllStaffWeeklyOverview({
                 >
                   <span>
                     <span className="block text-[12px] font-medium text-[#64748b]">{weekdayLabels[parseDate(date).getDay()]}</span>
-                    <span className="mt-0.5 block text-[21px] font-bold leading-none text-[#17233a]">{parseDate(date).getDate()}</span>
+                    <span className="mt-0.5 block text-[20px] font-semibold leading-none text-[#17233a]">{parseDate(date).getDate()}</span>
                   </span>
                   <span className="rounded-full bg-[#f1f5f9] px-2 py-1 text-[12px] font-medium text-[#52627a]">
                     {dayBookings.length}건
@@ -341,7 +342,7 @@ function AllStaffWeeklyOverview({
                     <button
                       type="button"
                       onClick={() => onOpenDay(date)}
-                      className="flex min-h-28 w-full items-center justify-center rounded-lg border border-dashed border-[#dbe4ee] text-[13px] text-[#94a3b8] transition-colors hover:border-[#93c5fd] hover:bg-[#f8fbff]"
+                      className="flex min-h-28 w-full items-center justify-center rounded-[8px] border border-dashed border-[#dbe4ee] text-[13px] text-[#94a3b8] transition-colors hover:border-[#93c5fd] hover:bg-[#f8fbff]"
                     >
                       예약 없음
                     </button>
@@ -354,8 +355,9 @@ function AllStaffWeeklyOverview({
                         <button
                           key={booking.id}
                           type="button"
+                          data-booking-id={booking.id}
                           onClick={() => onSelectBooking(booking)}
-                          className={`w-full rounded-lg border border-l-[3px] px-3 py-2.5 text-left transition-transform hover:-translate-y-0.5 hover:shadow-sm ${toneClass}`}
+                          className={`w-full rounded-[8px] border border-l-[3px] px-3 py-2.5 text-left transition-transform hover:-translate-y-0.5 hover:shadow-sm ${toneClass}`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <span className="min-w-0 truncate text-[14px] font-semibold text-[#17233a]">

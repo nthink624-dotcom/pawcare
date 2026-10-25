@@ -253,7 +253,7 @@ export function ServicePriceGuideSectionCard({
               ))}
               {isEditing ? (
                 <th
-                  className="w-[34px] border-b border-[#e2e7ed] bg-[#f6f7f9] px-[14px] py-[11px]"
+                  className="w-[34px] border-b border-[#e2e7ed] bg-[#f6f7f9] px-[14px] py-[11px] font-medium"
                   aria-label="행 관리"
                 />
               ) : null}

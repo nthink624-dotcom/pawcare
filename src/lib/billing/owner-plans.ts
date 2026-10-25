@@ -59,8 +59,15 @@ export type OwnerPlan = {
   legacy?: boolean;
 };
 
-const EXCESS_ALIMTALK_LABEL = "초과 알림톡 11원/건, 부가세 포함";
+const LEGACY_EXCESS_ALIMTALK_LABEL = "기존 계약 기준";
 export const OWNER_STORE_LIST_MONTHLY_PRICE = 19000;
+export const OWNER_CANONICAL_PLAN_CODE = "quarterly" as const satisfies OwnerPlanCode;
+export const OWNER_SINGLE_PLAN_MONTHLY_PRICE = 29000;
+export const OWNER_SINGLE_PLAN_NAME = "펫매니저 단일 요금제";
+export const OWNER_SINGLE_PLAN_INCLUDED_COPY =
+  "펫매니저 핵심 운영 기능과 알림톡이 포함됩니다. 별도 충전이나 건별 추가 결제는 없습니다.";
+export const OWNER_SINGLE_PLAN_LIMIT_COPY =
+  "승인된 템플릿과 서비스 운영 정책에 따라 제공되며, 제공사 상태 또는 비정상·오남용 발송에는 제한될 수 있습니다.";
 
 export type OwnerMultiShopDiscountBilling = {
   totalShopCount: number;
@@ -149,9 +156,15 @@ export function calculateOwnerBillingAmountBreakdown(
   }
 
   const multiShopDiscount = calculateOwnerMultiShopDiscountBilling(
-    totalShopCount,
+    plan.code === OWNER_CANONICAL_PLAN_CODE ? 1 : totalShopCount,
     plan.code === "free" ? 0 : plan.monthlyPrice,
   );
+
+  if (plan.code === OWNER_CANONICAL_PLAN_CODE) {
+    multiShopDiscount.totalShopCount = Math.max(1, Math.floor(Number.isFinite(totalShopCount) ? totalShopCount : 1));
+    multiShopDiscount.policyLabel = "매장 수 과금 정책 미확정";
+    multiShopDiscount.appliedLabel = "단일 요금제 월 금액만 적용";
+  }
 
   return {
     planCode: plan.code,
@@ -278,7 +291,7 @@ function makePlan({
     badge,
     staffLimitLabel,
     alimtalkIncludedLabel,
-    excessAlimtalkLabel: EXCESS_ALIMTALK_LABEL,
+    excessAlimtalkLabel: LEGACY_EXCESS_ALIMTALK_LABEL,
     targetLabel,
     highlights,
     featured,
@@ -304,7 +317,7 @@ export const ownerPlans: OwnerPlan[] = [
     discountPercent: 0,
     staffLimitLabel: "체험 설정",
     alimtalkIncludedLabel: "테스트 기준",
-    excessAlimtalkLabel: EXCESS_ALIMTALK_LABEL,
+    excessAlimtalkLabel: LEGACY_EXCESS_ALIMTALK_LABEL,
     targetLabel: "도입 전 확인",
     highlights: ["14일 무료체험", "카드 등록 없이 시작", "오너 화면 기본 기능 확인"],
   },
@@ -384,7 +397,11 @@ export const ownerPlans: OwnerPlan[] = [
   }),
 ];
 
-export const billableOwnerPlans = ownerPlans.filter((plan) => plan.code !== "free" && !plan.hidden);
+export const billableOwnerPlans = ownerPlans.filter((plan) => plan.code === OWNER_CANONICAL_PLAN_CODE);
+
+export function toCanonicalOwnerPlanCode(_code?: OwnerPlanCode | string | null): OwnerPlanCode {
+  return OWNER_CANONICAL_PLAN_CODE;
+}
 
 export function ownerPlanAllowsAutomaticVisitReminder(code: OwnerPlanCode | string | null | undefined) {
   return code === OWNER_SINGLE_MONTHLY_PLAN_CODE || code === "quarterly" || code === "halfyearly" || code === "yearly";
@@ -399,13 +416,13 @@ export function getOwnerPlanDisplayName(code: string | null | undefined) {
     case "free":
       return "체험 플랜";
     case "monthly":
-      return "1인 운영";
+      return "기존 유료 플랜";
     case "quarterly":
-      return "2~4인 운영";
+      return OWNER_SINGLE_PLAN_NAME;
     case "halfyearly":
-      return "2~4인 운영";
+      return "기존 유료 플랜";
     case "yearly":
-      return "5인 이상 운영";
+      return "기존 유료 플랜";
     default:
       return getOwnerPlanByCode(code)?.shortTitle ?? "-";
   }

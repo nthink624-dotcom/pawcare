@@ -1377,8 +1377,8 @@ export default function CustomerManagementScreen({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-hidden">
-      <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+    <div data-owner-screen-root="customers" className="h-full min-h-0 overflow-hidden">
+      <section className="flex h-full min-h-0 flex-col overflow-hidden">
         <div className="border-b border-[#dbe2ea] px-4 py-2">
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex h-11 min-w-[320px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b] focus-within:border-[#111827]">

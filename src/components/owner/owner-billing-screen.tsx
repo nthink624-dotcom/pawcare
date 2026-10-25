@@ -195,7 +195,7 @@ export default function OwnerBillingScreen({
   );
   const [summary, setSummary] = useState(initialSummary);
   const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlanCode>(
-    preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode),
+    toCanonicalOwnerPlanCode(preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode)),
   );
   const [isSelectingPlan, setIsSelectingPlan] = useState((forcePlanPicker || !preferredPlanCode) && !showPaymentRequiredNotice);
   const [selectionStep, setSelectionStep] = useState<"plan" | "agreement">(
@@ -288,7 +288,9 @@ export default function OwnerBillingScreen({
       return;
     }
 
-    setSelectedPlanCode(preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode));
+    setSelectedPlanCode(
+      toCanonicalOwnerPlanCode(preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode)),
+    );
   }, [defaultPickerPlanCode, forcePlanPicker, initialSummary.currentPlanCode, preferredPlanCode]);
 
   useEffect(() => {
@@ -321,7 +323,7 @@ export default function OwnerBillingScreen({
     }
 
     let cancelled = false;
-    const pendingPlanCode = pending.planCode;
+    const pendingPlanCode = toCanonicalOwnerPlanCode(pending.planCode);
 
     async function resumePayment() {
       setResumingRegisteredCardPayment(true);
@@ -334,7 +336,7 @@ export default function OwnerBillingScreen({
           if (cancelled) return;
           activeSummary = savedSummary;
           setSummary(savedSummary);
-          setSelectedPlanCode(savedSummary.currentPlanCode);
+          setSelectedPlanCode(toCanonicalOwnerPlanCode(savedSummary.currentPlanCode));
         }
 
         clearPendingBillingRegistration();
@@ -343,7 +345,7 @@ export default function OwnerBillingScreen({
         if (cancelled) return;
 
         setSummary(nextSummary);
-        setSelectedPlanCode(nextSummary.currentPlanCode);
+        setSelectedPlanCode(toCanonicalOwnerPlanCode(nextSummary.currentPlanCode));
         if (hasSuccessfulPayment(nextSummary)) {
           setMessage(null);
           router.replace(buildBillingSuccessUrl(nextSummary) as never);
@@ -399,11 +401,11 @@ export default function OwnerBillingScreen({
       }
 
       setSummary(registeredSummary);
-      setSelectedPlanCode(registeredSummary.currentPlanCode);
+      setSelectedPlanCode(toCanonicalOwnerPlanCode(registeredSummary.currentPlanCode));
 
       const paidSummary = await retryOwnerSubscriptionPayment(registeredSummary.shopId);
       setSummary(paidSummary);
-      setSelectedPlanCode(paidSummary.currentPlanCode);
+      setSelectedPlanCode(toCanonicalOwnerPlanCode(paidSummary.currentPlanCode));
       clearPendingBillingRegistration();
       if (hasSuccessfulPayment(paidSummary)) {
         setMessage(null);
@@ -428,7 +430,7 @@ export default function OwnerBillingScreen({
       await persistSelectedPlanIfNeeded();
       const nextSummary = await retryOwnerSubscriptionPayment(summary.shopId);
       setSummary(nextSummary);
-      setSelectedPlanCode(nextSummary.currentPlanCode);
+      setSelectedPlanCode(toCanonicalOwnerPlanCode(nextSummary.currentPlanCode));
       if (hasSuccessfulPayment(nextSummary)) {
         setMessage(null);
         router.replace(buildBillingSuccessUrl(nextSummary) as never);
@@ -472,7 +474,7 @@ export default function OwnerBillingScreen({
 
   function handleSelectPlanCode(planCode: OwnerPlanCode) {
     hasUserSelectedPlanRef.current = true;
-    setSelectedPlanCode(planCode);
+    setSelectedPlanCode(toCanonicalOwnerPlanCode(planCode));
     setAgreementAccepted(false);
     setMessage(null);
   }
@@ -515,7 +517,7 @@ export default function OwnerBillingScreen({
     try {
       const nextSummary = await cancelOwnerSubscriptionRenewal(summary.shopId);
       setSummary(nextSummary);
-      setSelectedPlanCode(nextSummary.currentPlanCode);
+      setSelectedPlanCode(toCanonicalOwnerPlanCode(nextSummary.currentPlanCode));
       setCancelRenewalDialogOpen(false);
       setCancelReason("");
       setCancelAcknowledged(false);

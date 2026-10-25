@@ -7,7 +7,13 @@ import { OwnerBillingSuccessCard } from "@/components/owner/owner-billing-flow-s
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
 import { BillingConsent, PaymentMethodSheet, type PaymentMethodOptionId } from "@/features/billing";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { billableOwnerPlans, getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel, type OwnerPlan } from "@/lib/billing/owner-plans";
+import {
+  billableOwnerPlans,
+  getOwnerPlanDisplayName,
+  OWNER_SINGLE_PLAN_INCLUDED_COPY,
+  OWNER_SINGLE_PLAN_LIMIT_COPY,
+  type OwnerPlan,
+} from "@/lib/billing/owner-plans";
 import { won } from "@/lib/utils";
 
 const PREVIEW_BASE_DATE = new Date("2026-05-04T10:00:00+09:00");

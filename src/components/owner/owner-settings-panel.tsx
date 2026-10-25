@@ -10,7 +10,12 @@ import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { Switch } from "@/components/ui/switch";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
-import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel } from "@/lib/billing/owner-plans";
+import {
+  OWNER_CANONICAL_PLAN_CODE,
+  OWNER_SINGLE_PLAN_INCLUDED_COPY,
+  OWNER_SINGLE_PLAN_MONTHLY_PRICE,
+  OWNER_SINGLE_PLAN_NAME,
+} from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { bookingCloseGraceMinuteOptions, normalizeBookingCloseGraceMinutes } from "@/lib/booking-last-start-cutoff";
@@ -689,8 +694,7 @@ export default function OwnerSettingsPanel({
           !subscriptionSummary.currentPeriodEndsAt &&
           subscriptionSummary.lastPaymentStatus === "none";
         const isFreePlan = currentPlan.code === "free";
-        const currentTotalShopCount = subscriptionSummary.billingAmount.multiShopDiscount.totalShopCount;
-        const currentPlanTitle = isFreePlan || showTrialCard ? "체험 플랜" : getOwnerPlanDisplayName(currentPlan.code);
+        const currentPlanTitle = isFreePlan || showTrialCard ? "체험 플랜" : OWNER_SINGLE_PLAN_NAME;
         const currentPlanLine = isFreePlan || showTrialCard
           ? "카드 등록 없이 이용 중"
           : getOwnerPlanStaffLimitLabel(currentPlan, currentTotalShopCount);
@@ -705,7 +709,7 @@ export default function OwnerSettingsPanel({
           subscriptionSummary.status === "active" ||
           subscriptionSummary.status === "trialing" ||
           subscriptionSummary.status === "trial_will_end";
-        const planCtaLabel = isInService ? "플랜 보기" : "업그레이드 플랜";
+        const planCtaLabel = "요금제 확인";
 
         return (
       <div className="overflow-hidden rounded-[10px] border border-[#d9d4cb] bg-white shadow-[0_4px_12px_rgba(21,22,19,0.03)]">
@@ -733,7 +737,7 @@ export default function OwnerSettingsPanel({
                 <p className="mt-1 text-[17px] font-medium tracking-[-0.02em] text-[#171411]">{subscriptionEndDate}</p>
               </div>
               <Link
-                href={`/owner/billing?compare=1&plan=${currentPlan.code}`}
+                href={`/owner/billing?compare=1&plan=${OWNER_CANONICAL_PLAN_CODE}`}
                 prefetch
                 onClick={() => writeOwnerBillingSummaryCache(subscriptionSummary)}
                 className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent)] px-4 text-[14px] font-normal tracking-[-0.01em] text-white transition hover:bg-[#195748]"

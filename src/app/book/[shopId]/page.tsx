@@ -89,9 +89,9 @@ export default async function BookPage({
     tokenBookingProfile ??
     (isStableLandingDemoShop && landingExperience === "revisit"
       ? {
-          ownerName: "김다은",
-          phone: "010-0000-0000",
-          pets: [{ id: "30000000-0000-4000-8000-000000000001", name: "두부", breed: "말티즈", weight: 3.8 }],
+          ownerName: "예약 예시 고객",
+          phone: "000-0000-0000",
+          pets: [{ id: "30000000-0000-4000-8000-000000000001", name: "예약 예시 A", breed: "말티즈", weight: 3.8 }],
         }
       : undefined);
 

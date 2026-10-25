@@ -9,7 +9,7 @@ if (hasReleaseKeystore) {
 }
 
 def androidVersionCode = (System.getenv('PETMANAGER_ANDROID_VERSION_CODE') ?: '1') as Integer
-def androidVersionName = System.getenv('PETMANAGER_ANDROID_VERSION_NAME') ?: '1.0'
+def androidVersionName = System.getenv('PETMANAGER_ANDROID_VERSION_NAME') ?: '0.157'
 
 android {
     namespace = "kr.petmanager.owner"

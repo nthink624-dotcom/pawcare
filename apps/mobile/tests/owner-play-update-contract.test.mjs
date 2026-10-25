@@ -243,7 +243,7 @@ test("native bridge is Play-only, flexible, resumable, and registered", () => {
   assert.match(nativeSource, /completeUpdate\(\)/);
   assert.match(mainActivitySource, /registerPlugin\(OwnerPlayUpdatePlugin\.class\)/);
   assert.match(gradleSource, /PETMANAGER_ANDROID_VERSION_CODE'\) \?: '1'/);
-  assert.match(gradleSource, /PETMANAGER_ANDROID_VERSION_NAME'\) \?: '1\.0'/);
+  assert.match(gradleSource, /PETMANAGER_ANDROID_VERSION_NAME'\) \?: '0\.157'/);
 });
 
 test("calm UI offers only update or later and keeps a Settings badge", () => {

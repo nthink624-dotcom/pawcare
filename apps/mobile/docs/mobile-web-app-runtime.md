@@ -54,7 +54,7 @@ Firebase 파일, 서명 설정, 업로드 키, 로컬 환경변수 파일은 Git
 
 ```powershell
 $env:PETMANAGER_ANDROID_VERSION_CODE = "1"
-$env:PETMANAGER_ANDROID_VERSION_NAME = "1.0.0"
+$env:PETMANAGER_ANDROID_VERSION_NAME = "0.157"
 npm run android:release
 Remove-Item Env:\PETMANAGER_ANDROID_VERSION_CODE
 Remove-Item Env:\PETMANAGER_ANDROID_VERSION_NAME

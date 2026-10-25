@@ -74,6 +74,7 @@ export type ShopNotificationSettings = {
   revisit_enabled: boolean;
   revisit_reminder_default_days: number;
   booking_consent_request_enabled?: boolean;
+  booking_deposit_request_enabled?: boolean;
   booking_confirmed_enabled: boolean;
   booking_cancelled_enabled: boolean;
   booking_rescheduled_enabled: boolean;

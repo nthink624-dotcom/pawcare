@@ -13,6 +13,7 @@ export type ShopSettingKey =
   | "enabled"
   | "revisit_enabled"
   | "booking_consent_request_enabled"
+  | "booking_deposit_request_enabled"
   | "booking_confirmed_enabled"
   | "booking_cancelled_enabled"
   | "booking_rescheduled_enabled"
@@ -490,7 +491,8 @@ export function shouldSendByShopSettings(
   if (!settings.enabled) return false;
   const override = resolvedAlias ? settings.alimtalk_type_enabled?.[resolvedAlias] : undefined;
   if (typeof override === "boolean") return override;
-  if (["booking_deposit_request", "booking_deposit_expired", "booking_deposit_refunded", "booking_deposit_cancelled"].includes(type)) return true;
+  if (type === "booking_deposit_request") return settings.booking_deposit_request_enabled !== false;
+  if (["booking_deposit_expired", "booking_deposit_refunded", "booking_deposit_cancelled"].includes(type)) return true;
 
   switch (type) {
     case "booking_received":
@@ -506,7 +508,7 @@ export function shouldSendByShopSettings(
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
     case "booking_consent_request":
-      return true;
+      return settings.booking_consent_request_enabled !== false;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
     case "grooming_almost_done":

@@ -654,6 +654,7 @@ export async function updateShopSettings(
     booking_confirmed_enabled: payload.notificationSettings.bookingConfirmedEnabled,
     booking_cancelled_enabled: payload.notificationSettings.bookingCancelledEnabled,
     booking_consent_request_enabled: payload.notificationSettings.bookingConsentRequestEnabled,
+    booking_deposit_request_enabled: payload.notificationSettings.bookingDepositRequestEnabled,
     booking_rescheduled_enabled: payload.notificationSettings.bookingRescheduledEnabled,
     appointment_reminder_10m_enabled: payload.notificationSettings.appointmentReminder10mEnabled,
     appointment_reminder_10m_mode: payload.notificationSettings.appointmentReminder10mMode,

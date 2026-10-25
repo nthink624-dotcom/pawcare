@@ -273,6 +273,7 @@ export const shopSettingsSchema = z.object({
     bookingConfirmedEnabled: z.boolean(),
     bookingCancelledEnabled: z.boolean(),
     bookingConsentRequestEnabled: z.boolean().default(true),
+    bookingDepositRequestEnabled: z.boolean().default(true),
     bookingRescheduledEnabled: z.boolean(),
     appointmentReminder10mEnabled: z.boolean().default(true),
     appointmentReminder10mMode: z.enum(["manual", "auto"]).default("manual"),

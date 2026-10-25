@@ -56,6 +56,9 @@ function detectCatchCallDevicePlatform(): CatchCallDevicePlatform {
 function getCatchCallErrorMessage(error: unknown, fallback: string) {
   const rawMessage = error instanceof Error ? error.message : "";
   const normalizedMessage = rawMessage.toLowerCase();
+  if (normalizedMessage.includes("not implemented") || normalizedMessage.includes("unimplemented")) {
+    return "현재 앱 버전에서 통화 연동을 지원하지 않습니다. 앱 업데이트를 확인해 주세요.";
+  }
   if (
     error instanceof TypeError ||
     normalizedMessage.includes("failed to fetch") ||
@@ -64,7 +67,7 @@ function getCatchCallErrorMessage(error: unknown, fallback: string) {
   ) {
     return "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
   }
-  return rawMessage || fallback;
+  return /[가-힣]/.test(rawMessage) ? rawMessage : fallback;
 }
 
 const eventLabels: Record<CatchCallEvent["eventType"], string> = {

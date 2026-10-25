@@ -53,7 +53,7 @@ assertIncludes(
   "Owner password login must return a refresh token to the browser.",
 );
 
-assertIncludes(
+assertNotIncludes(
   "src/components/auth/login-form.tsx",
   "supabase.auth.setSession",
   "Login must hydrate the browser SDK session so token refresh and logout remain reliable.",
@@ -111,13 +111,23 @@ assertIncludes(
 );
 assertIncludes(
   "src/app/owner/page.tsx",
-  "refreshSession",
-  "Owner page must attempt Supabase session refresh before redirecting to /login.",
+  "readOwnerAuthTokenCache",
+  "Owner page must support access-token cache fallback before redirecting to /login.",
 );
 assertIncludes(
   "src/app/owner/page.tsx",
-  "readOwnerAuthTokenCache",
-  "Owner page must support access-token cache fallback before redirecting to /login.",
+  "getOwnerAccessTokenWithRecovery",
+  "Owner entry must share the same retained-refresh recovery promise as authenticated API calls.",
+);
+assertNotIncludes(
+  "src/app/owner/page.tsx",
+  ".setSession({",
+  "Owner entry must not duplicate the API-issued session with a second browser auth request.",
+);
+assertNotIncludes(
+  "src/lib/supabase/client.ts",
+  "lock:",
+  "Browser Supabase auth must use the maintained internal lock instead of a deprecated custom lock.",
 );
 assertIncludes(
   "src/app/owner/page.tsx",

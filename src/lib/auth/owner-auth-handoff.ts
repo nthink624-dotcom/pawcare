@@ -153,8 +153,6 @@ export function readOwnerAuthTokenCache() {
   try {
     const parsed = JSON.parse(raw) as { accessToken?: unknown; expiresAt?: unknown };
     if (typeof parsed.accessToken !== "string" || typeof parsed.expiresAt !== "number") {
-      safeRemoveItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
-      safeRemoveItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
       return null;
     }
 
@@ -169,6 +167,34 @@ export function readOwnerAuthTokenCache() {
     safeRemoveItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
     return null;
   }
+}
+
+function clearAccessTokenFromStorage(storage: Storage | undefined) {
+  const raw = safeGetItem(storage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+  if (!raw) return;
+
+  try {
+    const parsed = JSON.parse(raw) as { refreshToken?: unknown };
+    if (typeof parsed.refreshToken !== "string" || !parsed.refreshToken) {
+      safeRemoveItem(storage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+      return;
+    }
+
+    safeSetItem(
+      storage,
+      OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY,
+      JSON.stringify({ accessToken: "", refreshToken: parsed.refreshToken, expiresAt: 0 }),
+    );
+  } catch {
+    safeRemoveItem(storage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+  }
+}
+
+export function clearOwnerAuthAccessTokenCache() {
+  currentOwnerAccessToken = null;
+  if (typeof window === "undefined") return;
+  clearAccessTokenFromStorage(window.localStorage);
+  clearAccessTokenFromStorage(window.sessionStorage);
 }
 
 export function readOwnerAuthRefreshTokenCache() {

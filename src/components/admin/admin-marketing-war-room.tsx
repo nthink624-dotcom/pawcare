@@ -16,6 +16,7 @@ import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 import { fetchApiJson } from "@/lib/api";
 import type { MarketingAgentStatus } from "@/types/marketing-agent";
 import type { MarketingKpiSnapshot } from "@/types/marketing-kpi";
+import type { MarketingApprovalDecision, MarketingArtifact, MarketingNodeStatus, MarketingWarRoomNode, MarketingWarRoomSnapshot } from "@/types/marketing-war-room";
 
 const REFRESH_INTERVAL_MS = 10_000;
 const KPI_REFRESH_INTERVAL_MS = 5 * 60_000;
@@ -36,7 +37,8 @@ export default function AdminMarketingWarRoom({
 }) {
   const [status, setStatus] = useState<MarketingAgentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<MarketingAgentStatus | null>(null);
   const [kpis, setKpis] = useState<MarketingKpiSnapshot | null>(null);
   const [kpiError, setKpiError] = useState<string | null>(null);
   const [kpiLoading, setKpiLoading] = useState(true);
@@ -52,26 +54,47 @@ export default function AdminMarketingWarRoom({
 
   const loadStatus = useCallback(async () => {
     try {
-      const nextStatus = await fetchApiJson<MarketingAgentStatus>(
-        "/api/admin/marketing/status",
-        { cache: "no-store" },
-      );
-      setStatus(nextStatus);
+      const [roomResult, agentResult, kpiResult] = await Promise.allSettled([
+        fetchApiJson<MarketingWarRoomSnapshot>("/api/admin/marketing/work-room", { cache: "no-store" }),
+        fetchApiJson<MarketingAgentStatus>("/api/admin/marketing/status", { cache: "no-store" }),
+        fetchApiJson<MarketingKpiSnapshot>("/api/admin/marketing/kpis?days=7", { cache: "no-store" }),
+      ]);
+      if (roomResult.status === "fulfilled") setSnapshot(roomResult.value);
+      if (agentResult.status === "fulfilled") { setAgentStatus(agentResult.value); setAgentConnectionFailed(false); }
+      else { setAgentStatus(null); setAgentConnectionFailed(true); }
+      if (kpiResult.status === "fulfilled") { setKpis(kpiResult.value); setKpiConnectionFailed(false); }
+      else { setKpis(null); setKpiConnectionFailed(true); }
+      if (roomResult.status === "rejected") throw roomResult.reason;
       setError(null);
     } catch {
       setError("상태 API 응답을 확인하지 못했습니다.");
     } finally {
       setLoading(false);
     }
+    catch (loadError) { setError(loadError instanceof Error ? loadError.message : "워크룸 상태를 확인하지 못했습니다."); }
   }, []);
-
+  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 10_000); return () => window.clearInterval(timer); }, [load]);
   useEffect(() => {
-    void loadStatus();
-    const timer = window.setInterval(() => void loadStatus(), REFRESH_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [loadStatus]);
+    const work = searchParams.get("work");
+    if (work && snapshot) { const resolved = resolveMarketingWorkSelection(snapshot, work); if (resolved) { setSelectedId(resolved); setShowDetails(true); } }
+    const view = searchParams.get("view");
+    if (view === "approval") { setFilter("승인 대기"); setShowDetails(true); }
+    else if (view === "blocked") { setFilter("막힘"); setShowDetails(true); }
+    else if (!work) setShowDetails(false);
+  }, [searchParams, snapshot]);
 
-  const loadKpis = useCallback(async () => {
+  const visibleNodes = useMemo(() => (snapshot?.nodes ?? []).filter((node) => {
+    if (filter === "전체") return true;
+    if (filter === "승인 대기") return node.status === "approval_waiting";
+    if (filter === "막힘") return node.status === "blocked" || node.status === "rejected" || Boolean(node.safetyViolation);
+    return node.team === filter;
+  }), [filter, snapshot]);
+  const selected = snapshot?.nodes.find((node) => node.id === selectedId) ?? visibleNodes[0] ?? null;
+  const selectedTeamWork = selectedId.startsWith("team:") ? snapshot?.teamWorkItems.find((item) => item.workId === selectedId.slice(5)) ?? null : null;
+
+  async function decide(decision: MarketingApprovalDecision) {
+    if (!selected?.approvalActionVisible || busy) return;
+    setBusy(true);
     try {
       const nextKpis = await fetchApiJson<MarketingKpiSnapshot>(
         "/api/admin/marketing/kpis?days=7",

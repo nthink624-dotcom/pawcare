@@ -90,6 +90,12 @@ type SupabaseSessionResult = {
   data: {
     session: Session | null;
   };
+  error?: {
+    code?: string;
+    message?: string;
+    name?: string;
+    status?: number;
+  } | null;
 };
 
 function withAuthRequestTimeout<T>(promise: Promise<T>): Promise<T> {
@@ -121,24 +127,50 @@ async function readAccessTokenWithRecovery() {
     throw new Error("Supabase 연결을 확인할 수 없습니다.");
   }
 
+  const cachedRefreshToken = readOwnerAuthRefreshTokenCache();
+  if (cachedRefreshToken) {
+    try {
+      const refreshedFromCache = await withAuthRequestTimeout(
+        supabase.auth.refreshSession({ refresh_token: cachedRefreshToken }) as Promise<SupabaseSessionResult>,
+      );
+      if (refreshedFromCache.data.session?.access_token) {
+        writeOwnerAuthTokenCache(
+          refreshedFromCache.data.session.access_token,
+          refreshedFromCache.data.session.refresh_token,
+        );
+        return refreshedFromCache.data.session.access_token;
+      }
+
+      const refreshError = refreshedFromCache.error;
+      const refreshMessage = refreshError?.message ?? "로그인이 필요합니다.";
+      const terminalRefreshFailure =
+        refreshError?.status === 400 ||
+        refreshError?.status === 401 ||
+        refreshError?.status === 403 ||
+        refreshMessage.toLowerCase().includes("invalid refresh") ||
+        refreshMessage.toLowerCase().includes("refresh token not found") ||
+        refreshMessage.toLowerCase().includes("refresh token already used");
+      if (terminalRefreshFailure) {
+        clearOwnerAuthTokenCache();
+      }
+      throw new Error(refreshMessage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (
+        message.includes("invalid refresh") ||
+        message.includes("refresh token not found") ||
+        message.includes("refresh token already used")
+      ) {
+        clearOwnerAuthTokenCache();
+      }
+      throw error;
+    }
+  }
+
   const initialSession = await withAuthRequestTimeout(supabase.auth.getSession() as Promise<SupabaseSessionResult>);
   if (initialSession.data.session?.access_token) {
     writeOwnerAuthTokenCache(initialSession.data.session.access_token, initialSession.data.session.refresh_token);
     return initialSession.data.session.access_token;
-  }
-
-  const cachedRefreshToken = readOwnerAuthRefreshTokenCache();
-  if (cachedRefreshToken) {
-    const refreshedFromCache = await withAuthRequestTimeout(
-      supabase.auth.refreshSession({ refresh_token: cachedRefreshToken }) as Promise<SupabaseSessionResult>,
-    );
-    if (refreshedFromCache.data.session?.access_token) {
-      writeOwnerAuthTokenCache(
-        refreshedFromCache.data.session.access_token,
-        refreshedFromCache.data.session.refresh_token,
-      );
-      return refreshedFromCache.data.session.access_token;
-    }
   }
 
   const refreshedSession = await withAuthRequestTimeout(
@@ -149,6 +181,7 @@ async function readAccessTokenWithRecovery() {
     return refreshedSession.data.session.access_token;
   }
 
+  clearOwnerAuthTokenCache();
   throw new Error("로그인이 필요합니다.");
 }
 
@@ -200,7 +233,7 @@ export async function fetchApiJsonWithBearer<T>(input: string, accessToken: stri
 }
 
 export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
-  const accessToken = await getAccessTokenWithRecovery();
+  const accessToken = await getOwnerAccessTokenWithRecovery();
   try {
     return await fetchApiJsonWithBearer<T>(input, accessToken, init);
   } catch (error) {

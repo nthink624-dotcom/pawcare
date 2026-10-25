@@ -6,7 +6,7 @@ import type { Session } from "@supabase/supabase-js";
 
 import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
 import OwnerServiceExpiredScreen from "@/components/owner/owner-service-expired-screen";
-import { fetchApiJsonWithAuth } from "@/lib/api";
+import { fetchApiJsonWithAuth, getOwnerAccessTokenWithRecovery } from "@/lib/api";
 import {
   clearOwnerAuthTokenCache,
   consumeOwnerAuthHandoff,
@@ -15,7 +15,6 @@ import {
   setCurrentOwnerAccessToken,
   waitForOwnerAuthHydration,
   writeOwnerAuthSessionCache,
-  writeOwnerAuthTokenCache,
 } from "@/lib/auth/owner-auth-handoff";
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import {
@@ -32,12 +31,6 @@ type OwnedShopSummary = {
   name: string;
   address: string;
   heroImageUrl: string;
-};
-
-type SupabaseSessionResult = {
-  data: {
-    session: Session | null;
-  };
 };
 
 type OwnerAccessContext = {
@@ -132,7 +125,7 @@ function withOwnerSessionTimeout<T>(promise: Promise<T>): Promise<T> {
   ]);
 }
 
-export default function OwnerPage() {
+export default function OwnerPage({ mobileRoute = false }: { mobileRoute?: boolean }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
@@ -224,7 +217,7 @@ export default function OwnerPage() {
     window.performance.mark("petmanager:owner-login:owner-route-mounted");
 
     async function load() {
-      if (shouldOpenMobileOwnerScreen()) {
+      if (!mobileRoute && shouldOpenMobileOwnerScreen()) {
         router.replace("/owner/mobile" as never);
         return;
       }
@@ -361,7 +354,7 @@ export default function OwnerPage() {
     return () => {
       active = false;
     };
-  }, [router, supabase]);
+  }, [mobileRoute, router, supabase]);
 
   useEffect(() => {
     if (!accessToken || data) return;

@@ -351,6 +351,10 @@ export default function LoginForm({
           }),
         );
       }
+      window.performance.mark("petmanager:owner-login:handoff-ready");
+      makeRoomForAuthStorage(currentEmail);
+
+      window.performance.mark("petmanager:owner-login:session-ready");
 
       window.performance.mark("petmanager:owner-login:session-ready");
 

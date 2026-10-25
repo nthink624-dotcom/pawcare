@@ -24,6 +24,19 @@ function sleep(ms: number) {
   });
 }
 
+function isOwnerAuthRecoveryError(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    message === "로그인이 필요합니다." ||
+    message === "인증 정보가 필요합니다." ||
+    message.includes("로그인 상태를 확인하지 못했습니다") ||
+    normalized.includes("invalid refresh token") ||
+    normalized.includes("refresh token") ||
+    normalized.includes("auth session") ||
+    normalized.includes("jwt")
+  );
+}
+
 function OwnerBillingSuccessPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();

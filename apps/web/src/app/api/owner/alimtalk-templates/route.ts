@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
       readAlimtalkRows((from, to) => admin.from("shop_alimtalk_template_requests").select("*").eq("shop_id", owner.shopId).order("created_at", { ascending: false }).order("id").range(from, to)),
       callRelay("/admin/templates/categories").catch(() => null),
     ]);
-    const catalogResult = await getRelayTemplateCatalog(rows.filter(row => row.inspection_status !== "draft").map(row => row.template_code));
+    const catalogResult = await getRelayTemplateCatalog(rows.filter(row => row.inspection_status !== "draft").map(row => row.template_code)).catch(() => null);
     const catalog = catalogResult?.allTemplates ?? [];
     const synced = await Promise.all(rows.map(async (row) => {
       const provider = catalog.find((item) => item.templateCode === row.template_code);

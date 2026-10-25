@@ -39,6 +39,7 @@ export type AlimtalkTemplateConfigKey =
   | "templateBookingReceived"
   | "templateBookingConfirmed"
   | "templateBookingCancelled"
+  | "templateBookingTimeProposed"
   | "templateBookingRescheduledConfirmed"
   | "templateAppointmentReminder10m"
   | "templateVisitScheduleNotice"
@@ -187,8 +188,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "appointment_reminder_10m_enabled",
     guardianSettingKey: "appointment_reminder_10m_enabled",
     notes: "예약 안내 3종 중 내일 예약 안내에 사용",
-    draftBody:
-      "[#{매장명}]\n내일은 #{반려동물명} 미용 예약일입니다.\n\n예약 일시: #{예약일시}\n예약 서비스: #{서비스명}",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.visit_schedule_notice.body,
   },
   {
     type: "visit_reminder_notice",
@@ -202,8 +202,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "appointment_reminder_10m_enabled",
     guardianSettingKey: "appointment_reminder_10m_enabled",
     notes: "예약 안내 3종 중 오늘 예약 안내에 사용",
-    draftBody:
-      "[#{매장명}]\n오늘은 #{반려동물명} 미용 예약일입니다.\n\n예약 일시: #{예약일시}\n예약 서비스: #{서비스명}",
+    draftBody: APPROVED_ALIMTALK_CONTRACTS.visit_reminder_notice.body,
   },
   {
     type: "grooming_started",

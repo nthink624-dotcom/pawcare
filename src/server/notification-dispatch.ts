@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import {
   getAlimtalkTemplateAlias,
+  renderNotificationTemplateBody,
   shouldSendByGuardianSettings,
   shouldSendByShopSettings,
 } from "@/lib/notification-registry";
@@ -14,7 +15,6 @@ import {
 } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
-import { renderNotificationTemplateBodyWithOverrides } from "@/server/alimtalk-template-overrides";
 import {
   getApprovedSsodaaNotificationTemplate,
   requiresApprovedSsodaaTemplate,
@@ -391,6 +391,8 @@ function legacyBuildNotificationMessage(params: {
   recipientName: string | null;
   serviceName: string | null;
   rejectionReason: string | null;
+  ownerAdditionalMessage: string | null;
+  visitPreparation: string | null;
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
 }) {

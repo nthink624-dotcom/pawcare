@@ -11,6 +11,7 @@ import { mergeResolvedProfileImageUrls } from "@/lib/media/profile-image-collect
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 import { cn } from "@/lib/utils";
 import BookingPolicyPanel from "@/components/owner-web/booking-policy-panel";
+import { OWNER_SETTINGS_TAB_HEADER_CLASS } from "@/components/owner-web/owner-settings-tab-header";
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
 import type { BootstrapStaffMember, OwnerProfile, Service, Shop } from "@/types/domain";
 
@@ -651,12 +652,13 @@ export default function ShopInfoSettingsPanel({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-1" data-shop-info-main-surface>
-          {activeSectionId !== "policy" && <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:px-5">
+          {activeSectionId !== "policy" && <>
+          <div className={OWNER_SETTINGS_TAB_HEADER_CLASS}>
             <div className="flex items-center justify-between gap-4">
               <div
                 role="tablist"
                 aria-label="설정 메뉴"
-                className="no-scrollbar flex min-h-[54px] min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-[14px] border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="owner-settings-tabbar flex-1"
               >
                 {sectionTabs.map((tab) => (
                   <button
@@ -669,29 +671,27 @@ export default function ShopInfoSettingsPanel({
                     tabIndex={activeSectionId === tab.id ? 0 : -1}
                     onClick={() => changeActiveSection(tab.id)}
                     onKeyDown={(event) => handleSectionTabKeyDown(event, tab.id)} data-owner-control-size='content'
-                    className={cn(
-                      "inline-flex h-10 shrink-0 items-center rounded-full px-4 text-[18px] font-medium leading-6 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
-                      activeSectionId === tab.id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]",
-                    )}
+                    className="owner-settings-tab"
                   >
                     {tab.label}
                   </button>
                 ))}
               </div>
             </div>
-            {showCustomerPreview && <div className="mt-2 flex justify-end xl:hidden">
+          </div>
+            {showCustomerPreview && <div className="mt-2 flex justify-end px-3 sm:px-5 xl:hidden">
               <button type="button" onClick={() => setPreviewDialogOpen(true)}
                 className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#e1e4ea] px-3 text-[16px] font-medium text-[#15213b]">
                 <Smartphone className="h-4 w-4" />고객 화면 미리보기
               </button>
             </div>}
-          </div>}
+          </>}
 
-          <div className={cn("grid min-h-0 min-w-0 flex-1 gap-4", showCustomerPreview && "xl:grid-cols-[minmax(0,1fr)_320px]")}>
+          <div className={cn("grid min-h-0 min-w-0 flex-1 gap-3", activeSectionId !== "policy" && "mx-3 mb-3 mt-2 sm:mx-5", showCustomerPreview && "xl:grid-cols-[minmax(0,1fr)_320px]")}>
           <div
             ref={settingsScrollRef}
             data-shop-info-scroll-region
-            className={cn("no-scrollbar min-h-0 min-w-0 overflow-y-auto rounded-[13px] bg-white px-3 pt-1 pb-1 sm:px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", activeSectionId === "policy" && "xl:flex xl:flex-col")}
+            className={cn("no-scrollbar min-h-0 min-w-0 overflow-y-auto rounded-[14px] bg-white px-3 pt-1 pb-1 sm:px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", activeSectionId !== "policy" && "border border-[#e1e4ea]", activeSectionId === "policy" && "xl:flex xl:flex-col")}
           >
             <div className={cn("min-w-0 w-full space-y-[18px]", activeSectionId === "policy" && "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col")}>
               <div id="shop-info-panel-basic" role="tabpanel" aria-labelledby="shop-info-tab-basic" hidden={activeSectionId !== "basic"}>
@@ -888,11 +888,10 @@ export default function ShopInfoSettingsPanel({
                               type="button"
                               onClick={() => document.getElementById("shop-profile-images-input")?.click()}
                               disabled={!editable || profileImagesBusy}
-                              className="flex aspect-square min-h-11 min-w-11 w-full flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-[#d8dce3] bg-[#f6f8fb] text-[#969ba4] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex aspect-square min-h-11 min-w-11 w-full items-center justify-center rounded-[10px] border border-dashed border-[#d8dce3] bg-[#f6f8fb] text-[#969ba4] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
                               aria-label="매장 사진 추가"
                             >
-                              <Camera className="h-4 w-4" />
-                              <span className="text-[12px] font-medium leading-[18px]">사진 추가</span>
+                              <Camera className="h-5 w-5" aria-hidden="true" />
                             </button>
                           ))}
                         </div>
@@ -1138,8 +1137,8 @@ export default function ShopInfoSettingsPanel({
             </div>
           </div>
     {showCustomerPreview && <>
-      <div data-shop-customer-preview aria-label="고객 화면 미리보기" className="hidden max-h-full min-h-0 self-start xl:block">
-        <div className="no-scrollbar min-h-0 overflow-y-auto pt-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{desktopPreviewVisible && customerPreview}</div>
+      <div data-shop-customer-preview aria-label="고객 화면 미리보기" className="hidden h-full min-h-0 overflow-hidden rounded-[14px] border border-[#e1e4ea] bg-white xl:flex xl:items-center xl:justify-center">
+        <div className="no-scrollbar max-h-full min-h-0 overflow-y-auto px-3 py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{desktopPreviewVisible && customerPreview}</div>
       </div>
       <dialog ref={previewDialogRef} aria-labelledby="shop-preview-dialog-title"
         onClose={() => setPreviewDialogOpen(false)}

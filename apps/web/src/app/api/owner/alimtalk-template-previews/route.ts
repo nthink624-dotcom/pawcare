@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
+import { ALIMTALK_PREVIEW_EXAMPLE_SERVICE, getAlimtalkPreviewAppointmentTime } from "@/lib/alimtalk-preview-sample";
 import { getApprovedSsodaaNotificationTemplates } from "@/server/alimtalk-approved-template";
 import { buildBookingEntryUrl, buildBookingManageUrl } from "@/server/booking-access-token";
 import { getBootstrap } from "@/server/bootstrap";
@@ -68,11 +69,11 @@ export async function GET(request: NextRequest) {
       shopId: owner.shopId,
       petName: pet?.name ?? "반려동물",
       recipientName: guardian?.name ?? "보호자",
-      serviceName: service?.name ?? "예약 서비스",
+      serviceName: service?.name ?? (appointment ? "예약 서비스" : ALIMTALK_PREVIEW_EXAMPLE_SERVICE),
       shopAddress: bootstrap.shop.address ?? null,
       shopName: bootstrap.shop.name,
     });
-    if (!values.예약일시) values.예약일시 = "예약 일시";
+    if (!values.예약일시) values.예약일시 = getAlimtalkPreviewAppointmentTime();
     const types = ALIMTALK_NOTIFICATION_REGISTRY.map((item) => item.type);
     const templates = await getApprovedSsodaaNotificationTemplates(types, values, owner.shopId);
 
@@ -102,6 +103,7 @@ export async function GET(request: NextRequest) {
             inspectionStatus: template?.inspectionStatus ?? null,
             serviceStatus: template?.serviceStatus ?? null,
             source: template?.source ?? "draft",
+            usesExampleValues: !appointment,
           };
         }),
     });

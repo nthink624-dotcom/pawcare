@@ -748,3 +748,8 @@ Price-guide image analysis uses two separate persistence classes.
 - 해당 반려동물 기록이 1건부터 있으면 중앙값을 5분 단위로 올림해 추천한다. 1~2건은 `초기 추정`으로 표시한다. 예: 예약 90분 / 실제 74분 → 다음 예상 75분, 실제 평균 74분, 기록 1건.
 - 해당 동물 기록이 없으면 같은 매장·서비스·반올림 체중 기록 3건 이상, 같은 서비스 3건 이상, 기본 서비스 시간 순으로 대체한다. 다른 매장 기록·취소·미완료·중복·시각 누락 및 불일치 기록은 제외한다.
 - 이 값은 현재 조회된 기록의 읽기 전용 추정이며 과거 예약·실측 기록이나 요금표를 변경하지 않는다. 모든 과거 기록의 완전 조회 또는 통계적 정확성을 보장하지 않는다.
+
+## Booking deposit Alimtalk settings (2026-10-12)
+- shops.notification_settings.booking_deposit_request_enabled is an optional boolean; omitted means true. Owner notificationSettings.bookingDepositRequestEnabled persists the same JSON field through the owner API.
+- booking_received is the deposit guidance template alias, displayed as 예약금 안내 under 예약 전 준비. Guardian opt-out uses deposit_request_enabled. No new notification type or table is introduced.
+- The template review API accepts booking_received with the fixed 예약 확인 button and https://www.petmanager.co.kr/m?access_token=#{예약관리토큰}. Runtime sending requires an approved provider template and a deposit-specific booking trigger; listing the draft does not activate delivery.

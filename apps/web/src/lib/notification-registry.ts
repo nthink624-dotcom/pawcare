@@ -11,6 +11,8 @@ export type NotificationChannel = "alimtalk" | "in_app" | "data_only";
 export type ShopSettingKey =
   | "enabled"
   | "revisit_enabled"
+  | "booking_consent_request_enabled"
+  | "booking_deposit_request_enabled"
   | "booking_confirmed_enabled"
   | "booking_cancelled_enabled"
   | "booking_rescheduled_enabled"
@@ -73,26 +75,29 @@ export type NotificationTemplateVariables = Record<string, string | null | undef
 export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   {
     type: "booking_received",
-    title: "예약 접수",
+    title: "예약금 안내",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "현재 발송하지 않음. 확정 예약은 예약 확정 안내를 사용",
+    trigger: "예약금이 필요한 예약의 입금 안내. 승인된 템플릿 연결 후 사용",
     dispatchSource: "src/server/customer-bookings.ts",
     templateAlias: "booking_received",
     templateConfigKey: "templateBookingReceived",
-    shopSettingKey: "enabled",
-    guardianSettingKey: "enabled",
+    shopSettingKey: "booking_deposit_request_enabled",
+    guardianSettingKey: "deposit_request_enabled",
     notes: "예약금 대기 접수 안내는 새 템플릿 승인·연결 후 제공",
     draftBody: [
-      "[#{매장명}] #{반려동물명} 예약이 접수되었어요.",
-      "방문 일정: #{예약일시}",
+      "[#{매장명}]",
       "",
-      "매장에서 예약을 확인한 뒤 승인 알림을 보내드릴게요.",
+      "#{보호자명}님, #{반려동물명}의 미용 예약이 접수되었어요.",
       "",
-      "예약 링크",
-      "#{예약 링크}",
-      "예약 확인 링크",
-      "#{예약 확인 링크}",
+      "방문 일시: #{예약일시}",
+      "예약 서비스: #{서비스명}",
+      "",
+      "예약금과 입금 계좌, 납부 기한은",
+      "아래 ‘예약 확인’에서 확인해 주세요.",
+      "",
+      "입금이 확인되면",
+      "예약 확정 안내를 보내드릴게요.",
     ].join("\n"),
   },
   {
@@ -104,7 +109,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     dispatchSource: "src/server/booking-preparation.ts",
     templateAlias: "booking_consent_request",
     templateConfigKey: "templateBookingConsentRequest",
-    shopSettingKey: "enabled",
+    shopSettingKey: "booking_consent_request_enabled",
     guardianSettingKey: "consent_request_enabled",
     notes: "카카오 승인 후에만 발송합니다.",
     draftBody: APPROVED_ALIMTALK_CONTRACTS.booking_consent_request.body,
@@ -316,6 +321,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
 ] as const;
 
 export const ACTIVE_ALIMTALK_TEMPLATE_ALIASES: readonly AlimtalkTemplateAlias[] = [
+  "booking_received",
   "booking_consent_request",
   "booking_confirmed",
   "booking_cancelled",
@@ -410,6 +416,7 @@ export function shouldSendByShopSettings(
 
   switch (type) {
     case "booking_received":
+      return settings.booking_deposit_request_enabled !== false;
     case "owner_booking_requested":
     case "appointment_reminder_10m":
     case "visit_schedule_notice":
@@ -422,7 +429,7 @@ export function shouldSendByShopSettings(
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
     case "booking_consent_request":
-      return true;
+      return settings.booking_consent_request_enabled !== false;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
     case "grooming_almost_done":
@@ -447,6 +454,8 @@ export function shouldSendByGuardianSettings(
   if (!settings.enabled) return false;
 
   switch (type) {
+    case "booking_received":
+      return settings.deposit_request_enabled !== false;
     case "booking_consent_request":
       return settings.consent_request_enabled ?? true;
     case "booking_confirmed":

@@ -14,6 +14,8 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
   alimtalk_template_request_updated_at: null,
   revisit_enabled: true,
   revisit_reminder_default_days: 45,
+  booking_consent_request_enabled: true,
+  booking_deposit_request_enabled: true,
   booking_confirmed_enabled: true,
   booking_cancelled_enabled: true,
   booking_rescheduled_enabled: true,
@@ -80,6 +82,8 @@ export function normalizeShopNotificationSettings(settings: Partial<ShopNotifica
       settings?.revisit_reminder_default_days,
       defaultShopNotificationSettings.revisit_reminder_default_days,
     ),
+    booking_consent_request_enabled: settings?.booking_consent_request_enabled !== false,
+    booking_deposit_request_enabled: settings?.booking_deposit_request_enabled !== false,
     appointment_reminder_10m_mode:
       settings?.appointment_reminder_10m_mode === "manual" ? "manual" : "auto",
     visit_reminder_offset_minutes: normalizeMinuteValue(
@@ -95,6 +99,8 @@ export function coerceEnabledShopNotificationSettings(settings: ShopNotification
 
   const hasAnyDetailedNotificationEnabled =
     settings.revisit_enabled ||
+    settings.booking_consent_request_enabled !== false ||
+    settings.booking_deposit_request_enabled !== false ||
     settings.booking_confirmed_enabled ||
     settings.booking_cancelled_enabled ||
     settings.booking_rescheduled_enabled ||

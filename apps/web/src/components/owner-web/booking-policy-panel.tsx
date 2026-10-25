@@ -2,6 +2,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { DEFAULT_BOOKING_CONSENT_ID, DEFAULT_BOOKING_POLICY, NEXT_BOOKING_RULE_LABELS, type BookingPolicy, type NextBookingRule } from "@petmanager/shared/contracts/booking-preparation";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { OWNER_SETTINGS_TAB_HEADER_CLASS } from "@/components/owner-web/owner-settings-tab-header";
 const field = "h-10 w-full rounded-[8px] border border-slate-300 bg-white px-3 text-[16px] outline-none focus:ring-2 focus:ring-blue-200";
 type ConsentDraft = { templateId: string | null; title: string; body: string };
 const LEGACY_DEFAULT_CONSENT_BODY = `보호자는 반려동물의 질병과 과거 병력, 알레르기, 복용 중인 약, 피부·관절 상태, 최근 치료 여부를 미용 전에 정확히 알려주세요. 특히 노령이거나 기저질환이 있는 경우 미용 중 스트레스나 컨디션 변화가 생길 수 있으므로 관련 정보를 충분히 전달해 주세요.
@@ -160,10 +161,10 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
   const activeConsentTemplates = policy.templates.filter(t => !t.archivedAt);
   const archivedConsentTemplates = policy.templates.filter(t => Boolean(t.archivedAt));
   return <section className={`space-y-3 text-[16px] text-[#15213b] ${tab === "consent" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
-    <div className="-mx-3 -mt-1 shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 py-3 backdrop-blur sm:-mx-5 sm:px-5">
-      <div className="no-scrollbar flex min-h-[54px] min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-[14px] border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="예약 관리 설정">{[["deposit", "예약금"], ["consent", "동의서 관리"], ["noshow", "취소·노쇼"]].map(([id, title]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} data-owner-control-size='content' className={`inline-flex h-10 shrink-0 items-center rounded-full px-4 text-[18px] font-medium leading-6 outline-none transition focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 ${tab === id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]"}`}>{title}</button>)}</div>
+    <div className={`${OWNER_SETTINGS_TAB_HEADER_CLASS} -mx-3 -mt-1 sm:-mx-5`}>
+      <div className="owner-settings-tabbar" role="tablist" aria-label="예약 관리 설정">{[["deposit", "예약금"], ["consent", "동의서 관리"], ["noshow", "취소·노쇼"]].map(([id, title]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} data-owner-control-size='content' className="owner-settings-tab">{title}</button>)}</div>
     </div>
-    <div className={`px-5 pt-3 ${tab === "consent" ? "space-y-0 pb-0 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : "space-y-5 pb-3"}`}>
+    <div data-settings-body-container className={`rounded-[14px] border border-[#e1e4ea] bg-white px-4 py-4 ${tab === "consent" ? "space-y-0 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : "space-y-5"}`}>
     <fieldset disabled={!loaded || busy || !editable} className={`min-w-0 space-y-4 disabled:opacity-60 ${tab === "consent" ? "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col" : ""}`}>
       {tab === "deposit" && <>
         <div className="grid gap-4 sm:grid-cols-2"><Label title="예약금 사용"><select className={field} value={policy.depositMode} onChange={e => change("depositMode", e.target.value as BookingPolicy["depositMode"])}><option value="off">사용 안 함</option><option value="optional">예약별 선택</option><option value="required">대상 고객에게 필수</option></select></Label><Label title="적용 고객"><select className={field} value={policy.depositAudience} onChange={e => change("depositAudience", e.target.value as BookingPolicy["depositAudience"])}><option value="all">전체 고객</option><option value="new">첫 방문 고객</option><option value="noshow">노쇼 이력 고객</option></select></Label>

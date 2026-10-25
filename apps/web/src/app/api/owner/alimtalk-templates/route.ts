@@ -6,13 +6,14 @@ import { serverEnv } from "@/lib/server-env";
 import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { getApprovedSsodaaTemplateDetails } from "@/server/alimtalk-approved-template";
 
 export const dynamic = "force-dynamic";
 
 const templateSchema = z.object({
   shopId: z.string().trim().min(1).max(100),
   templateAlias: z.enum([
-    "booking_consent_request", "booking_confirmed", "booking_cancelled",
+    "booking_received", "booking_consent_request", "booking_confirmed", "booking_cancelled",
     "appointment_reminder_10m", "visit_schedule_notice", "visit_reminder_notice",
     "grooming_started", "grooming_almost_done", "grooming_completed",
     "grooming_completed_without_report", "revisit_notice",
@@ -40,7 +41,7 @@ const templateSchema = z.object({
   }
   const buttonRequiredTypes = new Set([
     "booking_confirmed", "appointment_reminder_10m", "visit_schedule_notice",
-    "visit_reminder_notice", "grooming_completed", "revisit_notice", "booking_consent_request",
+    "visit_reminder_notice", "grooming_completed", "revisit_notice", "booking_consent_request", "booking_received",
   ]);
   if (Boolean(value.buttonName) !== Boolean(value.buttonUrl)) {
     context.addIssue({ code: "custom", path: ["buttonUrl"], message: "버튼 이름과 링크를 함께 입력해 주세요." });
@@ -57,6 +58,9 @@ const templateSchema = z.object({
   }
   if (value.templateAlias === "booking_consent_request" && value.buttonName !== "동의서 작성") {
     context.addIssue({ code: "custom", path: ["buttonName"], message: "동의서 요청 버튼 이름은 '동의서 작성'이어야 합니다." });
+  }
+  if (value.templateAlias === "booking_received" && (value.buttonName !== "예약 확인" || value.buttonUrl !== "https://www.petmanager.co.kr/m?access_token=#{예약관리토큰}")) {
+    context.addIssue({ code: "custom", path: ["buttonUrl"], message: "예약금 안내는 고정된 예약 확인 버튼과 예약별 링크를 사용합니다." });
   }
 });
 
@@ -129,7 +133,22 @@ export async function GET(request: NextRequest) {
     }));
 
     const categories = Array.isArray(categoriesResult?.categories) ? categoriesResult.categories : [];
-    return Response.json({ templates: synced, categories });
+    const aliases = ALIMTALK_NOTIFICATION_REGISTRY
+      .map((item) => item.templateAlias)
+      .filter((alias): alias is NonNullable<typeof alias> => Boolean(alias));
+    const approvedTemplates = await getApprovedSsodaaTemplateDetails(aliases, owner.shopId).catch(() => ({}));
+    return Response.json({
+      templates: synced,
+      categories,
+      approvedTemplates: Object.fromEntries(Object.entries(approvedTemplates).map(([alias, detail]) => [alias, detail ? {
+        templateCode: detail.templateCode,
+        templateName: detail.templateName,
+        templateContent: detail.templateContent,
+        buttons: detail.buttons.map((button) => ({ buttonName: button.name, linkMobile: button.linkMobile })),
+        inspectionStatus: detail.inspectionStatus,
+        serviceStatus: detail.serviceStatus,
+      } : null])),
+    });
   } catch (error) {
     const status = error instanceof OwnerApiError ? error.status : 500;
     return Response.json({ message: error instanceof OwnerApiError ? error.message : "매장 템플릿을 불러오지 못했습니다." }, { status });

@@ -2988,12 +2988,12 @@ function WheelTimeColumn({
         const rowOffset = offset * 24;
         const visual =
           distance === 0
-            ? { fontSize: 16, opacity: 1, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(0deg)`, color: "#111827", fontWeight: 400 }
+            ? { fontSize: 16, lineHeight: 24, opacity: 1, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(0deg)`, color: "#111827", fontWeight: 400 }
             : distance === 1
-              ? { fontSize: 15, opacity: 0.82, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(${-offset * 12}deg)`, color: "#4b5563", fontWeight: 400 }
+              ? { fontSize: 14, lineHeight: 20, opacity: 0.82, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(${-offset * 12}deg)`, color: "#4b5563", fontWeight: 400 }
               : distance === 2
-                ? { fontSize: 14, opacity: 0.62, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(${-offset * 16}deg)`, color: "#6b7280", fontWeight: 400 }
-                : { fontSize: 13, opacity: 0.42, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(${-offset * 20}deg)`, color: "#9aa4b2", fontWeight: 400 };
+                ? { fontSize: 14, lineHeight: 20, opacity: 0.62, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(${-offset * 16}deg)`, color: "#6b7280", fontWeight: 400 }
+                : { fontSize: 12, lineHeight: 18, opacity: 0.42, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(${-offset * 20}deg)`, color: "#9aa4b2", fontWeight: 400 };
         return (
           <button
             key={`${item}-${offset}`}

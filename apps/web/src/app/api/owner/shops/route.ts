@@ -34,6 +34,8 @@ const notificationSettingsPatchSchema = z
     bookingConfirmedEnabled: z.boolean().optional(),
     bookingCancelledEnabled: z.boolean().optional(),
     bookingRescheduledEnabled: z.boolean().optional(),
+    bookingConsentRequestEnabled: z.boolean().optional(),
+    bookingDepositRequestEnabled: z.boolean().optional(),
     groomingAlmostDoneEnabled: z.boolean().optional(),
     groomingCompletedEnabled: z.boolean().optional(),
     groomingStartWithoutPhotoEnabled: z.boolean().optional(),
@@ -81,6 +83,12 @@ function toStoredNotificationSettings(patch: z.infer<typeof notificationSettings
     ...(patch.bookingConfirmedEnabled !== undefined ? { booking_confirmed_enabled: patch.bookingConfirmedEnabled } : {}),
     ...(patch.bookingCancelledEnabled !== undefined ? { booking_cancelled_enabled: patch.bookingCancelledEnabled } : {}),
     ...(patch.bookingRescheduledEnabled !== undefined ? { booking_rescheduled_enabled: patch.bookingRescheduledEnabled } : {}),
+    ...(patch.bookingConsentRequestEnabled !== undefined
+      ? { booking_consent_request_enabled: patch.bookingConsentRequestEnabled }
+      : {}),
+    ...(patch.bookingDepositRequestEnabled !== undefined
+      ? { booking_deposit_request_enabled: patch.bookingDepositRequestEnabled }
+      : {}),
     ...(patch.groomingAlmostDoneEnabled !== undefined ? { grooming_almost_done_enabled: patch.groomingAlmostDoneEnabled } : {}),
     ...(patch.groomingCompletedEnabled !== undefined ? { grooming_completed_enabled: patch.groomingCompletedEnabled } : {}),
     ...(patch.groomingStartWithoutPhotoEnabled !== undefined
@@ -100,6 +108,8 @@ function toMobileNotificationSettingsReadback(settings: Partial<ShopNotification
     bookingConfirmedEnabled: normalized.booking_confirmed_enabled,
     bookingCancelledEnabled: normalized.booking_cancelled_enabled,
     bookingRescheduledEnabled: normalized.booking_rescheduled_enabled,
+    bookingConsentRequestEnabled: normalized.booking_consent_request_enabled !== false,
+    bookingDepositRequestEnabled: normalized.booking_deposit_request_enabled !== false,
     groomingAlmostDoneEnabled: normalized.grooming_almost_done_enabled,
     groomingCompletedEnabled: normalized.grooming_completed_enabled,
     groomingStartWithoutPhotoEnabled: normalized.grooming_start_without_photo_enabled,

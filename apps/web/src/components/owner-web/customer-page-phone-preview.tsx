@@ -128,6 +128,7 @@ export function CustomerPagePhonePreview({
 
 export function CustomerPagePreviewLayout({
   children,
+  topContent,
   shop,
   services,
   ownerProfile,
@@ -135,8 +136,12 @@ export function CustomerPagePreviewLayout({
   previewMode = "entry",
   className,
   hidePreview = false,
+  showPreviewTitle = true,
+  bodyClassName,
+  previewClassName,
 }: {
   children: ReactNode;
+  topContent?: ReactNode;
   shop: Shop | null;
   services: Service[];
   ownerProfile?: OwnerProfile | null;
@@ -144,12 +149,16 @@ export function CustomerPagePreviewLayout({
   previewMode?: "entry" | "staffSelection";
   className?: string;
   hidePreview?: boolean;
+  showPreviewTitle?: boolean;
+  bodyClassName?: string;
+  previewClassName?: string;
 }) {
   return (
-    <div className={cn("grid h-full min-h-0 gap-2", !hidePreview && "lg:grid-cols-[minmax(0,1fr)_320px]", className)}>
-      <div className="min-h-0 min-w-0 overflow-y-auto">{children}</div>
+    <div className={cn("grid h-full min-h-0 gap-2", topContent && "grid-rows-[auto_minmax(0,1fr)]", !hidePreview && "lg:grid-cols-[minmax(0,1fr)_320px]", className)}>
+      {topContent ? <div className="col-span-full min-w-0">{topContent}</div> : null}
+      <div className={cn("min-h-0 min-w-0 overflow-y-auto", bodyClassName)}>{children}</div>
       {!hidePreview ? (
-        <aside className="hidden h-full min-h-0 rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)] lg:flex">
+        <aside className={cn("hidden h-full min-h-0 rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)] lg:flex", previewClassName)}>
           <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-5">
             <CustomerPagePhonePreview
               shop={shop}
@@ -157,6 +166,7 @@ export function CustomerPagePreviewLayout({
               ownerProfile={ownerProfile}
               staffMembers={staffMembers}
               previewMode={previewMode}
+              showTitle={showPreviewTitle}
             />
           </div>
         </aside>

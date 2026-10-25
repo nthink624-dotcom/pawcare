@@ -584,6 +584,7 @@ function OwnerAppContent({
   const [pendingShopProfileEditId, setPendingShopProfileEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [photoNotice, setPhotoNotice] = useState<string | null>(null);
   const [ownerPageOrigin, setOwnerPageOrigin] = useState("");
   const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
   const [pushNotice, setPushNotice] = useState<OwnerPushReceivedEventDetail | null>(null);
@@ -799,6 +800,7 @@ function OwnerAppContent({
 
     setMobilePhotoPreviewFile(null);
     setPendingMobilePhoto(null);
+    setPhotoNotice(null);
     void (async () => {
       await pruneExpiredPendingOwnerStatusPhotos();
       const storedPhotos = await readPendingOwnerStatusPhotos(pendingPhotoAccountId, data.shop.id);
@@ -815,18 +817,11 @@ function OwnerAppContent({
         });
         if (pending) {
           setPendingMobilePhoto(pending);
-          setMobilePhotoPreviewFile(pendingOwnerStatusPhotoToFile(pending));
-          setMobilePhotoStatusAction(createMobilePhotoStatusAction(
-            pending.appointmentId,
-            pending.nextStatus,
-            false,
-            pending.allowSkip,
-          ));
         }
         if (expiredCount > 0) {
           setError(pending ? `${PENDING_PHOTO_EXPIRY_NOTICE} 남아 있는 사진 작업은 복구했습니다.` : PENDING_PHOTO_EXPIRY_NOTICE);
         } else if (pending) {
-          setError(`완료되지 않은 사진 작업을 복구했습니다. ${PENDING_PHOTO_RECOVERY_NOTICE}`);
+          setPhotoNotice("저장하지 않은 사진이 있어요. 이어서 확인할 수 있습니다.");
         }
       })
       .catch(() => {
@@ -2066,7 +2061,7 @@ function OwnerAppContent({
       if (pendingPhotoActionRequestRef.current !== requestId) return null;
       setPendingMobilePhoto(pending);
       setMobilePhotoPreviewFile(pendingOwnerStatusPhotoToFile(pending));
-      setError(PENDING_PHOTO_RECOVERY_NOTICE);
+      setPhotoNotice(PENDING_PHOTO_RECOVERY_NOTICE);
       return pending;
     } catch (storageFailure) {
       if (pendingPhotoActionRequestRef.current !== requestId) return null;
@@ -2407,6 +2402,7 @@ function OwnerAppContent({
       setPendingMobilePhoto(null);
       setMobilePhotoPreviewFile(null);
       setMobilePhotoStatusAction(null);
+      setPhotoNotice(null);
       if (nextStatus === "completed") void openCareReport(appointment.id);
     } catch (uploadError) {
       if (claimedPending && uploadClaimId) {
@@ -3027,7 +3023,7 @@ function OwnerAppContent({
                     <div className="flex min-h-[30px] min-w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-[#eaf1fc] text-[#174ea6]">
                       <Store className="h-4 w-4" aria-hidden="true" />
                     </div>
-                    <p className="min-w-0 max-w-[172px] text-[18px] font-semibold tracking-[-0.01em] text-[#0f172a] [overflow-wrap:anywhere]">{currentOwnedShop.name}</p>
+                    <p className="pm-home-header-label m-0 min-w-0 max-w-[172px] text-[18px] font-semibold leading-6! tracking-[-0.01em] text-[#0f172a] [overflow-wrap:anywhere]">{currentOwnedShop.name}</p>
                     <ChevronDown className="h-4 w-4 shrink-0 text-[#94a3b8]" />
                   </button>
                   {!isStaffApp ? <HomeHeaderStaffSelect options={homeStaffFilterOptions} value={homeStaffFilter} onChange={setHomeStaffFilter} staffCount={data.staffMembers.length} /> : null}
@@ -3093,6 +3089,18 @@ function OwnerAppContent({
         )}
       >
         {error && <div className="mx-4 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {photoNotice && !mobilePhotoStatusAction && (
+          <div role="status" className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[#f8fafc] px-3 py-2 text-[16px] font-normal leading-6 text-[#526276]">
+            <p className="min-w-0 flex-1">{photoNotice}</p>
+            {pendingMobilePhoto && <button type="button" className="min-h-11 px-3 font-medium text-[#174ea6]" onClick={() => {
+              const pending = pendingMobilePhoto;
+              setMobilePhotoPreviewFile(pendingOwnerStatusPhotoToFile(pending));
+              setMobilePhotoStatusAction(createMobilePhotoStatusAction(pending.appointmentId, pending.nextStatus, false, pending.allowSkip));
+              setPhotoNotice(null);
+            }}>이어서 확인</button>}
+            <button type="button" aria-label="사진 안내 닫기" className="min-h-11 px-3 font-medium" onClick={() => setPhotoNotice(null)}>닫기</button>
+          </div>
+        )}
 
         {activeTab === "home" && (
           <section className="flex h-full min-h-0 flex-col gap-2 bg-[#f6f9fc] px-2.5 pb-[calc(var(--pm-safe-bottom)+128px)] pt-2">
@@ -3895,6 +3903,7 @@ function OwnerAppContent({
               if (!await discardStagedMobilePhoto(action)) return;
               pendingPhotoActionRequestRef.current += 1;
               setMobilePhotoStatusAction(null);
+              setPhotoNotice(null);
               await updateAppointment(action.appointmentId, { status: action.nextStatus });
             })();
           }}
@@ -4202,7 +4211,7 @@ function HomeHeaderStaffSelect({
             <UserRound className="h-4 w-4 shrink-0 text-[#64748b]" strokeWidth={1.8} />
           )
         )}
-        <span className="min-w-0 truncate text-[14px] font-medium tracking-[-0.01em] text-[#334155]">
+        <span className="pm-home-header-label relative -top-px min-w-0 truncate text-[14px] font-medium leading-6! tracking-[-0.01em] text-[#334155]">
           {showStaffStack ? "전체" : selectedOption?.label ?? "담당자"}
         </span>
       </button>

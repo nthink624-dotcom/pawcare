@@ -20,9 +20,9 @@ const inputClassName =
 function FormRow({ label, required = false, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
     <div className="grid gap-3 border-b border-[#e5e7eb] px-1 py-4 lg:grid-cols-[150px_minmax(0,1fr)]">
-      <div className="flex items-start gap-1 pt-3 text-[14px] font-medium leading-5 text-[#475569]">
+      <div className="flex items-start gap-1 pt-3 text-[16px] font-medium leading-6 text-[#475569]">
         <span>{label}</span>
-        {required ? <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#c85b67]" aria-label="필수" /> : null}
+        {required ? <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[#c85b67]" aria-label="필수" /> : null}
       </div>
       <div className="min-w-0">{children}</div>
     </div>
@@ -49,7 +49,7 @@ function ChoiceButton({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "benefit-registration-choice relative inline-flex h-10 min-w-[148px] items-center justify-start gap-3 rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
+        "benefit-registration-choice relative inline-flex h-11 min-w-[148px] items-center justify-start gap-3 rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
         selected
           ? "border-[#1677ff] bg-[#eff6ff] text-[#1677ff]"
           : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
@@ -199,7 +199,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.combination_policy === policy}
               onClick={() => onChange({ combination_policy: policy })}
               className={cn(
-                "benefit-registration-choice relative h-10 min-w-[132px] rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
+                "benefit-registration-choice relative h-11 min-w-[132px] rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
                 draft.combination_policy === policy
                   ? "border-[#1677ff] bg-[#eff6ff] text-[#1677ff]"
                   : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
@@ -214,11 +214,11 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
       <FormRow label="적용 기간">
         <div className="grid max-w-[620px] gap-3 sm:grid-cols-2">
           <label className="space-y-1">
-            <span className="text-[13px] text-[#64748b]">시작일</span>
+            <span className="text-[16px] font-medium leading-6 text-[#475569]">시작일</span>
             <input type="date" value={draft.starts_at ?? ""} onChange={(event) => onChange({ starts_at: event.target.value })} className={inputClassName} />
           </label>
           <label className="space-y-1">
-            <span className="text-[13px] text-[#64748b]">종료일</span>
+            <span className="text-[16px] font-medium leading-6 text-[#475569]">종료일</span>
             <input type="date" value={draft.ends_at ?? ""} onChange={(event) => onChange({ ends_at: event.target.value })} className={inputClassName} />
           </label>
         </div>
@@ -232,7 +232,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.service_scope !== "specific"}
               onClick={() => onChange({ service_scope: "all", service_option_ids: [] })}
               className={cn(
-                "benefit-registration-choice relative h-10 min-w-[150px] rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+                "benefit-registration-choice relative h-11 min-w-[150px] rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
                 draft.service_scope !== "specific"
                   ? "border-[#1677ff] bg-[#eff6ff] text-[#1677ff]"
                   : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",
@@ -245,7 +245,7 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
               aria-pressed={draft.service_scope === "specific"}
               onClick={() => onChange({ service_scope: "specific", service_option_ids: [] })}
               className={cn(
-                "benefit-registration-choice relative h-10 min-w-[150px] rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+                "benefit-registration-choice relative h-11 min-w-[150px] rounded-[8px] border px-4 text-[16px] font-medium leading-6 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
                 draft.service_scope === "specific"
                   ? "border-[#1677ff] bg-[#eff6ff] text-[#1677ff]"
                   : "border-[#e8edf3] bg-white text-[#475569] hover:bg-[#f8fafc]",

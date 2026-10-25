@@ -21,11 +21,19 @@ test("owner shell gives every route one shared main surface while preserving dir
     "profitability",
     "bookingLink",
     "shopInfo",
+    "bookingPolicy",
     "alerts",
   ]);
   assert.ok(!allowlist.includes("benefits"));
   assert.ok(!allowlist.includes("staff"));
   assert.ok(!allowlist.includes("billing"));
+
+  const sidebarStart = shell.indexOf("const ownerWebSidebarGroups");
+  const sidebarEnd = shell.indexOf("const ownerWebNavigationItems", sidebarStart);
+  const sidebar = shell.slice(sidebarStart, sidebarEnd);
+  assert.match(sidebar, /key: "bookingPolicy", label: "예약 정책"/);
+  assert.doesNotMatch(sidebar, /key: "bookingLink"/, "booking links belong inside shop information, not the sidebar");
+  assert.match(preview, /initialShopSection=\{screen === "bookingPolicy" \? "policy" : screen === "bookingLink" \|\| screen === "bookingPageManagement" \? "booking" : undefined\}/);
 
   assert.match(shell, /const usesFlushCore = ownerWebFlushCoreScreens\.has\(activeScreen\);/);
   assert.match(

@@ -40,6 +40,7 @@ export type RelayTemplateCatalogBody = {
 };
 
 const aliasesThatMustHaveSsodaaButtons = new Set<AlimtalkTemplateAlias>([
+  "booking_received",
   "booking_consent_request",
   "booking_confirmed",
   "appointment_reminder_10m",
@@ -119,6 +120,11 @@ export function hasApprovedBookingConsentTemplateContract(detail: ConnectedTempl
 }
 
 function validateTemplateContract(alias: AlimtalkTemplateAlias, detail: ConnectedTemplateDetail) {
+  if (alias === "booking_received" && (!(detail.templateContent ?? "").includes("예약금")
+    || detail.buttons.length !== 1 || detail.buttons[0]?.type !== "WL"
+    || detail.buttons[0]?.name.trim() !== "예약 확인")) {
+    throw new Error("예약금 안내 알림톡의 승인 본문 또는 예약 확인 버튼이 맞지 않아 발송을 중단했습니다.");
+  }
   if (alias === "booking_consent_request" && !hasApprovedBookingConsentTemplateContract(detail)) {
     throw new Error("동의서 요청 알림톡의 승인 본문 또는 버튼이 등록된 계약과 달라 발송을 중단했습니다.");
   }
@@ -200,6 +206,22 @@ async function getApprovedSsodaaTemplateFromCatalog(
   alias: AlimtalkTemplateAlias,
   body: RelayTemplateCatalogBody,
 ): Promise<ConnectedTemplateDetail | null> {
+  const detail = await getSsodaaTemplateFromCatalog(alias, body);
+  if (detail) validateTemplateContract(alias, detail);
+  return detail;
+}
+
+async function getSsodaaTemplateFromCatalog(
+  alias: AlimtalkTemplateAlias,
+  body: RelayTemplateCatalogBody,
+  customTemplateCode?: string | null,
+): Promise<ConnectedTemplateDetail | null> {
+  if (customTemplateCode) {
+    const detail = body.allTemplates?.find((item) => item.templateCode === customTemplateCode) ?? null;
+    if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
+    return normalizeConnectedTemplateDetail(customTemplateCode, detail);
+  }
+
   const platformCode = await getPlatformMappedTemplateCode(alias);
   const configuredCode = platformCode || getConfiguredAlimtalkTemplateKey(alias)?.trim();
   const aliasEntry = body.items?.find(
@@ -219,6 +241,25 @@ async function getApprovedSsodaaTemplateFromCatalog(
   if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
 
   return normalizeConnectedTemplateDetail(templateCode, detail);
+}
+
+export async function getApprovedSsodaaTemplateDetails(
+  aliases: AlimtalkTemplateAlias[],
+  shopId?: string,
+) {
+  const [catalog, customCodes] = await Promise.all([
+    getRelayTemplateCatalog(),
+    getShopApprovedTemplateCodes(shopId, aliases),
+  ]);
+  if (!catalog) return {} as Partial<Record<AlimtalkTemplateAlias, ConnectedTemplateDetail>>;
+
+  const entries = await Promise.all(aliases.map(async (alias) => [
+    alias,
+    await getSsodaaTemplateFromCatalog(alias, catalog, customCodes.get(alias)),
+  ] as const));
+  return Object.fromEntries(
+    entries.filter((entry): entry is readonly [AlimtalkTemplateAlias, ConnectedTemplateDetail] => Boolean(entry[1])),
+  ) as Partial<Record<AlimtalkTemplateAlias, ConnectedTemplateDetail>>;
 }
 
 async function getPlatformMappedTemplateCode(alias: AlimtalkTemplateAlias) {
@@ -371,10 +412,10 @@ function renderApprovedTemplateButtons(params: {
       renderedValue: linkPc,
       variables: params.values,
     });
-    if (params.spec.templateAlias === "booking_consent_request") {
+    if (["booking_consent_request", "booking_received"].includes(params.spec.templateAlias)) {
       const bookingManageUrl = params.values["예약 확인 링크"]?.trim();
       if (!bookingManageUrl || linkMobile !== bookingManageUrl || linkPc !== bookingManageUrl) {
-        throw new Error("동의서 작성 버튼이 해당 예약의 보호자 서명 링크와 일치하지 않아 발송을 중단했습니다.");
+        throw new Error("예약 확인 또는 동의서 작성 버튼이 해당 예약의 보호자 링크와 일치하지 않아 발송을 중단했습니다.");
       }
     }
     return {

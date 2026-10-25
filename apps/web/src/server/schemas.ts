@@ -268,6 +268,8 @@ export const shopSettingsSchema = z.object({
     revisitReminderDefaultDays: z.coerce.number().int().min(1).max(365).default(45),
     bookingConfirmedEnabled: z.boolean(),
     bookingCancelledEnabled: z.boolean(),
+    bookingConsentRequestEnabled: z.boolean().default(true),
+    bookingDepositRequestEnabled: z.boolean().default(true),
     bookingRescheduledEnabled: z.boolean(),
     appointmentReminder10mEnabled: z.boolean().default(true),
     appointmentReminder10mMode: z.enum(["manual", "auto"]).default("manual"),

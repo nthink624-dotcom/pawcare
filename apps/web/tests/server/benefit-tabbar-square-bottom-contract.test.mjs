@@ -6,10 +6,18 @@ import test from "node:test";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-test("benefit tab rail spans the full content column and meets the panel with a square bottom edge", () => {
+test("benefit tab rail spans the full settings row, including the phone preview column", () => {
   const panel = readFileSync(path.join(root, "src/components/owner-web/benefits-management-panel.tsx"), "utf8");
+  const settings = readFileSync(path.join(root, "src/components/owner-web/settings-management-screen.tsx"), "utf8");
+  const previewLayout = readFileSync(path.join(root, "src/components/owner-web/customer-page-phone-preview.tsx"), "utf8");
   const styles = readFileSync(path.join(root, "src/app/globals.css"), "utf8");
 
+  assert.match(settings, /topContent=\{\s*\(\s*<BenefitsManagementToolbar/);
+  assert.match(previewLayout, /topContent && "grid-rows-\[auto_minmax\(0,1fr\)\]"/);
+  assert.match(previewLayout, /topContent \? <div className="col-span-full min-w-0">\{topContent\}<\/div>/);
+  assert.match(panel.slice(panel.indexOf("export default function BenefitsManagementPanel")), /<WebSurface/);
+  assert.doesNotMatch(panel.slice(panel.indexOf("export default function BenefitsManagementPanel")), /owner-settings-tabbar/);
+  assert.match(panel, /export function BenefitsManagementToolbar/);
   assert.match(panel, /flex min-w-0 flex-col items-stretch gap-2/);
   assert.match(panel, /owner-settings-tabbar benefit-management-tabbar w-full[^>]*role="tablist"/);
   assert.match(panel, /<div className="flex justify-end pb-2">\s*<button[\s\S]*?저장된 내용 불러오기/);

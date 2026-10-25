@@ -19,17 +19,74 @@ type Props = {
   registrationDraft: CustomerDiscountCoupon;
   serviceOptions: CustomerServiceSourceOption[];
   canRegister: boolean;
-  dirty: boolean;
-  onViewChange: (view: BenefitsManagementView) => void;
   onRegistrationChange: (patch: Partial<CustomerDiscountCoupon>) => void;
   onRegister: () => void;
   onCancelRegistration: () => void;
-  onReload: () => void;
   onDelete: (couponId: string) => void;
   onDeleteMany: (couponIds: string[]) => void;
   onToggleEnabled: (couponId: string) => void;
   onUpdate: (couponId: string, patch: Partial<CustomerDiscountCoupon>) => void;
 };
+
+export function BenefitsManagementToolbar({
+  view,
+  dirty,
+  onViewChange,
+  onReload,
+}: {
+  view: BenefitsManagementView;
+  dirty: boolean;
+  onViewChange: (view: BenefitsManagementView) => void;
+  onReload: () => void;
+}) {
+  return (
+    <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 pt-3 pb-0 backdrop-blur sm:px-5">
+      <div className="flex min-w-0 flex-col items-stretch gap-2">
+        <div className="owner-settings-tabbar benefit-management-tabbar w-full" role="tablist" aria-label="혜택 관리 보기">
+          <button
+            type="button"
+            id="benefit-register-tab"
+            role="tab"
+            aria-selected={view === "register"}
+            aria-controls="benefit-register-panel"
+            onClick={() => onViewChange("register")}
+            data-owner-control-size="content"
+            className="owner-settings-tab"
+          >
+            혜택 등록
+          </button>
+          <button
+            type="button"
+            id="benefit-manage-tab"
+            role="tab"
+            aria-selected={view === "manage"}
+            aria-controls="benefit-manage-panel"
+            onClick={() => onViewChange("manage")}
+            data-owner-control-size="content"
+            className="owner-settings-tab"
+          >
+            혜택 조회/수정
+          </button>
+        </div>
+        {view === "manage" ? (
+          <div className="flex justify-end pb-2">
+            <button
+              type="button"
+              onClick={onReload}
+              disabled={!dirty}
+              className={cn(
+                OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
+                "!h-11 shrink-0 !text-[16px] !leading-6",
+              )}
+            >
+              저장된 내용 불러오기
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export default function BenefitsManagementPanel({
   view,
@@ -37,12 +94,9 @@ export default function BenefitsManagementPanel({
   registrationDraft,
   serviceOptions,
   canRegister,
-  dirty,
-  onViewChange,
   onRegistrationChange,
   onRegister,
   onCancelRegistration,
-  onReload,
   onDelete,
   onDeleteMany,
   onToggleEnabled,
@@ -50,53 +104,7 @@ export default function BenefitsManagementPanel({
 }: Props) {
   return (
     <div className="benefit-management-panel flex flex-col gap-0 lg:h-full lg:min-h-0">
-      <div className="shrink-0 rounded-t-[13px] rounded-b-none border-b border-[#e1e4ea] bg-white/90 px-3 pt-3 pb-0 backdrop-blur sm:px-5">
-        <div className="flex min-w-0 flex-col items-stretch gap-2">
-          <div className="owner-settings-tabbar benefit-management-tabbar w-full" role="tablist" aria-label="혜택 관리 보기">
-            <button
-              type="button"
-              id="benefit-register-tab"
-              role="tab"
-              aria-selected={view === "register"}
-              aria-controls="benefit-register-panel"
-              onClick={() => onViewChange("register")}
-              data-owner-control-size="content"
-              className="owner-settings-tab"
-            >
-              혜택 등록
-            </button>
-            <button
-              type="button"
-              id="benefit-manage-tab"
-              role="tab"
-              aria-selected={view === "manage"}
-              aria-controls="benefit-manage-panel"
-              onClick={() => onViewChange("manage")}
-              data-owner-control-size="content"
-              className="owner-settings-tab"
-            >
-              혜택 조회/수정
-            </button>
-          </div>
-          {view === "manage" ? (
-            <div className="flex justify-end pb-2">
-              <button
-                type="button"
-                onClick={onReload}
-                disabled={!dirty}
-                className={cn(
-                  OWNER_WEB_COMPACT_SECONDARY_ACTION_BUTTON_CLASS,
-                  "!h-11 shrink-0 !text-[16px] !leading-6",
-                )}
-              >
-                저장된 내용 불러오기
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <WebSurface className="flex flex-col overflow-visible rounded-t-none border-t-0 p-4 pb-5 lg:min-h-0 lg:flex-1 lg:overflow-x-hidden lg:overflow-y-auto">
+      <WebSurface className="flex flex-col overflow-visible p-4 pb-5 lg:min-h-0 lg:flex-1 lg:overflow-x-hidden lg:overflow-y-auto">
         <div
           id="benefit-register-panel"
           role="tabpanel"

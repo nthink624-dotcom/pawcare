@@ -5,7 +5,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
-import BenefitsManagementPanel, { type BenefitsManagementView } from "@/components/owner-web/benefits-management-panel";
+import BenefitsManagementPanel, {
+  BenefitsManagementToolbar,
+  type BenefitsManagementView,
+} from "@/components/owner-web/benefits-management-panel";
 import type { DiscountCouponPreset } from "@/components/owner-web/discount-coupon-editor";
 import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
 import OwnerProfileSettingsPanel from "@/components/owner-web/owner-profile-settings-panel";
@@ -2086,7 +2089,20 @@ export default function SettingsManagementScreen({
               </ShopInfoSettingsPanel>
             </>
           ) : activeTab === "benefits" ? (
-            <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={previewServices} staffMembers={staffMembers} ownerProfile={ownerProfile}>
+            <CustomerPagePreviewLayout
+              shop={customerPagePreviewShop}
+              services={previewServices}
+              staffMembers={staffMembers}
+              ownerProfile={ownerProfile}
+              topContent={(
+                <BenefitsManagementToolbar
+                  view={benefitsView}
+                  dirty={discountCouponsDirty}
+                  onViewChange={setBenefitsView}
+                  onReload={reloadSavedDiscountCoupons}
+                />
+              )}
+            >
               <BenefitsManagementPanel
                 view={benefitsView}
                 coupons={discountCoupons}
@@ -2098,14 +2114,11 @@ export default function SettingsManagementScreen({
                       ? benefitRegistrationDraft.service_benefit_name?.trim()
                       : benefitRegistrationDraft.discount_value > 0)
                 )}
-                dirty={discountCouponsDirty}
-                onViewChange={setBenefitsView}
                 onRegistrationChange={(patch) =>
                   setBenefitRegistrationDraft((current) => ({ ...current, ...patch }))
                 }
                 onRegister={registerBenefit}
                 onCancelRegistration={cancelBenefitRegistration}
-                onReload={reloadSavedDiscountCoupons}
                 onDelete={deleteDiscountCoupon}
                 onDeleteMany={deleteDiscountCoupons}
                 onToggleEnabled={toggleDiscountCouponEnabled}

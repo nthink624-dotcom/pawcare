@@ -1085,23 +1085,26 @@ async function requestSsodaaTemplateReview(input: z.infer<typeof templateRegiste
 }
 
 function normalizeSsodaaTemplateCategories(responseBody: unknown) {
-  const source =
-    typeof responseBody === "object" && responseBody !== null && Array.isArray((responseBody as { category?: unknown[] }).category)
-      ? ((responseBody as { category?: unknown[] }).category ?? [])
-      : typeof responseBody === "object" &&
-          responseBody !== null &&
-          "content" in responseBody &&
-          typeof (responseBody as { content?: unknown }).content === "object" &&
-          (responseBody as { content?: unknown }).content !== null &&
-          Array.isArray(((responseBody as { content?: { category?: unknown[] } }).content ?? {}).category)
-        ? (((responseBody as { content?: { category?: unknown[] } }).content ?? {}).category ?? [])
-        : [];
+  function findCategoryRows(value: unknown, depth = 0): unknown[] {
+    if (Array.isArray(value)) return value;
+    if (depth > 3 || !value || typeof value !== "object") return [];
+    const record = value as Record<string, unknown>;
+    for (const key of ["category", "categories", "data", "content", "result"]) {
+      const candidate = record[key];
+      if (Array.isArray(candidate) && candidate.length > 0) return candidate;
+      const nested = findCategoryRows(candidate, depth + 1);
+      if (nested.length > 0) return nested;
+    }
+    return [];
+  }
+
+  const source = findCategoryRows(responseBody);
 
   return source
     .map((item) => {
       const row = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
-      const code = typeof row.code === "string" ? row.code : "";
-      const name = typeof row.name === "string" ? row.name : "";
+      const code = typeof row.code === "string" ? row.code : typeof row.categoryCode === "string" ? row.categoryCode : "";
+      const name = typeof row.name === "string" ? row.name : typeof row.categoryName === "string" ? row.categoryName : "";
       if (!code || !name) return null;
 
       return {

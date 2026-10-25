@@ -107,7 +107,7 @@ function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey
   return (
     <span
 className={cn(
-        "block h-5 w-5 shrink-0 transition-colors [filter:drop-shadow(0_0_0.35px_currentColor)]",
+        "block h-5 w-5 shrink-0 transition-colors [filter:drop-shadow(0_0_0.65px_currentColor)]",
         active ? "bg-[var(--acc)]" : "bg-[#9aa3af]",
       )}      style={
         {

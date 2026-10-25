@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
       bookingEntryUrl,
       bookingManageUrl,
       directionsUrl: buildDirectionsUrl(bootstrap.shop.name, bootstrap.shop.address),
+      shopId: owner.shopId,
       petName: pet?.name ?? "반려동물",
       recipientName: guardian?.name ?? "보호자",
       serviceName: service?.name ?? "예약 서비스",

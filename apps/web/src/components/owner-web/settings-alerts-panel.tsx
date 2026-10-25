@@ -38,6 +38,7 @@ export type AlertSettingsDraft = {
   revisitReminderDefaultDays: number;
   bookingConfirmedEnabled: boolean;
   bookingCancelledEnabled: boolean;
+  bookingConsentRequestEnabled: boolean;
   bookingRescheduledEnabled: boolean;
   appointmentReminder10mEnabled: boolean;
   appointmentReminder10mMode: NotificationDeliveryMode;
@@ -141,6 +142,12 @@ const alertItems: AlertItem[] = [
     role: "예약을 취소했을 때 고객에게 취소 사실과 다른 시간 조율 안내를 함께 보냅니다.",
   },
   {
+    key: "bookingConsentRequestEnabled",
+    title: "동의서 작성 요청",
+    type: "booking_consent_request",
+    role: "예약 확정 뒤 필수 동의서가 미작성 상태면 요청합니다. 이미 작성했거나 선택 동의서만 있으면 보내지 않습니다.",
+  },
+  {
     key: "appointmentReminder10mEnabled",
     title: "직전 안내",
     type: "appointment_reminder_10m",
@@ -178,7 +185,7 @@ const alertItems: AlertItem[] = [
   },
 ];
 
-type AlertGroupKey = "reservation" | "reservationGuide" | "grooming";
+type AlertGroupKey = "reservation" | "reservationPrep" | "reservationGuide" | "grooming";
 
 const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; items: AlertItem[] }> = [
   {
@@ -190,6 +197,11 @@ const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; ite
         "booking_cancelled",
       ].includes(item.type),
     ),
+  },
+  {
+    key: "reservationPrep",
+    title: "예약 전 준비",
+    items: alertItems.filter((item) => item.type === "booking_consent_request"),
   },
   {
     key: "reservationGuide",

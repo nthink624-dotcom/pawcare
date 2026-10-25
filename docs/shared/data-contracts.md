@@ -582,6 +582,9 @@ Rules:
 - `pets.pricing_group` is owner-confirmed operational data used to select the correct detailed price guide group for price calculation.
 - Owner web may edit weight, birthday, bite level, and pricing group after checking the pet in person.
 - PC and mobile must show the same stored pricing group and must not infer or overwrite it from a breed string.
+- Pet age is derived from `pets.birthday` and `pets.birthday_precision` when year/month are known. `birthday_precision` is `day` for an exact date and `month` when only year and month are known; a month-only value uses the first day as a storage anchor and must not be treated as an exact birthday.
+- When only age is known, `pets.age` stores the reported years and `pets.age_reference_year` stores the Korean calendar year when that age was entered. Displays add elapsed calendar years; owner edits set the reference year on the server. Date-based input clears the age snapshot fields.
+- Pet create/update payloads use `birthdayPrecision` and `age`; age-only updates leave `birthday` null. Date-specific birthday notifications must require `birthday_precision = 'day'`.
 
 ## Change Rule
 

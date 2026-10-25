@@ -30,6 +30,7 @@ import {
   type CustomerVisitType,
 } from "@/lib/discount-coupons";
 import { getPetBiteLevelLabel, normalizePetBiteLevel, petBiteLevelOptions } from "@/lib/pet-bite-level";
+import { getPetAgeLabel, getPetBirthLabel } from "@/lib/pet-age";
 import { buildPetGroupOptions, type PetGroupOption } from "@/lib/pet-group-options";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { CustomerGradeOverride, GuardianNotificationSettings, MediaAsset, MediaKind, PetBiteLevel } from "@/types/domain";
@@ -44,7 +45,7 @@ type CustomerDetailPanelProps = {
   onUpdatePet: (
     guardianId: string,
     petId: string,
-    patch: { name: string; breed: string; pricingGroup: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string },
+    patch: { name: string; breed: string; pricingGroup: string; birthday: string; birthdayPrecision: "day" | "month"; age: string; weight: string; notes: string; groomingCycleWeeks: string },
   ) => void | Promise<void>;
   onAddPet: (guardianId: string, payload: PetAddPayload) => void | Promise<void>;
   onDeletePet: (guardianId: string, petId: string) => void | Promise<void>;
@@ -58,6 +59,8 @@ type PetAddPayload = {
   name: string;
   breed: string;
   birthday: string;
+  birthdayPrecision: "day" | "month";
+  age: string;
   weight: string;
   biteLevel: PetBiteLevel;
   profilePhoto?: File | null;
@@ -126,16 +129,17 @@ export default function CustomerDetailPanel({
   const profileInitial = selectedPet?.name.slice(0, 1) || "P";
   const phone = formatPhoneNumber(detail.guardian.phone);
   const petWeightLabel = typeof selectedPet?.weight === "number" ? `${selectedPet.weight} kg` : "몸무게 미입력";
-  const petBirthdayLabel = selectedPet?.birthday ? formatDate(selectedPet.birthday) : "생일 미입력";
   const petGroupOptions = buildPetGroupOptions(Array.from(detail.servicesById.values()), selectedPet?.pricing_group);
 
-  function buildPetPatch(patch: Partial<{ name: string; breed: string; pricingGroup: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string }>) {
+  function buildPetPatch(patch: Partial<{ name: string; breed: string; pricingGroup: string; birthday: string; birthdayPrecision: "day" | "month"; age: string; weight: string; notes: string; groomingCycleWeeks: string }>) {
     if (!selectedPet) return null;
     return {
       name: selectedPet.name,
       breed: selectedPet.breed ?? "",
       pricingGroup: selectedPet.pricing_group ?? "",
       birthday: selectedPet.birthday ?? "",
+      birthdayPrecision: selectedPet.birthday_precision === "month" ? "month" : "day",
+      age: typeof selectedPet.age === "number" ? String(selectedPet.age) : "",
       weight: typeof selectedPet.weight === "number" ? String(selectedPet.weight) : "",
       notes: selectedPet.notes ?? "",
       groomingCycleWeeks: String(selectedPet.grooming_cycle_weeks ?? 4),
@@ -210,14 +214,14 @@ export default function CustomerDetailPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/20 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-slate-950/20 p-0 sm:p-5" onClick={onClose}>
       <section
-        className="relative mx-auto flex h-full max-w-[1520px] flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-[#f7f8fb] shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
+        className="relative mx-auto flex h-full max-h-[880px] max-w-[1280px] flex-col overflow-hidden rounded-none border border-[#dbe2ea] bg-[#f7f8fb] shadow-[0_24px_70px_rgba(15,23,42,0.22)] sm:h-[min(88vh,880px)] sm:rounded-[12px]"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#e1e7ef] bg-white px-4 py-2.5 sm:flex-nowrap sm:gap-4 sm:px-5">
           <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
-            <h2 className="break-keep [overflow-wrap:anywhere] text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#111827] sm:truncate">
+            <h2 className="break-keep [overflow-wrap:anywhere] text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827] sm:truncate">
               {detail.guardian.name}
               {selectedPet ? ` · ${selectedPet.name}` : ""}
             </h2>
@@ -237,9 +241,9 @@ export default function CustomerDetailPanel({
 
         <div
           data-customer-detail-pane-layout="true"
-          className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,0.82fr)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[310px_minmax(0,1fr)] lg:grid-rows-1"
+          className="grid min-h-0 flex-1 grid-cols-1 grid-rows-none overflow-y-auto lg:grid-cols-[280px_minmax(0,1fr)] lg:grid-rows-1 lg:overflow-hidden"
         >
-          <aside className="min-h-0 overflow-y-auto border-b border-[#e1e7ef] bg-white px-4 py-4 lg:border-b-0 lg:border-r lg:py-4 lg:pl-4 lg:pr-1">
+          <aside className="min-h-0 overflow-visible border-b border-[#e1e7ef] bg-white px-3 py-3 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:py-3 lg:pl-3 lg:pr-1">
             <SummaryCard
               detail={detail}
               phone={phone}
@@ -260,7 +264,7 @@ export default function CustomerDetailPanel({
             />
           </aside>
 
-          <main className="min-h-0 overflow-y-auto px-4 py-4 lg:py-4 lg:pl-4 lg:pr-1">
+          <main className="min-h-0 overflow-visible px-3 py-3 lg:overflow-y-auto lg:py-3 lg:pl-3 lg:pr-1">
             {selectedPet ? (
               <div className="space-y-3">
                 <PetOverviewSection
@@ -465,8 +469,8 @@ function PetOverviewSection({
   onSavePetNotes: (notes: string) => void | Promise<void>;
 }) {
   const hasMultiplePets = detail.pets.length > 1;
-  const birthdayLabel = selectedPet.birthday ? formatDate(selectedPet.birthday) : "미입력";
-  const fullAgeLabel = selectedPet.birthday ? calculateFullAgeLabel(selectedPet.birthday) : "";
+  const birthdayLabel = getPetBirthLabel(selectedPet);
+  const fullAgeLabel = getPetAgeLabel(selectedPet);
   const weightLabel = typeof selectedPet.weight === "number" ? `${selectedPet.weight}kg` : "미입력";
   const petMemo = selectedPet.notes?.trim() || "";
 
@@ -530,7 +534,7 @@ function PetOverviewSection({
             <span className="text-[14px] font-medium leading-5 text-[#64748b]">생년월일</span>
             <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-[16px] font-normal leading-6 text-[#111827]">
               <span>{birthdayLabel}</span>
-              {fullAgeLabel ? (
+              {selectedPet.birthday || typeof selectedPet.age === "number" ? (
                 <>
                   <span className="h-4 w-px shrink-0 bg-[#cbd5e1]" aria-hidden="true" />
                   <span className="shrink-0">{fullAgeLabel}</span>
@@ -594,23 +598,14 @@ function PetInfoMemo({ value, placeholder, onCommit }: { value: string; placehol
   );
 }
 
-function buildPetSummary(pet: Pick<NonNullable<CustomerDetailModel["selectedPet"]>, "breed" | "age" | "weight">) {
+function buildPetSummary(pet: NonNullable<CustomerDetailModel["selectedPet"]>) {
+  const ageLabel = typeof pet.age === "number" || pet.birthday ? getPetAgeLabel(pet) : "";
   const parts = [
     pet.breed || "품종 미입력",
-    typeof pet.age === "number" ? `${pet.age}살` : "",
+    ageLabel,
     typeof pet.weight === "number" ? `${pet.weight}kg` : "",
   ].filter(Boolean);
   return parts.join(" · ");
-}
-
-function calculateFullAgeLabel(birthday: string) {
-  const birthDate = new Date(birthday.includes("T") ? birthday : `${birthday}T00:00:00`);
-  if (Number.isNaN(birthDate.getTime())) return "";
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const hadBirthdayThisYear = today.getMonth() > birthDate.getMonth() || (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
-  if (!hadBirthdayThisYear) age -= 1;
-  return `만 ${Math.max(age, 0)}세`;
 }
 
 function PetListCard({ detail, selectedPetId, onSelectPet, onAdd }: { detail: CustomerDetailModel; selectedPetId: string | null; onSelectPet: (petId: string) => void; onAdd: () => void }) {
@@ -1475,6 +1470,8 @@ function ActionPanel({
     breed: selectedPet?.breed ?? "",
     pricingGroup: selectedPet?.pricing_group ?? "",
     birthday: selectedPet?.birthday ?? "",
+    birthdayPrecision: selectedPet?.birthday_precision === "month" ? "month" as const : "day" as const,
+    age: typeof selectedPet?.age === "number" ? String(selectedPet.age) : "",
     weight: typeof selectedPet?.weight === "number" ? String(selectedPet.weight) : "",
     notes: selectedPet?.notes ?? "",
     groomingCycleWeeks: String(selectedPet?.grooming_cycle_weeks ?? 4),
@@ -1483,12 +1480,26 @@ function ActionPanel({
     name: "",
     breed: "",
     birthday: "",
+    birthdayPrecision: "month",
+    age: "",
     weight: "",
     biteLevel: "none",
     profilePhoto: null,
   });
   const petGroupOptions = buildPetGroupOptions(Array.from(detail.servicesById.values()), selectedPet?.pricing_group);
   const [newPetPhotoPreviewUrl, setNewPetPhotoPreviewUrl] = useState("");
+  const [petAgeMode, setPetAgeMode] = useState<"birthday" | "age">(selectedPet?.birthday ? "birthday" : typeof selectedPet?.age === "number" ? "age" : "birthday");
+  const [newPetAgeMode, setNewPetAgeMode] = useState<"birthday" | "age">("birthday");
+  useEffect(() => {
+    if (!selectedPet) return;
+    setPetDraft((current) => ({
+      ...current,
+      birthday: selectedPet.birthday ?? "",
+      birthdayPrecision: selectedPet.birthday_precision === "month" ? "month" : "day",
+      age: typeof selectedPet.age === "number" ? String(selectedPet.age) : "",
+    }));
+    setPetAgeMode(selectedPet.birthday ? "birthday" : typeof selectedPet.age === "number" ? "age" : "birthday");
+  }, [selectedPet?.id]);
   const titleMap: Record<Exclude<DetailAction, null>, string> = {
     guardianEdit: "보호자 정보 수정",
     petEdit: "반려동물 정보 수정",
@@ -1579,12 +1590,16 @@ function ActionPanel({
                 className="space-y-3"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void runSave(() => onUpdatePet(detail.guardian.id, selectedPet.id, petDraft));
+                  void runSave(() => onUpdatePet(detail.guardian.id, selectedPet.id, {
+                    ...petDraft,
+                    birthday: petAgeMode === "birthday" ? petDraft.birthday : "",
+                    age: petAgeMode === "age" ? petDraft.age : "",
+                  }));
                 }}
               >
                 <SelectFormField label="가격 책정용 그룹" value={petDraft.pricingGroup} options={petGroupOptions} onChange={(value) => setPetDraft((current) => ({ ...current, pricingGroup: value }))} />
                 <div className="grid grid-cols-2 gap-2">
-                  <FormField label="생년월일" value={petDraft.birthday} onChange={(value) => setPetDraft((current) => ({ ...current, birthday: value }))} placeholder="YYYY-MM-DD" />
+                <PetAgeEntryFields mode={petAgeMode} onModeChange={setPetAgeMode} birthday={petDraft.birthday} precision={petDraft.birthdayPrecision} age={petDraft.age} onBirthdayChange={(value) => setPetDraft((current) => ({ ...current, birthday: value }))} onPrecisionChange={(value) => setPetDraft((current) => ({ ...current, birthdayPrecision: value }))} onAgeChange={(value) => setPetDraft((current) => ({ ...current, age: value }))} />
                   <FormField label="몸무게" value={petDraft.weight} onChange={(value) => setPetDraft((current) => ({ ...current, weight: value }))} placeholder="kg" />
                 </div>
                 <FormField label="주의사항 / 메모" value={petDraft.notes} onChange={(value) => setPetDraft((current) => ({ ...current, notes: value }))} multiline />
@@ -1597,7 +1612,11 @@ function ActionPanel({
               className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
-                void runSave(() => onAddPet(detail.guardian.id, newPetDraft));
+                void runSave(() => onAddPet(detail.guardian.id, {
+                  ...newPetDraft,
+                  birthday: newPetAgeMode === "birthday" ? newPetDraft.birthday : "",
+                  age: newPetAgeMode === "age" ? newPetDraft.age : "",
+                }));
               }}
             >
               <PetProfilePhotoField
@@ -1608,7 +1627,7 @@ function ActionPanel({
               <FormField label="반려동물 이름" value={newPetDraft.name} onChange={(value) => setNewPetDraft((current) => ({ ...current, name: value }))} />
               <FormField label="품종" value={newPetDraft.breed} onChange={(value) => setNewPetDraft((current) => ({ ...current, breed: value }))} placeholder="예: 푸들, 말티즈" />
               <div className="grid grid-cols-2 gap-2">
-                <FormField label="생년월일" value={newPetDraft.birthday} onChange={(value) => setNewPetDraft((current) => ({ ...current, birthday: value }))} placeholder="YYYY-MM-DD" />
+              <PetAgeEntryFields mode={newPetAgeMode} onModeChange={setNewPetAgeMode} birthday={newPetDraft.birthday} precision={newPetDraft.birthdayPrecision} age={newPetDraft.age} onBirthdayChange={(value) => setNewPetDraft((current) => ({ ...current, birthday: value }))} onPrecisionChange={(value) => setNewPetDraft((current) => ({ ...current, birthdayPrecision: value }))} onAgeChange={(value) => setNewPetDraft((current) => ({ ...current, age: value }))} />
                 <FormField label="몸무게" value={newPetDraft.weight} onChange={(value) => setNewPetDraft((current) => ({ ...current, weight: value }))} placeholder="kg" />
               </div>
               <BiteLevelFormField value={newPetDraft.biteLevel} onChange={(biteLevel) => setNewPetDraft((current) => ({ ...current, biteLevel }))} />
@@ -1657,18 +1676,70 @@ function PanelNotice({ title, lines }: { title: string; lines: string[] }) {
   );
 }
 
+function PetAgeEntryFields({
+  mode,
+  onModeChange,
+  birthday,
+  precision,
+  age,
+  onBirthdayChange,
+  onPrecisionChange,
+  onAgeChange,
+}: {
+  mode: "birthday" | "age";
+  onModeChange: (mode: "birthday" | "age") => void;
+  birthday: string;
+  precision: "day" | "month";
+  age: string;
+  onBirthdayChange: (value: string) => void;
+  onPrecisionChange: (value: "day" | "month") => void;
+  onAgeChange: (value: string) => void;
+}) {
+  const fieldValue = precision === "month" ? birthday.slice(0, 7) : birthday;
+  return (
+    <div className="space-y-2">
+      <p className="text-[14px] font-medium leading-5 text-[#64748b]">나이 정보</p>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" aria-pressed={mode === "birthday"} onClick={() => onModeChange("birthday")} className={cn("h-11 rounded-[8px] border px-3 text-[14px] font-medium", mode === "birthday" ? "border-[#2f7866] bg-[#f5fbf8] text-[#1f5d4e]" : "border-[#cfd8e3] bg-white text-[#475569]")}>생년월을 알아요</button>
+        <button type="button" aria-pressed={mode === "age"} onClick={() => onModeChange("age")} className={cn("h-11 rounded-[8px] border px-3 text-[14px] font-medium", mode === "age" ? "border-[#2f7866] bg-[#f5fbf8] text-[#1f5d4e]" : "border-[#cfd8e3] bg-white text-[#475569]")}>나이만 알아요</button>
+      </div>
+      {mode === "birthday" ? (
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] gap-2">
+          <label className="block">
+            <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">알고 있는 범위</span>
+            <select value={precision} onChange={(event) => onPrecisionChange(event.target.value as "day" | "month")} className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563eb]">
+              <option value="month">년월</option>
+              <option value="day">년월일</option>
+            </select>
+          </label>
+          <FormField label={precision === "month" ? "태어난 연월" : "생년월일"} value={fieldValue} onChange={(value) => onBirthdayChange(precision === "month" ? (value ? `${value}-01` : "") : value)} type={precision === "month" ? "month" : "date"} />
+        </div>
+      ) : (
+        <FormField label="현재 나이" value={age} onChange={onAgeChange} placeholder="예: 10" type="number" min={0} required />
+      )}
+      <p className="text-[13px] font-normal leading-5 text-[#64748b]">{mode === "birthday" ? "입력한 생년월을 기준으로 나이를 계산해요." : "입력한 해를 기준으로 매년 한 살씩 자동으로 더해요."}</p>
+    </div>
+  );
+}
+
 function FormField({
   label,
   value,
   onChange,
   placeholder,
   multiline = false,
+  type = "text",
+  required = false,
+  min,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   multiline?: boolean;
+  type?: "text" | "date" | "month" | "number";
+  required?: boolean;
+  min?: number;
 }) {
   return (
     <label className="block">
@@ -1682,6 +1753,9 @@ function FormField({
         />
       ) : (
         <input
+          type={type}
+          required={required}
+          min={min}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}

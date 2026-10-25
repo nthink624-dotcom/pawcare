@@ -3,6 +3,7 @@
 import { Check, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { getPetAgeLabel } from "@/lib/pet-age";
 
 export type CustomerManagementTableRow = {
   id: string;
@@ -12,7 +13,7 @@ export type CustomerManagementTableRow = {
   customerGrade: "신규" | "일반" | "단골";
   recentVisitDate: string | null;
   recentService: string | null;
-  pets: Array<{ name: string; birthday: string | null }>;
+  pets: Array<{ name: string; birthday: string | null; birthday_precision?: "day" | "month" | null; age: number | null; age_reference_year?: number | null; created_at?: string }>;
 };
 
 function formatPhoneNumber(value: string) {
@@ -21,20 +22,6 @@ function formatPhoneNumber(value: string) {
   if (digits.length === 10 && digits.startsWith("02")) return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
   if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   return value || "미등록";
-}
-
-function formatPetAge(birthday: string | null) {
-  if (!birthday) return "미등록";
-  const birthDate = new Date(`${birthday}T00:00:00`);
-  if (Number.isNaN(birthDate.getTime())) return "미등록";
-  const today = new Date();
-  let months = (today.getFullYear() - birthDate.getFullYear()) * 12 + today.getMonth() - birthDate.getMonth();
-  if (today.getDate() < birthDate.getDate()) months -= 1;
-  if (months < 0) return "미등록";
-  const years = Math.floor(months / 12);
-  const remainingMonths = months % 12;
-  if (years === 0) return `${remainingMonths}개월`;
-  return remainingMonths === 0 ? `${years}세` : `${years}세 ${remainingMonths}개월`;
 }
 
 function SelectionControl({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
@@ -139,7 +126,7 @@ export default function CustomerManagementTable({
                   <td className="truncate px-2 font-medium text-[#17243c]">{row.name}</td>
                   <td className="truncate px-2 tabular-nums">{formatPhoneNumber(row.phone)}</td>
                   <td className="truncate px-2">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</td>
-                  <td className="truncate px-2">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</td>
+                  <td className="truncate px-2">{row.pets.map((pet) => getPetAgeLabel(pet)).join(", ") || "미등록"}</td>
                   <td className="truncate px-2 tabular-nums">{row.recentVisitDate || "미방문"}</td>
                   <td className="break-words px-2 py-2" title={row.recentService || undefined}>{row.recentService || (row.recentVisitDate ? "미등록" : "미방문")}</td>
                   <td className="px-2"><span className={cn("inline-flex min-h-6 items-center rounded-full border px-2 text-[16px] font-medium leading-6", row.customerGrade === "단골" ? "border-[#d6e8e2] bg-[#f3faf7] text-[#1f6b5b]" : "border-[#e2e8f0] bg-[#f8fafc] text-[#475569]")}>{row.customerGrade}</span></td>
@@ -171,7 +158,7 @@ export default function CustomerManagementTable({
               </div>
               <dl className="mt-2 grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 border-t border-[#edf2f7] pt-2 text-center text-[16px] leading-6">
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 이름</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</dd></div>
-                <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 나이</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => formatPetAge(pet.birthday)).join(", ") || "미등록"}</dd></div>
+                <div className="min-w-0"><dt className="font-medium text-[#64748b]">반려동물 나이</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.pets.map((pet) => getPetAgeLabel(pet)).join(", ") || "미등록"}</dd></div>
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">최근 방문일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentVisitDate || "미방문"}</dd></div>
                 <div className="min-w-0"><dt className="font-medium text-[#64748b]">최근 받은 서비스</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.recentService || (row.recentVisitDate ? "미등록" : "미방문")}</dd></div>
                 <div className="col-span-2 min-w-0"><dt className="font-medium text-[#64748b]">등록일</dt><dd className="mt-0.5 break-words font-normal text-[#475569]">{row.registeredAt}</dd></div>

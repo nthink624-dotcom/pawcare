@@ -11,6 +11,7 @@ export type NotificationChannel = "alimtalk" | "in_app" | "data_only";
 export type ShopSettingKey =
   | "enabled"
   | "revisit_enabled"
+  | "booking_consent_request_enabled"
   | "booking_confirmed_enabled"
   | "booking_cancelled_enabled"
   | "booking_rescheduled_enabled"
@@ -69,6 +70,20 @@ export type NotificationRegistryItem = {
 export type NotificationTemplateVariables = Record<string, string | null | undefined>;
 
 export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
+  {
+    type: "booking_consent_request",
+    title: "동의서 작성 요청",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "예약 확정 뒤 필수 동의서가 미작성 상태면 요청",
+    dispatchSource: "src/server/booking-preparation.ts",
+    templateAlias: null,
+    templateConfigKey: null,
+    shopSettingKey: "booking_consent_request_enabled",
+    guardianSettingKey: "consent_request_enabled",
+    notes: "승인된 동의서 템플릿과 예약별 작성 링크가 연결되어야 발송됩니다.",
+    draftBody: "예약 확정 후 필수 동의서가 작성되지 않은 고객에게 작성 요청을 보냅니다.",
+  },
   {
     type: "booking_received",
     title: "예약 접수",
@@ -404,6 +419,10 @@ export function shouldSendByShopSettings(
       return true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
+    case "booking_consent_request":
+      return settings.booking_consent_request_enabled !== false;
+    case "booking_consent_request":
+      return settings.booking_consent_request_enabled !== false;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
     case "grooming_almost_done":
@@ -428,6 +447,8 @@ export function shouldSendByGuardianSettings(
   if (!settings.enabled) return false;
 
   switch (type) {
+    case "booking_consent_request":
+      return settings.consent_request_enabled ?? true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
     case "booking_cancelled":

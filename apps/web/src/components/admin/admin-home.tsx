@@ -22,6 +22,7 @@ import {
   isPendingSupportRequest,
   supportRequestCategoryLabels,
   supportRequestStatusLabels,
+  type AdminOverviewMetrics,
   type AdminRevenueSummary,
   type OwnerSupportRequestItem,
 } from "@/components/admin/admin-dashboard-model";
@@ -42,6 +43,7 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [requests, setRequests] = useState<OwnerSupportRequestItem[]>([]);
   const [revenue, setRevenue] = useState<AdminRevenueSummary | null>(null);
+  const [overviewMetrics, setOverviewMetrics] = useState<AdminOverviewMetrics | null>(null);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const [error, setError] = useState<string | null>(null);
   const [supportError, setSupportError] = useState<string | null>(null);
@@ -80,6 +82,7 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
     const results = await Promise.allSettled([
       fetchApiJson<{ requests: OwnerSupportRequestItem[] }>("/api/admin/support-requests?limit=50", { cache: "no-store" }),
       fetchApiJson<AdminRevenueSummary>("/api/admin/revenue-summary", { cache: "no-store" }),
+      fetchApiJson<AdminOverviewMetrics>("/api/admin/overview-metrics", { cache: "no-store" }),
     ]);
     if (results[0].status === "fulfilled") {
       setRequests(results[0].value.requests);
@@ -92,6 +95,7 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
       setLoadState("error");
     }
     if (results[1].status === "fulfilled") setRevenue(results[1].value);
+    if (results[2].status === "fulfilled") setOverviewMetrics(results[2].value);
     const failed = results.filter((result) => result.status === "rejected").length;
     setError(failed ? `운영 정보 ${failed}개를 불러오지 못했습니다.` : null);
   }, []);
@@ -138,8 +142,6 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
   const queuedCount = laneCount("queued");
   const actionCount = laneCount("action");
   const isLimited = workSnapshot?.connection === "limited";
-  const greetingName = adminName.trim() || "관리자님";
-  const greetingLabel = greetingName.endsWith("님") ? greetingName : `${greetingName} 님`;
   const countUnavailableLabel = workSnapshot ? "업무 원장 연결 전" : "확인 중";
   const firstPendingSupportRequest = pending[0] ?? null;
   const closeSupportRequest = useCallback(() => {
@@ -209,11 +211,11 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
         <div className="bg-[#F4F4F4]">
         <section className="rounded-bl-[72px] bg-white px-4 pb-10 pt-7 sm:px-6 md:rounded-bl-[120px] md:pb-12 lg:px-8">
           <div className="grid min-w-0 items-center gap-6 md:grid-cols-[minmax(150px,0.55fr)_minmax(0,2fr)] lg:gap-8">
-            <div className="md:pl-3 lg:pl-16">
-              <p className={`text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>안녕하세요.</p>
-              <h1 className={`mt-1 break-keep tracking-[-0.03em] text-[#111112] ${ADMIN_TYPOGRAPHY.pageTitle}`}>
-                {greetingLabel}.
-              </h1>
+            <div className="grid grid-cols-1 gap-2 md:pl-3 lg:pl-8">
+              <p className={`mb-1 text-[#475569] ${ADMIN_TYPOGRAPHY.helper}`}>안녕하세요, {adminName.trim() || "관리자님"}</p>
+              <MiniMetric label="오늘 매출" value={revenue ? formatWon(revenue.todayRevenue) : "—"} detail="결제 완료 기준" />
+              <MiniMetric label="이용객 수" value={overviewMetrics ? `${overviewMetrics.todayVisitorCount}명` : "—"} detail="오늘 예약 기준" />
+              <MiniMetric label="확인된 문의" value={overviewMetrics ? `${overviewMetrics.confirmedInquiryCount}건` : "—"} detail="답변·처리 완료" />
             </div>
             <div className="min-w-0">
               <p aria-live="polite" className={`mb-2 text-right text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>
@@ -369,6 +371,18 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
       {selectedWork ? <WorkDetailPanel item={selectedWork} onClose={closeWork} /> : null}
       {selectedSupportRequest ? <AdminSupportRequestDetail request={selectedSupportRequest} onClose={closeSupportRequest} onSaved={saveSupportRequest} /> : null}
     </main>
+  );
+}
+
+function MiniMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-[10px] border border-[#e2e8f0] bg-white px-3 py-2.5">
+      <div className="min-w-0">
+        <p className={`truncate text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>{label}</p>
+        <p className="mt-0.5 truncate text-[20px] font-semibold leading-6 text-[#111112]">{value}</p>
+      </div>
+      <p className={`shrink-0 text-right text-[#94a3b8] ${ADMIN_TYPOGRAPHY.meta}`}>{detail}</p>
+    </div>
   );
 }
 

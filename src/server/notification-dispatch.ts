@@ -14,6 +14,7 @@ import {
 } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
+import { renderNotificationTemplateBodyWithOverrides } from "@/server/alimtalk-template-overrides";
 import {
   getApprovedSsodaaNotificationTemplate,
   requiresApprovedSsodaaTemplate,
@@ -62,6 +63,7 @@ type DispatchNotificationInput = {
   scheduledAt?: string | null;
   skipIfExists?: boolean;
   force?: boolean;
+  mediaAssetIds?: string[];
 };
 
 type DispatchNotificationResult = {
@@ -107,7 +109,7 @@ function logNotificationSkipped(params: {
 }) {
   console.log("[notification-dispatch] skipped", {
     reason: params.reason,
-    type: params.type,
+    notificationType: params.type,
     appointmentId: params.appointmentId ?? null,
   });
 }
@@ -224,6 +226,23 @@ function getTemplateKey(type: NotificationType) {
 
 function shouldSendNotification(shop: BootstrapPayload["shop"], type: NotificationType) {
   return shouldSendByShopSettings(shop.notification_settings, type) ?? false;
+}
+
+function getAlimtalkSenderConfig(shop: BootstrapPayload["shop"]) {
+  const settings = shop.notification_settings;
+  const canUseShopChannel =
+    settings.alimtalk_sender_mode === "shop_channel" &&
+    settings.alimtalk_shop_channel_status === "active" &&
+    Boolean(settings.alimtalk_sender_profile_key?.trim());
+
+  return {
+    mode: canUseShopChannel ? "shop_channel" : "petmanager",
+    requestedMode: settings.alimtalk_sender_mode,
+    status: settings.alimtalk_shop_channel_status,
+    senderProfileKey: canUseShopChannel ? settings.alimtalk_sender_profile_key?.trim() ?? null : null,
+    channelName: settings.alimtalk_shop_channel_name?.trim() || shop.name,
+    channelUrl: settings.alimtalk_shop_channel_url?.trim() || null,
+  } as const;
 }
 
 function shouldSendGuardianNotification(
@@ -703,14 +722,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
         : null;
   const service =
     appointment ? bootstrap.services.find((item) => item.id === appointment.service_id) ?? null : null;
-  const target = input.type === "owner_booking_requested" || (input.channel ?? "alimtalk") === "in_app" ? "owner" : "guardian";
-  const initialPhoneTail = getPhoneTail(input.recipientPhone) ?? getPhoneTail(guardian?.phone ?? null);
-
   console.log("[notification-dispatch] called", {
-    type: input.type,
+    notificationType: input.type,
     appointmentId: input.appointmentId ?? appointment?.id ?? null,
-    target,
-    phoneTail: initialPhoneTail,
+    reason: "dispatch_started",
   });
 
   if (input.skipIfExists && hasExistingNotification(bootstrap.notifications, input)) {
@@ -1051,7 +1066,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     channel: input.channel ?? "alimtalk",
     message,
     status,
-    template_key: templateKey ?? null,
+    template_key: notificationTemplateKey ?? null,
     template_type: templateType,
     provider,
     provider_message_id: providerMessageId,
@@ -1095,6 +1110,12 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
 
   const admin = getSupabaseAdmin();
   if (!admin) {
+    if (providerSucceeded) {
+      throw new NotificationLedgerPersistenceError({
+        appointmentId: notification.appointment_id ?? null,
+        notificationType: notification.type,
+      });
+    }
     throw new Error("Notification server connection is unavailable.");
   }
 
@@ -1120,10 +1141,11 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     created_at: notification.created_at,
   };
 
-  const result = await admin.from("notifications").insert(insertPayload).select("*").single();
-  if (result.error) {
-    throw new Error(result.error.message);
-  }
+  try {
+    const result = await admin.from("notifications").insert(insertPayload).select("*").single();
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
 
   if (creditReservation?.eventId) {
     const creditEventResult = await admin

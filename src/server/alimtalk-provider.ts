@@ -24,6 +24,8 @@ export type AlimtalkButton = {
 type SendAlimtalkInput = {
   to: string;
   message: string;
+  appointmentId?: string | null;
+  notificationType?: string | null;
   templateAlias?: string | null;
   templateKey?: string | null;
   templateType?: string | null;
@@ -124,7 +126,6 @@ function normalizeButtons(value: AlimtalkButton[] | null | undefined) {
 }
 
 export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<SendAlimtalkResult> {
-  const { relayUrlHost, relayUrlPathname } = getRelayUrlParts(serverEnv.alimtalkRelayUrl);
   const hasRelayUrl = Boolean(serverEnv.alimtalkRelayUrl);
   const hasRelaySecret = Boolean(serverEnv.alimtalkRelaySecret);
   const mediaAttachments = normalizeMediaAttachments(input.mediaAttachments);

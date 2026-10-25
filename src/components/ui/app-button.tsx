@@ -25,8 +25,8 @@ const VARIANT_CLASS_MAP: Record<AppButtonVariant, string> = {
 };
 
 const SIZE_CLASS_MAP: Record<AppButtonSize, string> = {
-  default: "h-12 rounded-[14px] px-4 text-[14px] font-semibold leading-5",
-  sm: "h-8 rounded-[10px] px-2.5 text-[12px] font-semibold leading-4",
+  default: "h-12 rounded-[14px] px-4 text-[16px] font-medium leading-6",
+  sm: "min-h-11 rounded-[10px] px-3 text-[14px] font-medium leading-5",
 };
 
 export const AppButton = forwardRef<HTMLButtonElement, AppButtonProps>(function AppButton(

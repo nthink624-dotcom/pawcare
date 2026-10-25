@@ -41,7 +41,7 @@ export const appointmentInputSchema = z.object({
 
 export const appointmentStatusSchema = z.object({
   appointmentId: z.string(),
-  status: z.enum(["pending", "confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
+  status: z.enum(["confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
   rejectionReasonTemplate: z.string().optional(),
   rejectionReasonCustom: z.string().optional(),
   eventType: z.enum(["care_report_service_correction"]).optional(),
@@ -208,6 +208,20 @@ export const serviceDeleteSchema = z.object({
   serviceId: z.string(),
 });
 
+export const staffMemberProfileSchema = z.object({
+  shopId: z.string(),
+  staffMemberId: z.string().optional(),
+  name: z.string().trim().min(1),
+  displayName: z.string().trim().optional().default(""),
+  profileImageUrl: z.string().trim().optional().default(""),
+  profileImageUrls: z.array(z.string().trim()).max(3).optional().default([]),
+  profileImageAssetIds: z.array(z.string().trim()).max(3).optional().default([]),
+  titlePrefix: z.string().trim().optional().default(""),
+  position: z.string().trim().optional().default(""),
+  chipColorIndex: z.coerce.number().int().min(0).max(31).nullable().optional(),
+  profileMessage: z.string().trim().optional().default(""),
+});
+
 export const shopSettingsSchema = z.object({
   shopId: z.string(),
   name: z.string().min(1),
@@ -217,7 +231,7 @@ export const shopSettingsSchema = z.object({
   concurrentCapacity: z.coerce.number().min(1).max(2),
   bookingSlotIntervalMinutes: z.coerce.number().refine(
     (value) => bookingSlotIntervalOptions.includes(value as (typeof bookingSlotIntervalOptions)[number]),
-    { message: "지원하지 않는 예약 시간 간격입니다." },
+    { message: "吏?먰븯吏 ?딅뒗 ?덉빟 ?쒓컙 媛꾧꺽?낅땲??" },
   ),
   bookingSlotOffsetMinutes: z.coerce.number().int().min(0).max(55),
   bookingAvailableStartTime: z.string().regex(timePattern).default("10:00"),
@@ -282,7 +296,7 @@ export const shopSettingsSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["bookingSlotOffsetMinutes"],
-      message: "기준 분은 예약 간격보다 작아야 합니다.",
+      message: "湲곗? 遺꾩? ?덉빟 媛꾧꺽蹂대떎 ?묒븘???⑸땲??",
     });
   }
 
@@ -290,7 +304,7 @@ export const shopSettingsSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["bookingSlotOffsetMinutes"],
-      message: "기준 분은 5분 단위로 선택해 주세요.",
+      message: "湲곗? 遺꾩? 5遺??⑥쐞濡??좏깮??二쇱꽭??",
     });
   }
 

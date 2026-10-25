@@ -98,6 +98,7 @@ const initialFirstVisitState: FirstVisitState = {
 const CUSTOM_SERVICE_ID = "__custom__";
 const FIRST_VISIT_DRAFT_STORAGE_KEY_PREFIX = "petmanager:first-visit-draft:";
 const BOOKING_PROFILE_STORAGE_KEY = "petmanager:booking-profile";
+const DEFAULT_STAFF_PROFILE_MESSAGE = "아이 성향에 맞춰 차분하게 미용해드려요.";
 
 type FirstVisitDraftPayload = {
   version: 1;
@@ -936,7 +937,7 @@ export default function CustomerBookingPage({
     } catch (error) {
       setSubmitFeedback({
         type: "error",
-        title: "예약 신청에 실패했습니다",
+        title: "예약에 실패했습니다",
         message: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
         action: "dismiss",
       });

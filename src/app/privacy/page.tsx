@@ -1,4 +1,5 @@
 import LegalPageLayout, { LegalSection } from "@/components/legal/legal-page-layout";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { PUBLIC_PRIVACY_POLICY } from "@/lib/legal/privacy-policy";
 import { LEGAL_OPERATOR_NAME, LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
 

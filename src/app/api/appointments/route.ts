@@ -18,6 +18,8 @@ function safeAppointmentWriteMessage(error: unknown, fallback: string) {
 }
 
 export async function POST(request: NextRequest) {
+  const requestStartedAt = Date.now();
+  const timings: Partial<Record<"auth" | CreateAppointmentStage | "total", number>> = {};
   try {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);

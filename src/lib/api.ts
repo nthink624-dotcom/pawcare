@@ -42,6 +42,18 @@ export function buildApiUrl(path: string) {
   return normalizedPath;
 }
 
+export class ApiRequestError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 export async function fetchApiJson<T>(input: string, init?: RequestInit) {
   const response = await fetch(buildApiUrl(input), init);
   const contentType = response.headers.get("content-type") || "";

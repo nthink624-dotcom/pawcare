@@ -39,7 +39,6 @@ import {
   appointmentEditSchema,
   appointmentStatusSchema,
   guardianDeleteSchema,
-  customerPageSettingsSchema,
   guardianInputSchema,
   guardianRestoreSchema,
   initialSetupShopSettingsSchema,
@@ -51,6 +50,7 @@ import {
   serviceDeleteSchema,
   serviceInputSchema,
   shopSettingsSchema,
+  staffMemberProfileSchema,
 } from "@/server/schemas";
 import type { Appointment, AppointmentChangeEvent, AppointmentStatus, Guardian, Pet, PetStaffNote, Service, Shop } from "@/types/domain";
 
@@ -84,8 +84,8 @@ function getRejectionReason(payload: {
   rejectionReasonTemplate?: string;
   rejectionReasonCustom?: string;
 }) {
-  if (payload.rejectionReasonTemplate === "湲고? 吏곸젒 ?낅젰") {
-    return payload.rejectionReasonCustom?.trim() || "湲고? ?ъ쑀";
+  if (payload.rejectionReasonTemplate === "疫꿸퀬? 筌욊낯????낆젾") {
+    return payload.rejectionReasonCustom?.trim() || "疫꿸퀬? ???";
   }
 
   return payload.rejectionReasonTemplate?.trim() || payload.rejectionReasonCustom?.trim() || null;
@@ -560,10 +560,9 @@ async function runAppointmentNotificationTask(
 }
 
 function getAppointmentNotificationReason(result: Awaited<ReturnType<typeof dispatchNotification>>) {
-  if (result.notification.fail_reason) return result.notification.fail_reason;
+  if (result.alreadyExists) return "already_exists";
   if (result.skipped) return "skipped";
-  if (result.alreadyExists) return "already exists";
-  return null;
+  return result.notification.status;
 }
 
 async function dispatchAppointmentNotificationWithLogs(params: {
@@ -577,7 +576,7 @@ async function dispatchAppointmentNotificationWithLogs(params: {
   console.log("[appointments-api] notification dispatch start", {
     appointmentId: params.appointment.id,
     notificationType: params.type,
-    target: "guardian",
+    reason: "dispatch_started",
   });
 
   try {
@@ -595,17 +594,31 @@ async function dispatchAppointmentNotificationWithLogs(params: {
     console.log("[appointments-api] notification dispatch result", {
       appointmentId: params.appointment.id,
       notificationType: params.type,
-      ok: result.notification.status !== "failed",
       reason: getAppointmentNotificationReason(result),
+      code: "NOTIFICATION_DISPATCH_RECORDED",
     });
 
     return result;
   } catch (error) {
-    console.log("[appointments-api] notification dispatch result", {
+    if (error instanceof NotificationLedgerPersistenceError) {
+      console.error("[appointments-api] P1 notification ledger persistence failed after provider success", {
+        appointmentId: params.appointment.id,
+        notificationType: params.type,
+        reason: "provider_succeeded_ledger_persist_failed_no_retry",
+        code: error.code,
+      });
+      return {
+        providerSucceeded: error.providerSucceeded,
+        ledgerPersisted: error.ledgerPersisted,
+        automaticRetryAllowed: error.automaticRetryAllowed,
+      };
+    }
+
+    console.warn("[appointments-api] notification dispatch failed after appointment commit", {
       appointmentId: params.appointment.id,
       notificationType: params.type,
-      ok: false,
-      reason: error instanceof Error ? error.message : String(error),
+      reason: "dispatch_failed",
+      code: "NOTIFICATION_DISPATCH_FAILED_AFTER_APPOINTMENT_COMMIT",
     });
     return null;
   }
@@ -1043,7 +1056,7 @@ export async function upsertService(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
   const payloadHash = getServiceSavePayloadHash({ operation, service });
 
@@ -1485,11 +1498,11 @@ export async function updateCustomerPageSettings(
       updated_at: nowIso(),
     };
     setMockStore(store);
-    return store.shop.customer_page_settings;
+    return staffMember;
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
   const currentShopResult = await supabase
     .from("shops")
@@ -1551,11 +1564,20 @@ export async function updateCustomerPageSettings(
     .select("customer_page_settings")
     .single();
 
-  if (error) {
-    if (hasMissingColumnError(error, "customer_page_settings")) {
-      throw new Error("怨좉컼 ?몄텧 ?뺣낫 而щ읆???꾩쭅 ?놁뒿?덈떎. ?덈궡?쒕┛ SQL????踰덈쭔 ?ㅽ뻾??二쇱꽭??");
-    }
-    throw new Error(error.message);
+  if (payload.staffMemberId) {
+    const { error } = await supabase
+      .from("staff_members")
+      .update(dbPayload)
+      .eq("id", staffMember.id)
+      .eq("shop_id", staffMember.shopId);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase.from("staff_members").insert({
+      id: staffMember.id,
+      ...dbPayload,
+      created_at: staffMember.created_at,
+    });
+    if (error) throw new Error(error.message);
   }
   await insertShopIdentityChangeEvents({
     admin: supabase,
@@ -1595,7 +1617,7 @@ export async function createGuardian(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
   const { data, error } = await supabase
     .from("guardians")
@@ -1677,7 +1699,7 @@ export async function updateGuardian(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
   let currentGuardianQuery = supabase.from("guardians").select("*").eq("id", payload.guardianId);
   if (payload.shopId) currentGuardianQuery = currentGuardianQuery.eq("shop_id", payload.shopId);
@@ -1738,7 +1760,7 @@ export async function deleteGuardian(input: unknown) {
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
     const guardian = store.guardians.find((item) => item.id === payload.guardianId);
-    if (!guardian) throw new Error("怨좉컼 ?뺣낫瑜?李얠쓣 ???놁뼱??");
+    if (!guardian) throw new Error("고객 정보를 찾을 수 없습니다.");
 
     const petIds = new Set(store.pets.filter((item) => item.guardian_id === payload.guardianId).map((item) => item.id));
 
@@ -1755,7 +1777,7 @@ export async function deleteGuardian(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
   const petQuery = await supabase.from("pets").select("id").eq("guardian_id", payload.guardianId);
   if (petQuery.error) throw new Error(petQuery.error.message);
@@ -1789,7 +1811,7 @@ export async function softDeleteGuardians(input: unknown) {
   const guardianIds = resolveGuardianIds(payload);
 
   if (guardianIds.length === 0) {
-    throw new Error("??젣??怨좉컼???좏깮??二쇱꽭??");
+    throw new Error("삭제할 고객을 선택해 주세요.");
   }
 
   const deletedAt = nowIso();
@@ -1799,7 +1821,7 @@ export async function softDeleteGuardians(input: unknown) {
     const store = getMutableStore();
     const existingIds = new Set(store.guardians.map((guardian) => guardian.id));
     const missingId = guardianIds.find((guardianId) => !existingIds.has(guardianId));
-    if (missingId) throw new Error("??젣??怨좉컼 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.");
+    if (missingId) throw new Error("삭제할 고객 정보를 찾을 수 없습니다.");
 
     store.guardians = store.guardians.map((guardian) =>
       guardianIds.includes(guardian.id)
@@ -1817,7 +1839,7 @@ export async function softDeleteGuardians(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
   let query = supabase
     .from("guardians")
@@ -1848,7 +1870,7 @@ export async function restoreGuardians(input: unknown) {
   const guardianIds = resolveGuardianIds(payload);
 
   if (guardianIds.length === 0) {
-    throw new Error("蹂듦뎄??怨좉컼???좏깮??二쇱꽭??");
+    throw new Error("복구할 고객을 선택해 주세요.");
   }
 
   if (!hasSupabaseServerEnv()) {
@@ -1888,7 +1910,7 @@ export async function restoreGuardians(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
   const guardiansQuery = await supabase
     .from("guardians")
@@ -1961,7 +1983,7 @@ export async function createPet(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
   const guardian = await supabase.from("guardians").select("id").eq("id", payload.guardianId).eq("shop_id", payload.shopId).single();
   if (guardian.error) throw new Error("고객 정보를 찾을 수 없습니다.");
@@ -2002,7 +2024,7 @@ export async function updatePet(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
   let updateQuery = supabase
     .from("pets")
@@ -2268,7 +2290,8 @@ export async function createAppointment(input: unknown, options?: AppointmentMut
     appointment_date: payload.appointmentDate,
     appointment_time: payload.appointmentTime,
     status,
-    memo: payload.memo,
+    memo: payload.source === "customer" ? payload.memo : "",
+    staff_memo: payload.source === "owner" ? payload.memo : "",
     rejection_reason: null,
     start_at: appointmentWindow.start_at,
     end_at: appointmentWindow.end_at,
@@ -2296,6 +2319,7 @@ export async function createAppointment(input: unknown, options?: AppointmentMut
   };
 
   if (data.mode !== "supabase" || !hasSupabaseServerEnv()) {
+    const databaseStartedAt = Date.now();
     const store = getMutableStore();
     store.appointments = [...store.appointments, appointment];
     setMockStore(store);
@@ -2406,7 +2430,30 @@ export async function createAppointment(input: unknown, options?: AppointmentMut
     );
   }
 
-  return appointment;
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  const databaseStartedAt = Date.now();
+  const createdAppointment = await createAppointmentWithDatabaseGuard(supabase, appointment);
+  options.onTiming?.("database", elapsedMilliseconds(databaseStartedAt));
+
+  if (createdAppointment.status === "confirmed") {
+    const dispatchConfirmedNotification = async () => {
+      const notificationStartedAt = Date.now();
+      await dispatchAppointmentNotificationWithLogs({
+        shopId: createdAppointment.shop_id,
+        appointment: createdAppointment,
+        type: "booking_confirmed",
+      });
+      options.onTiming?.("notification", elapsedMilliseconds(notificationStartedAt));
+    };
+    if (options.schedulePostCommit) {
+      options.schedulePostCommit(dispatchConfirmedNotification);
+    } else {
+      await dispatchConfirmedNotification();
+    }
+  }
+
+  return createdAppointment;
 }
 
 export async function updateAppointmentStatus(input: unknown, options?: AppointmentStatusMutationOptions) {
@@ -2874,12 +2921,7 @@ export async function updateAppointmentDetails(input: unknown) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
 
-  const { data: updatedAppointment, error } = await supabase
-    .from("appointments")
-    .update(nextValues)
-    .eq("id", payload.appointmentId)
-    .select("*")
-    .single();
+  const resolvedAppointment = await updateAppointmentWithDatabaseGuard(supabase, payload.appointmentId, nextValues);
 
   let resolvedAppointment = updatedAppointment;
 

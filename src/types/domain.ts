@@ -298,6 +298,7 @@ export type Appointment = {
   appointment_time: string;
   status: AppointmentStatus;
   memo: string;
+  staff_memo?: string;
   rejection_reason: string | null;
   start_at: string;
   end_at: string;
@@ -369,6 +370,71 @@ export type GroomingRecord = {
   care_report_sent_at?: string | null;
   care_report_photo_consent?: boolean;
   groomed_at: string;
+  created_at: string;
+  updated_at: string;
+  care_report_data?: { reportText: string } | null;
+  care_report_owner_confirmed_at?: string | null;
+};
+
+export type PetStaffNote = {
+  id: string;
+  shop_id: string;
+  guardian_id: string;
+  pet_id: string | null;
+  note: string;
+  note_scope: "staff_shared" | "owner_private";
+  source: "owner_web" | "owner_mobile" | "system";
+  created_by_user_id: string | null;
+  updated_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BootstrapStaffMember = {
+  id: string;
+  name: string;
+  displayName?: string | null;
+  profileImageUrl?: string | null;
+  profileImageUrls?: string[];
+  profileImageAssetIds?: string[];
+  profileImageFallbackKey?: "korean-groomer-profile-01" | "korean-groomer-profile-02" | null;
+  profileMessage?: string | null;
+  chipColorIndex?: number | null;
+  phone?: string | null;
+  role?: string | null;
+  titlePrefix?: string | null;
+  position?: string | null;
+  defaultDays?: Array<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun">;
+  startTime?: string;
+  endTime?: string;
+  regularOff?: string;
+  annualRemain?: number;
+  todayBookings?: number;
+  weekBookings?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type StaffMember = BootstrapStaffMember & {
+  shopId?: string;
+  displayName?: string | null;
+  profileImageUrl?: string | null;
+  titlePrefix?: string | null;
+  position?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type StaffScheduleOverride = {
+  id: string;
+  shop_id: string;
+  staff_id: string;
+  work_date: string;
+  status: "work" | "off" | "annual" | "half";
+  start_time: string | null;
+  end_time: string | null;
+  period: "오전" | "오후" | null;
+  reason: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -578,6 +644,22 @@ export type LandingFeedback = {
   type: "feature" | "bug" | "idea";
   text: string;
   created_at: string;
+};
+
+export type OwnerPilotCohortProjection = {
+  schemaReady: boolean;
+  isPilotMember: boolean;
+  status: "planned" | "active" | "paused" | "completed" | "excluded" | null;
+};
+
+export type PetDisplayPhotoProjection = {
+  appointmentId: string;
+  petId: string;
+  url: string | null;
+  source: "appointment_grooming_after" | "prior_grooming_after" | "fallback";
+  sourceAppointmentId: string | null;
+  sourceGroomingRecordId: string | null;
+  latestCompletedAt: string | null;
 };
 
 export type BootstrapPayload = {

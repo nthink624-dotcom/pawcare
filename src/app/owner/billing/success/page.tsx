@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
 
 import { OwnerBillingSuccessCard } from "@/components/owner/owner-billing-flow-shared";
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -42,6 +43,11 @@ function OwnerBillingSuccessPageContent() {
   const searchParams = useSearchParams();
   const [summary, setSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [message, setMessage] = useState("결제 완료 내용을 확인하고 있어요.");
+  const isAndroidApp = useSyncExternalStore(
+    subscribeRuntimeMode,
+    getAndroidRuntimeSnapshot,
+    getServerConsumptionOnlySnapshot,
+  );
 
   const snapshotPlan = getSnapshotPlan(searchParams);
   const snapshotEndAt = searchParams.get("endAt");
@@ -49,6 +55,11 @@ function OwnerBillingSuccessPageContent() {
   const hasSnapshot = Boolean(snapshotPlan || snapshotEndAt || snapshotMethod);
 
   useEffect(() => {
+    if (isAndroidApp) {
+      router.replace("/owner/billing" as never);
+      return;
+    }
+
     let active = true;
 
     async function load() {
@@ -105,6 +116,14 @@ function OwnerBillingSuccessPageContent() {
     summary?.currentPeriodEndsAt ?? summary?.nextBillingAt ?? snapshotEndAt ?? summary?.trialEndsAt ?? null;
   const displayMethod = summary?.paymentMethodLabel ?? snapshotMethod;
   const displayTotalShopCount = summary?.billingAmount.multiShopDiscount.totalShopCount ?? 1;
+
+  if (isAndroidApp) {
+    return (
+      <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">
+        이용 상태를 확인하고 있어요.
+      </div>
+    );
+  }
 
   if (!displayPlan) {
     return (

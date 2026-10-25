@@ -1,4 +1,11 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
+
+import {
+  PETMANAGER_BRAND_MARK_PATH,
+  PETMANAGER_PUBLIC_SITE_URL,
+  PETMANAGER_SERVICE_DESCRIPTION,
+  PETMANAGER_SERVICE_NAME,
+} from "@/lib/brand";
 
 import localFont from "next/font/local";
 

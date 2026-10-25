@@ -49,7 +49,7 @@ The check intentionally does not print secret values. It only prints masked Supa
 Local development must use development Supabase values. A remote development Supabase project is allowed only when its project ref is explicitly listed in `*_ALLOWED_DEV_SUPABASE_REFS`.
 
 ```env
-NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000
+NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3100
 NEXT_PUBLIC_SUPABASE_ENV_NAME=development
 SUPABASE_ENV_NAME=development
 NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV=false

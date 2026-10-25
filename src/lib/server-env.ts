@@ -174,6 +174,13 @@ export function hasPortoneServerEnv() {
   return Boolean(serverEnv.portoneApiSecret);
 }
 
+export function hasFirebaseMessagingServerEnv() {
+  return Boolean(
+    serverEnv.firebaseServiceAccountJson ||
+      (serverEnv.firebaseProjectId && serverEnv.firebaseClientEmail && serverEnv.firebasePrivateKey),
+  );
+}
+
 export function hasAlimtalkServerEnv() {
   if (serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret) {
     return true;

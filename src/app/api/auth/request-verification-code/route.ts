@@ -82,6 +82,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (payload.email && !isValidOwnerEmail(payload.email)) {
+      return NextResponse.json({ message: "이메일 형식을 확인해 주세요." }, { status: 400 });
+    }
+
     if (!isValidBirthDate8(payload.birthDate)) {
       return NextResponse.json({ message: "생년월일은 숫자 8자리로 입력해 주세요." }, { status: 400 });
     }

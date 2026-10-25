@@ -410,8 +410,11 @@ export default function SignupForm({
           identityVerificationToken: verificationToken,
           shopName: fields.shopName.trim(),
           shopPhone: fields.shopPhone,
-          shopAddress: [fields.shopAddress.trim(), shopDetailAddress.trim()].filter(Boolean).join(" "),
+          shopAddress: shopDetailAddress.trim()
+            ? `${fields.shopAddress.trim()}, ${shopDetailAddress.trim()}`
+            : fields.shopAddress.trim(),
           agreements,
+          servicePrices,
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
           marketingConsentVersion: OWNER_MARKETING_CONSENT_DOCUMENT_VERSION,
           signupRequestId,

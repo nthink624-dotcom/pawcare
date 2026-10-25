@@ -15,6 +15,7 @@ const schema = z.object({
   birthDate: z.string().optional().default(""),
   phoneNumber: z.string().optional().default(""),
   code: z.string().length(6),
+  email: z.string().optional(),
 });
 
 function isValidPhoneNumber(value: string) {
@@ -64,8 +65,13 @@ export async function POST(request: NextRequest) {
       email: normalizeOwnerEmail(body?.email ?? ""),
       phoneNumber: normalizeOwnerPhoneNumber(body?.phoneNumber ?? ""),
       code: String(body?.code ?? "").replace(/\D/g, "").slice(0, 6),
+      email: typeof body?.email === "string" ? normalizeOwnerEmail(body.email) : undefined,
     });
     const payload = await fillDevelopmentProfileForLocalReset(parsedPayload);
+
+    if (payload.email && !isValidOwnerEmail(payload.email)) {
+      return NextResponse.json({ message: "이메일 형식을 확인해 주세요." }, { status: 400 });
+    }
 
     if (!isValidBirthDate8(payload.birthDate)) {
       return NextResponse.json({ message: "생년월일은 숫자 8자리로 입력해 주세요." }, { status: 400 });

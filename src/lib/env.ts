@@ -55,17 +55,19 @@ export function getSupabaseRuntimeStage() {
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       return "development" as const;
     }
+    if (configuredHostname && hostname === configuredHostname) {
+      return "production" as const;
+    }
     if (hostname.endsWith(".vercel.app")) {
       return "preview" as const;
     }
     return "production" as const;
   }
 
-  const normalizedSiteUrl = env.siteUrl.toLowerCase();
-  if (normalizedSiteUrl.includes("localhost") || normalizedSiteUrl.includes("127.0.0.1")) {
+  if (configuredHostname === "localhost" || configuredHostname === "127.0.0.1") {
     return "development" as const;
   }
-  if (normalizedSiteUrl.includes(".vercel.app")) {
+  if (configuredHostname.endsWith(".vercel.app") && process.env.VERCEL_ENV === "preview") {
     return "preview" as const;
   }
   return "production" as const;

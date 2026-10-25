@@ -1,4 +1,4 @@
-﻿import LegalPageLayout, { LegalSection } from "@/components/legal/legal-page-layout";
+import LegalPageLayout, { LegalSection } from "@/components/legal/legal-page-layout";
 import { ownerPaidServiceTerms } from "@/lib/auth/owner-paid-service-terms";
 import { OWNER_SINGLE_MONTHLY_PRICE_KRW } from "@/lib/billing/owner-plans";
 import { LEGAL_OPERATOR_NAME, LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
@@ -18,10 +18,7 @@ ${LEGAL_SERVICE_NAME}는 카드 등록 없이 14일 무료체험을 시작하고
 
 export default function RefundPage() {
   return (
-    <LegalPageLayout
-      title="환불 및 이용 안내"
-      subtitle="무료체험, 결제, 해지와 환불 기준을 한 화면에서 확인할 수 있어요."
-    >
+    <LegalPageLayout title="환불 및 이용 안내" subtitle="무료체험, 결제, 해지와 환불 기준을 한 화면에서 확인할 수 있어요.">
       <LegalSection title="기본 정책" body={refundSummary} />
       <LegalSection title="유료서비스 이용약관" body={ownerPaidServiceTerms} />
     </LegalPageLayout>

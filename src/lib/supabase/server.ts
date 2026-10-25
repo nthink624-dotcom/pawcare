@@ -22,7 +22,7 @@ export function getSupabaseAdmin() {
   });
 }
 
-export function getSupabaseAuthClient() {
+export function getSupabaseAuthClient(signal?: AbortSignal) {
   assertSafeSupabaseEnvironment();
   if (!serverEnv.supabaseUrl || !serverEnv.supabasePublishableKey) {
     return null;
@@ -30,5 +30,6 @@ export function getSupabaseAuthClient() {
 
   return createClient(serverEnv.supabaseUrl, serverEnv.supabasePublishableKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: signal ? { fetch: (input, init) => fetch(input, { ...init, signal }) } : undefined,
   });
 }

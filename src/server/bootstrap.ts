@@ -29,12 +29,16 @@ import {
   staffProfileOptionalColumns,
 } from "@/server/staff-profile-column-compat";
 import type {
+  AlimtalkCreditSummary,
   Appointment,
+  AppointmentChangeEvent,
   BootstrapPayload,
+  BootstrapStaffMember,
   GroomingRecord,
   Guardian,
   LandingFeedback,
   LandingInterest,
+  OwnerProfile,
   Pet,
   PetStaffNote,
   OwnerProfile,
@@ -145,12 +149,13 @@ function splitActiveGuardians(guardians: Guardian[]) {
       new Date(guardian.deleted_restore_until).getTime() >= now,
   );
   const activeGuardianIds = new Set(activeGuardians.map((guardian) => guardian.id));
+  return { activeGuardians, deletedGuardians, activeGuardianIds };
+}
 
-  return {
-    activeGuardians,
-    deletedGuardians,
-    activeGuardianIds,
-  };
+async function safeQuery<T>(promise: PromiseLike<{ data: T | null; error: any }>, fallback: T) {
+  const result = await promise;
+  if (result.error) return fallback;
+  return result.data ?? fallback;
 }
 
 type StaffMemberRow = {
@@ -548,6 +553,12 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     throw new Error("매장 정보를 찾을 수 없습니다.");
   }
 
+  const rawShop = shopRes.data as Shop;
+  const normalizedShop = {
+    ...normalizeShopBookingSettings(rawShop),
+    notification_settings: normalizeShopNotificationSettings(rawShop.notification_settings),
+    customer_page_settings: normalizeCustomerPageSettings(rawShop.customer_page_settings, rawShop.name, rawShop.description),
+  };
   const normalizedGuardians = ((guardiansRes.data ?? []) as Guardian[]).map(normalizeGuardianForBootstrap);
   const { activeGuardians, deletedGuardians, activeGuardianIds } = splitActiveGuardians(normalizedGuardians);
   const activePetIds = new Set(
@@ -555,6 +566,10 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       .filter((pet) => activeGuardianIds.has(pet.guardian_id))
       .map((pet) => pet.id),
   );
+  const staffMembers =
+    staffMembersRes.error || !Array.isArray(staffMembersRes.data)
+      ? []
+      : ((staffMembersRes.data ?? []) as StaffMemberRow[]).map(normalizeStaffMember);
 
   const rawShop = shopRes.data as Shop;
   const normalizedReservationPolicySettings = normalizeReservationPolicySettings(rawShop.reservation_policy_settings);
@@ -641,6 +656,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     petStaffNotes: ((petStaffNotesRes.data ?? []) as PetStaffNote[]).filter((note) =>
       activeGuardianIds.has(note.guardian_id) && (!note.pet_id || activePetIds.has(note.pet_id)),
     ),
+    petStaffNotes: petStaffNotes.filter((note) => activeGuardianIds.has(note.guardian_id) && (!note.pet_id || activePetIds.has(note.pet_id))),
     notifications: ((notificationsRes.data ?? []) as BootstrapPayload["notifications"]).filter((notification) =>
       !notification.guardian_id || activeGuardianIds.has(notification.guardian_id),
     ),

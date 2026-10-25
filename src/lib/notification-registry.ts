@@ -69,7 +69,7 @@ export type NotificationTemplateVariables = Record<string, string | null | undef
 export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   {
     type: "booking_received",
-    title: "예약 접수",
+    title: "예약 완료",
     target: "guardian",
     channel: "alimtalk",
     trigger: "고객이 예약을 신청하면 즉시 발송",
@@ -174,6 +174,36 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     guardianSettingKey: "appointment_reminder_10m_enabled",
     notes: "예약 안내 3종 중 오늘 예약 안내에 사용",
     draftBody: APPROVED_ALIMTALK_CONTRACTS.visit_reminder_notice.body,
+  },
+  {
+    type: "visit_schedule_notice",
+    title: "예약 안내 - 내일",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "예약 하루 전 발송",
+    dispatchSource: "src/server/visit-reminder-processor.ts",
+    templateAlias: "visit_schedule_notice",
+    templateConfigKey: "templateVisitScheduleNotice",
+    shopSettingKey: "appointment_reminder_10m_enabled",
+    guardianSettingKey: "appointment_reminder_10m_enabled",
+    notes: "예약 안내 3종 중 내일 예약 안내에 사용",
+    draftBody:
+      "[#{매장명}]\n내일은 #{반려동물명} 미용 예약일입니다.\n\n예약 일시: #{예약일시}\n예약 서비스: #{서비스명}",
+  },
+  {
+    type: "visit_reminder_notice",
+    title: "예약 안내 - 오늘",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "예약 당일 여유 시간이 남아 있을 때 발송",
+    dispatchSource: "src/server/visit-reminder-processor.ts",
+    templateAlias: "visit_reminder_notice",
+    templateConfigKey: "templateVisitReminderNotice",
+    shopSettingKey: "appointment_reminder_10m_enabled",
+    guardianSettingKey: "appointment_reminder_10m_enabled",
+    notes: "예약 안내 3종 중 오늘 예약 안내에 사용",
+    draftBody:
+      "[#{매장명}]\n오늘은 #{반려동물명} 미용 예약일입니다.\n\n예약 일시: #{예약일시}\n예약 서비스: #{서비스명}",
   },
   {
     type: "grooming_started",
@@ -399,6 +429,8 @@ export function shouldSendByShopSettings(
       return settings.grooming_completed_enabled;
     case "revisit_notice":
       return settings.revisit_enabled;
+    case "birthday_greeting":
+      return true;
     case "landing_feedback":
     case "waitlist_interest":
       return null;

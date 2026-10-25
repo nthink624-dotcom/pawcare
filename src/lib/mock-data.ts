@@ -15,6 +15,7 @@ import type {
   Pet,
   Service,
   Shop,
+  StaffMember,
 } from "@/types/domain";
 
 const today = currentDateInTimeZone();
@@ -163,6 +164,22 @@ export const demoStaffMembers: BootstrapStaffMember[] = [
     annualRemain: 0,
     todayBookings: 0,
     weekBookings: 0,
+  },
+];
+
+export const demoStaffMembers: StaffMember[] = [
+  {
+    id: "staff-owner",
+    shopId: "demo-shop",
+    name: "정우진",
+    displayName: "정우진 원장",
+    profileImageUrl: null,
+    titlePrefix: "원장",
+    position: "대표 미용사",
+    chipColorIndex: 0,
+    profileMessage: "아이 성향에 맞춰 차분하게 미용해드려요.",
+    created_at: now,
+    updated_at: now,
   },
 ];
 

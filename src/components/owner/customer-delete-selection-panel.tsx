@@ -113,7 +113,7 @@ export default function CustomerDeleteSelectionPanel({
 
       {filteredGuardians.length === 0 ? (
         <div className="mt-3 px-1">
-          <p className="text-[15px] font-medium text-[var(--text)]">{emptyTitle}</p>
+          <p className="text-[16px] font-medium text-[var(--text)]">{emptyTitle}</p>
           <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">{emptyDescription}</p>
         </div>
       ) : (
@@ -134,8 +134,8 @@ export default function CustomerDeleteSelectionPanel({
                 />
               </div>
               <div className="relative -top-[1.5px] min-w-0 flex-1">
-                <p className="truncate text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
-                <p className="mt-0.5 truncate text-[12.5px] leading-5 text-[var(--muted)]">
+                <p className="truncate text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
+                <p className="mt-0.5 truncate text-[13px] leading-5 text-[var(--muted)]">
                   {summary.guardian.phone} · {summary.pets.map((pet) => pet.name).join(", ") || "등록된 반려동물 없음"}
                 </p>
               </div>
@@ -152,7 +152,7 @@ export default function CustomerDeleteSelectionPanel({
             </p>
             <button
               type="button"
-              className="shrink-0 rounded-full bg-[#eef6f3] px-2.5 py-1 text-[11px] font-normal leading-none text-[var(--accent)]"
+              className="shrink-0 rounded-full bg-[#eef6f3] px-2.5 py-1 text-[12px] font-normal leading-none text-[var(--accent)]"
               onClick={() => onRestoreDeletedGuardians(filteredDeletedGuardians.map((guardian) => guardian.id))}
               disabled={saving}
             >
@@ -169,7 +169,7 @@ export default function CustomerDeleteSelectionPanel({
                 </div>
                 <button
                   type="button"
-                  className="shrink-0 rounded-full bg-[#eef6f3] px-2.5 py-1 text-[11px] font-normal leading-none text-[var(--accent)]"
+                  className="shrink-0 rounded-full bg-[#eef6f3] px-2.5 py-1 text-[12px] font-normal leading-none text-[var(--accent)]"
                   onClick={() => onRestoreDeletedGuardians([guardian.id])}
                   disabled={saving}
                 >

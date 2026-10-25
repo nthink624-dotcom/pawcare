@@ -26,6 +26,7 @@ import {
 import { hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
 import { deliverCustomerBookingNotificationSafely } from "@/lib/customer-booking-notification";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { updateAppointmentWithDatabaseGuard } from "@/server/appointment-capacity";
 import { getBootstrap } from "@/server/bootstrap";
 import { requireOwnerInitialSetupCompleteBootstrap } from "@/server/owner-initial-setup-guard";
 import {
@@ -1042,6 +1043,30 @@ async function updateSupabaseAppointment(appointmentId: string, values: Partial<
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
 
+  if (
+    typeof values.service_id === "string" &&
+    typeof values.appointment_date === "string" &&
+    typeof values.appointment_time === "string" &&
+    typeof values.memo === "string" &&
+    typeof values.status === "string" &&
+    Object.prototype.hasOwnProperty.call(values, "rejection_reason") &&
+    typeof values.start_at === "string" &&
+    typeof values.end_at === "string" &&
+    typeof values.updated_at === "string"
+  ) {
+    return updateAppointmentWithDatabaseGuard(supabase, appointmentId, {
+      service_id: values.service_id,
+      appointment_date: values.appointment_date,
+      appointment_time: values.appointment_time,
+      memo: values.memo,
+      status: values.status,
+      rejection_reason: values.rejection_reason ?? null,
+      start_at: values.start_at,
+      end_at: values.end_at,
+      updated_at: values.updated_at,
+    });
+  }
+
   const { data, error } = await supabase
     .from("appointments")
     .update(values)
@@ -1174,7 +1199,9 @@ export async function updateCustomerBooking(input: unknown) {
     durationMinutesOverride: selectedCustomerServiceOption.durationMinutes,
     shop: bootstrap.shop,
     services: bootstrap.services,
-    appointments: bootstrap.appointments,
+    appointments: appointment.staff_id
+      ? bootstrap.appointments.filter((candidate) => candidate.staff_id === appointment.staff_id)
+      : bootstrap.appointments,
     excludeAppointmentId: payload.appointmentId,
     staffId: appointment.staff_id ?? null,
     staffMembers: bootstrap.staffMembers,

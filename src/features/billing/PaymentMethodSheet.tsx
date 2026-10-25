@@ -102,6 +102,8 @@ export function PaymentMethodSheet({
   );
 
   useEffect(() => {
+    const animationFrames: number[] = [];
+
     if (open) {
       if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
         lastFocusedRef.current = document.activeElement;
@@ -209,7 +211,7 @@ export function PaymentMethodSheet({
 
           <div className="mt-4 flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#9b9286]">{eyebrow}</p>
+              <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[#6f665f]">{eyebrow}</p>
               <h2 id={titleId} className="mt-[5px] text-[18px] font-semibold tracking-[-0.04em] text-[#171411]">
                 {title}
               </h2>
@@ -229,13 +231,13 @@ export function PaymentMethodSheet({
           <div className="mt-4 rounded-[10px] border border-[#e8edf3] bg-[#f8fbff] px-[14px] py-[12px]">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[12px] text-[#9b9286]">선택 플랜</p>
+                <p className="text-[12px] text-[#6f665f]">선택 플랜</p>
                 <p className="mt-1 text-[14px] tracking-[-0.02em] text-[#171411]">{planLabel}</p>
                 <p className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[#171411]">{amountLabel}</p>
               </div>
 
               <div className="shrink-0 text-right">
-                <p className="text-[12px] text-[#9b9286]">다음 결제 예정일</p>
+                <p className="text-[12px] text-[#6f665f]">다음 결제 예정일</p>
                 <p className="mt-1 text-[14px] tracking-[-0.02em] text-[#171411]">{nextBillingDateLabel}</p>
               </div>
             </div>

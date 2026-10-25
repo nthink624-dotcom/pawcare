@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ServiceBrand } from "@/components/brand/service-brand";
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 

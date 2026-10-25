@@ -1,5 +1,7 @@
 ﻿import type { BootstrapPayload, Guardian, GuardianNotificationSettings, Shop, ShopNotificationSettings } from "@/types/domain";
 
+export const DEFAULT_REVISIT_REMINDER_DAYS = 45;
+
 export const defaultShopNotificationSettings: ShopNotificationSettings = {
   enabled: true,
   alimtalk_sender_mode: "petmanager",

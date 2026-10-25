@@ -7,7 +7,7 @@
 3. `src/components/owner/owner-billing-screen.tsx`
 4. `src/components/admin/owner-admin-screen.tsx`
 5. `src/components/customer/customer-booking-page.tsx`
-6. `src/components/auth/signup-form.tsx`, `src/components/auth/login-form.tsx`, `src/components/auth/social-signup-complete-form.tsx`
+6. `src/components/auth/signup-form.tsx`, `src/components/auth/login-form.tsx`
 7. 랜딩/법적/데모 페이지
 
 ---
@@ -104,22 +104,21 @@
 - 코드 수정 시 주의점
   - 예약 생성, validation, 시간 계산, 단계 전환 로직 금지
 
-### 2.6 `src/components/auth/signup-form.tsx`, `login-form.tsx`, `social-signup-complete-form.tsx`
+### 2.6 `src/components/auth/signup-form.tsx`, `login-form.tsx`
 
 - 현재 문제
-  - 오너 인증은 모바일 기준이어야 하는데, 로그인/회원가입/소셜 가입의 시각 문법이 일부 분리돼 있다.
-  - 입력, 약관, 소셜 버튼, 단계 구조가 파일별로 조금씩 다르다.
+  - 오너 인증은 모바일 기준이어야 하는데, 로그인/회원가입의 시각 문법이 일부 분리돼 있다.
+  - 입력, 약관, 단계 구조가 파일별로 조금씩 다르다.
 - 왜 위험한지
-  - auth validation, provider callback, 본인인증 흐름과 붙어 있다.
+  - auth validation과 본인인증 흐름이 붙어 있다.
 - 먼저 분리할 컴포넌트
   - 입력 field wrapper
   - 약관 row
-  - 소셜 버튼 wrapper
 - 나중에 분리할 컴포넌트
   - 단계 컨테이너
   - 약관 전용 화면 블록
 - 코드 수정 시 주의점
-  - validation, provider 처리, 본인인증, callback 로직 금지
+  - validation과 본인인증 로직 금지
 
 ### 2.7 랜딩/법적/데모 페이지
 
@@ -254,7 +253,7 @@
 - 주의:
   - 단계형 플로우 기준 적용
 
-### 3.6 `src/components/auth/signup-form.tsx`, `login-form.tsx`, `social-signup-complete-form.tsx`
+### 3.6 `src/components/auth/signup-form.tsx`, `login-form.tsx`
 
 - 화면군 분류: 오너 인증/가입 모바일
 - 모바일 기준인지 PC 기준인지: 모바일 기준
@@ -272,7 +271,6 @@
   - 상태 배지
   - empty state 문구
 - 향후 PC 확장 시 재사용하면 안 되는 모바일 전용 컴포넌트:
-  - 소셜 로그인 버튼 배치 문법
   - 모바일 하단 CTA 배치
 - 주의:
   - 오너 인증은 모바일 기준

@@ -60,4 +60,10 @@ export default async function EntryPage({
       bookingHref={bookingHref}
     />
   );
+
+  if (token) {
+    nextUrl.searchParams.set("t", token);
+  }
+
+  redirect(`${nextUrl.pathname}${nextUrl.search}` as never);
 }

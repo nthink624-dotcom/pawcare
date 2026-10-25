@@ -10,8 +10,9 @@ const errorMessages: Record<string, string> = {
 };
 
 const infoMessages: Record<string, string> = {
-  "signup-success": "회원가입이 완료되었어요. 로그인하면 바로 2주 무료체험을 시작할 수 있어요.",
-  "reset-success": "비밀번호가 변경되었어요. 새 비밀번호로 다시 로그인해 주세요.",
+  "email-confirmed": "이메일 인증이 완료되었습니다. 로그인해 주세요.",
+  "signup-success": "인증 메일을 보냈어요. 이메일 인증을 완료한 뒤 로그인해 주세요.",
+  "reset-success": "비밀번호가 변경됐어요. 새 비밀번호로 다시 로그인해 주세요.",
 };
 
 export default async function LoginPage({

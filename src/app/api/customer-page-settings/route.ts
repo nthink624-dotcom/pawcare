@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { assertOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
@@ -19,8 +20,9 @@ export async function PATCH(request: NextRequest) {
     if (error instanceof OwnerApiError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
-
-    const message = error instanceof Error ? error.message : "고객 노출 정보 저장 중 문제가 발생했습니다.";
-    return NextResponse.json({ message }, { status: 400 });
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ message: "고객 예약 페이지 설정을 다시 확인해 주세요." }, { status: 400 });
+    }
+    return NextResponse.json({ message: error instanceof Error ? error.message : "고객 예약 페이지 설정을 저장하지 못했습니다." }, { status: 500 });
   }
 }

@@ -42,6 +42,10 @@ export function normalizeBookingAvailableTime(value: string | null | undefined, 
   return typeof value === "string" && /^\d{2}:\d{2}$/.test(value) ? value.slice(0, 5) : fallback;
 }
 
+export function normalizeBookingAvailableTime(value: string | null | undefined, fallback: string) {
+  return typeof value === "string" && /^\d{2}:\d{2}$/.test(value) ? value.slice(0, 5) : fallback;
+}
+
 export function slotOffsetOptionsForInterval(interval: number) {
   const normalizedInterval = normalizeBookingSlotIntervalMinutes(interval);
   const offsets: number[] = [];

@@ -26,8 +26,7 @@ import type { BootstrapPayload, BootstrapStaffMember, BusinessHours, Service } f
 
 type SettingsPanelProps = {
   data: BootstrapPayload;
-  onSave: (payload: unknown) => Promise<unknown> | void;
-  onSaveService: (payload: unknown) => Promise<unknown> | void;
+  onSave: (payload: unknown, options?: { errorFallbackMessage?: string }) => Promise<unknown> | void;
   onSaveCustomerPageSettings: (payload: unknown) => Promise<unknown> | void;
   onSaveStaffMembers: (payload: unknown) => Promise<unknown> | void;
   onLogout?: () => void;
@@ -36,11 +35,19 @@ type SettingsPanelProps = {
   subscriptionSummary?: OwnerSubscriptionSummary | null;
   initialScreen?: SettingsScreen;
   onActiveScreenChange?: (screen: SettingsScreen) => void;
+  appRole?: MobileAppRole;
+  currentStaffId?: string | null;
+  onOpenFeedback?: () => void;
+  feedbackTriggerRef?: RefObject<HTMLButtonElement | null>;
+  isTesterFeedback?: boolean;
 };
+
+type MobileAppRole = "owner" | "staff";
 
 type SaveFeedback = {
   type: "idle" | "success" | "error";
   message: string;
+  description?: string;
 };
 
 type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "addons" | "account" | null;
@@ -68,6 +75,7 @@ type ShopNotificationSettingsState = {
 };
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
+const businessHoursRowValueWeightClass = "font-medium";
 const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
 
 function createStaffProfileDraft(staffMember: BootstrapStaffMember): StaffProfileDraft {
@@ -106,6 +114,10 @@ function formatBusinessHoursRange(entry?: { open: string; close: string }) {
   return `${entry.open} - ${entry.close}`;
 }
 
+function isOrderedTimeRange(open: string, close: string) {
+  return /^\d{2}:\d{2}$/.test(open) && /^\d{2}:\d{2}$/.test(close) && open < close;
+}
+
 function mapShopNotificationSettingsState(
   settings: BootstrapPayload["shop"]["notification_settings"],
 ): ShopNotificationSettingsState {
@@ -120,6 +132,29 @@ function mapShopNotificationSettingsState(
     groomingStartWithoutPhotoEnabled: settings.grooming_start_without_photo_enabled,
     groomingCompleteWithoutPhotoEnabled: settings.grooming_complete_without_photo_enabled,
   };
+}
+
+function getNotificationSettingsSaveFailureMessage(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 401 || error.status === 403) {
+      return "로그인 상태를 확인한 뒤 다시 시도해 주세요.";
+    }
+    if (error.status === 404 || error.status === 405) {
+      return "알림톡 설정 연결을 찾지 못했어요. 잠시 후 다시 시도해 주세요.";
+    }
+    if (error.status === 409) {
+      return "다른 설정 변경이 반영되었어요. 화면을 다시 확인해 주세요.";
+    }
+    if (error.status === 400 || error.status === 422) {
+      return "알림톡 설정 값을 다시 확인해 주세요.";
+    }
+  }
+
+  if (error instanceof TypeError) {
+    return "알림톡 설정 연결을 확인한 뒤 다시 시도해 주세요.";
+  }
+
+  return "알림톡 설정을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
 function withPrimedShopNotificationSettings(
@@ -188,7 +223,6 @@ function parseShopAddressParts(rawAddress: string) {
 export default function OwnerSettingsPanel({
   data,
   onSave,
-  onSaveService,
   onSaveCustomerPageSettings,
   onSaveStaffMembers,
   onLogout,
@@ -197,7 +231,13 @@ export default function OwnerSettingsPanel({
   subscriptionSummary,
   initialScreen = null,
   onActiveScreenChange,
+  appRole = "owner",
+  currentStaffId = null,
+  onOpenFeedback,
+  feedbackTriggerRef,
+  isTesterFeedback = false,
 }: SettingsPanelProps) {
+  const appUpdateState = useOwnerPlayUpdateSnapshot();
   const initialAddressParts = parseShopAddressParts(data.shop.address);
   const [name, setName] = useState(decodeUnicodeEscapes(data.shop.name));
   const [phone, setPhone] = useState(data.shop.phone);
@@ -256,12 +296,25 @@ export default function OwnerSettingsPanel({
   const [staffFeedback, setStaffFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoFeedback, setBasicInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
+  const [savingOperatingInfo, setSavingOperatingInfo] = useState(false);
+  const [operatingInfoFeedback, setOperatingInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
+  const operatingSaveQueueRef = useRef(Promise.resolve());
+  const operatingSaveCountRef = useRef(0);
+  const [isBasicInfoEditing, setIsBasicInfoEditing] = useState(false);
   const [localActiveScreen, setLocalActiveScreen] = useState<SettingsScreen>(initialScreen ?? null);
+  const [isPriceGuideOpen, setIsPriceGuideOpen] = useState(false);
+  const [priceGuideState, setPriceGuideState] = useState<PriceGuideSessionState | null>(() =>
+    readBootstrapPriceGuideState(data.services),
+  );
   const [notificationSettings, setNotificationSettings] = useState<ShopNotificationSettingsState>(
     mapShopNotificationSettingsState(data.shop.notification_settings),
   );
   const [isNotificationSettingsDirty, setIsNotificationSettingsDirty] = useState(false);
-
+  const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
+  const [notificationSettingsFeedback, setNotificationSettingsFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
+  const notificationSaveQueueRef = useRef(Promise.resolve());
+  const notificationSaveCountRef = useRef(0);
+  const notificationSaveSequenceRef = useRef(0);
   const activeScreen = onActiveScreenChange ? (initialScreen ?? null) : localActiveScreen;
   const accountEmail = userEmail?.trim() || null;
 
@@ -297,7 +350,16 @@ export default function OwnerSettingsPanel({
     setAddress(nextAddressParts.baseAddress);
     setDetailAddress(nextAddressParts.detailAddress);
     setDescription(decodeUnicodeEscapes(data.shop.description));
-  }, [data.shop.id, data.shop.name, data.shop.phone, data.shop.address, data.shop.description]);
+    setHeroImageUrl(decodeUnicodeEscapes(data.shop.customer_page_settings?.hero_image_url ?? ""));
+    setIsBasicInfoEditing(false);
+  }, [
+    data.shop.id,
+    data.shop.name,
+    data.shop.phone,
+    data.shop.address,
+    data.shop.description,
+    data.shop.customer_page_settings?.hero_image_url,
+  ]);
 
   useEffect(() => {
     if (onActiveScreenChange) return;
@@ -313,8 +375,12 @@ export default function OwnerSettingsPanel({
   }
 
   useEffect(() => {
+    const savedSettings = mapShopNotificationSettingsState(data.shop.notification_settings);
     if (isNotificationSettingsDirty) return;
-    setNotificationSettings(mapShopNotificationSettingsState(data.shop.notification_settings));
+
+    setNotificationSettings((currentSettings) =>
+      JSON.stringify(currentSettings) === JSON.stringify(savedSettings) ? currentSettings : savedSettings,
+    );
   }, [data.shop.notification_settings, isNotificationSettingsDirty]);
 
   useEffect(() => {
@@ -327,9 +393,42 @@ export default function OwnerSettingsPanel({
     return () => window.clearTimeout(timeout);
   }, [basicInfoFeedback]);
 
+  useEffect(() => {
+    if (operatingInfoFeedback.type !== "success") return;
+
+    const timeout = window.setTimeout(() => {
+      setOperatingInfoFeedback({ type: "idle", message: "" });
+    }, 2500);
+
+    return () => window.clearTimeout(timeout);
+  }, [operatingInfoFeedback]);
+
+  useEffect(() => {
+    if (notificationSettingsFeedback.type !== "success") return;
+
+    const timeout = window.setTimeout(() => {
+      setNotificationSettingsFeedback({ type: "idle", message: "" });
+    }, 2500);
+
+    return () => window.clearTimeout(timeout);
+  }, [notificationSettingsFeedback]);
+
   function updateNotificationSettings(updater: (previous: ShopNotificationSettingsState) => ShopNotificationSettingsState) {
-    setNotificationSettings((previous) => withPrimedShopNotificationSettings(previous, updater(previous)));
+    const nextSettings = withPrimedShopNotificationSettings(notificationSettings, updater(notificationSettings));
+    setNotificationSettings(nextSettings);
     setIsNotificationSettingsDirty(true);
+    saveNotificationSettings(nextSettings);
+  }
+
+  function resetBasicInfoDraft() {
+    const nextAddressParts = parseShopAddressParts(data.shop.address);
+    setName(decodeUnicodeEscapes(data.shop.name));
+    setPhone(data.shop.phone);
+    setAddress(nextAddressParts.baseAddress);
+    setDetailAddress(nextAddressParts.detailAddress);
+    setHeroImageUrl(decodeUnicodeEscapes(data.shop.customer_page_settings?.hero_image_url ?? ""));
+    setBasicInfoFeedback({ type: "idle", message: "" });
+    setIsBasicInfoEditing(false);
   }
 
   function getBusinessHour(day: number) {
@@ -349,43 +448,46 @@ export default function OwnerSettingsPanel({
       close: base.close,
       closed: target === "all" ? false : regularClosedDays.includes(target),
     });
+    setOperatingInfoFeedback({ type: "idle", message: "" });
     setTimeEditorTarget(target);
   }
 
-  function applyBusinessHoursEditor() {
-    setBusinessHours((prev) => {
-      const next = { ...prev };
+  async function applyBusinessHoursEditor() {
+    if (timeEditorTarget === null) return;
+    if (!timeDraft.closed && !isOrderedTimeRange(timeDraft.open, timeDraft.close)) return;
 
-      if (timeEditorTarget === "all") {
-        businessHoursWeekOrder.forEach((day) => {
-          next[day] = {
-            ...(prev[day] ?? defaultBusinessHoursEntry),
-            open: timeDraft.open,
-            close: timeDraft.close,
-            enabled: !regularClosedDays.includes(day),
-          };
-        });
-      } else if (timeEditorTarget !== null) {
-        const isClosed = timeDraft.closed;
-        next[timeEditorTarget] = {
-          ...(prev[timeEditorTarget] ?? defaultBusinessHoursEntry),
+    const nextBusinessHours = { ...businessHours };
+    const nextRegularClosedDays = [...regularClosedDays];
+
+    if (timeEditorTarget === "all") {
+      businessHoursWeekOrder.forEach((day) => {
+        nextBusinessHours[day] = {
+          ...(businessHours[day] ?? defaultBusinessHoursEntry),
           open: timeDraft.open,
           close: timeDraft.close,
-          enabled: !isClosed,
+          enabled: !regularClosedDays.includes(day),
         };
-      }
-
-      return next;
-    });
-    if (timeEditorTarget !== null && timeEditorTarget !== "all") {
-      setRegularClosedDays((prev) => {
-        const hasDay = prev.includes(timeEditorTarget);
-        if (timeDraft.closed) {
-          return hasDay ? prev : [...prev, timeEditorTarget].sort((a, b) => a - b);
-        }
-        return hasDay ? prev.filter((item) => item !== timeEditorTarget) : prev;
       });
+    } else {
+      const isClosed = timeDraft.closed;
+      nextBusinessHours[timeEditorTarget] = {
+        ...(businessHours[timeEditorTarget] ?? defaultBusinessHoursEntry),
+        open: timeDraft.open,
+        close: timeDraft.close,
+        enabled: !isClosed,
+      };
+
+      const hasDay = nextRegularClosedDays.includes(timeEditorTarget);
+      if (isClosed && !hasDay) nextRegularClosedDays.push(timeEditorTarget);
+      if (!isClosed && hasDay) nextRegularClosedDays.splice(nextRegularClosedDays.indexOf(timeEditorTarget), 1);
+      nextRegularClosedDays.sort((left, right) => left - right);
     }
+
+    const saved = await saveOperatingInfo(nextBusinessHours, nextRegularClosedDays, temporaryClosedDates);
+    if (!saved) return;
+
+    setBusinessHours(nextBusinessHours);
+    setRegularClosedDays(nextRegularClosedDays);
     setTimeEditorTarget(null);
   }
 
@@ -472,6 +574,7 @@ export default function OwnerSettingsPanel({
   }
 
   function handleProfileImageChange(file: File | null) {
+    if (!isBasicInfoEditing) return;
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
@@ -482,22 +585,138 @@ export default function OwnerSettingsPanel({
     reader.readAsDataURL(file);
   }
 
-  function startEditingService(service: Service) {
-    setEditingServiceId(service.id);
-    setEditingServiceName(service.name);
-    setEditingServicePrice(String(service.price));
-    setEditingServiceDuration(String(service.duration_minutes));
-    setEditingServicePriceType(service.price_type ?? "starting");
-    setEditingServiceIsActive(service.is_active);
+  function updateStaffProfileDraft(staffMemberId: string, patch: Partial<StaffProfileDraft>) {
+    setStaffProfileDrafts((prev) => ({
+      ...prev,
+      [staffMemberId]: {
+        ...(prev[staffMemberId] ?? {
+          name: "",
+          displayName: "",
+          profileImageUrl: "",
+          profileImageFallbackKey: null,
+          titlePrefix: "",
+          position: "",
+          chipColorIndex: null,
+          profileMessage: "",
+        }),
+        ...patch,
+      },
+    }));
   }
 
-  function stopEditingService() {
-    setEditingServiceId(null);
-    setEditingServiceName("");
-    setEditingServicePrice("");
-    setEditingServiceDuration("");
-    setEditingServicePriceType("starting");
-    setEditingServiceIsActive(true);
+  function addPendingClosedDate() {
+    if (!pendingClosedDate || temporaryClosedDates.includes(pendingClosedDate)) {
+      setIsClosedDatePickerOpen(false);
+      return;
+    }
+
+    const nextTemporaryClosedDates = [...temporaryClosedDates, pendingClosedDate].sort();
+    setTemporaryClosedDates(nextTemporaryClosedDates);
+    saveOperatingInfo(businessHours, regularClosedDays, nextTemporaryClosedDates);
+    setPendingClosedDate("");
+    setIsClosedDatePickerOpen(false);
+  }
+
+  function removeTemporaryClosedDate(date: string) {
+    const nextTemporaryClosedDates = temporaryClosedDates.filter((item) => item !== date);
+    setTemporaryClosedDates(nextTemporaryClosedDates);
+    saveOperatingInfo(businessHours, regularClosedDays, nextTemporaryClosedDates);
+  }
+
+  function saveOperatingInfo(
+    nextBusinessHours: BusinessHours,
+    nextRegularClosedDays: number[],
+    nextTemporaryClosedDates: string[],
+  ): Promise<boolean> {
+    operatingSaveCountRef.current += 1;
+    setSavingOperatingInfo(true);
+    setOperatingInfoFeedback({ type: "idle", message: "" });
+
+    const saveTask = async () => {
+      try {
+        await Promise.resolve(
+          onSave({
+            shopId: data.shop.id,
+            name: decodeUnicodeEscapes(data.shop.name),
+            phone: data.shop.phone,
+            address: decodeUnicodeEscapes(data.shop.address),
+            description: decodeUnicodeEscapes(data.shop.description),
+            concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
+            bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
+            bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
+            bookingAvailableStartTime: data.shop.booking_available_start_time,
+            bookingAvailableEndTime: data.shop.booking_available_end_time,
+            approvalMode: data.shop.approval_mode,
+            regularClosedDays: nextRegularClosedDays,
+            temporaryClosedDates: nextTemporaryClosedDates,
+            businessHours: nextBusinessHours,
+            notificationSettings,
+          }),
+        );
+        setOperatingInfoFeedback({ type: "success", message: "자동 저장되었습니다." });
+        return true;
+      } catch (error) {
+        setOperatingInfoFeedback({
+          type: "error",
+          message: `${error instanceof Error ? error.message : "운영 정보를 저장하지 못했습니다."} 입력값은 유지되었습니다. 확인 후 다시 시도해 주세요.`,
+        });
+        return false;
+      } finally {
+        operatingSaveCountRef.current -= 1;
+        if (operatingSaveCountRef.current === 0) setSavingOperatingInfo(false);
+      }
+    };
+
+    const queuedTask = operatingSaveQueueRef.current.then(saveTask, saveTask);
+    operatingSaveQueueRef.current = queuedTask.then(() => undefined);
+    return queuedTask;
+  }
+
+  function saveNotificationSettings(nextSettings: ShopNotificationSettingsState) {
+    const saveSequence = notificationSaveSequenceRef.current + 1;
+    notificationSaveSequenceRef.current = saveSequence;
+    notificationSaveCountRef.current += 1;
+    setSavingNotificationSettings(true);
+    setNotificationSettingsFeedback({ type: "idle", message: "" });
+
+    const saveTask = async () => {
+      try {
+        await Promise.resolve(
+          onSave({
+            shopId: data.shop.id,
+            name: decodeUnicodeEscapes(data.shop.name),
+            phone: data.shop.phone,
+            address: decodeUnicodeEscapes(data.shop.address),
+            description: decodeUnicodeEscapes(data.shop.description),
+            concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
+            bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
+            bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
+            bookingAvailableStartTime: data.shop.booking_available_start_time,
+            bookingAvailableEndTime: data.shop.booking_available_end_time,
+            approvalMode: data.shop.approval_mode,
+            regularClosedDays,
+            temporaryClosedDates,
+            businessHours,
+            notificationSettings: nextSettings,
+          }, { errorFallbackMessage: "알림톡 설정을 저장하지 못했어요." }),
+        );
+        if (notificationSaveSequenceRef.current === saveSequence) {
+          setIsNotificationSettingsDirty(false);
+          setNotificationSettingsFeedback({ type: "success", message: "자동 저장되었습니다." });
+        }
+      } catch (error) {
+        if (notificationSaveSequenceRef.current === saveSequence) {
+          setNotificationSettings(mapShopNotificationSettingsState(data.shop.notification_settings));
+          setIsNotificationSettingsDirty(false);
+          setNotificationSettingsFeedback({ type: "error", message: getNotificationSettingsSaveFailureMessage(error) });
+        }
+      } finally {
+        notificationSaveCountRef.current -= 1;
+        if (notificationSaveCountRef.current === 0) setSavingNotificationSettings(false);
+      }
+    };
+
+    notificationSaveQueueRef.current = notificationSaveQueueRef.current.then(saveTask, saveTask);
   }
 
   function updateStaffProfileDraft(staffMemberId: string, patch: Partial<StaffProfileDraft>) {
@@ -553,28 +772,52 @@ export default function OwnerSettingsPanel({
   }
 
   async function saveBasicInfo() {
-    setSavingBasicInfo(true);
     setBasicInfoFeedback({ type: "idle", message: "" });
 
-    try {
-      const nextCustomerPageSettings = normalizeCustomerPageSettings(
-        {
-          ...data.shop.customer_page_settings,
-          shop_name: name,
-          tagline: description,
-          hero_image_url: heroImageUrl.trim(),
-          operating_hours_note: operatingHoursNote,
-          holiday_notice: holidayNotice,
-          parking_notice: parkingNotice,
-          notices,
-          show_notices: showNotices,
-          show_parking_notice: showParkingNotice,
-        },
-        name,
-        description,
-      );
+    const nextCustomerPageSettings = normalizeCustomerPageSettings(
+      {
+        ...data.shop.customer_page_settings,
+        shop_name: name,
+        tagline: description,
+        hero_image_url: heroImageUrl.trim(),
+        operating_hours_note: operatingHoursNote,
+        holiday_notice: holidayNotice,
+        parking_notice: parkingNotice,
+        notices,
+        show_notices: showNotices,
+        show_parking_notice: showParkingNotice,
+      },
+      name,
+      description,
+    );
+    const initialCustomerPageSettings = normalizeCustomerPageSettings(
+      data.shop.customer_page_settings,
+      decodeUnicodeEscapes(data.shop.name),
+      decodeUnicodeEscapes(data.shop.description),
+    );
+    const combinedAddress = detailAddress.trim() ? `${address}, ${detailAddress.trim()}`.trim() : address;
+    const hasChanges =
+      name !== decodeUnicodeEscapes(data.shop.name) ||
+      phone !== data.shop.phone ||
+      combinedAddress !== decodeUnicodeEscapes(data.shop.address) ||
+      description !== decodeUnicodeEscapes(data.shop.description) ||
+      bookingSlotIntervalMinutes !== data.shop.booking_slot_interval_minutes ||
+      bookingSlotOffsetMinutes !== data.shop.booking_slot_offset_minutes ||
+      JSON.stringify(regularClosedDays) !== JSON.stringify(data.shop.regular_closed_days) ||
+      JSON.stringify(temporaryClosedDates) !== JSON.stringify(data.shop.temporary_closed_dates) ||
+      JSON.stringify(businessHours) !== JSON.stringify(createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days)) ||
+      JSON.stringify(notificationSettings) !== JSON.stringify(mapShopNotificationSettingsState(data.shop.notification_settings)) ||
+      JSON.stringify(nextCustomerPageSettings) !== JSON.stringify(initialCustomerPageSettings);
 
-      const combinedAddress = detailAddress.trim() ? `${address}, ${detailAddress.trim()}`.trim() : address;
+    if (!hasChanges) {
+      setIsBasicInfoEditing(false);
+      setBasicInfoFeedback({ type: "success", message: "변경된 내용이 없어요." });
+      return;
+    }
+
+    setSavingBasicInfo(true);
+
+    try {
 
       await Promise.resolve(
         onSave({
@@ -608,11 +851,14 @@ export default function OwnerSettingsPanel({
       );
 
       setIsNotificationSettingsDirty(false);
+      setIsBasicInfoEditing(false);
       setBasicInfoFeedback({ type: "success", message: "설정이 저장되었어요." });
     } catch (error) {
+      const isCoreInfoLimitExceeded = error instanceof ApiRequestError && error.status === 429;
       setBasicInfoFeedback({
         type: "error",
         message: error instanceof Error ? error.message : "설정을 저장하지 못했어요.",
+        description: isCoreInfoLimitExceeded ? "추가 변경이 필요하면 설정의 1:1 문의로 요청해 주세요." : undefined,
       });
     } finally {
       setSavingBasicInfo(false);
@@ -754,40 +1000,35 @@ export default function OwnerSettingsPanel({
   ) : null;
 
   const shopSection = (
-    <SettingsCard>
-      <div className="space-y-1.5">
-        <SettingsFieldCard label="매장 대표 이미지" className="pb-2 pt-2">
-          <div className="relative -top-[4px] flex items-center gap-3.5">
-            <div className="relative shrink-0">
+    <div className="rounded-[14px] border border-[#e2e7ed] bg-[#ffffff] p-3.5">
+      <div>
+        <input
+          ref={profileImageInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => handleProfileImageChange(event.target.files?.[0] ?? null)}
+        />
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 flex-1 truncate text-[18px] font-semibold tracking-[-0.02em] text-[#0f172a]">{name || data.shop.name}</p>
+          {isBasicInfoEditing ? (
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={() => profileImageInputRef.current?.click()}
-                className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border border-[#dfeae5] bg-white shadow-[0_2px_8px_rgba(31,107,91,0.05)]"
-                aria-label="매장 대표 이미지 변경"
+                onClick={resetBasicInfoDraft}
+                disabled={savingBasicInfo}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-[#e2e7ed] bg-white px-4 text-[14px] font-medium text-[#64748b] disabled:opacity-50"
               >
-                {heroImageUrl ? (
-                  <img src={heroImageUrl} alt={`${name || data.shop.name} 대표 이미지`} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-[#f4f5f4] text-[#9ea4a1]">
-                    <UserRound className="h-8 w-8" strokeWidth={1.8} />
-                  </div>
-                )}
+                취소
               </button>
               <button
                 type="button"
-                onClick={() => profileImageInputRef.current?.click()}
-                className="absolute bottom-0 right-0 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white bg-[var(--accent)] text-white shadow-[0_6px_14px_rgba(31,107,91,0.18)]"
-                aria-label="대표 이미지 선택"
+                onClick={saveBasicInfo}
+                disabled={savingBasicInfo}
+                className="inline-flex h-9 items-center justify-center rounded-lg bg-[#2f6fd6] px-4 text-[14px] font-medium text-white disabled:opacity-50"
               >
-                <Camera className="h-3.5 w-3.5" strokeWidth={2} />
+                {savingBasicInfo ? "저장 중..." : "저장"}
               </button>
-              <input
-                ref={profileImageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(event) => handleProfileImageChange(event.target.files?.[0] ?? null)}
-              />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">{name || data.shop.name}</p>
@@ -858,7 +1099,6 @@ export default function OwnerSettingsPanel({
               </label>
             ) : null}
           </div>
-        </SettingsFieldCard>
 
         <SettingsFieldCard label="안내 문구 설정" className="mt-1.5 px-0 pb-0 pt-1">
           <div className="relative -top-[2px] divide-y divide-[#ebe5dc]">
@@ -930,27 +1170,61 @@ export default function OwnerSettingsPanel({
               </div>
             </div>
           </div>
-        </SettingsFieldCard>
 
+          <label className="mt-3 flex flex-col gap-1.5">
+          <span className="text-[13px] font-semibold text-[#475569]">상세주소</span>
+          <input
+            ref={detailAddressInputRef}
+            disabled={!isBasicInfoEditing}
+            className="h-[46px] w-full rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 text-[16px] font-normal text-[#1e293b] outline-none disabled:cursor-default disabled:text-[#475569]"
+            value={detailAddress}
+            onChange={(event) => setDetailAddress(event.target.value)}
+            placeholder="예: 2층, 101호, 미용실 입구"
+          />
+          </label>
+
+          {isBasicInfoEditing ? (
+            <p className="mt-3 text-[12px] leading-4 text-[#94a3b8]">
+              매장 정보는 월 2회까지 수정 가능합니다. 초과 변경은 1:1 문의로 가능합니다.
+            </p>
+          ) : null}
+        </div>
+
+        {basicInfoFeedback.type !== "idle" ? (
+          <div
+            className={`mt-3 rounded-[12px] px-3.5 py-2.5 text-[13px] font-medium ${
+              basicInfoFeedback.type === "success"
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border border-red-200 bg-red-50 text-red-700"
+            }`}
+          >
+            <p>{basicInfoFeedback.message}</p>
+            {basicInfoFeedback.description ? (
+              <p className="mt-1 text-[12px] leading-4 text-red-600">{basicInfoFeedback.description}</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-    </SettingsCard>
+    </div>
   );
 
   const closuresSection = (
-    <SettingsCard contentClassName="space-y-3">
-      <SettingsFieldCard label="운영 시간 설정" className="px-0 pb-0 pt-1.5">
-        <div className="divide-y divide-[#d6cfc4]">
-          <button
-            type="button"
-            onClick={() => openBusinessHoursEditor("all")}
-            className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
-          >
-            <div className="min-w-0">
-              <p className="text-[15px] tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
-              <p className="mt-1 text-[12px] text-[var(--accent)]">{businessHoursSummary}</p>
-            </div>
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
-          </button>
+    <>
+      <div className="mb-3 rounded-[14px] border border-[#e2e7ed] bg-white p-3.5">
+        <button
+          type="button"
+          onClick={() => openBusinessHoursEditor("all")}
+          className="mb-1 flex w-full items-center justify-between gap-3 rounded-[10px] bg-[#eaf1fc] px-3 py-2.5 text-left"
+        >
+          <div className="min-w-0">
+            <p className="text-[20px] font-semibold leading-7 text-[#1d4d9e]">전체 시간 설정</p>
+            <p className="mt-0.5 truncate text-[16px] font-medium leading-6 text-[#4779c7]">{businessHoursSummary}</p>
+          </div>
+          <span className="inline-flex min-h-11 shrink-0 items-center rounded-[7px] border border-[#cfe0f7] bg-white px-3 text-[16px] font-medium leading-6 text-[#2f6fd6]">
+            일괄 적용
+          </span>
+        </button>
+        <div className="divide-y divide-[#edf1f5]">
           {businessHoursWeekOrder.map((day) => {
             const hours = getBusinessHour(day);
             const isClosed = regularClosedDays.includes(day);
@@ -959,24 +1233,24 @@ export default function OwnerSettingsPanel({
                 key={day}
                 type="button"
                 onClick={() => openBusinessHoursEditor(day)}
-                className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+                className="flex min-h-14 w-full items-center justify-between gap-3 px-1 text-left"
               >
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <span className="inline-flex h-5 shrink-0 items-center text-[15px] leading-none tracking-[-0.02em] text-[var(--text)]">
+                  <span className={`inline-flex w-10 shrink-0 items-center text-[14px] leading-5 ${businessHoursRowValueWeightClass} ${day === 0 ? "text-[#e0594f]" : day === 6 ? "text-[#2f6fd6]" : "text-[#1e293b]"}`}>
                     {weekdayLabels[day]}요일
                   </span>
                   {isClosed ? (
-                    <span className="relative top-px inline-flex h-5 items-center justify-center self-center rounded-full bg-[#f4f5f4] px-2 text-[10px] leading-none text-[#7f776c]">휴무</span>
+                    <span className="inline-flex items-center rounded-[6px] bg-[#fdeeec] px-2 py-1 text-[14px] font-medium leading-5 text-[#b3453b]">휴무</span>
                   ) : (
-                    <p className="min-w-0 truncate text-[14px] leading-5 text-[#938a80]">{formatBusinessHoursRange(hours)}</p>
+                    <p className={`min-w-0 truncate text-[16px] leading-5 text-[#334155] ${businessHoursRowValueWeightClass}`}>{formatBusinessHoursRange(hours)}</p>
                   )}
                 </div>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+                <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.8} />
               </button>
             );
           })}
         </div>
-      </SettingsFieldCard>
+      </div>
 
       <SettingsFieldCard label="마감 여유">
         <div className="space-y-2">
@@ -1002,7 +1276,7 @@ export default function OwnerSettingsPanel({
           <div className="flex gap-2">
             <button
               type="button"
-              className="flex h-[46px] flex-1 items-center justify-between rounded-[14px] border border-[var(--border)] bg-white px-3.5 text-[13px] tracking-[-0.02em] text-[var(--text)]"
+              className="flex h-[40px] flex-1 items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3 text-[13px] text-[#1e293b]"
               onClick={() => setIsClosedDatePickerOpen(true)}
             >
               <span>{pendingClosedDate || "날짜 선택"}</span>
@@ -1010,33 +1284,32 @@ export default function OwnerSettingsPanel({
             </button>
             <button
               type="button"
-              className="h-[46px] rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-medium text-white disabled:opacity-50"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#2f6fd6] bg-[#2f6fd6] text-white disabled:opacity-50"
               disabled={!pendingClosedDate}
               onClick={() => {
-                if (!pendingClosedDate || temporaryClosedDates.includes(pendingClosedDate)) return;
-                setTemporaryClosedDates((prev) => [...prev, pendingClosedDate].sort());
-                setPendingClosedDate("");
+                addPendingClosedDate();
               }}
             >
-              추가
+              <Plus className="h-4 w-4" strokeWidth={2.4} />
             </button>
           </div>
           {temporaryClosedDates.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="space-y-2">
               {temporaryClosedDates.map((date) => (
                 <button
                   key={date}
                   type="button"
-                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[12px] text-[var(--text)]"
-                  onClick={() => setTemporaryClosedDates((prev) => prev.filter((item) => item !== date))}
+                  className="flex h-[38px] w-full items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[13px] font-medium text-[#1e293b]"
+                  onClick={() => removeTemporaryClosedDate(date)}
                 >
-                  {date} 삭제
+                  <span>{date}</span>
+                  <span className="text-[12px] text-[#94a3b8]">삭제</span>
                 </button>
               ))}
             </div>
           ) : null}
         </div>
-      </SettingsFieldCard>
+      </div>
 
     </SettingsCard>
   );
@@ -1093,12 +1366,6 @@ export default function OwnerSettingsPanel({
               label="미용 완료 안내"
               checked={notificationSettings.groomingCompletedEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingCompletedEnabled: checked }))}
-              disabled={!notificationSettings.enabled}
-            />
-            <ToggleRow
-              label="재방문 안내 기본값"
-              checked={notificationSettings.revisitEnabled}
-              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, revisitEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
           </div>
@@ -1256,6 +1523,7 @@ export default function OwnerSettingsPanel({
       <div className="divide-y divide-[var(--border)]">
           {accountEmail ? <AccountRow icon={UserRound} label="로그인 이메일" value={accountEmail} /> : null}
         <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
+        {appRole === "owner" ? <OwnerAccountDeletionPanel onDeleted={onLogout} /> : null}
         <AccountActionRow icon={LogOut} label={loggingOut ? "로그아웃 중..." : "로그아웃"} onClick={onLogout} disabled={loggingOut} />
       </div>
     </SettingsCard>
@@ -1464,13 +1732,227 @@ export default function OwnerSettingsPanel({
                 >
                   {basicInfoFeedback.message}
                 </div>
-              ) : null}
-              <SolidButton onClick={saveBasicInfo} disabled={savingBasicInfo} className="h-[54px] rounded-[16px] text-[15px]">
-                {savingBasicInfo ? "저장 중..." : saveButtonLabel}
+                <div className="min-w-0 flex-1">
+                  <p className="[overflow-wrap:anywhere] text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#0f172a]">{displayName}</p>
+                  <p className="mt-1 [overflow-wrap:anywhere] text-[14px] font-normal leading-5 text-[#64748b]">
+                    {profileRoleLine}
+                  </p>
+                </div>
+              </div>
+
+              <fieldset data-staff-profile-preset-picker className="space-y-2.5">
+                <legend className="text-[14px] font-medium leading-5 text-[#334155]">기본 프로필</legend>
+                <div className="grid grid-cols-2 gap-3">
+                  {staffProfileFallbackKeys.map((fallbackKey, index) => {
+                    const selected = draft.profileImageFallbackKey === fallbackKey;
+                    return (
+                      <button
+                        key={fallbackKey}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        aria-label={`기본 프로필 ${index + 1}`}
+                        onClick={() => {
+                          updateStaffProfileDraft(staffMember.id, { profileImageFallbackKey: fallbackKey });
+                          if (staffProfileChoiceErrorStaffId === staffMember.id) {
+                            setStaffProfileChoiceErrorStaffId(null);
+                            setStaffFeedback({ type: "idle", message: "" });
+                          }
+                        }}
+                        className={`relative flex min-h-[96px] items-center justify-center rounded-[12px] border bg-white p-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6fd6] focus-visible:ring-offset-2 ${
+                          selected ? "border-[#111a30]" : "border-[#e2e7ed]"
+                        }`}
+                      >
+                        <span className="h-[72px] w-[72px] overflow-hidden rounded-full bg-[#f4f6f8]">
+                          <StaffProfilePhoto
+                            fallbackKey={fallbackKey}
+                            alt={`기본 프로필 ${index + 1}`}
+                          />
+                        </span>
+                        {selected ? (
+                          <span className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#111a30] text-white" aria-hidden="true">
+                            <Check className="h-3 w-3" strokeWidth={2.2} />
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+                {staffProfileChoiceErrorStaffId === staffMember.id ? (
+                  <p className="text-[13px] font-normal leading-5 text-[#b3453b]" role="alert">
+                    기본 프로필 이미지 두 개 중 하나를 선택해 주세요.
+                  </p>
+                ) : null}
+              </fieldset>
+
+              <StaffProfileEditField label="직원 이름">
+                <input
+                  className="w-full bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  value={draft.name}
+                  onChange={(event) => updateStaffProfileDraft(staffMember.id, { name: event.target.value })}
+                  placeholder="직원 이름"
+                />
+              </StaffProfileEditField>
+
+              <StaffProfileEditField label="고객 표시 이름">
+                <input
+                  className="w-full bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  value={draft.displayName}
+                  onChange={(event) => updateStaffProfileDraft(staffMember.id, { displayName: event.target.value })}
+                  placeholder="예: 정우진 원장"
+                />
+              </StaffProfileEditField>
+
+              <div className="grid grid-cols-2 gap-2">
+                <StaffProfileEditField label="호칭">
+                  <input
+                    className="w-full bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                    value={draft.titlePrefix}
+                    onChange={(event) => updateStaffProfileDraft(staffMember.id, { titlePrefix: event.target.value })}
+                    placeholder="원장"
+                  />
+                </StaffProfileEditField>
+                <StaffProfileEditField label="역할">
+                  <input
+                    className="w-full bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                    value={draft.position}
+                    onChange={(event) => updateStaffProfileDraft(staffMember.id, { position: event.target.value })}
+                    placeholder="대표 미용사"
+                  />
+                </StaffProfileEditField>
+              </div>
+
+              <StaffProfileEditField label="상태메시지">
+                <textarea
+                  className="min-h-[82px] w-full resize-none bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  value={draft.profileMessage}
+                  onChange={(event) => updateStaffProfileDraft(staffMember.id, { profileMessage: event.target.value })}
+                  placeholder={defaultStaffProfileMessage}
+                />
+              </StaffProfileEditField>
+
+              <SolidButton
+                onClick={() => void handleStaffProfileSave(staffMember)}
+                disabled={savingStaffId === staffMember.id}
+              >
+                {savingStaffId === staffMember.id ? "저장 중..." : "프로필 저장"}
               </SolidButton>
             </div>
           </div>
-        ) : null}
+        );
+      })}
+      {staffFeedback.message ? (
+        <p className={`text-[13px] leading-5 ${staffFeedback.type === "error" ? "text-[#c43d3d]" : "text-[var(--accent)]"}`}>
+          {staffFeedback.message}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  const supportSection = (
+    <OwnerSupportPanel
+      data={data}
+      userEmail={userEmail}
+    />
+  );
+
+  const legalSection = (
+    <SettingsCard contentClassName="space-y-4">
+      <div className="overflow-hidden rounded-[14px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
+        {PUBLIC_LEGAL_LINKS.map((link) => (
+          <a
+            key={link.key}
+            href={link.href}
+            target="_blank"
+            rel="noreferrer"
+            className="flex min-h-[54px] items-center justify-between gap-3 px-4 py-3 text-left"
+          >
+            <span className="min-w-0 text-[16px] font-medium text-[var(--text)]">{link.label}</span>
+            <ExternalLink className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
+          </a>
+        ))}
+      </div>
+
+      <div className="rounded-[14px] border border-[var(--border)] bg-white px-4 py-4">
+        <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text)]">고객 및 개인정보 문의</h3>
+        <div className="mt-3 space-y-2 text-[14px] leading-6 text-[var(--muted)]">
+          <p>상호: {PUBLIC_LEGAL_CONTACT.companyName}</p>
+          <p>대표자: {PUBLIC_LEGAL_CONTACT.representativeName}</p>
+          <p>사업자등록번호: {PUBLIC_LEGAL_CONTACT.businessRegistrationNumber}</p>
+        </div>
+        <div className="mt-4 overflow-hidden rounded-[12px] border border-[var(--border)] divide-y divide-[var(--border)]">
+          <a href={getPublicLegalTelHref()} className="flex min-h-[50px] items-center justify-between gap-3 px-3 py-2.5">
+            <span className="flex min-w-0 items-center gap-2.5">
+              <Phone className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={1.9} />
+              <span className="text-[14px] font-medium text-[var(--text)]">{PUBLIC_LEGAL_CONTACT.phone}</span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
+          </a>
+          <a href={getPublicLegalMailtoHref()} className="flex min-h-[50px] items-center justify-between gap-3 px-3 py-2.5">
+            <span className="flex min-w-0 items-center gap-2.5">
+              <Mail className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={1.9} />
+              <span className="truncate text-[14px] font-medium text-[var(--text)]">{PUBLIC_LEGAL_CONTACT.email}</span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
+          </a>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+
+  const appNotificationsSection = (
+    <OwnerAppNotificationSettings
+      shopId={data.shop.id}
+      staffMemberId={appRole === "staff" ? currentStaff?.id ?? currentStaffId : null}
+      appRole={appRole}
+      onBack={() => updateActiveScreen(null)}
+    />
+  );
+  const appPermissionsSection = <OwnerAppPermissionsSettings />;
+
+  const priceGuideSection = (
+    <MobileAiPriceGuideFixture
+      shopId={data.shop.id}
+      initialRows={priceGuideState?.rows ?? null}
+      initialDocument={priceGuideState?.document ?? null}
+      initialServiceId={priceGuideState?.serviceId ?? null}
+      onComplete={(_rows, state) => {
+        setPriceGuideState(state ?? null);
+        setIsPriceGuideOpen(false);
+      }}
+      onExit={(_rows, state) => {
+        setPriceGuideState(state ?? null);
+        setIsPriceGuideOpen(false);
+      }}
+    />
+  );
+
+  const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
+    shop: { title: "매장 기본 정보", content: shopSection },
+    closures: { title: "영업·예약 시간", content: closuresSection },
+    notifications: { title: "고객 알림톡", content: notificationsSection },
+    appNotifications: { title: "내 앱 알림", content: appNotificationsSection },
+    appPermissions: { title: "앱 권한", content: appPermissionsSection },
+    staff: { title: "직원 관리", content: staffSection },
+    support: { title: "1:1 문의", content: supportSection },
+    legal: { title: "약관 및 정책", content: legalSection },
+    account: { title: "계정", content: accountSection },
+  };
+
+  if (effectiveActiveScreen) {
+    const isShopScreen = effectiveActiveScreen === "shop";
+    const isClosuresScreen = effectiveActiveScreen === "closures";
+    const isStaffScreen = effectiveActiveScreen === "staff";
+
+    return (
+      <section className="space-y-4 p-4">
+        {isShopScreen || isClosuresScreen || isStaffScreen ? (
+          screenMap[effectiveActiveScreen].content
+        ) : (
+          <div className={`overflow-hidden border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-soft)] ${isClosuresScreen ? "rounded-[16px]" : "rounded-[10px]"}`}>
+            {screenMap[effectiveActiveScreen].content}
+          </div>
+        )}
 
         {noticeEditorTarget !== null ? (
           <GuideMessagesSheet
@@ -1486,7 +1968,7 @@ export default function OwnerSettingsPanel({
             {noticeEditorTarget === "parking" ? (
               <SettingsFieldCard label="주차 안내 문구" className="pt-1.5">
                 <textarea
-                  className="min-h-[104px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  className="min-h-[104px] w-full resize-none bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                   value={parkingNoticeDraft}
                   onChange={(event) => setParkingNoticeDraft(event.target.value)}
                   placeholder="예: 건물 뒤편 공용 주차장을 이용해 주세요."
@@ -1497,7 +1979,7 @@ export default function OwnerSettingsPanel({
                 {noticeDrafts.map((notice, index) => (
                   <SettingsFieldCard key={index} label={`안내 문구 ${index + 1}`} className="pt-1.5">
                     <input
-                      className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                      className="w-full bg-transparent p-0 text-[16px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                       value={notice}
                       onChange={(event) =>
                         setNoticeDrafts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
@@ -1520,14 +2002,13 @@ export default function OwnerSettingsPanel({
         {timeEditorTarget !== null ? (
           <BusinessHoursSheet
             title={timeEditorTarget === "all" ? "전체 시간 설정" : `${weekdayLabels[timeEditorTarget]}요일 시간 설정`}
-            description={
-              timeEditorTarget === "all"
-                ? "월요일부터 일요일까지 같은 운영 시간을 한 번에 적용해요."
-                : `${weekdayLabels[timeEditorTarget]}요일 운영 시간을 선택해 주세요.`
-            }
             draft={timeDraft}
             showClosedToggle={timeEditorTarget !== "all"}
-            onClose={() => setTimeEditorTarget(null)}
+            saving={savingOperatingInfo}
+            errorMessage={operatingInfoFeedback.type === "error" ? operatingInfoFeedback.message : null}
+            onClose={() => {
+              if (!savingOperatingInfo) setTimeEditorTarget(null);
+            }}
             onChange={(nextDraft) => setTimeDraft(nextDraft)}
             onApply={applyBusinessHoursEditor}
           />
@@ -1543,6 +2024,7 @@ export default function OwnerSettingsPanel({
             onPrevMonth={() => setClosedDateMonthCursor((prev) => shiftMonth(prev, -1))}
             onNextMonth={() => setClosedDateMonthCursor((prev) => shiftMonth(prev, 1))}
             onSelectDate={setPendingClosedDate}
+            onApply={addPendingClosedDate}
           />
         ) : null}
 
@@ -1557,9 +2039,18 @@ export default function OwnerSettingsPanel({
     );
   }
 
-  return (
-    <section className="p-4">
-      {subscriptionSummary ? <div className="mb-3.5">{subscriptionSection}</div> : null}
+  if (isStaffApp) {
+    return (
+      <StaffSettingsHome
+        staffMember={currentStaff}
+        shopName={decodeUnicodeEscapes(data.shop.name)}
+        accountEmail={accountEmail}
+        onSupportClick={() => updateActiveScreen("support")}
+        onLegalClick={() => updateActiveScreen("legal")}
+        onAccountClick={onLogout ? () => updateActiveScreen("account") : undefined}
+      />
+    );
+  }
 
       <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white shadow-[var(--shadow-soft)] divide-y divide-[var(--border)]">
         <SettingsNavRow
@@ -1601,6 +2092,7 @@ export default function OwnerSettingsPanel({
           onPrevMonth={() => setClosedDateMonthCursor((prev) => shiftMonth(prev, -1))}
           onNextMonth={() => setClosedDateMonthCursor((prev) => shiftMonth(prev, 1))}
           onSelectDate={setPendingClosedDate}
+          onApply={addPendingClosedDate}
         />
       ) : null}
 
@@ -1611,7 +2103,7 @@ export default function OwnerSettingsPanel({
           onSelect={handleAddressSelect}
         />
       ) : null}
-    </section>
+    </>
   );
 }
 
@@ -1634,7 +2126,7 @@ function GuideMessagesSheet({
         <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-stone-200" />
         <div className="mb-3.5 flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
+            <h3 className="text-[20px] font-semibold leading-7 text-[var(--text)]">{title}</h3>
             <p className="mt-0.5 text-xs leading-4 text-[var(--muted)]">{description}</p>
           </div>
           <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
@@ -1655,31 +2147,44 @@ function GuideMessagesSheet({
 
 function BusinessHoursSheet({
   title,
-  description,
   draft,
   showClosedToggle,
+  saving,
+  errorMessage,
   onClose,
   onChange,
   onApply,
 }: {
   title: string;
-  description: string;
   draft: { open: string; close: string; closed: boolean };
   showClosedToggle: boolean;
+  saving: boolean;
+  errorMessage: string | null;
   onClose: () => void;
   onChange: (draft: { open: string; close: string; closed: boolean }) => void;
-  onApply: () => void;
+  onApply: () => void | Promise<void>;
 }) {
+  const openInputId = useId();
+  const closeInputId = useId();
+  const rangeErrorId = useId();
+  const hasInvalidRange = !draft.closed && !isOrderedTimeRange(draft.open, draft.close);
+
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={() => {
+      if (!saving) onClose();
+    }}>
       <div className="w-full max-w-[430px] rounded-t-[28px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
         <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-stone-200" />
         <div className="mb-3.5 flex items-start justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
-            <p className="mt-0.5 text-xs leading-4 text-[var(--muted)]">{description}</p>
           </div>
-          <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
+          <button
+            type="button"
+            disabled={saving}
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-[10px] px-2 text-[16px] font-medium leading-6 text-[var(--muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
+            onClick={onClose}
+          >닫기</button>
         </div>
 
         <div className="space-y-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
@@ -1688,8 +2193,7 @@ function BusinessHoursSheet({
               className="flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 text-left"
             >
               <div className="min-w-0">
-                <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">휴무일로 설정</p>
-                <p className="mt-1 text-[12px] leading-4 text-[var(--muted)]">이 요일은 고객 예약 화면에서 선택되지 않아요.</p>
+                <p className="text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">휴무일로 설정</p>
               </div>
               <Switch
                 checked={draft.closed}
@@ -1699,33 +2203,46 @@ function BusinessHoursSheet({
             </div>
           ) : null}
           <div className="grid grid-cols-2 gap-2.5">
-            <SettingsFieldCard label="시작 시간">
+            <label htmlFor={openInputId} className="block rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 focus-within:border-[#2563eb] focus-within:ring-2 focus-within:ring-[#2563eb]/15">
+              <span className="mb-1.5 block text-[14px] font-medium leading-5 text-[var(--muted)]">시작 시간</span>
               <input
+                id={openInputId}
                 type="time"
-                className="w-full bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
+                step={300}
+                aria-invalid={hasInvalidRange}
+                aria-describedby={hasInvalidRange ? rangeErrorId : undefined}
+                className="min-h-11 w-full bg-transparent p-0 text-[16px] font-medium leading-6 tabular-nums tracking-[-0.02em] text-[var(--text)] outline-none"
                 value={draft.open}
                 onChange={(event) => onChange({ ...draft, open: event.target.value })}
-                disabled={draft.closed}
+                disabled={draft.closed || saving}
               />
-            </SettingsFieldCard>
-            <SettingsFieldCard label="마감 시간">
+            </label>
+            <label htmlFor={closeInputId} className="block rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 focus-within:border-[#2563eb] focus-within:ring-2 focus-within:ring-[#2563eb]/15">
+              <span className="mb-1.5 block text-[14px] font-medium leading-5 text-[var(--muted)]">마감 시간</span>
               <input
+                id={closeInputId}
                 type="time"
-                className="w-full bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
+                step={300}
+                aria-invalid={hasInvalidRange}
+                aria-describedby={hasInvalidRange ? rangeErrorId : undefined}
+                className="min-h-11 w-full bg-transparent p-0 text-[16px] font-medium leading-6 tabular-nums tracking-[-0.02em] text-[var(--text)] outline-none"
                 value={draft.close}
                 onChange={(event) => onChange({ ...draft, close: event.target.value })}
-                disabled={draft.closed}
+                disabled={draft.closed || saving}
               />
-            </SettingsFieldCard>
+            </label>
           </div>
-          <p className="text-[11px] leading-4 text-[var(--muted)]">
-            {draft.closed ? "휴무일로 적용하면 이 요일은 예약을 받지 않아요." : "시간을 고른 뒤 적용하면 바로 화면에 반영되고, 아래 저장 버튼으로 최종 저장돼요."}
-          </p>
+          {hasInvalidRange ? (
+            <p id={rangeErrorId} role="alert" className="text-[13px] font-medium leading-5 text-[#a04455]">
+              마감 시간은 시작 시간보다 늦게 설정해 주세요.
+            </p>
+          ) : null}
+          {errorMessage ? <p role="alert" className="text-[13px] font-medium leading-5 text-[#a04455]">{errorMessage}</p> : null}
         </div>
 
         <div className="mt-3.5 grid grid-cols-2 gap-2">
-          <OutlineButton onClick={onClose}>취소</OutlineButton>
-          <SolidButton onClick={onApply}>적용</SolidButton>
+          <OutlineButton className="text-[16px] font-medium leading-6" disabled={saving} onClick={onClose}>취소</OutlineButton>
+          <SolidButton className="text-[16px] font-medium leading-6" disabled={saving || hasInvalidRange} onClick={onApply}>{saving ? "저장 중..." : "적용"}</SolidButton>
         </div>
       </div>
     </div>
@@ -1741,6 +2258,7 @@ function ClosedDatePickerSheet({
   onPrevMonth,
   onNextMonth,
   onSelectDate,
+  onApply,
 }: {
   monthCursor: string;
   monthLabel: string;
@@ -1750,6 +2268,7 @@ function ClosedDatePickerSheet({
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onSelectDate: (date: string) => void;
+  onApply: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={onClose}>
@@ -1758,7 +2277,6 @@ function ClosedDatePickerSheet({
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold text-[var(--text)]">특정 휴무일 추가</h3>
-            <p className="mt-1 text-xs text-[var(--muted)]">휴무로 둘 날짜를 선택해 주세요.</p>
           </div>
           <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
         </div>
@@ -1796,6 +2314,10 @@ function ClosedDatePickerSheet({
             })}
           </div>
         </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <OutlineButton onClick={onClose}>취소</OutlineButton>
+          <SolidButton onClick={onApply} disabled={!selectedDate}>확인</SolidButton>
+        </div>
       </div>
     </div>
   );
@@ -1816,7 +2338,7 @@ function SettingsCard({
     <section className={`px-4 py-4 ${className}`.trim()}>
       {title ? (
         <div className="mb-2">
-          <h2 className="text-[17px] font-medium tracking-[-0.02em] text-[var(--text)]">{title}</h2>
+          <h2 className="text-[18px] font-medium tracking-[-0.02em] text-[var(--text)]">{title}</h2>
         </div>
       ) : null}
       <div className={`${contentClassName || "space-y-1"} ${title ? "pt-2.5" : ""}`.trim()}>{children}</div>
@@ -1839,22 +2361,122 @@ function SettingsNavRow({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-[60px] w-full items-center justify-between gap-3 px-4 py-3 text-left ${
+      className={`flex min-h-[68px] w-full items-center justify-between gap-3 px-4 py-3.5 text-left ${
         accent ? "bg-[#f6fbf9]" : "bg-white"
       }`}
     >
-      <div className="flex min-w-0 items-center gap-2.5">
+      <div className="flex min-w-0 items-center gap-3">
         <div className={`flex h-6 w-6 shrink-0 items-center justify-center ${
           accent ? "text-[var(--accent)]" : "text-[var(--text)]"
         }`}>
-          <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+          <Icon className="h-5 w-5" strokeWidth={1.9} />
         </div>
         <div className="min-w-0">
-          <p className="text-[15px] font-normal tracking-[-0.02em] text-[var(--text)]">{title}</p>
+          <p className="text-[18px] font-normal tracking-[-0.02em] text-[var(--text)]">{title}</p>
         </div>
       </div>
-      <ChevronRight className={`h-3.5 w-3.5 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} />
+      <ChevronRight className={`h-4 w-4 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} />
     </button>
+  );
+}
+
+function StaffSettingsHome({
+  staffMember,
+  shopName,
+  accountEmail,
+  onSupportClick,
+  onLegalClick,
+  onAccountClick,
+}: {
+  staffMember: BootstrapStaffMember | null;
+  shopName: string;
+  accountEmail: string | null;
+  onSupportClick: () => void;
+  onLegalClick: () => void;
+  onAccountClick?: () => void;
+}) {
+  const appUpdateState = useOwnerPlayUpdateSnapshot();
+  const staffName = staffMember?.displayName || staffMember?.name || "직원";
+  const staffRole = staffMember?.position || "직원";
+  const staffInitial = staffName.trim().slice(0, 1) || "직";
+
+  return (
+    <section className="min-h-full bg-[#F4F5F7] p-4">
+      <div className="mb-4">
+        <h1 className="text-[24px] font-medium tracking-[-0.02em] text-[#101828]">설정</h1>
+      </div>
+
+      <div className="space-y-3.5">
+        {appUpdateState.available ? (
+          <button
+            type="button"
+            disabled={appUpdateState.starting}
+            onClick={() => void runOwnerPlayUpdateAction()}
+            className="flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[14px] border border-[#dfe7f0] bg-white px-4 py-3 text-left disabled:opacity-50"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#f1f5f9] text-[#334155]">
+                <Download className="size-[18px]" strokeWidth={1.9} aria-hidden />
+              </span>
+              <span className="text-[16px] font-medium text-[#101828]">
+                {appUpdateState.downloaded ? "업데이트 설치" : "앱 업데이트"}
+              </span>
+            </span>
+            <span className="shrink-0 rounded-full bg-[#eef4ff] px-2 py-1 text-[12px] font-semibold text-[#2563eb]">
+              {appUpdateState.downloaded ? "설치 준비됨" : "업데이트 가능"}
+            </span>
+          </button>
+        ) : null}
+        <div className="rounded-[18px] border border-[#dfe7f0] bg-white p-4">
+          <p className="mb-3 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">내 계정 정보</p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[18px] font-medium text-[#2563eb]">
+              {staffInitial}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[18px] font-medium tracking-[-0.02em] text-[#101828]">{staffName}</p>
+              <p className="mt-0.5 truncate text-[16px] text-[#667085]">{shopName} · {staffRole}</p>
+            </div>
+          </div>
+          <div className="mt-4 rounded-[14px] bg-[#f8fafc] px-3.5 py-3">
+            <p className="text-[16px] leading-6 text-[#475467]">
+              프로필 사진, 표시 이름, 담당 서비스는 오너가 관리해요. 변경이 필요하면 매장 관리자에게 요청해 주세요.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-[18px] border border-[#dfe7f0] bg-white">
+          <p className="px-4 pt-4 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">계정 / 문의</p>
+          <div className="mt-2 overflow-hidden divide-y divide-[#edf1f5]">
+            {accountEmail ? <AccountRow icon={UserRound} label="로그인 이메일" value={accountEmail} /> : null}
+            <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
+            <button type="button" onClick={onSupportClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
+              <div className="flex min-w-0 items-center gap-3">
+                <MessageCircle className="h-[18px] w-[18px] shrink-0 text-[#101828]" strokeWidth={1.9} />
+                <p className="text-[16px] font-medium text-[#101828]">1:1 문의</p>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
+            </button>
+            <button type="button" onClick={onLegalClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
+              <div className="flex min-w-0 items-center gap-3">
+                <FileText className="h-[18px] w-[18px] shrink-0 text-[#101828]" strokeWidth={1.9} />
+                <p className="text-[16px] font-medium text-[#101828]">약관 및 정책</p>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
+            </button>
+            {onAccountClick ? (
+              <button type="button" onClick={onAccountClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
+                <div className="flex min-w-0 items-center gap-3">
+                  <LogOut className="h-[18px] w-[18px] shrink-0 text-[#c43d3d]" strokeWidth={1.9} />
+                  <p className="text-[16px] font-medium text-[#c43d3d]">로그아웃</p>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1912,7 +2534,7 @@ function ToggleRow({
   return (
     <label
       className={`flex items-center justify-between gap-3 rounded-[10px] border px-4 py-3 ${
-        emphasized ? "border-[#dce8e2] bg-[#f8fcfa]" : "border-[var(--border)] bg-[var(--surface)]"
+        emphasized ? "border-[#d9e4f3] bg-[#f7faff]" : "border-[#e1e8f0] bg-white"
       } ${
         disabled ? "opacity-55" : ""
       }`}
@@ -1953,16 +2575,16 @@ function SolidButton({
     <button
       disabled={disabled}
       onClick={() => void onClick()}
-      className={`flex h-[43px] w-full items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] disabled:opacity-50 ${className}`.trim()}
+      className={`flex min-h-11 w-full items-center justify-center rounded-[12px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50 ${className}`.trim()}
     >
       {children}
     </button>
   );
 }
 
-function OutlineButton({ children, disabled, onClick }: { children: ReactNode; disabled?: boolean; onClick: () => void }) {
+function OutlineButton({ children, disabled, onClick, className = "" }: { children: ReactNode; disabled?: boolean; onClick: () => void; className?: string }) {
   return (
-    <button disabled={disabled} onClick={onClick} className="flex h-[43px] w-full items-center justify-center rounded-[10px] border border-[var(--border)] bg-white px-4 text-sm font-semibold text-[var(--muted)] disabled:opacity-50">
+    <button disabled={disabled} onClick={onClick} className={`flex min-h-11 w-full items-center justify-center rounded-[12px] border border-[var(--border)] bg-white px-4 text-[14px] font-semibold text-[var(--muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50 ${className}`.trim()}>
       {children}
     </button>
   );
@@ -1984,7 +2606,7 @@ function AccountRow({
       <div className="flex min-w-0 items-center gap-3">
         <Icon className="h-[18px] w-[18px] shrink-0 text-[var(--text)]" strokeWidth={1.9} />
         <div className="min-w-0">
-          <p className="text-[15px] font-medium text-[var(--text)]">{label}</p>
+          <p className="text-[16px] font-medium text-[var(--text)]">{label}</p>
           {value ? <p className="mt-0.5 truncate text-[13px] text-[var(--muted)]">{value}</p> : null}
         </div>
       </div>
@@ -2017,7 +2639,7 @@ function AccountActionRow({
     >
       <div className="flex min-w-0 items-center gap-3">
         <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />
-        <p className="text-[15px] font-medium">{label}</p>
+        <p className="text-[16px] font-medium">{label}</p>
       </div>
       <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" />
     </button>

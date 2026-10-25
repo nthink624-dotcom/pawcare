@@ -107,6 +107,22 @@ function toMobileNotificationSettingsReadback(settings: Partial<ShopNotification
   };
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    await requireOwnerShop(request, body?.shopId);
+    const result = await updateShopSettings(body);
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
+    const message = error instanceof Error ? error.message : "매장 정보를 저장하지 못했어요.";
+    return NextResponse.json({ message }, { status: 400 });
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     if (!hasSupabaseServerEnv()) {

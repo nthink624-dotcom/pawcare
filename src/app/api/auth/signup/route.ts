@@ -69,6 +69,10 @@ function buildSignupPayloadHash(payload: SignupRequestPayload) {
     .digest("hex");
 }
 
+/**
+ * F is a mobile shell only. The main application owns the single atomic signup
+ * operation; this route intentionally contains no Supabase/Auth/database work.
+ */
 export async function POST(request: NextRequest) {
   try {
     if (!acceptsAtomicOwnerSignupContract(request.headers)) {
@@ -392,7 +396,18 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message: "회원가입 처리 중 문제가 발생했습니다." }, { status: 400 });
   }
+
+  const response = await forwardAtomicSignupRequest({
+    enabled: process.env.ATOMIC_OWNER_SIGNUP_ENABLED === "true",
+    mainOrigin: process.env.PETMANAGER_MAIN_APP_ORIGIN,
+    nodeEnv: process.env.NODE_ENV,
+    allowLocalFixture: process.env.ATOMIC_OWNER_SIGNUP_LOCAL_FIXTURE_ENABLED === "true",
+    payload: requestBody.payload,
+    signal: request.signal,
+  });
+
+  return new NextResponse(response.body, {
+    status: response.status,
+    headers: { "content-type": response.contentType, "cache-control": "no-store" },
+  });
 }
-
-
-

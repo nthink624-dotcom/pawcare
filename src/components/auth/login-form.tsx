@@ -202,7 +202,7 @@ function recordFailedLoginAttempt(email: string) {
 export default function LoginForm({
   supabaseReady,
   initialMessage,
-  nextPath = "/owner",
+  nextPath = "/owner/mobile",
 }: {
   supabaseReady: boolean;
   initialMessage?: string | null;
@@ -402,6 +402,7 @@ export default function LoginForm({
       const response = await fetch("/api/dev/create-owner", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail }),
       });
       const result = (await response.json().catch(() => ({}))) as DevTestOwnerApiResponse;
 
@@ -433,7 +434,7 @@ export default function LoginForm({
     } catch {
       setMessage("개발용 테스트 계정을 준비하는 중 문제가 생겼어요. 다시 시도해 주세요.");
     } finally {
-      setCreatingDevOwner(false);
+      setResending(false);
     }
   };
 

@@ -30,6 +30,7 @@ import {
 import { addDaysIso, addMonthsIso, type OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { env } from "@/lib/env";
+import { PUBLIC_LEGAL_URLS } from "@/lib/legal/public-legal-links";
 import { won } from "@/lib/utils";
 
 function formatDate(iso: string | null) {
@@ -214,6 +215,7 @@ export default function OwnerBillingScreen({
     initialSummary.paymentMethodExists && !initialSummary.paymentMethodResetRequired ? "saved" : "new",
   );
   const [resumingRegisteredCardPayment, setResumingRegisteredCardPayment] = useState(false);
+  const [runtimeMode, setRuntimeMode] = useState<"detecting" | "web" | "native">("detecting");
   const copy = statusCopy(summary);
   const [message, setMessage] = useState<string | null>(null);
   const agreementContinueRef = useRef<HTMLButtonElement | null>(null);
@@ -274,6 +276,10 @@ export default function OwnerBillingScreen({
     summary.status !== "expired";
 
   useEffect(() => {
+    setRuntimeMode(Capacitor.isNativePlatform() ? "native" : "web");
+  }, []);
+
+  useEffect(() => {
     setSummary(initialSummary);
   }, [initialSummary]);
 
@@ -304,11 +310,16 @@ export default function OwnerBillingScreen({
   }, [summary.paymentMethodExists, summary.paymentMethodResetRequired]);
 
   useEffect(() => {
+    if (runtimeMode !== "web") return;
     if (!openPaymentSheet || isFreePlan || !hasUsableRegisteredPaymentMethod) return;
     setPaymentSheetOpen(true);
-  }, [hasUsableRegisteredPaymentMethod, isFreePlan, openPaymentSheet]);
+  }, [hasUsableRegisteredPaymentMethod, isFreePlan, openPaymentSheet, runtimeMode]);
 
   useEffect(() => {
+    if (runtimeMode !== "web") {
+      clearPendingBillingRegistration();
+      return;
+    }
     const pending = readPendingBillingRegistration();
     if (!pending) return;
     if (Date.now() - pending.requestedAt > 1000 * 60 * 20) {
@@ -355,7 +366,7 @@ export default function OwnerBillingScreen({
       } catch (error) {
         if (cancelled) return;
         clearPendingBillingRegistration();
-        setMessage(error instanceof Error ? error.message : "카드 등록 후 결제를 이어서 진행하지 못했습니다.");
+        setMessage(getSafeBillingErrorMessage(error, "카드 등록 후 결제를 이어서 진행하지 못했습니다."));
       } finally {
         if (!cancelled) {
           setResumingRegisteredCardPayment(false);
@@ -415,7 +426,7 @@ export default function OwnerBillingScreen({
       }
     } catch (error) {
       clearPendingBillingRegistration();
-      setMessage(error instanceof Error ? error.message : "카드 등록 또는 결제를 완료하지 못했습니다.");
+      setMessage(getSafeBillingErrorMessage(error, "카드 등록 또는 결제를 완료하지 못했습니다."));
     } finally {
       setRegisteringCard(false);
       setRetryingPayment(false);
@@ -423,6 +434,7 @@ export default function OwnerBillingScreen({
   }
 
   async function handlePayNow() {
+    if (Capacitor.isNativePlatform()) return;
     if (retryingPayment) return;
     setRetryingPayment(true);
     setMessage(null);
@@ -438,7 +450,7 @@ export default function OwnerBillingScreen({
         setMessage("결제를 완료하지 못했습니다. 카드 정보를 다시 확인해 주세요.");
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "결제를 처리하지 못했습니다.");
+      setMessage(getSafeBillingErrorMessage(error, "결제를 처리하지 못했습니다."));
     } finally {
       setRetryingPayment(false);
     }
@@ -480,6 +492,7 @@ export default function OwnerBillingScreen({
   }
 
   async function handlePaymentSheetSubmit() {
+    if (Capacitor.isNativePlatform()) return;
     if (registeringCard || retryingPayment) return;
 
     try {

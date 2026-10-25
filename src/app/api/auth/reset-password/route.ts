@@ -28,12 +28,21 @@ function isMissingIdentityHashColumnError(error: { message?: string; code?: stri
   );
 }
 
+function isMissingIdentityHashColumnError(error: { message?: string; code?: string } | null | undefined) {
+  const message = error?.message ?? "";
+  return (
+    error?.code === "42703" ||
+    message.includes("owner_profiles.ci_hash") ||
+    message.includes("owner_profiles.di_hash") ||
+    message.includes("ci_hash does not exist") ||
+    message.includes("di_hash does not exist")
+  );
+}
 export async function POST(request: NextRequest) {
   try {
     if (!hasSupabaseServerEnv()) {
       return NextResponse.json({ message: "Supabase 환경 변수가 설정되지 않았습니다." }, { status: 503 });
-    }
-
+}
     const body = ownerPasswordResetSchema.parse(await request.json());
     const verifiedIdentity = await getVerifiedIdentityForToken({
       verificationToken: body.identityVerificationToken,

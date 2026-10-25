@@ -50,10 +50,16 @@ public class MainActivity extends BridgeActivity {
                 intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER)
             );
             OwnerCallNotification.cancel(this, intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID));
+        } else if (intent != null && OwnerCallNotification.ACTION_REGISTER_CUSTOMER.equals(intent.getAction())) {
+            OwnerCallScreeningStore.setPendingCustomerRegistrationAction(
+                this,
+                intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER)
+            );
+            OwnerCallNotification.cancel(this, intent.getIntExtra(OwnerCallNotification.EXTRA_NOTIFICATION_ID, 0));
         }
         PluginHandle handle = getBridge() == null ? null : getBridge().getPlugin("OwnerCallScreening");
         if (handle != null && handle.getInstance() instanceof OwnerCallScreeningPlugin) {
-            ((OwnerCallScreeningPlugin) handle.getInstance()).handleReservationIntent(intent);
+            ((OwnerCallScreeningPlugin) handle.getInstance()).handleNotificationIntent(intent);
         }
     }
 

@@ -106,11 +106,15 @@ import { keepStableStaffProfileUrls } from "@/lib/owner-mobile-staff-refresh-sta
 import { addOwnerAndroidBackButtonListener } from "@/lib/owner-mobile-back-navigation";
 import {
   addOwnerCallReservationActionListener,
+  addOwnerCallCustomerRegistrationActionListener,
+  clearOwnerCallCustomerRegistrationAction,
+  getOwnerCallCustomerRegistrationAction,
   getOwnerCallReservationAction,
   getOwnerCallScreeningStatus,
   isOwnerCallScreeningAvailable,
   syncOwnerCallScreeningPhoneAllowlist,
   type OwnerCallReservationAction,
+  type OwnerCallCustomerRegistrationAction,
 } from "@/lib/owner-call-screening";
 import { flattenAppointmentGuardianPetPairs } from "@/lib/owner-appointment-guardian-pet-pairs";
 import {
@@ -205,7 +209,7 @@ type ModalState =
   | { type: "appointment"; appointment: Appointment }
   | { type: "edit-shop-profile" }
   | { type: "new-appointment"; petId?: string }
-  | { type: "new-customer" }
+  | { type: "new-customer"; initialPhone?: string }
   | { type: "add-pet"; guardianId: string }
   | { type: "edit-record"; record: GroomingRecord }
   | { type: "stat"; kind: "today" | "completed" | "cancel_change" }
@@ -869,6 +873,36 @@ function OwnerAppContent({
     void getOwnerCallReservationAction().then(openCatchCallReservation).catch(() => undefined);
     let removeListener: (() => Promise<void>) | null = null;
     void addOwnerCallReservationActionListener(openCatchCallReservation).then((remove) => {
+      if (!active) {
+        void remove?.();
+        return;
+      }
+      removeListener = remove;
+    });
+
+    return () => {
+      active = false;
+      void removeListener?.();
+    };
+  }, [isOwnerDemo, isStaffApp]);
+
+  useEffect(() => {
+    if (isOwnerDemo || isStaffApp || typeof window === "undefined" || !isOwnerCallScreeningAvailable()) return;
+    let active = true;
+
+    const openCustomerRegistration = (action: OwnerCallCustomerRegistrationAction) => {
+      if (!active || !action.pending) return;
+      setActiveTab("customers");
+      setSelectedGuardianId(null);
+      setSelectedCustomerPetId(null);
+      setSettingsEntryScreen(null);
+      setModal({ type: "new-customer", initialPhone: action.callerNumber });
+      void clearOwnerCallCustomerRegistrationAction();
+    };
+
+    void getOwnerCallCustomerRegistrationAction().then(openCustomerRegistration).catch(() => undefined);
+    let removeListener: (() => Promise<void>) | null = null;
+    void addOwnerCallCustomerRegistrationActionListener(openCustomerRegistration).then((remove) => {
       if (!active) {
         void remove?.();
         return;
@@ -3733,7 +3767,7 @@ function OwnerAppContent({
         </div>
       </nav>
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm key={modal.initialPhone ?? "manual"} shopId={data.shop.id} initialPhone={modal.initialPhone} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
         if (isOwnerDemo) {
           setModal(null);
           return;
@@ -5136,9 +5170,9 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
   );
 }
 
-function NewCustomerForm({ shopId, saving, onClose, onSave }: { shopId: string; saving: boolean; onClose: () => void; onSave: (guardianPayload: { shopId: string; name: string; phone: string; memo: string }, petPayloads: Array<{ shopId: string; name: string; breed: string; birthday: string | null; weight: null; age: null; notes: string; groomingCycleWeeks: number }>) => void }) {
+function NewCustomerForm({ shopId, initialPhone, saving, onClose, onSave }: { shopId: string; initialPhone?: string; saving: boolean; onClose: () => void; onSave: (guardianPayload: { shopId: string; name: string; phone: string; memo: string }, petPayloads: Array<{ shopId: string; name: string; breed: string; birthday: string | null; weight: null; age: null; notes: string; groomingCycleWeeks: number }>) => void }) {
   const [guardianName, setGuardianName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(initialPhone ?? "");
   const [memo, setMemo] = useState("");
   const [pets, setPets] = useState([{ id: crypto.randomUUID(), name: "", breed: "", birthday: "" }]);
 

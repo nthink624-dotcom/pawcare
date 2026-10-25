@@ -197,10 +197,53 @@ public class OwnerCallScreeningPlugin extends Plugin {
         call.resolve();
     }
 
-    void handleReservationIntent(Intent intent) {
-        if (intent == null || !OwnerCallNotification.ACTION_ADD_RESERVATION.equals(intent.getAction())) return;
+    @PluginMethod
+    public void getPendingChoices(PluginCall call) {
+        call.resolve(new JSObject().put("choices", OwnerCallScreeningStore.getPendingChoices(getContext())));
+    }
+
+    @PluginMethod
+    public void acknowledgeChoices(PluginCall call) {
+        JSONArray providerCallIds = call.getArray("providerCallIds");
+        if (providerCallIds == null) {
+            call.reject("CatchCall 선택 기록을 확인하지 못했습니다.");
+            return;
+        }
+        OwnerCallScreeningStore.acknowledgeChoices(getContext(), providerCallIds);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void getPendingCustomerRegistrationAction(PluginCall call) {
+        JSONObject pending = OwnerCallScreeningStore.getPendingCustomerRegistrationAction(getContext());
+        JSObject response = new JSObject();
+        response.put("pending", pending.optBoolean("pending", false));
+        response.put("callerNumber", pending.optString("callerNumber", ""));
+        call.resolve(response);
+    }
+
+    @PluginMethod
+    public void clearPendingCustomerRegistrationAction(PluginCall call) {
+        OwnerCallScreeningStore.clearPendingCustomerRegistrationAction(getContext());
+        call.resolve();
+    }
+
+    void handleNotificationIntent(Intent intent) {
+        if (intent == null) return;
+        if (OwnerCallNotification.ACTION_REGISTER_CUSTOMER.equals(intent.getAction())) {
+            String callerNumber = intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER);
+            OwnerCallScreeningStore.setPendingCustomerRegistrationAction(getContext(), callerNumber);
+            OwnerCallNotification.cancel(getContext(), intent.getIntExtra(OwnerCallNotification.EXTRA_NOTIFICATION_ID, 0));
+            JSObject action = new JSObject();
+            action.put("pending", true);
+            action.put("callerNumber", callerNumber == null ? "" : callerNumber);
+            notifyListeners("customerRegistrationAction", action);
+            return;
+        }
+        if (!OwnerCallNotification.ACTION_ADD_RESERVATION.equals(intent.getAction())) return;
         String providerCallId = intent.getStringExtra(OwnerCallNotification.EXTRA_PROVIDER_CALL_ID);
         String callerNumber = intent.getStringExtra(OwnerCallNotification.EXTRA_CALLER_NUMBER);
+        OwnerCallScreeningTransport.queueAndSendChoice(getContext(), providerCallId, "reservation_selected");
         OwnerCallScreeningStore.setPendingReservationAction(getContext(), providerCallId, callerNumber);
         OwnerCallNotification.cancel(getContext(), providerCallId);
         JSObject action = new JSObject();

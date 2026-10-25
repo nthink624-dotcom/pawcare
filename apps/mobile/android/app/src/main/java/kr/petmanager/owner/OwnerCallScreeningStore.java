@@ -10,6 +10,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.KeyStore;
 import java.text.SimpleDateFormat;
 import java.util.HashSet;
@@ -29,7 +30,11 @@ final class OwnerCallScreeningStore {
     private static final String KEY_ALIAS = "petmanager_call_screening_v1";
     private static final String CONFIG_KEY = "config";
     private static final String EVENTS_KEY = "events";
+    private static final String CHOICES_KEY = "choices";
     private static final int MAX_PENDING_EVENTS = 50;
+    private static final int MAX_PENDING_CHOICES = 50;
+    private static final long NEW_CUSTOMER_NOTIFICATION_COOLDOWN_MS = 24L * 60L * 60L * 1000L;
+    private static final int MAX_NEW_CUSTOMER_NOTIFICATION_FINGERPRINTS = 100;
 
     private OwnerCallScreeningStore() {}
 
@@ -83,6 +88,127 @@ final class OwnerCallScreeningStore {
         config.remove("activeProviderCallId");
         config.remove("activeCallerNumber");
         config.remove("activeAnswered");
+        config.remove("activeUnmatchedCallerNumber");
+        config.remove("activeUnmatchedAnswered");
+        config.remove("activeUnmatchedStartedAt");
+        writeObject(context, CONFIG_KEY, config);
+    }
+
+    static synchronized boolean beginUnmatchedCall(Context context, String callerNumber) {
+        String normalized = normalizePhoneNumber(callerNumber);
+        if (normalized.isEmpty() || isAllowedCallerNumber(context, normalized)) return false;
+
+        JSONObject config = readObject(context, CONFIG_KEY);
+        if (!config.optString("activeProviderCallId", "").trim().isEmpty()) return false;
+
+        String activeNumber = config.optString("activeUnmatchedCallerNumber", "").trim();
+        long startedAt = config.optLong("activeUnmatchedStartedAt", 0L);
+        if (!activeNumber.isEmpty() && System.currentTimeMillis() - startedAt < 10L * 60L * 1000L) {
+            return normalizePhoneNumber(activeNumber).equals(normalized);
+        }
+
+        try {
+            config.put("activeUnmatchedCallerNumber", normalized);
+            config.put("activeUnmatchedAnswered", false);
+            config.put("activeUnmatchedStartedAt", System.currentTimeMillis());
+            writeObject(context, CONFIG_KEY, config);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    static synchronized String getActiveUnmatchedCallerNumber(Context context) {
+        return normalizePhoneNumber(readObject(context, CONFIG_KEY).optString("activeUnmatchedCallerNumber", ""));
+    }
+
+    static synchronized void markUnmatchedCallAnswered(Context context) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        if (config.optString("activeUnmatchedCallerNumber", "").trim().isEmpty()) return;
+        try {
+            config.put("activeUnmatchedAnswered", true);
+            writeObject(context, CONFIG_KEY, config);
+        } catch (Exception ignored) {
+            // Keep the pending call state; it will be cleared when the call returns to IDLE.
+        }
+    }
+
+    static synchronized void clearUnmatchedCall(Context context) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        config.remove("activeUnmatchedCallerNumber");
+        config.remove("activeUnmatchedAnswered");
+        config.remove("activeUnmatchedStartedAt");
+        writeObject(context, CONFIG_KEY, config);
+    }
+
+    static synchronized boolean shouldNotifyNewCustomer(Context context, String callerNumber) {
+        String fingerprint = phoneFingerprint(normalizePhoneNumber(callerNumber));
+        if (fingerprint.isEmpty()) return false;
+
+        long cutoff = System.currentTimeMillis() - NEW_CUSTOMER_NOTIFICATION_COOLDOWN_MS;
+        JSONObject config = readObject(context, CONFIG_KEY);
+        JSONArray recent = config.optJSONArray("newCustomerNotificationFingerprints");
+        JSONArray next = new JSONArray();
+        boolean recentlyNotified = false;
+        if (recent != null) {
+            for (int index = 0; index < recent.length(); index += 1) {
+                JSONObject item = recent.optJSONObject(index);
+                if (item == null) continue;
+                long shownAt = item.optLong("shownAt", 0L);
+                if (shownAt < cutoff) continue;
+                if (fingerprint.equals(item.optString("fingerprint", ""))) recentlyNotified = true;
+                next.put(item);
+            }
+        }
+        if (recentlyNotified) {
+            try {
+                config.put("newCustomerNotificationFingerprints", next);
+                writeObject(context, CONFIG_KEY, config);
+                return false;
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        try {
+            JSONObject item = new JSONObject();
+            item.put("fingerprint", fingerprint);
+            item.put("shownAt", System.currentTimeMillis());
+            next.put(item);
+            while (next.length() > MAX_NEW_CUSTOMER_NOTIFICATION_FINGERPRINTS) next.remove(0);
+            config.put("newCustomerNotificationFingerprints", next);
+            writeObject(context, CONFIG_KEY, config);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    static synchronized void setPendingCustomerRegistrationAction(Context context, String callerNumber) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        try {
+            config.put("pendingCustomerRegistrationPhone", normalizePhoneNumber(callerNumber));
+            writeObject(context, CONFIG_KEY, config);
+        } catch (Exception ignored) {
+            // A customer registration action must not persist a partial phone value.
+        }
+    }
+
+    static synchronized JSONObject getPendingCustomerRegistrationAction(Context context) {
+        JSONObject action = new JSONObject();
+        String phone = normalizePhoneNumber(readObject(context, CONFIG_KEY).optString("pendingCustomerRegistrationPhone", ""));
+        try {
+            action.put("pending", !phone.isEmpty());
+            action.put("callerNumber", phone);
+        } catch (Exception ignored) {
+            return new JSONObject();
+        }
+        return action;
+    }
+
+    static synchronized void clearPendingCustomerRegistrationAction(Context context) {
+        JSONObject config = readObject(context, CONFIG_KEY);
+        config.remove("pendingCustomerRegistrationPhone");
         writeObject(context, CONFIG_KEY, config);
     }
 
@@ -154,6 +280,7 @@ final class OwnerCallScreeningStore {
         if (!isAllowedCallerNumber(context, callerNumber)) return null;
 
         JSONObject config = readObject(context, CONFIG_KEY);
+        if (!config.optString("activeUnmatchedCallerNumber", "").trim().isEmpty()) return null;
         if (!config.optString("activeProviderCallId", "").trim().isEmpty()) return null;
 
         String shopId = config.optString("shopId", "").trim();
@@ -192,6 +319,18 @@ final class OwnerCallScreeningStore {
         return digits;
     }
 
+    private static String phoneFingerprint(String normalizedPhoneNumber) {
+        if (normalizedPhoneNumber == null || normalizedPhoneNumber.isEmpty()) return "";
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(normalizedPhoneNumber.getBytes(StandardCharsets.UTF_8));
+            StringBuilder value = new StringBuilder(digest.length * 2);
+            for (byte item : digest) value.append(String.format(Locale.US, "%02x", item & 0xff));
+            return value.toString();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
     static synchronized void enqueue(Context context, JSONObject event) {
         JSONArray events = readArray(context, EVENTS_KEY);
         JSONArray next = new JSONArray();
@@ -218,6 +357,53 @@ final class OwnerCallScreeningStore {
             if (event != null && !acknowledged.contains(event.optString("providerEventId", ""))) remaining.put(event);
         }
         writeArray(context, EVENTS_KEY, remaining);
+    }
+
+    static synchronized JSONArray enqueueChoice(Context context, String providerCallId, String actionName) {
+        String callId = providerCallId == null ? "" : providerCallId.trim();
+        if (callId.isEmpty() || !("reservation_selected".equals(actionName) || "phone_only_selected".equals(actionName))) return new JSONArray();
+        JSONObject config = readObject(context, CONFIG_KEY);
+        String shopId = config.optString("shopId", "").trim();
+        if (shopId.isEmpty()) return new JSONArray();
+        JSONArray choices = readArray(context, CHOICES_KEY);
+        for (int index = 0; index < choices.length(); index += 1) {
+            JSONObject choice = choices.optJSONObject(index);
+            if (choice != null && callId.equals(choice.optString("providerCallId", ""))) return choices;
+        }
+        JSONObject choice = new JSONObject();
+        try {
+            choice.put("shopId", shopId);
+            choice.put("providerCallId", callId);
+            choice.put("action", actionName);
+            choice.put("selectedAt", System.currentTimeMillis());
+            JSONArray next = new JSONArray();
+            int start = Math.max(0, choices.length() - MAX_PENDING_CHOICES + 1);
+            for (int index = start; index < choices.length(); index += 1) next.put(choices.optJSONObject(index));
+            next.put(choice);
+            writeArray(context, CHOICES_KEY, next);
+            return next;
+        } catch (Exception ignored) {
+            return choices;
+        }
+    }
+
+    static synchronized JSONArray getPendingChoices(Context context) {
+        return readArray(context, CHOICES_KEY);
+    }
+
+    static synchronized void acknowledgeChoices(Context context, JSONArray providerCallIds) {
+        Set<String> acknowledged = new HashSet<>();
+        for (int index = 0; index < providerCallIds.length(); index += 1) {
+            String id = providerCallIds.optString(index, "").trim();
+            if (!id.isEmpty()) acknowledged.add(id);
+        }
+        JSONArray existing = readArray(context, CHOICES_KEY);
+        JSONArray remaining = new JSONArray();
+        for (int index = 0; index < existing.length(); index += 1) {
+            JSONObject choice = existing.optJSONObject(index);
+            if (choice != null && !acknowledged.contains(choice.optString("providerCallId", ""))) remaining.put(choice);
+        }
+        writeArray(context, CHOICES_KEY, remaining);
     }
 
     static synchronized void clear(Context context) {

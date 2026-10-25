@@ -14,9 +14,16 @@ type OwnerCallScreeningPlugin = {
   setPhoneAllowlist(options: { phoneNumbers: string[] }): Promise<{ configured: boolean }>;
   getPendingEvents(): Promise<{ events: Array<Record<string, unknown>> }>;
   acknowledgeEvents(options: { eventIds: string[] }): Promise<void>;
+  getPendingChoices(): Promise<{ choices: Array<Record<string, unknown>> }>;
+  acknowledgeChoices(options: { providerCallIds: string[] }): Promise<void>;
   getPendingReservationAction(): Promise<{ pending: boolean; providerCallId: string; callerNumber: string }>;
   clearPendingReservationAction(): Promise<void>;
-  addListener(eventName: "reservationAction", listenerFunc: (action: { pending: boolean; providerCallId: string; callerNumber: string }) => void): Promise<{ remove: () => Promise<void> }>;
+  getPendingCustomerRegistrationAction(): Promise<{ pending: boolean; callerNumber: string }>;
+  clearPendingCustomerRegistrationAction(): Promise<void>;
+  addListener: {
+    (eventName: "reservationAction", listenerFunc: (action: { pending: boolean; providerCallId: string; callerNumber: string }) => void): Promise<{ remove: () => Promise<void> }>;
+    (eventName: "customerRegistrationAction", listenerFunc: (action: { pending: boolean; callerNumber: string }) => void): Promise<{ remove: () => Promise<void> }>;
+  };
 };
 
 const OwnerCallScreening = registerPlugin<OwnerCallScreeningPlugin>("OwnerCallScreening");
@@ -74,6 +81,26 @@ export async function addOwnerCallReservationActionListener(
   return () => handle.remove();
 }
 
+export type OwnerCallCustomerRegistrationAction = { pending: boolean; callerNumber: string };
+
+export async function getOwnerCallCustomerRegistrationAction(): Promise<OwnerCallCustomerRegistrationAction> {
+  if (!isOwnerCallScreeningAvailable()) return { pending: false, callerNumber: "" };
+  return OwnerCallScreening.getPendingCustomerRegistrationAction();
+}
+
+export async function clearOwnerCallCustomerRegistrationAction() {
+  if (!isOwnerCallScreeningAvailable()) return;
+  await OwnerCallScreening.clearPendingCustomerRegistrationAction();
+}
+
+export async function addOwnerCallCustomerRegistrationActionListener(
+  listener: (action: OwnerCallCustomerRegistrationAction) => void,
+) {
+  if (!isOwnerCallScreeningAvailable()) return null;
+  const handle = await OwnerCallScreening.addListener("customerRegistrationAction", listener);
+  return () => handle.remove();
+}
+
 export async function configureOwnerCallScreening(shopId: string, phoneNumbers: string[]) {
   if (!isOwnerCallScreeningAvailable()) return { available: false, enabled: false };
   const status = await OwnerCallScreening.getStatus();
@@ -120,5 +147,24 @@ export async function syncOwnerCallScreeningEvents(shopId: string) {
     }
   }
   if (acknowledged.length > 0) await OwnerCallScreening.acknowledgeEvents({ eventIds: acknowledged });
-  return { sent: acknowledged.length };
+
+  const pendingChoices = await OwnerCallScreening.getPendingChoices();
+  const acknowledgedChoices: string[] = [];
+  for (const choice of pendingChoices.choices ?? []) {
+    const providerCallId = typeof choice.providerCallId === "string" ? choice.providerCallId : "";
+    const choiceShopId = typeof choice.shopId === "string" ? choice.shopId : shopId;
+    const action = choice.action === "reservation_selected" || choice.action === "phone_only_selected" ? choice.action : "";
+    if (!providerCallId || !choiceShopId || !action) continue;
+    try {
+      await fetchApiJsonWithAuth("/api/owner/call-events/android/choices", {
+        method: "POST",
+        body: JSON.stringify({ shopId: choiceShopId, providerCallId, action }),
+      });
+      acknowledgedChoices.push(providerCallId);
+    } catch {
+      // Leave the encrypted choice queued until the incoming event is uploaded and auth/network recovers.
+    }
+  }
+  if (acknowledgedChoices.length > 0) await OwnerCallScreening.acknowledgeChoices({ providerCallIds: acknowledgedChoices });
+  return { sent: acknowledged.length, choicesSent: acknowledgedChoices.length };
 }

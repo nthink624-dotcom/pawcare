@@ -290,36 +290,34 @@ export default function OwnerCatchCallPanel({
   }
 
   return (
-    <section className="space-y-4" aria-label="캐치콜">
+    <section className="space-y-5" aria-label="캐치콜">
       {message ? (
         <p
           role={message.type === "error" ? "alert" : "status"}
-          className={`rounded-[10px] border px-3.5 py-3 text-[13px] font-medium leading-5 ${
-            message.type === "error" ? "border-[#efd6d0] bg-[#fff8f6] text-[#9a5e4e]" : "border-[#cfe5dc] bg-[#f5fbf8] text-[#1f6b5b]"
+          className={`rounded-2xl border px-4 py-3.5 text-[14px] font-medium leading-5 ${
+            message.type === "error" ? "border-[#f0d4cd] bg-[#fff7f4] text-[#965643]" : "border-[#cce6dc] bg-[#f2faf6] text-[#216453]"
           }`}
         >
           {message.text}
         </p>
       ) : null}
 
-      <div className="rounded-[14px] border border-[#dfe7f1] bg-white p-4">
-        <div className="flex items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#eef4ff] text-[#2f6fd6]">
-            <PhoneCall className="size-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <h3 className="text-[16px] font-semibold leading-6 text-[#15213b]">자동 통화 확인</h3>
-              <InfoTip ariaLabel="자동 통화 확인 도움말" popoverClassName="!left-1/2 !right-auto !-translate-x-1/2 w-[240px]">
-                펫매니저에 등록된 고객 전화만 자동으로 찾아 예약 화면에 연결합니다. 개인 전화는 기록하지 않습니다.
-              </InfoTip>
+      <div className="relative overflow-hidden rounded-[24px] border border-[#dce7f1] bg-gradient-to-br from-[#f4f8ff] via-white to-[#eef8f5] p-5 shadow-[0_8px_24px_rgba(28,48,77,0.06)]">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-14 size-40 rounded-full bg-[#dceaff]/60 blur-2xl" />
+        <div className="relative">
+          <div className="flex items-start gap-3.5">
+            <span className="grid size-12 shrink-0 place-items-center rounded-[17px] bg-[#172b4d] text-white">
+              <PhoneCall className="size-[21px]" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <div className="flex items-start gap-2">
+                <h3 className="min-w-0 flex-1 text-[18px] font-semibold leading-6 tracking-[-0.03em] text-[#172b4d]">전화 응대부터 예약 정리까지 한곳에서</h3>
+                <InfoTip ariaLabel="자동 통화 확인 도움말" popoverClassName="!left-1/2 !right-auto !-translate-x-1/2 w-[240px]">
+                  펫매니저에 등록된 고객 전화만 자동으로 찾아 예약 화면에 연결합니다. 개인 전화는 기록하지 않습니다.
+                </InfoTip>
+              </div>
             </div>
-          </div>
-        </div>
-        {callScreeningStatus?.enabled ? (
-          <div className="mt-3 rounded-[10px] bg-[#f5fbf8] px-3 py-2.5 text-[#1f6b5b]">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[13px] font-medium leading-5">캐치콜 자동 감지</p>
+            {callScreeningStatus?.enabled ? (
               <button
                 type="button"
                 role="switch"
@@ -327,31 +325,33 @@ export default function OwnerCatchCallPanel({
                 aria-label="캐치콜 자동 감지 켜기 또는 끄기"
                 onClick={() => void toggleAutomaticCallScreening()}
                 disabled={configuringCallScreening}
-                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${callScreeningStatus.active ? "bg-[#2563eb]" : "bg-[#cbd5e1]"}`}
+                className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${callScreeningStatus.active ? "bg-[#31856e]" : "bg-[#c3cbd5]"}`}
               >
                 <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${callScreeningStatus.active ? "translate-x-6" : "translate-x-1"}`} />
               </button>
-            </div>
-            <p className="mt-1 text-[12px] leading-5 text-[#457867]">{callScreeningStatus.active ? "등록 고객 전화가 캐치콜로 감지됩니다." : "꺼져 있어 일반 전화만 받을 수 있습니다."}</p>
+            ) : null}
           </div>
+        {callScreeningStatus?.enabled ? (
+          null
         ) : callScreeningStatus?.available ? (
-          <button type="button" onClick={() => void enableAutomaticCallScreening()} disabled={configuringCallScreening} className="mt-3 min-h-12 w-full rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium text-white disabled:opacity-50">
+          <button type="button" onClick={() => void enableAutomaticCallScreening()} disabled={configuringCallScreening} className="mt-5 min-h-12 w-full rounded-2xl bg-[#172b4d] px-4 text-[15px] font-semibold text-white shadow-[0_5px_12px_rgba(23,43,77,0.16)] transition hover:bg-[#213a60] disabled:opacity-50">
             {configuringCallScreening ? "연결 준비 중..." : "자동 통화 확인 켜기"}
           </button>
         ) : (
-          <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-2.5 text-[13px] leading-5 text-[#64748b]">Android 앱에서만 자동 통화 확인을 사용할 수 있습니다.</p>
+          <p className="mt-5 rounded-2xl border border-white/80 bg-white/75 px-4 py-3 text-[13px] leading-5 text-[#64748b]">Android 앱에서 등록 고객의 수신 전화를 확인할 수 있습니다.</p>
         )}
+        </div>
       </div>
 
       {selectedEvent ? (
-        <div className="space-y-4 rounded-[14px] border border-[#dfe7f1] bg-white p-4">
+        <div className="space-y-5 rounded-[22px] border border-[#dfe7f1] bg-white p-4 shadow-[0_6px_20px_rgba(28,48,77,0.05)]">
           <div className="flex items-start gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#eef4ff] text-[#2f6fd6]">
+            <span className="grid size-11 shrink-0 place-items-center rounded-[15px] bg-[#eaf4ef] text-[#28745e]">
               <PhoneCall className="size-5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[16px] font-medium leading-6 text-[#15213b]">{selectedEvent.matchedGuardian?.name} 보호자</p>
-              <p className="mt-0.5 text-[13px] leading-5 text-[#64748b]">010-****-{selectedEvent.phoneTail} · {formatOccurredAt(selectedEvent.occurredAt)}</p>
+              <p className="text-[16px] font-semibold leading-6 text-[#172b4d]">{selectedEvent.matchedGuardian?.name} 보호자</p>
+              <p className="mt-0.5 text-[13px] leading-5 text-[#718097]">010-****-{selectedEvent.phoneTail} · {formatOccurredAt(selectedEvent.occurredAt)}</p>
             </div>
           </div>
           <div className="grid gap-3">
@@ -399,29 +399,32 @@ export default function OwnerCatchCallPanel({
         </div>
       ) : null}
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-[16px] font-semibold leading-6 text-[#15213b]">최근 통화</h3>
+      <div className="space-y-3">
+        <div className="flex items-end justify-between px-1">
+          <div>
+            <h3 className="text-[18px] font-bold leading-6 tracking-[-0.025em] text-[#172b4d]">최근 통화</h3>
+            <p className="mt-0.5 text-[12px] leading-[18px] text-[#7a8798]">고객을 누르면 예약을 이어서 만들 수 있어요</p>
+          </div>
           <button
             type="button"
             onClick={() => void loadEvents(false)}
             disabled={refreshing || loading}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] border border-[#e8edf3] bg-white text-[#64748b] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:opacity-50"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[14px] border border-[#e5ebf1] bg-white text-[#64748b] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:opacity-50"
             aria-label="통화 기록 새로고침"
           >
             <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
           </button>
         </div>
         {loading ? <div className="rounded-[14px] border border-[#e8edf3] bg-white px-4 py-6 text-center text-[14px] text-[#64748b]">통화 기록을 불러오는 중입니다.</div> : null}
-        {!loading && events.length === 0 && !message ? <div className="rounded-[14px] border border-[#e8edf3] bg-white px-4 py-6 text-center text-[14px] leading-5 text-[#64748b]">아직 들어온 통화가 없습니다.</div> : null}
+        {!loading && events.length === 0 && !message ? <div className="rounded-[20px] border border-dashed border-[#d9e3ec] bg-[#f8fafc] px-5 py-8 text-center"><span className="mx-auto grid size-11 place-items-center rounded-2xl bg-white text-[#8291a5] shadow-sm"><PhoneCall className="size-5" aria-hidden="true" /></span><p className="mt-3 text-[14px] font-semibold text-[#35465d]">아직 들어온 통화가 없어요</p><p className="mt-1 text-[12px] leading-5 text-[#7a8798]">새 전화가 오면 이곳에서 고객과 예약을 확인할 수 있어요.</p></div> : null}
         {!loading ? events.map((event) => {
           const canReserve = event.matchStatus === "matched" && Boolean(event.matchedGuardian) && !event.appointmentId;
           return (
-            <button key={event.id} type="button" onClick={() => selectEvent(event)} disabled={!canReserve} className="flex min-h-[72px] w-full items-center gap-3 rounded-[14px] border border-[#e8edf3] bg-white px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-default disabled:opacity-75">
-              <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#f1f5f9] text-[#64748b]"><PhoneCall className="size-4" aria-hidden="true" /></span>
+            <button key={event.id} type="button" onClick={() => selectEvent(event)} disabled={!canReserve} className="flex min-h-[78px] w-full items-center gap-3 rounded-[18px] border border-[#e6ecf2] bg-white px-4 py-3 text-left shadow-[0_2px_8px_rgba(28,48,77,0.025)] outline-none transition hover:border-[#cbdadf] hover:bg-[#fbfdfc] focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-default disabled:hover:bg-white disabled:opacity-75">
+              <span className={`grid size-10 shrink-0 place-items-center rounded-[14px] ${event.eventType === "missed" ? "bg-[#fff3e8] text-[#b96e38]" : "bg-[#eaf4ef] text-[#28745e]"}`}><PhoneCall className="size-[17px]" aria-hidden="true" /></span>
               <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2"><span className="truncate text-[16px] font-medium leading-6 text-[#15213b]">{event.matchedGuardian?.name ?? "확인되지 않은 통화"}</span><span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#64748b]">{eventLabels[event.eventType]}</span></span>
-                <span className="mt-0.5 block text-[13px] leading-5 text-[#64748b]">010-****-{event.phoneTail} · {formatOccurredAt(event.occurredAt)}</span>
+                <span className="flex items-center gap-2"><span className="truncate text-[15px] font-semibold leading-5 text-[#273951]">{event.matchedGuardian?.name ?? "확인되지 않은 통화"}</span><span className="shrink-0 rounded-full bg-[#f1f4f7] px-2 py-0.5 text-[11px] font-medium leading-4 text-[#687789]">{eventLabels[event.eventType]}</span></span>
+                <span className="mt-1 block text-[12px] leading-[18px] text-[#7a8798]">010-****-{event.phoneTail} · {formatOccurredAt(event.occurredAt)}</span>
               </span>
               <span className={`shrink-0 text-[12px] font-medium leading-[18px] ${event.notificationStatus === "failed" ? "text-[#9a5e4e]" : event.appointmentId ? "text-[#1f6b5b]" : "text-[#64748b]"}`}>{eventStatusLabel(event)}</span>
             </button>

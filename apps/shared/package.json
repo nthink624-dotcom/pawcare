@@ -10,11 +10,14 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
-    "tailwind-merge": "^3.5.0",
-    "lucide-react": "^0.577.0"
+    "lucide-react": "^0.577.0",
+    "tailwind-merge": "^3.5.0"
   },
   "peerDependencies": {
-    "react": "^19.2.4",
-    "next": "^16.1.6"
+    "next": "^16.1.6",
+    "react": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14"
   }
 }

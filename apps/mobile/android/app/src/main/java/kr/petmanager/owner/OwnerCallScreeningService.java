@@ -32,14 +32,21 @@ public class OwnerCallScreeningService extends CallScreeningService {
 
     static void handleIncoming(Context context, String callerNumber) {
         try {
+            if (!OwnerCallScreeningStore.isEnabled(context)) return;
+            if (!OwnerCallScreeningStore.isAllowedCallerNumber(context, callerNumber)) {
+                boolean tracked = OwnerCallScreeningStore.beginUnmatchedCall(context, callerNumber);
+                if (tracked && OwnerCallScreeningStore.shouldNotifyNewCustomer(context, callerNumber)) {
+                    OwnerCallNotification.showNewCustomer(context, callerNumber);
+                }
+                return;
+            }
             JSONObject event = OwnerCallScreeningStore.createIncomingEvent(context, callerNumber);
             if (event == null) return;
             JSONObject metadata = event.optJSONObject("metadata");
             String providerCallId = metadata == null ? "" : metadata.optString("providerCallId", "");
             if (providerCallId.isEmpty()) return;
-            OwnerCallNotification.showIncoming(context, providerCallId, callerNumber);
-
             new Thread(() -> OwnerCallScreeningTransport.sendOrQueue(context, event), "petmanager-call-upload").start();
+            OwnerCallNotification.showReservationReady(context, providerCallId, callerNumber);
         } catch (Exception ignored) {
             // The call has already been allowed. A malformed local event must
             // never interfere with the system phone flow.

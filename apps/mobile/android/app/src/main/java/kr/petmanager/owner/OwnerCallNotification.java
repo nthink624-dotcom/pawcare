@@ -15,62 +15,87 @@ import androidx.core.app.NotificationManagerCompat;
 
 final class OwnerCallNotification {
     static final String ACTION_ADD_RESERVATION = "kr.petmanager.owner.action.ADD_CALL_RESERVATION";
+    static final String ACTION_REGISTER_CUSTOMER = "kr.petmanager.owner.action.REGISTER_CALL_CUSTOMER";
     static final String ACTION_DISMISS = "kr.petmanager.owner.action.DISMISS_CALL_NOTIFICATION";
     static final String EXTRA_PROVIDER_CALL_ID = "providerCallId";
     static final String EXTRA_CALLER_NUMBER = "callerNumber";
+    static final String EXTRA_NOTIFICATION_ID = "notificationId";
 
-    private static final String CHANNEL_ID = "catch-call-incoming-v1";
+    private static final String RESERVATION_CHANNEL_ID = "catch-call-incoming-v1";
+    private static final String NEW_CUSTOMER_CHANNEL_ID = "catch-call-new-customer-v1";
     private static final int REQUEST_CODE_BASE = 47000;
 
     private OwnerCallNotification() {}
 
-    static void showIncoming(Context context, String providerCallId, String callerNumber) {
+    static void showReservationReady(Context context, String providerCallId, String callerNumber) {
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
 
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
-        ensureChannel(manager);
+        ensureReservationChannel(manager);
 
-        int notificationId = notificationId(providerCallId);
+        int id = notificationId(providerCallId);
         Intent reservationIntent = new Intent(context, MainActivity.class)
             .setAction(ACTION_ADD_RESERVATION)
             .putExtra(EXTRA_PROVIDER_CALL_ID, providerCallId)
             .putExtra(EXTRA_CALLER_NUMBER, callerNumber)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent reservationPendingIntent = PendingIntent.getActivity(
-            context,
-            notificationId + 1,
-            reservationIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            context, id + 1, reservationIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
-
         Intent dismissIntent = new Intent(context, OwnerCallActionReceiver.class)
             .setAction(ACTION_DISMISS)
-            .putExtra(OwnerCallActionReceiver.EXTRA_NOTIFICATION_ID, notificationId);
+            .putExtra(EXTRA_PROVIDER_CALL_ID, providerCallId)
+            .putExtra(EXTRA_NOTIFICATION_ID, id);
         PendingIntent dismissPendingIntent = PendingIntent.getBroadcast(
-            context,
-            notificationId + 2,
-            dismissIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            context, id + 2, dismissIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
-
-        String phoneTail = callerNumber == null || callerNumber.length() < 4
-            ? ""
-            : callerNumber.substring(callerNumber.length() - 4);
-        Notification notification = new NotificationCompat.Builder(context, CHANNEL_ID)
+        String phoneTail = phoneTail(callerNumber);
+        Notification notification = new NotificationCompat.Builder(context, RESERVATION_CHANNEL_ID)
             .setSmallIcon(kr.petmanager.owner.R.drawable.ic_stat_paw)
-            .setContentTitle("등록 고객에게 전화가 왔어요")
-            .setContentText(phoneTail.isEmpty() ? "예약을 바로 추가할 수 있어요." : "010-****-" + phoneTail + " · 예약을 바로 추가할 수 있어요.")
+            .setContentTitle("등록 고객 전화")
+            .setContentText(phoneTail.isEmpty() ? "고객 예약을 접수할 수 있어요" : "번호 끝자리 " + phoneTail + " · 예약을 접수할 수 있어요")
+            .setContentIntent(reservationPendingIntent)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .setOngoing(true)
+            .setAutoCancel(true)
             .setOnlyAlertOnce(true)
-            .addAction(new NotificationCompat.Action.Builder(0, "예약 추가", reservationPendingIntent).build())
+            .addAction(new NotificationCompat.Action.Builder(0, "예약 접수", reservationPendingIntent).build())
             .addAction(new NotificationCompat.Action.Builder(0, "전화만 받기", dismissPendingIntent).build())
             .build();
+        NotificationManagerCompat.from(context).notify(id, notification);
+    }
 
-        NotificationManagerCompat.from(context).notify(notificationId, notification);
+    static void showNewCustomer(Context context, String callerNumber) {
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return;
+        ensureNewCustomerChannel(manager);
+
+        int id = notificationId("new-customer:" + callerNumber);
+        Intent registerIntent = new Intent(context, MainActivity.class)
+            .setAction(ACTION_REGISTER_CUSTOMER)
+            .putExtra(EXTRA_CALLER_NUMBER, callerNumber)
+            .putExtra(EXTRA_NOTIFICATION_ID, id)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent registerPendingIntent = PendingIntent.getActivity(
+            context, id + 3, registerIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+        String phoneTail = phoneTail(callerNumber);
+        Notification notification = new NotificationCompat.Builder(context, NEW_CUSTOMER_CHANNEL_ID)
+            .setSmallIcon(kr.petmanager.owner.R.drawable.ic_stat_paw)
+            .setContentTitle("새 번호에서 전화가 왔어요")
+            .setContentText(phoneTail.isEmpty() ? "신규 고객으로 등록할 수 있어요" : "번호 끝자리 " + phoneTail + " · 신규 고객으로 등록할 수 있어요")
+            .setContentIntent(registerPendingIntent)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .addAction(new NotificationCompat.Action.Builder(0, "신규 고객 등록", registerPendingIntent).build())
+            .build();
+        NotificationManagerCompat.from(context).notify(id, notification);
     }
 
     static void cancel(Context context, String providerCallId) {
@@ -81,19 +106,29 @@ final class OwnerCallNotification {
         NotificationManagerCompat.from(context).cancel(notificationId);
     }
 
-    private static void ensureChannel(NotificationManager manager) {
-        if (Build.VERSION.SDK_INT < 26 || manager.getNotificationChannel(CHANNEL_ID) != null) return;
-        NotificationChannel channel = new NotificationChannel(
-            CHANNEL_ID,
-            "캐치콜 수신 알림",
-            NotificationManager.IMPORTANCE_HIGH
-        );
-        channel.setDescription("등록된 고객의 전화가 왔을 때 예약 추가 버튼을 보여줍니다.");
+    private static String phoneTail(String callerNumber) {
+        return callerNumber == null || callerNumber.length() < 4 ? "" : callerNumber.substring(callerNumber.length() - 4);
+    }
+
+    private static void ensureReservationChannel(NotificationManager manager) {
+        if (Build.VERSION.SDK_INT < 26 || manager.getNotificationChannel(RESERVATION_CHANNEL_ID) != null) return;
+        NotificationChannel channel = new NotificationChannel(RESERVATION_CHANNEL_ID, "캐치콜 예약 알림", NotificationManager.IMPORTANCE_HIGH);
+        channel.setDescription("등록 고객 통화가 끝나면 예약 접수 버튼을 보여줍니다.");
         channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
         manager.createNotificationChannel(channel);
     }
 
-    private static int notificationId(String providerCallId) {
-        return REQUEST_CODE_BASE + ((providerCallId == null ? 0 : providerCallId.hashCode()) & 0x7fff);
+    private static void ensureNewCustomerChannel(NotificationManager manager) {
+        if (Build.VERSION.SDK_INT < 26 || manager.getNotificationChannel(NEW_CUSTOMER_CHANNEL_ID) != null) return;
+        NotificationChannel channel = new NotificationChannel(NEW_CUSTOMER_CHANNEL_ID, "새 고객 전화", NotificationManager.IMPORTANCE_HIGH);
+        channel.setDescription("등록되지 않은 번호가 전화하면 신규 고객 등록 버튼을 보여줍니다.");
+        channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+        channel.setSound(null, null);
+        channel.enableVibration(false);
+        manager.createNotificationChannel(channel);
+    }
+
+    private static int notificationId(String value) {
+        return REQUEST_CODE_BASE + ((value == null ? 0 : value.hashCode()) & 0x7fff);
     }
 }

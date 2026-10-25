@@ -36,7 +36,16 @@ public class OwnerCallStateReceiver extends BroadcastReceiver {
         JSONObject config = OwnerCallScreeningStore.getConfig(context);
         String providerCallId = config.optString("activeProviderCallId", "").trim();
         String callerNumber = config.optString("activeCallerNumber", "").trim();
-        if (providerCallId.isEmpty() || callerNumber.isEmpty()) return;
+        if (providerCallId.isEmpty() || callerNumber.isEmpty()) {
+            String unmatchedNumber = OwnerCallScreeningStore.getActiveUnmatchedCallerNumber(context);
+            if (unmatchedNumber.isEmpty()) return;
+            if (STATE_OFFHOOK.equals(state)) {
+                OwnerCallScreeningStore.markUnmatchedCallAnswered(context);
+            } else if (STATE_IDLE.equals(state)) {
+                OwnerCallScreeningStore.clearUnmatchedCall(context);
+            }
+            return;
+        }
 
         if (STATE_OFFHOOK.equals(state)) {
             try {

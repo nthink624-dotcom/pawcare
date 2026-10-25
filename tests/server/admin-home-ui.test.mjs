@@ -32,6 +32,23 @@ test("overview uses only live admin APIs and moves evidence into details", () =>
   assert.doesNotMatch(dashboard, /\/admin\/operations|\/admin\/owners|수동 원장 2026/);
 });
 
+test("admin APIs stay lazy until a detail is opened", () => {
+  assert.match(dashboard, /const \[detailsActivated, setDetailsActivated\] = useState\(false\)/);
+  assert.match(dashboard, /if \(!detailsActivated\) return;\s*void loadDashboard\(\)/);
+  assert.match(dashboard, /disabled=\{!detailsActivated\}/);
+  assert.match(dashboard, /onOpen=\{\(\) => setDetailsActivated\(true\)\}/g);
+  assert.match(dashboard, /onToggle=\{\(event\) => \{ if \(event\.currentTarget\.open\) onOpen\(\); \}\}/);
+  assert.doesNotMatch(dashboard, /useEffect\(\(\) => \{\s*void loadDashboard\(\)/);
+});
+
+test("detail controls keep a 44px minimum interaction area", () => {
+  assert.match(supportInbox, /className="inline-flex min-h-11 items-center/);
+  assert.match(supportInbox, />\s*새로고침\s*<\/button>/);
+  assert.match(supportInbox, /className=\{`inline-flex min-h-11 shrink-0 items-center/);
+  assert.match(revenueOverview, /className="inline-flex h-11 w-11 items-center/);
+  assert.match(revenueOverview, /className="flex min-h-11 items-center justify-between/);
+});
+
 test("home keeps compact typography and canonical status indicators", () => {
   assert.match(dashboard, /getWrapIndicatorClass/);
   assert.match(dashboard, /getDotIndicatorClass/);

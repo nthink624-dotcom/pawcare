@@ -45,9 +45,14 @@ test('mobile services resolve canonical source directories; only web owns cron j
   const web = JSON.parse(fs.readFileSync(path.join(root, 'apps/web/vercel.json')));
   assert.equal(web.framework, 'nextjs');
   assert.deepEqual(web.crons.map(({ path }) => path), [
+    '/api/cron/alimtalk-template-cleanup',
+    '/api/cron/alimtalk-approvals',
     '/api/cron/operational-errors/cleanup',
     '/api/notifications/visit-reminders',
     '/api/media/cleanup-expired?dryRun=false',
     '/api/cron/booking-deposit-expiry',
   ]);
+  const schedules = new Map(web.crons.map(({ path, schedule }) => [path, schedule]));
+  assert.equal(schedules.get('/api/cron/alimtalk-approvals'), '*/5 * * * *');
+  assert.equal(schedules.get('/api/cron/alimtalk-template-cleanup'), '2-59/5 * * * *');
 });

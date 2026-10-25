@@ -900,7 +900,7 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const adminSession = await requireAdminSession(request);
+    const adminSession = await requireSuperAdminSession(request);
     const body = patchSchema.parse(await request.json());
     const admin = getSupabaseAdmin();
     if (!admin) {

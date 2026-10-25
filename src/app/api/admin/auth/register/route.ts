@@ -8,6 +8,14 @@ import {
   safeAdminSecretEqual,
 } from "@/lib/admin-auth-rate-limit";
 import { requireServerSecret, ServerEnvError, serverEnv } from "@/lib/server-env";
+import {
+  assertAdminAuthAttemptAllowed,
+  buildAdminAuthAttemptKey,
+  clearAdminAuthFailures,
+  getAdminAuthClientAddress,
+  recordAdminAuthFailure,
+  safeAdminSecretEqual,
+} from "@/lib/admin-auth-rate-limit";
 import { AdminAccountError, createInitialAdminAccount } from "@/server/admin-account";
 import { ADMIN_SESSION_COOKIE, createAdminSessionToken, getAdminSessionCookieOptions } from "@/server/admin-session";
 
@@ -26,6 +34,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "관리자 등록 정보를 다시 확인해 주세요." }, { status: 400 });
   }
 
+  const attemptKey = buildAdminAuthAttemptKey({
+    action: "setup",
+    loginId: parsed.data.loginId,
+    clientAddress: getAdminAuthClientAddress(request.headers),
+  });
+
   try {
     await claimAdminAuthRateLimit({ action: "register", loginId: parsed.data.loginId, headers: request.headers });
     const adminSetupKey = requireServerSecret(serverEnv.adminSetupKey, "ADMIN_SETUP_KEY");
@@ -34,6 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const account = await createInitialAdminAccount(parsed.data);
+    clearAdminAuthFailures(attemptKey);
     const response = NextResponse.json({
       success: true,
       account: {

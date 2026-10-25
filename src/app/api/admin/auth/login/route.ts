@@ -3,6 +3,13 @@ import { z } from "zod";
 
 import { AdminAuthRateLimitBlockedError, AdminAuthRateLimitUnavailableError, claimAdminAuthRateLimit } from "@/lib/admin-auth-rate-limit";
 import { ServerEnvError } from "@/lib/server-env";
+import {
+  assertAdminAuthAttemptAllowed,
+  buildAdminAuthAttemptKey,
+  clearAdminAuthFailures,
+  getAdminAuthClientAddress,
+  recordAdminAuthFailure,
+} from "@/lib/admin-auth-rate-limit";
 import { AdminAccountError, getAdminAccountByLoginId, verifyAdminPassword } from "@/server/admin-account";
 import { ADMIN_SESSION_COOKIE, createAdminSessionToken, getAdminSessionCookieOptions } from "@/server/admin-session";
 
@@ -23,8 +30,11 @@ export async function POST(request: NextRequest) {
     const account = await getAdminAccountByLoginId(loginId);
 
     if (!account || !account.is_active || !verifyAdminPassword(password, account.password_hash)) {
+      recordAdminAuthFailure(attemptKey);
       return NextResponse.json({ message: "관리자 아이디 또는 비밀번호를 다시 확인해 주세요." }, { status: 401 });
     }
+
+    clearAdminAuthFailures(attemptKey);
 
     const response = NextResponse.json({
       success: true,

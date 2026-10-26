@@ -9,7 +9,7 @@ const readProjectFile = (path) => readFile(new URL(path, root), "utf8");
 
 async function mountBillingPage({ currentShopId, shops, cachedSummary = null, subscription, search = "" }) {
   const source = await readProjectFile("src/app/owner/billing/page.tsx");
-  const compiled = ts.transpileModule(source, {
+  const compiled = ts.transpileModule(`${source}\nexport { OwnerBillingPageContent };`, {
     compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const states = [];

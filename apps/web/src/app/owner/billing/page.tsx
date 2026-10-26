@@ -58,7 +58,7 @@ function isSummaryForActiveShop(summary: OwnerSubscriptionSummary, shopId: strin
   return summary.shopId === shopId;
 }
 
-export function OwnerBillingPageContent() {
+function OwnerBillingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planParam = searchParams.get("plan");

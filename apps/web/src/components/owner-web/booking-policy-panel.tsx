@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { publishBookingPolicyChange, subscribeBookingPolicyChange } from "@/lib/booking-policy-events";
 import { DEFAULT_BOOKING_CONSENT_ID, DEFAULT_BOOKING_POLICY, NEXT_BOOKING_RULE_LABELS, type BookingPolicy, type NextBookingRule } from "@petmanager/shared/contracts/booking-preparation";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { loadOwnerBookingPolicy } from "@/lib/owner-booking-policy-read";
 import { OWNER_SETTINGS_TAB_HEADER_CLASS, OWNER_SETTINGS_TABBAR_CLASS, OWNER_SETTINGS_TAB_CLASS } from "@/components/owner-web/owner-settings-tab-header";
 import { BookingDepositAlimtalkPreview } from "@/components/owner-web/booking-deposit-alimtalk-preview";
 const field = "h-10 w-full rounded-[8px] border border-slate-300 bg-white px-3 text-[16px] outline-none focus:ring-2 focus:ring-blue-200";
@@ -136,7 +137,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     let active = true;
     setLoaded(false);
     setMessage("");
-    fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`, { cache: "no-store", signal: AbortSignal.timeout(15_000) })
+    loadOwnerBookingPolicy(shopId)
       .then(r => { if (active) { const nextPolicy = ensureDefaultConsent(r.policy); setPolicy(nextPolicy); setVersion(r.version); setLoaded(true); setMessage(""); const first = nextPolicy.templates[0]; setSelectedConsentId(first?.id ?? null); setConsentDraft(first ? { templateId: first.id, title: first.title, body: first.body } : null); } })
       .catch(e => { if (active) setMessage(e instanceof DOMException && e.name === "TimeoutError" ? "예약 정책을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." : e instanceof Error ? e.message : "예약 정책을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."); });
     return () => { active = false; };
@@ -191,7 +192,7 @@ export default function BookingPolicyPanel({ shopId, editable = true }: { shopId
     const unsubscribe = subscribeBookingPolicyChange(shopId, () => {
       if (!loaded || busy) return;
       const readVersion = ++policyReadVersion.current;
-      void fetchApiJsonWithAuth<{ policy: BookingPolicy; version: number }>(`/api/owner/booking-policy?shopId=${encodeURIComponent(shopId)}`, { cache: "no-store" }).then(result => {
+      void loadOwnerBookingPolicy(shopId).then(result => {
         if (!active || readVersion !== policyReadVersion.current || result.version === version) return;
         if (policyDirty.current) { setMessage("다른 화면에서 설정이 변경되었습니다. 입력 내용은 유지됩니다. 최신 설정을 확인한 뒤 저장해 주세요."); return; }
         setPolicy(ensureDefaultConsent(result.policy)); setVersion(result.version); setDepositBeforeEdit(null);

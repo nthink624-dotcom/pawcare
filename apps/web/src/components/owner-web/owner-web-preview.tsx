@@ -83,6 +83,10 @@ const SettingsManagementScreen = dynamic(
   () => import("@/components/owner-web/settings-management-screen"),
   { loading: OwnerScreenLoading },
 );
+const BookingPolicyScreen = dynamic(
+  () => import("@/components/owner-web/booking-policy-screen"),
+  { loading: OwnerScreenLoading },
+);
 const StaffManagementScreen = dynamic(
   () => import("@/components/owner-web/staff-management-screen"),
   { loading: OwnerScreenLoading },
@@ -290,8 +294,9 @@ function renderScreen(
       );
     case "help":
       return <OwnerHelpScreen initialData={initialData} />;
-    case "shopInfo":
     case "bookingPolicy":
+      return <BookingPolicyScreen shopId={initialData.shop.id} />;
+    case "shopInfo":
     case "bookingLink":
     case "bookingPageManagement":
     case "operatingHours":
@@ -300,7 +305,7 @@ function renderScreen(
     case "alerts":
       return (
         <SettingsManagementScreen
-          initialShopSection={screen === "bookingPolicy" ? "policy" : screen === "bookingLink" || screen === "bookingPageManagement" ? "booking" : undefined}
+          initialShopSection={screen === "bookingLink" || screen === "bookingPageManagement" ? "booking" : undefined}
           bookingPageContent={
             <div className="min-w-0 space-y-5">
               <BookingLinkManagementScreen initialData={initialData} embedded />
@@ -593,6 +598,7 @@ export default function OwnerWebPreview({
 
   function handleScreenPrefetch(screen: OwnerWebScreenKey) {
     if (screen === "staff") preloadStaffManagementScreen();
+    if (screen === "bookingPolicy") void import("@/components/owner-web/booking-policy-screen");
   }
 
   function openInitialSetup() {

@@ -64,7 +64,7 @@ export type BookingPreparation = {
   cancellation: { kind: "customer" | "late_customer" | "owner" | "noshow" | "unclassified" | "deposit_expired"; reason: string; at: string } | null;
   cancelRequest?: { reason: string; at: string } | null;
   history: Array<{ action: string; at: string; actor: string; note: string }>;
-  requests: Array<{ id: string; at: string; purposes: string[]; status: "sending" | "queued" | "blocked" | "sent" | "failed"; reason: string; consentVersions?: Record<string, number> }>;
+  requests: Array<{ id: string; at: string; purposes: string[]; status: "sending" | "queued" | "blocked" | "sent" | "failed"; reason: string; consentVersions?: Record<string, number>; retrySafe?: boolean }>;
 };
 export type PublicBookingPolicy = Pick<BookingPolicy, "depositMode" | "depositAudience" | "depositAmount" | "depositHoldMinutes" | "cancellationCutoffHours" | "cancellationNotice" | "firstNoshowRule" | "repeatNoshowRule">;
 export type CustomerBookingDepositOptions = {
@@ -84,7 +84,11 @@ export type PreparationResponse = {
   appointmentId: string; shopId: string; guardianId: string; petId: string;
   appointmentStatus: string; startAt: string; version: number; data: BookingPreparation;
   manageUrl?: string;
-  consentStatus?: { enabled: boolean; pendingCount: number; recognizedCount: number; signedCount: number };
+  consentStatus?: { enabled: boolean; pendingCount: number; recognizedCount: number; signedCount: number;
+    /** Owner-only current-version documents; recognition never creates a signature. */
+    policyVersion?: number; pendingDocuments?: Array<Pick<ConsentTemplate, "id" | "version" | "title" | "scope">>;
+    deliveryBlockReason?: string;
+  };
   ledger?: BookingDepositLedger | null;
   /** Result of this owner's explicit retry only; never implies payment or signature. */
   depositDelivery?: { status: "pending" | "processing" | "sent" | "mocked" | "blocked" | "failed"; message: string };

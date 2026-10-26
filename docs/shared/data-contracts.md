@@ -36,6 +36,12 @@
 
 예약금·서명 동의서·노쇼 조건 공통 계약: [booking-preparation-contract.md](booking-preparation-contract.md). 로컬 구현이며 원격 적용 전 단계.
 
+### 2026-10-26 예약 상세 동의서 안내 계약
+
+- 오너용 예약 준비 응답의 `consentStatus`에는 현재 `policyVersion`, 미완료 문서의 `pendingDocuments` (`id`, `version`, `title`, `scope`), 발송 불가 사유 `deliveryBlockReason`을 포함한다. 고객 응답에는 이 오너용 보조 필드를 넣지 않는다.
+- `/api/owner/customer-consents` POST는 기존 `templateId`/`templateVersion` 한 건 또는 `documents: [{ id, version }]` 목록 중 하나를 받는다. 현재 정책 버전·매장·고객·문서 범위와 오너의 `confirmedExistingConsent: true` 확인을 기존 RPC에서 검증한다. 기존 동의 인정은 고객 서명을 생성하지 않는다.
+- 예약 안내 요청 이력의 `retrySafe`는 확실한 미발송 여부를 나타낸다. 명시적인 오너 동작만 재요청할 수 있으며, 발송 중·성공·결과 불명 상태는 재발송하지 않는다. 이전 요청 이력은 보존한다.
+
 _Last updated: 2026-09-08_
 
 ## Source Of Truth

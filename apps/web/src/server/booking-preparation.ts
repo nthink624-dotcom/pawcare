@@ -13,6 +13,7 @@ import { deliverCustomerBookingNotificationSafely } from "@/lib/customer-booking
 import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors";
 import { depositHoldDeadline } from "@/server/booking-deposit-hold";
 import { readDepositLedger, actOnDepositLedger, isLedgerAction, flushDepositOutbox, readDepositRetryDelivery } from "@/server/booking-deposit-ledger";
+import { canRetryConsentRequest } from "@petmanager/shared/lib/booking-consent-guidance";
 
 const rule = z.enum(["normal", "approval", "deposit", "blocked"]);
 export const bookingPolicySchema = z.object({
@@ -171,7 +172,7 @@ export async function getPreparation(shopId: string, appointmentId: string, owne
     admin.from("booking_preparations").select("version,data").eq("shop_id", shopId).eq("appointment_id", appointmentId).maybeSingle(),
     readDepositLedger(shopId, appointmentId, includeDetails, owner),
     owner ? readBookingPolicy(shopId) : readOptionalBookingPolicy(shopId),
-    owner && includeDetails ? admin.rpc("pm_deposit_available", { p_shop: shopId, p_appointment: appointmentId }) : Promise.resolve({ data: [], error: null }),
+    owner ? admin.rpc("pm_deposit_available", { p_shop: shopId, p_appointment: appointmentId }) : Promise.resolve({ data: [], error: null }),
     owner && includeDetails ? admin.from("booking_deposit_events").select("details,created_at").eq("appointment_id", appointmentId).eq("action", "refund") : Promise.resolve({ data: [], error: null }),
   ]);
   if (preparation.error) databaseError(preparation.error);
@@ -196,10 +197,11 @@ export async function getPreparation(shopId: string, appointmentId: string, owne
     result.remainingAmount = a.final_service_price == null ? null : Math.max(0, a.final_service_price - result.ledger.allocatedAmount);
     result.excessDeposit = result.ledger.refundDue;
   }
-  const [guardian, condition, noshows] = await Promise.all([
+  const [guardian, condition, noshows, shopNotifications] = await Promise.all([
     admin.from("guardians").select("notification_settings").eq("shop_id", shopId).eq("id", a.guardian_id).maybeSingle(),
     owner ? admin.from("guardian_booking_conditions").select("rule").eq("shop_id", shopId).eq("guardian_id", a.guardian_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     owner ? admin.from("appointments").select("id", { count: "exact", head: true }).eq("shop_id", shopId).eq("guardian_id", a.guardian_id).eq("status", "noshow") : Promise.resolve({ count: 0, error: null }),
+    owner ? admin.from("shops").select("notification_settings").eq("id", shopId).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
   if (guardian.error || !guardian.data) throw new OwnerApiError("고객 수신 설정을 확인할 수 없습니다.", 503);
   const settings = guardian.data.notification_settings;
@@ -216,6 +218,12 @@ export async function getPreparation(shopId: string, appointmentId: string, owne
     pendingCount: consentState.documents.filter(doc => doc.status === "pending").length,
     recognizedCount: consentState.documents.filter(doc => doc.status === "recognized").length,
     signedCount: consentState.documents.filter(doc => doc.status === "signed").length,
+    ...(owner ? { policyVersion: consentState.policyVersion,
+      pendingDocuments: consentState.documents.filter(doc => doc.status === "pending").map(({ id, version, title, scope }) => ({ id, version, title, scope })),
+      deliveryBlockReason: shopNotifications.error || !shopNotifications.data ? "매장 알림 설정을 확인하지 못했습니다. 다시 불러와 주세요."
+        : shopNotifications.data.notification_settings?.enabled !== true ? "매장 알림톡 사용이 꺼져 있어 보낼 수 없습니다."
+        : settings?.enabled === false || settings?.consent_request_enabled === false ? "고객이 동의서 알림톡 수신을 거부했습니다." : undefined,
+    } : {}),
   };
   if (owner) {
     const ownerPolicy = livePolicy ?? await readBookingPolicy(shopId);
@@ -455,8 +463,10 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
         const pending = state.documents.filter(doc => doc.status === "pending");
         if (!state.enabled || !pending.length) throw new OwnerApiError("새로 작성할 동의서가 없습니다.", 409);
         // The existing optimistic preparation save claims the request before dispatch.
-        // Keep failed/uncertain requests too; an automatic callback must never resend.
-        if (data.requests.some(r => r.purposes.includes("consent"))) throw new OwnerApiError("이 예약에는 이미 동의서 요청 기록이 있습니다. 작성 링크를 전달해 주세요.", 409);
+        // A fresh owner action may retry definite non-delivery. Preserve every old
+        // attempt, and block handled/in-flight/unknown attempts before the CAS save.
+        if (data.requests.some(r => r.purposes.includes("consent") && !canRetryConsentRequest(r)))
+          throw new OwnerApiError("동의서 알림톡을 이미 보냈거나 발송 결과를 확인 중입니다. 중복 발송하지 않았습니다. 발송 이력을 확인해 주세요.", 409);
         for (const doc of pending) {
           const index = data.consents.findIndex(c => c.id === doc.id && c.version === doc.version);
           if (index < 0) data.consents.push(doc);
@@ -504,8 +514,9 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
   }
   for (const guidance of guidanceRequests) {
     const createdRequest = data.requests.find(item => item.id === guidance.id);
-    let requestStatus: BookingPreparation["requests"][number]["status"] = createdRequest?.status === "blocked" ? "blocked" : "failed";
-    let requestReason = createdRequest?.status === "blocked" ? createdRequest.reason : "\uC54C\uB9BC\uD1A1 \uBC1C\uC1A1\uC744 \uCC98\uB9AC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uBC1C\uC1A1 \uC774\uB825\uC744 \uD655\uC778\uD574 \uC8FC\uC138\uC694.";
+    let requestStatus: BookingPreparation["requests"][number]["status"] = createdRequest?.status === "blocked" ? "blocked" : guidance.purpose === "consent" ? "sending" : "failed";
+    let requestReason = createdRequest?.status === "blocked" ? createdRequest.reason : guidance.purpose === "consent" ? "알림톡 발송 결과를 확인하지 못했습니다. 발송 이력을 확인해 주세요." : "알림톡 발송을 처리하지 못했습니다. 발송 이력을 확인해 주세요.";
+    let retrySafe = createdRequest?.status === "blocked";
     if (createdRequest?.status !== "blocked") {
       try {
     const delivery = await dispatchNotification({
@@ -517,6 +528,8 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
         const outcome = guidanceDeliveryOutcome(delivery.notification.status, delivery.notification.fail_reason, guidance.purpose);
         requestStatus = outcome.status;
         requestReason = outcome.reason;
+        retrySafe = canRetryConsentRequest({ id: guidance.id, at: now, purposes: [guidance.purpose], status: requestStatus, reason: requestReason });
+        if (requestReason === "Notification disabled by shop settings.") requestReason = "매장 알림톡 사용이 꺼져 있어 보내지 않았습니다.";
         if (requestReason.includes("Recipient phone number not found")) requestReason = "보호자 연락처가 없습니다. 번호를 등록한 뒤 다시 요청해 주세요.";
         else if (requestReason.includes("Missing Alimtalk template mapping")) requestReason = "알림톡 템플릿이 연결되지 않았습니다. 관리자 설정을 확인해 주세요.";
         else if (requestReason.includes("insufficient alimtalk credits")) requestReason = "알림톡 잔여 건수가 없습니다. 충전 후 다시 요청해 주세요.";
@@ -530,7 +543,7 @@ export async function actOnPreparation(current: PreparationResponse, raw: unknow
       const latest = await getPreparation(current.shopId, current.appointmentId, actor.kind === "owner");
       const settled = structuredClone(latest.data);
       const request = settled.requests.find(item => item.id === guidance.id);
-      if (request) { request.status = requestStatus; request.reason = requestReason; }
+      if (request) { request.status = requestStatus; request.reason = requestReason; request.retrySafe = retrySafe; }
       settled.history.push({ action: input.action, at: new Date().toISOString(), actor: actor.userId ?? "owner", note: requestReason });
       const settledResult = await db().rpc("save_booking_preparation", {
         p_shop: current.shopId, p_appointment: current.appointmentId, p_version: latest.version,

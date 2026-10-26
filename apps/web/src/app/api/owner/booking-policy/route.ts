@@ -4,10 +4,18 @@ import { assertOwnerOrManager, requireOwnerShop, OwnerApiError } from "@/server/
 import { readBookingPolicy, saveBookingPolicy } from "@/server/booking-preparation";
 const headers = { "Cache-Control": "no-store" };
 export async function GET(request: NextRequest) {
+  const startedAt = performance.now();
+  const timings: string[] = [];
   try {
-    const owner = await requireOwnerShop(request, request.nextUrl.searchParams.get("shopId") ?? undefined);
+    const owner = await requireOwnerShop(request, request.nextUrl.searchParams.get("shopId") ?? undefined, (phase, durationMs) => {
+      timings.push(`${phase};dur=${durationMs.toFixed(1)}`);
+    });
     assertOwnerOrManager(owner);
-    return NextResponse.json(await readBookingPolicy(owner.shopId), { headers });
+    const readStartedAt = performance.now();
+    const result = await readBookingPolicy(owner.shopId);
+    timings.push(`policy_read;dur=${(performance.now() - readStartedAt).toFixed(1)}`);
+    timings.push(`total;dur=${(performance.now() - startedAt).toFixed(1)}`);
+    return NextResponse.json(result, { headers: { ...headers, "Server-Timing": timings.join(", ") } });
   } catch (e) { return failure(e); }
 }
 export async function PUT(request: NextRequest) {

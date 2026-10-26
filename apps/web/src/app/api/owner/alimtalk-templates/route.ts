@@ -73,7 +73,7 @@ function relayUrl(path: string) {
 
 async function callRelay(path: string, method = "GET", payload?: unknown) {
   const url = relayUrl(path);
-  if (!url) throw new OwnerApiError("알림톡 템플릿 서버 연결을 확인해 주세요.", 503);
+  if (!url) throw new OwnerApiError("알림톡 문안 검수 서버 연결을 확인해 주세요.", 503);
   const response = await fetch(url, {
     method,
     headers: {
@@ -83,12 +83,16 @@ async function callRelay(path: string, method = "GET", payload?: unknown) {
     body: payload ? JSON.stringify(payload) : undefined,
     cache: "no-store",
   });
-  if (!response.ok) throw new OwnerApiError("템플릿 검수 요청을 보내지 못했습니다.", 502);
+  if (!response.ok) throw new OwnerApiError("문안 검수 요청을 보내지 못했습니다.", 502);
   return await response.json() as Record<string, unknown>;
 }
 
 function inspectionState(value: unknown) {
   return shopTemplateInspectionState(value);
+}
+
+function normalizeTemplateName(value: string) {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("ko-KR");
 }
 
 export async function GET(request: NextRequest) {
@@ -97,7 +101,7 @@ export async function GET(request: NextRequest) {
     const owner = await requireOwnerShop(request, url.searchParams.get("shopId") || undefined);
     assertOwnerOrManager(owner);
     const admin = getSupabaseAdmin();
-    if (!admin) throw new OwnerApiError("템플릿 저장 설정을 확인해 주세요.", 503);
+    if (!admin) throw new OwnerApiError("문안 저장 설정을 확인해 주세요.", 503);
 
     const [rows, categoriesResult] = await Promise.all([
       readAlimtalkRows((from, to) => admin.from("shop_alimtalk_template_requests").select("*").eq("shop_id", owner.shopId).order("created_at", { ascending: false }).order("id").range(from, to)),
@@ -121,18 +125,18 @@ export async function GET(request: NextRequest) {
     }));
 
     const categories = Array.isArray(categoriesResult?.categories) ? categoriesResult.categories : [];
-    const buttonDefaults = await getApprovedSsodaaTemplateButtonDefaults(
-      Array.from(new Set(ALIMTALK_NOTIFICATION_REGISTRY.map((item) => item.templateAlias))),
-      owner.shopId,
-    );
-
-    const { policy } = await readBookingPolicy(owner.shopId);
     const aliases = ALIMTALK_NOTIFICATION_REGISTRY
       .map((item) => item.templateAlias)
       .filter((alias): alias is NonNullable<typeof alias> => Boolean(alias));
+    const [buttonDefaultsResult, policyResult] = await Promise.allSettled([
+      getApprovedSsodaaTemplateButtonDefaults(aliases, owner.shopId),
+      readBookingPolicy(owner.shopId),
+    ]);
+    const buttonDefaults = buttonDefaultsResult.status === "fulfilled" ? buttonDefaultsResult.value : {};
+    const previewValues = policyResult.status === "fulfilled" ? buildDepositTemplateValues(policyResult.value.policy) : {};
     const approvedTemplates = await getApprovedSsodaaTemplateDetails(aliases, owner.shopId).catch(() => ({}));
     return Response.json({
-      templates: synced, buttonDefaults, previewValues: buildDepositTemplateValues(policy),
+      templates: synced, buttonDefaults, previewValues,
       categories,
       approvedTemplates: Object.fromEntries(Object.entries(approvedTemplates).map(([alias, detail]) => [alias, detail ? {
         templateCode: detail.templateCode,
@@ -146,7 +150,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     const status = error instanceof OwnerApiError ? error.status : 500;
-    return Response.json({ message: error instanceof OwnerApiError ? error.message : "매장 템플릿을 불러오지 못했습니다." }, { status });
+    return Response.json({ message: error instanceof OwnerApiError ? error.message : "매장 문안을 불러오지 못했습니다." }, { status });
   }
 }
 
@@ -156,18 +160,41 @@ export async function POST(request: NextRequest) {
     const owner = await requireOwnerShop(request, payload.shopId);
     assertOwnerOrManager(owner);
     const admin = getSupabaseAdmin();
-    if (!admin || !owner.userId) throw new OwnerApiError("템플릿 저장 설정을 확인해 주세요.", 503);
+    if (!admin || !owner.userId) throw new OwnerApiError("문안 저장 설정을 확인해 주세요.", 503);
     const registryItem = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === payload.templateAlias);
     if (!registryItem) throw new OwnerApiError("알림 종류를 확인해 주세요.", 400);
     const notificationType = registryItem.type;
-    const fixedTemplateName = registryItem.title;
+    const normalizedName = normalizeTemplateName(payload.templateName);
+    let existingNames: Array<{ id: string; template_name: string }>;
+    try {
+      existingNames = await readAlimtalkRows<{ id: string; template_name: string }>((from, to) => admin
+        .from("shop_alimtalk_template_requests")
+        .select("id,template_name")
+        .eq("shop_id", owner.shopId)
+        .eq("template_alias", payload.templateAlias)
+        .order("id")
+        .range(from, to));
+    } catch {
+      throw new OwnerApiError("문안 제목 중복 여부를 확인하지 못해 저장하지 않았습니다. 잠시 후 다시 시도해 주세요.", 503);
+    }
+    const legacyCategoryTitle = normalizeTemplateName(registryItem.title);
+    const existingRowName = existingNames.find((row) => row.id === payload.id)?.template_name;
+    const continuingLegacyCategoryTitle = Boolean(payload.id
+      && existingRowName
+      && normalizeTemplateName(existingRowName) === legacyCategoryTitle
+      && normalizedName === legacyCategoryTitle);
+    if (existingNames.some((row) => row.id !== payload.id
+      && normalizeTemplateName(row.template_name) === normalizedName
+      && !(continuingLegacyCategoryTitle && normalizedName === legacyCategoryTitle))) {
+      throw new OwnerApiError("이미 등록된 문안 제목입니다. 다른 제목을 입력해 주세요.", 409);
+    }
     const defaults = await getApprovedSsodaaTemplateButtonDefaults([payload.templateAlias], owner.shopId);
     const buttons = defaults[payload.templateAlias] ?? [];
     if (buttons.length > 1) {
-      throw new OwnerApiError("공통 템플릿에 버튼이 여러 개 있어 요청을 저장할 수 없습니다. 관리자에게 확인해 주세요.", 409);
+      throw new OwnerApiError("공통 문안에 버튼이 여러 개 있어 요청을 저장할 수 없습니다. 관리자에게 확인해 주세요.", 409);
     }
     if (buttonRequiredAliases.has(payload.templateAlias) && buttons.length === 0) {
-      throw new OwnerApiError("승인된 공통 템플릿 버튼을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", 409);
+      throw new OwnerApiError("승인된 공통 문안 버튼을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", 409);
     }
     const button = buttons[0];
     const templateButtons = button
@@ -177,18 +204,18 @@ export async function POST(request: NextRequest) {
     let row: Record<string, unknown> | null = null;
     if (payload.id) {
       const current = await admin.from("shop_alimtalk_template_requests").select("*").eq("id", payload.id).eq("shop_id", owner.shopId).maybeSingle();
-      if (current.error || !current.data) throw new OwnerApiError("저장할 템플릿을 찾지 못했습니다.", 404);
-      if (current.data.template_alias !== payload.templateAlias) throw new OwnerApiError("템플릿 알림 종류를 확인해 주세요.", 409);
-      if (current.data.inspection_status !== "draft") throw new OwnerApiError("심사 요청된 템플릿은 수정할 수 없습니다. 새 템플릿으로 작성해 주세요.", 409);
+      if (current.error || !current.data) throw new OwnerApiError("저장할 문안을 찾지 못했습니다.", 404);
+      if (current.data.template_alias !== payload.templateAlias) throw new OwnerApiError("문안 알림 종류를 확인해 주세요.", 409);
+      if (current.data.inspection_status !== "draft") throw new OwnerApiError("검수 요청된 문안은 수정할 수 없습니다. 새 문안으로 작성해 주세요.", 409);
       const updated = await admin.from("shop_alimtalk_template_requests").update({
-        template_name: fixedTemplateName,
+        template_name: payload.templateName,
         template_alias: payload.templateAlias,
         template_content: payload.templateContent,
         category_code: payload.categoryCode,
         template_buttons: templateButtons,
         updated_at: new Date().toISOString(),
       }).eq("id", payload.id).eq("shop_id", owner.shopId).select("*").single();
-      if (updated.error) throw new OwnerApiError("템플릿 초안을 저장하지 못했습니다.", 503);
+      if (updated.error) throw new OwnerApiError("문안 초안을 저장하지 못했습니다.", 503);
       row = updated.data;
     } else {
       const templateCode = `PM${randomBytes(13).toString("hex").toUpperCase()}`;
@@ -197,17 +224,17 @@ export async function POST(request: NextRequest) {
         notification_type: notificationType,
         template_alias: payload.templateAlias,
         template_code: templateCode,
-        template_name: fixedTemplateName,
+        template_name: payload.templateName,
         template_content: payload.templateContent,
         category_code: payload.categoryCode,
         template_buttons: templateButtons,
         created_by_user_id: owner.userId,
       }).select("*").single();
-      if (inserted.error) throw new OwnerApiError("템플릿 초안을 저장하지 못했습니다.", 503);
+      if (inserted.error) throw new OwnerApiError("문안 초안을 저장하지 못했습니다.", 503);
       row = inserted.data;
     }
 
-    if (!row) throw new OwnerApiError("템플릿 초안을 저장하지 못했습니다.", 503);
+    if (!row) throw new OwnerApiError("문안 초안을 저장하지 못했습니다.", 503);
 
     if (payload.action === "submit") {
       const templateRowId = String(row.id);
@@ -223,9 +250,9 @@ export async function POST(request: NextRequest) {
       if (activeRequest.error) throw new OwnerApiError("기존 검수 요청 상태를 확인하지 못했습니다.", 503);
       if (activeRequest.data) throw new OwnerApiError("이 알림은 이미 검수 중입니다. 기존 요청 결과를 확인한 뒤 다시 요청해 주세요.", 409);
       const submitting = await admin.from("shop_alimtalk_template_requests").update({ inspection_status: "submitting" }).eq("id", templateRowId).eq("shop_id", owner.shopId).eq("inspection_status", "draft").select("*").maybeSingle();
-      if (submitting.error || !submitting.data) throw new OwnerApiError("이 템플릿은 이미 검수 요청 중입니다.", 409);
+      if (submitting.error || !submitting.data) throw new OwnerApiError("이 문안은 이미 검수 요청 중입니다.", 409);
       row = submitting.data;
-      if (!row) throw new OwnerApiError("템플릿 요청 상태를 확인하지 못했습니다.", 503);
+      if (!row) throw new OwnerApiError("문안 요청 상태를 확인하지 못했습니다.", 503);
       try {
         await callRelay("/admin/templates/register", "POST", {
           templateCode: row.template_code,
@@ -251,6 +278,6 @@ export async function POST(request: NextRequest) {
     return Response.json({ template: row });
   } catch (error) {
     const status = error instanceof OwnerApiError ? error.status : 400;
-    return Response.json({ message: error instanceof OwnerApiError ? error.message : "템플릿 요청 내용을 확인해 주세요." }, { status });
+    return Response.json({ message: error instanceof OwnerApiError ? error.message : "문안 요청 내용을 확인해 주세요." }, { status });
   }
 }

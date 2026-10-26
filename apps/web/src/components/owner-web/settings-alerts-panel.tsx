@@ -2,7 +2,6 @@
 import { useState, useSyncExternalStore } from "react";
 import { SettingsRevisitReminderDefault } from "@/components/owner-web/settings-revisit-reminder-default";
 import { OwnerAlimtalkTemplateEditor } from "@/components/owner-web/owner-alimtalk-template-editor";
-import { AlertSettingsSwitch } from "@/components/owner-web/settings-alert-switch";
 import { ALIMTALK_NOTIFICATION_REGISTRY, type AlimtalkTemplateAlias } from "@/lib/notification-registry";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import type { AlimtalkSenderMode, AlimtalkShopChannelStatus, NotificationDeliveryMode } from "@/types/domain";
@@ -83,12 +82,8 @@ export default function SettingsAlertsPanel({ value, onChange, shopId, shopName,
    void onChange({ ...value, alimtalkTypeEnabled: { ...value.alimtalkTypeEnabled, [alias]: !state.enabled } });
  }
  return <section data-pc-alerts-surface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[14px] bg-white">
-   <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-[#e8edf3] px-4 py-2 sm:px-5">
-     <span className="text-[16px] font-medium text-[#15213b]">알림톡 전체 사용</span>
-     <AlertSettingsSwitch checked={value.enabled} aria-label="알림톡 전체 사용" onCheckedChange={enabled => onChange({ ...value, enabled })} />
-   </header>
    <OwnerAlimtalkTemplateEditor key={shopId} shopId={shopId} shopName={shopName} senderName={value.alimtalkSenderMode === "petmanager" ? PETMANAGER_SERVICE_NAME : value.alimtalkShopChannelName || shopName} demoMode={demoMode}
-    selectedAlias={selectedTemplateAlias} options={templateOptions} onSelectAlias={setSelectedTemplateAlias} deliveryState={deliveryState} onToggleDelivery={toggleDelivery}
+    selectedAlias={selectedTemplateAlias} options={templateOptions} onSelectAlias={setSelectedTemplateAlias} globalAlimtalkEnabled={value.enabled} onGlobalAlimtalkEnabledChange={enabled => onChange({ ...value, enabled })} deliveryState={deliveryState} onToggleDelivery={toggleDelivery}
      deliverySettings={selectedTemplateAlias === "revisit_notice" ? <SettingsRevisitReminderDefault enabled={deliveryState("revisit_notice").enabled} disabled={!value.enabled} days={value.revisitReminderDefaultDays} onEnabledChange={enabled => onChange({ ...value, revisitEnabled: enabled })} onDaysChange={revisitReminderDefaultDays => onChange({ ...value, revisitReminderDefaultDays })} showEnabledControl={false} /> : undefined}
    />
  </section>;

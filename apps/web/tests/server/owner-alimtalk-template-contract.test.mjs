@@ -30,27 +30,28 @@ test("owner template form exposes draft, review, status, and compact preview act
     read("../../src/components/owner-web/settings-alerts-panel.tsx"),
   ]);
 
-  assert.match(editor, /임시 저장/);
+  assert.match(editor, /내 문안 등록하기/);
   assert.match(editor, /"검수 요청"/);
-  assert.match(editor, /검수가 완료되면 이 매장의/);
+  assert.match(editor, /내 문안을 등록한 뒤 검수 요청/);
   assert.match(editor, /aria-label="카카오톡 알림톡 수신 화면"/);
   assert.match(settings, /<OwnerAlimtalkTemplateEditor/);
 });
 
 test("owner copy editor hides metadata while retaining review payload and policy guidance", async () => {
   const editor = await read("../../src/components/owner-web/owner-alimtalk-template-editor.tsx");
-  assert.doesNotMatch(editor, />템플릿 이름<|>카테고리<|<select/);
-  assert.match(editor, /currentTemplate\?\.template_name\?\.trim\(\) \|\| notificationTitle/);
-  assert.match(editor, /current\?\.category_code \|\| categories\[0\]\?\.code/);
-  assert.match(editor, /templateName, templateContent, categoryCode, action/);
+  assert.doesNotMatch(editor, />템플릿 이름<|>카테고리</);
+  assert.match(editor, /templateName:templateName\.trim\(\)/);
+  assert.match(editor, /currentTemplate\?\.category_code\|\|categories\[0\]\?\.code/);
+  assert.match(editor, /templateContent,categoryCode,action/);
   assert.match(editor, /value=\{buttonUrl\} readOnly/);
-  assert.match(editor, /예시 시간 포함 · 홍보·이벤트 문구 제외 · 검수 승인 후 발송/);
-  assert.match(editor, /보호자에게 보낼 내용을 입력해 주세요\./);
+  assert.match(editor, /승인되면 현재 사용 문안에서 선택할 수 있습니다/);
+  assert.match(editor, /placeholder="원하는 문안을 적어주세요\./);
   assert.match(editor, /<details><summary/);
   assert.doesNotMatch(editor, /이 알림에 사용할 매장 전용 문구/);
-  assert.match(editor, /current\?\.template_content \?\? connectedContent \?\? getNotificationDraftBodyByAlias\(selectedAlias\)/);
-  assert.match(editor, /editedContentKey\.current !== contentKey/);
-  assert(editor.indexOf("data-template-policy") < editor.indexOf("<textarea"));
+  assert.match(editor, /getNotificationDraftBodyByAlias\(selectedAlias\)/);
+  assert.match(editor, /editedContentKey\.current!==draftKey/);
+  assert.match(editor, /<optgroup label="승인된 문안">[\s\S]*?<option value="">기본 문안<\/option>/);
+  assert.doesNotMatch(editor, /펫매니저 기본 · 미적용/);
 });
 
 test("owner template editor uses compact variable chips and an explicitly labeled example appointment time", async () => {
@@ -63,10 +64,10 @@ test("owner template editor uses compact variable chips and an explicitly labele
 
   assert.match(editor, /templateVariables\.map/);
   assert.match(editor, /insertTemplateVariable\(token\)/);
-  assert.equal((editor.match(/data-template-policy/g) ?? []).length, 1);
+  assert.match(editor, /data-template-content-meta/);
   assert.match(editor, /getAlimtalkPreviewAppointmentTime\(\)/);
   assert.match(previewApi, /usesExampleValues: !appointment/);
-  assert.match(settings, /예약일시: getAlimtalkPreviewAppointmentTime\(\)/);
+  assert.match(settings, /OwnerAlimtalkTemplateEditor/);
   assert.match(sampleHelper, /Asia\/Seoul/);
   assert.match(sampleHelper, /오후 2:30/);
 });
@@ -74,5 +75,6 @@ test("owner template editor uses compact variable chips and an explicitly labele
 test("owner template actions remain in content-sized mobile rows and new drafts are not labeled live", async () => {
   const editor=await read("../../src/components/owner-web/owner-alimtalk-template-editor.tsx");
   assert.match(editor,/auto-rows-max[^"]*xl:auto-rows-auto/);
-  assert.match(editor,/newVersion \? "작성 중" : currentInUse \? "사용 중"/);
+  assert.match(editor,/view!=="current"[\s\S]*?"작성 중인 문안"/);
+  assert.match(editor,/문안을 고르는 것만으로는 바뀌지 않습니다/);
 });

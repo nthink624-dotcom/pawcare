@@ -9,6 +9,7 @@ import DepositInitialSummary from "@petmanager/shared/components/booking-deposit
 import type { BookingDepositPreview } from "@petmanager/shared/contracts/booking-deposit-preview";
 import { useBookingPreparationRead } from "@petmanager/shared/lib/use-booking-preparation-read";
 import { notifyDepositChanged } from "@petmanager/shared/lib/booking-deposit-refresh";
+import { canRetryConsentRequest } from "@petmanager/shared/lib/booking-consent-guidance";
 const button = "h-10 rounded-[8px] border border-slate-300 bg-white px-3 text-[16px] disabled:opacity-50";
 const field = "h-10 min-w-0 w-full rounded-[8px] border border-slate-300 bg-white px-3 text-[16px]";
 function askForReason(prompt: string) {
@@ -105,6 +106,23 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
       const next = await load(); setResult(next); notifyDepositChanged(shopId, next.ledger?.id); onStatusChanged?.(next.appointmentStatus); setMessage("예약 일정을 변경했습니다. 최초 입금 기한은 연장하지 않습니다.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "일정을 변경하지 못했습니다. 기존 예약은 유지됩니다."); } finally { setBusy(false); }
   }
+  async function recognizeExistingConsent() {
+    if (!owner || !result || busy) return;
+    const documents = result.consentStatus?.pendingDocuments?.filter(doc => doc.scope === "pet") ?? [];
+    if (!documents.length || !result.consentStatus?.policyVersion) return;
+    if (!window.confirm(`다음 동의서와 같은 내용의 동의를 이 고객에게 이미 받으셨나요?\n${documents.map(doc => `· ${doc.title} (버전 ${doc.version})`).join("\n")}\n고객 전자서명이 아닌 ‘기존 동의 인정’으로 기록합니다.`)) return;
+    setBusy(true); setMessage("");
+    try {
+      await fetchApiJsonWithAuth("/api/owner/customer-consents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        shopId, guardianId: result.guardianId, petId: result.petId, policyVersion: result.consentStatus.policyVersion,
+        documents: documents.map(({ id, version }) => ({ id, version })), confirmedExistingConsent: true,
+      }) });
+      const next = await load();
+      setResult(next); notifyDepositChanged(shopId, next.ledger?.id);
+      setMessage("기존에 받은 동의서로 기록했습니다. 고객 전자서명과 구분해 보관합니다.");
+    } catch (e) { setMessage(e instanceof Error ? e.message : "기존 동의 인정을 저장하지 못했습니다."); }
+    finally { setBusy(false); }
+  }
   if (hidden) return null;
   async function carry(source: string, amount: number, requestKey: string, refundNote?: string) {
     if (!owner || busy) return; setBusy(true); setMessage("");
@@ -129,17 +147,32 @@ export default function BookingPreparationPanel({ shopId, appointmentId, accessT
   const showConsent = !owner && activeConsentTemplates.length > 0 && (hasPendingConsent || hasManualConsentTemplate);
   const showPreparation = showDeposit;
   const latestConsentRequest = [...data.requests].reverse().find(request => request.purposes.includes("consent"));
+  const consentRequestBlocked = data.requests.some(request => request.purposes.includes("consent") && !canRetryConsentRequest(request));
+  const consentDeliveryBlockReason = result.consentStatus?.deliveryBlockReason;
+  const consentDeliveryMessage = consentDeliveryBlockReason || (data.requests.some(request => request.purposes.includes("consent") && request.status === "sent") ? "작성 요청을 보냈습니다. 고객의 작성을 기다립니다."
+    : consentRequestBlocked ? "발송 결과를 확인 중입니다. 발송 이력을 확인해 주세요. 중복 발송하지 않습니다."
+    : latestConsentRequest?.reason.includes("테스트 모드") ? "개발 환경 모의 발송입니다. 실제 메시지는 보내지 않았습니다."
+    : latestConsentRequest ? "이전 요청은 발송되지 않았습니다. 설정을 확인한 뒤 다시 보낼 수 있습니다." : "");
+  const canRecognizeConsent = result.consentStatus?.pendingDocuments?.some(doc => doc.scope === "pet") === true;
+  const hasOtherDateDeposits = (result.availableDeposits ?? []).some(source => source.available > 0);
   const balance = d.receivedAmount - d.refundedAmount;
   const hasOwnerActions = (active && showPreparation) || (result.appointmentStatus === "pending" && !(d.required && !["confirmed", "waived"].includes(d.status)))
     || (!result.ledger && ((active && (showDeposit && d.status === "not_requested" || d.status === "confirmed" && d.refundedAmount === 0)) || balance > 0))
     || result.appointmentStatus === "noshow";
   return <section className={`min-w-0 space-y-3 ${owner ? "pb-2" : "py-2"} text-[16px] leading-6 text-[#15213b]`} aria-label={owner ? "예약금 관리" : "예약 준비"}>
-    {owner && result.consentStatus?.enabled && <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-[#e2e8f0] px-3 py-2">
-      <span>{result.consentStatus.pendingCount > 0 ? "동의서 미완료" : result.consentStatus.recognizedCount > 0 ? "기존 동의 인정" : result.consentStatus.signedCount > 0 ? "전자서명 완료" : "적용할 동의서 없음"}</span>
-      {result.consentStatus.pendingCount > 0 && latestConsentRequest && <span className="text-[14px] text-slate-600">{latestConsentRequest.status === "sent" ? "작성 알림톡 발송 완료" : latestConsentRequest.status === "sending" || latestConsentRequest.status === "queued" ? "작성 알림톡 발송 확인 중" : "작성 알림톡을 보내지 못했습니다. 작성 링크를 전달해 주세요."}</span>}
-      {active && result.consentStatus.pendingCount > 0 && result.manageUrl && <button type="button" className={button} onClick={async () => { try { await navigator.clipboard.writeText(new URL(result.manageUrl!, window.location.origin).href); setMessage("작성 링크를 복사했습니다. 고객에게 전달해 주세요."); } catch { setMessage("작성 링크를 복사하지 못했습니다. 다시 시도해 주세요."); } }}>작성 링크 복사</button>}
+    {owner && result.consentStatus?.enabled && <div data-owner-consent-actions className="space-y-2 rounded-[10px] border border-[#e2e8f0] p-3">
+      <p className="text-[16px] font-medium leading-6">{result.consentStatus.pendingCount > 0 ? "동의서 미완료" : result.consentStatus.recognizedCount > 0 ? "기존 동의 인정" : result.consentStatus.signedCount > 0 ? "전자서명 완료" : "적용할 동의서 없음"}</p>
+      {result.consentStatus.pendingCount > 0 && <>
+        {consentDeliveryMessage && <p role="status" className="text-[14px] leading-5 text-[#64748b]">{consentDeliveryMessage}</p>}
+        {active && <div className="flex flex-wrap gap-2">
+          {canRecognizeConsent && <button type="button" data-owner-control-size="content" className="min-h-11 rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium leading-5 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500" disabled={busy} onClick={() => void recognizeExistingConsent()}>기존 동의 인정</button>}
+          <button type="button" data-owner-control-size="content" className="min-h-11 rounded-[10px] bg-[#111a30] px-3 text-[14px] font-medium leading-5 text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500" disabled={busy || consentRequestBlocked || Boolean(consentDeliveryBlockReason)} onClick={() => {
+            if (window.confirm("이 고객에게 미용 동의서 작성 알림톡을 보내시겠어요?\n고객이 직접 작성해야 동의가 완료됩니다.")) void act("request_guidance", { consent: true, deposit: false });
+          }}>미용 동의서 발송하기</button>
+        </div>}
+      </>}
     </div>}
-    {owner && !result.ledger && <details onToggle={e => { if (e.currentTarget.open) void load(true).then(setResult).catch(() => setMessage("상세 내역을 불러오지 못했습니다.")); }}><summary className="min-h-11 py-2">다른 날짜 예약금 확인</summary><BookingDepositCarry sources={result.availableDeposits ?? []} busy={busy} canCarry={active} onCarry={carry} onRefund={carry} /></details>}
+    {owner && !result.ledger && hasOtherDateDeposits && d.receivedAmount === 0 && !["confirmed", "refunded"].includes(d.status) && <BookingDepositCarry sources={result.availableDeposits ?? []} busy={busy} canCarry={active} onCarry={carry} onRefund={carry} />}
     {result.ledger && <BookingDepositLedgerPanel key={appointmentId} ledger={result.ledger} owner={owner} busy={busy} appointmentStatus={result.appointmentStatus} serviceAmount={result.serviceAmount} remainingAmount={result.remainingAmount} onLoadDetails={async () => setResult(await load(true))} additionalDetails={owner ? <><BookingDepositCarry sources={result.availableDeposits ?? []} busy={busy} canCarry={active} onCarry={carry} onRefund={carry} />{(result.previousDepositRefunds ?? []).map((refund, i) => <p key={i} className="text-slate-600">기존 {refund.date} 예약금 직접 환불 완료 · {refund.amount.toLocaleString()}원</p>)}</> : undefined} onAct={act} schedule={result.schedule} onReschedule={owner && active ? reschedule : undefined} onRefresh={async () => { try { setResult(await load()); setMessage(""); } catch (e) { setMessage(e instanceof Error ? e.message : "불러오지 못했습니다."); } }} />}
     {showPreparation && <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-[20px] font-semibold">예약금</h3><button type="button" className={button} disabled={busy} onClick={() => void load().then(setResult).catch(e => setMessage(e.message))}>새로고침</button></div>}
     {showDeposit && <div className="space-y-2"><div className="flex flex-wrap justify-between gap-2"><span>예약금 · {DEPOSIT_STATUS_LABELS[d.status]}</span><span>{d.amount.toLocaleString()}원{d.required ? " · 필수" : ""}</span></div>

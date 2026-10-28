@@ -2,6 +2,11 @@
 
 @source "../../../shared/components";
 
+/* Adjust text without scaling rem-based controls or layout dimensions. */
+@utility text-* {
+  font-size: calc(--value(--text-*, [length]) + var(--pm-ios-font-offset, 0px));
+}
+
 @font-face {
   font-family: "Pretendard Variable";
   src: url("/fonts/PretendardVariable.woff2") format("woff2-variations");
@@ -11,22 +16,23 @@
 }
 
 :root {
+  --pm-ios-font-offset: 0px;
   --font-ui-ko: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
-  --type-helper-size: 13px;
+  --type-helper-size: calc(13px + var(--pm-ios-font-offset));
   --type-helper-line: 1.5385;
-  --type-metadata-size: 12px;
+  --type-metadata-size: calc(12px + var(--pm-ios-font-offset));
   --type-metadata-line: 1.5;
-  --type-body-small-size: 14px;
+  --type-body-small-size: calc(14px + var(--pm-ios-font-offset));
   --type-body-small-line: 1.4286;
-  --type-label-size: 14px;
+  --type-label-size: calc(14px + var(--pm-ios-font-offset));
   --type-label-line: 1.4286;
-  --type-body-size: 16px;
+  --type-body-size: calc(16px + var(--pm-ios-font-offset));
   --type-body-line: 1.5;
-  --type-heading-size: 20px;
+  --type-heading-size: calc(20px + var(--pm-ios-font-offset));
   --type-heading-line: 1.4;
-  --type-heading-small-size: 18px;
+  --type-heading-small-size: calc(18px + var(--pm-ios-font-offset));
   --type-heading-small-line: 1.4445;
-  --type-page-title-size: 24px;
+  --type-page-title-size: calc(24px + var(--pm-ios-font-offset));
   --type-page-title-line: 1.3334;
   --weight-regular: 400;
   --weight-medium: 500;
@@ -54,6 +60,17 @@
   --pm-safe-left: max(env(safe-area-inset-left), var(--pm-native-safe-left));
 }
 
+:root[data-pm-native-platform="ios"] {
+  --pm-ios-font-offset: 1px;
+}
+
+/* Also cover iPhone Safari and the first paint before the native bridge mounts. */
+@supports (-webkit-touch-callout: none) {
+  :root {
+    --pm-ios-font-offset: 1px;
+  }
+}
+
 :root[data-pm-native-platform="android"] {
   --pm-native-safe-top: 0px;
   --pm-android-statusbar-inset: 28px;
@@ -73,6 +90,7 @@ body {
   background: #ffffff;
   color: var(--text);
   font-family: var(--font-ui-ko);
+  font-size: var(--type-body-size);
   font-weight: var(--weight-regular);
   word-break: normal;
   overflow-wrap: normal;
@@ -211,14 +229,14 @@ time,
 
 .page-eyebrow {
   color: #5f665f;
-  font-size: 13px;
+  font-size: calc(13px + var(--pm-ios-font-offset));
   font-weight: 500;
   letter-spacing: 0;
 }
 
 .page-title {
   color: #101828;
-  font-size: 24px;
+  font-size: calc(24px + var(--pm-ios-font-offset));
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 32px;
@@ -226,13 +244,13 @@ time,
 
 .page-description {
   color: #667085;
-  font-size: 14px;
+  font-size: calc(14px + var(--pm-ios-font-offset));
   line-height: 1.5;
 }
 
 .main-title {
   color: #101828;
-  font-size: 28px;
+  font-size: calc(28px + var(--pm-ios-font-offset));
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 36px;
@@ -240,7 +258,7 @@ time,
 
 .section-title {
   color: #171411;
-  font-size: 18px;
+  font-size: calc(18px + var(--pm-ios-font-offset));
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 26px;
@@ -248,7 +266,7 @@ time,
 
 .card-title {
   color: #171411;
-  font-size: 16px;
+  font-size: calc(16px + var(--pm-ios-font-offset));
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 24px;
@@ -256,13 +274,13 @@ time,
 
 .body-text {
   color: #5f574f;
-  font-size: 14px;
+  font-size: calc(14px + var(--pm-ios-font-offset));
   line-height: 1.5;
 }
 
 .caption-text {
   color: #8a8277;
-  font-size: 12px;
+  font-size: calc(12px + var(--pm-ios-font-offset));
   line-height: 1.45;
 }
 
@@ -270,7 +288,7 @@ time,
   display: block;
   margin-bottom: 0.375rem;
   color: #6b7280;
-  font-size: 14px;
+  font-size: calc(14px + var(--pm-ios-font-offset));
   font-weight: 500;
   letter-spacing: -0.01em;
 }
@@ -283,7 +301,7 @@ time,
   background: #fff;
   padding: 0 1rem;
   color: #171411;
-  font-size: 16px;
+  font-size: calc(16px + var(--pm-ios-font-offset));
   font-weight: 400;
   line-height: 24px;
   letter-spacing: 0;
@@ -311,7 +329,7 @@ time,
   background: #fff;
   padding: 0.75rem 1rem;
   color: #171411;
-  font-size: 16px;
+  font-size: calc(16px + var(--pm-ios-font-offset));
   font-weight: 400;
   line-height: 24px;
   letter-spacing: 0;
@@ -342,7 +360,7 @@ time,
   background: var(--accent);
   padding: 0 1rem;
   color: #fff;
-  font-size: 16px;
+  font-size: calc(16px + var(--pm-ios-font-offset));
   font-weight: 500;
   line-height: 24px;
   transition: opacity 0.18s ease;
@@ -368,7 +386,7 @@ time,
   background: #fff;
   padding: 0 1rem;
   color: var(--text);
-  font-size: 16px;
+  font-size: calc(16px + var(--pm-ios-font-offset));
   font-weight: 500;
   line-height: 24px;
   transition:
@@ -402,7 +420,7 @@ time,
   align-items: center;
   border-radius: 999px;
   padding: 0.25rem 0.625rem;
-  font-size: 12px;
+  font-size: calc(12px + var(--pm-ios-font-offset));
   font-weight: 500;
   line-height: 18px;
 }
@@ -417,7 +435,7 @@ time,
   background: var(--danger);
   padding: 0 1rem;
   color: #fff;
-  font-size: 16px;
+  font-size: calc(16px + var(--pm-ios-font-offset));
   font-weight: 500;
   line-height: 24px;
   transition: opacity 0.18s ease;
@@ -434,7 +452,7 @@ time,
 
 .inline-error {
   color: #b42318;
-  font-size: 13px;
+  font-size: calc(13px + var(--pm-ios-font-offset));
   font-weight: 500;
   line-height: 1.5;
 }

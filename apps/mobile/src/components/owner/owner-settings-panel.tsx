@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefOb
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import OwnerAppNotificationSettings from "@/components/owner/owner-app-notification-settings";
+import OwnerAlimtalkHistory from "@/components/owner/owner-alimtalk-history";
 import { runOwnerPlayUpdateAction, useOwnerPlayUpdateSnapshot } from "@/components/owner/owner-app-update";
 import OwnerAccountDeletionPanel from "@/components/owner/owner-account-deletion-panel";
 import OwnerSettingsOverview, { type OwnerSettingsOverviewGroup } from "@/components/owner/owner-settings-overview";
@@ -1111,6 +1112,7 @@ export default function OwnerSettingsPanel({
   );
 
   const notificationsSection = (
+    <div className="space-y-4">
     <SettingsCard contentClassName="space-y-4">
       <SettingsFieldCard
         label="알림톡 발송"
@@ -1124,6 +1126,7 @@ export default function OwnerSettingsPanel({
         <div className="space-y-2.5 pt-1">
           <ToggleRow
             label="알림톡 전체 사용"
+            description="매장과 고객의 수신 설정을 함께 확인해 발송합니다."
             checked={notificationSettings.enabled}
             onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
             emphasized
@@ -1131,30 +1134,35 @@ export default function OwnerSettingsPanel({
           <div className="space-y-2">
             <ToggleRow
               label="예약 확정 안내"
+              description="확정된 예약 일정과 서비스를 안내해요."
               checked={notificationSettings.bookingConfirmedEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingConfirmedEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
             <ToggleRow
               label="예약 취소 안내"
+              description="취소된 예약 내용을 안내해요."
               checked={notificationSettings.bookingCancelledEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingCancelledEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
             <ToggleRow
               label="예약 변경 안내"
+              description="변경된 예약 날짜와 시간을 안내해요."
               checked={notificationSettings.bookingRescheduledEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingRescheduledEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
             <ToggleRow
               label="픽업 준비 안내"
+              description="미용이 거의 끝나면 픽업 준비를 안내해요."
               checked={notificationSettings.groomingAlmostDoneEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingAlmostDoneEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
             <ToggleRow
               label="미용 완료 안내"
+              description="미용 완료 내용을 고객에게 안내해요."
               checked={notificationSettings.groomingCompletedEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingCompletedEnabled: checked }))}
               disabled={!notificationSettings.enabled}
@@ -1177,6 +1185,8 @@ export default function OwnerSettingsPanel({
         </p>
       ) : null}
     </SettingsCard>
+    <OwnerAlimtalkHistory data={data} />
+    </div>
   );
 
   const accountSection = onLogout ? (
@@ -2024,12 +2034,14 @@ function SettingsFieldCard({
 
 function ToggleRow({
   label,
+  description,
   checked,
   onChange,
   disabled = false,
   emphasized = false,
 }: {
   label: string;
+  description?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
@@ -2043,7 +2055,10 @@ function ToggleRow({
         disabled ? "opacity-55" : ""
       }`}
     >
-      <p className="text-[16px] font-medium text-[#25364d]">{label}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[16px] font-medium text-[#25364d]">{label}</p>
+        {description ? <p className="mt-1 text-[13px] leading-5 text-[#64748b]">{description}</p> : null}
+      </div>
       <Switch
         checked={checked}
         disabled={disabled}

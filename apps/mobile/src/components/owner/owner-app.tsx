@@ -3412,15 +3412,11 @@ function OwnerAppContent({
                           <div className="flex min-h-[42px] items-center gap-3">
                             <span className={`flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-[14px] font-semibold text-[#172235] ${["bg-[#8fb4e0]", "bg-[#6f9bd1]", "bg-[#4f7cb8]", "bg-[#7ec2c9]"][index % 4]}`}>{summary.guardian.name.slice(0, 1)}</span>
                             <div className="flex min-w-0 flex-1 flex-col gap-1 text-[16px] leading-5 tracking-[-0.02em]">
-                              <div className="flex min-w-0 items-center gap-1.5"><span className="shrink-0 font-semibold text-[#33404f]">{summary.guardian.name}</span>
+                              <span className="block min-w-0 whitespace-normal font-semibold text-[#33404f] [overflow-wrap:anywhere]">{summary.guardian.name}</span>
                               {!isStaffApp ? (
-                                <>
-                                  <span className="shrink-0 text-[#64748b]">·</span>
-                                  <span className="shrink-0 font-normal text-[var(--muted)]">{formatShopPhoneNumber(summary.guardian.phone)}</span>
-                                </>
+                                <span className="block max-w-full break-all font-normal text-[var(--muted)]">{formatShopPhoneNumber(summary.guardian.phone)}</span>
                               ) : null}
-                              <span className="shrink-0 text-[#64748b]">·</span>
-                              </div><span className="w-fit max-w-full truncate rounded-full bg-[#e6f3f3] px-2 py-0.5 text-[12px] font-semibold text-[#245b63]">🐾 {summary.pets.map((pet) => pet.name).join(", ") || "등록된 반려동물 없음"}</span>
+                              <span className="w-fit max-w-full truncate rounded-full bg-[#e6f3f3] px-2 py-0.5 text-[12px] font-semibold text-[#245b63]">🐾 {summary.pets.map((pet) => pet.name).join(", ") || "등록된 반려동물 없음"}</span>
                             </div>
                             <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#ebe3da] bg-[#fcfaf7] text-[var(--muted)] transition group-hover:text-[var(--accent)]">
                               <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />

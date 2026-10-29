@@ -6,11 +6,11 @@ import ts from "typescript";
 const output = ts.transpileModule(readFileSync(new URL("../../src/server/owner-bootstrap-snapshot.ts", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-for (const role of ["owner", "staff"]) for (const phase of ["essential", "launch", "full"]) {
+for (const role of ["owner", "manager", "staff"]) for (const phase of ["essential", "launch", "full"]) {
   test(`${role} ${phase} retains canonical query bounds and privacy projection`, async () => {
     const owner = { shopId: "shop-a", userId: "owner-a", role, staffId: role === "staff" ? "staff-a" : null };
     const timing = () => {};
-    const raw = { shop: { id: "shop-a" }, services: ["canonical-service"], secret: "fixture-private" };
+    const raw = { shop: { id: "shop-a" }, actor: { userId: "untrusted-profile-user" }, services: ["canonical-service"], secret: "fixture-private" };
     const modules = {
       "@/server/bootstrap": { getBootstrap: async (shopId, options) => {
         assert.equal(shopId, owner.shopId); assert.equal(options.allowMock, false);
@@ -22,14 +22,14 @@ for (const role of ["owner", "staff"]) for (const phase of ["essential", "launch
         assert.equal(options.notificationLimit, 200); assert.equal(options.onTiming, timing); return raw;
       } },
       "@/server/staff-privacy": { scopeBootstrapForStaff: (data, context) => {
-        assert.equal(data, raw); assert.equal(context, owner); return { shop: data.shop, services: data.services };
+        assert.equal(data, raw); assert.equal(context, owner); return { shop: data.shop, actor: data.actor, services: data.services };
       } },
       "@/lib/price-guide-core": { getPriceGuideCoreContract: () => "price-contract", projectCanonicalPriceGuidesForRead: value => value },
     };
     const runtimeModule = { exports: {} };
     Function("require", "module", "exports", output)(name => { assert.ok(modules[name], name); return modules[name]; }, runtimeModule, runtimeModule.exports);
     const result = await runtimeModule.exports.getOwnerBootstrapSnapshot(owner, phase, timing);
-    assert.equal(result.secret, undefined); assert.deepEqual(result.actor, { shopId: owner.shopId, role, staffId: owner.staffId });
+    assert.equal(result.secret, undefined); assert.deepEqual(result.actor, { shopId: owner.shopId, role, staffId: owner.staffId, userId: owner.userId });
     assert.equal(result.priceGuideCore, "price-contract"); assert.deepEqual(result.services, raw.services);
   });
 }

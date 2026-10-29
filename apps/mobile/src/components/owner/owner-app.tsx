@@ -2,6 +2,8 @@
 import BookingDevelopmentNotice from "@petmanager/shared/components/booking-development-notice";
 import { env } from "@/lib/env";
 import OwnerBookingDepositPanel from "@/components/owner/owner-booking-deposit-panel";
+import { isOwnerStartupPresentation } from "@petmanager/shared/lib/owner-startup-projection";
+import { OwnerStartupDetailsBoundary } from "@petmanager/shared/components/owner-startup-details-boundary";
 import BookingDepositNotices, { useBookingDepositNotices } from "@petmanager/shared/components/booking-deposit-notices";
 
 import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, Store, UserRound, type LucideIcon } from "lucide-react";
@@ -494,6 +496,9 @@ type OwnerAppProps = {
   userEmail?: string | null;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
   launchPhotoStatusAction?: OwnerMobileLaunchPhotoStatusAction | null;
+  startupReadOnly?: boolean;
+  onAuthoritativeRefresh?: (data: BootstrapPayload) => void;
+  startupNotice?: ReactNode;
 };
 
 export default function OwnerApp(props: OwnerAppProps) {
@@ -530,6 +535,9 @@ function OwnerAppContent({
   userEmail = null,
   subscriptionSummary = null,
   launchPhotoStatusAction = null,
+  startupReadOnly = false,
+  onAuthoritativeRefresh,
+  startupNotice,
 }: OwnerAppProps) {
   const [data, setData] = useState(initialData);
   const [ownedShopItems, setOwnedShopItems] = useState(ownedShops);
@@ -968,12 +976,12 @@ function OwnerAppContent({
   };
 
   useEffect(() => {
-    if (isOwnerDemo || isStaffApp || !isOwnerCallScreeningAvailable()) return;
+    if (startupReadOnly || isOwnerDemo || isStaffApp || !isOwnerCallScreeningAvailable()) return;
     const phoneAllowlist = data.guardians
       .filter((guardian) => !guardian.deleted_at && guardian.phone.trim())
       .map((guardian) => guardian.phone.trim());
     void syncOwnerCallScreeningPhoneAllowlist(phoneAllowlist).catch(() => undefined);
-  }, [data.guardians, isOwnerDemo, isStaffApp]);
+  }, [data.guardians, isOwnerDemo, isStaffApp, startupReadOnly]);
 
   useEffect(() => {
     if (isOwnerDemo || !pendingPhotoAccountId || typeof window === "undefined") return;
@@ -1077,7 +1085,7 @@ function OwnerAppContent({
   }
 
   function refresh() {
-    if (isOwnerDemo) return Promise.resolve();
+    if (isOwnerDemo || startupReadOnly) return Promise.resolve();
     if (refreshInFlightRef.current) return refreshInFlightRef.current;
 
     const requestId = ++refreshRequestIdRef.current;
@@ -1094,6 +1102,7 @@ function OwnerAppContent({
         };
         setData((previous) => keepStableStaffProfileUrls(previous, authoritativeSnapshot));
         syncOwnedShopSummary(authoritativeSnapshot.shop);
+        onAuthoritativeRefresh?.(authoritativeSnapshot);
       });
 
     refreshInFlightRef.current = request;
@@ -1125,7 +1134,7 @@ function OwnerAppContent({
     await refreshSilently();
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setData((previous) => keepStableStaffProfileUrls(previous, initialData));
   }, [initialData]);
 
@@ -1820,7 +1829,7 @@ function OwnerAppContent({
   }, [notificationPage, totalNotificationPages]);
 
   useEffect(() => {
-    if (isOwnerDemo || typeof window === "undefined") return;
+    if (startupReadOnly || isOwnerDemo || typeof window === "undefined") return;
 
     const syncIfIdle = () => {
       const canSync =
@@ -1844,7 +1853,7 @@ function OwnerAppContent({
       window.removeEventListener("focus", syncIfIdle);
       document.removeEventListener("visibilitychange", syncIfIdle);
     };
-  }, [isAnyCustomerFieldEditing, isCustomerListEditing, isOwnerDemo, isShopPickerOpen, modal, saving]);
+  }, [isAnyCustomerFieldEditing, isCustomerListEditing, isOwnerDemo, isShopPickerOpen, modal, saving, startupReadOnly]);
 
   useEffect(() => {
     if (!selectedGuardian) {
@@ -2998,9 +3007,9 @@ function OwnerAppContent({
       : activeTab === "customers" && !selectedGuardian
         ? { label: "고객추가", onClick: () => setModal({ type: "new-customer" }) }
         : null;
-  const homeCurrentSectionLabel = homeWorkDateKey === todayDate ? "오늘 할 일" : "선택한 날";
+  const homeCurrentSectionLabel = startupReadOnly ? (homeWorkDateKey === todayDate ? "오늘 예약" : "선택한 날 예약") : homeWorkDateKey === todayDate ? "오늘 할 일" : "선택한 날";
   const homeScheduleTabs: Array<{ key: HomeReservationSectionKey; label: string; count: number }> = [
-    { key: "current", label: homeCurrentSectionLabel, count: filteredHomeActionAppointments.length + filteredHomeCareReportFollowupAppointments.length },
+    { key: "current", label: homeCurrentSectionLabel, count: filteredHomeActionAppointments.length + (startupReadOnly ? 0 : filteredHomeCareReportFollowupAppointments.length) },
     { key: "cancelChange", label: ownerHomeCopy.statCancelChange, count: filteredHomeCancelChangeAppointments.length },
   ];
   const testerFeedbackScreenKey: TesterFeedbackScreenKey =
@@ -3110,6 +3119,8 @@ function OwnerAppContent({
       </header>
       ) : null}
 
+      {startupNotice ? <div className={activeTab === "book" ? "pt-[var(--pm-safe-top)]" : undefined}>{startupNotice}</div> : null}
+
       <main
         ref={ownerMainScrollRef}
         className={cn(
@@ -3166,7 +3177,7 @@ function OwnerAppContent({
                 <div className="min-h-0 flex-1">
                   <TodayConfirmedContent
                     currentAppointments={filteredHomeActionAppointments}
-                    careReportFollowupAppointments={filteredHomeCareReportFollowupAppointments}
+                    careReportFollowupAppointments={startupReadOnly ? [] : filteredHomeCareReportFollowupAppointments}
                     cancelChangeAppointments={filteredHomeCancelChangeAppointments}
                     completedAppointments={filteredHomeCompletedHistoryAppointments}
                     petMap={petMap}
@@ -3174,7 +3185,7 @@ function OwnerAppContent({
                     serviceMap={serviceMap}
                     staffMap={staffMap}
                     petDisplayPhotos={data.petDisplayPhotos ?? []}
-                    saving={saving}
+                    saving={saving || startupReadOnly}
                     focusedSection={homeFocusedSection}
                     selectedDateKey={homeWorkDateKey}
                     isToday={homeWorkDateKey === todayDate}
@@ -3444,6 +3455,7 @@ function OwnerAppContent({
           </div>
         ) : null}
         {activeTab === "customers" && selectedGuardian && (
+          <OwnerStartupDetailsBoundary pending={isOwnerStartupPresentation(data)} title={"\uACE0\uAC1D \uC0C1\uC138"} onClose={() => setSelectedGuardianId(null)}>
           <section className="min-h-full space-y-4 bg-[#F4F5F7] px-4 pb-4 pt-[calc(var(--pm-safe-top)+72px)]">
             <div className="fixed left-1/2 top-[var(--pm-safe-top)] z-30 flex min-h-[56px] w-full max-w-[430px] -translate-x-1/2 items-center justify-center border-b border-[#edf1f5] bg-white px-4">
               <button
@@ -3761,9 +3773,10 @@ function OwnerAppContent({
                 </div>
               </div>
           </section>
+          </OwnerStartupDetailsBoundary>
         )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} incomingCallChoice={pendingIncomingCallChoice} onIncomingCallReservation={chooseIncomingCallReservation} onIncomingCallNewCustomer={chooseIncomingCallNewCustomer} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} />}
+        {activeTab === "settings" && <OwnerStartupDetailsBoundary pending={isOwnerStartupPresentation(data) && settingsEntryScreen !== "catchcall"} title={"\uC124\uC815 \uC815\uBCF4"} embedded modal={false}><SettingsPanel data={data} initialScreen={settingsEntryScreen} incomingCallChoice={pendingIncomingCallChoice} onIncomingCallReservation={chooseIncomingCallReservation} onIncomingCallNewCustomer={chooseIncomingCallNewCustomer} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload, options) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true, errorFallbackMessage: options?.errorFallbackMessage })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={() => void handleOwnerLogout()} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} onOpenFeedback={() => { ownerFeedbackReturnFocusRef.current = settingsFeedbackTriggerRef.current; setFeedbackInitialCategory("inquiry"); setIsTesterFeedbackHubOpen(true); }} feedbackTriggerRef={settingsFeedbackTriggerRef} isTesterFeedback={isTesterFeedback} /></OwnerStartupDetailsBoundary>}
       </main>
 
       {pendingCallReservationAction?.pending && !isStaffApp ? (
@@ -3874,7 +3887,7 @@ function OwnerAppContent({
         </div>
       </nav>
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={data.appointments.find(item => item.id === modal.appointment.id) ?? modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onReload={refreshSilently} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} initialPhone={modal.initialPhone} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
+      {modal && <div>{modal.type === "appointment" ? <Overlay><OwnerStartupDetailsBoundary pending={isOwnerStartupPresentation(data)} title={"\uC608\uC57D \uC0C1\uC138"} embedded onClose={() => setModal(null)}><AppointmentDetail data={data} appointment={data.appointments.find(item => item.id === modal.appointment.id) ?? modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} careReportLoading={careReportLoadingAppointmentId === modal.appointment.id} isReadOnly={isOwnerDemo} canViewGuardianContact={!isStaffApp} onReload={refreshSilently} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onOpenCareReport={() => void openCareReport(modal.appointment.id)} /></OwnerStartupDetailsBoundary></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} savePending={startupReadOnly} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} savePending={startupReadOnly} initialPhone={modal.initialPhone} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => {
         if (isOwnerDemo) {
           setModal(null);
           return;
@@ -5016,7 +5029,7 @@ function isBookableOwnerService(service: Service) {
   return service.is_active && name.length > 0 && name !== "새 항목";
 }
 
-function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true, onClose, onNewCustomer, onSave }: { data: BootstrapPayload; petId?: string; saving: boolean; canViewGuardianContact?: boolean; onClose: () => void; onNewCustomer: () => void; onSave: (payload: unknown) => void }) {
+function NewAppointmentForm({ data, petId, saving, savePending = false, canViewGuardianContact = true, onClose, onNewCustomer, onSave }: { data: BootstrapPayload; petId?: string; saving: boolean; savePending?: boolean; canViewGuardianContact?: boolean; onClose: () => void; onNewCustomer: () => void; onSave: (payload: unknown) => void }) {
   const [selectedPetId, setSelectedPetId] = useState(petId || "");
   const [customerQuery, setCustomerQuery] = useState("");
   const [serviceId, setServiceId] = useState("");
@@ -5090,7 +5103,7 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
 
   const canMoveToService = Boolean(selectedPet);
   const canMoveToSchedule = Boolean(serviceId && selectedStaffId);
-  const canSave = Boolean(selectedPet && time && serviceId && selectedStaffId && !saving);
+  const canSave = Boolean(selectedPet && time && serviceId && selectedStaffId && !saving && !savePending);
   const footer =
     step === "customer" ? (
       <ActionButton disabled={!canMoveToService} onClick={() => setStep("service")}>다음</ActionButton>
@@ -5283,7 +5296,7 @@ function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true
   );
 }
 
-function NewCustomerForm({ shopId, saving, onClose, onSave, initialPhone = "" }: { shopId: string; saving: boolean; onClose: () => void; initialPhone?: string; onSave: (guardianPayload: { shopId: string; name: string; phone: string; memo: string }, petPayloads: Array<{ shopId: string; name: string; breed: string; birthday: string | null; weight: null; age: null; notes: string; groomingCycleWeeks: number }>) => void }) {
+function NewCustomerForm({ shopId, saving, savePending = false, onClose, onSave, initialPhone = "" }: { shopId: string; saving: boolean; savePending?: boolean; onClose: () => void; initialPhone?: string; onSave: (guardianPayload: { shopId: string; name: string; phone: string; memo: string }, petPayloads: Array<{ shopId: string; name: string; breed: string; birthday: string | null; weight: null; age: null; notes: string; groomingCycleWeeks: number }>) => void }) {
   const [guardianName, setGuardianName] = useState("");
   const [phone, setPhone] = useState(initialPhone);
   const [memo, setMemo] = useState("");
@@ -5301,7 +5314,7 @@ function NewCustomerForm({ shopId, saving, onClose, onSave, initialPhone = "" }:
     setPets((prev) => (prev.length === 1 ? prev : prev.filter((pet) => pet.id !== id)));
   }
 
-  const canSave = !saving && guardianName.trim() && phone.trim() && pets.every((pet) => pet.name.trim() && pet.breed.trim());
+  const canSave = !saving && !savePending && guardianName.trim() && phone.trim() && pets.every((pet) => pet.name.trim() && pet.breed.trim());
 
   return (
     <Sheet title="새 고객" onClose={onClose} safeAreaPadding>
@@ -5412,7 +5425,7 @@ function NewCustomerForm({ shopId, saving, onClose, onSave, initialPhone = "" }:
             )
           }
         >
-          고객 저장
+          {savePending ? "최신 상태 확인 중" : "고객 저장"}
         </ActionButton>
       </div>
     </Sheet>

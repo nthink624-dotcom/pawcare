@@ -23,6 +23,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@petmanager/shared"],
   async headers() {
     return [
+      { source: "/owner/mobile", headers: [{ key: "X-PetManager-Public-Owner-Shell", value: "1" }] },
       {
         source: "/demo/owner-mobile",
         headers: [

@@ -33,6 +33,11 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import type { Session } from "@supabase/supabase-js";
+import { readOwnerStartupPrincipalHint } from "@/lib/auth/owner-auth-handoff";
+import { projectOwnerStartupBootstrap } from "@petmanager/shared/lib/owner-startup-projection";
+import { useOwnerStartupSession } from "@petmanager/shared/lib/owner-startup-session";
+import { OwnerStartupNotice } from "@petmanager/shared/components/owner-startup-notice";
+import { getOwnerStartupRevision } from "@petmanager/shared/lib/owner-startup-write-fence";
 
 const OwnerInitialSetupFlow = dynamic(() => import("@/components/owner/owner-initial-setup-flow"), {
   loading: () => <OwnerMobileLoadingScreen message="설정 화면을 준비하고 있습니다." />,
@@ -281,7 +286,7 @@ function OwnerMobileFailureScreen({
 export default function OwnerMobilePage() {
   const router = useRouter();
   const initialSetupEntryFinished = useRef(false);
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const supabase = useMemo(() => typeof window === "undefined" ? null : getSupabaseBrowserClient(), []);
   const requestedOwnerMobilePath = "/owner/mobile";
   const launchPhotoStatusAction = useMemo<OwnerMobileLaunchPhotoStatusAction | null>(() => {
     if (typeof window === "undefined") return null;
@@ -314,6 +319,11 @@ export default function OwnerMobilePage() {
   const [message, setMessage] = useState("모바일 오너 화면을 불러오는 중입니다.");
   const [loadFailure, setLoadFailure] = useState<OwnerMobileLoadFailure | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const { snapshot: startupSnapshot, needsFresh: startupReadOnly, acceptFresh: acceptFreshStartup, rejectSnapshot: rejectStartupSnapshot } = useOwnerStartupSession<CanonicalOwnerBootstrapPayload>({
+    readPrincipalHint: readOwnerStartupPrincipalHint,
+    readShopHint: () => window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE),
+    project: projectOwnerStartupBootstrap,
+  });
   const ownerAccessGateRef = useRef(createLatestOwnerAccessGate<OwnerMobileAccessContext | null>());
   const ownerMobileEntryPruneStartedRef = useRef(false);
 
@@ -472,6 +482,7 @@ export default function OwnerMobilePage() {
         if (!active || !ownerAccessGateRef.current.isLatest(ownerAccessRun.runId)) return;
 
         if (!ownerAccess?.accessToken) {
+          rejectStartupSnapshot();
           if (shouldUseLocalMobilePreview()) {
             if (active) await loadOwnerMobileDemoFallback();
             return;
@@ -493,6 +504,7 @@ export default function OwnerMobilePage() {
           (storedShopId && shops.some((shop) => shop.id === storedShopId) ? storedShopId : shops[0]?.id) ?? null;
 
         if (!resolvedShopId) {
+          rejectStartupSnapshot();
           setOwnedShops(shops);
           currentBootstrapShopRef.current = null;
           setSelectedShopId(null);
@@ -523,6 +535,7 @@ export default function OwnerMobilePage() {
         setMobileRoleContext(roleContext);
 
         if (roleContext.appRole === "owner" && firstSetupEntry) {
+          rejectStartupSnapshot();
           setData(null);
           setSubscriptionSummary(null);
           setInitialSetupState({ readiness, roleContext, bootstrap: canonicalBootstrap });
@@ -548,6 +561,7 @@ export default function OwnerMobilePage() {
         if (!active) return;
 
         if (subscription && !isAndroidApp && shouldBlockOwnerAccessBySubscription(subscription)) {
+          rejectStartupSnapshot();
           writeOwnerBillingSummaryCache(subscription);
           router.replace(`/owner/billing?compare=1&plan=${encodeURIComponent(subscription.autoRenewPlanCode)}` as never);
           router.refresh();
@@ -557,20 +571,29 @@ export default function OwnerMobilePage() {
         if (subscription) writeOwnerBillingSummaryCache(subscription);
         setData(canonicalBootstrap);
         setSubscriptionSummary(subscription);
+        acceptFreshStartup(canonicalBootstrap);
 
         cancelFullRefresh = scheduleOwnerEntryBackground(() => {
           if (!active || currentBootstrapShopRef.current !== resolvedShopId) return;
+          const startupRevision = getOwnerStartupRevision();
           void fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
             `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
             { cache: "no-store" },
           ).then((fullBootstrap) => {
             if (!active || currentBootstrapShopRef.current !== resolvedShopId) return;
+            if (startupRevision !== getOwnerStartupRevision()) return;
             const fullCanonicalBootstrap = assertOwnerBootstrapPayload(fullBootstrap, resolvedShopId, {
               allowMock: shouldUseLocalMobilePreview(),
             });
             resolveOwnerMobileRoleContext(fullCanonicalBootstrap);
             setData(fullCanonicalBootstrap);
-          }).catch(() => {
+            acceptFreshStartup(fullCanonicalBootstrap);
+          }).catch((error) => {
+            if (active && currentBootstrapShopRef.current === resolvedShopId && error instanceof ApiRequestError && [401, 402, 403].includes(error.status)) {
+              rejectStartupSnapshot();
+              setData(null);
+              setLoadFailure(getOwnerMobileLoadFailure(error));
+            }
             // Keep the launch snapshot usable when noncritical data cannot refresh yet.
           });
         });
@@ -579,6 +602,7 @@ export default function OwnerMobilePage() {
         const nextMessage = error instanceof Error ? error.message : "모바일 오너 화면을 불러오지 못했습니다.";
 
         if (isOwnerAuthRecoveryError(nextMessage)) {
+          rejectStartupSnapshot();
           if (shouldUseLocalMobilePreview()) {
             await loadOwnerMobileDemoFallback();
             return;
@@ -592,11 +616,13 @@ export default function OwnerMobilePage() {
           Capacitor.getPlatform() !== "android" &&
           (nextMessage.includes("서비스 이용 기간이 만료") || nextMessage.includes("결제 정보를 확인"))
         ) {
+          rejectStartupSnapshot();
           router.replace("/owner/billing?compare=1" as never);
           router.refresh();
           return;
         }
 
+        if ((error instanceof ApiRequestError && [401, 402, 403, 404].includes(error.status)) || nextMessage.includes("접근할 수 있는 매장이 없습니다") || nextMessage === OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE) rejectStartupSnapshot();
         setLoadFailure(getOwnerMobileLoadFailure(error));
       }
     }
@@ -607,9 +633,10 @@ export default function OwnerMobilePage() {
       active = false;
       cancelFullRefresh?.();
     };
-  }, [loadAttempt, router, supabase]);
+  }, [loadAttempt, router, supabase, acceptFreshStartup, rejectStartupSnapshot]);
 
   async function handleSwitchShop(shopId: string) {
+    if (startupReadOnly) throw new Error("최신 예약을 확인한 뒤 매장을 변경해 주세요.");
     if (!shopId || shopId === selectedShopId) return;
     try {
       const nextBootstrap = await fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
@@ -649,6 +676,7 @@ export default function OwnerMobilePage() {
         allowMock: shouldUseLocalMobilePreview(),
       }));
       setSubscriptionSummary(nextSubscription);
+      acceptFreshStartup(canonicalNextBootstrap);
     } catch (error) {
       if (!(error instanceof Error) || error.message !== OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE) throw error;
       currentBootstrapShopRef.current = null;
@@ -658,7 +686,9 @@ export default function OwnerMobilePage() {
     }
   }
 
-  if (!data) {
+  const displayData = data ?? startupSnapshot?.data ?? null;
+  const displayRole = data ? mobileRoleContext : displayData ? resolveOwnerMobileRoleContext(displayData) : mobileRoleContext;
+  if (!displayData) {
     if (initialSetupState) {
       const leaveInitialSetup = () => {
         initialSetupEntryFinished.current = true;
@@ -679,17 +709,22 @@ export default function OwnerMobilePage() {
   return (
     <>
       <OwnerShell
-        initialData={data}
-        ownedShops={ownedShops}
-        selectedShopId={selectedShopId}
+        key={`${displayData.actor?.userId ?? "current"}:${displayData.shop.id}`}
+        initialData={displayData}
+        ownedShops={ownedShops.length ? ownedShops : [{ id: displayData.shop.id, name: displayData.shop.name, address: displayData.shop.address, heroImageUrl: "" }]}
+        selectedShopId={selectedShopId ?? displayData.shop.id}
         subscriptionSummary={subscriptionSummary}
         userEmail={userEmail}
         onSwitchShop={handleSwitchShop}
-        appRole={mobileRoleContext.appRole}
-        currentStaffId={mobileRoleContext.currentStaffId}
+        appRole={displayRole.appRole}
+        currentStaffId={displayRole.currentStaffId}
+        startupReadOnly={startupReadOnly}
+        onAuthoritativeRefresh={acceptFreshStartup}
+        onStartupAccessDenied={rejectStartupSnapshot}
+        startupNotice={startupSnapshot ? <OwnerStartupNotice capturedAt={startupSnapshot.capturedAt} retry={loadFailure ? () => setLoadAttempt(attempt => attempt + 1) : undefined} /> : null}
         launchPhotoStatusAction={launchPhotoStatusAction}
       />
-      {mobileRoleContext.appRole === "owner" && data.initialSetupReadiness?.completed === false ? (
+      {data && mobileRoleContext.appRole === "owner" && data.initialSetupReadiness?.completed === false ? (
         <aside className="pointer-events-none fixed inset-x-3 top-3 z-40 mx-auto flex max-w-[404px] justify-end" aria-label="초기 설정 안내">
           <button
             type="button"

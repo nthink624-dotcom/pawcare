@@ -39,7 +39,7 @@ export async function getOwnerBootstrapSnapshot(
   const scoped = scopeBootstrapForStaff(data, owner);
   return {
     ...scoped,
-    actor: { shopId: owner.shopId, role: owner.role, staffId: owner.staffId },
+    actor: { shopId: owner.shopId, role: owner.role, staffId: owner.staffId, userId: owner.userId },
     services: projectCanonicalPriceGuidesForRead(scoped.services),
     priceGuideCore: getPriceGuideCoreContract(),
   };

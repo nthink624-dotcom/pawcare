@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-// Owner mobile depends on the authenticated browser session and must not be
-// prerendered with the local development Supabase environment during release builds.
-export const dynamic = "force-dynamic";
+// Public UI only: the browser resolves authentication and records through the
+// protected API. CDN delivery also serves WebViews without service workers.
+export const dynamic = "force-static";
 
 export default function OwnerMobileLayout({ children }: { children: ReactNode }) {
   return children;

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import * as startupWriteFence from "../../shared/lib/owner-startup-write-fence.ts";
 
 const source = readFileSync(new URL("../src/lib/api.ts", import.meta.url), "utf8");
 const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -12,6 +13,7 @@ function loadClient({ deferred = false, failFirst = false } = {}) {
   let elapsedMs = 0;
   const runtimeModule = { exports: {} };
   const require = name => {
+    if (name === "@petmanager/shared/lib/owner-startup-write-fence") return startupWriteFence;
     if (name === "@/lib/env") return {
       buildMobileApiUrl: value => new URL(value, "https://www.petmanager.co.kr").toString(),
       buildAppSameOriginApiUrl: value => new URL(value, "https://app.petmanager.co.kr").toString(),
@@ -44,6 +46,19 @@ test("startup reads reuse preflight permission while retaining per-request autho
     assert.equal(init.redirect, "error");
     assert.equal(init.headers.get("Authorization"), "Bearer fixture-not-a-credential");
   }
+});
+
+test("cached presentation blocks mutations before token recovery or network access", async () => {
+  const { client, calls } = loadClient();
+  const release = startupWriteFence.beginOwnerStartupReadOnly();
+  try {
+    await assert.rejects(client.fetchApiJsonWithAuth("/api/appointments", { method: "POST", body: "{}" }), /최신 예약/);
+    assert.equal(calls.length, 0);
+    await client.fetchApiJsonWithAuth("/api/owner/entry");
+    assert.equal(calls.length, 1);
+  } finally { release(); }
+  await client.fetchApiJsonWithAuth("/api/appointments", { method: "POST", body: "{}" });
+  assert.equal(calls.length, 2);
 });
 
 test("unrelated reads and every mutation retain the caller's cache policy", async () => {

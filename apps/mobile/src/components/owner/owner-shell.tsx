@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
@@ -23,6 +23,7 @@ import {
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
+import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 
 type OwnedShopSummary = {
   id: string;
@@ -212,6 +213,10 @@ export default function OwnerShell({
   appRole = "owner",
   currentStaffId = null,
   launchPhotoStatusAction = null,
+  startupReadOnly = false,
+  onAuthoritativeRefresh,
+  onStartupAccessDenied,
+  startupNotice,
 }: {
   initialData: BootstrapPayload;
   ownedShops: OwnedShopSummary[];
@@ -222,12 +227,20 @@ export default function OwnerShell({
   appRole?: "owner" | "staff";
   currentStaffId?: string | null;
   launchPhotoStatusAction?: OwnerMobileLaunchPhotoStatusAction | null;
+  startupReadOnly?: boolean;
+  onAuthoritativeRefresh?: (data: BootstrapPayload) => void;
+  onStartupAccessDenied?: () => void;
+  startupNotice?: ReactNode;
 }) {
   const router = useRouter();
   const [supabase] = useState<SupabaseClient | null>(() => getSupabaseBrowserClient());
   const [loggingOut, setLoggingOut] = useState(false);
   const [summary, setSummary] = useState(subscriptionSummary);
   const [redirectingToBilling, setRedirectingToBilling] = useState(false);
+  const summaryStatus = summary?.status;
+  useEffect(() => {
+    if (summaryStatus === "expired" || summaryStatus === "past_due") onStartupAccessDenied?.();
+  }, [onStartupAccessDenied, summaryStatus]);
   const isAndroidApp = useSyncExternalStore(
     subscribeRuntimeMode,
     getAndroidRuntimeSnapshot,
@@ -239,7 +252,7 @@ export default function OwnerShell({
   }, [subscriptionSummary]);
 
   useEffect(() => {
-    if (appRole !== "owner") return;
+    if (startupReadOnly || appRole !== "owner") return;
     void syncOwnerPushNotifications({
       shopId: initialData.shop.id,
       staffMemberId: null,
@@ -247,7 +260,7 @@ export default function OwnerShell({
     }).catch(() => {
       // The settings screen presents a safe retry message when registration is unavailable.
     });
-  }, [appRole, currentStaffId, initialData.shop.id]);
+  }, [appRole, currentStaffId, initialData.shop.id, startupReadOnly]);
 
   useEffect(() => {
     if (isAndroidApp || !summary || summary.status !== "past_due") {
@@ -260,6 +273,7 @@ export default function OwnerShell({
   }, [isAndroidApp, router, summary]);
 
   useEffect(() => {
+    if (startupReadOnly) return;
     let active = true;
     let cancelInitialRefresh: (() => void) | undefined;
 
@@ -301,11 +315,12 @@ export default function OwnerShell({
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [initialData.shop.id, subscriptionSummary]);
+  }, [initialData.shop.id, subscriptionSummary, startupReadOnly]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
+    clearOwnerAuthTokenCache();
 
     try {
       if (appRole === "owner" && getOwnerPushPreferences().enabled) {
@@ -347,7 +362,7 @@ export default function OwnerShell({
   return (
     <div className="owner-font">
       {!isAndroidApp && summary ? <TrialNoticeBanner summary={summary} /> : null}
-      {appRole === "owner" ? (
+      {!startupReadOnly && appRole === "owner" ? (
         <OwnerBookingNotificationWatcher
           shopId={initialData.shop.id}
           initialNotifications={initialData.notifications}
@@ -364,7 +379,10 @@ export default function OwnerShell({
         userEmail={userEmail}
         appRole={appRole}
         currentStaffId={currentStaffId}
-        launchPhotoStatusAction={launchPhotoStatusAction}
+        launchPhotoStatusAction={startupReadOnly ? null : launchPhotoStatusAction}
+        startupReadOnly={startupReadOnly}
+        onAuthoritativeRefresh={onAuthoritativeRefresh}
+        startupNotice={startupNotice}
       />
     </div>
   );

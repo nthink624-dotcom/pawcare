@@ -17,6 +17,9 @@ const nextConfig: NextConfig = {
   images: {
     qualities: [75, 90],
   },
+  async headers() {
+    return [{ source: "/owner", headers: [{ key: "X-PetManager-Public-Owner-Shell", value: "1" }] }];
+  },
   env: {
     NEXT_PUBLIC_VERCEL_ENV:
       process.env.VERCEL_ENV || process.env.NEXT_PUBLIC_VERCEL_ENV || "",

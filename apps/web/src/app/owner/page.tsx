@@ -6,7 +6,7 @@ import type { Session } from "@supabase/supabase-js";
 
 import OwnerServiceExpiredScreen from "@/components/owner/owner-service-expired-screen";
 import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
-import { fetchApiJsonWithAuth } from "@/lib/api";
+import { ApiResponseError, fetchApiJsonWithAuth } from "@/lib/api";
 import {
   clearOwnerAuthTokenCache,
   consumeOwnerAuthHandoff,
@@ -26,6 +26,11 @@ import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { readCurrentOwnerShopId, writeCurrentOwnerShopId } from "@/lib/owner-current-shop";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
+import { readOwnerStartupPrincipalHint } from "@/lib/auth/owner-auth-handoff";
+import { useOwnerStartupSession } from "@petmanager/shared/lib/owner-startup-session";
+import { projectOwnerStartupBootstrap } from "@petmanager/shared/lib/owner-startup-projection";
+import { OwnerStartupNotice } from "@petmanager/shared/components/owner-startup-notice";
+import { getOwnerStartupRevision } from "@petmanager/shared/lib/owner-startup-write-fence";
 
 type OwnedShopSummary = {
   id: string;
@@ -53,7 +58,7 @@ type OwnerBootstrapPhase = "essential" | "full";
 const ownerBootstrapInFlight = new Map<string, Promise<BootstrapPayload>>();
 
 function loadOwnerBootstrapOnce(shopId: string, phase: OwnerBootstrapPhase) {
-  const requestKey = `${shopId}:${phase}`;
+  const requestKey = JSON.stringify([shopId, phase, readOwnerStartupPrincipalHint(), readOwnerAuthTokenCache()]);
   const existing = ownerBootstrapInFlight.get(requestKey);
   if (existing) return existing;
 
@@ -134,7 +139,7 @@ function withOwnerSessionTimeout<T>(promise: Promise<T>): Promise<T> {
 
 export default function OwnerPage() {
   const router = useRouter();
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const supabase = useMemo(() => typeof window === "undefined" ? null : getSupabaseBrowserClient(), []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
   const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
@@ -142,6 +147,11 @@ export default function OwnerPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showSlowLoadHint, setShowSlowLoadHint] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const { snapshot: startupSnapshot, needsFresh: startupReadOnly, acceptFresh: acceptFreshStartup, rejectSnapshot: rejectStartupSnapshot } = useOwnerStartupSession<BootstrapPayload>({
+    readPrincipalHint: readOwnerStartupPrincipalHint,
+    readShopHint: () => new URLSearchParams(window.location.search).get("shopId")?.trim() || readCurrentOwnerShopId(),
+    project: projectOwnerStartupBootstrap,
+  });
   const backgroundRefreshReadyAtRef = useRef(Date.now() + 5000);
 
   async function getOwnerAccessContext(): Promise<OwnerAccessContext | null> {
@@ -244,12 +254,14 @@ export default function OwnerPage() {
         const ownerAccess = await getOwnerAccessContext();
 
         if (!ownerAccess?.accessToken) {
+          rejectStartupSnapshot();
           router.replace("/login" as never);
           router.refresh();
           return;
         }
 
         if (ownerAccess.session?.user.user_metadata?.account_suspended === true) {
+          rejectStartupSnapshot();
           if (active) {
             setLoadError("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
           }
@@ -272,6 +284,7 @@ export default function OwnerPage() {
           if (active) {
             if (!requestedShopId) writeOwnerBillingSummaryCache(subscription);
             setSubscriptionSummary(subscription);
+            if (isOwnerSubscriptionBlocked(subscription.status)) rejectStartupSnapshot();
           }
           return subscription;
         };
@@ -326,13 +339,20 @@ export default function OwnerPage() {
         if (!requestedShopId) writeCurrentOwnerShopId(resolvedShopId);
         setSelectedShopId(resolvedShopId);
         setData(bootstrap);
+        acceptFreshStartup(bootstrap);
         window.performance.mark("petmanager:owner-login:owner-usable");
         backgroundRefreshReadyAtRef.current = Date.now() + 5000;
         const fullBootstrapTimer = window.setTimeout(() => {
           if (!active) return;
+          const startupRevision = getOwnerStartupRevision();
           void loadBootstrap(resolvedShopId, "full").then((fullBootstrap) => {
-            if (active) setData(fullBootstrap);
-          }).catch(() => {
+            if (active && startupRevision === getOwnerStartupRevision()) { setData(fullBootstrap); acceptFreshStartup(fullBootstrap); }
+          }).catch((error) => {
+            if (active && error instanceof ApiResponseError && [401, 402, 403].includes(error.status)) {
+              rejectStartupSnapshot();
+              setData(null);
+              setLoadError(getOwnerLoadErrorMessage(error));
+            }
             // Essential data is already authorized and usable; retry deferred data on the normal refresh cycle.
           });
         }, 1200);
@@ -342,9 +362,12 @@ export default function OwnerPage() {
       } catch (error) {
         if (!active) return;
 
+        if (error instanceof ApiResponseError && [401, 402, 403, 404].includes(error.status)) rejectStartupSnapshot();
+
         const nextMessage = getOwnerLoadErrorMessage(error);
 
         if (isOwnerAuthRecoveryError(nextMessage)) {
+          rejectStartupSnapshot();
           clearOwnerAuthTokenCache();
           router.replace("/login" as never);
           router.refresh();
@@ -355,11 +378,13 @@ export default function OwnerPage() {
           nextMessage.includes("소유한 매장이 없습니다.") ||
           nextMessage.includes("연결된 매장 정보를 찾을 수 없습니다.")
         ) {
+          rejectStartupSnapshot();
           setLoadError("연결된 매장 정보를 찾을 수 없습니다. 고객센터로 문의해 주세요.");
           return;
         }
 
         if (nextMessage.includes("일시 중지")) {
+          rejectStartupSnapshot();
           setLoadError("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
           return;
         }
@@ -373,7 +398,7 @@ export default function OwnerPage() {
     return () => {
       active = false;
     };
-  }, [router, supabase]);
+  }, [router, supabase, acceptFreshStartup, rejectStartupSnapshot]);
 
   useEffect(() => {
     if (!accessToken || data) return;
@@ -400,6 +425,7 @@ export default function OwnerPage() {
         setSubscriptionSummary(nextSubscription);
 
         if (isOwnerSubscriptionBlocked(nextSubscription.status)) {
+          rejectStartupSnapshot();
           return;
         }
 
@@ -409,6 +435,7 @@ export default function OwnerPage() {
         );
         if (active) {
           setData(nextBootstrap);
+          acceptFreshStartup(nextBootstrap);
         }
       } catch {
         // Keep the current dashboard stable when a background sync misses.
@@ -425,7 +452,7 @@ export default function OwnerPage() {
       window.removeEventListener("focus", refreshDesktopData);
       document.removeEventListener("visibilitychange", refreshDesktopData);
     };
-  }, [accessToken, selectedShopId]);
+  }, [accessToken, selectedShopId, acceptFreshStartup, rejectStartupSnapshot]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -455,7 +482,8 @@ export default function OwnerPage() {
     );
   }
 
-  if (!data) {
+  const displayData = data ?? startupSnapshot?.data ?? null;
+  if (!displayData) {
     return (
       <div className="owner-font min-h-screen w-full bg-white text-[#15213b]">
         <div className="mx-auto w-full max-w-[960px] px-4 sm:px-6 lg:px-8">
@@ -507,5 +535,8 @@ export default function OwnerPage() {
     );
   }
 
-  return <OwnerWebPreview initialData={data} onDataChange={setData} currentPlanCode={subscriptionSummary?.currentPlanCode ?? null} />;
+  return <>
+    {startupSnapshot ? <OwnerStartupNotice capturedAt={startupSnapshot.capturedAt} /> : null}
+    <OwnerWebPreview key={`${displayData.actor?.userId ?? "current"}:${displayData.shop.id}`} initialData={displayData} onDataChange={setData} currentPlanCode={subscriptionSummary?.currentPlanCode ?? null} />
+  </>;
 }

@@ -2,6 +2,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { buildAppSameOriginApiUrl, buildMobileApiUrl, getMobileApiOrigin } from "@/lib/env";
 import { readOwnerAuthTokenCache, setCurrentOwnerAccessToken } from "@/lib/auth/owner-auth-handoff";
 import type { BootstrapPayload } from "@/types/domain";
+import { assertOwnerStartupWriteReady } from "@petmanager/shared/lib/owner-startup-write-fence";
 
 export type PublicBootstrapPayload = Pick<
   BootstrapPayload,
@@ -61,10 +62,12 @@ async function fetchApiJsonAtUrl<T>(url: string, init?: RequestInit, credentials
 }
 
 export async function fetchApiJson<T>(input: string, init?: RequestInit) {
+  assertOwnerStartupWriteReady(init?.method);
   return fetchApiJsonAtUrl<T>(buildApiUrl(input), init);
 }
 
 export async function fetchAppApiJson<T>(input: string, init?: RequestInit) {
+  assertOwnerStartupWriteReady(init?.method);
   return fetchApiJsonAtUrl<T>(buildAppSameOriginApiUrl(input), init, "same-origin");
 }
 
@@ -116,6 +119,7 @@ const OWNER_STARTUP_JOIN_WINDOW_MS = 500;
 const ownerStartupReadsInFlight = new Map<string, { pending: Promise<unknown>; startedAt: number }>();
 
 export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
+  assertOwnerStartupWriteReady(init?.method);
   const requestUrl = buildApiUrl(input);
   if (new URL(requestUrl).origin !== getMobileApiOrigin()) {
     throw new Error("인증 요청 원점을 확인해 주세요.");

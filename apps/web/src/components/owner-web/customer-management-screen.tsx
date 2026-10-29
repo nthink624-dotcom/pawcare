@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, CalendarPlus, MessageSquareText, Trash2, X } from "lucide-react";
 
+import { isOwnerStartupPresentation } from "@petmanager/shared/lib/owner-startup-projection";
+import { OwnerStartupDetailsBoundary } from "@petmanager/shared/components/owner-startup-details-boundary";
 import { BasilIcon } from "@/components/owner-web/basil-icon";
 import CustomerDetailPanel from "@/components/owner-web/customer-detail-panel";
 import { buildCustomerDetailFromBootstrap } from "@/components/owner-web/customer-detail-helpers";
@@ -1542,6 +1544,7 @@ export default function CustomerManagementScreen({
       ) : null}
 
       {selectedCustomer && selectedCustomerDetail && detailSheetOpen ? (
+        <OwnerStartupDetailsBoundary pending={isOwnerStartupPresentation(bootstrapData)} title={"\uACE0\uAC1D \uC0C1\uC138"} onClose={() => setDetailSheetOpen(false)}>
         <CustomerDetailPanel
           detail={selectedCustomerDetail}
           selectedPetId={selectedPetId}
@@ -1557,6 +1560,7 @@ export default function CustomerManagementScreen({
           onCreateReservation={openCustomerReservationModal}
           onClose={() => setDetailSheetOpen(false)}
         />
+        </OwnerStartupDetailsBoundary>
       ) : null}
     </div>
   );

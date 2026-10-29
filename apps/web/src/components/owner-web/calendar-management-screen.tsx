@@ -1,5 +1,9 @@
 "use client";
 
+import { isOwnerStartupPresentation } from "@petmanager/shared/lib/owner-startup-projection";
+import { OwnerStartupDetailsBoundary } from "@petmanager/shared/components/owner-startup-details-boundary";
+
+
 import {
   AlertTriangle,
   CalendarPlus,
@@ -4194,7 +4198,9 @@ export default function CalendarManagementScreen({
   onCreateRequestHandled?: (requestId: number) => void;
 }) {
   const [bootstrapData, setBootstrapData] = useState(() => initialData);
+  const [detailProjectionPending, setDetailProjectionPending] = useState(() => isOwnerStartupPresentation(initialData));
   const bootstrapDataRef = useRef(bootstrapData);
+  useEffect(() => { setDetailProjectionPending(isOwnerStartupPresentation(bootstrapData)); }, [bootstrapData]);
   const onDataChangeRef = useRef(onDataChange);
   useEffect(() => {
     onDataChangeRef.current = onDataChange;
@@ -5723,6 +5729,7 @@ export default function CalendarManagementScreen({
         </section>
 
         <div className={dockedBookingDetail ? "h-full min-h-0 min-w-0" : undefined} inert={careReportFlowOverlayOpen ? true : undefined} aria-hidden={careReportFlowOverlayOpen || undefined}>
+          <OwnerStartupDetailsBoundary pending={Boolean(selectedBooking) && (isOwnerStartupPresentation(bootstrapData) || detailProjectionPending)} title={"\uC608\uC57D \uC0C1\uC138"} embedded={dockedBookingDetail} modal={!dockedBookingDetail} onClose={closeBookingDetail}>
           <BookingSidePanel
             docked={dockedBookingDetail}
             activeMetric={activeMetric}
@@ -5766,6 +5773,7 @@ export default function CalendarManagementScreen({
               void refreshScheduleRangeAfterStatusChange(date, optimisticData);
             }}
             />
+          </OwnerStartupDetailsBoundary>
         </div>
       </div>
       {careReportChoiceBooking ? (

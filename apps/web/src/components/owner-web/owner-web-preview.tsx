@@ -37,6 +37,8 @@ import { defaultStaffProfileMessage } from "@/lib/staff-display";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload, OwnerInitialSetupStepKey, OwnerProfile } from "@/types/domain";
+import { isOwnerStartupPresentation } from "@petmanager/shared/lib/owner-startup-projection";
+import { OwnerStartupDetailsBoundary } from "@petmanager/shared/components/owner-startup-details-boundary";
 
 function OwnerScreenLoading() {
   return (
@@ -234,6 +236,9 @@ function renderScreen(
   uploadInitialSetupStaffPhoto?: StaffProfilePhotoUploader,
   onServiceSettingsBack?: () => void,
 ) {
+  if (isOwnerStartupPresentation(initialData) && !["schedule", "customers"].includes(screen)) {
+    return <OwnerStartupDetailsBoundary pending title={"\uC0C1\uC138 \uC815\uBCF4"} embedded modal={false}>{null}</OwnerStartupDetailsBoundary>;
+  }
   const handleStaffScheduleOverridesChange = (staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"]) => {
     onDataChange({ ...initialData, staffScheduleOverrides });
   };

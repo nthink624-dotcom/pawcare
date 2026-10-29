@@ -9,6 +9,7 @@ import {
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 import type { Session } from "@supabase/supabase-js";
+import { assertOwnerStartupWriteReady } from "@petmanager/shared/lib/owner-startup-write-fence";
 
 export type PublicBootstrapPayload = Pick<
   BootstrapPayload,
@@ -43,6 +44,7 @@ export function buildApiUrl(path: string) {
 }
 
 export async function fetchApiJson<T>(input: string, init?: RequestInit) {
+  assertOwnerStartupWriteReady(init?.method);
   const response = await fetch(buildApiUrl(input), init);
   const contentType = response.headers.get("content-type") || "";
   const text = await response.text();
@@ -186,6 +188,7 @@ async function getAccessTokenWithRecovery() {
 }
 
 export async function fetchApiJsonWithBearer<T>(input: string, accessToken: string, init?: RequestInit) {
+  assertOwnerStartupWriteReady(init?.method);
   const headers = new Headers(init?.headers);
   const hasFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
   if (!headers.has("Content-Type") && !hasFormDataBody) {
@@ -200,6 +203,7 @@ export async function fetchApiJsonWithBearer<T>(input: string, accessToken: stri
 }
 
 export async function fetchApiResponseWithBearer(input: string, accessToken: string, init?: RequestInit) {
+  assertOwnerStartupWriteReady(init?.method);
   const headers = new Headers(init?.headers);
   const hasFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
   if (!headers.has("Content-Type") && !hasFormDataBody) {
@@ -214,6 +218,7 @@ export async function fetchApiResponseWithBearer(input: string, accessToken: str
 }
 
 export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
+  assertOwnerStartupWriteReady(init?.method);
   const accessToken = await getAccessTokenWithRecovery();
   try {
     return await fetchApiJsonWithBearer<T>(input, accessToken, init);
@@ -229,6 +234,7 @@ export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit)
 }
 
 export async function fetchApiResponseWithAuth(input: string, init?: RequestInit) {
+  assertOwnerStartupWriteReady(init?.method);
   const accessToken = await getAccessTokenWithRecovery();
   let response = await fetchApiResponseWithBearer(input, accessToken, init);
   if (response.status !== 401) return response;

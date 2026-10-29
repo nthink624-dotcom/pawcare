@@ -1,3 +1,4 @@
+import { clearOwnerStartupSnapshots, ownerStartupPrincipalHint } from "@petmanager/shared/lib/owner-startup-store";
 export const OWNER_AUTH_HANDOFF_STORAGE_KEY = "petmanager.ownerAuthHandoff";
 const OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY = "petmanager.ownerAuthTokenCache";
 let currentOwnerAccessToken: { accessToken: string; expiresAt: number | null } | null = null;
@@ -108,6 +109,12 @@ function getJwtExpiresAt(accessToken: string) {
 }
 
 export function writeOwnerAuthTokenCache(accessToken: string, refreshToken?: string) {
+  if (typeof window !== "undefined") {
+    const principal = ownerStartupPrincipalHint(accessToken);
+    const previousPrincipal = safeGetItem(window.localStorage, "petmanager.ownerStartupPrincipal");
+    if (principal && previousPrincipal && principal !== previousPrincipal) void clearOwnerStartupSnapshots().catch(() => undefined);
+    if (principal) safeSetItem(window.localStorage, "petmanager.ownerStartupPrincipal", principal);
+  }
   const expiresAt = getJwtExpiresAt(accessToken);
   currentOwnerAccessToken = { accessToken, expiresAt };
   if (typeof window === "undefined") return;
@@ -188,8 +195,28 @@ export function readOwnerAuthRefreshTokenCache() {
 }
 
 export function clearOwnerAuthTokenCache() {
+  if (typeof window !== "undefined") safeRemoveItem(window.localStorage, "petmanager.ownerStartupPrincipal");
+  if (typeof window !== "undefined") void clearOwnerStartupSnapshots().catch(() => undefined);
   currentOwnerAccessToken = null;
   if (typeof window === "undefined") return;
   safeRemoveItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
   safeRemoveItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+}
+
+/** Presentation lookup only: this may be expired and MUST NOT authorize a request. */
+export function peekOwnerStartupPresentationToken() {
+  if (typeof window === "undefined") return null;
+  // A handoff alone must never resurrect presentation data after logout.
+  if (!safeGetItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY) && !safeGetItem(window.localStorage, "petmanager.ownerStartupPrincipal")) return null;
+  for (const key of [OWNER_AUTH_HANDOFF_STORAGE_KEY, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY]) {
+    const raw = safeGetItem(window.localStorage, key);
+    if (!raw) continue;
+    try { const value = JSON.parse(raw); if (typeof value.accessToken === "string") return value.accessToken as string; } catch { /* Invalid presentation hint. */ }
+  }
+  return null;
+}
+
+/** A partition hint only; expiry, permissions and all mutations use fresh server checks. */
+export function readOwnerStartupPrincipalHint() {
+  return ownerStartupPrincipalHint(peekOwnerStartupPresentationToken()) ?? (typeof window === "undefined" ? null : safeGetItem(window.localStorage, "petmanager.ownerStartupPrincipal"));
 }

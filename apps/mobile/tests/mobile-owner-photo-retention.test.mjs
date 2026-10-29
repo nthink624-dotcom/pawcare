@@ -395,10 +395,9 @@ test("owner mobile entry defers local prune without blocking auth or making a se
   assert.ok(entryStart >= 0 && entryEnd > entryStart);
   assert.ok(entryStart < authStart && entryEnd < authLoadStart);
   const entry = ownerMobilePageSource.slice(entryStart, entryEnd);
-  assert.match(entry, /if \(ownerMobileEntryPruneStartedRef\.current\) return;/);
-  assert.match(entry, /window\.setTimeout\(/);
-  assert.match(entry, /\}, 1500\);/);
-  assert.match(entry, /return \(\) => window\.clearTimeout\(timer\)/);
+  assert.match(entry, /if \(!data \|\| ownerMobileEntryPruneStartedRef\.current\) return;/);
+  assert.match(entry, /return scheduleOwnerEntryBackground\(/);
+  assert.match(entry, /\}, \[data\]\)/);
   assert.match(entry, /void runOwnerMobileEntryPendingPhotoPrune\(\)\.catch/);
   assert.match(entry, /ownerMobileEntryPruneStartedRef\.current = false/);
   assert.doesNotMatch(entry, /await |fetchApiJsonWithAuth|getOwnerAccessContext|router\.replace|supabase|console\./);

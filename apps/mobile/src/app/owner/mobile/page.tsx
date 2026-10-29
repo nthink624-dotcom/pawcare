@@ -5,8 +5,10 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 
+import OwnerShell from "@/components/owner/owner-shell";
 import { ApiRequestError, fetchApiJsonWithAuth } from "@/lib/api";
 import { loadOwnerEntry } from "@/lib/owner-entry";
+import { scheduleOwnerEntryBackground } from "@/lib/owner-entry-background";
 import {
   assertOwnerBootstrapPayload,
   OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE,
@@ -32,9 +34,6 @@ import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import type { Session } from "@supabase/supabase-js";
 
-const OwnerShell = dynamic(() => import("@/components/owner/owner-shell"), {
-  loading: () => <OwnerMobileLoadingScreen message="화면을 준비하고 있습니다." />,
-});
 const OwnerInitialSetupFlow = dynamic(() => import("@/components/owner/owner-initial-setup-flow"), {
   loading: () => <OwnerMobileLoadingScreen message="설정 화면을 준비하고 있습니다." />,
 });
@@ -304,6 +303,7 @@ export default function OwnerMobilePage() {
   const [data, setData] = useState<CanonicalOwnerBootstrapPayload | null>(null);
   const [ownedShops, setOwnedShops] = useState<OwnedShopSummary[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const currentBootstrapShopRef = useRef<string | null>(null);
   const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [mobileRoleContext, setMobileRoleContext] = useState<OwnerMobileRoleContext>({
@@ -318,16 +318,15 @@ export default function OwnerMobilePage() {
   const ownerMobileEntryPruneStartedRef = useRef(false);
 
   useEffect(() => {
-    if (ownerMobileEntryPruneStartedRef.current) return;
-    // Local expiry enforcement still runs on entry, after the first UI budget.
-    const timer = window.setTimeout(() => {
+    if (!data || ownerMobileEntryPruneStartedRef.current) return;
+    // Keep local expiry enforcement out of authentication and initial rendering.
+    return scheduleOwnerEntryBackground(() => {
       ownerMobileEntryPruneStartedRef.current = true;
       void runOwnerMobileEntryPendingPhotoPrune().catch(() => {
         ownerMobileEntryPruneStartedRef.current = false;
       });
-    }, 1500);
-    return () => window.clearTimeout(timer);
-  }, []);
+    });
+  }, [data]);
 
   async function loadOwnerMobileDemoFallback() {
     const { buildOwnerDemoBootstrap } = await import("@/lib/owner-demo-data");
@@ -340,6 +339,7 @@ export default function OwnerMobilePage() {
         heroImageUrl: demoBootstrap.shop.customer_page_settings.hero_image_url,
       },
     ]);
+    currentBootstrapShopRef.current = demoBootstrap.shop.id;
     setSelectedShopId(demoBootstrap.shop.id);
     setSubscriptionSummary(null);
     setUserEmail(null);
@@ -441,10 +441,9 @@ export default function OwnerMobilePage() {
 
   useEffect(() => {
     let active = true;
+    let cancelFullRefresh: (() => void) | undefined;
 
     async function load() {
-      // Prepare UI code alongside the existing authenticated entry checks.
-      void import("@/components/owner/owner-shell").catch(() => undefined);
       if (isOwnerCallScreeningAvailable()) {
         // These reads do not consume the native action. Warm the small call UI
         // while the authenticated launch data is still being fetched.
@@ -495,6 +494,7 @@ export default function OwnerMobilePage() {
 
         if (!resolvedShopId) {
           setOwnedShops(shops);
+          currentBootstrapShopRef.current = null;
           setSelectedShopId(null);
           setLoadFailure({
             kind: "no-shop",
@@ -518,6 +518,7 @@ export default function OwnerMobilePage() {
         const roleContext = resolveOwnerMobileRoleContext(canonicalBootstrap);
         const readiness = readOwnerInitialSetupReadiness(canonicalBootstrap, resolvedShopId);
         setOwnedShops(shops);
+        currentBootstrapShopRef.current = resolvedShopId;
         setSelectedShopId(resolvedShopId);
         setMobileRoleContext(roleContext);
 
@@ -557,18 +558,21 @@ export default function OwnerMobilePage() {
         setData(canonicalBootstrap);
         setSubscriptionSummary(subscription);
 
-        void fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
-          `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
-          { cache: "no-store" },
-        ).then((fullBootstrap) => {
-          if (!active) return;
-          const fullCanonicalBootstrap = assertOwnerBootstrapPayload(fullBootstrap, resolvedShopId, {
-            allowMock: shouldUseLocalMobilePreview(),
+        cancelFullRefresh = scheduleOwnerEntryBackground(() => {
+          if (!active || currentBootstrapShopRef.current !== resolvedShopId) return;
+          void fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
+            `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
+            { cache: "no-store" },
+          ).then((fullBootstrap) => {
+            if (!active || currentBootstrapShopRef.current !== resolvedShopId) return;
+            const fullCanonicalBootstrap = assertOwnerBootstrapPayload(fullBootstrap, resolvedShopId, {
+              allowMock: shouldUseLocalMobilePreview(),
+            });
+            resolveOwnerMobileRoleContext(fullCanonicalBootstrap);
+            setData(fullCanonicalBootstrap);
+          }).catch(() => {
+            // Keep the launch snapshot usable when noncritical data cannot refresh yet.
           });
-          resolveOwnerMobileRoleContext(fullCanonicalBootstrap);
-          setData(fullCanonicalBootstrap);
-        }).catch(() => {
-          // Keep the launch snapshot usable when noncritical data cannot refresh yet.
         });
       } catch (error) {
         if (!active) return;
@@ -601,6 +605,7 @@ export default function OwnerMobilePage() {
 
     return () => {
       active = false;
+      cancelFullRefresh?.();
     };
   }, [loadAttempt, router, supabase]);
 
@@ -627,6 +632,7 @@ export default function OwnerMobilePage() {
         window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, shopId);
       }
 
+      currentBootstrapShopRef.current = shopId;
       setSelectedShopId(shopId);
       setMobileRoleContext(nextRoleContext);
 
@@ -645,6 +651,7 @@ export default function OwnerMobilePage() {
       setSubscriptionSummary(nextSubscription);
     } catch (error) {
       if (!(error instanceof Error) || error.message !== OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE) throw error;
+      currentBootstrapShopRef.current = null;
       setData(null);
       setInitialSetupState(null);
       setLoadFailure(getOwnerMobileLoadFailure(error));

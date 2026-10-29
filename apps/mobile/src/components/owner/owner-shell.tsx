@@ -10,6 +10,7 @@ import OwnerApp, { type OwnerMobileLaunchPhotoStatusAction } from "@/components/
 import OwnerBookingNotificationWatcher from "@/components/owner/owner-booking-notification-watcher";
 import { OwnerNativeBillingNotice } from "@/components/owner/owner-native-billing-notice";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { scheduleOwnerEntryBackground } from "@/lib/owner-entry-background";
 import { clearOwnerCareReportLocalDrafts } from "@/lib/care-report/owner-care-report-local-draft";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
@@ -260,8 +261,10 @@ export default function OwnerShell({
 
   useEffect(() => {
     let active = true;
+    let cancelInitialRefresh: (() => void) | undefined;
 
     async function refreshSummary() {
+      cancelInitialRefresh?.();
       try {
         const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
           `/api/subscription?shopId=${encodeURIComponent(initialData.shop.id)}`,
@@ -284,12 +287,17 @@ export default function OwnerShell({
       }
     };
 
-    if (subscriptionSummary?.shopId !== initialData.shop.id) void refreshSummary();
+    if (subscriptionSummary?.shopId !== initialData.shop.id) {
+      cancelInitialRefresh = scheduleOwnerEntryBackground(() => {
+        if (active) void refreshSummary();
+      });
+    }
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       active = false;
+      cancelInitialRefresh?.();
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };

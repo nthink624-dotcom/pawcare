@@ -82,11 +82,12 @@ test("admin operations hash feedback server-side and expose no raw text in the p
 });
 
 test("authenticated owner bootstrap includes the shared cohort projection while public bootstrap does not", async () => {
-  const [bootstrap, route, domain, staffPrivacy] = await Promise.all([
+  const [bootstrap, route, domain, staffPrivacy, snapshot] = await Promise.all([
     readFile(bootstrapPath, "utf8"),
     readFile(bootstrapRoutePath, "utf8"),
     readFile(domainPath, "utf8"),
     readFile(staffPrivacyPath, "utf8"),
+    readFile(new URL("../../src/server/owner-bootstrap-snapshot.ts", import.meta.url), "utf8"),
   ]);
   assert.match(domain, /pilotCohort\?: OwnerPilotCohortProjection/);
   assert.match(bootstrap, /getOwnerPilotCohortProjection\(\{ ownerUserId: rawShop\.owner_user_id, shopId \}\)/);
@@ -94,6 +95,8 @@ test("authenticated owner bootstrap includes the shared cohort projection while 
   const publicScope = route.slice(route.indexOf('if (scope === "public")'), route.indexOf("const owner = await requireOwnerShop"));
   assert.match(publicScope, /includePilotCohort: false/);
   assert.doesNotMatch(publicScope, /pilotCohort: data\.pilotCohort/);
-  assert.match(route, /scopeBootstrapForStaff\(data, owner\)/);
+  assert.match(route, /getOwnerBootstrapSnapshot\(owner, phase,/);
+  assert.match(snapshot, /scopeBootstrapForStaff\(data, owner\)/);
+  assert.match(snapshot, /includePilotCohort: phase === "full"/);
   assert.match(staffPrivacy, /pilotCohort: undefined/);
 });

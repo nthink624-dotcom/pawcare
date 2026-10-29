@@ -4,32 +4,11 @@ import { getBootstrap } from "@/server/bootstrap";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import { assertBootstrapOwnerInitialSetupComplete } from "@/server/owner-initial-setup-guard";
-import { scopeBootstrapForStaff } from "@/server/staff-privacy";
+import { getOwnerBootstrapSnapshot } from "@/server/owner-bootstrap-snapshot";
 import {
   getPriceGuideCoreContract,
   projectCanonicalPriceGuidesForRead,
 } from "@/lib/price-guide-core";
-
-function formatDate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function addMonths(date: Date, months: number) {
-  const next = new Date(date);
-  next.setMonth(next.getMonth() + months);
-  return next;
-}
-
-function getOwnerInitialDataWindow() {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const to = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-  return {
-    from: formatDate(from),
-    to: formatDate(to),
-    groomingFrom: formatDate(addMonths(now, -3)),
-  };
-}
 
 export async function GET(request: NextRequest) {
   const requestStartedAt = performance.now();
@@ -66,37 +45,10 @@ export async function GET(request: NextRequest) {
       authorizationPhaseDurations.set(phase, durationMs);
     }, { deferBillingMaintenance: true });
     authorizationDurationMs = performance.now() - authorizationStartedAt;
-    const initialWindow = getOwnerInitialDataWindow();
     const bootstrapStartedAt = performance.now();
-    const data = await getBootstrap(owner.shopId, {
-      includeDepositPreview: owner.role !== "staff",
-      allowMock: false,
-      includeLanding: false,
-      appointmentsFrom: initialWindow.from,
-      appointmentsTo: initialWindow.to,
-      groomingRecordsFrom: initialWindow.groomingFrom,
-      groomingRecordsTo: initialWindow.to,
-      groomingRecordLimit: 1000,
-      notificationLimit: 200,
-      includeNotifications: phase === "full",
-      includeAppointmentChangeEvents: phase === "full",
-      includeGroomingRecords: phase === "full",
-      includeOwnerExtras: phase === "full",
-      includeOwnerProfile: phase === "full" || phase === "launch",
-      // The cohort projection only changes optional shell styling; keep its query out of first paint.
-      includePilotCohort: phase === "full",
-      includeStaffProfileImages: phase === "full",
-      includePetDisplayPhotos: phase === "full",
-      onTiming: (phase, durationMs) => bootstrapPhaseDurations.set(phase, durationMs),
-    });
+    const data = await getOwnerBootstrapSnapshot(owner, phase, (phase, durationMs) => bootstrapPhaseDurations.set(phase, durationMs));
     bootstrapDurationMs = performance.now() - bootstrapStartedAt;
-    const scoped = scopeBootstrapForStaff(data, owner);
-    const response = ownerMobileCorsJson(request, {
-      ...scoped,
-      actor: { shopId: owner.shopId, role: owner.role, staffId: owner.staffId },
-      services: projectCanonicalPriceGuidesForRead(scoped.services),
-      priceGuideCore: getPriceGuideCoreContract(),
-    });
+    const response = ownerMobileCorsJson(request, data);
     const internalAuthorizationTimings = [
       "subscription_read",
       "subscription_reconcile",

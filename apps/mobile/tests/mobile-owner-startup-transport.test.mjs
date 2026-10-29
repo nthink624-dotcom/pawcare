@@ -33,11 +33,11 @@ function loadClient({ deferred = false, failFirst = false } = {}) {
 
 test("startup reads reuse preflight permission while retaining per-request authorization", async () => {
   const { client, calls } = loadClient();
-  for (const path of ["/api/bootstrap?phase=launch", "/api/owner/shops", "/api/subscription?shopId=fixture-shop"]) {
+  for (const path of ["/api/bootstrap?phase=launch", "/api/owner/shops", "/api/subscription?shopId=fixture-shop", "/api/owner/entry?includeSubscription=0"]) {
     const result = await client.fetchApiJsonWithAuth(path, { cache: "no-store" });
     assert.deepEqual(result, { fixture: true });
   }
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   for (const { init } of calls) {
     assert.equal(init.cache, "default");
     assert.equal(init.credentials, "omit");

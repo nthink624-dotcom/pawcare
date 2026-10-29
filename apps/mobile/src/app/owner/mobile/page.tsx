@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 
 import { ApiRequestError, fetchApiJsonWithAuth } from "@/lib/api";
+import { loadOwnerEntry } from "@/lib/owner-entry";
 import {
   assertOwnerBootstrapPayload,
   OWNER_MOBILE_AUTHORITY_ERROR_MESSAGE,
@@ -484,25 +485,10 @@ export default function OwnerMobilePage() {
 
         const storedShopId =
           typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE) : null;
-        // A previously selected shop is only a performance hint. Start its
-        // authenticated bootstrap in parallel, then accept it only after the
-        // current membership list confirms the same shop ID.
-        // The launch snapshot and the membership list do not depend on each
-        // other. Starting both requests together removes the previous
-        // auth -> shops -> bootstrap waterfall from the first mobile paint.
-        // When no shop has been selected yet, the owner API resolves the
-        // first accessible shop and still returns a canonical shop boundary.
-        const launchBootstrapRequest = fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
-          storedShopId
-            ? `/api/bootstrap?shopId=${encodeURIComponent(storedShopId)}&phase=launch`
-            : "/api/bootstrap?phase=launch",
-          { cache: "no-store" },
-        ).then(
-          (payload) => ({ ok: true as const, payload }),
-          (error) => ({ ok: false as const, error }),
-        );
-        const shopsRequest = fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops");
-        const [shops, launchBootstrap] = await Promise.all([shopsRequest, launchBootstrapRequest]);
+        const firstSetupEntry = !initialSetupEntryFinished.current && new URLSearchParams(window.location.search).get("entry") === "initial_setup";
+        const isAndroidApp = Capacitor.getPlatform() === "android";
+        const entry = await loadOwnerEntry(storedShopId, !isAndroidApp && !firstSetupEntry);
+        const shops = entry.shops;
         if (!active) return;
         const resolvedShopId =
           (storedShopId && shops.some((shop) => shop.id === storedShopId) ? storedShopId : shops[0]?.id) ?? null;
@@ -523,13 +509,7 @@ export default function OwnerMobilePage() {
           window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
         }
 
-        const bootstrap =
-          launchBootstrap.ok && launchBootstrap.payload.shop?.id === resolvedShopId
-            ? launchBootstrap.payload
-            : await fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>(
-                `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}&phase=launch`,
-                { cache: "no-store" },
-              );
+        const bootstrap = entry.bootstrap;
         if (!active) return;
 
         const canonicalBootstrap = assertOwnerBootstrapPayload(bootstrap, resolvedShopId, {
@@ -541,7 +521,6 @@ export default function OwnerMobilePage() {
         setSelectedShopId(resolvedShopId);
         setMobileRoleContext(roleContext);
 
-        const firstSetupEntry = !initialSetupEntryFinished.current && new URLSearchParams(window.location.search).get("entry") === "initial_setup";
         if (roleContext.appRole === "owner" && firstSetupEntry) {
           setData(null);
           setSubscriptionSummary(null);
@@ -553,16 +532,17 @@ export default function OwnerMobilePage() {
         // refreshes this same summary after mount and swaps in the native billing
         // notice when needed. Browsers still resolve it first because they may
         // redirect to the billing page before exposing the owner surface.
-        const isAndroidApp = Capacitor.getPlatform() === "android";
         // A delegated owner can operate this shop but cannot read the primary owner's
         // billing-management endpoint. Bootstrap has already enforced shop access and
         // subscription access; do not turn that billing 403 into a broken booking screen.
         const shouldResolveSubscriptionBeforeRender = !isAndroidApp && Boolean(canonicalBootstrap.ownerProfile);
         const subscription = roleContext.appRole === "owner" && readiness.completed && shouldResolveSubscriptionBeforeRender
-          ? await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
-              `/api/subscription?shopId=${encodeURIComponent(resolvedShopId)}`,
-              { cache: "no-store" },
-            )
+          ? entry.subscriptionSummary?.shopId === resolvedShopId
+            ? entry.subscriptionSummary
+            : await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
+                `/api/subscription?shopId=${encodeURIComponent(resolvedShopId)}`,
+                { cache: "no-store" },
+              )
           : null;
         if (!active) return;
 

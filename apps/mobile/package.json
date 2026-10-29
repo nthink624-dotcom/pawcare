@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "prebuild": "node ../../scripts/check-production-build-source.cjs && npm run test:price-guide-core && npm run test:readiness && npm run test:owner-entry",
-    "test:owner-entry": "node --test tests/mobile-owner-call-reservation-entry.test.mjs tests/mobile-owner-startup-transport.test.mjs",
+    "test:owner-entry": "node --test tests/mobile-owner-call-reservation-entry.test.mjs tests/mobile-owner-startup-transport.test.mjs tests/mobile-owner-entry.test.mjs",
     "predeploy": "node ../../scripts/check-predeploy-release.cjs",
     "dev": "next dev",
     "dev:frontend": "next dev",

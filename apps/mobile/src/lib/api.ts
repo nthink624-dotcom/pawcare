@@ -131,7 +131,7 @@ export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit)
 
   const isOwnerStartupRead =
     (init?.method ?? "GET").toUpperCase() === "GET" &&
-    ["/api/bootstrap", "/api/owner/shops", "/api/subscription"].includes(new URL(requestUrl).pathname);
+    ["/api/bootstrap", "/api/owner/shops", "/api/owner/entry", "/api/subscription"].includes(new URL(requestUrl).pathname);
 
   const requestInit: RequestInit = {
     ...init,

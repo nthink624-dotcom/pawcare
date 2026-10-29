@@ -11,12 +11,12 @@ import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import {
   assertOwnerOrManager,
   assertServerManagedAccountActive,
-  loadOwnerShopAccessForUser,
   OwnerApiError,
   requireOwnerShop,
 } from "@/server/owner-api-auth";
 import { assertOwnerInitialSetupComplete, OWNER_INITIAL_SETUP_REQUIRED_MESSAGE } from "@/server/owner-initial-setup-guard";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+import { readOwnerShopSummaries } from "@/server/owner-shop-list";
 import {
   assertShopIdentityChangeLimit,
   buildShopIdentityChanges,
@@ -155,66 +155,9 @@ export async function GET(request: NextRequest) {
     // getUser(token) performs a network lookup, so app_metadata is not read from a stale local JWT decode.
     assertServerManagedAccountActive(user);
 
-    const accessibleShops = await loadOwnerShopAccessForUser(user.id);
-    if (accessibleShops.length === 0) {
-      throw new OwnerApiError("접근할 수 있는 매장이 없습니다.", 403);
-    }
-    const accessibleShopIds = accessibleShops.map((access) => access.shopId);
-
-    const shopsResult = await admin
-      .from("shops")
-      .select("id,name,address,customer_page_settings,created_at")
-      .in("id", accessibleShopIds)
-      .order("created_at");
-
-    if (shopsResult.error) {
-      const missingCustomerPageSettings =
-        /customer_page_settings/i.test(
-          `${shopsResult.error.message} ${shopsResult.error.details ?? ""} ${shopsResult.error.hint ?? ""}`,
-        ) &&
-        (/column/i.test(shopsResult.error.message) || /schema cache/i.test(shopsResult.error.message));
-
-      if (missingCustomerPageSettings) {
-        const fallbackResult = await admin
-          .from("shops")
-          .select("id,name,address,created_at")
-          .in("id", accessibleShopIds)
-          .order("created_at");
-
-        if (fallbackResult.error) {
-          throw new OwnerApiError(fallbackResult.error.message, 500);
-        }
-
-        return ownerMobileCorsJson(
-          request,
-          (fallbackResult.data ?? []).map((shop) => ({
-            id: shop.id,
-            name: shop.name,
-            address: shop.address,
-            heroImageUrl: "",
-          })),
-          undefined,
-          SHOP_WRITE_CORS,
-        );
-      }
-
-      throw new OwnerApiError(shopsResult.error.message, 500);
-    }
-
     return ownerMobileCorsJson(
       request,
-      (shopsResult.data ?? []).map((shop) => ({
-        id: shop.id,
-        name: shop.name,
-        address: shop.address,
-        heroImageUrl:
-          typeof shop.customer_page_settings === "object" &&
-          shop.customer_page_settings &&
-          "hero_image_url" in shop.customer_page_settings &&
-          typeof shop.customer_page_settings.hero_image_url === "string"
-            ? shop.customer_page_settings.hero_image_url
-            : "",
-      })),
+      await readOwnerShopSummaries(user.id),
       undefined,
       SHOP_WRITE_CORS,
     );

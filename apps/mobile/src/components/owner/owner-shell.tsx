@@ -284,7 +284,7 @@ export default function OwnerShell({
       }
     };
 
-    void refreshSummary();
+    if (subscriptionSummary?.shopId !== initialData.shop.id) void refreshSummary();
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
@@ -293,7 +293,7 @@ export default function OwnerShell({
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [initialData.shop.id]);
+  }, [initialData.shop.id, subscriptionSummary]);
 
   const handleLogout = async () => {
     if (loggingOut) return;

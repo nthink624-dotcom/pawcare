@@ -1,11 +1,11 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 
 import OwnerServiceExpiredScreen from "@/components/owner/owner-service-expired-screen";
+import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   clearOwnerAuthTokenCache,
@@ -26,10 +26,6 @@ import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { readCurrentOwnerShopId, writeCurrentOwnerShopId } from "@/lib/owner-current-shop";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
-
-const OwnerWebPreview = dynamic(() => import("@/components/owner-web/owner-web-preview"), {
-  loading: () => <div role="status" className="flex min-h-screen items-center justify-center text-sm text-[#64748b]">화면을 준비하고 있습니다.</div>,
-});
 
 type OwnedShopSummary = {
   id: string;

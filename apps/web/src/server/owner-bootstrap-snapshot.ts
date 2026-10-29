@@ -14,6 +14,7 @@ export async function getOwnerBootstrapSnapshot(
   const groomingFrom = new Date(now);
   groomingFrom.setMonth(groomingFrom.getMonth() - 3);
   const data = await getBootstrap(owner.shopId, {
+    compactOwnerRead: phase !== "full",
     allowMock: false,
     includeDepositPreview: owner.role !== "staff",
     includeLanding: false,

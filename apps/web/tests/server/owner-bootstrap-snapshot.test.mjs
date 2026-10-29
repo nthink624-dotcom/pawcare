@@ -14,6 +14,7 @@ for (const role of ["owner", "staff"]) for (const phase of ["essential", "launch
     const modules = {
       "@/server/bootstrap": { getBootstrap: async (shopId, options) => {
         assert.equal(shopId, owner.shopId); assert.equal(options.allowMock, false);
+        assert.equal(options.compactOwnerRead, phase !== "full");
         assert.equal(options.includeDepositPreview, role !== "staff");
         assert.equal(options.includeOwnerProfile, phase !== "essential");
         for (const key of ["includeNotifications", "includeAppointmentChangeEvents", "includeGroomingRecords", "includeOwnerExtras", "includePilotCohort", "includeStaffProfileImages", "includePetDisplayPhotos"]) assert.equal(options[key], phase === "full", key);

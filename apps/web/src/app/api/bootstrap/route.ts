@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
     ]
       .filter((phase) => authorizationPhaseDurations.has(phase))
       .map((phase) => `${phase};dur=${(authorizationPhaseDurations.get(phase) ?? 0).toFixed(1)}`);
-    const internalBootstrapTimings = ["deposit_expiry", "data_queries"]
+    const internalBootstrapTimings = ["data_bundle", "data_bundle_fallback", "deposit_expiry", "data_queries"]
+      .filter((phase) => bootstrapPhaseDurations.has(phase))
       .map((phase) => `${phase};dur=${(bootstrapPhaseDurations.get(phase) ?? 0).toFixed(1)}`);
     response.headers.set(
       "Server-Timing",

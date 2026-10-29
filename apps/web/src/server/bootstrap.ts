@@ -13,6 +13,7 @@ import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-set
 import { deriveOwnerInitialSetupReadiness } from "@/lib/owner-initial-setup-readiness";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { expireUnreportedDeposits } from "@/server/booking-deposit-hold";
+import { loadBootstrapQueryBundle, type BootstrapQueryBundle } from "@/server/bootstrap-query-bundle";
 import { DEPOSIT_PREVIEW_SELECT, projectDepositPreview } from "@petmanager/shared/contracts/booking-deposit-preview";
 import { defaultStaffProfileMessage, getStaffProfileMessage } from "@/lib/staff-display";
 import { isStaffProfileFallbackKey } from "@/lib/staff-profile-fallback";
@@ -47,8 +48,9 @@ import type {
 } from "@/types/domain";
 
 type BootstrapOptions = {
+  compactOwnerRead?: boolean;
   includeDepositPreview?: boolean;
-  onTiming?: (phase: "deposit_expiry" | "data_queries", durationMs: number) => void;
+  onTiming?: (phase: "deposit_expiry" | "data_queries" | "data_bundle" | "data_bundle_fallback", durationMs: number) => void;
   allowMock?: boolean;
   includeLanding?: boolean;
   includeNotifications?: boolean;
@@ -527,19 +529,38 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     : Promise.resolve({ data: null, error: null });
 
   let phaseStartedAt = performance.now();
+  const bundleStartedAt = performance.now();
+  const bundleRequest = options.compactOwnerRead ? loadBootstrapQueryBundle(supabase, shopId, {
+    staffSelection: buildCompatibleStaffProfileSelect(bootstrapStaffProfileSelectFields, new Set<string>()),
+    appointmentSelection: options.includeDepositPreview ? DEPOSIT_PREVIEW_SELECT : "*",
+    appointmentsFrom,
+    appointmentsTo,
+    includeOwnerProfile,
+  }).then(bundle => {
+    options.onTiming?.(bundle ? "data_bundle" : "data_bundle_fallback", performance.now() - bundleStartedAt);
+    return bundle;
+  }) : null;
+  type CoreReadResult = { data: unknown; error: { message: string; code?: string } | null };
+  async function readCorePart(part: keyof BootstrapQueryBundle, legacy: PromiseLike<CoreReadResult>): Promise<CoreReadResult> {
+    const bundle = await bundleRequest;
+    return bundle ? { data: bundle[part], error: null } : await legacy;
+  }
+  const staffRead = bundleRequest
+    ? bundleRequest.then(bundle => bundle ? bundle.staff as StaffMemberRow[] : loadBootstrapStaffMemberRows(supabase, shopId))
+    : loadBootstrapStaffMemberRows(supabase, shopId);
   const [shopRes, guardiansRes, petsRes, servicesRes, staffMemberRows, staffScheduleOverridesRes, initialAppointmentsRes, appointmentChangeEventsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes, ownerProfileRes, expiredDepositCount] =
     await Promise.all([
-      supabase.from("shops").select("*").eq("id", shopId).is("deleted_at", null).single(),
-      supabase.from("guardians").select("*").eq("shop_id", shopId).order("created_at"),
-      supabase.from("pets").select("*").eq("shop_id", shopId).order("created_at"),
-      supabase.from("services").select("*").eq("shop_id", shopId).order("created_at"),
-      loadBootstrapStaffMemberRows(supabase, shopId),
-      supabase
+      readCorePart("shop", supabase.from("shops").select("*").eq("id", shopId).is("deleted_at", null).single()),
+      readCorePart("guardians", supabase.from("guardians").select("*").eq("shop_id", shopId).order("created_at")),
+      readCorePart("pets", supabase.from("pets").select("*").eq("shop_id", shopId).order("created_at")),
+      readCorePart("services", supabase.from("services").select("*").eq("shop_id", shopId).order("created_at")),
+      staffRead,
+      readCorePart("overrides", supabase
         .from("staff_schedule_overrides")
         .select("id,shop_id,staff_id,work_date,status,start_time,end_time,period,reason,created_at,updated_at")
         .eq("shop_id", shopId)
-        .order("work_date"),
-      appointmentsQuery,
+        .order("work_date")),
+      readCorePart("appointments", appointmentsQuery),
       appointmentChangeEventsQuery,
       groomingRecordsQuery,
       notificationsQuery,
@@ -547,7 +568,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       feedbackQuery,
       alimtalkCreditSummaryQuery,
       petStaffNotesQuery,
-      ownerProfileQuery,
+      readCorePart("ownerProfile", ownerProfileQuery),
       depositExpiryPromise,
     ]);
   const appointmentsRes = expiredDepositCount > 0 ? await buildAppointmentsQuery() : initialAppointmentsRes;

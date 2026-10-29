@@ -9,7 +9,7 @@
     "predev:local": "npm run check:owner-preview",
     "dev:local": "node scripts/start-local-dev.cjs",
     "prebuild": "npm run test:reliability && npm run test:recovery-objectives && npm run check:media-architecture && npm run test:owner-entry",
-    "test:owner-entry": "node --test tests/server/owner-mobile-preflight-cache.test.mjs tests/server/owner-entry.test.mjs tests/server/owner-bootstrap-snapshot.test.mjs",
+    "test:owner-entry": "node --test tests/server/owner-mobile-preflight-cache.test.mjs tests/server/owner-entry.test.mjs tests/server/owner-bootstrap-snapshot.test.mjs tests/server/bootstrap-query-bundle.test.mjs",
     "build": "node scripts/run-next-build-with-preview-lock.cjs",
     "start": "next start",
     "prestart:local": "npm run check:owner-preview",

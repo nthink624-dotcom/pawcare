@@ -14,6 +14,7 @@ import { deriveOwnerInitialSetupReadiness } from "@/lib/owner-initial-setup-read
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { expireUnreportedDeposits } from "@/server/booking-deposit-hold";
 import { loadBootstrapQueryBundle, type BootstrapQueryBundle } from "@/server/bootstrap-query-bundle";
+import { expireBootstrapDeposits } from "@/server/bootstrap-deposit-expiry";
 import { DEPOSIT_PREVIEW_SELECT, projectDepositPreview } from "@petmanager/shared/contracts/booking-deposit-preview";
 import { defaultStaffProfileMessage, getStaffProfileMessage } from "@/lib/staff-display";
 import { isStaffProfileFallbackKey } from "@/lib/staff-profile-fallback";
@@ -460,11 +461,13 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   if (!supabase) {
     throw new Error("Supabase 서버 연결이 없어 매장 데이터를 불러올 수 없습니다.");
   }
-  const expiryStartedAt = performance.now();
-  const depositExpiryPromise = expireUnreportedDeposits(supabase, shopId).then((expiredCount) => {
-    options.onTiming?.("deposit_expiry", performance.now() - expiryStartedAt);
-    return expiredCount;
-  });
+  const runDepositExpiry = () => {
+    const expiryStartedAt = performance.now();
+    return expireUnreportedDeposits(supabase, shopId).then((expiredCount) => {
+      options.onTiming?.("deposit_expiry", performance.now() - expiryStartedAt);
+      return expiredCount;
+    });
+  };
 
   let notificationsQuery: any = includeNotifications
     ? supabase.from("notifications").select("*").eq("shop_id", shopId).order("created_at", { ascending: false })
@@ -540,6 +543,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     options.onTiming?.(bundle ? "data_bundle" : "data_bundle_fallback", performance.now() - bundleStartedAt);
     return bundle;
   }) : null;
+  const depositExpiryPromise = expireBootstrapDeposits(bundleRequest, runDepositExpiry);
   type CoreReadResult = { data: unknown; error: { message: string; code?: string } | null };
   async function readCorePart(part: keyof BootstrapQueryBundle, legacy: PromiseLike<CoreReadResult>): Promise<CoreReadResult> {
     const bundle = await bundleRequest;

@@ -14,7 +14,9 @@ export async function getOwnerBootstrapSnapshot(
   const groomingFrom = new Date(now);
   groomingFrom.setMonth(groomingFrom.getMonth() - 3);
   const data = await getBootstrap(owner.shopId, {
-    compactOwnerRead: phase !== "full",
+    // Full refreshes retain their extras; reuse the same canonical core query
+    // instead of reopening eight independent REST reads on every idle poll.
+    compactOwnerRead: true,
     allowMock: false,
     includeDepositPreview: owner.role !== "staff",
     includeLanding: false,

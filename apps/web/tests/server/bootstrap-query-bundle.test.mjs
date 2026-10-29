@@ -11,11 +11,12 @@ Function("module", "exports", ts.transpileModule(readFileSync(new URL("../../src
 const { loadBootstrapQueryBundle } = runtimeModule.exports;
 const defaults = { staffSelection: "id,name", appointmentSelection: "*,booking_deposit_links(active_amount)",
   appointmentsFrom: "2026-09-01", appointmentsTo: "2026-11-30", includeOwnerProfile: true };
-function fixture({ error, profile = [{ user_id: "owner-a" }], wrongShop = false, malformed = false } = {}) {
+function fixture({ error, profile = [{ user_id: "owner-a" }], wrongShop = false, malformed = false, pending = [] } = {}) {
   const calls = [];
   const row = { id: wrongShop ? "shop-b" : "shop-a", name: "fixture", owner_user_id: "owner-a",
     entry_guardians: [{ id: "guardian-a", shop_id: "shop-a" }], entry_pets: [{ id: "pet-a", shop_id: "shop-a" }],
-    entry_services: [], entry_staff: [], entry_overrides: [], entry_appointments: [], entry_owner_profile: profile };
+    entry_services: [], entry_staff: [], entry_overrides: [], entry_appointments: [], entry_owner_profile: profile,
+    entry_pending_deposits: pending };
   if (malformed) row.entry_pets = null;
   const client = createClient("https://fixture.supabase.co", "fixture-not-a-credential", { auth: { persistSession: false, autoRefreshToken: false }, global: {
     fetch: async (input, init) => { calls.push({ url: new URL(input), method: init?.method ?? "GET" });
@@ -39,6 +40,14 @@ test("one authenticated server query retains shop, active staff, appointment bou
   }
   assert.equal(bundle.shop.id, "shop-a"); assert.equal(bundle.guardians[0].shop_id, "shop-a");
   assert.ok(Object.keys(bundle.shop).every(key => !key.startsWith("entry_")));
+  assert.equal(bundle.pendingDepositPreparationExists, false);
+  assert.equal(query.get("entry_pending_deposits.data->deposit->>releaseIfUnreported"), "eq.true");
+  assert.equal(query.get("entry_pending_deposits.data->deposit->>status"), "eq.pending");
+});
+
+test("even a future pending hold requires the existing expiry check", async () => {
+  assert.equal((await fixture({ pending: [{ appointment_id: "a" }] }).run()).pendingDepositPreparationExists, true);
+  await assert.rejects(fixture({ pending: null }).run());
 });
 test("essential entry omits the owner profile and can omit deposit preview without changing other fields", async () => {
   const { calls, run } = fixture({ profile: undefined });

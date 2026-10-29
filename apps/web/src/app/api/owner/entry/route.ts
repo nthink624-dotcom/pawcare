@@ -25,9 +25,13 @@ export async function GET(request: NextRequest) {
       value => ({ ok: true as const, value }),
       error => ({ ok: false as const, error }),
     ) : null;
+    const shopsStarted = performance.now();
     const [bootstrap, shops] = await Promise.all([
       getOwnerBootstrapSnapshot(owner, "launch", (phase, ms) => timings.set(phase, ms)),
-      readOwnerShopSummaries(owner.userId),
+      readOwnerShopSummaries(owner.userId).then(shops => {
+        timings.set("shop_list", performance.now() - shopsStarted);
+        return shops;
+      }),
     ]);
     if (!shops.some(shop => shop.id === owner.shopId)) throw new OwnerApiError("다른 매장 데이터에는 접근할 수 없습니다.", 403);
     let subscriptionSummary: Awaited<ReturnType<typeof getOwnerSubscriptionSummary>> | null = null;

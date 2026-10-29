@@ -5,6 +5,7 @@ import type { BootstrapActor } from "../contracts/bootstrap-actor";
 import { beginOwnerStartupReadOnly, invalidateOwnerStartupRevision } from "./owner-startup-write-fence";
 import { clearOwnerStartupSnapshots, readOwnerStartupSnapshot, writeOwnerStartupSnapshot, readOwnerStartupInvalidationStamp, OWNER_STARTUP_INVALIDATION_STORAGE_KEY, type OwnerStartupSnapshot } from "./owner-startup-store";
 import { prepareOwnerPublicShell } from "./owner-public-shell";
+import type { OwnerStartupPreparedRead } from "./owner-startup-preload";
 
 type ScopedBootstrap = {
   mode: "mock" | "supabase";
@@ -18,6 +19,7 @@ export function useOwnerStartupSession<T extends ScopedBootstrap>(options: {
   readPrincipalHint: () => string | null;
   readShopHint: () => string | null;
   project: (value: T) => T;
+  preparedRead?: OwnerStartupPreparedRead<T>;
 }) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -39,7 +41,8 @@ export function useOwnerStartupSession<T extends ScopedBootstrap>(options: {
     release.current = beginOwnerStartupReadOnly();
     const { principalId, shopId } = readScope();
     if (principalId && shopId) {
-      void readOwnerStartupSnapshot<T>({ principalId, shopId }).then(cached => {
+      const reading = optionsRef.current.preparedRead?.() ?? readOwnerStartupSnapshot<T>({ principalId, shopId });
+      void reading.then(cached => {
         if (!active || confirmed.current || generation !== invalidation.current || attemptStamp.current !== readOwnerStartupInvalidationStamp() || !cached ||
             readScope().principalId !== principalId || readScope().shopId !== shopId ||
             cached.data.mode !== "supabase" || cached.data.shop.id !== shopId ||

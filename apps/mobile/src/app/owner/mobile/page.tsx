@@ -38,6 +38,7 @@ import { projectOwnerStartupBootstrap } from "@petmanager/shared/lib/owner-start
 import { useOwnerStartupSession } from "@petmanager/shared/lib/owner-startup-session";
 import { OwnerStartupNotice } from "@petmanager/shared/components/owner-startup-notice";
 import { getOwnerStartupRevision } from "@petmanager/shared/lib/owner-startup-write-fence";
+import { prepareOwnerStartupRead } from "@petmanager/shared/lib/owner-startup-preload";
 
 const OwnerInitialSetupFlow = dynamic(() => import("@/components/owner/owner-initial-setup-flow"), {
   loading: () => <OwnerMobileLoadingScreen message="설정 화면을 준비하고 있습니다." />,
@@ -88,6 +89,10 @@ type OwnerMobileLoadFailure = {
 };
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
+const preparedStartupRead = prepareOwnerStartupRead<CanonicalOwnerBootstrapPayload>(() => ({
+  principalId: readOwnerStartupPrincipalHint(),
+  shopId: window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE),
+}));
 
 type OwnerMobileEntryPendingPhotoPrune = typeof import("@/lib/media/owner-pending-status-photo").pruneExpiredPendingOwnerStatusPhotos;
 let ownerMobileEntryPendingPhotoPruneInFlight: ReturnType<OwnerMobileEntryPendingPhotoPrune> | null = null;
@@ -323,6 +328,7 @@ export default function OwnerMobilePage() {
     readPrincipalHint: readOwnerStartupPrincipalHint,
     readShopHint: () => window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE),
     project: projectOwnerStartupBootstrap,
+    preparedRead: preparedStartupRead,
   });
   const ownerAccessGateRef = useRef(createLatestOwnerAccessGate<OwnerMobileAccessContext | null>());
   const ownerMobileEntryPruneStartedRef = useRef(false);

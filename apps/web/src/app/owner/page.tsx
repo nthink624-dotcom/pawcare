@@ -31,6 +31,12 @@ import { useOwnerStartupSession } from "@petmanager/shared/lib/owner-startup-ses
 import { projectOwnerStartupBootstrap } from "@petmanager/shared/lib/owner-startup-projection";
 import { OwnerStartupNotice } from "@petmanager/shared/components/owner-startup-notice";
 import { getOwnerStartupRevision } from "@petmanager/shared/lib/owner-startup-write-fence";
+import { prepareOwnerStartupRead } from "@petmanager/shared/lib/owner-startup-preload";
+
+const preparedStartupRead = prepareOwnerStartupRead<BootstrapPayload>(() => ({
+  principalId: readOwnerStartupPrincipalHint(),
+  shopId: new URLSearchParams(window.location.search).get("shopId")?.trim() || readCurrentOwnerShopId(),
+}));
 
 type OwnedShopSummary = {
   id: string;
@@ -151,6 +157,7 @@ export default function OwnerPage() {
     readPrincipalHint: readOwnerStartupPrincipalHint,
     readShopHint: () => new URLSearchParams(window.location.search).get("shopId")?.trim() || readCurrentOwnerShopId(),
     project: projectOwnerStartupBootstrap,
+    preparedRead: preparedStartupRead,
   });
   const backgroundRefreshReadyAtRef = useRef(Date.now() + 5000);
 

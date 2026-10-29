@@ -15,6 +15,73 @@ const { beginOwnerStartupReadOnly, assertOwnerStartupWriteReady, getOwnerStartup
 const { OWNER_PUBLIC_SHELL_WORKER: source } = loadTypeScript('../../apps/shared/lib/owner-public-shell.ts');
 const { ownerStartupPrincipalHint } = loadTypeScript('../../apps/shared/lib/owner-startup-store.ts');
 
+function preloadHarness(options = {}) {
+  let scope = { principalId: 'user-a', shopId: 'shop-a' }, stamp = 'stamp-a', revision = 0, calls = 0, resolve, reject;
+  const pending = new Promise((ok, no) => { resolve = ok; reject = no; });
+  const file = path.resolve(__dirname, '../../apps/shared/lib/owner-startup-preload.ts');
+  const output = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const runtime = { exports: {} };
+  const modules = {
+    './owner-startup-store': { readOwnerStartupInvalidationStamp: () => stamp, readOwnerStartupSnapshot: () => { calls += 1; return pending; } },
+    './owner-startup-write-fence': { getOwnerStartupRevision: () => revision },
+  };
+  Function('require', 'module', 'exports', 'window', 'WeakRef', output)(name => { assert.ok(modules[name]); return modules[name]; }, runtime, runtime.exports, options.server ? undefined : {}, 'weakRef' in options ? options.weakRef : WeakRef);
+  return { prepare: () => runtime.exports.prepareOwnerStartupRead(() => scope), resolve, reject, get calls() { return calls; },
+    setScope(value) { scope = value; }, clear() { stamp = 'stamp-b'; }, write() { revision += 1; } };
+}
+
+test('early snapshot read overlaps hydration and can only be claimed once', async () => {
+  const h = preloadHarness();
+  const claim = h.prepare();
+  assert.equal(h.calls, 1, 'disk read begins before React requests its result');
+  const snapshot = { expiresAt: Date.now() + 10000, data: fixture() };
+  const reading = claim(); h.resolve(snapshot);
+  assert.equal(await reading, snapshot);
+  assert.equal(claim(), null);
+});
+
+test('account, shop, logout and writes invalidate an already completed early read', async () => {
+  for (const change of [h => h.setScope({ principalId: 'user-b', shopId: 'shop-a' }), h => h.setScope({ principalId: 'user-a', shopId: 'shop-b' }), h => h.clear(), h => h.write()]) {
+    const h = preloadHarness(); const claim = h.prepare();
+    h.resolve({ expiresAt: Date.now() + 10000, data: fixture() }); await Promise.resolve();
+    change(h);
+    assert.equal(await claim(), null);
+  }
+});
+
+test('early reads still reject invalidation while pending and expiry before consumption', async () => {
+  for (const expired of [false, true]) {
+    const h = preloadHarness(); const claim = h.prepare(); const reading = claim();
+    if (!expired) h.clear();
+    h.resolve({ expiresAt: Date.now() + (expired ? -1 : 10000), data: fixture() });
+    assert.equal(await reading, null);
+  }
+});
+
+test('missing identity and denied optional storage never block normal entry', async () => {
+  const missing = preloadHarness(); missing.setScope({ principalId: null, shopId: 'shop-a' });
+  assert.equal(missing.prepare(), undefined); assert.equal(missing.calls, 0);
+  const denied = preloadHarness(); const claim = denied.prepare(); denied.reject(new Error('optional storage denied'));
+  assert.equal(await claim(), null);
+});
+
+test('garbage collection of an unclaimed preload uses the same guarded disk read', async () => {
+  const h = preloadHarness({ weakRef: class { deref() { return undefined; } } });
+  const claim = h.prepare(); const snapshot = { expiresAt: Date.now() + 10000, data: fixture() };
+  h.resolve(snapshot);
+  assert.equal(await claim(), snapshot);
+  assert.equal(h.calls, 2);
+  assert.equal(claim(), null);
+});
+
+test('server rendering and browsers without WeakRef skip optional preloading', () => {
+  for (const options of [{ server: true }, { weakRef: undefined }]) {
+    const h = preloadHarness(options);
+    assert.equal(h.prepare(), undefined);
+    assert.equal(h.calls, 0);
+  }
+});
+
 function fixture() {
   return {
     mode: 'supabase', actor: { shopId: 'shop-a', userId: 'user-a', role: 'owner', staffId: null },

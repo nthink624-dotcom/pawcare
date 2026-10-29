@@ -890,3 +890,13 @@ The existing `platform_alimtalk_templates.template_alias` and `notification_type
 - An absent alias preserves its legacy flag. Explicit true/false applies only to that alias after the shop master switch. Guardian opt-out, consent/deposit eligibility, approved-template validation, credits, and deduplication remain required. Grooming report variants resolve their final alias before this check.
 - Omitted maps from older clients preserve the stored map. Empty maps explicitly restore legacy defaults. UI changes never change booking-policy consentBeforeStart or depositMode.
 - Draft/review records in shop_alimtalk_template_requests are separate from the active sending snapshot. Reading approval notices or submitting a draft never updates shop_alimtalk_template_selections.
+
+## Owner startup request transport (2026-10-29)
+
+- The existing owner authentication, suspension, membership, subscription, deposit, and tenant checks still run on each actual authenticated API request.
+- Successful OPTIONS responses for existing allowed origins advertise Access-Control-Max-Age: 600. Unknown origins and rejected methods receive no preflight lifetime. This caches CORS permission, not customer data or authentication decisions.
+- JSON responses carrying an Authorization request header send Cache-Control: private, no-store. Public responses retain their existing cache policy.
+- Mobile GET requests to /api/bootstrap, /api/owner/shops, and /api/subscription use the default fetch cache mode so the browser can reuse preflight permissions; private response headers prohibit caching the returned data. Other endpoints, mutations, explicit reloads, and cancellation semantics retain their existing behavior.
+- Concurrent identical mobile startup reads may share only their in-flight request. The full URL and authorization headers isolate their keys; slots are released after success or failure. Mutations invalidate pending read slots. Completed responses are not retained as a success cache.
+- Release order: deploy the canonical web API privacy/preflight headers first and read back authenticated response Cache-Control and allowed OPTIONS headers; only then release the mobile transport change. Do not release the client against an API whose private response contract has not been confirmed.
+- Network fixture verification must show that returned customer-data requests still execute on every read while repeated preflight requests decrease; modal timing alone is not proof of physical-device cold launch time.

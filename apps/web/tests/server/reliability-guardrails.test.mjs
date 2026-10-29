@@ -128,8 +128,11 @@ test("Supabase development and production identities stay explicit", () => {
   const agents = readProjectFile("AGENTS.md");
   const environmentGuide = readProjectFile("docs/supabase-environment-separation.md");
   const releaseChecklist = readProjectFile("docs/release-checklist.md");
-  const gitignoreUrl = new URL("../../.gitignore", import.meta.url);
-  const gitignore = existsSync(gitignoreUrl) ? readFileSync(gitignoreUrl, "utf8") : null;
+  const gitignoreUrl = [
+    new URL("../../.gitignore", import.meta.url),
+    new URL("../../../../.gitignore", import.meta.url),
+  ].find(existsSync);
+  const gitignore = gitignoreUrl ? readFileSync(gitignoreUrl, "utf8") : null;
   const operatingRules = `${agents}\n${environmentGuide}\n${releaseChecklist}`;
 
   assert.match(environmentGuide, /Development Supabase DB[\s\S]{0,320}qefxdtmdtvnzgupmjlom/);

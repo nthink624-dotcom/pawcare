@@ -42,6 +42,12 @@ export function ownerMobileCorsJson(
 ) {
   const response = NextResponse.json(body, init);
 
+  // Keep authenticated response data out of browser and shared HTTP caches.
+  // This is separate from caching OPTIONS permissions in the preflight cache.
+  if (request.headers.has("authorization")) {
+    response.headers.set("Cache-Control", "private, no-store");
+  }
+
   for (const [key, value] of Object.entries(getOwnerMobileCorsHeaders(request, options))) {
     response.headers.set(key, value);
   }
@@ -75,6 +81,8 @@ export function ownerMobileCorsPreflight(
 
   return new NextResponse(null, {
     status: 204,
-    headers,
+    headers: headers["Access-Control-Allow-Origin"]
+      ? { ...headers, "Access-Control-Max-Age": "600" }
+      : headers,
   });
 }

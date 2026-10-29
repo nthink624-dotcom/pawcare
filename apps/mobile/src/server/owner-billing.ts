@@ -323,7 +323,7 @@ function readStoredBillingKey(record: OwnerSubscriptionRecord) {
 
 function buildBillingKeyStorageColumns(
   record: Pick<OwnerSubscriptionRecord, "billing_key" | "billing_key_encrypted" | "billing_key_encryption_version">,
-) {
+): Pick<OwnerSubscriptionRecord, "billing_key" | "billing_key_encrypted" | "billing_key_encryption_version"> {
   if (record.billing_key) {
     if (!canWriteProtectedBillingData()) {
       return {

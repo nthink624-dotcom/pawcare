@@ -251,17 +251,18 @@ requireText(
   "tests/server/policyless-rls-browser-grants-contract.test.mjs",
   "SaaS readiness policyless RLS ACL test",
 );
+const webEnvExamplePath = exists("apps/web/.env.example") ? "apps/web/.env.example" : ".env.example";
 for (const [file, key] of [
-  ["apps/web/.env.example", "CALL_ID_PHONE_HMAC_SECRET="],
-  ["apps/web/.env.example", "CALL_ID_WEBHOOK_HASH_SECRET="],
-  ["apps/web/.env.example", "OPENAI_PRICE_GUIDE_MODEL="],
+  [webEnvExamplePath, "CALL_ID_PHONE_HMAC_SECRET="],
+  [webEnvExamplePath, "CALL_ID_WEBHOOK_HASH_SECRET="],
+  [webEnvExamplePath, "OPENAI_PRICE_GUIDE_MODEL="],
   ["apps/mobile/.env.example", "CALL_ID_PHONE_HMAC_SECRET="],
   ["apps/mobile/.env.example", "CALL_ID_WEBHOOK_HASH_SECRET="],
   ["apps/mobile/.env.example", "NEXT_PUBLIC_ALLOWED_DEV_SUPABASE_REFS="],
 ]) {
   requireText(file, key, `${file} environment contract: ${key}`);
 }
-for (const file of [".env.example", "apps/web/.env.example", "apps/mobile/.env.example"]) {
+for (const file of new Set([".env.example", webEnvExamplePath, "apps/mobile/.env.example"])) {
   requireNotText(file, "petmanager-admin-setup-2026", "environment example contains a reusable admin secret");
   requireNotText(file, "change-this-to-", "environment example contains a copyable placeholder secret");
 }

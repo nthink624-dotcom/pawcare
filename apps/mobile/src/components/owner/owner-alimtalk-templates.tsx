@@ -42,10 +42,16 @@ function titleFor(item: OwnerAlimtalkTemplateItem) {
   return item.title;
 }
 
-export default function OwnerAlimtalkTemplates({ shopId, settings }: {
+type OwnerAlimtalkTemplatesProps = {
   shopId: string;
   settings: ShopNotificationSettings;
-}) {
+};
+
+export default function OwnerAlimtalkTemplates(props: OwnerAlimtalkTemplatesProps) {
+  return <OwnerAlimtalkTemplatesContent key={props.shopId} {...props} />;
+}
+
+function OwnerAlimtalkTemplatesContent({ shopId, settings }: OwnerAlimtalkTemplatesProps) {
   const [items, setItems] = useState<OwnerAlimtalkTemplateItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -55,10 +61,6 @@ export default function OwnerAlimtalkTemplates({ shopId, settings }: {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError(false);
-    setItems([]);
-    setSelected(null);
     void getAccessTokenWithRecovery().then(accessToken => fetchAppApiJson<{ items: OwnerAlimtalkTemplateItem[] }>(
       `/api/owner/alimtalk-template-selection?shopId=${encodeURIComponent(shopId)}`,
       { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" },
@@ -84,7 +86,7 @@ export default function OwnerAlimtalkTemplates({ shopId, settings }: {
     {loading ? <p role="status" className="text-[14px] text-[#64748b]">템플릿을 불러오는 중입니다.</p> : error ?
       <div role="alert" className="space-y-2">
         <p className="text-[14px] text-[#9a5e4e]">템플릿을 불러오지 못했습니다.</p>
-        <button type="button" onClick={() => setAttempt(value => value + 1)} className="min-h-11 rounded-[10px] border border-[#e1e4ea] px-4 text-[16px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">다시 불러오기</button>
+        <button type="button" onClick={() => { setLoading(true); setError(false); setItems([]); setSelected(null); setAttempt(value => value + 1); }} className="min-h-11 rounded-[10px] border border-[#e1e4ea] px-4 text-[16px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">다시 불러오기</button>
       </div> : !items.length ? <p className="text-[14px] text-[#64748b]">표시할 알림톡 템플릿이 없습니다.</p> :
       groupOrder.map(group => {
         const rows = items.filter(item => groupFor(item.alias) === group);

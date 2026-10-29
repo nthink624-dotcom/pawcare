@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { beforeEach, describe, it } from "node:test";
+import { beforeEach, describe, it, mock } from "node:test";
 
 for (const key of [
   "SUPABASE_URL",
@@ -12,6 +12,18 @@ for (const key of [
   delete process.env[key];
 }
 process.env.BOOKING_ACCESS_SECRET = "appointment-flow-test-secret";
+
+// This suite deliberately runs without database credentials. Model an empty
+// approved catalog while keeping explicit ownership checks rejecting.
+mock.module(new URL("../../src/server/alimtalk-template-ownership.ts", import.meta.url).href, {
+  namedExports: {
+    readPlatformAlimtalkCodes: async () => [],
+    readActiveAlimtalkCodes: async () => [],
+    readAllowedAlimtalkCodes: async () => new Set(),
+    assertAlimtalkTemplateAccess: async () => { throw new Error("Explicit template access is unavailable in this offline fixture"); },
+    assertPlatformAlimtalkCandidate: async () => { throw new Error("Platform registration is unavailable in this offline fixture"); },
+  },
+});
 
 const { addDate, currentDateInTimeZone } = await import("../../src/lib/utils.ts");
 const { ACTIVE_ALIMTALK_TEMPLATE_ALIASES } = await import(

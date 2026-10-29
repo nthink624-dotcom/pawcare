@@ -112,6 +112,9 @@ export async function getAccessTokenWithRecovery() {
   throw new Error("로그인이 필요합니다.");
 }
 
+const OWNER_STARTUP_JOIN_WINDOW_MS = 500;
+const ownerStartupReadsInFlight = new Map<string, { pending: Promise<unknown>; startedAt: number }>();
+
 export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
   const requestUrl = buildApiUrl(input);
   if (new URL(requestUrl).origin !== getMobileApiOrigin()) {
@@ -126,8 +129,31 @@ export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit)
   }
   headers.set("Authorization", `Bearer ${accessToken}`);
 
-  return fetchApiJsonAtUrl<T>(requestUrl, {
+  const isOwnerStartupRead =
+    (init?.method ?? "GET").toUpperCase() === "GET" &&
+    ["/api/bootstrap", "/api/owner/shops", "/api/subscription"].includes(new URL(requestUrl).pathname);
+
+  const requestInit: RequestInit = {
     ...init,
+    // These canonical endpoints send Cache-Control: private, no-store.
+    // A fetch-level no-store also bypasses the CORS preflight cache in Chrome;
+    // let the response prohibit data caching while OPTIONS can be reused.
+    ...(isOwnerStartupRead && init?.cache === "no-store" ? { cache: "default" as RequestCache } : {}),
     headers,
+  };
+
+  if ((init?.method ?? "GET").toUpperCase() !== "GET") ownerStartupReadsInFlight.clear();
+  const canCoalesce = isOwnerStartupRead && Object.keys(init ?? {}).every((key) => ["method", "cache", "headers"].includes(key));
+  if (!canCoalesce) return fetchApiJsonAtUrl<T>(requestUrl, requestInit);
+
+  const key = JSON.stringify([requestUrl, requestInit.cache ?? "default", [...headers.entries()].sort()]);
+  const existing = ownerStartupReadsInFlight.get(key);
+  if (existing && performance.now() - existing.startedAt < OWNER_STARTUP_JOIN_WINDOW_MS) return existing.pending as Promise<T>;
+
+  const pending = fetchApiJsonAtUrl<T>(requestUrl, requestInit).finally(() => {
+    if (ownerStartupReadsInFlight.get(key)?.pending === pending) ownerStartupReadsInFlight.delete(key);
   });
+  // Share only near-simultaneous reads; a user retry must not join a hung request.
+  ownerStartupReadsInFlight.set(key, { pending, startedAt: performance.now() });
+  return pending;
 }

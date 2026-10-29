@@ -1,7 +1,7 @@
 "use client";
 
 import { PhoneCall, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
@@ -19,6 +19,7 @@ import {
   type OwnerIncomingCallChoice,
 } from "@/lib/owner-call-screening";
 import { currentDateInTimeZone } from "@/lib/utils";
+import { findPendingCallGuardian } from "@/lib/owner-call-reservation-entry";
 import type { BootstrapPayload } from "@/types/domain";
 
 type CatchCallEvent = {
@@ -140,10 +141,13 @@ export default function OwnerCatchCallPanel({
   onIncomingCallReservation?: () => void;
   onIncomingCallNewCustomer?: () => void;
 }) {
+  const pendingGuardian = findPendingCallGuardian(data.guardians, pendingReservationAction);
+  const [dismissedPendingCallId, setDismissedPendingCallId] = useState<string | null>(null);
+  const dismissedPendingCallIdRef = useRef<string | null>(null);
   const [events, setEvents] = useState<CatchCallEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [petId, setPetId] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const [petId, setPetId] = useState(() => pendingGuardian ? data.pets.find((pet) => pet.guardian_id === pendingGuardian.id)?.id ?? "" : "");
+  const [serviceId, setServiceId] = useState(() => pendingGuardian ? data.services.find((service) => service.is_active)?.id ?? "" : "");
   const [staffId, setStaffId] = useState("");
   const [appointmentDate, setAppointmentDate] = useState(currentDateInTimeZone());
   const [appointmentTime, setAppointmentTime] = useState("10:00");
@@ -162,7 +166,9 @@ export default function OwnerCatchCallPanel({
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null;
-  const guardianId = selectedEvent?.matchedGuardian?.id ?? null;
+  const reservationGuardian = selectedEvent?.matchedGuardian
+    ?? (dismissedPendingCallId === pendingReservationAction?.providerCallId ? null : pendingGuardian);
+  const guardianId = reservationGuardian?.id ?? null;
   const selectedGuardianPhone = guardianId ? data.guardians.find((guardian) => guardian.id === guardianId)?.phone ?? "" : "";
   const guardianPets = useMemo(
     () => (guardianId ? data.pets.filter((pet) => pet.guardian_id === guardianId) : []),
@@ -195,8 +201,13 @@ export default function OwnerCatchCallPanel({
         const target = nextEvents.find(
           (event) => event.providerEventId === `${pendingReservationAction.providerCallId}:incoming` && event.matchStatus === "matched" && !event.appointmentId,
         );
-        if (target) {
-          selectEvent(target);
+        if (target && dismissedPendingCallIdRef.current !== pendingReservationAction.providerCallId) {
+          if (target.matchedGuardian?.id === pendingGuardian?.id) {
+            // Preserve edits made while the canonical call event was loading.
+            setSelectedEventId(target.id);
+          } else {
+            selectEvent(target);
+          }
           await clearOwnerCallReservationAction();
         }
       }
@@ -403,15 +414,15 @@ export default function OwnerCatchCallPanel({
         </div>
       ) : null}
 
-      {selectedEvent ? (
-        <div className="space-y-4 rounded-[14px] border border-[#dfe7f1] bg-white p-4">
+      {reservationGuardian ? (
+        <div data-call-reservation-form="true" className="space-y-4 rounded-[14px] border border-[#dfe7f1] bg-white p-4">
           <div className="flex items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#eef4ff] text-[#2f6fd6]">
               <PhoneCall className="size-5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[16px] font-medium leading-6 text-[#15213b]">{selectedEvent.matchedGuardian?.name} 보호자</p>
-              <p className="mt-0.5 text-[13px] leading-5 text-[#64748b]">{selectedGuardianPhone ? formatCallPhoneNumber(selectedGuardianPhone) : `끝 4자리 ${selectedEvent.phoneTail}`} · {formatOccurredAt(selectedEvent.occurredAt)}</p>
+              <p className="text-[16px] font-medium leading-6 text-[#15213b]">{reservationGuardian.name} 보호자</p>
+              <p className="mt-0.5 text-[13px] leading-5 text-[#64748b]">{selectedEvent ? <>{selectedGuardianPhone ? formatCallPhoneNumber(selectedGuardianPhone) : `끝 4자리 ${selectedEvent.phoneTail}`} · {formatOccurredAt(selectedEvent.occurredAt)}</> : "통화 정보를 확인하고 있습니다."}</p>
             </div>
           </div>
           <div className="grid gap-3">
@@ -453,8 +464,14 @@ export default function OwnerCatchCallPanel({
           </div>
           {selectedPet && selectedService ? <p className="text-[13px] leading-5 text-[#64748b]">{selectedPet.name} · {selectedService.name} · {selectedService.duration_minutes}분</p> : null}
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setSelectedEventId(null)} className="min-h-12 rounded-[10px] border border-[#e8edf3] bg-white px-4 text-[16px] font-medium text-[#334155]">취소</button>
-            <button type="button" onClick={() => void saveReservation()} disabled={saving || guardianPets.length === 0 || services.length === 0} className="min-h-12 rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium text-white disabled:opacity-50">{saving ? "저장 중..." : "예약 확정"}</button>
+            <button type="button" onClick={() => {
+              const callId = pendingReservationAction?.providerCallId ?? null;
+              dismissedPendingCallIdRef.current = callId;
+              setDismissedPendingCallId(callId);
+              setSelectedEventId(null);
+              if (callId) void clearOwnerCallReservationAction();
+            }} className="min-h-12 rounded-[10px] border border-[#e8edf3] bg-white px-4 text-[16px] font-medium text-[#334155]">취소</button>
+            <button type="button" onClick={() => void saveReservation()} disabled={saving || !selectedEvent || guardianPets.length === 0 || services.length === 0} className="min-h-12 rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium text-white disabled:opacity-50">{saving ? "저장 중..." : "예약 확정"}</button>
           </div>
         </div>
       ) : null}

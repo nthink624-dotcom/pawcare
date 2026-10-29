@@ -6,6 +6,7 @@ import BookingDepositNotices, { useBookingDepositNotices } from "@petmanager/sha
 
 import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, Store, UserRound, type LucideIcon } from "lucide-react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { type ReactNode, useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -37,17 +38,15 @@ import OwnerBookingDatePicker from "@/components/owner/owner-booking-date-picker
 import OwnerBookingDaySchedule from "@/components/owner/owner-booking-day-schedule";
 import OwnerExternalPhotoSheet from "@/components/owner/owner-external-photo-sheet";
 import OwnerHomeDateNavigator from "@/components/owner/owner-home-date-navigator";
-import OwnerAiCareReportSheet, { normalizeCareReport, prepareOwnerCareReportInitialData, type OwnerCareReportInitialData } from "@/components/owner/owner-ai-care-report-sheet";
+import type { OwnerCareReportInitialData } from "@/components/owner/owner-ai-care-report-sheet";
+import { normalizeCareReport } from "@/lib/care-report/normalize-care-report";
 import { readOwnerCareReportLocalDraft } from "@/lib/care-report/owner-care-report-local-draft";
 import OwnerContextActionMenu from "@/components/owner/owner-context-action-menu";
 import OwnerMobileGroomingStartSheet from "@/components/owner/owner-mobile-grooming-start-sheet";
 import OwnerAppUpdateCoordinator from "@/components/owner/owner-app-update";
-import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
 import OwnerCallReservationQuickEntry from "@/components/owner/owner-call-reservation-quick-entry";
-import OwnerTesterFeedbackSheet from "@/components/owner/owner-tester-feedback-sheet";
 import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
-import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { StatusBadge as AppStatusBadge } from "@/components/ui/status-badge";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
@@ -146,6 +145,11 @@ import {
 } from "@/lib/push/owner-push-notifications";
 import { addDate, cn, currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, minutesFromTime, phoneNormalize, shortDate, won } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload, BootstrapStaffMember, GroomingRecord, MediaAsset, MediaKind, Pet, Service } from "@/types/domain";
+
+const OwnerAiCareReportSheet = dynamic(() => import("@/components/owner/owner-ai-care-report-sheet"));
+const OwnerSettingsPanel = dynamic(() => import("@/components/owner/owner-settings-panel"));
+const OwnerTesterFeedbackSheet = dynamic(() => import("@/components/owner/owner-tester-feedback-sheet"));
+const KakaoPostcodeSheet = dynamic(() => import("@/components/ui/kakao-postcode-sheet"));
 
 type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
@@ -2195,11 +2199,11 @@ function OwnerAppContent({
       try {
         const prepared = await traceOwnerMediaStep(
           "care-report-prepare",
-          () => prepareOwnerCareReportInitialData({
+          () => import("@/components/owner/owner-ai-care-report-sheet").then(({ prepareOwnerCareReportInitialData }) => prepareOwnerCareReportInitialData({
             shopId: data.shop.id,
             appointmentId,
             publishedCareReport,
-          }),
+          })),
         );
         setCareReportInitialData(prepared);
         setModal((current) => current?.type === "appointment" && current.appointment.id === appointmentId ? null : current);

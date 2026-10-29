@@ -1,11 +1,10 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 
-import OwnerInitialSetupFlow from "@/components/owner/owner-initial-setup-flow";
-import OwnerShell from "@/components/owner/owner-shell";
 import { ApiRequestError, fetchApiJsonWithAuth } from "@/lib/api";
 import {
   assertOwnerBootstrapPayload,
@@ -26,12 +25,18 @@ import {
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
-import { pruneExpiredPendingOwnerStatusPhotos } from "@/lib/media/owner-pending-status-photo";
-import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
+import { getOwnerCallReservationAction, getOwnerIncomingCallChoice, isOwnerCallScreeningAvailable } from "@/lib/owner-call-screening";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import type { Session } from "@supabase/supabase-js";
+
+const OwnerShell = dynamic(() => import("@/components/owner/owner-shell"), {
+  loading: () => <OwnerMobileLoadingScreen message="화면을 준비하고 있습니다." />,
+});
+const OwnerInitialSetupFlow = dynamic(() => import("@/components/owner/owner-initial-setup-flow"), {
+  loading: () => <OwnerMobileLoadingScreen message="설정 화면을 준비하고 있습니다." />,
+});
 
 type OwnedShopSummary = {
   id: string;
@@ -79,14 +84,16 @@ type OwnerMobileLoadFailure = {
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 
-type OwnerMobileEntryPendingPhotoPrune = typeof pruneExpiredPendingOwnerStatusPhotos;
+type OwnerMobileEntryPendingPhotoPrune = typeof import("@/lib/media/owner-pending-status-photo").pruneExpiredPendingOwnerStatusPhotos;
 let ownerMobileEntryPendingPhotoPruneInFlight: ReturnType<OwnerMobileEntryPendingPhotoPrune> | null = null;
 
 function runOwnerMobileEntryPendingPhotoPrune(
-  prune: OwnerMobileEntryPendingPhotoPrune = pruneExpiredPendingOwnerStatusPhotos,
+  prune?: OwnerMobileEntryPendingPhotoPrune,
 ) {
   if (ownerMobileEntryPendingPhotoPruneInFlight) return ownerMobileEntryPendingPhotoPruneInFlight;
-  const run = prune();
+  const run = prune
+    ? prune()
+    : import("@/lib/media/owner-pending-status-photo").then((media) => media.pruneExpiredPendingOwnerStatusPhotos());
   ownerMobileEntryPendingPhotoPruneInFlight = run;
   void run.then(
     () => {
@@ -311,13 +318,18 @@ export default function OwnerMobilePage() {
 
   useEffect(() => {
     if (ownerMobileEntryPruneStartedRef.current) return;
-    ownerMobileEntryPruneStartedRef.current = true;
-    void runOwnerMobileEntryPendingPhotoPrune().catch(() => {
-      ownerMobileEntryPruneStartedRef.current = false;
-    });
+    // Local expiry enforcement still runs on entry, after the first UI budget.
+    const timer = window.setTimeout(() => {
+      ownerMobileEntryPruneStartedRef.current = true;
+      void runOwnerMobileEntryPendingPhotoPrune().catch(() => {
+        ownerMobileEntryPruneStartedRef.current = false;
+      });
+    }, 1500);
+    return () => window.clearTimeout(timer);
   }, []);
 
-  function loadOwnerMobileDemoFallback() {
+  async function loadOwnerMobileDemoFallback() {
+    const { buildOwnerDemoBootstrap } = await import("@/lib/owner-demo-data");
     const demoBootstrap = buildOwnerDemoBootstrap();
     setOwnedShops([
       {
@@ -430,13 +442,24 @@ export default function OwnerMobilePage() {
     let active = true;
 
     async function load() {
+      // Prepare UI code alongside the existing authenticated entry checks.
+      void import("@/components/owner/owner-shell").catch(() => undefined);
+      if (isOwnerCallScreeningAvailable()) {
+        // These reads do not consume the native action. Warm the small call UI
+        // while the authenticated launch data is still being fetched.
+        void Promise.all([getOwnerCallReservationAction(), getOwnerIncomingCallChoice()]).then(([reservation, choice]) => {
+          if (reservation.pending || choice.pending) {
+            void import("@/components/owner/owner-settings-panel").catch(() => undefined);
+          }
+        }).catch(() => undefined);
+      }
       setLoadFailure(null);
       setInitialSetupState(null);
       setMessage("모바일 오너 화면을 불러오는 중입니다.");
 
       if (!hasSupabaseBrowserEnv() || !supabase) {
         if (active && shouldUseLocalMobilePreview()) {
-          loadOwnerMobileDemoFallback();
+          await loadOwnerMobileDemoFallback();
           return;
         }
         router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
@@ -450,7 +473,7 @@ export default function OwnerMobilePage() {
 
         if (!ownerAccess?.accessToken) {
           if (shouldUseLocalMobilePreview()) {
-            if (active) loadOwnerMobileDemoFallback();
+            if (active) await loadOwnerMobileDemoFallback();
             return;
           }
           router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
@@ -573,7 +596,7 @@ export default function OwnerMobilePage() {
 
         if (isOwnerAuthRecoveryError(nextMessage)) {
           if (shouldUseLocalMobilePreview()) {
-            loadOwnerMobileDemoFallback();
+            await loadOwnerMobileDemoFallback();
             return;
           }
           clearOwnerAuthTokenCache();

@@ -2,19 +2,14 @@
 
 import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, Phone, PhoneCall, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import dynamic from "next/dynamic";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
-import OwnerAppNotificationSettings from "@/components/owner/owner-app-notification-settings";
-import OwnerAlimtalkHistory from "@/components/owner/owner-alimtalk-history";
-import OwnerAlimtalkTemplates from "@/components/owner/owner-alimtalk-templates";
 import { runOwnerPlayUpdateAction, useOwnerPlayUpdateSnapshot } from "@/components/owner/owner-app-update";
-import OwnerAccountDeletionPanel from "@/components/owner/owner-account-deletion-panel";
 import OwnerSettingsOverview, { type OwnerSettingsOverviewGroup } from "@/components/owner/owner-settings-overview";
-import OwnerSupportPanel from "@/components/owner/owner-support-panel";
 import OwnerCatchCallPanel from "@/components/owner/owner-catch-call-panel";
 import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
-import MobileAiPriceGuideFixture, { type PriceGuideSessionState } from "@/components/auth/mobile-ai-price-guide-fixture";
-import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
+import type { PriceGuideSessionState } from "@/components/auth/mobile-ai-price-guide-fixture";
 import { Switch } from "@/components/ui/switch";
 import { ApiRequestError } from "@/lib/api";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
@@ -38,6 +33,14 @@ import {
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes } from "@/lib/utils";
 import type { OwnerCallReservationAction, OwnerIncomingCallChoice } from "@/lib/owner-call-screening";
 import type { BootstrapPayload, BootstrapStaffMember, BusinessHours } from "@/types/domain";
+
+const OwnerAppNotificationSettings = dynamic(() => import("@/components/owner/owner-app-notification-settings"));
+const OwnerAlimtalkHistory = dynamic(() => import("@/components/owner/owner-alimtalk-history"));
+const OwnerAlimtalkTemplates = dynamic(() => import("@/components/owner/owner-alimtalk-templates"));
+const OwnerAccountDeletionPanel = dynamic(() => import("@/components/owner/owner-account-deletion-panel"));
+const OwnerSupportPanel = dynamic(() => import("@/components/owner/owner-support-panel"));
+const MobileAiPriceGuideFixture = dynamic(() => import("@/components/auth/mobile-ai-price-guide-fixture"));
+const KakaoPostcodeSheet = dynamic(() => import("@/components/ui/kakao-postcode-sheet"));
 
 type SettingsPanelProps = {
   data: BootstrapPayload;
@@ -1442,6 +1445,7 @@ export default function OwnerSettingsPanel({
 
   const catchCallSection = (
     <OwnerCatchCallPanel
+      key={`${data.shop.id}:${pendingReservationAction?.providerCallId ?? "recent"}`}
       data={data}
       pendingReservationAction={pendingReservationAction}
       incomingCallChoice={incomingCallChoice}

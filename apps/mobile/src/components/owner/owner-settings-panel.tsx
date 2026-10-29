@@ -6,6 +6,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefOb
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import OwnerAppNotificationSettings from "@/components/owner/owner-app-notification-settings";
 import OwnerAlimtalkHistory from "@/components/owner/owner-alimtalk-history";
+import OwnerAlimtalkTemplates from "@/components/owner/owner-alimtalk-templates";
 import { runOwnerPlayUpdateAction, useOwnerPlayUpdateSnapshot } from "@/components/owner/owner-app-update";
 import OwnerAccountDeletionPanel from "@/components/owner/owner-account-deletion-panel";
 import OwnerSettingsOverview, { type OwnerSettingsOverviewGroup } from "@/components/owner/owner-settings-overview";
@@ -1126,48 +1127,43 @@ export default function OwnerSettingsPanel({
         <div className="space-y-2.5 pt-1">
           <ToggleRow
             label="알림톡 전체 사용"
-            description="매장과 고객의 수신 설정을 함께 확인해 발송합니다."
             checked={notificationSettings.enabled}
             onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
             emphasized
           />
-          <div className="space-y-2">
+          <details className="space-y-2">
+            <summary className="min-h-11 cursor-pointer py-3 text-[14px] text-[#64748b]">발송 설정</summary>
             <ToggleRow
               label="예약 확정 안내"
-              description="확정된 예약 일정과 서비스를 안내해요."
               checked={notificationSettings.bookingConfirmedEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingConfirmedEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
             <ToggleRow
               label="예약 취소 안내"
-              description="취소된 예약 내용을 안내해요."
               checked={notificationSettings.bookingCancelledEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingCancelledEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
             <ToggleRow
               label="예약 변경 안내"
-              description="변경된 예약 날짜와 시간을 안내해요."
               checked={notificationSettings.bookingRescheduledEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingRescheduledEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
             <ToggleRow
               label="픽업 준비 안내"
-              description="미용이 거의 끝나면 픽업 준비를 안내해요."
               checked={notificationSettings.groomingAlmostDoneEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingAlmostDoneEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
             <ToggleRow
               label="미용 완료 안내"
-              description="미용 완료 내용을 고객에게 안내해요."
               checked={notificationSettings.groomingCompletedEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingCompletedEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
-          </div>
+          </details>
         </div>
       </SettingsFieldCard>
       {savingNotificationSettings || notificationSettingsFeedback.type !== "idle" ? (
@@ -1185,7 +1181,24 @@ export default function OwnerSettingsPanel({
         </p>
       ) : null}
     </SettingsCard>
-    <OwnerAlimtalkHistory data={data} />
+    <SettingsCard>
+      <OwnerAlimtalkTemplates
+        shopId={data.shop.id}
+        settings={{
+          ...data.shop.notification_settings,
+          enabled: notificationSettings.enabled,
+          booking_confirmed_enabled: notificationSettings.bookingConfirmedEnabled,
+          booking_cancelled_enabled: notificationSettings.bookingCancelledEnabled,
+          revisit_enabled: notificationSettings.revisitEnabled,
+          grooming_almost_done_enabled: notificationSettings.groomingAlmostDoneEnabled,
+          grooming_completed_enabled: notificationSettings.groomingCompletedEnabled,
+        }}
+      />
+    </SettingsCard>
+    <details>
+      <summary className="min-h-11 cursor-pointer px-4 py-3 text-[14px] text-[#64748b]">발송 내역 보기</summary>
+      <OwnerAlimtalkHistory data={data} />
+    </details>
     </div>
   );
 

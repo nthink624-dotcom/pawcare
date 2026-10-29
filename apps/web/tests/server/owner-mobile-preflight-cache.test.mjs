@@ -7,10 +7,10 @@ import ts from "typescript";
 const require = createRequire(import.meta.url);
 const { NextRequest } = require("next/server");
 const source = readFileSync(new URL("../../src/server/owner-mobile-cors.ts", import.meta.url), "utf8");
-const module = { exports: {} };
+const runtimeModule = { exports: {} };
 const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-Function("require", "module", "exports", output)(require, module, module.exports);
-const { ownerMobileCorsPreflight, ownerMobileCorsJson } = module.exports;
+Function("require", "module", "exports", output)(require, runtimeModule, runtimeModule.exports);
+const { ownerMobileCorsPreflight, ownerMobileCorsJson } = runtimeModule.exports;
 
 function request(origin, method = "GET") {
   return new NextRequest("https://www.petmanager.co.kr/api/bootstrap", {

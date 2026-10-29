@@ -383,19 +383,22 @@ test("expiry and logout deletion failures reject visibly and keep the original l
   });
 });
 
-test("owner mobile entry starts local prune before auth without blocking navigation or making a server request", () => {
-  assert.match(
+test("owner mobile entry defers local prune without blocking auth or making a server request", () => {
+  assert.doesNotMatch(
     ownerMobilePageSource,
     /import \{ pruneExpiredPendingOwnerStatusPhotos \} from "@\/lib\/media\/owner-pending-status-photo"/,
   );
   const entryStart = ownerMobilePageSource.indexOf("const ownerMobileEntryPruneStartedRef");
-  const entryEnd = ownerMobilePageSource.indexOf("\n  function loadOwnerMobileDemoFallback", entryStart);
+  const entryEnd = ownerMobilePageSource.indexOf("\n  async function loadOwnerMobileDemoFallback", entryStart);
   const authStart = ownerMobilePageSource.indexOf("\n  async function getOwnerAccessContext");
   const authLoadStart = ownerMobilePageSource.indexOf("\n    async function load()", authStart);
   assert.ok(entryStart >= 0 && entryEnd > entryStart);
   assert.ok(entryStart < authStart && entryEnd < authLoadStart);
   const entry = ownerMobilePageSource.slice(entryStart, entryEnd);
   assert.match(entry, /if \(ownerMobileEntryPruneStartedRef\.current\) return;/);
+  assert.match(entry, /window\.setTimeout\(/);
+  assert.match(entry, /\}, 1500\);/);
+  assert.match(entry, /return \(\) => window\.clearTimeout\(timer\)/);
   assert.match(entry, /void runOwnerMobileEntryPendingPhotoPrune\(\)\.catch/);
   assert.match(entry, /ownerMobileEntryPruneStartedRef\.current = false/);
   assert.doesNotMatch(entry, /await |fetchApiJsonWithAuth|getOwnerAccessContext|router\.replace|supabase|console\./);
@@ -403,6 +406,7 @@ test("owner mobile entry starts local prune before auth without blocking navigat
   const helperStart = ownerMobilePageSource.indexOf("let ownerMobileEntryPendingPhotoPruneInFlight");
   const helperEnd = ownerMobilePageSource.indexOf("\nfunction shouldUseLocalMobilePreview", helperStart);
   const helper = ownerMobilePageSource.slice(helperStart, helperEnd);
+  assert.match(helper, /import\("@\/lib\/media\/owner-pending-status-photo"\)\.then/);
   assert.doesNotMatch(helper, /fetch\(|fetchApiJsonWithAuth|supabase|router|console\.|accountId|appointmentId|durableMediaAssetId/);
 });
 

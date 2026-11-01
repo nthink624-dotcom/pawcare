@@ -43,6 +43,7 @@ import { CalendarCareReportChoiceDialog } from "@/components/owner-web/calendar-
 import { CalendarCareReportPhotoCard } from "@/components/owner-web/calendar-care-report-photo-card";
 import { CARE_REPORT_TYPOGRAPHY, OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
 import { useExistingCompletionPhotos } from "@/components/owner-web/use-existing-completion-photos";
+import { BookingGroomingHistory } from "@/components/owner-web/booking-grooming-history";
 import { useGroomingRecordDraft } from "@/components/owner-web/use-grooming-record-draft";
 import { DailyScheduleGrid } from "@/components/owner-web/calendar-daily-schedule-grid";
 import {
@@ -2031,9 +2032,6 @@ function BookingSidePanel({
     (sourceStatus !== "확정" || selectedBooking.source === "owner");
   const canSendVisitReminder = sourceStatus === "확정" || sourceStatus === "진행 중" || sourceStatus === "픽업 준비";
   const showWorkflowFooter = !workflowCompleted;
-  const recentVisitHistory = selectedBooking
-    ? getRecentVisitHistory(bootstrapData, selectedBooking)
-    : { totalCount: 0, items: [] };
   const panelPhoneLabel = formatPanelPhoneNumber(editablePhone || selectedBooking.guardianPhone || "") || "연락처 없음";
   const staffLabel = selectedBooking.staffName || selectedBooking.staff || "담당 미지정";
   const hasStaffComment = Boolean(staffComment.trim());
@@ -2526,26 +2524,7 @@ function BookingSidePanel({
               </div>
             </section>
 
-            <section className="pb-2 pt-4">
-              <div className="overflow-hidden rounded-[10px] border border-[#e5e8ec] bg-white">
-              <div className="flex min-h-11 items-center justify-between gap-3 border-b border-[#f0f2f4] px-3.5 py-2.5">
-                <h3 className="text-[16px] font-semibold leading-6 text-[#15213b]">최근 방문이력</h3>
-                <span className="text-[14px] font-normal leading-5 text-[#64748b]">총 {recentVisitHistory.totalCount}회</span>
-              </div>
-              <div className={`px-3.5 py-1 ${OWNER_TYPOGRAPHY.body} text-[#64748b]`}>
-                {recentVisitHistory.items.length > 0 ? (
-                  recentVisitHistory.items.map((visit) => (
-                    <div key={visit.id} className="grid grid-cols-[86px_minmax(0,1fr)] gap-4 border-b border-[#f0f2f4] py-3 last:border-b-0">
-                      <span className="tabular-nums">{visit.date}</span>
-                      <p className="min-w-0 truncate">{visit.service}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="py-3">방문이력이 없습니다.</p>
-                )}
-              </div>
-              </div>
-            </section>
+            <BookingGroomingHistory key={`${bootstrapData.shop.id}:${selectedBooking.id}:${selectedBooking.petId ?? ""}`} data={bootstrapData} petId={selectedBooking.petId} />
           </div>
         </div>
 
@@ -2773,41 +2752,6 @@ function formatDurationLabel(duration: number) {
   if (hours > 0 && rest > 0) return `${hours}시간 ${rest}분`;
   if (hours > 0) return `${hours}시간`;
   return `${rest}분`;
-}
-
-type RecentVisitHistoryItem = {
-  id: string;
-  date: string;
-  service: string;
-  note: string;
-};
-
-function getRecentVisitHistory(
-  data: BootstrapPayload,
-  booking: DailyBooking,
-): { totalCount: number; items: RecentVisitHistoryItem[] } {
-  const records = data.groomingRecords
-    .filter((record) => {
-      if (booking.petId && record.pet_id === booking.petId) return true;
-      if (booking.guardianId && record.guardian_id === booking.guardianId) return true;
-      return false;
-    })
-    .sort((first, second) => second.groomed_at.localeCompare(first.groomed_at));
-
-  return {
-    totalCount: records.length,
-    items: records
-    .slice(0, 2)
-    .map((record) => {
-      const service = data.services.find((item) => item.id === record.service_id);
-      return {
-        id: record.id,
-        date: formatPanelDateLabel(record.groomed_at.slice(0, 10)),
-        service: service?.name ?? booking.service,
-        note: [record.style_notes, record.memo].map((item) => item?.trim()).filter(Boolean).join(" · "),
-      };
-    }),
-  };
 }
 
 function getPetProfile(booking: DailyBooking) {

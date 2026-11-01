@@ -78,7 +78,7 @@ type MediaSignedUrlResponse = {
   signedUrl: string;
 };
 
-type GroomingPhotoPreview = {
+export type GroomingPhotoPreview = {
   asset: MediaAsset;
   url: string;
 };
@@ -1257,26 +1257,34 @@ function PhotoPreviewSlot({ label, preview }: { label: string; preview: Grooming
   );
 }
 
-function GroomingRecordDetailPanel({
+export function GroomingRecordDetailPanel({
   detail,
   record,
   photoSummary,
   onClose,
   onExpandPhoto,
+  photos,
+  photoState,
+  onRetryPhotos,
+  strictReadOnly = false,
 }: {
   detail: CustomerDetailModel;
   record: CustomerDetailModel["groomingRecords"][number];
   photoSummary: GroomingPhotoSummary;
   onClose: () => void;
   onExpandPhoto: (preview: GroomingPhotoPreview, label: string) => void;
+  photos?: GroomingPhotoPreview[];
+  photoState?: "loading" | "ready" | "error";
+  onRetryPhotos?: () => void;
+  strictReadOnly?: boolean;
 }) {
   const linkedAppointment = getLinkedAppointmentForGroomingRecord(detail, record);
   const petName = detail.pets.find((pet) => pet.id === record.pet_id)?.name ?? "-";
-  const serviceName = getServiceName(detail.servicesById, record.service_id);
+  const serviceName = strictReadOnly ? record.service_name_snapshot?.trim() || detail.servicesById.get(record.service_id)?.name || "서비스 정보 없음" : getServiceName(detail.servicesById, record.service_id);
   const recordedDurationMinutes = getRecordedGroomingDurationMinutes(record.actual_duration_minutes, linkedAppointment);
   const duration = recordedDurationMinutes !== null
     ? formatDuration(recordedDurationMinutes)
-    : linkedAppointment
+    : strictReadOnly ? "기록 없음" : linkedAppointment
       ? formatDuration(getServiceDuration(detail.servicesById, linkedAppointment.service_id))
       : formatDuration(getServiceDuration(detail.servicesById, record.service_id));
   const nextRecommendedVisit = record.next_recommended_visit_date
@@ -1303,10 +1311,12 @@ function GroomingRecordDetailPanel({
         <div className="min-h-0 overflow-y-auto p-5">
           <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
             <section className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] p-3">
+              {photoState === "loading" ? <p role="status">사진을 불러오는 중입니다.</p> : photoState === "error" ? <div role="alert"><p>등록된 사진을 불러오지 못했습니다.</p><button type="button" onClick={onRetryPhotos} className="min-h-11 px-3 text-[14px] underline">사진 다시 불러오기</button></div> : photos ? photos.length ? <div className="grid grid-cols-2 gap-3">{photos.map(preview => <GroomingPhotoDetailCard key={preview.asset.id} label={preview.asset.media_kind === "grooming_before" ? "미용 전" : preview.asset.media_kind === "grooming_after" ? "미용 후" : "등록"} preview={preview} onExpand={onExpandPhoto} onRetry={onRetryPhotos} />)}</div> : <p className="py-6 text-center text-[14px] text-[#64748b]">등록된 사진이 없습니다.</p> : <>
               <div className="grid grid-cols-2 gap-3">
                 <GroomingPhotoDetailCard label="미용 전" preview={photoSummary.before} onExpand={onExpandPhoto} />
                 <GroomingPhotoDetailCard label="미용 후" preview={photoSummary.after} onExpand={onExpandPhoto} />
               </div>
+              </>}
             </section>
 
             <section className="space-y-3">
@@ -1340,27 +1350,31 @@ function GroomingPhotoDetailCard({
   label,
   preview,
   onExpand,
+  onRetry,
 }: {
   label: string;
   preview: GroomingPhotoPreview | null;
   onExpand: (preview: GroomingPhotoPreview, label: string) => void;
+  onRetry?: () => void;
 }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const imageFailed = Boolean(preview?.url && failedUrl === preview.url);
   return (
     <div className="overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
       <div className="flex items-center justify-between border-b border-[#edf2f7] px-3 py-2">
         <span className="text-[14px] font-medium text-[#334155]">{label}</span>
-        {preview?.url ? (
+        {preview?.url && !imageFailed ? (
           <button type="button" onClick={() => onExpand(preview, label)} className="text-[14px] text-[#2f7866] hover:underline">
             확대
           </button>
         ) : null}
       </div>
-      {preview?.url ? (
+      {preview?.url && !imageFailed ? (
         <button type="button" onClick={() => onExpand(preview, label)} className="block aspect-[4/3] w-full overflow-hidden bg-[#f8fafc]">
-          <img src={preview.url} alt={`${label} 사진`} className="h-full w-full object-cover transition duration-200 hover:scale-[1.02]" />
+          <img src={preview.url} alt={`${label} 사진`} onError={() => setFailedUrl(preview.url)} className="h-full w-full object-cover transition duration-200 hover:scale-[1.02]" />
         </button>
       ) : (
-        <div className="flex aspect-[4/3] items-center justify-center bg-[#f8fafc] text-[14px] text-[#94a3b8]">사진 없음</div>
+        <div className="flex aspect-[4/3] flex-col items-center justify-center bg-[#f8fafc] px-2 text-center text-[14px] text-[#64748b]">{imageFailed ? "사진을 표시하지 못했습니다." : "사진 없음"}{imageFailed && onRetry ? <button type="button" className="min-h-11 underline" onClick={onRetry}>사진 다시 불러오기</button> : null}</div>
       )}
       <p className="px-3 py-2 text-[13px] text-[#64748b]">{preview ? formatPhotoRetention(preview.asset) : "사진이 등록되지 않았습니다."}</p>
     </div>
@@ -1390,7 +1404,7 @@ function LongTextBlock({ title, value, emptyText }: { title: string; value: stri
   );
 }
 
-function PhotoLightbox({ photo, onClose }: { photo: { preview: GroomingPhotoPreview; label: string }; onClose: () => void }) {
+export function PhotoLightbox({ photo, onClose }: { photo: { preview: GroomingPhotoPreview; label: string }; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-6" onClick={onClose}>
       <section className="max-h-full w-full max-w-[1080px] overflow-hidden rounded-[10px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.35)]" onClick={(event) => event.stopPropagation()}>

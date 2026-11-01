@@ -1432,7 +1432,7 @@ export default function CustomerManagementScreen({
       <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[14px] border border-[#e8edf3] bg-white">
         <div className="border-b border-[#e8edf3] p-3 sm:p-4">
           <div className="flex flex-wrap items-center gap-2.5">
-            <label className="flex h-11 min-w-0 basis-full items-center gap-3 rounded-[10px] border border-[#e2e8f0] bg-[#f8fafc] px-3 text-[#64748b] transition focus-within:border-[#64748b] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#64748b]/10 sm:min-w-[240px] sm:flex-1 sm:basis-0">
+            <label className="flex h-11 min-w-0 basis-full items-center gap-3 rounded-[10px] border border-[#3b82f6] bg-white px-3 text-[#64748b] transition focus-within:border-[#2563eb] focus-within:ring-2 focus-within:ring-[#2563eb]/10 sm:min-w-[240px] sm:flex-1 sm:basis-0">
               <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-4 w-4 text-[#94a3b8]" />
               <input
                 value={query}

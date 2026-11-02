@@ -135,6 +135,7 @@ function StaffChipColorPicker({
         {staffChipPalette.map((tone, index) => {
           const selected = selectedIndex === index;
           const unavailable = isUnavailable(index);
+          // The lock marks unavailable choices; their swatches must retain the exact color.
           return (
             <button
               key={tone.selectedBackground}
@@ -142,6 +143,7 @@ function StaffChipColorPicker({
               onClick={() => onChange(index)}
               disabled={unavailable}
               aria-pressed={selected}
+              style={{ opacity: 1 }}
               className={cn(
                 "h-11 w-11 min-h-11 min-w-11 rounded-[8px] border bg-white p-1 transition hover:bg-[#f8fafc]",
                 selected ? "border-[#64748b] ring-1 ring-[#64748b]/30" : "border-[#dbe2ea]",

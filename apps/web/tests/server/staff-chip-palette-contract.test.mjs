@@ -12,16 +12,16 @@ import {
 } from "../../src/lib/staff-chip-colors.ts";
 
 const expectedPalette = [
-  ["#FBECEF", "#AE3D57"],
-  ["#FDF0E8", "#D86B3D"],
-  ["#FFFBE3", "#E4B92E"],
-  ["#EAF6EF", "#258F60"],
-  ["#EAF4FC", "#2686C7"],
-  ["#EDF0F7", "#334574"],
-  ["#F0EAF7", "#5B2B8A"],
-  ["#F5EDE7", "#7A4F36"],
-  ["#E6F6F7", "#008E9A"],
-  ["#F7F2E9", "#B89460"],
+  ["#FCE5E5", "#EF5B5B"],
+  ["#FDEFE2", "#F59A4A"],
+  ["#FFF8D8", "#FFD60A"],
+  ["#E4F2EB", "#57AD81"],
+  ["#E3EDFD", "#4D8CF1"],
+  ["#EAEEF2", "#7D92AF"],
+  ["#F0EAF9", "#A07ADB"],
+  ["#E1DDDA", "#432818"],
+  ["#D6E8E9", "#006D77"],
+  ["#FAECF3", "#E087B1"],
 ];
 
 test("canonical staff palette exposes the exact ten saved chip colors in order", () => {
@@ -32,8 +32,8 @@ test("canonical staff palette exposes the exact ten saved chip colors in order",
   );
   assert.equal(new Set(expectedPalette.map(([background]) => background)).size, 10);
   assert.equal(new Set(expectedPalette.map(([, accent]) => accent)).size, 10);
-  assert.deepEqual(expectedPalette[0], ["#FBECEF", "#AE3D57"]);
-  assert.deepEqual(expectedPalette[9], ["#F7F2E9", "#B89460"]);
+  assert.deepEqual(expectedPalette[0], ["#FCE5E5", "#EF5B5B"]);
+  assert.deepEqual(expectedPalette[9], ["#FAECF3", "#E087B1"]);
   assert.equal(normalizeStaffChipColorIndex(9), 9);
   assert.equal(normalizeStaffChipColorIndex(10), null);
   for (const removedBackground of ["#F8EBEE", "#F3F0F8", "#FBF1C9", "#F3F4EA", "#EEE6F6", "#F9E9E5"]) {

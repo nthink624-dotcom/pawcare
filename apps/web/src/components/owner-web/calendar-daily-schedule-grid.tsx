@@ -121,7 +121,7 @@ function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, 
           <span className="min-w-0 flex-1">
             <span data-booking-content="identity" className="flex min-w-0 items-baseline gap-1.5" title={[booking.pet, booking.customer].filter(Boolean).join(" · ")}>
               <span className="min-w-0 truncate font-medium text-[#17243c]">{booking.pet}</span>
-              {booking.customer ? <span className="hidden min-w-0 truncate text-[#64748b] @[380px]/chip:inline">· {booking.customer}</span> : null}
+              {booking.customer ? <span className="hidden min-w-0 truncate text-[#526174] @[380px]/chip:inline">· {booking.customer}</span> : null}
             </span>
             <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[#526174]">
               <Scissors aria-hidden="true" className="hidden size-4 shrink-0 @[300px]/chip:block" />
@@ -136,7 +136,7 @@ function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, 
       </span>
       {pendingOverlapLabel ? <span className="truncate text-[14px] leading-5 text-[#a46710]">{pendingOverlapLabel}</span> : null}
       {height >= 100 && memo ? (
-        <span className={cn("min-w-0 items-start gap-2 text-[#64748b]", height >= 140 ? "mt-auto flex" : "hidden @[300px]/chip:flex") }>
+        <span className={cn("min-w-0 items-start gap-2 text-[#526174]", height >= 140 ? "mt-auto flex" : "hidden @[300px]/chip:flex") }>
           <NotebookPen aria-hidden="true" className="mt-1 size-4 shrink-0" />
           <span data-booking-content="memo" data-booking-request-note="present" title={memo} className={cn("min-w-0", height >= 180 ? "line-clamp-2" : height >= 140 ? "truncate @[300px]/chip:line-clamp-2 @[300px]/chip:whitespace-normal" : "truncate")}>{memo}</span>
         </span>
@@ -682,7 +682,7 @@ export function DailyScheduleGrid({
           width: 0;
         }
       `}</style>
-      <div className="flex shrink-0 overflow-hidden border-b border-[#e3eaf2] bg-white">
+      <div className="flex shrink-0 overflow-hidden border-b border-[#e1e9f5]" style={{ backgroundColor: "#ffffff" }}>
             <CalendarTimeRailHeader />
         <div
           ref={headerScrollerRef}
@@ -793,12 +793,6 @@ export function DailyScheduleGrid({
                       {showCurrentTime ? (
                         <>
                           <div
-                            data-schedule-current-time-wash="true"
-                            className="pointer-events-none absolute left-0 right-0 z-[5] h-6 -translate-y-1/2 bg-[#edf3ff]"
-                            style={{ top: currentTimeTop }}
-                            aria-hidden="true"
-                          />
-                          <div
                             data-schedule-current-time-line="true"
                             className="pointer-events-none absolute left-0 right-0 z-30 h-px"
                             style={{ top: currentTimeTop, backgroundColor: "#3b6fd8" }}
@@ -865,7 +859,7 @@ export function DailyScheduleGrid({
                                   ...bookingLayoutStyle,
                                   top: getBookingTop(booking.start, scheduleDisplayLayout),
                                   height: bookingHeight,
-                                  backgroundColor: completedBooking ? "#f8fafc" : `color-mix(in srgb, ${identityTone.background} 55%, white)`,
+                                  backgroundColor: completedBooking ? "#f8fafc" : identityTone.background,
                                   borderColor: completedBooking ? "#dde5ef" : identityTone.border,
                                   borderLeftColor: identityTone.selectedBackground,
                                 }}
@@ -904,7 +898,7 @@ export function DailyScheduleGrid({
                                 ...bookingLayoutStyle,
                                 top: getBookingTop(booking.start, scheduleDisplayLayout),
                                 height: bookingHeight,
-                                backgroundColor: completedBooking ? "#f8fafc" : `color-mix(in srgb, ${identityTone.background} 55%, white)`,
+                                backgroundColor: completedBooking ? "#f8fafc" : identityTone.background,
                                 borderColor: completedBooking ? "#dde5ef" : identityTone.border,
                                 borderLeftColor: identityTone.selectedBackground,
                               }}

@@ -19,6 +19,7 @@ import { writeCurrentOwnerShopId } from "@/lib/owner-current-shop";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
+import SocialLoginButtons from "./social-login-buttons";
 
 type OwnerLoginApiResponse = {
   success?: boolean;
@@ -214,6 +215,7 @@ export default function LoginForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [socialLoginPending, setSocialLoginPending] = useState(false);
   const [creatingDevOwner, setCreatingDevOwner] = useState(false);
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
   const [rememberEmail, setRememberEmail] = useState(false);
@@ -246,7 +248,7 @@ export default function LoginForm({
   }, []);
 
   const handleLogin = async (credentials?: { email: string; password: string }) => {
-    if (loginAttemptInFlightRef.current) return;
+    if (loginAttemptInFlightRef.current || socialLoginPending) return;
 
     const currentEmail = (credentials?.email ?? email).trim().toLowerCase();
     const currentPassword = credentials?.password ?? password;
@@ -526,6 +528,8 @@ export default function LoginForm({
         password={password}
         rememberEmail={rememberEmail}
         loading={loading}
+        loginDisabled={socialLoginPending}
+        socialLogin={<SocialLoginButtons nextPath={nextPath} disabled={loading || creatingDevOwner} onPendingChange={setSocialLoginPending} />}
         message={message}
         nextPath={nextPath}
         onEmailChange={(value) => {
@@ -547,7 +551,7 @@ export default function LoginForm({
             <button
               type="button"
               onClick={() => void createDevOwner()}
-              disabled={creatingDevOwner || loading}
+              disabled={creatingDevOwner || loading || socialLoginPending}
               className="mt-4 flex h-[48px] w-full items-center justify-center rounded-[16px] border border-[#cfe3dc] bg-white text-[15px] font-semibold text-[#1f6b5b] disabled:opacity-60"
             >
               {creatingDevOwner ? "테스트 오너 확인 중..." : "검수용 테스트 오너로 시작하기"}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { StableAvatar } from "@/components/owner-web/stable-avatar";
@@ -285,6 +286,11 @@ export default function OwnerProfileSettingsPanel({
         </label>
         </div>
       </div>
+
+      {persistToSupabase ? <div className="mt-7 border-t border-[#e8edf3] pt-5">
+        <h3 className="text-[16px] font-medium text-[#0f172a]">소셜 로그인</h3>
+        <Link href={{ pathname: "/owner/social-accounts" }} className="mt-2 inline-flex min-h-12 items-center rounded-[10px] border border-[#dbe2ea] px-4 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">로그인 계정 연결 관리</Link>
+      </div> : null}
 
       <div className="mt-7 rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
         <p className="text-[16px] font-medium text-[#0f172a]">제공정보 활용처</p>

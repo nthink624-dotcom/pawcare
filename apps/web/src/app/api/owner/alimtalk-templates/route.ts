@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 
 import { serverEnv } from "@/lib/server-env";
+import { isLocalAlimtalkReadOnly, LOCAL_ALIMTALK_READ_ONLY_MESSAGE } from "@/server/alimtalk-local-access";
 import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
 import { getApprovedSsodaaTemplateButtonDefaults } from "@/server/alimtalk-approved-template";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -125,6 +126,9 @@ export async function GET(request: NextRequest) {
     }));
 
     const categories = Array.isArray(categoriesResult?.categories) ? categoriesResult.categories : [];
+    const categoriesError = categoriesResult
+      ? categories.length ? null : "쏘다에서 사용할 수 있는 알림 분류가 없습니다. 잠시 후 다시 불러와 주세요."
+      : "알림톡 분류 서버에 연결하지 못했습니다. 연결 상태를 확인한 뒤 다시 불러와 주세요.";
     const aliases = ALIMTALK_NOTIFICATION_REGISTRY
       .map((item) => item.templateAlias)
       .filter((alias): alias is NonNullable<typeof alias> => Boolean(alias));
@@ -137,7 +141,8 @@ export async function GET(request: NextRequest) {
     const approvedTemplates = await getApprovedSsodaaTemplateDetails(aliases, owner.shopId).catch(() => ({}));
     return Response.json({
       templates: synced, buttonDefaults, previewValues,
-      categories,
+      ...(isLocalAlimtalkReadOnly() ? { providerReadOnly: true } : {}),
+      categories, categoriesError,
       approvedTemplates: Object.fromEntries(Object.entries(approvedTemplates).map(([alias, detail]) => [alias, detail ? {
         templateCode: detail.templateCode,
         templateName: detail.templateName,
@@ -159,6 +164,9 @@ export async function POST(request: NextRequest) {
     const payload = templateSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, payload.shopId);
     assertOwnerOrManager(owner);
+    if (payload.action === "submit" && isLocalAlimtalkReadOnly()) {
+      throw new OwnerApiError(LOCAL_ALIMTALK_READ_ONLY_MESSAGE, 403);
+    }
     const admin = getSupabaseAdmin();
     if (!admin || !owner.userId) throw new OwnerApiError("문안 저장 설정을 확인해 주세요.", 503);
     const registryItem = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === payload.templateAlias);

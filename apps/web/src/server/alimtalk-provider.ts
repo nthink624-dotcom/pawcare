@@ -4,6 +4,7 @@ export type AlimtalkMetadata = Record<string, string | boolean | number | null |
 
 import { logOperationalEvent } from "@/server/observability";
 import { assertAlimtalkTemplateAccess } from "@/server/alimtalk-template-ownership";
+import { assertAlimtalkMutationAllowed } from "@/server/alimtalk-local-access";
 
 export type AlimtalkMediaAttachment = {
   attachmentId?: string | null;
@@ -128,6 +129,8 @@ function normalizeButtons(value: AlimtalkButton[] | null | undefined) {
 }
 
 export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<SendAlimtalkResult> {
+  // Also guard the direct-provider fallback if a local relay URL is removed.
+  assertAlimtalkMutationAllowed();
   if (serverEnv.alimtalkProvider === "ssodaa" && !input.templateKey?.trim()) throw new Error("검증된 현재 템플릿 연결이 없어 발송을 중단했습니다.");
   if (serverEnv.alimtalkProvider === "ssodaa") await assertAlimtalkTemplateAccess(input.templateKey!.trim(), input.shopId);
   const requestId = crypto.randomUUID();

@@ -4469,7 +4469,7 @@ export default function CalendarManagementScreen({
     if (id && filteredBookings.some(booking => booking.id === id)) { setSelectedBookingId(id); depositOpenRequest.current = null; }
   }, [filteredBookings]);
   const wideBookingViewport = useSyncExternalStore(subscribeToDockedBookingViewport, getDockedBookingViewport, () => false);
-  const dockedBookingDetail = wideBookingViewport && visibleStaff.length > 0 && (visibleStaff.length === 1 || staff !== "전체 직원");
+  const dockedBookingDetail = wideBookingViewport && visibleStaff.length > 0 && (visibleStaff.length <= 2 || staff !== "전체 직원");
 
   useEffect(() => {
     if (selectedBookingId && !filteredBookings.some((booking) => booking.id === selectedBookingId)) {

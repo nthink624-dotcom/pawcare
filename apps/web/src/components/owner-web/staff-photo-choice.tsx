@@ -12,11 +12,11 @@ type PhotoPatch = Pick<StaffDraft, "profileImageUrl" | "profileImageFallbackKey"
 function PhotoRegistrationCard({ compact = false, onChange }: { compact?: boolean; onChange: (patch: PhotoPatch) => void }) {
   const [error, setError] = useState("");
   return (
-    <div>
-      <label className={compact
+    <div className={compact ? undefined : "h-full"}>
+      <label data-owner-control-size={compact ? undefined : "content"} className={compact
         ? "inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]"
-        : "flex min-h-11 cursor-pointer flex-col items-center justify-center gap-2 rounded-[10px] border border-[#dbe2ea] bg-white px-2 py-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]"}>
-        {compact ? <ImagePlus className="h-4 w-4" aria-hidden="true" /> : <span className="flex h-20 w-20 items-center justify-center rounded-full bg-[#f1f5f9] text-[#475569]"><ImagePlus className="h-7 w-7" aria-hidden="true" /></span>}
+        : "flex h-full min-h-[144px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[10px] border border-[#dbe2ea] bg-white px-2 py-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]"}>
+        {compact ? <ImagePlus className="h-4 w-4" aria-hidden="true" /> : <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-[#475569]"><ImagePlus className="h-7 w-7" aria-hidden="true" /></span>}
         사진 등록
         <input type="file" accept={STAFF_PROFILE_ACCEPTED_IMAGE_TYPES.join(",")} className="sr-only" aria-label="프로필 사진 올리기" onChange={(event) => {
           const file = event.currentTarget.files?.[0];
@@ -48,8 +48,12 @@ export function StaffProfileImagePicker({ value, onChange, onClose }: {
   const titleId = useId();
   useEffect(() => {
     const dialog = dialogRef.current;
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialog?.showModal();
-    return () => dialog?.close();
+    return () => {
+      dialog?.close();
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    };
   }, []);
   function choose(patch: PhotoPatch) {
     onChange(patch);
@@ -59,14 +63,14 @@ export function StaffProfileImagePicker({ value, onChange, onClose }: {
     <dialog ref={dialogRef} aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); onClose(); }} className="fixed inset-0 m-auto max-h-[calc(100dvh-32px)] w-[calc(100%-32px)] max-w-[400px] overflow-y-auto rounded-[12px] border border-[#dbe2ea] bg-white p-5 text-[#111827] shadow-xl backdrop:bg-slate-900/30">
       <div className="flex items-center justify-between gap-3">
         <h3 id={titleId} className="text-[20px] font-semibold">프로필 이미지 선택</h3>
-        <button type="button" onClick={onClose} aria-label="이미지 선택 닫기" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#f8fafc]"><X className="h-5 w-5" /></button>
+        <button type="button" data-owner-control-size="content" onClick={onClose} aria-label="이미지 선택 닫기" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-[#f8fafc]"><X className="h-5 w-5" /></button>
       </div>
       <div className="mt-5 grid grid-cols-3 gap-2">
         <PhotoRegistrationCard onChange={choose} />
         {staffProfileFallbackKeys.map((key, index) => (
-          <button key={key} type="button" aria-pressed={value === key} onClick={() => choose({ profileImageUrl: "", profileImageFallbackKey: key, profileImageChoice: "default", profileImageFile: null, profileImagePendingUpload: null })} className="flex min-h-11 flex-col items-center gap-2 rounded-[10px] border border-[#dbe2ea] p-2 text-[14px] font-medium hover:bg-[#f8fafc] aria-pressed:border-[#64748b]">
+          <button key={key} type="button" data-owner-control-size="content" aria-pressed={value === key} onClick={() => choose({ profileImageUrl: "", profileImageFallbackKey: key, profileImageChoice: "default", profileImageFile: null, profileImagePendingUpload: null })} className="flex min-h-[144px] flex-col items-center justify-center gap-2 rounded-[10px] border border-[#dbe2ea] p-2 text-[14px] font-medium hover:bg-[#f8fafc] aria-pressed:border-[#64748b]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={resolveStaffProfileFallbackImageUrl(key)} alt="" className="h-20 w-20 rounded-full object-cover" />
+            <img src={resolveStaffProfileFallbackImageUrl(key)} alt="" className="h-20 w-20 shrink-0 rounded-full object-cover" />
             {index === 0 ? "여자 기본 이미지" : "남자 기본 이미지"}
           </button>
         ))}

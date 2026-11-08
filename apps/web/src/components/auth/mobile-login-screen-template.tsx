@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 type Props = {
   email: string;
   password: string;
   rememberEmail: boolean;
   loading: boolean;
+  loginDisabled?: boolean;
+  socialLogin?: ReactNode;
   message: string | null;
   nextPath: string;
   heading?: string;
@@ -37,6 +39,8 @@ export default function MobileLoginScreenTemplate({
   password,
   rememberEmail,
   loading,
+  loginDisabled = false,
+  socialLogin,
   message,
   nextPath,
   heading = "로그인",
@@ -174,11 +178,13 @@ export default function MobileLoginScreenTemplate({
           data-testid="owner-login-submit"
           type="button"
           onClick={() => onLogin(syncBrowserFilledCredentials())}
-          disabled={loading}
+          disabled={loading || loginDisabled}
           className="h-[62px] w-full rounded-[14px] border-0 bg-[#111a30] text-[17px] font-bold tracking-[-0.02em] text-white transition-[background-color,transform] duration-150 hover:bg-[#17233d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? loginButtonLoadingLabel : loginButtonLabel}
         </button>
+
+        {socialLogin}
 
         <div className="mb-1 mt-6 flex items-center justify-center gap-3 text-[14px] leading-[normal] text-[#9aadd0]">
           {resolvedHelperLinks.map((link, index) => (

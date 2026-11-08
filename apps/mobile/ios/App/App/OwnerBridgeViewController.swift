@@ -71,7 +71,9 @@ final class OwnerBridgeViewController: CAPBridgeViewController {
               padding-top: calc(var(--pm-safe-top) + 12px) !important;
             }
             .pm-mobile-owner > nav {
-              padding-bottom: calc(var(--pm-safe-bottom) + 2px) !important;
+              /* Lower the tabs by up to 12px while retaining at least 20px on
+                 devices with a home gesture area. Preserve smaller insets. */
+              padding-bottom: calc(max(min(var(--pm-safe-bottom), 20px), calc(var(--pm-safe-bottom) - 12px)) + 2px) !important;
             }
           `;
         })();

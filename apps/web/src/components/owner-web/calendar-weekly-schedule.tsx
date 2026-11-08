@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { reservationChipSurfaces } from "@petmanager/shared/lib/reservation-chip-colors";
 
 export type WeeklyScheduleBooking = {
   id: string;
@@ -71,13 +72,15 @@ function getWeekHours(bookings: WeeklyScheduleBooking[]) {
   return Array.from({ length: Math.max(1, endHour - startHour) + 1 }, (_, index) => startHour + index);
 }
 
-function getBookingToneClass(booking: Pick<WeeklyScheduleBooking, "service" | "status">) {
+function getBookingSurfaceStyle(booking: Pick<WeeklyScheduleBooking, "service" | "status">) {
   const service = booking.service.replaceAll(" ", "");
-  if (service.includes("목욕")) return "border-[#b9dfc5] bg-[#e6f4ea]";
-  if (service.includes("위생")) return "border-[#d5c2ef] bg-[#eee7fa]";
-  if (/(부분|발톱|발바닥|얼굴|귀|항문낭)/.test(service)) return "border-[#f0c8a8] bg-[#fce8d8]";
-  if (/(미용|가위|클리핑)/.test(service)) return "border-[#b9d6f5] bg-[#e5f0ff]";
-  return "border-[#d4dce6] bg-[#f1f4f7]";
+  const tone = service.includes("목욕") ? reservationChipSurfaces.mint
+    : service.includes("위생") ? reservationChipSurfaces.lavender
+    : /(부분|발톱|발바닥|얼굴|귀|항문낭)/.test(service) ? reservationChipSurfaces.cream
+    : /(미용|가위|클리핑)/.test(service) ? reservationChipSurfaces.sky
+    : reservationChipSurfaces.neutral;
+  const background = booking.status === "완료" ? tone.mutedBackground : tone.background;
+  return { backgroundColor: background, borderColor: background };
 }
 
 function getStatusTextClass(status: string) {
@@ -184,8 +187,8 @@ function WeekBookingCard({
       className={cn(
         "h-full w-full overflow-hidden rounded-[6px] border text-left outline-none transition hover:brightness-[0.985] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
         compact ? "px-2 py-1.5" : "px-2.5 py-2",
-        getBookingToneClass(booking),
       )}
+      style={getBookingSurfaceStyle(booking)}
     >
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5">
         <p className={cn("min-w-0 truncate font-semibold text-[#263445]", compact ? "text-[10px] leading-[13px]" : "text-[12px] leading-4")}>
@@ -348,14 +351,15 @@ function AllStaffWeeklyOverview({
                   ) : (
                     dayBookings.map((booking) => {
                       const endMinutes = booking.start + booking.duration;
-                      const toneClass = getBookingToneClass(booking);
+                      const toneStyle = getBookingSurfaceStyle(booking);
 
                       return (
                         <button
                           key={booking.id}
                           type="button"
                           onClick={() => onSelectBooking(booking)}
-                          className={`w-full rounded-lg border border-l-[3px] px-3 py-2.5 text-left transition-transform hover:-translate-y-0.5 hover:shadow-sm ${toneClass}`}
+                          className="w-full rounded-lg border px-3 py-2.5 text-left transition-transform hover:-translate-y-0.5 hover:shadow-sm"
+                          style={toneStyle}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <span className="min-w-0 truncate text-[14px] font-semibold text-[#17233a]">

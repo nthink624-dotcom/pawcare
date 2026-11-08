@@ -5654,6 +5654,7 @@ export default function CalendarManagementScreen({
           <DailyScheduleGrid
             shopId={bootstrapData.shop.id}
             bookings={filteredBookings}
+            services={bootstrapData.services}
             staff={staff}
             visibleStaff={visibleStaff}
             staffMembers={staffMembers}

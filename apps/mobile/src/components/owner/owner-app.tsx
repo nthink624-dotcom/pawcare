@@ -3228,6 +3228,7 @@ function OwnerAppContent({
       petNames={Object.fromEntries(data.pets.map((pet) => [pet.id, pet.name]))}
       guardianNames={Object.fromEntries(data.guardians.map((guardian) => [guardian.id, guardian.name]))}
       serviceNames={Object.fromEntries(data.services.map((service) => [service.id, service.name]))}
+      services={data.services}
       serviceDurations={Object.fromEntries(data.services.map((service) => [service.id, service.duration_minutes]))}
       staffOptions={bookingStaffFilterOptions}
       selectedStaffId={bookingStaffFilter}

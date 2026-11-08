@@ -370,7 +370,7 @@ test("appointment geometry and card hierarchy preserve canonical contracts", () 
   assert.match(schedule, /const detailedCard = minutes >= DETAILED_BOOKING_MINUTES/);
   assert.match(schedule, /미용 완료/);
   assert.match(schedule, /noshow: \{ label: "노쇼"/);
-  assert.match(schedule, /border-l-\[3px\]/);
+  assert.doesNotMatch(schedule, /border-l-\[3px\]/);
   assert.match(schedule, /shadow-none/);
   assert.match(schedule, /function assignCollisionColumns/);
   assert.match(schedule, /minHeight: Math\.max\(height, 44\)/);
@@ -400,9 +400,9 @@ test("appointment geometry and card hierarchy preserve canonical contracts", () 
   assert.doesNotMatch(schedule, /items-center justify-center gap-3 border-b px-3 text-left/);
   assert.match(schedule, /text-\[16px\] font-medium leading-6/);
   assert.match(schedule, /const staffSummaryLabel = `\$\{workHoursLabel\} · \$\{laneAppointments\.length\}건 · \$\{formatDuration\(totalMinutes\)\}`/);
-  assert.match(schedule, /getAppointmentIdentityTone\(appointment\.pet_id \|\| appointment\.id\)/);
-  assert.match(schedule, /borderColor: identityTone\.border/);
-  assert.match(schedule, /borderLeftColor: identityTone\.accent/);
+  assert.match(schedule, /getAppointmentIdentityTone\(appointment\.service_id, serviceTones\)/);
+  assert.match(schedule, /borderColor: completed \? identityTone\.mutedBackground : identityTone\.border/);
+  assert.doesNotMatch(schedule, /borderLeftColor|border-l-\[3px\]/);
   assert.match(schedule, /backgroundColor: completed \? identityTone\.mutedBackground : identityTone\.background/);
   assert.match(schedule, /pending: \{ label: "승인 대기", compactLabel: "대기", color: "#8a5b11"/);
   assert.match(schedule, /in_progress: \{ label: "진행 중", compactLabel: "진행", color: "#2563eb"/);

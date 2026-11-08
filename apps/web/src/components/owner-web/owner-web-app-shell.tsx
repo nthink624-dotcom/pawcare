@@ -128,7 +128,7 @@ const ownerWebFlushCoreScreens = new Set<OwnerWebScreenKey>([
 
 function OwnerWebSidebarIcon({ screen }: { screen: OwnerWebNavigationKey }) {
   const Icon = screenIconComponents[screen];
-  return <Icon className="pm-owner-sidebar-icon h-[22px] w-[22px] shrink-0" strokeWidth={1.8} aria-hidden="true" />;
+  return <Icon className="pm-owner-sidebar-icon h-6 w-6 shrink-0" strokeWidth={2} aria-hidden="true" />;
 }
 
 const OWNER_HEADER_UTILITY_BUTTON_CLASS =

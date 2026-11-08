@@ -1,12 +1,13 @@
 ﻿"use client";
 
-import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, Phone, PhoneCall, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, PhoneCall, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import dynamic from "next/dynamic";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import { runOwnerPlayUpdateAction, useOwnerPlayUpdateSnapshot } from "@/components/owner/owner-app-update";
 import OwnerSettingsOverview, { type OwnerSettingsOverviewGroup } from "@/components/owner/owner-settings-overview";
+import OwnerInstalledAppVersion from "@/components/owner/owner-installed-app-version";
 import OwnerCatchCallPanel from "@/components/owner/owner-catch-call-panel";
 import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
 import type { PriceGuideSessionState } from "@/components/auth/mobile-ai-price-guide-fixture";
@@ -28,7 +29,6 @@ import {
   PUBLIC_LEGAL_CONTACT,
   PUBLIC_LEGAL_LINKS,
   getPublicLegalMailtoHref,
-  getPublicLegalTelHref,
 } from "@/lib/legal/public-legal-links";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes } from "@/lib/utils";
 import type { OwnerCallReservationAction, OwnerIncomingCallChoice } from "@/lib/owner-call-screening";
@@ -1209,6 +1209,7 @@ export default function OwnerSettingsPanel({
     <SettingsCard>
       <div className="divide-y divide-[var(--border)]">
         {accountEmail ? <AccountRow icon={UserRound} label="로그인 이메일" value={accountEmail} /> : null}
+        <OwnerInstalledAppVersion />
         <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
         {appRole === "owner" ? <OwnerAccountDeletionPanel onDeleted={onLogout} /> : null}
         <AccountActionRow icon={LogOut} label={loggingOut ? "로그아웃 중..." : "로그아웃"} onClick={onLogout} disabled={loggingOut} />
@@ -1391,13 +1392,6 @@ export default function OwnerSettingsPanel({
           <p>사업자등록번호: {PUBLIC_LEGAL_CONTACT.businessRegistrationNumber}</p>
         </div>
         <div className="mt-4 overflow-hidden rounded-[12px] border border-[var(--border)] divide-y divide-[var(--border)]">
-          <a href={getPublicLegalTelHref()} className="flex min-h-[50px] items-center justify-between gap-3 px-3 py-2.5">
-            <span className="flex min-w-0 items-center gap-2.5">
-              <Phone className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={1.9} />
-              <span className="text-[14px] font-medium text-[var(--text)]">{PUBLIC_LEGAL_CONTACT.phone}</span>
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
-          </a>
           <a href={getPublicLegalMailtoHref()} className="flex min-h-[50px] items-center justify-between gap-3 px-3 py-2.5">
             <span className="flex min-w-0 items-center gap-2.5">
               <Mail className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={1.9} />
@@ -2187,6 +2181,3 @@ function AccountActionRow({
     </button>
   );
 }
-
-
-

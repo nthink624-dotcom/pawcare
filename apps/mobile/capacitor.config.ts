@@ -43,6 +43,9 @@ const config: CapacitorConfig = {
     loggingBehavior: "none",
   },
   plugins: {
+    App: {
+      disableBackButtonHandler: true,
+    },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
     },

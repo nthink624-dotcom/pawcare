@@ -300,12 +300,6 @@ button[class*="hover:bg-[#293548]"]:hover {
   border-color: var(--pm-ui-border) !important;
 }
 
-/* 직원 개인 칩 색은 일반 카드 테두리 정규화보다 우선하는 왼쪽 식별선으로만 쓴다. */
-.pm-owner-web button[data-staff-identity-card] {
-  border-left-width: 3px !important;
-  border-left-color: var(--pm-wrap-indicator-color) !important;
-}
-
 .pm-owner-web :is(
   [class*="divide-[#cbd5e1]"],
   [class*="divide-[#d8dce3]"],

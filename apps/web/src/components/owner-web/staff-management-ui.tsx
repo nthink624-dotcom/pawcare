@@ -191,7 +191,6 @@ export function StaffList({
       <div data-staff-list-grid className="grid gap-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           {staff.map((staffMember) => {
             const active = selectedStaffId === staffMember.id;
-            const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex);
             const staffIdentityTone = getScheduleStaffIdentityTone(staffMember.id, staffMember.chipColorIndex);
             const weeklyDays = getWeeklyWorkDays(staffMember, weekStart, requests, overrides);
             const todayCell = applyScheduleToCell(staffMember, todayKey, todayDate, requests, overrides);
@@ -204,14 +203,8 @@ export function StaffList({
                 data-staff-identity-card={staffMember.id}
                 className={cn(
                   "relative grid min-h-[112px] w-full content-between gap-2.5 overflow-hidden rounded-[10px] border bg-white p-3 text-left transition hover:border-[#cbd5e1] hover:bg-[#fbfcfd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff]/35",
-                  getWrapIndicatorClass(getCellIndicatorTone(todayCell.status)),
                   active ? "border-[#cbd5e1] shadow-[0_10px_26px_rgba(15,23,42,0.06)]" : "border-[#dbe2ea]",
                 )}
-                style={{
-                  "--pm-wrap-indicator-color": staffTone.selectedBackground,
-                  borderLeftWidth: 3,
-                  borderLeftColor: staffTone.selectedBackground,
-                } as CSSProperties}
               >
                 <div className="flex min-w-0 items-start justify-between gap-2.5 rounded-[8px] px-2 py-1.5 -mx-2"
                   style={{ backgroundColor: staffIdentityTone.background }}

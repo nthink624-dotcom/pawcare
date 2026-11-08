@@ -78,12 +78,8 @@ test("daily schedule keeps staff identity, selection, and current-time colors in
   assert.match(staffManagement, /data-staff-identity-card=\{staffMember\.id\}/);
   assert.doesNotMatch(staffManagement, /data-staff-identity-accent/);
   assert.match(staffManagement, /<StableAvatar identity=\{staffId\} name=\{name\} imageUrl=\{imageUrl\}/);
-  assert.match(staffManagement, /borderLeftWidth: 3/);
-  assert.match(staffManagement, /borderLeftColor: staffTone\.selectedBackground/);
-  assert.match(
-    globalStyles,
-    /\.pm-owner-web button\[data-staff-identity-card\] \{\s*border-left-width: 3px !important;\s*border-left-color: var\(--pm-wrap-indicator-color\) !important;/,
-  );
+  assert.doesNotMatch(staffManagement, /borderLeftWidth: 3|borderLeftColor: staffTone\.selectedBackground/);
+  assert.doesNotMatch(globalStyles, /\.pm-owner-web button\[data-staff-identity-card\]/);
   assert.doesNotMatch(staffManagementScreen, /staff\.length % staffChipPalette\.length/);
   assert.match(staffManagementScreen, /findAvailableStaffChipColorIndex\(nextStaffId, occupiedChipColorIndices\)/);
   assert.match(monthlySchedule, /getStaffChipTone\(staffMember\.id, staffMember\.chipColorIndex\)/);

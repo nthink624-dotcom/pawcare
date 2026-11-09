@@ -31,9 +31,9 @@ export async function POST(request: NextRequest) {
       { deferNotifications: (task) => after(task) },
     );
     after(() => flushDepositOutbox(owner.shopId));
-    const consentTask = () => processOwnerBookingConsent(owner, { id: result.id, guardianId: result.guardian_id, petId: result.pet_id }, consentChoice);
-    if (consentChoice) await consentTask(); // Persist an explicit owner assertion before returning.
-    else after(consentTask);
+    const consentIdentity = { id: result.id, guardianId: result.guardian_id, petId: result.pet_id };
+    if (consentChoice) await processOwnerBookingConsent(owner, consentIdentity, consentChoice, after);
+    else after(() => processOwnerBookingConsent(owner, consentIdentity, null));
     return ownerMobileCorsJson(request, result, undefined, APPOINTMENTS_CORS);
   } catch (error) {
     if (error instanceof OwnerApiError) {

@@ -29,13 +29,20 @@ export async function validateOwnerBookingConsentChoice(actor: Actor, identity: 
 }
 
 /** Reuse the existing recognition RPC and preparation request/dispatch ledger. */
-export async function processOwnerBookingConsent(actor: Actor, identity: Identity & { id: string }, choice: Awaited<ReturnType<typeof validateOwnerBookingConsentChoice>>) {
+export async function processOwnerBookingConsent(actor: Actor, identity: Identity & { id: string }, choice: Awaited<ReturnType<typeof validateOwnerBookingConsentChoice>>, deferFollowUp?: (task: () => Promise<void>) => void) {
   try {
     if (choice) {
       const admin = getSupabaseAdmin();
       if (!admin) throw new Error("동의서 저장소를 확인할 수 없습니다.");
       const result = await admin.rpc("pm_record_consent_recognitions", { p_shop: actor.shopId, p_guardian: identity.guardianId, p_pet: identity.petId, p_actor: actor.userId, p_policy_version: choice.policyVersion, p_documents: choice.documents });
       if (result.error) throw new Error("동의서 설정이 변경되어 기존 동의를 인정하지 못했습니다. 고객 상세에서 다시 확인해 주세요.");
+    }
+    // The explicit recognition above must be persisted before returning the
+    // saved appointment. Reading preparation and requesting delivery can run
+    // after the response, through the same guarded pipeline and request ledger.
+    if (deferFollowUp) {
+      deferFollowUp(() => processOwnerBookingConsent(actor, identity, null));
+      return;
     }
     const state = await readCustomerConsentState(actor.shopId, identity.guardianId, identity.petId, identity.id);
     if (!state.enabled || !state.documents.some(doc => doc.status === "pending")) return;

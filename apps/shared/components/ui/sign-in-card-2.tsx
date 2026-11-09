@@ -20,14 +20,11 @@ export function SignInCard2({ children, className }: SignInCard2Props) {
   const rotateY = useTransform(smoothX, [-1, 1], [-6, 6]);
 
   useEffect(() => {
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const mouse = window.matchMedia("(hover: hover) and (pointer: fine)");
-    const sync = () => setEnabled(mouse.matches && !reducedMotion.matches);
+    const mouse = window.matchMedia("(any-hover: hover) and (any-pointer: fine)");
+    const sync = () => setEnabled(mouse.matches);
     sync();
-    reducedMotion.addEventListener("change", sync);
     mouse.addEventListener("change", sync);
     return () => {
-      reducedMotion.removeEventListener("change", sync);
       mouse.removeEventListener("change", sync);
     };
   }, []);
@@ -37,8 +34,15 @@ export function SignInCard2({ children, className }: SignInCard2Props) {
     pointerY.set(0);
   }
 
+  function isTextEntry(target: EventTarget | null) {
+    return target instanceof Element && Boolean(target.closest(
+      'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]), textarea, [contenteditable="true"]',
+    ));
+  }
+
   function followPointer(event: PointerEvent<HTMLElement>) {
-    if (!enabled || editing || event.pointerType !== "mouse") return;
+    if (!enabled || event.pointerType !== "mouse") return;
+    setEditing(false);
     const rect = event.currentTarget.getBoundingClientRect();
     pointerX.set(Math.max(-1, Math.min(1, ((event.clientX - rect.left) / rect.width - 0.5) * 2)));
     pointerY.set(Math.max(-1, Math.min(1, ((event.clientY - rect.top) / rect.height - 0.5) * 2)));
@@ -56,8 +60,13 @@ export function SignInCard2({ children, className }: SignInCard2Props) {
         rotateY: enabled && !editing ? rotateY : 0,
       }}
       onPointerMove={followPointer}
-      onPointerLeave={reset}
-      onFocusCapture={() => { setEditing(true); reset(); }}
+      onPointerLeave={() => { setEditing(false); reset(); }}
+      onFocusCapture={(event) => {
+        if (isTextEntry(event.target)) { setEditing(true); reset(); }
+      }}
+      onKeyDownCapture={(event) => {
+        if (isTextEntry(event.target)) { setEditing(true); reset(); }
+      }}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setEditing(false);
       }}

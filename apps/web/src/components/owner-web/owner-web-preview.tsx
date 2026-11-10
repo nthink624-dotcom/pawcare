@@ -48,6 +48,8 @@ function OwnerScreenLoading() {
   );
 }
 
+const CommunityBoard = dynamic(() => import("@petmanager/shared/components/community/community-board"), { loading: OwnerScreenLoading });
+
 const CalendarManagementScreen = dynamic(
   () => import("@/components/owner-web/calendar-management-screen"),
   { loading: OwnerScreenLoading },
@@ -173,7 +175,7 @@ function getRequestedOwnerWebScreen(data: BootstrapPayload): OwnerWebScreenKey {
   if (typeof window === "undefined") return "schedule";
   const searchParams = new URLSearchParams(window.location.search);
   const screen = searchParams.get("screen") as OwnerWebScreenKey | null;
-  if (screen && ["schedule", "bookingPageManagement", "bookingLink", "customers", "calendarRecords", "profitability", "services", "staff", "ownerProfile", "shopInfo", "bookingPolicy", "operatingHours", "benefits", "alerts", "help"].includes(screen)) {
+  if (screen && ["schedule", "bookingPageManagement", "bookingLink", "customers", "calendarRecords", "profitability", "community", "services", "staff", "ownerProfile", "shopInfo", "bookingPolicy", "operatingHours", "benefits", "alerts", "help"].includes(screen)) {
     return screen;
   }
   if (!getBootstrapOwnerInitialSetupReadiness(data).completed) return "schedule";
@@ -244,6 +246,8 @@ function renderScreen(
   };
 
   switch (screen) {
+    case "community":
+      return <CommunityBoard key={initialData.shop.id} shopId={initialData.shop.id} api={fetchApiJsonWithAuth} />;
     case "schedule":
       return (
         <CalendarManagementScreen

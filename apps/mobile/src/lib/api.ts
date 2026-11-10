@@ -128,7 +128,8 @@ export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit)
   const accessToken = await getAccessTokenWithRecovery();
 
   const headers = new Headers(init?.headers);
-  if (!headers.has("Content-Type")) {
+  const hasFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (!headers.has("Content-Type") && !hasFormDataBody) {
     headers.set("Content-Type", "application/json");
   }
   headers.set("Authorization", `Bearer ${accessToken}`);

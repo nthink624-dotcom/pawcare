@@ -1,0 +1,24 @@
+do $$ begin create role anon; exception when duplicate_object then null; end $$;
+do $$ begin create role authenticated; exception when duplicate_object then null; end $$;
+do $$ begin create role service_role bypassrls; exception when duplicate_object then null; end $$;
+create schema auth; create schema storage;
+create table auth.users(id uuid primary key);
+create table public.shops(id text primary key, owner_user_id uuid);
+create table public.owner_shop_memberships(owner_user_id uuid, shop_id text, role text);
+create table public.staff_members(shop_id text, auth_user_id uuid, is_active boolean);
+create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text);
+alter table storage.objects enable row level security;
+grant usage on schema public,auth,storage to service_role,authenticated,anon;
+grant select on public.shops,public.owner_shop_memberships,public.staff_members to service_role;
+grant select,insert,delete on storage.objects to authenticated,anon;
+create policy deliberately_broad_legacy_policy on storage.objects for all to authenticated,anon using(true) with check(true);
+insert into auth.users select ('10000000-0000-4000-8000-00000000000'||i)::uuid from generate_series(1,5) i;
+insert into public.shops values('shop-a','10000000-0000-4000-8000-000000000001'),('shop-b','10000000-0000-4000-8000-000000000002');
+insert into public.owner_shop_memberships values('10000000-0000-4000-8000-000000000003','shop-a','staff'),('10000000-0000-4000-8000-000000000005','shop-a','staff');
+insert into public.staff_members values('shop-a','10000000-0000-4000-8000-000000000003',true),('shop-a','10000000-0000-4000-8000-000000000005',false);
+create function public.test_assert(ok boolean, label text) returns void language plpgsql as $$ begin if ok is distinct from true then raise exception 'ASSERT: %',label; end if; end $$;
+create function public.test_reject(q text, expected text) returns void language plpgsql as $$
+declare failed boolean:=false;
+begin begin execute q; exception when others then if position(expected in sqlerrm)=0 then raise; end if; failed:=true; end;
+if not failed then raise exception 'unexpected success: %',q; end if; end $$;

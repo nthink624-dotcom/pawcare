@@ -23,7 +23,7 @@ try {
   const status=spawnSync(path.join(bin,'pg_ctl.exe'),['-D',cluster,'status'],{encoding:'utf8',windowsHide:true});
   if(status.status!==0) run('pg_ctl',['-D',cluster,'-l',path.join(work,'postgres-server.log'),'-o',`-p ${port} -h 127.0.0.1`,'-w','start']); started=true;
   run('createdb',['-h','127.0.0.1','-p',port,'-U','postgres',db]);
-  for (const file of ['tests/community/fixture.sql','supabase/migrations/20261109111431_member_community.sql','tests/community/assertions.sql']) run('psql',[...args,'-f',path.join(root,file)]);
+  for (const file of ['tests/community/fixture.sql','supabase/migrations/20261110114910_member_community.sql','tests/community/assertions.sql']) run('psql',[...args,'-f',path.join(root,file)]);
   fs.writeFileSync(path.join(work,'postgres-result.json'),JSON.stringify({passed:true,environment:'task-owned local PostgreSQL',port,remoteWrites:false}));
   console.log('COMMUNITY_SQL_PASS: membership, cross-shop shared posts, CRUD, conflicts, comment retries, search, blocking, moderation, RLS, Storage restrictions');
 } finally {

@@ -23,7 +23,7 @@ async function start(){
  let server;
  try{
   tool('createdb',['-h','127.0.0.1','-p',port,'-U','postgres',db]);
-  for(const file of ['tests/community/fixture.sql','supabase/migrations/20261109111431_member_community.sql'])tool('psql',[...pgargs,'-f',path.join(root,file)]);
+  for(const file of ['tests/community/fixture.sql','supabase/migrations/20261110114910_member_community.sql'])tool('psql',[...pgargs,'-f',path.join(root,file)]);
   const photos=new Map();const errors=[];let origin='';
   const storage={from(bucket){if(bucket!=='community-images')throw Error('unexpected bucket');return{
    async upload(key,buffer){const file=path.join(work,'objects',Buffer.from(key).toString('base64url')+'.webp');fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,buffer);photos.set(key,file);return{error:null};},

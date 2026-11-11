@@ -22,7 +22,7 @@ const record = {
   care_report_owner_confirmed_at: "2026-08-18T11:10:00+09:00",
   care_report_photo_consent: true,
   care_report_data: {
-    reportText: "오늘 두부는 눈물이 평소보다 많아 눈가 주변을 자극 없이 꼼꼼하게 세정했고, 발 주변은 예민한 반응이 있어 천천히 나누어 진행했어요. 눈가가 젖었을 때는 부드러운 거즈로 닦아 주시고 귀 뒤쪽은 주 2~3회 빗질해 주세요.",
+    reportText: "목욕은 잘 받아주었으며 얼굴은 동그랗게 정리했습니다. 앞발을 만질 때 예민해 중간중간 쉬어가며 진행했습니다.",
   },
 } as GroomingRecord;
 
@@ -55,18 +55,19 @@ export default function CustomerCareReportPreviewPage() {
           petName="두부"
           serviceName="전체미용"
           staffName="김서연 디자이너"
-          shopPhone="02-1234-5678"
+          staffProfileImageUrl="/images/profiles/korean-groomer-profile-01.jpg"
           mediaAssets={mediaAssets}
           embedded
           previewPhotoUrls={{
-            "landing-care-report-before": "/images/customer-booking-hero-original.jpg",
-            "landing-care-report-after": "/images/customer-booking-hero-retriever-bath.jpg",
+            "landing-care-report-before": "/images/care-report-ai-before.png",
+            "landing-care-report-after": "/images/care-report-ai-after.png",
           }}
           weightHistory={[
-            { measuredAt: "2026-03-28T11:00:00+09:00", weightKg: 4.4 },
-            { measuredAt: "2026-05-09T11:00:00+09:00", weightKg: 4.45 },
-            { measuredAt: "2026-06-13T11:00:00+09:00", weightKg: 4.5 },
-            { measuredAt: "2026-07-11T11:00:00+09:00", weightKg: 4.55 },
+            { measuredAt: "2026-02-21T11:00:00+09:00", weightKg: 4.6 },
+            { measuredAt: "2026-03-28T11:00:00+09:00", weightKg: 4.5 },
+            { measuredAt: "2026-05-09T11:00:00+09:00", weightKg: 4.7 },
+            { measuredAt: "2026-06-13T11:00:00+09:00", weightKg: 4.6 },
+            { measuredAt: "2026-07-11T11:00:00+09:00", weightKg: 4.5 },
             { measuredAt: "2026-08-18T11:00:00+09:00", weightKg: 4.6 },
           ]}
         />

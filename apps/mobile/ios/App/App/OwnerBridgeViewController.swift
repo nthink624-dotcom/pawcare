@@ -193,12 +193,11 @@ private final class OwnerIdentityPopupUIDelegate: NSObject, WKUIDelegate, WKNavi
             return nil
         }
 
-        // Use WebKit's supplied configuration so window.opener remains valid,
-        // but never expose Capacitor scripts/native message handlers to a provider.
+        // Keep WebKit's supplied configuration so window.opener remains valid.
+        // Registered scheme handlers cannot be unregistered with nil: WebKit
+        // raises an Objective-C exception. Isolate native message handlers with
+        // a fresh content controller; navigation policy blocks bridge schemes.
         configuration.userContentController = WKUserContentController()
-        for scheme in ["capacitor", "capacitor-http", "capacitor-https"] {
-            configuration.setURLSchemeHandler(nil, forURLScheme: scheme)
-        }
         let popup = WKWebView(frame: .zero, configuration: configuration)
         popup.uiDelegate = self
         popup.navigationDelegate = self
@@ -223,6 +222,7 @@ private final class OwnerIdentityPopupUIDelegate: NSObject, WKUIDelegate, WKNavi
             surface.topAnchor.constraint(equalTo: owner.view.topAnchor),
             surface.bottomAnchor.constraint(equalTo: owner.view.bottomAnchor)
         ])
+        popupLog.notice("identity_popup_surface_ready")
         UIAccessibility.post(notification: .screenChanged, argument: popup)
         return popup
     }

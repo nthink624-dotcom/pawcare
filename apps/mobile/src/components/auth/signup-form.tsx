@@ -933,6 +933,7 @@ export default function SignupForm({
       // Keep provider details and internal diagnostics out of customer copy.
       retainVerificationFailure(code === "SDK_CANCELLED" ? "본인인증을 취소했어요." :
         code === "POPUP_BLOCKED" ? "팝업을 허용한 뒤 다시 시도해 주세요." :
+        code === "SDK_CALL_TIMEOUT" ? "본인인증 제한 시간이 지났어요. 인증을 다시 시작해 주세요." :
         "본인인증을 완료하지 못했어요. 다시 시도해 주세요.");
     };
     try {
@@ -964,7 +965,7 @@ export default function SignupForm({
       const identityVerificationId = requestResult.providerIdentityVerificationId;
 
       failureStage = "SDK_CALL";
-      // Match the server's five-minute provider-request lifetime.
+      // Match the server's fifteen-minute provider-request lifetime.
       const result = await waitForIdentityOperation(requestIdentityVerification({
         storeId: env.portoneStoreId,
         channelKey,
@@ -979,7 +980,7 @@ export default function SignupForm({
           birthDay: identity.birthDate.slice(6, 8),
         },
         ...(bypass ? { bypass } : {}),
-      }), attempt.signal, 5 * 60 * 1000);
+      }), attempt.signal, 15 * 60 * 1000);
       if (identityRevisionRef.current !== identityRevision || attempt.signal.aborted) return;
 
       if (!result || result.code || result.identityVerificationId !== identityVerificationId) {

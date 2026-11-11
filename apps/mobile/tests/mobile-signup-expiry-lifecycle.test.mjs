@@ -120,12 +120,13 @@ function identityWaitHarness() {
   return { time, ...create(time.setTimeout, time.clearTimeout) };
 }
 
-test("provider wait accepts a result after two minutes without timing out", async () => {
+test("provider wait accepts the observed ten-minute verification without timing out", async () => {
   const h = identityWaitHarness(); let resolve;
   const operation = new Promise(done => { resolve = done; });
   const pending = h.wait(operation, new AbortController().signal, h.timeout);
   let state = "pending"; pending.then(() => { state = "complete"; }, () => { state = "timed-out"; });
   h.time.advance(120_001); await Promise.resolve(); assert.equal(state, "pending");
+  h.time.advance(505_999); await Promise.resolve(); assert.equal(state, "pending");
   resolve({ identityVerificationId: "provider-test" });
   assert.deepEqual(await pending, { identityVerificationId: "provider-test" });
   assert.equal(h.time.pendingCount, 0);
@@ -133,7 +134,7 @@ test("provider wait accepts a result after two minutes without timing out", asyn
 
 test("the provider wait is bounded by the server request lifetime", async () => {
   const serverSource = await readFile(new URL("../src/server/owner-identity-verification.ts", import.meta.url), "utf8");
-  const expression = serverSource.match(/const CHALLENGE_EXPIRES_IN_MS = ([^;]+);/)[1];
+  const expression = serverSource.match(/const PORTONE_REQUEST_EXPIRES_IN_MS = ([^;]+);/)[1];
   const serverLifetime = new Function(`return (${expression});`)();
   const h = identityWaitHarness(); assert.equal(h.timeout, serverLifetime);
   const pending = h.wait(new Promise(() => {}), new AbortController().signal, h.timeout);

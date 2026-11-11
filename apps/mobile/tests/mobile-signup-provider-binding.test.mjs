@@ -56,6 +56,8 @@ function fixture({ failInsert = false, failUpdate = false, expireOnUpdate = fals
   } };
   const identity = {
     identityVerificationPurposeSchema: require("zod").z.enum(["signup", "find-email", "reset-password"]),
+    createIdentityVerificationCode: () => "123456",
+    hashIdentityVerificationCode: (value) => createHash("sha256").update(value).digest("hex"),
     issueVerifiedIdentityToken(value) { const token = `fixture-token-${issued.size}`; issued.set(token, value); return token; },
     readVerifiedIdentityToken(token) { return issued.get(token); },
   };
@@ -80,7 +82,7 @@ function verified(binding, overrides = {}) {
 }
 const post = (body) => ({ json: async () => body });
 
-test("server issues independent unpredictable bindings and persists only the real hash with five-minute expiry", async () => {
+test("server issues independent unpredictable bindings and persists only the real hash with fifteen-minute provider expiry", async () => {
   const f = fixture(); const a = await request(f); const b = await request(f);
   assert.notEqual(a.verificationState, b.verificationState);
   assert.notEqual(a.identityVerificationId, b.identityVerificationId);
@@ -88,8 +90,16 @@ test("server issues independent unpredictable bindings and persists only the rea
   const row = f.rows.get(a.verificationRequestId);
   assert.equal(row.provider_request_state_hash, createHash("sha256").update(a.verificationState).digest("hex"));
   assert.ok(!JSON.stringify(row).includes(a.verificationState));
-  assert.ok(Date.parse(row.provider_request_expires_at) - Date.now() <= 300_000);
-  assert.ok(Date.parse(row.provider_request_expires_at) - Date.now() > 295_000);
+  assert.ok(Date.parse(row.provider_request_expires_at) - Date.now() <= 900_000);
+  assert.ok(Date.parse(row.provider_request_expires_at) - Date.now() > 895_000);
+});
+
+test("local OTP retains its five-minute expiry independently of the provider window", async () => {
+  const f = fixture();
+  const local = await f.service.createLocalIdentityVerificationRequest(person);
+  const row = f.rows.get(local.verificationRequestId);
+  assert.ok(Date.parse(row.challenge_expires_at) - Date.now() <= 300_000);
+  assert.ok(Date.parse(row.challenge_expires_at) - Date.now() > 295_000);
 });
 
 for (const [label, mutate] of [

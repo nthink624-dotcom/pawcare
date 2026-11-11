@@ -5,17 +5,30 @@ import WebKit
 final class OwnerBridgeViewController: CAPBridgeViewController {
     private let safeAreaStyleElementID = "pm-ios-safe-area-style"
     private var lastAppliedSafeAreaInsets: UIEdgeInsets?
+    private var identityPopupDelegate: OwnerIdentityPopupUIDelegate?
+
+    override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
+        let configuration = super.webViewConfiguration(for: instanceConfiguration)
+        // KCP opens its window after the verification request has been prepared.
+        // The UI delegate below limits managed popups to our identity screens.
+        configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
+        return configuration
+    }
 
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
 
-        // Keep Capacitor's default same-origin navigation inside the app.
-        // External http(s) and tel links are intentionally handled by the system.
-        // Future owner push-notification entry routing can be added here.
+        // The main web view keeps Capacitor's normal navigation policy; identity
+        // popups use an isolated child so their opener and signup state survive.
         webView?.allowsBackForwardNavigationGestures = false
         // The web owner surface owns its safe-area spacing. Avoid UIKit adding a
         // second scroll inset, then provide the measured iOS inset to the page.
         webView?.scrollView.contentInsetAdjustmentBehavior = .never
+        if let webView, identityPopupDelegate == nil {
+            let delegate = OwnerIdentityPopupUIDelegate(owner: self, webView: webView, fallback: webView.uiDelegate)
+            identityPopupDelegate = delegate
+            webView.uiDelegate = delegate
+        }
         applySafeAreaInsets(force: true)
 
         // The production URL can finish its first navigation after the Capacitor
@@ -84,5 +97,207 @@ final class OwnerBridgeViewController: CAPBridgeViewController {
 
     private func cssPixel(_ value: CGFloat) -> String {
         String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), value)
+    }
+}
+
+// Preserve the opener and the in-memory signup form while KCP verifies the user.
+// Capacitor's default popup handler opens a system URL and returns nil, which
+// makes the identity SDK report POPUP_BLOCKED inside the native app.
+private final class OwnerIdentityPopupUIDelegate: NSObject, WKUIDelegate, WKNavigationDelegate {
+    private weak var owner: UIViewController?
+    private weak var hostWebView: WKWebView?
+    private let fallback: WKUIDelegate?
+    private var surfaces: [ObjectIdentifier: OwnerIdentityPopupSurface] = [:]
+
+    init(owner: UIViewController, webView: WKWebView, fallback: WKUIDelegate?) {
+        self.owner = owner
+        self.hostWebView = webView
+        self.fallback = fallback
+        super.init()
+    }
+
+    private func isProviderHost(_ host: String) -> Bool {
+        let host = host.lowercased()
+        return ["kcp.co.kr", "portone.io", "iamport.kr"].contains {
+            host == $0 || host.hasSuffix("." + $0)
+        }
+    }
+
+    private func isIdentityPopup(_ webView: WKWebView, action: WKNavigationAction) -> Bool {
+        guard webView === hostWebView, let page = webView.url,
+              page.scheme == "https",
+              ["app.petmanager.co.kr", "www.petmanager.co.kr", "petmanager.co.kr"].contains(page.host?.lowercased() ?? ""),
+              ["/signup", "/login", "/login/find-email", "/login/reset-password"].contains(page.path) else { return false }
+        let source = action.sourceFrame.securityOrigin
+        guard source.protocol == "https",
+              source.host.lowercased() == page.host?.lowercased() || isProviderHost(source.host) else { return false }
+        guard let url = action.request.url else { return true }
+        return url.absoluteString == "about:blank" ||
+            (url.scheme == "https" && isProviderHost(url.host ?? ""))
+    }
+
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        guard isIdentityPopup(webView, action: navigationAction), let owner else {
+            return fallback?.webView?(webView, createWebViewWith: configuration,
+                                      for: navigationAction, windowFeatures: windowFeatures)
+        }
+        guard surfaces.isEmpty else { return nil }
+
+        // Use WebKit's supplied configuration so window.opener remains valid,
+        // but never expose Capacitor scripts/native message handlers to a provider.
+        configuration.userContentController = WKUserContentController()
+        for scheme in ["capacitor", "capacitor-http", "capacitor-https"] {
+            configuration.setURLSchemeHandler(nil, forURLScheme: scheme)
+        }
+        let popup = WKWebView(frame: .zero, configuration: configuration)
+        popup.uiDelegate = self
+        popup.navigationDelegate = self
+        popup.allowsBackForwardNavigationGestures = false
+        popup.accessibilityIdentifier = "owner.identity-verification.webview"
+
+        let surface = OwnerIdentityPopupSurface(webView: popup)
+        surface.onClose = { [weak self, weak popup] in
+            guard let self, let popup else { return }
+            popup.evaluateJavaScript("window.close()") { [weak self, weak popup] _, _ in
+                guard let popup else { return }
+                self?.removePopup(popup)
+            }
+        }
+        surfaces[ObjectIdentifier(popup)] = surface
+        owner.view.endEditing(true)
+        owner.view.addSubview(surface)
+        surface.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            surface.leadingAnchor.constraint(equalTo: owner.view.leadingAnchor),
+            surface.trailingAnchor.constraint(equalTo: owner.view.trailingAnchor),
+            surface.topAnchor.constraint(equalTo: owner.view.topAnchor),
+            surface.bottomAnchor.constraint(equalTo: owner.view.bottomAnchor)
+        ])
+        UIAccessibility.post(notification: .screenChanged, argument: popup)
+        return popup
+    }
+
+    private func removePopup(_ webView: WKWebView) {
+        guard let surface = surfaces.removeValue(forKey: ObjectIdentifier(webView)) else { return }
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        webView.uiDelegate = nil
+        surface.removeFromSuperview()
+        UIAccessibility.post(notification: .screenChanged, argument: hostWebView)
+    }
+
+    func webViewDidClose(_ webView: WKWebView) {
+        removePopup(webView)
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url, let scheme = url.scheme?.lowercased() else {
+            decisionHandler(.cancel)
+            return
+        }
+        if scheme == "https" || url.absoluteString == "about:blank" {
+            decisionHandler(.allow)
+            return
+        }
+        decisionHandler(.cancel)
+        // Identity providers may hand control to a carrier's PASS application.
+        // Local files, script URLs and the app's own bridge scheme stay blocked.
+        let urlTypes = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] ?? []
+        let ownSchemes = urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+        guard !["http", "file", "javascript", "data", "capacitor", "capacitor-http", "capacitor-https"].contains(scheme),
+              !ownSchemes.contains(where: { $0.lowercased() == scheme }) else { return }
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+    }
+
+    // Retain Capacitor's existing JavaScript-dialog behavior. The popup is a
+    // view on the same controller, so its dialogs also have a visible presenter.
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        if let _ = fallback?.webView?(webView, runJavaScriptAlertPanelWithMessage: message,
+                                      initiatedByFrame: frame, completionHandler: completionHandler) { return }
+        completionHandler()
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        if let _ = fallback?.webView?(webView, runJavaScriptConfirmPanelWithMessage: message,
+                                      initiatedByFrame: frame, completionHandler: completionHandler) { return }
+        completionHandler(false)
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String,
+                 defaultText: String?, initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping (String?) -> Void) {
+        if let _ = fallback?.webView?(webView, runJavaScriptTextInputPanelWithPrompt: prompt,
+                                      defaultText: defaultText, initiatedByFrame: frame,
+                                      completionHandler: completionHandler) { return }
+        completionHandler(nil)
+    }
+
+    @available(iOS 15.0, *)
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+                 initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
+                 decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        if webView === hostWebView,
+           let _ = fallback?.webView?(webView, requestMediaCapturePermissionFor: origin,
+                                       initiatedByFrame: frame, type: type, decisionHandler: decisionHandler) { return }
+        decisionHandler(.deny)
+    }
+
+    @available(iOS 15.0, *)
+    func webView(_ webView: WKWebView, requestDeviceOrientationAndMotionPermissionFor origin: WKSecurityOrigin,
+                 initiatedByFrame frame: WKFrameInfo, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        if webView === hostWebView,
+           let _ = fallback?.webView?(webView, requestDeviceOrientationAndMotionPermissionFor: origin,
+                                       initiatedByFrame: frame, decisionHandler: decisionHandler) { return }
+        decisionHandler(.deny)
+    }
+}
+
+private final class OwnerIdentityPopupSurface: UIView {
+    let webView: WKWebView
+    var onClose: (() -> Void)?
+
+    init(webView: WKWebView) {
+        self.webView = webView
+        super.init(frame: .zero)
+        backgroundColor = .systemBackground
+        accessibilityViewIsModal = true
+
+        let title = UILabel()
+        title.text = "본인인증"
+        title.font = .preferredFont(forTextStyle: .headline)
+        title.adjustsFontForContentSizeCategory = true
+        let close = UIButton(type: .system)
+        close.setTitle("닫기", for: .normal)
+        close.accessibilityLabel = "본인인증 닫기"
+        close.accessibilityIdentifier = "owner.identity-verification.close"
+        close.addTarget(self, action: #selector(closeRequested), for: .touchUpInside)
+        let contentViews: [UIView] = [title, close, webView]
+        for view in contentViews {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+        }
+        NSLayoutConstraint.activate([
+            close.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+            close.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            close.widthAnchor.constraint(greaterThanOrEqualToConstant: 56),
+            close.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            title.centerYAnchor.constraint(equalTo: close.centerYAnchor),
+            title.trailingAnchor.constraint(lessThanOrEqualTo: close.leadingAnchor, constant: -8),
+            webView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            webView.topAnchor.constraint(equalTo: close.bottomAnchor),
+            webView.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor)
+        ])
+    }
+
+    required init?(coder: NSCoder) { return nil }
+
+    @objc private func closeRequested() {
+        onClose?()
     }
 }

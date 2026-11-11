@@ -2,7 +2,7 @@
   "name": "@petmanager/mobile",
   "private": true,
   "scripts": {
-    "prebuild": "node ../../scripts/check-production-build-source.cjs && node scripts/check-identity-provider.cjs && npm run test:price-guide-core && npm run test:readiness && npm run test:owner-entry",
+    "prebuild": "node ../../scripts/check-production-build-source.cjs && node scripts/check-identity-provider.cjs && node scripts/check-signup-transport.cjs && npm run test:price-guide-core && npm run test:readiness && npm run test:owner-entry",
     "test:owner-entry": "node --test tests/mobile-owner-call-reservation-entry.test.mjs tests/mobile-owner-startup-transport.test.mjs tests/mobile-owner-entry.test.mjs tests/mobile-owner-entry-background.test.mjs",
     "predeploy": "node ../../scripts/check-predeploy-release.cjs",
     "dev": "next dev",

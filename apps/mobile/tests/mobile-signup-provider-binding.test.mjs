@@ -62,7 +62,7 @@ function fixture({ failInsert = false, failUpdate = false, expireOnUpdate = fals
     readVerifiedIdentityToken(token) { return issued.get(token); },
   };
   const mocks = {
-    "@/lib/server-env": { getSupabaseServerRuntimeStage: () => "development", hasSupabaseServerEnv: () => true, hasPortoneServerEnv: () => true, serverEnv: { portoneApiSecret: "fixture", portoneStoreId: "fixture" } },
+    "@/lib/server-env": { getSupabaseServerRuntimeStage: () => "development", hasSupabaseServerEnv: () => true, hasPortoneIdentityServerEnv: () => true, serverEnv: { portoneApiSecret: "fixture", portoneStoreId: "fixture" } },
     "@/lib/auth/owner-credentials": { normalizeOwnerPhoneNumber: (s) => s.replace(/\D/g, ""), isValidBirthDate8: () => true, isValidOwnerEmail: () => true, normalizeOwnerEmail: (s) => s.trim() },
     "@/lib/auth/owner-identity": identity,
     "@/lib/supabase/server": { getSupabaseAdmin: () => db },

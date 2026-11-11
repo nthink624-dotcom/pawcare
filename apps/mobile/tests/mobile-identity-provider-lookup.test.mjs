@@ -12,12 +12,12 @@ const binding = {
 };
 const verified = { id: binding.identityVerificationId, status: "VERIFIED" };
 
-function harness(replies, { bindingValid = true, expiresBeforeCompletion = false } = {}) {
+function harness(replies, { bindingValid = true, expiresBeforeCompletion = false, identitySecret } = {}) {
   let now = 0, completed = 0, validated = 0;
   const calls = [], waits = [], timeouts = [], logs = [];
   const mocks = {
     "@/lib/auth/owner-identity": { identityVerificationPurposeSchema: require("zod").z.enum(["signup", "find-email", "reset-password"]) },
-    "@/lib/server-env": { hasSupabaseServerEnv: () => true, hasPortoneServerEnv: () => true, serverEnv: { portoneApiSecret: "PRIVATE_API_SECRET", portoneStoreId: "fixture-store" } },
+    "@/lib/server-env": { hasSupabaseServerEnv: () => true, hasPortoneIdentityServerEnv: () => true, serverEnv: { portoneApiSecret: "PRIVATE_API_SECRET", portoneIdentityApiSecret: identitySecret, portoneStoreId: "fixture-store" } },
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
     "@/server/owner-identity-verification": {
       validatePortoneIdentityVerificationRequest: async () => { validated += 1; return bindingValid; },
@@ -72,6 +72,12 @@ test("transient HTTP and transport failures retry reads only", async () => {
     const h = harness([first, { body: verified }]);
     assert.equal((await h.run()).status, 200); assert.equal(h.calls.length, 2); assert.equal(h.completed(), 1);
   }
+});
+
+test("identity lookup can use its dedicated credential independently of the billing credential", async () => {
+  const h = harness([{ body: verified }], { identitySecret: "PRIVATE_IDENTITY_SECRET" });
+  assert.equal((await h.run()).status, 200);
+  assert.equal(h.calls[0].init.headers.Authorization, "PortOne PRIVATE_IDENTITY_SECRET");
 });
 
 test("credential rejection and terminal FAILED results stop without issuing a token", async () => {

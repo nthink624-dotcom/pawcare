@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { identityVerificationPurposeSchema } from "@/lib/auth/owner-identity";
-import { hasPortoneServerEnv, hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
+import { hasPortoneIdentityServerEnv, hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
 import {
   completePortoneIdentityVerification,
   validatePortoneIdentityVerificationRequest,
@@ -53,7 +53,7 @@ function buildPortoneIdentityVerificationUrls(identityVerificationId: string) {
 async function fetchPortoneIdentityVerification(identityVerificationId: string) {
   const getEndpoint = buildPortoneIdentityVerificationUrls(identityVerificationId);
   const headers = {
-    Authorization: `PortOne ${serverEnv.portoneApiSecret}`,
+    Authorization: `PortOne ${serverEnv.portoneIdentityApiSecret || serverEnv.portoneApiSecret}`,
     "Content-Type": "application/json",
   };
 
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "인증 서버 환경이 아직 준비되지 않았습니다." }, { status: 503 });
     }
 
-    if (!hasPortoneServerEnv()) {
+    if (!hasPortoneIdentityServerEnv()) {
       return NextResponse.json({ message: "PASS 본인인증 환경이 아직 준비되지 않았어요." }, { status: 503 });
     }
 

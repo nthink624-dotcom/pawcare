@@ -35,6 +35,14 @@ test("production fails closed on rejected credentials with no provider detail le
   }
 });
 
+test("production preflight validates the same dedicated identity credential used at runtime", async () => {
+  const result = await checkIdentityProvider({ env: { ...env, PORTONE_IDENTITY_API_SECRET: "PRIVATE_IDENTITY_SECRET" }, fetchImpl: async (_url, init) => {
+    assert.equal(init.headers.Authorization, "PortOne PRIVATE_IDENTITY_SECRET");
+    return Response.json({ type: "IDENTITY_VERIFICATION_NOT_FOUND" }, { status: 404 });
+  } });
+  assert.equal(result.skipped, false);
+});
+
 test("an unrelated 404 or unexpected success cannot pass the credential check", async () => {
   for (const [status, body] of [[404, { type: "STORE_NOT_FOUND" }], [200, { status: "VERIFIED" }], [503, { message: "PRIVATE_PERSON_DATA" }]]) {
     await assert.rejects(checkIdentityProvider({ env, fetchImpl: async () => Response.json(body, { status }) }), /MOBILE_IDENTITY_PREFLIGHT_UNEXPECTED_RESPONSE/);

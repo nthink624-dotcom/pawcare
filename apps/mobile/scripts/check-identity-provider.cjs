@@ -2,7 +2,7 @@ const { randomUUID } = require("node:crypto");
 
 async function checkIdentityProvider({ env = process.env, fetchImpl = fetch, createId = randomUUID } = {}) {
   if (env.VERCEL_ENV !== "production") return { skipped: true };
-  const secret = env.PORTONE_API_SECRET?.trim();
+  const secret = (env.PORTONE_IDENTITY_API_SECRET || env.PORTONE_API_SECRET)?.trim();
   const storeId = (env.PORTONE_STORE_ID || env.NEXT_PUBLIC_PORTONE_STORE_ID)?.trim();
   if (!secret || !storeId) throw Error("MOBILE_IDENTITY_PREFLIGHT_CONFIG_MISSING");
   // A random nonexistent ID tests read permission without retrieving customer

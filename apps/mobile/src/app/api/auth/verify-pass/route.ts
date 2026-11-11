@@ -57,12 +57,47 @@ async function fetchPortoneIdentityVerification(identityVerificationId: string) 
     "Content-Type": "application/json",
   };
 
-  const response = await fetch(getEndpoint, {
-    headers,
-    cache: "no-store",
-    signal: AbortSignal.timeout(10_000),
+  // The SDK callback can arrive before the provider's read API settles. Retry
+  // only this read, within the client's 15-second wait. Never resend an identity
+  // request or extend its server-side binding lifetime.
+  const deadline = Date.now() + 8_000;
+  let response = new Response(null, { status: 503 });
+  let result: PortoneVerificationResponse = {};
+  let failure: "transport" | "timeout" | "response" = "response";
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) {
+      const delay = 350 * attempt;
+      if (Date.now() + delay >= deadline) break;
+      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    try {
+      response = await fetch(getEndpoint, {
+        headers,
+        cache: "no-store",
+        signal: AbortSignal.timeout(Math.min(2_500, remaining)),
+      });
+      result = await readPortoneJson(response);
+      failure = "response";
+    } catch (error: unknown) {
+      const timeout = error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name);
+      response = new Response(null, { status: timeout ? 504 : 503 });
+      result = {};
+      failure = timeout ? "timeout" : "transport";
+    }
+    const status = getPortoneIdentityStatus(result.identityVerification);
+    if (response.ok && status === "VERIFIED") return { response, result };
+    if (status === "FAILED" || [400, 401, 403, 422].includes(response.status)) break;
+  }
+  const status = getPortoneIdentityStatus(result.identityVerification);
+  // Fixed labels only: no request IDs, URLs, provider messages, customer data,
+  // credentials, or binding values in operational logs.
+  console.warn("owner_identity_verification_lookup_failed", {
+    failure,
+    httpStatus: response.status,
+    providerStatus: ["READY", "PENDING", "FAILED"].includes(status) ? status : "UNKNOWN",
   });
-  const result = await readPortoneJson(response);
   return { response, result };
 }
 

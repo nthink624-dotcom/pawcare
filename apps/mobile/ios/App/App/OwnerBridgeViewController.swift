@@ -1,4 +1,5 @@
 import Capacitor
+import OSLog
 import UIKit
 import WebKit
 
@@ -10,7 +11,7 @@ final class OwnerBridgeViewController: CAPBridgeViewController {
     override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
         let configuration = super.webViewConfiguration(for: instanceConfiguration)
         // KCP opens its window after the verification request has been prepared.
-        // The UI delegate below limits managed popups to our identity screens.
+        // The UI delegate below checks trusted app/provider frames and entries.
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
         return configuration
     }
@@ -108,6 +109,7 @@ private final class OwnerIdentityPopupUIDelegate: NSObject, WKUIDelegate, WKNavi
     private weak var hostWebView: WKWebView?
     private let fallback: WKUIDelegate?
     private var surfaces: [ObjectIdentifier: OwnerIdentityPopupSurface] = [:]
+    private let popupLog = Logger(subsystem: "kr.petmanager.owner", category: "IdentityPopup")
 
     init(owner: UIViewController, webView: WKWebView, fallback: WKUIDelegate?) {
         self.owner = owner
@@ -118,22 +120,66 @@ private final class OwnerIdentityPopupUIDelegate: NSObject, WKUIDelegate, WKNavi
 
     private func isProviderHost(_ host: String) -> Bool {
         let host = host.lowercased()
-        return ["kcp.co.kr", "portone.io", "iamport.kr"].contains {
+        return ["kcp.co.kr", "portone.io", "iamport.kr", "iamport.co"].contains {
             host == $0 || host.hasSuffix("." + $0)
         }
     }
 
+    private func isFirstPartyHost(_ host: String) -> Bool {
+        ["app.petmanager.co.kr", "www.petmanager.co.kr", "petmanager.co.kr"].contains(host.lowercased())
+    }
+
+    private func isTrustedFrameURL(_ url: URL?) -> Bool {
+        guard let url, url.scheme?.lowercased() == "https" else { return false }
+        return isFirstPartyHost(url.host ?? "") || isProviderHost(url.host ?? "")
+    }
+
+    private func popupDecision(_ accepted: Bool, caller: String, entry: String) -> Bool {
+        // Only fixed classification labels are logged. Never log URLs, query
+        // strings, identity requests, form values or verification results.
+        popupLog.notice("identity_popup accepted=\(accepted, privacy: .public) caller=\(caller, privacy: .public) entry=\(entry, privacy: .public)")
+        return accepted
+    }
+
     private func isIdentityPopup(_ webView: WKWebView, action: WKNavigationAction) -> Bool {
         guard webView === hostWebView, let page = webView.url,
-              page.scheme == "https",
-              ["app.petmanager.co.kr", "www.petmanager.co.kr", "petmanager.co.kr"].contains(page.host?.lowercased() ?? ""),
-              ["/signup", "/login", "/login/find-email", "/login/reset-password"].contains(page.path) else { return false }
+              page.scheme?.lowercased() == "https",
+              isFirstPartyHost(page.host ?? "") else {
+            return popupDecision(false, caller: "not_primary_first_party", entry: "unchecked")
+        }
+
         let source = action.sourceFrame.securityOrigin
-        guard source.protocol == "https",
-              source.host.lowercased() == page.host?.lowercased() || isProviderHost(source.host) else { return false }
-        guard let url = action.request.url else { return true }
-        return url.absoluteString == "about:blank" ||
-            (url.scheme == "https" && isProviderHost(url.host ?? ""))
+        let sourceHost = source.host.lowercased()
+        let caller: String
+        if source.protocol.lowercased() == "https" && isFirstPartyHost(sourceHost) {
+            caller = "first_party"
+        } else if source.protocol.lowercased() == "https" && isProviderHost(sourceHost) {
+            caller = "provider"
+        } else if isTrustedFrameURL(action.sourceFrame.request.url) {
+            caller = "trusted_frame_url"
+        } else if action.sourceFrame.isMainFrame && sourceHost.isEmpty {
+            caller = "main_frame"
+        } else {
+            return popupDecision(false, caller: "untrusted_frame", entry: "unchecked")
+        }
+
+        // The live PortOne SDK first calls window.open("", "PortOne", ...),
+        // then assigns the provider URL. WebKit can represent this first request
+        // as empty, about:blank, or the caller's own document URL. Match the
+        // trusted origin rather than assuming one URL form or an SPA route.
+        guard let url = action.request.url, !url.absoluteString.isEmpty else {
+            return popupDecision(true, caller: caller, entry: "empty")
+        }
+        if url.scheme?.lowercased() == "about" && url.path == "blank" {
+            return popupDecision(true, caller: caller, entry: "blank")
+        }
+        if url.scheme?.lowercased() == "https" && isFirstPartyHost(url.host ?? "") {
+            return popupDecision(true, caller: caller, entry: "first_party_document")
+        }
+        if url.scheme?.lowercased() == "https" && isProviderHost(url.host ?? "") {
+            return popupDecision(true, caller: caller, entry: "provider")
+        }
+        return popupDecision(false, caller: caller, entry: "unsupported_url")
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
@@ -142,7 +188,10 @@ private final class OwnerIdentityPopupUIDelegate: NSObject, WKUIDelegate, WKNavi
             return fallback?.webView?(webView, createWebViewWith: configuration,
                                       for: navigationAction, windowFeatures: windowFeatures)
         }
-        guard surfaces.isEmpty else { return nil }
+        guard surfaces.isEmpty else {
+            popupLog.notice("identity_popup accepted=false caller=primary entry=already_open")
+            return nil
+        }
 
         // Use WebKit's supplied configuration so window.opener remains valid,
         // but never expose Capacitor scripts/native message handlers to a provider.

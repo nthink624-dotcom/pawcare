@@ -1,13 +1,25 @@
 import { createHash } from "node:crypto";
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { removeMediaStorageObjects, verifyMediaStorageObjectsAbsent } from "@/server/media-storage";
 
+import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+
 export const runtime = "nodejs";
+
+const accountDeletionCorsOptions = { methods: "POST, OPTIONS" };
+
+function accountDeletionJson(request: NextRequest, body: unknown, init?: ResponseInit) {
+  return ownerMobileCorsJson(request, body, init, accountDeletionCorsOptions);
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return ownerMobileCorsPreflight(request, accountDeletionCorsOptions);
+}
 
 const requestSchema = z.object({
   confirmation: z.literal(true),
@@ -116,31 +128,31 @@ async function removeShopStorage(params: {
 export async function POST(request: NextRequest) {
   try {
     if (!hasSupabaseServerEnv()) {
-      return NextResponse.json({ message: "탈퇴 환경이 아직 준비되지 않았어요." }, { status: 503 });
+      return accountDeletionJson(request, { message: "탈퇴 환경이 아직 준비되지 않았어요." }, { status: 503 });
     }
 
     const body = requestSchema.parse(await request.json());
     const accessToken = getAccessToken(request);
     if (!accessToken) {
-      return NextResponse.json({ message: "로그인이 필요해요." }, { status: 401 });
+      return accountDeletionJson(request, { message: "로그인이 필요해요." }, { status: 401 });
     }
 
     const authClient = getSupabaseAuthClient();
     const admin = getSupabaseAdmin();
     if (!authClient || !admin) {
-      return NextResponse.json({ message: "탈퇴 환경이 아직 준비되지 않았어요." }, { status: 503 });
+      return accountDeletionJson(request, { message: "탈퇴 환경이 아직 준비되지 않았어요." }, { status: 503 });
     }
 
     const userResult = await authClient.auth.getUser(accessToken);
     const user = userResult.data.user;
     if (userResult.error || !user?.email) {
-      return NextResponse.json({ message: "로그인을 다시 확인해 주세요." }, { status: 401 });
+      return accountDeletionJson(request, { message: "로그인을 다시 확인해 주세요." }, { status: 401 });
     }
 
     // Re-authenticate before any stateful deletion request. This session is never returned or logged.
     const passwordResult = await authClient.auth.signInWithPassword({ email: user.email, password: body.currentPassword });
     if (passwordResult.error || passwordResult.data.user?.id !== user.id) {
-      return NextResponse.json({ message: "현재 비밀번호를 다시 확인해 주세요." }, { status: 401 });
+      return accountDeletionJson(request, { message: "현재 비밀번호를 다시 확인해 주세요." }, { status: 401 });
     }
 
     const claimResult = await admin.rpc("claim_owner_account_deletion_v1", {
@@ -149,26 +161,26 @@ export async function POST(request: NextRequest) {
     });
     if (claimResult.error) {
       const mapped = messageForDeletionError(claimResult.error);
-      return NextResponse.json({ message: mapped.message }, { status: mapped.status });
+      return accountDeletionJson(request, { message: mapped.message }, { status: mapped.status });
     }
 
     const claim = readClaim(claimResult.data);
     if (!claim) {
-      return NextResponse.json({ message: "탈퇴 요청을 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+      return accountDeletionJson(request, { message: "탈퇴 요청을 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
     }
     if (claim.state === "terminal") {
-      return NextResponse.json({ success: true });
+      return accountDeletionJson(request, { success: true });
     }
 
     if (claim.state === "prepared") {
       const storageError = await removeShopStorage({ admin, shopIds: claim.shop_ids });
       if (storageError) {
-        return NextResponse.json({ message: "첨부 파일을 안전하게 삭제하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+        return accountDeletionJson(request, { message: "첨부 파일을 안전하게 삭제하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
       }
 
       const signOutResult = await admin.auth.admin.signOut(accessToken, "global");
       if (signOutResult.error) {
-        return NextResponse.json({ message: "로그아웃을 완료하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+        return accountDeletionJson(request, { message: "로그아웃을 완료하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
       }
 
       const purgeResult = await admin.rpc("finalize_owner_account_deletion_v1", {
@@ -176,25 +188,25 @@ export async function POST(request: NextRequest) {
         p_owner_user_id: user.id,
       });
       if (purgeResult.error) {
-        return NextResponse.json({ message: "개인정보 삭제를 완료하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+        return accountDeletionJson(request, { message: "개인정보 삭제를 완료하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
       }
     }
 
     const deleteUserResult = await admin.auth.admin.deleteUser(user.id);
     if (deleteUserResult.error) {
-      return NextResponse.json({ message: "계정 종료를 완료하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+      return accountDeletionJson(request, { message: "계정 종료를 완료하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
     }
 
     const completeResult = await admin.rpc("complete_owner_account_deletion_v1", { p_request_id: claim.request_id });
     if (completeResult.error) {
-      return NextResponse.json({ message: "계정 종료 상태를 기록하지 못했어요. 지원팀에 문의해 주세요." }, { status: 503 });
+      return accountDeletionJson(request, { message: "계정 종료 상태를 기록하지 못했어요. 지원팀에 문의해 주세요." }, { status: 503 });
     }
 
-    return NextResponse.json({ success: true });
+    return accountDeletionJson(request, { success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "현재 비밀번호와 탈퇴 확인을 다시 입력해 주세요." }, { status: 400 });
+      return accountDeletionJson(request, { message: "현재 비밀번호와 탈퇴 확인을 다시 입력해 주세요." }, { status: 400 });
     }
-    return NextResponse.json({ message: "탈퇴 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+    return accountDeletionJson(request, { message: "탈퇴 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
   }
 }

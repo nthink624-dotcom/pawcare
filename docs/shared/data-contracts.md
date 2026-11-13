@@ -689,6 +689,7 @@ When PC/backend changes any contract in this document:
 - `POST /api/owner/account-deletion` is a server-only PC/backend contract. It requires a bearer session, the current password, explicit confirmation, and a UUID idempotency key; it never accepts an owner or shop identifier from the client.
 - The service-role-only deletion RPCs persist only a SHA-256 idempotency-key hash and temporary backend request state. Raw passwords, access tokens, login identifiers, IP addresses, and row JSON are forbidden in deletion request and ledger data.
 - Successful terminal deletion revokes all sessions, removes non-retained personal data and media, then soft-deletes the Supabase Auth user. A success response is forbidden before the terminal Auth call succeeds.
+- A `trialing` or `trial_will_end` subscription is eligible for deletion only when it has explicit trial dates, `payment_method_exists = false`, `last_payment_status = none`, and no billing key/issue, scheduled charge, payment timestamp/id, failed-payment timestamp, or paid-period dates. Any unknown billing evidence remains blocked; payment-ledger and billing-event retention checks still run.
 - An active payment/refund/dispute state must block deletion. A historical payment or dispute record without an approved legal basis and retention end date also blocks deletion; clients must show a neutral recovery message and must not delete around that block.
 - `data_deletion_audit` is a redacted backend event ledger. It must not store pre-delete JSON, raw identifiers, or actor identifiers.
 

@@ -53,6 +53,7 @@ import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import { StatusBadge as AppStatusBadge } from "@/components/ui/status-badge";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { createOwnerBackgroundPoller, shouldPollOwnerData } from "@/lib/owner-background-poller";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
@@ -1089,14 +1090,15 @@ function OwnerAppContent({
     );
   }
 
-  function refresh() {
+  function refresh(signal?: AbortSignal) {
     if (isOwnerDemo || startupReadOnly) return Promise.resolve();
     if (refreshInFlightRef.current) return refreshInFlightRef.current;
 
     const requestId = ++refreshRequestIdRef.current;
     const appointmentMutationVersion = appointmentMutationVersionRef.current;
-    const request = fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`, { cache: "no-store" })
+    const request = fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`, { cache: "no-store", ...(signal ? { signal } : {}) })
       .then((next) => {
+        if (signal?.aborted) return;
         if (!isAppointmentRefreshCurrent(appointmentMutationVersion, appointmentMutationVersionRef.current)) return;
         if (!shouldApplyOwnerMobileRefresh(requestId, lastAppliedRefreshRequestIdRef.current)) return;
 
@@ -1111,9 +1113,10 @@ function OwnerAppContent({
       });
 
     refreshInFlightRef.current = request;
-    void request.finally(() => {
+    const clearPendingRefresh = () => {
       if (refreshInFlightRef.current === request) refreshInFlightRef.current = null;
-    });
+    };
+    void request.then(clearPendingRefresh, clearPendingRefresh);
     return request;
   }
 
@@ -1125,7 +1128,13 @@ function OwnerAppContent({
     }
   }
 
-  const refreshSilentlyFromEffect = useEffectEvent(refreshSilently);
+  const refreshFromBackground = useEffectEvent((signal: AbortSignal) => refresh(signal));
+  const canRefreshInBackground = useEffectEvent(() => shouldPollOwnerData({
+    visible: document.visibilityState === "visible",
+    online: navigator.onLine !== false,
+    activeTab,
+    busy: saving || Boolean(modal) || isAnyCustomerFieldEditing || isCustomerListEditing || isShopPickerOpen,
+  }));
 
   async function reconcileAfterAppointmentMutation() {
     const pendingRefresh = refreshInFlightRef.current;
@@ -1836,29 +1845,21 @@ function OwnerAppContent({
   useEffect(() => {
     if (startupReadOnly || isOwnerDemo || typeof window === "undefined") return;
 
-    const syncIfIdle = () => {
-      const canSync =
-        document.visibilityState === "visible" &&
-        !saving &&
-        !modal &&
-        !isAnyCustomerFieldEditing &&
-        !isCustomerListEditing &&
-        !isShopPickerOpen;
-
-      if (!canSync) return;
-      void refreshSilentlyFromEffect();
-    };
-
-    const intervalId = window.setInterval(syncIfIdle, 15000);
+    const poller = createOwnerBackgroundPoller({
+      intervalMs: 30_000,
+      canRun: () => canRefreshInBackground(),
+      run: (signal) => refreshFromBackground(signal),
+    });
+    const syncIfIdle = () => void poller.request();
     window.addEventListener("focus", syncIfIdle);
     document.addEventListener("visibilitychange", syncIfIdle);
 
     return () => {
-      window.clearInterval(intervalId);
+      poller.stop();
       window.removeEventListener("focus", syncIfIdle);
       document.removeEventListener("visibilitychange", syncIfIdle);
     };
-  }, [isAnyCustomerFieldEditing, isCustomerListEditing, isOwnerDemo, isShopPickerOpen, modal, saving, startupReadOnly]);
+  }, [isOwnerDemo, startupReadOnly, data.shop.id]);
 
   useEffect(() => {
     if (!selectedGuardian) {

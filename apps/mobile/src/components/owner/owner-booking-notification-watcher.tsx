@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { createOwnerBackgroundPoller } from "@/lib/owner-background-poller";
 import {
   OWNER_PUSH_RECEIVED_EVENT,
   type OwnerPushReceivedEventDetail,
@@ -21,37 +22,28 @@ type OwnerBookingNotificationSnapshot = {
   }>;
 };
 
-function getOwnerBookingNotificationIds(notifications: BootstrapPayload["notifications"]) {
-  return new Set(
-    notifications
-      .filter((notification) => notification.type === "owner_booking_requested" && notification.status === "sent")
-      .map((notification) => notification.id),
-  );
-}
-
 export default function OwnerBookingNotificationWatcher({ shopId, initialNotifications }: Props) {
   const initialNotificationSignature = useMemo(
     () =>
-      initialNotifications
+      JSON.stringify(initialNotifications
         .filter((notification) => notification.type === "owner_booking_requested" && notification.status === "sent")
         .map((notification) => notification.id)
-        .join(":"),
+        .sort()),
     [initialNotifications],
   );
 
   useEffect(() => {
     let active = true;
-    let knownNotificationIds = getOwnerBookingNotificationIds(initialNotifications);
-
-    const checkForNewBookings = async () => {
-      if (document.visibilityState !== "visible") return;
-
-      try {
+    let knownNotificationIds = new Set<string>(JSON.parse(initialNotificationSignature));
+    const poller = createOwnerBackgroundPoller({
+      intervalMs: 30_000,
+      canRun: () => document.visibilityState === "visible" && navigator.onLine !== false,
+      run: async (signal) => {
         const next = await fetchApiJsonWithAuth<OwnerBookingNotificationSnapshot>(
           `/api/owner/booking-notification-snapshot?shopId=${encodeURIComponent(shopId)}`,
-          { cache: "no-store" },
+          { cache: "no-store", signal },
         );
-        if (!active) return;
+        if (!active || signal.aborted) return;
 
         const newBookingNotification = next.notifications.find((notification) => !knownNotificationIds.has(notification.id));
         knownNotificationIds = new Set(next.notifications.map((notification) => notification.id));
@@ -65,28 +57,24 @@ export default function OwnerBookingNotificationWatcher({ shopId, initialNotific
           opened: false,
         };
         window.dispatchEvent(new CustomEvent<OwnerPushReceivedEventDetail>(OWNER_PUSH_RECEIVED_EVENT, { detail }));
-      } catch {
-        // The next visible refresh retries. A missed background refresh must not
-        // interrupt the owner while they are editing an appointment.
-      }
-    };
+      },
+    });
 
-    const handleFocus = () => void checkForNewBookings();
+    const handleFocus = () => void poller.request();
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") void checkForNewBookings();
+      if (document.visibilityState === "visible") void poller.request();
     };
 
-    const intervalId = window.setInterval(checkForNewBookings, 10_000);
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       active = false;
-      window.clearInterval(intervalId);
+      poller.stop();
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [initialNotificationSignature, initialNotifications, shopId]);
+  }, [initialNotificationSignature, shopId]);
 
   return null;
 }

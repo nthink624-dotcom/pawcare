@@ -1,7 +1,7 @@
 type SocialLoginSession = {
   access_token: string;
   refresh_token: string;
-  user: { id: string };
+  user: { id: string; identities?: ReadonlyArray<{ provider: string }> };
 };
 
 type SocialLoginAuth = {

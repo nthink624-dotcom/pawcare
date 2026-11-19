@@ -107,7 +107,7 @@ export function LandingAiCareReportCard() {
           </div>
 
           <div className="mt-4 flex items-center justify-center">
-            <GalaxyPhoneMockup className="w-full max-w-[220px] drop-shadow-[0_18px_40px_rgba(73,42,48,0.18)]">
+            <GalaxyPhoneMockup className="w-full max-w-[176px] sm:max-w-[192px] drop-shadow-[0_18px_40px_rgba(73,42,48,0.18)]">
               <ScaledPreview
                 src={CUSTOMER_REPORT_PREVIEW}
                 title="고객이 실제로 확인하는 펫매니저 케어리포트 화면"

@@ -139,7 +139,7 @@ function ScrollToTopButton() {
 function LandingHeader({ onNavigate, onPricingOpen }: { onNavigate: (sectionId: string) => void; onPricingOpen: () => void }) {
   return (
     <header className="sticky top-0 z-50 border-b border-[#e2e8f0] bg-white/95 backdrop-blur-md">
-      <div className="mx-auto flex h-16 w-full max-w-[1180px] items-center justify-between px-5">
+      <div className="mx-auto flex min-h-16 w-full max-w-[1180px] flex-wrap items-center justify-between gap-x-2 gap-y-2 px-3 py-2 min-[360px]:flex-nowrap sm:h-16 sm:px-5 sm:py-0">
         <Link href="/" aria-label={`${PETMANAGER_SERVICE_NAME} 홈`} className="flex shrink-0 items-center">
           <PetManagerBrand
             priority
@@ -168,26 +168,26 @@ function LandingHeader({ onNavigate, onPricingOpen }: { onNavigate: (sectionId: 
           </button>
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0 sm:gap-2">
           <button
             type="button"
             onClick={onPricingOpen}
-            className="inline-flex h-10 items-center px-2 text-[14px] font-medium text-[#526071] transition hover:text-[#111827] lg:hidden"
+            className="inline-flex h-11 shrink-0 items-center whitespace-nowrap px-1 text-[14px] font-medium text-[#526071] transition hover:text-[#111827] sm:px-2 lg:hidden"
           >
             요금제
           </button>
           <Link
             href="/login?next=%2Fowner"
-            className="hidden h-10 items-center px-3 text-[15px] font-medium text-[#64748b] transition hover:text-[#111827] sm:inline-flex"
+            className="hidden h-11 shrink-0 items-center whitespace-nowrap px-3 text-[15px] font-medium text-[#64748b] transition hover:text-[#111827] sm:inline-flex"
           >
             로그인
           </Link>
           <Link
             href="/signup"
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] bg-[var(--landing-accent)] px-4 text-[15px] font-semibold text-white transition hover:bg-[var(--landing-accent-hover)]"
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] bg-[var(--landing-accent)] px-3 text-[15px] font-semibold text-white transition hover:bg-[var(--landing-accent-hover)] sm:px-4"
           >
             14일 무료 시작
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            <ArrowRight className="hidden h-4 w-4 shrink-0 sm:block" aria-hidden="true" />
           </Link>
         </div>
       </div>

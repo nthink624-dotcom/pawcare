@@ -535,7 +535,7 @@ export function BookingSystemStory() {
                 화면 크게 보기
               </button>
             </div>
-            <figure className="relative z-10 mx-auto flex w-40 shrink-0 items-center justify-center sm:w-44">
+            <figure className="relative z-10 mx-auto flex w-44 shrink-0 items-center justify-center sm:w-48">
               <CustomerBookingPhonePreview experience="revisit" className="w-full drop-shadow-[0_16px_28px_rgba(92,52,45,0.16)]" />
             </figure>
             <div className="pointer-events-none absolute -bottom-24 -left-20 h-64 w-64 rounded-full bg-white/55 blur-2xl" aria-hidden="true" />

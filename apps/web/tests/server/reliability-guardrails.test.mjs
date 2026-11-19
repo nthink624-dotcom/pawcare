@@ -418,7 +418,7 @@ test("landing media ships with the deploy and booking previews use the isolated 
   assert.match(careReportCard, /\/demo\/owner-care-report-completion-preview\?mode=landing/);
   assert.doesNotMatch(careReportCard, /customer-care-report-view\.png/);
   assert.doesNotMatch(careReportCard, /owner-care-report-authoring-v3\.png/);
-  assert.match(careReportCard, /max-w-\[220px\]/);
+  assert.match(careReportCard, /max-w-\[176px\] sm:max-w-\[192px\]/);
   assert.match(careReportPreview, /scrollbar-width: none/);
   assert.match(nextConfig, /allowedDevOrigins:[^\n]*"127\.0\.0\.1"/);
   assert.match(bookingCarousel, /landingDemoShopId/);

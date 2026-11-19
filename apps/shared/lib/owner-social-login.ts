@@ -1,4 +1,16 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+type SocialLoginSession = {
+  access_token: string;
+  refresh_token: string;
+  user: { id: string };
+};
+
+type SocialLoginAuth = {
+  exchangeCodeForSession(code: string): Promise<{
+    data: { session: SocialLoginSession | null };
+    error: unknown;
+  }>;
+  signOut(options: { scope: "local" }): Promise<unknown>;
+};
 
 export const SOCIAL_LOGIN_PROVIDERS = [
   { id: "naver", provider: "custom:naver", label: "네이버" },
@@ -53,18 +65,18 @@ export class SocialLoginFailure extends Error {
 // Shop access comes from the existing server boundary, never from provider
 // email, client metadata, or a client-supplied owner/shop identifier.
 export async function completeSocialLogin({ auth, code, fetchShops = fetch, expectedUserId }: {
-  auth: Pick<SupabaseClient["auth"], "exchangeCodeForSession" | "signOut">;
+  auth: SocialLoginAuth;
   code: string;
   fetchShops?: typeof fetch;
   expectedUserId?: string;
 }) {
   try {
-    const { data, error } = await auth.exchangeCodeForSession(code);
-    if (error || !data.session?.access_token || !data.session.refresh_token) throw new SocialLoginFailure("social-failed");
-    if (expectedUserId && data.session.user?.id !== expectedUserId) throw new SocialLoginFailure("social-failed");
+    const { data: { session }, error } = await auth.exchangeCodeForSession(code);
+    if (error || !session?.access_token || !session.refresh_token) throw new SocialLoginFailure("social-failed");
+    if (expectedUserId && session.user?.id !== expectedUserId) throw new SocialLoginFailure("social-failed");
     const { status, ok, shops } = await withSocialReadTimeout(async (signal) => {
       const response = await fetchShops("/api/owner/shops", {
-        headers: { Authorization: `Bearer ${data.session.access_token}` },
+        headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store",
         signal,
       });
@@ -77,7 +89,7 @@ export async function completeSocialLogin({ auth, code, fetchShops = fetch, expe
     }
     if (!Array.isArray(shops) || shops.some((shop) => !shop || typeof shop.id !== "string" || !shop.id || shop.id === "demo-shop")) throw new SocialLoginFailure("social-failed");
     if (!shops.length) throw new SocialLoginFailure("social-account");
-    return { session: data.session, shopId: shops[0].id as string };
+    return { session, shopId: shops[0].id as string };
   } catch (error) {
     // An OAuth identity does not imply completed owner signup or shop access.
     await auth.signOut({ scope: "local" }).catch(() => undefined);

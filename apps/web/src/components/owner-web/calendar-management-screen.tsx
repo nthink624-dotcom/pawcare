@@ -70,6 +70,7 @@ import {
   replaceScheduleRangeInBootstrap,
 } from "@/components/owner-web/calendar-owner-api";
 import { CalendarToolbar } from "@/components/owner-web/calendar-toolbar";
+import { useCalendarStaffFilter } from "@/components/owner-web/use-calendar-staff-filter";
 import { NotificationTimingPopover } from "@/components/owner-web/notification-timing-popover";
 import { calendarBookings } from "@/components/owner-web/owner-web-data";
 import {
@@ -4172,7 +4173,7 @@ export default function CalendarManagementScreen({
     : bootstrapData.mode === "supabase"
       ? "buildDailyBookingsFromBootstrap"
       : "blocked-non-supabase-owner-data";
-  const [staff, setStaff] = useState<StaffFilter>("전체 직원");
+  const { staff, selectedStaffKeys, setSelectedStaffKeys, selectedVisibleStaff } = useCalendarStaffFilter(visibleStaff);
   const [activeMetric, setActiveMetric] = useState<SummaryMetricKey>("today");
   const [reservationStatusFilter, setReservationStatusFilter] = useState<ReservationStatusFilter>("all");
   const [bookings, setBookings] = useState<DailyBooking[]>(() => selectedDateBookings);
@@ -4212,8 +4213,8 @@ export default function CalendarManagementScreen({
       (createRequest.guardianId ? bootstrapData.pets.find((pet) => pet.guardian_id === createRequest.guardianId) : null) ??
       null;
     const targetStaff =
-      (selectedBoardStaffKey ? visibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
-      (staff === "전체 직원" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0]);
+      (selectedBoardStaffKey ? selectedVisibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
+      selectedVisibleStaff[0];
 
     setSelectedDate(targetDate);
     setScheduleForm({
@@ -4226,7 +4227,7 @@ export default function CalendarManagementScreen({
     setScheduleError("");
     setScheduleDialogOpen(true);
     onCreateRequestHandled?.(createRequest.requestId);
-  }, [bootstrapData, createRequest, onCreateRequestHandled, selectedBoardStaffKey, selectedDate, staff, visibleStaff]);
+  }, [bootstrapData, createRequest, onCreateRequestHandled, selectedBoardStaffKey, selectedDate, selectedVisibleStaff, staff, visibleStaff]);
   const staffScopedBookings = useMemo(
     () => {
       const visibleStaffKeys = new Set(visibleStaff.map((item) => item.key));
@@ -4244,9 +4245,9 @@ export default function CalendarManagementScreen({
         ];
       });
 
-      return staff === "전체 직원" ? normalizedBookings : normalizedBookings.filter((item) => item.staffKey === staff);
+      return selectedStaffKeys.length ? normalizedBookings.filter((item) => selectedStaffKeys.includes(item.staffKey)) : normalizedBookings;
     },
-    [bookings, staff, visibleStaff],
+    [bookings, selectedStaffKeys, visibleStaff],
   );
   const displayScopedBookings = useMemo(
     () =>
@@ -4339,8 +4340,9 @@ export default function CalendarManagementScreen({
       try {
         const currentData = bootstrapDataRef.current;
         const range = await fetchOwnerScheduleRange(currentData.shop.id, selectedDate, selectedDate);
-        if (cancelled || statusChangeInFlightRef.current) return;
+        if (cancelled || statusChangeInFlightRef.current || bootstrapDataRef.current !== currentData) return;
         const nextBootstrapData = applyRecentStatusOverrides(replaceScheduleRangeInBootstrap(currentData, range));
+        if (nextBootstrapData === currentData) return;
         bootstrapDataRef.current = nextBootstrapData;
         setBootstrapData(nextBootstrapData);
         onDataChangeRef.current?.(nextBootstrapData);
@@ -4375,35 +4377,20 @@ export default function CalendarManagementScreen({
   ]);
 
   useEffect(() => {
-    if (visibleStaff.length === 1 && staff !== visibleStaff[0].key) {
-      setStaff(visibleStaff[0].key);
-      return;
-    }
-    if (staff !== "전체 직원" && !visibleStaff.some((item) => item.key === staff)) {
-      setStaff("전체 직원");
-    }
-  }, [staff, visibleStaff]);
-
-  useEffect(() => {
-    if (visibleStaff.length === 0) {
+    if (selectedVisibleStaff.length === 0) {
       setSelectedBoardStaffKey(null);
       return;
     }
 
-    if (visibleStaff.length === 1) {
-      setSelectedBoardStaffKey(visibleStaff[0].key);
-      return;
-    }
-
-    if (staff !== "전체 직원") {
-      setSelectedBoardStaffKey(staff);
+    if (selectedVisibleStaff.length === 1) {
+      setSelectedBoardStaffKey(selectedVisibleStaff[0].key);
       return;
     }
 
     setSelectedBoardStaffKey((current) =>
-      current && visibleStaff.some((item) => item.key === current) ? current : null,
+      current && selectedVisibleStaff.some((item) => item.key === current) ? current : selectedStaffKeys.length ? selectedVisibleStaff[0].key : null,
     );
-  }, [staff, visibleStaff]);
+  }, [selectedStaffKeys.length, selectedVisibleStaff]);
 
   useEffect(() => {
     const nextBookings = selectedDateBookings;
@@ -5235,8 +5222,8 @@ export default function CalendarManagementScreen({
 
   function handleAddSchedule() {
     const targetStaff =
-      (selectedBoardStaffKey ? visibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
-      (staff === "전체 직원" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0]);
+      (selectedBoardStaffKey ? selectedVisibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
+      selectedVisibleStaff[0];
     setScheduleForm({
       ...buildDefaultScheduleForm(bootstrapData, visibleStaff, selectedDate, staff),
       staffKey: targetStaff?.key ?? "staff-1",
@@ -5645,10 +5632,12 @@ export default function CalendarManagementScreen({
           <CalendarToolbar
             shop={bootstrapData.shop}
             selectedDate={selectedDate}
-            staff={staff}
+            selectedStaffKeys={selectedStaffKeys}
             visibleStaff={visibleStaff}
+            staffMembers={staffMembers}
+            staffScheduleOverrides={bootstrapData.staffScheduleOverrides}
             onDateChange={setSelectedDate}
-            onStaffChange={setStaff}
+            onStaffChange={setSelectedStaffKeys}
             onAddSchedule={handleAddSchedule}
           />
           <DailyScheduleGrid
@@ -5656,7 +5645,7 @@ export default function CalendarManagementScreen({
             bookings={filteredBookings}
             services={bootstrapData.services}
             staff={staff}
-            visibleStaff={visibleStaff}
+            visibleStaff={selectedVisibleStaff}
             staffMembers={staffMembers}
             staffScheduleOverrides={bootstrapData.staffScheduleOverrides}
             activeMetric={activeMetric}

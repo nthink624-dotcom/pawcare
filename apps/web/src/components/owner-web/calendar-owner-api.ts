@@ -348,6 +348,19 @@ export function getAppointmentCustomServiceId(appointmentId: string) {
   return `appointment-${appointmentId}-service`;
 }
 
+function sameScheduleValue(previous: unknown, incoming: unknown): boolean {
+  if (previous === incoming) return true;
+  if (!previous || !incoming || typeof previous !== "object" || typeof incoming !== "object") return false;
+  if (Array.isArray(previous) || Array.isArray(incoming)) {
+    return Array.isArray(previous) && Array.isArray(incoming) && previous.length === incoming.length
+      && previous.every((item, index) => sameScheduleValue(item, incoming[index]));
+  }
+  const previousFields = Object.entries(previous);
+  const incomingFields = incoming as Record<string, unknown>;
+  return previousFields.length === Object.keys(incomingFields).length
+    && previousFields.every(([key, value]) => Object.hasOwn(incomingFields, key) && sameScheduleValue(value, incomingFields[key]));
+}
+
 export function replaceScheduleRangeInBootstrap(data: BootstrapPayload, range: OwnerScheduleRangeResponse): BootstrapPayload {
   const isAppointmentInRange = (appointment: Appointment) =>
     appointment.appointment_date >= range.from && appointment.appointment_date <= range.to;
@@ -359,8 +372,7 @@ export function replaceScheduleRangeInBootstrap(data: BootstrapPayload, range: O
   const groomingRecordIds = new Set(range.groomingRecords.map((item) => item.id));
   const notificationIds = new Set(range.notifications.map((item) => item.id));
 
-  return {
-    ...data,
+  const merged = {
     appointments: [
       ...data.appointments.filter((item) => !isAppointmentInRange(item) && !appointmentIds.has(item.id)),
       ...range.appointments,
@@ -376,6 +388,12 @@ export function replaceScheduleRangeInBootstrap(data: BootstrapPayload, range: O
       .sort((first, second) => (second.sent_at ?? second.created_at).localeCompare(first.sent_at ?? first.created_at))
       .slice(0, 200),
   };
+
+  const appointments = sameScheduleValue(data.appointments, merged.appointments) ? data.appointments : merged.appointments;
+  const groomingRecords = sameScheduleValue(data.groomingRecords, merged.groomingRecords) ? data.groomingRecords : merged.groomingRecords;
+  const notifications = sameScheduleValue(data.notifications, merged.notifications) ? data.notifications : merged.notifications;
+  if (appointments === data.appointments && groomingRecords === data.groomingRecords && notifications === data.notifications) return data;
+  return { ...data, appointments, groomingRecords, notifications };
 }
 
 export function getAppointmentStatusFromBookingStatus(status: string) {

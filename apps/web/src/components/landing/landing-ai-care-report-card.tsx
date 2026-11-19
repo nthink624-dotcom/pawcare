@@ -59,8 +59,8 @@ function ScaledPreview({ src, title, viewportWidth }: ScaledPreviewProps) {
 
 export function LandingAiCareReportCard() {
   return (
-    <div className="mx-auto grid max-w-[1140px] overflow-hidden rounded-[24px] bg-[#10192b] shadow-[0_22px_55px_rgba(15,23,42,0.16)] lg:grid-cols-[minmax(0,1.08fr)_170px_minmax(0,0.82fr)]">
-      <section className="flex min-w-0 flex-col px-5 py-5 sm:px-7">
+    <div className="mx-auto grid max-w-[1140px] overflow-hidden rounded-[24px] bg-[#10192b] shadow-[0_22px_55px_rgba(15,23,42,0.16)] lg:grid-cols-[minmax(0,1fr)_170px_minmax(0,1fr)]">
+      <section className="flex min-w-0 flex-col justify-center px-5 py-5 sm:px-7">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[12px] font-semibold tracking-[0.12em] text-[#8fb7f3]">OWNER PC</p>
@@ -68,7 +68,7 @@ export function LandingAiCareReportCard() {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-1 items-start justify-center">
+        <div className="mt-4 flex items-start justify-center">
           <div className="relative h-[470px] w-full max-w-[382px] overflow-hidden rounded-[16px] bg-transparent">
             <ScaledPreview
               src={OWNER_AUTHORING_PREVIEW}
@@ -99,15 +99,15 @@ export function LandingAiCareReportCard() {
           <p className="mt-6 border-t border-white/10 pt-4 text-[13px] leading-5 text-white/70">긴 글을 직접 쓰지 않아도,<br /><strong className="font-semibold text-white">고객에게 보낼 문장이 완성됩니다.</strong></p>
         </aside>
 
-      <section className="flex min-w-0 flex-col justify-center bg-[#fff3f1] px-5 py-5 sm:px-7">
+      <section data-landing-customer-care-preview className="flex min-w-0 flex-col justify-center bg-[#fff3f1] px-5 py-7 max-[359px]:px-3 sm:px-7 sm:py-8">
         <div className="mx-auto flex w-full flex-col justify-center">
           <div>
-            <p className="text-[12px] font-semibold tracking-[0.12em] text-[#c26770]">CUSTOMER</p>
-            <p className="mt-1 text-[18px] font-semibold tracking-[-0.02em] text-[#3b2b2f]">사진과 오늘의 기록을 한눈에</p>
+            <p className="text-[14px] font-semibold tracking-[0.1em] text-[#9c4e59]">CUSTOMER</p>
+            <p className="mt-2 break-keep text-[23px] font-semibold leading-snug tracking-[-0.02em] text-[#3b2b2f] sm:text-[26px]">사진과 오늘의 기록을 한눈에</p>
           </div>
 
-          <div className="mt-4 flex items-center justify-center">
-            <GalaxyPhoneMockup className="w-full max-w-[176px] sm:max-w-[192px] drop-shadow-[0_18px_40px_rgba(73,42,48,0.18)]">
+          <div className="mt-5 flex items-center justify-center">
+            <GalaxyPhoneMockup className="w-full max-w-[344px] drop-shadow-[0_18px_40px_rgba(73,42,48,0.18)]">
               <ScaledPreview
                 src={CUSTOMER_REPORT_PREVIEW}
                 title="고객이 실제로 확인하는 펫매니저 케어리포트 화면"
@@ -115,7 +115,7 @@ export function LandingAiCareReportCard() {
               />
             </GalaxyPhoneMockup>
           </div>
-          <p className="mt-2 text-center text-[12px] font-medium text-[#9a747a]">알림톡 링크에서 바로 확인</p>
+          <p className="mt-4 text-center text-[16px] font-medium leading-6 text-[#78565d]">알림톡 링크에서 바로 확인</p>
         </div>
       </section>
     </div>

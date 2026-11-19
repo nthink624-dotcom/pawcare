@@ -18,6 +18,7 @@ final class OwnerBridgeViewController: CAPBridgeViewController {
 
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
+        bridge?.registerPluginInstance(OwnerSocialLoginPlugin())
 
         // The main web view keeps Capacitor's normal navigation policy; identity
         // popups use an isolated child so their opener and signup state survive.

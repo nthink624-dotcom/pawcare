@@ -12,7 +12,7 @@ export class OwnerApiError extends Error {
   }
 }
 
-type CanonicalApiPath = "/api/bootstrap" | "/api/owner/shops" | "/api/subscription" | "/api/owner/initial-setup/hours" | "/api/staff-members";
+type CanonicalApiPath = "/api/bootstrap" | "/api/auth/social/providers" | "/api/owner/shops" | "/api/subscription" | "/api/owner/initial-setup/hours" | "/api/staff-members";
 type CanonicalApiMethod = "GET" | "PATCH";
 
 export type CanonicalApiResult = {
@@ -45,6 +45,7 @@ const PRODUCTION_CANONICAL_ORIGIN_ALIASES = new Map([
 
 const QUERY_KEYS_BY_PATH: Record<CanonicalApiPath, ReadonlySet<string>> = {
   "/api/bootstrap": new Set(["scope", "shopId", "phase"]),
+  "/api/auth/social/providers": new Set(),
   "/api/owner/shops": new Set(),
   "/api/subscription": new Set(["shopId"]),
   "/api/owner/initial-setup/hours": new Set(),

@@ -93,7 +93,7 @@ export async function mutateCommunity(owner: OwnerShopContext, payload: Communit
     // Content is already committed. A Storage outage must not turn its
     // acknowledged result into an ambiguous failure; the durable queue retries.
     await cleanCommunityMedia().catch(() => undefined);
-    return { id: result.id, success: true };
+    return { id: result.id, success: true, ...(result.reaction ? { reaction: result.reaction } : {}), ...(result.commentReaction ? { commentReaction: result.commentReaction } : {}) };
   } catch (error) {
     // A transport timeout can follow a committed transaction. Only remove objects
     // that a successful follow-up DB read confirms are unattached.

@@ -947,3 +947,9 @@ Photos reuse owner media/assets (shop/pet/record scope) and batch media/signed-u
 ### Member community (2026-11-09)
 
 See [community-contract.md](community-contract.md) for the canonical shared PC/mobile community contract.
+
+## Owner lounge
+
+- The web and mobile lounge share `/api/owner/community` and `/api/owner/community/resources`. Post responses include `likeCount`, `liked`, and `saved`. `like` and `save` set the current member's explicit target state. `savedOnly=true` returns that member's saved posts.
+- Comment responses include `parentId`, `isPostAuthor`, `unavailable`, `score`, and `vote`. A reply's parent belongs to the same post. The server assigns the viewer and author identity.
+- The authenticated member resource list returns published support notices and updates. `/api/admin/community/resources` manages drafts and publication with server-verified admin access. See [the community contract](community-contract.md) for database access, privacy, and migration details.

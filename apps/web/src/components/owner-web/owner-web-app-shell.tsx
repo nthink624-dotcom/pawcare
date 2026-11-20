@@ -69,7 +69,7 @@ const ownerWebNavigationGroups: Array<{
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
       { key: "profitability", label: "매출 분석" },
-      { key: "community", label: "커뮤니티" },
+      { key: "community", label: "사장님 라운지" },
       { key: "staff", label: "직원 관리" },
     ],
   },
@@ -95,7 +95,7 @@ const ownerWebSidebarGroups: Array<{
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
       { key: "profitability", label: "매출 분석" },
-      { key: "community", label: "커뮤니티" },
+      { key: "community", label: "사장님 라운지" },
       { key: "staff", label: "직원 관리" },
     ],
   },
@@ -400,8 +400,19 @@ export default function OwnerWebAppShell({
               aria-label="도움 문의"
               title="도움 문의"
             >
-              <HelpCircle className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} />
+              <HelpCircle className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
             </button>
+            {activeScreen === "community" && (
+              <button
+                type="button"
+                data-owner-control-size="content"
+                onClick={onOpenProfile}
+                className={OWNER_HEADER_MOBILE_UTILITY_CLASS}
+                aria-label="프로필"
+              >
+                <CircleUserRound className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+              </button>
+            )}
             </div>
             <SoftSelect<OwnerWebScreenKey>
               value={activeScreen === "bookingLink" || activeScreen === "bookingPageManagement" ? "shopInfo" : activeScreen}
@@ -449,7 +460,9 @@ export default function OwnerWebAppShell({
                 ? "overflow-y-auto overflow-x-hidden p-3 sm:p-4"
                 : usesFlushCore
                   ? "overflow-visible"
-                  : "overflow-hidden p-3 sm:p-4",
+                  : activeScreen === "community"
+                    ? "overflow-hidden"
+                    : "overflow-hidden p-3 sm:p-4",
             )}>
               {children}
             </div>

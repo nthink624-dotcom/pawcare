@@ -1,11 +1,12 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import AdminSectionNav from "@/components/admin/admin-section-nav";
+import AdminCommunityResources from "./admin-community-resources";
 import { fetchApiJson } from "@/lib/api";
 import { communityButton, communityPrimary } from "@petmanager/shared/components/community/community-form";
 
 type Report = { id: string; reason: string; targetType: "post" | "comment"; createdAt: string; title: string | null; postBody: string | null; commentBody: string | null; hidden: boolean | null; images: { mediaAssetId: string; url: string }[] };
-export default function AdminCommunityScreen() {
+function AdminCommunityReports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const load = useCallback(async () => {
@@ -21,9 +22,8 @@ export default function AdminCommunityScreen() {
     catch { setError("처리 결과를 저장하지 못했습니다."); }
     finally { setBusy(false); }
   }
-  return <main className="mx-auto min-h-screen max-w-[1100px] space-y-5 bg-white p-5 text-[#15213b]">
-    <AdminSectionNav active="community" />
-    <div className="flex items-center justify-between gap-3"><h1 className="text-[24px] font-semibold">커뮤니티 신고</h1><button className={communityButton} disabled={busy || loading} onClick={() => void load()}>새로고침</button></div>
+  return <section className="space-y-5">
+    <div className="flex items-center justify-between gap-3"><h1 className="text-[24px] font-semibold">라운지 신고</h1><button className={communityButton} disabled={busy || loading} onClick={() => void load()}>새로고침</button></div>
     {error && <p role="alert" className="text-[14px] text-[#9a5e4e]">{error}</p>}
     {loading ? <p role="status">신고를 불러오고 있습니다.</p> : reports.length === 0 ? <p>처리할 신고가 없습니다.</p> : reports.map((report) => <article key={report.id} className="space-y-3 border-b border-[#e8edf3] py-4">
       <p className="text-[13px] text-[#526175]">{new Date(report.createdAt).toLocaleString("ko-KR")}</p>
@@ -33,5 +33,18 @@ export default function AdminCommunityScreen() {
       <p className="text-[14px] leading-5 [overflow-wrap:anywhere]">신고 사유: {report.reason}</p>
       <div className="flex flex-wrap gap-2"><button className={communityPrimary} disabled={busy || !!report.hidden || !(report.targetType === "comment" ? report.commentBody : report.postBody)} onClick={() => void review(report.id, "hide")}>{report.hidden ? "이미 숨겨진 내용" : "신고된 내용 숨기기"}</button><button className={communityButton} disabled={busy} onClick={() => void review(report.id, "dismiss")}>신고 종결</button></div>
     </article>)}
+  </section>;
+}
+
+export default function AdminCommunityScreen() {
+  const [view, setView] = useState<"resources" | "reports">("resources");
+  return <main className="mx-auto min-h-screen max-w-[1100px] space-y-5 bg-white p-5 text-[#15213b]">
+    <AdminSectionNav active="community" />
+    <h1 className="text-[24px] font-semibold">라운지 관리</h1>
+    <nav aria-label="라운지 관리 메뉴" className="flex flex-wrap gap-2">
+      <button type="button" className={view === "resources" ? communityPrimary : communityButton} aria-pressed={view === "resources"} onClick={() => setView("resources")}>소식 관리</button>
+      <button type="button" className={view === "reports" ? communityPrimary : communityButton} aria-pressed={view === "reports"} onClick={() => setView("reports")}>신고 관리</button>
+    </nav>
+    {view === "resources" ? <AdminCommunityResources /> : <AdminCommunityReports />}
   </main>;
 }

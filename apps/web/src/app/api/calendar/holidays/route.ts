@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   }
   try {
     const holidays = await readCalendarHolidays(month);
-    return ownerMobileCorsJson(request, { month, holidays }, { headers: { "Cache-Control": "public, max-age=300, s-maxage=3600" } });
+    return ownerMobileCorsJson(request, { month, holidays }, { headers: { "Cache-Control": "public, max-age=300, s-maxage=3600", Vary: "Origin" } });
   } catch {
     return ownerMobileCorsJson(request, { message: "공휴일을 불러오지 못했어요." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }

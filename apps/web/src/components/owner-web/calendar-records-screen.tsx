@@ -1,19 +1,26 @@
 "use client";
 
 import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, PawPrint, X } from "lucide-react";
+import { IconFileImport } from "@tabler/icons-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarHolidayLabel, ShopCalendarAgenda } from "@petmanager/shared/components/shop-calendar-agenda";
+import { calendarSecondaryButtonClass } from "@petmanager/shared/components/calendar-dialog";
+import { calendarHolidaysByDate, shopEventsOnDate } from "@petmanager/shared/lib/owner-calendar";
+import { useCalendarHolidays, useShopCalendarEvents } from "@petmanager/shared/lib/use-owner-calendar";
 
 import { fetchOwnerScheduleRange, replaceScheduleRangeInBootstrap } from "@/components/owner-web/calendar-owner-api";
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
 import { OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
+import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
 import type { AppointmentChangeEvent, AppointmentStatus, BootstrapPayload } from "@/types/domain";
 
 const BookingPreparationPanel = dynamic(() => import("@/components/booking/booking-preparation-panel"));
+const CalendarImportDialog = dynamic(() => import("@/components/owner-web/calendar-import-dialog"));
 
 type GroomingCalendarRecord = {
   id: string;
@@ -264,7 +271,7 @@ function getRecordClockTime(value: string) {
 
 function formatMonthLabel(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
-  return `${parsed.getMonth() + 1}월`;
+  return `${parsed.getFullYear()}년 ${parsed.getMonth() + 1}월`;
 }
 
 function formatShortDate(date: string) {
@@ -357,9 +364,9 @@ function getMonthRange(monthAnchor: string) {
 }
 
 function moveMonth(date: string, offset: number) {
-  const parsed = new Date(`${date}T00:00:00`);
-  parsed.setMonth(parsed.getMonth() + offset);
-  return parsed.toLocaleDateString("en-CA");
+  const parsed = new Date(`${date.slice(0, 7)}-01T00:00:00Z`);
+  parsed.setUTCMonth(parsed.getUTCMonth() + offset);
+  return parsed.toISOString().slice(0, 10);
 }
 
 function buildDayItems(records: GroomingCalendarRecord[], reservations: ReservationRow[], date: string): DayItem[] {
@@ -664,10 +671,12 @@ function getStaffWorkNotice(data: BootstrapPayload, date: string, staffFilter: C
 
 export default function CalendarRecordsScreen({
   initialData,
+  shopEventsEnabled = initialData.mode === "supabase",
   onDataChange,
   onCreateReservationForDate,
 }: {
   initialData: BootstrapPayload;
+  shopEventsEnabled?: boolean;
   onDataChange?: (data: BootstrapPayload) => void;
   onCreateReservationForDate?: (date: string) => void;
 }) {
@@ -680,6 +689,12 @@ export default function CalendarRecordsScreen({
   const [staffFilter, setStaffFilter] = useState<CalendarStaffFilter>("all");
   const [statusFilter, setStatusFilter] = useState<CalendarStatusFilter>("all");
   const [selectedItem, setSelectedItem] = useState<DayItem | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const month = monthAnchor.slice(0, 7);
+  const { holidays, holidayError, reloadHolidays } = useCalendarHolidays(month, fetchApiJson);
+  const { events, canEdit, eventsLoading, eventsError, reloadEvents } = useShopCalendarEvents(
+    shopEventsEnabled ? initialData.shop.id : null, month, fetchApiJsonWithAuth,
+  );
   const latestDataRef = useRef(initialData);
   const onDataChangeRef = useRef(onDataChange);
 
@@ -778,6 +793,8 @@ export default function CalendarRecordsScreen({
   }, [query, reservations, staffFilter, statusFilter]);
 
   const monthDates = useMemo(() => getMonthDates(monthAnchor), [monthAnchor]);
+  const holidaysByDate = useMemo(() => calendarHolidaysByDate(holidays), [holidays]);
+  const shopEventsByDate = useMemo(() => new Map(monthDates.flatMap(date => date ? [[date, shopEventsOnDate(events, date)] as const] : [])), [events, monthDates]);
   const calendarWeekRows = Math.max(5, Math.ceil(monthDates.length / 7));
   const dayItemsByDate = useMemo(() => {
     const map = new Map<string, DayItem[]>();
@@ -818,6 +835,12 @@ export default function CalendarRecordsScreen({
     setSelectedItem(null);
   }
 
+  function changeMonth(amount: number) {
+    const next = moveMonth(monthAnchor, amount);
+    setMonthAnchor(next);
+    openDate(next);
+  }
+
   function openItem(item: DayItem) {
     setSelectedDate(item.date);
     setSelectedItem(item);
@@ -830,7 +853,7 @@ export default function CalendarRecordsScreen({
           <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-2 sm:w-auto sm:flex-nowrap sm:justify-start">
             <button
               type="button"
-              onClick={() => setMonthAnchor((current) => moveMonth(current, -1))}
+              onClick={() => changeMonth(-1)}
               className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff]"
               aria-label="이전 달"
             >
@@ -839,7 +862,7 @@ export default function CalendarRecordsScreen({
             <p className="order-first flex min-h-11 w-full min-w-0 items-center justify-center px-3 text-center text-[16px] font-medium text-[#111827] sm:order-none sm:w-auto sm:min-w-[110px]">{formatMonthLabel(monthAnchor)}</p>
             <button
               type="button"
-              onClick={() => setMonthAnchor((current) => moveMonth(current, 1))}
+              onClick={() => changeMonth(1)}
               className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff]"
               aria-label="다음 달"
             >
@@ -891,8 +914,15 @@ export default function CalendarRecordsScreen({
               </select>
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
             </label>
+            {canEdit ? <button type="button" className={calendarSecondaryButtonClass} onClick={() => setImportOpen(true)}>
+              <IconFileImport size={16} stroke={1.75} aria-hidden="true" />일정 가져오기
+            </button> : null}
           </div>
         </div>
+        {holidayError ? <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e8edf3] px-3 text-[13px] text-[#64748b] sm:px-5" role="status">
+          공휴일을 불러오지 못했어요.
+          <button className="min-h-11 rounded-md px-1.5 text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600" type="button" onClick={reloadHolidays}>공휴일 다시 조회</button>
+        </div> : null}
 
         <div data-calendar-month-layout="true" className="grid min-h-0 flex-1 items-stretch overflow-visible rounded-b-[14px] sm:overflow-hidden lg:grid-cols-[minmax(0,1fr)_clamp(300px,24vw,380px)]">
           <section data-calendar-month-board="true" className="flex min-h-0 min-w-0 flex-col overflow-visible rounded-b-[14px] bg-[#f1f5f9] sm:overflow-hidden xl:border-r xl:border-[#edf2f7]">
@@ -926,6 +956,8 @@ export default function CalendarRecordsScreen({
                 }
 
                 const workNotice = getStaffWorkNotice(initialData, date, staffFilter);
+                const holidays = holidaysByDate.get(date) ?? [];
+                const shopEvents = shopEventsByDate.get(date) ?? [];
                 const statusCounts = getCalendarStatusCounts(items);
                 const visibleStatuses = calendarStatusIndicators.filter((indicator) => statusCounts[indicator.key] > 0);
                 const primaryStatuses = visibleStatuses.slice(0, 3);
@@ -940,8 +972,9 @@ export default function CalendarRecordsScreen({
                       "relative flex min-h-0 flex-col justify-between overflow-hidden rounded-[10px] border px-3 py-2 text-left transition duration-150",
                       getCalendarCellTone(active, isToday, hasItems, workNotice.closed),
                     )}
-                    aria-label={`${date} 예약 ${reservationCount}건`}
+                    aria-label={`${date} 예약 ${reservationCount}건${holidays.length ? ` ${holidays.join(" · ")}` : ""}${shopEvents.length ? ` 매장 일정 ${shopEvents.length}건` : ""}`}
                   >
+                    <div className="min-w-0 space-y-0.5">
                     <div className="flex items-start justify-between gap-2">
                       <span
                         className={cn(
@@ -969,9 +1002,12 @@ export default function CalendarRecordsScreen({
                         <span className="rounded-full border border-[#dbe2ea] bg-white/85 px-2 py-0.5 text-[12px] font-medium leading-[18px] text-[#64748b]">휴무</span>
                       ) : null}
                     </div>
+                    {holidays.length ? <span className="block truncate text-[12px] font-medium leading-[18px] text-[#a04455]" title={holidays.join(" · ")}>{holidays.join(" · ")}</span> : null}
+                    {shopEvents.length ? <span className="block truncate text-[12px] font-medium leading-[18px] text-[#31588f]">매장 일정 {shopEvents.length}건</span> : null}
                     {!workNotice.closed && workNotice.label !== "근무 가능" ? (
                       <span className="line-clamp-1 text-[12px] font-normal leading-[18px] text-[#64748b]">{workNotice.label}</span>
                     ) : null}
+                    </div>
                     {visibleStatuses.length > 0 ? (
                       <div className="flex flex-wrap items-end gap-1">
                         {primaryStatuses.map((indicator) => (
@@ -1011,11 +1047,25 @@ export default function CalendarRecordsScreen({
             items={selectedItems}
             birthdays={selectedBirthdays}
             workNotice={selectedWorkNotice}
+            holidayNames={holidaysByDate.get(selectedDate)}
+            shopAgenda={shopEventsEnabled ? <ShopCalendarAgenda
+              key={`${initialData.shop.id}/${selectedDate}`}
+              date={selectedDate}
+              shopId={initialData.shop.id}
+              events={shopEventsByDate.get(selectedDate) ?? []}
+              canEdit={canEdit}
+              loading={eventsLoading}
+              error={eventsError}
+              request={fetchApiJsonWithAuth}
+              onRefresh={reloadEvents}
+            /> : null}
             onSelectItem={openItem}
             onAddReservation={onCreateReservationForDate ? () => onCreateReservationForDate(selectedDate) : undefined}
           />
         </div>
       </section>
+
+      {importOpen ? <CalendarImportDialog key={initialData.shop.id} shopId={initialData.shop.id} month={month} onClose={() => setImportOpen(false)} onImported={reloadEvents} /> : null}
 
       {selectedItem ? (
         <GroomingRecordSheet
@@ -1046,6 +1096,8 @@ function GroomingDatePanel({
   items,
   birthdays,
   workNotice,
+  holidayNames,
+  shopAgenda,
   onSelectItem,
   onAddReservation,
 }: {
@@ -1053,6 +1105,8 @@ function GroomingDatePanel({
   items: DayItem[];
   birthdays: BirthdayItem[];
   workNotice: ReturnType<typeof getStaffWorkNotice>;
+  holidayNames?: string[];
+  shopAgenda?: React.ReactNode;
   onSelectItem: (item: DayItem) => void;
   onAddReservation?: () => void;
 }) {
@@ -1063,7 +1117,10 @@ function GroomingDatePanel({
     <aside data-calendar-month-detail-panel="true" className="min-h-0 min-w-0 overflow-y-auto rounded-b-[14px] bg-white">
       <div className="px-4 py-4">
         <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <h3 className="text-[16px] font-normal leading-6 text-[#334155]">{formatFullDate(date)}</h3>
+          <div>
+            <h3 className="text-[16px] font-normal leading-6 text-[#334155]">{formatFullDate(date)}</h3>
+            <CalendarHolidayLabel names={holidayNames} />
+          </div>
           <div className="flex shrink-0 items-center gap-2">
             {onAddReservation ? (
               <button
@@ -1105,6 +1162,7 @@ function GroomingDatePanel({
             />
           ) : null}
           {birthdays.length > 0 ? <BirthdaySection birthdays={birthdays} /> : null}
+          {shopAgenda}
         </div>
       </div>
     </aside>

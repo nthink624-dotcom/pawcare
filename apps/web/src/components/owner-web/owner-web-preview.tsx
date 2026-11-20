@@ -263,7 +263,7 @@ function renderScreen(
     case "customers":
       return <CustomerManagementScreen initialData={initialData} onCreateReservationForCustomer={onCreateReservationForCustomer} onDataChange={onDataChange} />;
     case "calendarRecords":
-      return <CalendarRecordsScreen initialData={initialData} onDataChange={onDataChange} onCreateReservationForDate={onCreateReservationForDate} />;
+      return <CalendarRecordsScreen initialData={initialData} shopEventsEnabled={!isDemoOwnerWebData(initialData)} onDataChange={onDataChange} onCreateReservationForDate={onCreateReservationForDate} />;
     case "profitability":
       return <ProfitabilityAnalyticsScreen shopId={initialData.shop.id} />;
     case "services":

@@ -68,6 +68,7 @@ type Props = {
   onOpenDatePicker: () => void;
   onOpenAppointment: (appointment: Appointment) => void;
   attention?: ReactNode;
+  calendarAgenda?: ReactNode;
 };
 
 function clockMinutes(value: string) {
@@ -377,6 +378,8 @@ export default function OwnerBookingDaySchedule(props: Props) {
           })}
         </div>
       </header>
+
+      {props.calendarAgenda}
 
       {laneOptions.length === 0 ? (
         <div className="flex min-h-44 items-center justify-center px-6 text-center text-[14px] leading-5 text-[#526174]">표시할 직원이 없습니다.</div>

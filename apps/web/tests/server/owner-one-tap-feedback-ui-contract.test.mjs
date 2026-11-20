@@ -34,7 +34,7 @@ test("owner feedback adapter emits only the server allowlist and stable screen c
   assert.equal(ownerFeedbackScreenKey("operatingHours"), "shop_settings");
 });
 
-test("dialog is compact, one-submit guarded, draft-preserving, and explicit about screenshot privacy", async () => {
+test("dialog is compact, one-submit guarded, draft-preserving, and keeps screenshots optional", async () => {
   const dialog = await readFile(dialogPath, "utf8");
   assert.match(dialog, /max-w-\[480px\]/);
   assert.match(dialog, /문의·의견 보내기/);
@@ -44,7 +44,8 @@ test("dialog is compact, one-submit guarded, draft-preserving, and explicit abou
   assert.match(dialog, /submittingRef\.current/);
   assert.match(dialog, /requestIdRef\.current \?\? crypto\.randomUUID\(\)/);
   assert.match(dialog, /스크린샷 첨부/);
-  assert.match(dialog, /자동으로 수집하지 않습니다/);
+  assert.match(dialog, /\(선택\)/);
+  assert.doesNotMatch(dialog, /불편한 점이나 필요한 도움을 짧게 알려주세요|화면, 개인정보, 기기 정보는 자동으로 수집하지 않습니다/);
   assert.match(dialog, /uploadOwnerFeedbackScreenshot\(shopId, screenshot\)/);
   assert.match(dialog, /screenshotReceipt \?\?/);
   assert.match(dialog, /screenshotAccepted/);

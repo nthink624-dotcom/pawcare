@@ -92,7 +92,30 @@ function buildOwnerBillingOfferPeriod(planCode: OwnerPlanCode) {
 }
 
 export async function fetchOwnerSubscriptionSummary() {
-  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription");
+  const readShopHint = () => window.localStorage.getItem("petmanager:owner-current-shop")?.trim() || null;
+  const shopHint = readShopHint();
+  let shopId = shopHint;
+
+  if (!shopId) {
+    const shops = await fetchApiJsonWithAuth<{ id: string }[]>("/api/owner/shops", { cache: "no-store" });
+    if (shops.length !== 1 || !shops[0].id) {
+      throw new Error("결제를 관리할 매장을 다시 선택해 주세요.");
+    }
+    shopId = shops[0].id;
+  }
+
+  if (readShopHint() !== shopHint) {
+    throw new Error("선택한 매장이 변경되었습니다. 이용 상태를 다시 확인해 주세요.");
+  }
+
+  const query = new URLSearchParams({ shopId });
+  const summary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(`/api/subscription?${query}`, {
+    cache: "no-store",
+  });
+  if (summary.shopId !== shopId || readShopHint() !== shopHint) {
+    throw new Error("선택한 매장의 구독 정보를 확인하지 못했습니다.");
+  }
+  return summary;
 }
 
 export async function saveOwnerSubscriptionPreferences(payload: {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import ts from "typescript";
 
 const billingClient = await readFile(new URL("../src/lib/billing/owner-billing-client.ts", import.meta.url), "utf8");
 const nativeNotice = await readFile(new URL("../src/components/owner/owner-native-billing-notice.tsx", import.meta.url), "utf8");
@@ -178,7 +179,7 @@ test("every Android billing mutation fails before transport or payment SDK loadi
   assert.doesNotMatch(billingClient, /^import \{ requestIssueBillingKey, requestPayment \}/m);
   assert.match(billingClient, /Capacitor\.getPlatform\(\) === "android"/);
   assert.match(billingClient, /Android 앱에서는 현재 이용 상태만 확인할 수 있습니다/);
-  assert.match(billingClient, /export async function fetchOwnerSubscriptionSummary\(\)[\s\S]*?fetchApiJsonWithAuth<OwnerSubscriptionSummary>\("\/api\/subscription"\)/);
+
 
   for (const name of [
     "saveOwnerSubscriptionPreferences",
@@ -210,4 +211,43 @@ test("Android native inventory has no billing SDK, billing permission, or paymen
   assert.doesNotMatch(androidGradle, /billingclient|com\.android\.billing|portone|payment/i);
   assert.doesNotMatch(capacitorConfig, /billing|portone|payment/i);
   assert.match(capacitorConfig, /appId: "kr\.petmanager\.owner"/);
+});
+test("subscription reads bind the current store and refuse a mismatched or ambiguous result", async () => {
+  let selectedShop = "store / A";
+  let ownedShops = [{ id: "store-B" }];
+  let returnedShop;
+  const requests = [];
+  const fixtures = {
+    "@/lib/api": {
+      async fetchApiJsonWithAuth(path) {
+        requests.push(path);
+        if (path === "/api/owner/shops") return ownedShops;
+        const query = new URL(path, "https://fixture.invalid").searchParams;
+        return { shopId: returnedShop ?? query.get("shopId") };
+      },
+    },
+    "@capacitor/core": { Capacitor: { getPlatform: () => "android" } },
+    "@/lib/brand": {},
+    "@/lib/env": {},
+    "@/lib/billing/owner-plans": {},
+  };
+  const compiled = ts.transpileModule(billingClient, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exports = {};
+  const fixtureWindow = { localStorage: { getItem: () => selectedShop } };
+  Function("require", "exports", "window", compiled)((id) => fixtures[id], exports, fixtureWindow);
+
+  assert.equal((await exports.fetchOwnerSubscriptionSummary()).shopId, "store / A");
+  assert.deepEqual(requests.splice(0), ["/api/subscription?shopId=store+%2F+A"]);
+  selectedShop = null;
+  assert.equal((await exports.fetchOwnerSubscriptionSummary()).shopId, "store-B");
+  assert.deepEqual(requests.splice(0), ["/api/owner/shops", "/api/subscription?shopId=store-B"]);
+  ownedShops = [{ id: "store-B" }, { id: "store-C" }];
+  await assert.rejects(exports.fetchOwnerSubscriptionSummary());
+  assert.deepEqual(requests.splice(0), ["/api/owner/shops"]);
+  selectedShop = "store-A";
+  returnedShop = "store-C";
+  await assert.rejects(exports.fetchOwnerSubscriptionSummary());
+  assert.deepEqual(requests, ["/api/subscription?shopId=store-A"]);
 });

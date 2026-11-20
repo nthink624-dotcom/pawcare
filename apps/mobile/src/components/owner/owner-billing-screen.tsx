@@ -546,7 +546,7 @@ export default function OwnerBillingScreen({
     return <div className="min-h-screen w-full bg-white" aria-label="앱 화면 준비 중" />;
   }
 
-  if (runtimeMode === "native") {
+  if (runtimeMode === "native" || !getOwnerPlanByCode(summary.featuredPlanCode)) {
     const canReturnToApp = summary.status === "active" || summary.status === "trialing" || summary.status === "trial_will_end";
 
     return (

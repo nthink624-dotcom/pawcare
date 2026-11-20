@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import OwnerBillingScreen from "@/components/owner/owner-billing-screen";
-import { fetchApiJsonWithAuth } from "@/lib/api";
+import { fetchOwnerSubscriptionSummary } from "@/lib/billing/owner-billing-client";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
@@ -42,9 +42,7 @@ function OwnerBillingPageContent() {
       }
 
       try {
-        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
-          cache: "no-store",
-        });
+        const nextSummary = await fetchOwnerSubscriptionSummary();
         if (active) {
           setSummary(nextSummary);
         }
@@ -71,9 +69,7 @@ function OwnerBillingPageContent() {
 
     async function refreshSummary() {
       try {
-        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
-          cache: "no-store",
-        });
+        const nextSummary = await fetchOwnerSubscriptionSummary();
         if (active) {
           setSummary(nextSummary);
         }

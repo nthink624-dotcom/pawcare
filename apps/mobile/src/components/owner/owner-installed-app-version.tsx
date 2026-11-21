@@ -3,20 +3,24 @@
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { Smartphone } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+
+type AppVersionPlatform = "pending" | "web" | "native-outdated" | "native";
+
+const subscribeToPlatform = () => () => {};
+
+// 실행 환경은 바뀌지 않으므로 렌더 중에 읽고, 서버 렌더와 첫 화면은 "확인 중..."으로 맞춘다.
+function readAppVersionPlatform(): AppVersionPlatform {
+  if (!Capacitor.isNativePlatform()) return "web";
+  return Capacitor.isPluginAvailable("App") ? "native" : "native-outdated";
+}
 
 export default function OwnerInstalledAppVersion() {
-  const [versionLabel, setVersionLabel] = useState("확인 중...");
+  const platform = useSyncExternalStore(subscribeToPlatform, readAppVersionPlatform, () => "pending" as const);
+  const [nativeVersionLabel, setVersionLabel] = useState("확인 중...");
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) {
-      setVersionLabel("웹에서 사용 중");
-      return;
-    }
-    if (!Capacitor.isPluginAvailable("App")) {
-      setVersionLabel("앱 업데이트 후 확인 가능");
-      return;
-    }
+    if (platform !== "native") return;
 
     let active = true;
     const unavailable = "버전 정보를 확인할 수 없어요";
@@ -39,7 +43,9 @@ export default function OwnerInstalledAppVersion() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [platform]);
+
+  const versionLabel = platform === "web" ? "웹에서 사용 중" : platform === "native-outdated" ? "앱 업데이트 후 확인 가능" : nativeVersionLabel;
 
   return (
     <div className="flex min-h-[52px] w-full items-center gap-3 px-1 py-2.5 text-left">

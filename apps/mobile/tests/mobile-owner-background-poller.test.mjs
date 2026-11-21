@@ -108,7 +108,7 @@ test("the real notification watcher keeps its cooldown on equivalent bootstrap r
   let effectDeps, cleanup, calls = 0, lastSignal;
   const received = [];
   win.addEventListener("owner-push", event => received.push(event.detail));
-  const module = { exports: {} };
+  const loaded = { exports: {} };
   const code = ts.transpileModule(readFileSync(new URL("../src/components/owner/owner-booking-notification-watcher.tsx", import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
@@ -130,8 +130,8 @@ test("the real notification watcher keeps its cooldown on equivalent bootstrap r
     throw Error(`Unexpected import ${name}`);
   };
   try {
-    Function("module", "exports", "require", code)(module, module.exports, req);
-    const render = () => module.exports.default({ shopId: "shop one", initialNotifications: [{ id: "old", type: "owner_booking_requested", status: "sent" }] });
+    Function("module", "exports", "require", code)(loaded, loaded.exports, req);
+    const render = () => loaded.exports.default({ shopId: "shop one", initialNotifications: [{ id: "old", type: "owner_booking_requested", status: "sent" }] });
     render(); await advance(30_000); assert.equal(calls, 1); assert.equal(received.length, 0);
     render(); win.dispatchEvent(new Event("focus")); await advance(29_999); assert.equal(calls, 1);
     await advance(1); assert.equal(calls, 2); assert.equal(lastSignal instanceof AbortSignal, true);

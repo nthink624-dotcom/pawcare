@@ -407,6 +407,8 @@ export function DailyScheduleGrid({
       ? "0 0 25%"
       : `0 0 calc(100% / ${columnCount})`;
   const scheduleTrackStyle = scheduleTrackWidth ? { width: scheduleTrackWidth, minWidth: scheduleTrackWidth } : undefined;
+  // 상세가 옆에 붙어 달력이 좁아지면 직원 4명 이하여도 칸(최소 240px)이 넘칠 수 있으므로 끌어서 옆으로 넘길 수 있게 한다.
+  const horizontallyPannable = scrollable || (scheduleTrackWidth !== null && columnCount * 240 > scheduleTrackWidth);
   const displayedVisibleBookings = resizingBooking
     ? visibleBookings.map((booking) =>
         booking.id === resizingBooking.bookingId ? { ...booking, duration: resizingBooking.nextDuration } : booking,
@@ -488,6 +490,19 @@ export function DailyScheduleGrid({
     return () => resizeObserver.disconnect();
   }, [columnCount]);
 
+  // 예약을 열면 그 예약의 직원 칸이 보이도록 가로 스크롤한다. 덮는 상세 시트가 있으면 시트 왼쪽까지만 보이는 영역으로 본다.
+  useEffect(() => {
+    const scroller = bodyScrollerRef.current;
+    if (!selectedBookingId || !scroller) return;
+    const column = scroller.querySelector<HTMLElement>(`[data-booking-id="${CSS.escape(selectedBookingId)}"]`)?.closest<HTMLElement>("[data-schedule-staff-column]");
+    if (!column) return;
+    const view = scroller.getBoundingClientRect(), target = column.getBoundingClientRect();
+    const sheet = document.querySelector<HTMLElement>('[data-booking-detail-mode="sheet"] > [role="dialog"]');
+    const right = Math.min(view.right, sheet?.getBoundingClientRect().left ?? view.right);
+    const offset = target.left < view.left - 1 ? target.left - view.left : target.right > right + 1 ? Math.min(target.right - right, target.left - view.left) : 0;
+    if (offset) scroller.scrollLeft += offset;
+  }, [selectedBookingId, scheduleTrackWidth]);
+
   function syncHorizontalScroll(source: "header" | "body") {
     if (syncingScrollRef.current) return;
     const from = source === "header" ? headerScrollerRef.current : bodyScrollerRef.current;
@@ -515,7 +530,7 @@ export function DailyScheduleGrid({
   }
 
   function handleBoardPanPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!scrollable) return;
+    if (!horizontallyPannable) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     if (shouldSkipBoardPan(event.target)) return;
 
@@ -736,7 +751,7 @@ export function DailyScheduleGrid({
         className={cn(
           "pm-schedule-y-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-white select-none",
           boardPanning && "cursor-grabbing snap-none",
-          !boardPanning && scrollable && "cursor-grab",
+          !boardPanning && horizontallyPannable && "cursor-grab",
         )}
       >
         <div className="flex">

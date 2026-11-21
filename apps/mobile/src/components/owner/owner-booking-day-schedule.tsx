@@ -114,13 +114,18 @@ function currentTimeBadgeOverlapsHourLabel(currentTop: number, hourTop: number) 
   return Math.abs(currentTop - hourTop) < CURRENT_TIME_LABEL_COLLISION_DISTANCE;
 }
 
+// 서로 겹치는 예약 묶음 전체가 같은 칸 수를 쓴다. 먼저 놓인 예약도 뒤에 겹친 예약만큼 좁아져야 카드가 서로 덮지 않는다.
 function assignCollisionColumns(appointments: Appointment[], serviceDurations: Record<string, number>): LaneItem[] {
   const active: Array<{ end: number; column: number }> = [];
-  return [...appointments]
+  const groupColumns: number[] = [];
+  let groupEnd = -Infinity;
+  const placed = [...appointments]
     .sort((a, b) => clockMinutes(a.appointment_time) - clockMinutes(b.appointment_time))
     .map((appointment) => {
       const start = clockMinutes(appointment.appointment_time);
       const end = start + appointmentDuration(appointment, serviceDurations);
+      if (start >= groupEnd) groupColumns.push(0);
+      groupEnd = Math.max(groupEnd, end);
       for (let index = active.length - 1; index >= 0; index -= 1) {
         if (active[index].end <= start) active.splice(index, 1);
       }
@@ -128,8 +133,11 @@ function assignCollisionColumns(appointments: Appointment[], serviceDurations: R
       let column = 0;
       while (used.has(column)) column += 1;
       active.push({ end, column });
-      return { appointment, column, collisionColumns: Math.max(column + 1, active.length) };
+      const group = groupColumns.length - 1;
+      groupColumns[group] = Math.max(groupColumns[group], column + 1);
+      return { appointment, column, group };
     });
+  return placed.map(({ appointment, column, group }) => ({ appointment, column, collisionColumns: groupColumns[group] }));
 }
 
 function ScheduleLane({

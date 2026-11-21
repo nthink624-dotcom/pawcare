@@ -1611,15 +1611,18 @@ function getVisibleDialogFocusableElements(dialog: HTMLElement | null) {
 }
 
 const dockedBookingMediaQuery = "(min-width: 1440px)";
+// 1280~1439px 노트북 화면은 예약을 열 때만 상세를 달력 옆에 붙인다. 덮는 시트가 오른쪽 직원 칸을 가리지 않게 한다.
+const openDockedBookingMediaQuery = "(min-width: 1280px)";
 
 function subscribeToDockedBookingViewport(onChange: () => void) {
-  const media = window.matchMedia(dockedBookingMediaQuery);
-  media.addEventListener("change", onChange);
-  return () => media.removeEventListener("change", onChange);
+  const medias = [dockedBookingMediaQuery, openDockedBookingMediaQuery].map((query) => window.matchMedia(query));
+  medias.forEach((media) => media.addEventListener("change", onChange));
+  return () => medias.forEach((media) => media.removeEventListener("change", onChange));
 }
 
-function getDockedBookingViewport() {
-  return window.matchMedia(dockedBookingMediaQuery).matches;
+function getDockedBookingViewport(): "wide" | "medium" | "narrow" {
+  if (window.matchMedia(dockedBookingMediaQuery).matches) return "wide";
+  return window.matchMedia(openDockedBookingMediaQuery).matches ? "medium" : "narrow";
 }
 
 import BookingPreparationPanel from "@/components/booking/booking-preparation-panel";
@@ -2261,6 +2264,14 @@ function BookingSidePanel({
       >
       <style>{`.pm-booking-side-panel-scroll { scrollbar-width: none; -ms-overflow-style: none; } .pm-booking-side-panel-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }`}</style>
       <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-0">
+        {docked ? (
+          <div className="flex shrink-0 items-center justify-between border-b border-[#f0f2f4] pl-4 pr-1.5">
+            <h2 className="text-[16px] font-semibold leading-6 text-[#15213b]">예약 상세</h2>
+            <button type="button" onClick={onClose} aria-label="예약 상세 닫기" className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563eb]">
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
         <BookingDevelopmentNotice environment={env.supabaseEnvName} shopId={shopId} />
         <div className="pm-booking-side-panel-scroll min-h-0 flex-1 overflow-y-auto">
           <div className="bg-white px-4 pb-3 pt-5">
@@ -4455,8 +4466,11 @@ export default function CalendarManagementScreen({
     const id = depositOpenRequest.current;
     if (id && filteredBookings.some(booking => booking.id === id)) { setSelectedBookingId(id); depositOpenRequest.current = null; }
   }, [filteredBookings]);
-  const wideBookingViewport = useSyncExternalStore(subscribeToDockedBookingViewport, getDockedBookingViewport, () => false);
-  const dockedBookingDetail = wideBookingViewport && visibleStaff.length > 0 && (visibleStaff.length <= 2 || staff !== "전체 직원");
+  const bookingViewport = useSyncExternalStore(subscribeToDockedBookingViewport, getDockedBookingViewport, () => "narrow" as const);
+  // 넓은 화면에서는 직원 수와 관계없이 상세를 달력 옆에 붙인다. 직원이 많거나 1280~1439px 화면이면 예약을 열 때만 붙여 빈 상세 칸으로 달력을 좁히지 않는다.
+  const dockedBookingDetail = visibleStaff.length > 0 && (bookingViewport === "wide"
+    ? visibleStaff.length <= 2 || staff !== "전체 직원" || Boolean(selectedBooking)
+    : bookingViewport === "medium" && Boolean(selectedBooking));
 
   useEffect(() => {
     if (selectedBookingId && !filteredBookings.some((booking) => booking.id === selectedBookingId)) {

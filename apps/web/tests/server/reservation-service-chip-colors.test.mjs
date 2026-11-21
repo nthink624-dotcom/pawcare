@@ -9,12 +9,12 @@ function loadModule(relativePath, imports = {}) {
   const output = ts.transpileModule(readFileSync(path, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  const module = { exports: {} };
-  new Function("module", "exports", "require", output)(module, module.exports, (name) => {
+  const loaded = { exports: {} };
+  new Function("module", "exports", "require", output)(loaded, loaded.exports, (name) => {
     assert.ok(Object.hasOwn(imports, name), `Unexpected import: ${name}`);
     return imports[name];
   });
-  return module.exports;
+  return loaded.exports;
 }
 
 const shared = loadModule("../../../shared/lib/reservation-chip-colors.ts");

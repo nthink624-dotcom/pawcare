@@ -53,9 +53,7 @@ import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import { StatusBadge as AppStatusBadge } from "@/components/ui/status-badge";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
-import { CalendarHolidayLabel, ShopCalendarAgenda } from "@petmanager/shared/components/shop-calendar-agenda";
-import { shopEventsOnDate } from "@petmanager/shared/lib/owner-calendar";
-import { useCalendarHolidays, useShopCalendarEvents } from "@petmanager/shared/lib/use-owner-calendar";
+import { useCalendarHolidays } from "@petmanager/shared/lib/use-owner-calendar";
 import { createOwnerBackgroundPoller, shouldPollOwnerData } from "@/lib/owner-background-poller";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
@@ -1574,9 +1572,7 @@ function OwnerAppContent({
 
   const selectedVisitDate = visitDateFilter || todayDate;
   const bookingMonth = selectedVisitDate.slice(0, 7);
-  const showShopCalendarEvents = activeTab === "book" && !isOwnerDemo && data.mode === "supabase" && !startupReadOnly;
   const bookingHolidays = useCalendarHolidays(activeTab === "book" ? bookingMonth : null, fetchApiJson);
-  const bookingShopCalendar = useShopCalendarEvents(showShopCalendarEvents ? data.shop.id : null, bookingMonth, fetchApiJsonWithAuth);
   const selectedVisitHolidays = bookingHolidays.holidays.filter(holiday => holiday.date === selectedVisitDate).map(holiday => holiday.name);
   const selectedVisitRange = useMemo(() => {
     if (visitSelectionMode !== "range" || !visitRange) return null;
@@ -3247,22 +3243,7 @@ function OwnerAppContent({
   <section className="min-h-full space-y-3.5 bg-[#f6f9fc] p-0">
     <OwnerBookingDaySchedule
       attention={!isStaffApp ? <BookingDepositNotices {...depositNotices} onOpen={notice => void openDepositNotice(notice.appointmentId)} /> : undefined}
-      calendarAgenda={selectedVisitHolidays.length > 0 || showShopCalendarEvents ? (
-        <div className="px-3">
-          {selectedVisitHolidays.length ? <div className="border-t border-[#e8edf3] py-2"><CalendarHolidayLabel names={selectedVisitHolidays} /></div> : null}
-          {showShopCalendarEvents ? <ShopCalendarAgenda
-            key={`${data.shop.id}/${selectedVisitDate}`}
-            date={selectedVisitDate}
-            shopId={data.shop.id}
-            events={shopEventsOnDate(bookingShopCalendar.events, selectedVisitDate)}
-            canEdit={bookingShopCalendar.canEdit}
-            loading={bookingShopCalendar.eventsLoading}
-            error={bookingShopCalendar.eventsError}
-            request={fetchApiJsonWithAuth}
-            onRefresh={bookingShopCalendar.reloadEvents}
-          /> : null}
-        </div>
-      ) : undefined}
+      holidayNames={selectedVisitHolidays}
       date={selectedVisitDate}
       appointments={bookingVisibleAppointments}
       petNames={Object.fromEntries(data.pets.map((pet) => [pet.id, pet.name]))}

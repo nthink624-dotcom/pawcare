@@ -33,6 +33,7 @@ const STATUS_PRESENTATION: Record<Appointment["status"], { label: string; compac
 };
 
 const DETAILED_BOOKING_MINUTES = 90;
+const HIDDEN_TIMELINE_STATUSES = new Set<Appointment["status"]>(["cancelled", "noshow", "rejected"]);
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
@@ -68,7 +69,7 @@ type Props = {
   onOpenDatePicker: () => void;
   onOpenAppointment: (appointment: Appointment) => void;
   attention?: ReactNode;
-  calendarAgenda?: ReactNode;
+  holidayNames?: readonly string[];
 };
 
 function clockMinutes(value: string) {
@@ -283,8 +284,9 @@ export default function OwnerBookingDaySchedule(props: Props) {
     return () => window.clearInterval(timer);
   }, []);
 
+  // 시간표에는 진행할 예약만 둔다. 취소·노쇼·거절은 PC 달력처럼 빼서 다른 예약과 겹쳐 보이지 않게 한다.
   const visibleAppointments = useMemo(
-    () => appointments.filter((appointment) => appointment.appointment_date === date && appointment.status !== "rejected"),
+    () => appointments.filter((appointment) => appointment.appointment_date === date && !HIDDEN_TIMELINE_STATUSES.has(appointment.status)),
     [appointments, date],
   );
   const laneOptions = useMemo(() => staffOptions.filter((staff) => staff.id !== "all"), [staffOptions]);
@@ -371,6 +373,7 @@ export default function OwnerBookingDaySchedule(props: Props) {
           <button type="button" aria-label={`${dateLabel} ${selectedWeekdayLabel}요일 날짜 선택`} onClick={onOpenDatePicker} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">
             <span data-testid="date-primary" className="whitespace-nowrap text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#172033] [font-variant-numeric:tabular-nums]">{dateLabel}</span>
             <span data-testid="weekday-label" className="whitespace-nowrap text-[14px] font-medium leading-5 text-[#64748b]">{selectedWeekdayLabel}</span>
+            {props.holidayNames?.length ? <span data-calendar-holiday className="min-w-0 truncate text-[14px] font-medium leading-5 text-[#a04455]">{props.holidayNames.join(" · ")}</span> : null}
           </button>
           <div className="flex shrink-0 items-center gap-1">{props.attention}<span data-testid="date-total" className="shrink-0 whitespace-nowrap text-[14px] font-medium leading-5 text-[#37557a] [font-variant-numeric:tabular-nums]">예약 {visibleAppointments.length}건</span></div>
         </div>
@@ -386,8 +389,6 @@ export default function OwnerBookingDaySchedule(props: Props) {
           })}
         </div>
       </header>
-
-      {props.calendarAgenda}
 
       {laneOptions.length === 0 ? (
         <div className="flex min-h-44 items-center justify-center px-6 text-center text-[14px] leading-5 text-[#526174]">표시할 직원이 없습니다.</div>

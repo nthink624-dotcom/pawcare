@@ -182,3 +182,11 @@ export function exchangeBookingAccessTokenForRebooking(shopId: string, sourceTok
     expiresInHours: REBOOKING_ACCESS_TOKEN_HOURS,
   });
 }
+
+/** Accept an already exchanged link or safely exchange the long-lived source token used by template buttons. */
+export function resolveBookingRebookingToken(shopId: string, token: string) {
+  const payload = verifyBookingAccessToken(token);
+  if (payload.shopId !== shopId) throw new Error("유효하지 않은 재예약 링크입니다.");
+  if (payload.action === "rebook") return token;
+  return exchangeBookingAccessTokenForRebooking(shopId, token);
+}

@@ -251,6 +251,7 @@ export const shopSettingsSchema = z.object({
       ai_booking_time_optimization_enabled: z.boolean().optional(),
       ai_booking_recommendation_mode: z.enum(["continuity", "staff_balance", "customer_convenience", "custom"]).optional(),
       ai_booking_custom_instruction: z.string().trim().max(240).optional(),
+        customer_other_available_times_enabled: z.boolean().optional(),
     })
     .optional(),
   notificationSettings: z.object({

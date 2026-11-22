@@ -52,6 +52,7 @@ export function normalizeReservationPolicySettings(value: unknown): ReservationP
     // 제품 공통 정책입니다. 매장별 저장값은 더 이상 동작을 바꾸지 않습니다.
     cancel_window: "2h",
     customer_change_enabled: true,
+    customer_other_available_times_enabled: source.customer_other_available_times_enabled === true,
     booking_blocked_windows: hasBlockedWindows
       ? normalizeBookingBlockedWindows(source.booking_blocked_windows)
       : defaultReservationPolicySettings.booking_blocked_windows,

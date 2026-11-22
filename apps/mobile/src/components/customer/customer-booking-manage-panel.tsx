@@ -1,4 +1,5 @@
 ﻿"use client";
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
 
 import { addDays, format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -432,16 +433,7 @@ export default function CustomerBookingManagePanel({
                             <div className="rounded-2xl bg-[#faf5f1] px-4 py-5 text-sm text-[var(--muted)]">선택한 날짜에 가능한 시간이 없어요.</div>
                           ) : (
                             <div className="grid grid-cols-3 gap-2">
-                              {manageSlots.map((slot) => (
-                                <button
-                                  key={slot}
-                                  type="button"
-                                  onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
-                                  className={`rounded-2xl border px-2 py-3 text-sm font-semibold ${manageForm?.timeSlot === slot ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-[#fffdfa] text-[var(--text)]"}`}
-                                >
-                                  {slot}
-                                </button>
-                              ))}
+                              <WheelTimeField aria-label="변경할 예약 시간" value={manageForm.timeSlot} onValueChange={(timeSlot) => setManageForm((prev) => prev ? { ...prev, timeSlot } : prev)} allowedTimes={manageSlots} className="col-span-full w-full" />
                             </div>
                           )}
                         </div>

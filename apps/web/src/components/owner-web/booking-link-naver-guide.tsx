@@ -1,4 +1,4 @@
-import { Copy, ExternalLink } from "lucide-react";
+import { IconCopy as Copy, IconExternalLink as ExternalLink } from "@tabler/icons-react";
 import { useState } from "react";
 import { OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS } from "./owner-web-action-button-styles";
 
@@ -72,8 +72,8 @@ export function BookingLinkNaverGuide({ bookingUrl, directionsText, smartPlaceUr
         ))}
       </div>
       <div className="flex flex-wrap gap-2 py-4">
-        <a href={smartPlaceUrl} target="_blank" rel="noreferrer" className={actionClass}><ExternalLink className="h-4 w-4" />스마트플레이스 열기</a>
-        {mode === "link" ? <button type="button" onClick={() => void copyText(bookingUrl)} className={actionClass}><Copy className="h-4 w-4" />{copiedValue === bookingUrl ? "복사됨" : "예약 링크 복사"}</button> : mode === "directions" ? <button type="button" onClick={onCopy} className={actionClass}><Copy className="h-4 w-4" />{copied ? "복사됨" : "문구 복사"}</button> : <button type="button" onClick={() => void copyText(priceNote)} className={actionClass}><Copy className="h-4 w-4" />{copiedValue === priceNote ? "복사됨" : "상품명 예시 복사"}</button>}
+        <a href={smartPlaceUrl} target="_blank" rel="noreferrer" className={actionClass}><ExternalLink className="h-4 w-4" aria-hidden="true" />스마트플레이스 열기</a>
+        {mode === "link" ? <button type="button" onClick={() => void copyText(bookingUrl)} className={actionClass}><Copy className="h-4 w-4" aria-hidden="true" />{copiedValue === bookingUrl ? "복사됨" : "예약 링크 복사"}</button> : mode === "directions" ? <button type="button" onClick={onCopy} className={actionClass}><Copy className="h-4 w-4" aria-hidden="true" />{copied ? "복사됨" : "문구 복사"}</button> : <button type="button" onClick={() => void copyText(priceNote)} className={actionClass}><Copy className="h-4 w-4" aria-hidden="true" />{copiedValue === priceNote ? "복사됨" : "상품명 예시 복사"}</button>}
       </div>
       <p className="mb-4 whitespace-pre-line break-all rounded-[8px] bg-[#f8fafc] p-3">{mode === "link" ? bookingUrl : mode === "directions" ? directionsText : priceNote}</p>
       {mode === "price" && <p className="mb-4 text-[#64748b]">휴대폰 미리보기는 가격표 항목을 예약 안내 문구로 활용한 예시입니다.</p>}

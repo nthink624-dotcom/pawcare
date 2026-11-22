@@ -2,10 +2,20 @@
 
 import BookingPolicyPanel from "@/components/owner-web/booking-policy-panel";
 
-/** Same policy surface, without mounting unrelated shop/media/alert editors. */
+/** Small eager surface: no separate chunk wait or unrelated settings editors. */
 export default function BookingPolicyScreen({ shopId }: { shopId: string }) {
   return (
-    <div className="h-full min-h-0 overflow-y-auto" data-settings-management-active-tab="shop">
+    <div className="no-scrollbar h-full min-h-0 overflow-y-auto" data-settings-management-active-tab="shop" data-booking-policy-surface>
+      <style>{`
+        html:has([data-booking-policy-surface]),
+        body:has([data-booking-policy-surface]),
+        [data-booking-policy-surface],
+        [data-booking-policy-surface] * { scrollbar-width: none; }
+        html:has([data-booking-policy-surface])::-webkit-scrollbar,
+        body:has([data-booking-policy-surface])::-webkit-scrollbar,
+        [data-booking-policy-surface]::-webkit-scrollbar,
+        [data-booking-policy-surface] *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+      `}</style>
       <div className="grid h-full min-h-0 gap-6">
         <div className="h-full min-h-0 min-w-0 space-y-4">
           <div className="flex h-full min-h-0 min-w-0 flex-col gap-1" data-shop-info-main-surface>

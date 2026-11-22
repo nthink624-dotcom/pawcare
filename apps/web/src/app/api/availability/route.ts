@@ -63,9 +63,13 @@ export async function GET(request: NextRequest) {
     }
 
     const slots = Array.from(new Set(slotsForDate(date)));
+    const allowOtherAvailableTimes = bootstrap.shop.reservation_policy_settings?.customer_other_available_times_enabled === true;
+    const service = serviceId ? bootstrap.services.find((item) => item.id === serviceId) : null;
+    const durationMinutes = previewDurationMinutes ?? service?.duration_minutes;
     const baselineRecommendedSlots = computeRecommendedAvailableSlots({
       date,
       availableSlots: slots,
+      durationMinutes,
       appointments: bootstrap.appointments,
       services: bootstrap.services,
       excludeAppointmentId,
@@ -93,10 +97,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (fullSlots) {
+    if (fullSlots && allowOtherAvailableTimes) {
       return NextResponse.json(
         {
           slots: customerVisibleSlots,
+          allowOtherAvailableTimes,
           recommendedSlots: baselineRecommendedSlots,
           recommendationSource: "rule",
           staffAvailability,
@@ -105,7 +110,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const service = serviceId ? bootstrap.services.find((item) => item.id === serviceId) : null;
     const recommendation = await recommendAvailableSlotsWithAi({
       date,
       availableSlots: slots,
@@ -126,9 +130,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        // Keep the full deterministic slot set server-side. Customer booking is
-        // intentionally AI-first: only the ranked candidates are exposed.
-        slots: recommendation.recommendedSlots,
+        slots: allowOtherAvailableTimes ? slots : recommendation.recommendedSlots,
+        allowOtherAvailableTimes,
         recommendedSlots: recommendation.recommendedSlots,
         recommendationSource: recommendation.source,
         staffAvailability,

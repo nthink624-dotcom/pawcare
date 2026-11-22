@@ -1,6 +1,8 @@
 "use client";
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
 
-import { ChevronLeft, CheckCircle2, Plus } from "lucide-react";
+
+import { IconChevronLeft as ChevronLeft, IconCircleCheck as CheckCircle2, IconPlus as Plus } from "@tabler/icons-react";
 import { createContext, useContext, useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
 
 import { formatServicePrice } from "@/lib/utils";
@@ -42,7 +44,7 @@ export function StepHeader({
           className="absolute left-0 inline-flex h-11 w-11 items-center justify-center text-[var(--text)] transition hover:text-[var(--accent)]"
           aria-label="이전"
         >
-          <ChevronLeft className="h-5 w-5" strokeWidth={1.9} />
+          <ChevronLeft className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
         </button>
         {title ? <h2 className="text-center text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{title}</h2> : null}
         <span className="absolute right-0 text-[13px] font-medium tracking-[-0.02em] text-[#7f756b]">
@@ -75,7 +77,7 @@ export function FlowHeader({ title, onBack }: { title: string; onBack: () => voi
           className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#e4ddd3] bg-white text-[var(--text)] shadow-[0_3px_8px_rgba(30,34,29,0.04)] transition hover:bg-[#fbfaf7]"
           aria-label="처음 화면으로"
         >
-          <ChevronLeft className="h-4.5 w-4.5" strokeWidth={1.9} />
+          <ChevronLeft className="h-4.5 w-4.5" strokeWidth={1.9} aria-hidden="true" />
         </button>
         <h2 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{title}</h2>
       </div>
@@ -167,7 +169,7 @@ export function AddPetButton({ onClick, disabled = false }: { onClick: () => voi
       disabled={disabled}
       className="mt-1.5 flex h-[46px] w-full items-center justify-center gap-1.5 rounded-[12px] border border-[#cfded8] bg-white px-4 text-[16px] font-medium tracking-[-0.02em] text-[var(--accent)] shadow-[0_4px_12px_rgba(31,107,91,0.05)] transition hover:bg-[#fcfaf7] disabled:cursor-not-allowed disabled:border-[#e6e0d7] disabled:bg-[#f7f3ed] disabled:text-[#b0a79b] disabled:shadow-none disabled:opacity-100"
     >
-      <Plus className="h-4 w-4" strokeWidth={2.1} />
+      <Plus className="h-4 w-4" strokeWidth={2.1} aria-hidden="true" />
       아기 추가하기
     </button>
   );
@@ -255,27 +257,7 @@ export function TimeGrid({
   if (availableSlots.length === 0) {
     return <div className="rounded-[18px] border border-[#ebe4db] bg-[#fcfaf6] px-4 py-4 text-[14px] text-[#6f665f]">선택한 날짜에 가능한 시간이 없어요.</div>;
   }
-  return (
-    <div className="grid grid-cols-3 gap-1.5">
-      {availableSlots.map((slot) => {
-        const active = timeSlot === slot;
-        return (
-          <button
-            key={slot}
-            type="button"
-            onClick={() => onSelect(slot)}
-            className={`rounded-[12px] border px-2 py-2.5 text-[16px] font-medium tracking-[-0.02em] transition ${
-              active
-                ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_10px_20px_rgba(31,107,91,0.14)]"
-                : "border-[#dfd8cd] bg-[#fdfbf7] text-[var(--text)] hover:bg-[#faf7f0]"
-            }`}
-          >
-            {slot}
-          </button>
-        );
-      })}
-    </div>
-  );
+  return <WheelTimeField aria-label="시간 선택" value={timeSlot} onValueChange={onSelect} allowedTimes={availableSlots} className="w-full" />;
 }
 
 export function ServiceCards({
@@ -480,7 +462,7 @@ export function FeedbackDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] font-medium ${tone === "success" ? "bg-[#eef8f1] text-[#25613a]" : "bg-[#fff1f1] text-[#b42318]"}`}>
-          <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.1} />
+          <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.1} aria-hidden="true" />
           {tone === "success" ? "예약 완료" : "예약 실패"}
         </div>
         <h3 className="mt-4 text-[20px] font-semibold leading-8 tracking-[-0.03em] text-[var(--text)]">{title}</h3>

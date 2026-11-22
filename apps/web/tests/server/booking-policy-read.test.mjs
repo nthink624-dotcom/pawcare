@@ -10,7 +10,7 @@ registerHooks({resolve(s,c,next){
  if(s==='@/lib/auth/owner-auth-handoff')return stub('export const readOwnerAuthTokenCache=()=>globalThis.__policyRead.token();');
  return next(s,c);
 }});
-const {loadOwnerBookingPolicy}=await import('../../src/lib/owner-booking-policy-read.ts');
+const {loadOwnerBookingPolicy,prefetchOwnerBookingPolicy}=await import('../../src/lib/owner-booking-policy-read.ts');
 test('simultaneous same-shop reads share one authenticated no-store request',async()=>{
  calls=[];const a=loadOwnerBookingPolicy('shop-a'),b=loadOwnerBookingPolicy('shop-a');assert.equal(a,b);assert.equal(calls.length,1);assert.equal(calls[0].options.cache,'no-store');assert(calls[0].options.signal instanceof AbortSignal);
  const value={policy:{depositMode:'off'},version:7};calls[0].resolve(value);assert.deepEqual(await a,value);assert.deepEqual(await b,value);
@@ -28,11 +28,41 @@ test('shops and changed login sessions never share requests; old responses canno
  calls[0].resolve({policy:{},version:1});await a;assert.equal(loadOwnerBookingPolicy('shop-isolated'),b);assert.equal(calls.length,3);
  calls[1].resolve({policy:{},version:8});calls[2].resolve({policy:{},version:2});await Promise.all([other,b]);token='owner-session';
 });
-test('booking policy uses the isolated lazy surface, without mounting unrelated settings editors',()=>{
+test('navigation consumes a resolved prefetch once without a second GET, including StrictMode concurrent reads',async()=>{
+ calls=[];prefetchOwnerBookingPolicy('shop-prefetch');prefetchOwnerBookingPolicy('shop-prefetch');assert.equal(calls.length,1);
+ const value={policy:{depositMode:'required'},version:9};calls[0].resolve(value);await Promise.resolve();await Promise.resolve();
+ const a=loadOwnerBookingPolicy('shop-prefetch',true),b=loadOwnerBookingPolicy('shop-prefetch',true);assert.equal(a,b);assert.equal(calls.length,1);assert.deepEqual(await a,value);
+ const fresh=loadOwnerBookingPolicy('shop-prefetch',true);assert.equal(calls.length,2);calls[1].resolve({policy:{depositMode:'off'},version:10});assert.equal((await fresh).version,10);
+});
+test('ordinary refresh ignores a settled navigation prefetch and reads the newest server value',async()=>{
+ calls=[];prefetchOwnerBookingPolicy('shop-refresh');calls[0].resolve({policy:{},version:1});await Promise.resolve();await Promise.resolve();
+ const fresh=loadOwnerBookingPolicy('shop-refresh');assert.equal(calls.length,2);calls[1].resolve({policy:{},version:2});assert.equal((await fresh).version,2);
+});
+test('navigation consumes an in-flight prefetch too, so reopening cannot reuse the previous visit',async()=>{
+ calls=[];prefetchOwnerBookingPolicy('shop-prefetch-pending');const first=loadOwnerBookingPolicy('shop-prefetch-pending',true);assert.equal(calls.length,1);calls[0].resolve({policy:{},version:1});await first;
+ const second=loadOwnerBookingPolicy('shop-prefetch-pending',true);assert.equal(calls.length,2);calls[1].resolve({policy:{},version:2});assert.equal((await second).version,2);
+});
+test('expired prefetches, failures, and changed sessions are not reused',async()=>{
+ calls=[];const now=Date.now;let time=now();Date.now=()=>time;
+ try {
+  prefetchOwnerBookingPolicy('shop-expired');calls[0].resolve({policy:{},version:1});await Promise.resolve();await Promise.resolve();time+=5001;
+  const expired=loadOwnerBookingPolicy('shop-expired',true);assert.equal(calls.length,2);calls[1].resolve({policy:{},version:2});await expired;
+  token='session-old';prefetchOwnerBookingPolicy('shop-login-change');calls[2].resolve({policy:{},version:3});await Promise.resolve();await Promise.resolve();token='session-new';
+  const session=loadOwnerBookingPolicy('shop-login-change',true);assert.equal(calls.length,4);calls[3].resolve({policy:{},version:4});await session;
+  prefetchOwnerBookingPolicy('shop-prefetch-failed');calls[4].reject(Error('prefetch network error'));await Promise.resolve();await Promise.resolve();
+  const retry=loadOwnerBookingPolicy('shop-prefetch-failed',true);assert.equal(calls.length,6);calls[5].resolve({policy:{},version:5});await retry;
+ } finally {Date.now=now;token='owner-session';}
+});
+test('prefetch without a known login does not send a request',()=>{
+ calls=[];token=null;try{prefetchOwnerBookingPolicy('shop-no-login');assert.equal(calls.length,0);}finally{token='owner-session';}
+});
+test('booking policy has an immediate isolated surface, without mounting unrelated settings editors',()=>{
  const preview=readFileSync(new URL('../../src/components/owner-web/owner-web-preview.tsx',import.meta.url),'utf8');
  const screen=readFileSync(new URL('../../src/components/owner-web/booking-policy-screen.tsx',import.meta.url),'utf8');
  assert.match(preview,/case "bookingPolicy":\s*return <BookingPolicyScreen shopId=\{initialData.shop.id\} \/>;/);
- assert.match(preview,/if \(screen === "bookingPolicy"\) void import\("@\/components\/owner-web\/booking-policy-screen"\)/);
+ assert.match(preview,/import BookingPolicyScreen from "@\/components\/owner-web\/booking-policy-screen"/);
+ assert.doesNotMatch(preview,/const BookingPolicyScreen = dynamic/);
+ assert.match(preview,/if \(screen === "bookingPolicy" && !isDemoOwnerWebData\(initialData\)\) prefetchOwnerBookingPolicy\(initialData.shop.id\)/);
  assert.match(screen,/<BookingPolicyPanel shopId=\{shopId\} editable \/>/);
  assert.match(screen,/id="shop-info-panel-policy"/);assert.match(screen,/data-shop-info-scroll-region/);
  assert.doesNotMatch(screen,/import .*settings-management-screen|import .*settings-alerts-panel|import .*media\/|import .*benefits-management/);

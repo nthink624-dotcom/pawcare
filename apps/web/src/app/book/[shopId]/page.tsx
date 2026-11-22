@@ -9,7 +9,7 @@ import {
   resolveLandingDemoServiceId,
 } from "@/lib/development-demo";
 import { getBootstrapOwnerInitialSetupReadiness } from "@/lib/owner-initial-setup-readiness";
-import { verifyBookingAccessToken } from "@/server/booking-access-token";
+import { resolveBookingRebookingToken, verifyBookingAccessToken } from "@/server/booking-access-token";
 import { getBootstrap } from "@/server/bootstrap";
 
 export const dynamic = "force-dynamic";
@@ -61,13 +61,17 @@ export default async function BookPage({
   if (requestedAccessToken) {
     try {
       const access = verifyBookingAccessToken(requestedAccessToken);
-      if (access.shopId === shopId && access.action === "rebook") {
-        const guardian = data.guardians.find((item) => item.id === access.guardianId && !item.deleted_at);
+      const rebookingToken = access.action === "rebook_source"
+        ? resolveBookingRebookingToken(shopId, requestedAccessToken)
+        : requestedAccessToken;
+      const rebookingAccess = verifyBookingAccessToken(rebookingToken);
+      if (rebookingAccess.shopId === shopId && rebookingAccess.action === "rebook") {
+        const guardian = data.guardians.find((item) => item.id === rebookingAccess.guardianId && !item.deleted_at);
         const pets = data.pets
-          .filter((item) => item.guardian_id === access.guardianId)
-          .sort((a, b) => Number(b.id === access.petId) - Number(a.id === access.petId));
+          .filter((item) => item.guardian_id === rebookingAccess.guardianId)
+          .sort((a, b) => Number(b.id === rebookingAccess.petId) - Number(a.id === rebookingAccess.petId));
         if (guardian && pets.length > 0) {
-          validatedRebookingToken = requestedAccessToken;
+          validatedRebookingToken = rebookingToken;
           tokenBookingProfile = {
             ownerName: guardian.name,
             phone: guardian.phone,

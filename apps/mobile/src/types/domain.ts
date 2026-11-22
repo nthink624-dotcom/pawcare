@@ -169,6 +169,7 @@ export type RegularClosedCycle = "weekly" | "biweekly" | "monthly_1_3" | "monthl
 export type ReservationPolicySettings = {
   cancel_window: "none" | "1h" | "2h" | "6h" | "24h";
   customer_change_enabled: boolean;
+  customer_other_available_times_enabled?: boolean;
   pending_hold_limit?: 1;
   booking_blocked_windows?: BookingBlockedWindow[];
   regular_closed_cycle?: RegularClosedCycle;

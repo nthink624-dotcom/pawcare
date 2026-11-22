@@ -7,6 +7,7 @@ const {
   REBOOKING_ACCESS_TOKEN_HOURS,
   createBookingAccessToken,
   exchangeBookingAccessTokenForRebooking,
+  resolveBookingRebookingToken,
   verifyBookingAccessToken,
 } = await import("../../src/server/booking-access-token.ts");
 
@@ -91,6 +92,20 @@ test("a long-lived revisit notice can also exchange to the same short-lived rebo
   assert.equal(payload.action, "rebook");
   assert.equal(payload.guardianId, "guardian-1");
   assert.equal(payload.petId, "pet-1");
+});
+
+test("a cancellation rebooking source link safely resolves to a short-lived personalized token", () => {
+  const sourceToken = createBookingAccessToken({
+    shopId: "shop-1", guardianId: "guardian-1", petId: "pet-1", appointmentId: "cancelled-appointment",
+    action: "rebook_source", expiresInHours: 24 * 365,
+  });
+  const resolved = resolveBookingRebookingToken("shop-1", sourceToken);
+  const payload = verifyBookingAccessToken(resolved);
+  assert.equal(payload.action, "rebook");
+  assert.equal(payload.guardianId, "guardian-1");
+  assert.equal(payload.petId, "pet-1");
+  assert.equal(payload.appointmentId, undefined);
+  assert.throws(() => resolveBookingRebookingToken("shop-2", sourceToken), /유효하지 않은 재예약 링크|Invalid booking access link/);
 });
 
 test("a result link cannot be exchanged for a different shop", () => {

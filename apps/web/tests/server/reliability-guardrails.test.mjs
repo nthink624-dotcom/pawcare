@@ -502,7 +502,7 @@ test("personalized rebooking links restore the exact guardian and pet without ph
   assert.match(tokenContract, /action: "rebook"/);
   assert.match(rebookingRoute, /exchangeBookingAccessTokenForRebooking/);
   assert.match(rebookingRoute, /experience: "revisit", t: rebookingToken/);
-  assert.match(bookingEntry, /access\.action === "rebook"/);
+  assert.match(bookingEntry, /rebookingAccess\.action === "rebook"/);
   assert.match(bookingEntry, /initialBookingProfile=\{initialBookingProfile\}/);
   assert.match(bookingPage, /rebookingAccessToken: initialAccessToken \?\? ""/);
   assert.match(bookingPage, /rebookingPetId: initialAccessToken \? selectedRebookingPetId : ""/);

@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
 
 import { addDays, format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, Clock3, MessageCircle, X } from "lucide-react";
+import { IconCalendarWeek as CalendarDays, IconCheck as Check, IconClockHour3 as Clock3, IconX as X } from "@tabler/icons-react";
 
 import {
   CustomerGroomingResultCard,
@@ -197,7 +198,7 @@ function ProgressTracker({ status }: { status: Appointment["status"] }) {
                   active ? "border-[#8B5E3C] bg-[#8B5E3C] text-white" : "border-[#eadbc9] bg-[#fffaf3] text-[#b8a79a]"
                 }`}
               >
-                {active ? <Check className="h-3.5 w-3.5" strokeWidth={2.2} /> : index + 1}
+                {active ? <Check className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden="true" /> : index + 1}
               </span>
               <span className={`mt-1 block text-[11px] font-semibold ${current ? "text-[#8B5E3C]" : "text-[#8b7767]"}`}>{step.label}</span>
             </div>
@@ -240,6 +241,12 @@ export default function CustomerBookingManagePanel({
   const [manageSlots, setManageSlots] = useState<string[]>([]);
   const [manageRecommendedSlots, setManageRecommendedSlots] = useState<string[]>([]);
   const [loadingManageSlots, setLoadingManageSlots] = useState(false);
+  const [manageSlotsError, setManageSlotsError] = useState("");
+  const [manageSlotsRetry, setManageSlotsRetry] = useState(0);
+  const [manageAllowOtherTimes, setManageAllowOtherTimes] = useState(false);
+  const [manageExpandedTimesKey, setManageExpandedTimesKey] = useState("");
+  const manageTimesKey = `${manageForm?.date}:${manageForm?.staffId}:${manageForm?.serviceId}:${manageForm?.customerServiceOptionId}`;
+
   useBookingResumeRefresh(Boolean(initialAccessToken) && !submitting, async () => {
     const query = new URLSearchParams({ shopId });
     const latest = await fetchJson<LookupPayload>(`/api/customer-lookup?${query}`, { headers: { "x-booking-access-token": initialAccessToken ?? "" }, cache: "no-store" });
@@ -302,6 +309,10 @@ export default function CustomerBookingManagePanel({
         return;
       }
 
+      setManageSlots([]);
+      setManageRecommendedSlots([]);
+      setManageAllowOtherTimes(false);
+      setManageSlotsError("");
       setLoadingManageSlots(true);
       try {
         const result = await fetchCustomerAvailability({
@@ -314,10 +325,13 @@ export default function CustomerBookingManagePanel({
         });
         if (!active) return;
         setManageSlots(result.slots);
+        setManageAllowOtherTimes(result.allowOtherAvailableTimes === true);
         setManageRecommendedSlots((result.recommendedSlots ?? []).filter((slot) => result.slots.includes(slot)).slice(0, 4));
         if (!result.slots.includes(manageForm.timeSlot)) {
           setManageForm((prev) => (prev ? { ...prev, timeSlot: "" } : prev));
         }
+      } catch {
+        if (active) setManageSlotsError("예약 가능한 시간을 확인하지 못했어요. 다시 시도해 주세요.");
       } finally {
         if (active) setLoadingManageSlots(false);
       }
@@ -327,7 +341,7 @@ export default function CustomerBookingManagePanel({
     return () => {
       active = false;
     };
-  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, manageForm?.staffId, operationsLocked, selectedServiceOption?.durationMinutes, shopId]);
+  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, manageForm?.staffId, operationsLocked, selectedServiceOption?.durationMinutes, shopId, manageSlotsRetry]);
 
   useEffect(() => {
     let active = true;
@@ -504,6 +518,7 @@ export default function CustomerBookingManagePanel({
   }
 
   async function submitReschedule() {
+    if (loadingManageSlots || manageSlotsError || !manageForm || !manageSlots.includes(manageForm.timeSlot)) return;
     if (
       submitting
       || !initialAccessToken
@@ -569,7 +584,7 @@ export default function CustomerBookingManagePanel({
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
               aria-label="닫기"
             >
-              <X className="h-5 w-5" strokeWidth={1.9} />
+              <X className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
             </button>
           </div>
           <h2 className="text-[17px] font-semibold tracking-[-0.03em] text-[#111827]">예약 관리 링크 다시 받기</h2>
@@ -599,7 +614,7 @@ export default function CustomerBookingManagePanel({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101a31]/20 px-5 py-6" role="presentation">
           <section className="w-full max-w-[390px] rounded-[24px] bg-white px-6 py-10 text-center shadow-[0_20px_50px_rgba(16,26,49,0.18)]" role="dialog" aria-modal="true" aria-labelledby="booking-feedback-title">
             <div className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full text-white ${feedback.type === "success" ? "bg-[#1f9d55]" : "bg-[#c65b52]"}`}>
-              {feedback.type === "success" ? <Check className="h-10 w-10" strokeWidth={2.2} /> : <X className="h-10 w-10" strokeWidth={2.1} />}
+              {feedback.type === "success" ? <Check className="h-10 w-10" strokeWidth={2.2} aria-hidden="true" /> : <X className="h-10 w-10" strokeWidth={2.1} aria-hidden="true" />}
             </div>
             <h2 id="booking-feedback-title" className="mt-6 text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#101a31]">{feedback.title}</h2>
             <p className="mt-3 max-w-[300px] mx-auto text-[16px] leading-6 text-[#64748b]">{feedback.message}</p>
@@ -619,7 +634,7 @@ export default function CustomerBookingManagePanel({
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
               aria-label="닫기"
             >
-              <X className="h-5 w-5" strokeWidth={1.9} />
+              <X className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
             </button>
           </div>
           {latestAppointments.map((appointment) => {
@@ -656,11 +671,11 @@ export default function CustomerBookingManagePanel({
                       </h3>
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[16px] leading-6 font-medium text-[#475569]">
                         <span className="inline-flex items-center gap-1.5">
-                          <CalendarDays className="h-4 w-4" />
+                          <CalendarDays className="h-4 w-4" aria-hidden="true" />
                           {formatDateLabel(appointment.appointment_date)}
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <Clock3 className="h-4 w-4" />
+                          <Clock3 className="h-4 w-4" aria-hidden="true" />
                           {formatClockTime(appointment.appointment_time)}
                         </span>
                       </div>
@@ -711,7 +726,7 @@ export default function CustomerBookingManagePanel({
                         예약 취소
                       </button>
                     </div>
-                  ) : !operationsLocked && !isResultView ? (
+                  ) : !operationsLocked && !(isResultView && appointment.status === "almost_done") ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -723,7 +738,6 @@ export default function CustomerBookingManagePanel({
                       }}
                       className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-[#f3e5df] bg-white text-[15px] font-semibold text-[#3a2e2a]"
                     >
-                      <MessageCircle className="h-4 w-4" />
                       {inquiryLabel}
                     </button>
                   ) : null}
@@ -773,7 +787,9 @@ export default function CustomerBookingManagePanel({
                       <div>
                         <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#3a2e2a]">변경할 시간</p>
                         <div className="mt-2">
-                          {loadingManageSlots ? (
+                          {manageSlotsError ? (
+                            <div role="alert"><p>{manageSlotsError}</p><button type="button" className="min-h-11 underline" onClick={() => setManageSlotsRetry(value => value + 1)}>시간 다시 확인</button></div>
+                          ) : loadingManageSlots ? (
                             <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#8a7a72]">가능한 시간을 확인하고 있어요.</div>
                           ) : manageSlots.length === 0 ? (
                             <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#8a7a72]">선택한 날짜에 가능한 시간이 없어요.</div>
@@ -783,42 +799,17 @@ export default function CustomerBookingManagePanel({
                                 <div>
                                   <p className="text-[13px] font-medium text-[#3a2e2a]">추천 시간</p>
                                   <div className="mt-2 grid grid-cols-2 gap-2">
-                                    {manageRecommendedSlots.map((slot) => {
-                                      const selected = manageForm?.timeSlot === slot;
-                                      return (
-                                        <button
-                                          key={`recommended-${slot}`}
-                                          type="button"
-                                          onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
-                                          className={`h-12 rounded-[8px] border px-3 text-[14px] font-medium transition ${
-                                            selected
-                                              ? "border-[#ec7f72] bg-[#ec7f72] text-white shadow-[0_8px_18px_rgba(236,127,114,.18)]"
-                                              : "border-[#ec7f72] bg-[#fff0ed] text-[#d9685d]"
-                                          }`}
-                                        >
-                                          {slot} <span className={selected ? "text-white/85" : "text-[#d9685d]/85"}>추천</span>
-                                        </button>
-                                      );
-                                    })}
+                                    <WheelTimeField aria-label="예약 시간 선택" value={manageForm.timeSlot} onValueChange={(timeSlot) => setManageForm((prev) => prev ? { ...prev, timeSlot } : prev)} allowedTimes={manageRecommendedSlots} className="col-span-full w-full" />
                                   </div>
                                 </div>
                               ) : null}
-                              {manageSlots.some((slot) => !manageRecommendedSlots.includes(slot)) ? (
+                              {manageAllowOtherTimes && manageSlots.some((slot) => !manageRecommendedSlots.includes(slot)) ? <button type="button" className="min-h-11 w-full rounded-[8px] border px-3" aria-expanded={manageExpandedTimesKey === manageTimesKey} onClick={() => setManageExpandedTimesKey(manageExpandedTimesKey === manageTimesKey ? "" : manageTimesKey)}>{manageExpandedTimesKey === manageTimesKey ? "다른 가능한 시간 접기" : "다른 가능한 시간 보기"}</button> : null}
+                              {manageAllowOtherTimes && manageExpandedTimesKey === manageTimesKey && manageSlots.some((slot) => !manageRecommendedSlots.includes(slot)) ? (
                                 <div>
                                   <p className="text-[13px] font-medium text-[#3a2e2a]">예약 가능한 시간</p>
                                   <div className="mt-2 grid grid-cols-3 gap-2">
-                                    {manageSlots
-                                      .filter((slot) => !manageRecommendedSlots.includes(slot))
-                                      .map((slot) => (
-                                        <button
-                                          key={slot}
-                                          type="button"
-                                          onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
-                                          className={`rounded-[12px] border px-2 py-3 text-sm font-medium ${manageForm?.timeSlot === slot ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#e5eaf0] bg-white text-[#3a2e2a]"}`}
-                                        >
-                                          {slot}
-                                        </button>
-                                      ))}
+                                    <WheelTimeField aria-label="예약 시간 선택" value={manageForm.timeSlot} onValueChange={(timeSlot) => setManageForm((prev) => prev ? { ...prev, timeSlot } : prev)} allowedTimes={manageSlots
+                                      .filter((slot) => !manageRecommendedSlots.includes(slot))} className="col-span-full w-full" />
                                   </div>
                                 </div>
                               ) : null}
@@ -865,7 +856,7 @@ export default function CustomerBookingManagePanel({
                         <button
                           type="button"
                           onClick={() => void submitReschedule()}
-                          disabled={submitting || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId || !manageForm.customerServiceOptionId}
+                          disabled={submitting || loadingManageSlots || Boolean(manageSlotsError) || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId || !manageForm.customerServiceOptionId}
                           className="rounded-[12px] bg-[#ec7f72] px-4 py-3 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50"
                         >
                           바로 변경하기

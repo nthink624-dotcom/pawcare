@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import type { ProfitabilityPayload, ServiceDurationRecommendation } from "@/types/profitability";
+import type { ServiceDurationRecommendation } from "@/types/profitability";
 
 type RecommendationLoadState = {
   status: "loading" | "ready" | "error";
@@ -25,8 +25,8 @@ export default function ServiceDurationRecommendationPanel({
     if (demoMode || !shopId) return;
     let active = true;
 
-    void fetchApiJsonWithAuth<ProfitabilityPayload>(
-      `/api/owner/profitability?shopId=${encodeURIComponent(shopId)}&range=365d`,
+    void fetchApiJsonWithAuth<{ durationRecommendations: ServiceDurationRecommendation[] }>(
+      `/api/owner/service-duration-recommendations?shopId=${encodeURIComponent(shopId)}`,
       { cache: "no-store" },
     )
       .then((payload) => {

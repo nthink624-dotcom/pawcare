@@ -171,6 +171,7 @@ export type AiBookingRecommendationMode = "continuity" | "staff_balance" | "cust
 export type ReservationPolicySettings = {
   cancel_window: "none" | "1h" | "2h" | "6h" | "24h";
   customer_change_enabled: boolean;
+  customer_other_available_times_enabled?: boolean;
   booking_blocked_windows?: BookingBlockedWindow[];
   booking_close_grace_minutes?: 0 | 15 | 30 | 60;
   regular_closed_cycle?: RegularClosedCycle;

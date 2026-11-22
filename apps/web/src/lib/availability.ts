@@ -173,6 +173,18 @@ export function computeAvailableSlots(params: {
     candidateStartMinutes.add(appointmentEnd);
   }
 
+  for (const appointment of appointments) {
+    if (!isAppointmentEndSlotCandidate({ appointment, date, staffId, excludeAppointmentId })) continue;
+    const window = getAppointmentEffectiveWindow(appointment, services);
+    if (!window || window.date !== date) continue;
+    const start = window.startMinute - durationMinutes;
+    if (isBookingWithinCanonicalWindow({ startMinute: start, durationMinutes,
+      bookingStartMinute: bookingOpen, bookingEndMinute: bookingClose,
+      businessOpenMinute: businessOpen, businessCloseMinute: businessClose, closeGraceMinutes })) {
+      candidateStartMinutes.add(start);
+    }
+  }
+
   for (const cursor of Array.from(candidateStartMinutes).sort((a, b) => a - b)) {
     if (isToday && cursor <= nowMinutes) {
       continue;
@@ -216,6 +228,7 @@ export function computeAvailableSlots(params: {
 }
 
 export function computeRecommendedAvailableSlots(params: {
+  durationMinutes?: number;
   date: string;
   availableSlots: string[];
   appointments: Appointment[];
@@ -226,6 +239,7 @@ export function computeRecommendedAvailableSlots(params: {
   const { date, availableSlots, appointments, services, excludeAppointmentId, staffId } = params;
   const availableSlotSet = new Set(availableSlots);
   const recommendedSlotMinutes = new Set<number>();
+  const duration = params.durationMinutes;
 
   for (const appointment of appointments) {
     if (!isAppointmentEndSlotCandidate({ appointment, date, staffId, excludeAppointmentId })) continue;
@@ -234,6 +248,11 @@ export function computeRecommendedAvailableSlots(params: {
     if (!effectiveWindow || effectiveWindow.date !== date) continue;
 
     const appointmentEnd = effectiveWindow.endMinute;
+    if (duration && duration > 0) {
+      const beforeStart = effectiveWindow.startMinute - duration;
+      const beforeSlot = timeFromMinutes(beforeStart);
+      if (beforeStart >= 0 && availableSlotSet.has(beforeSlot)) recommendedSlotMinutes.add(beforeStart);
+    }
     const appointmentEndSlot = timeFromMinutes(appointmentEnd);
     if (availableSlotSet.has(appointmentEndSlot)) {
       recommendedSlotMinutes.add(appointmentEnd);

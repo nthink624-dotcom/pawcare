@@ -1,11 +1,29 @@
 "use client";
 
-import { Copy, ExternalLink, Link2, Phone, Navigation, ChevronLeft, ChevronDown, Star, Share2, Bell } from "lucide-react";
+import {
+  IconMapPin,
+  IconClock,
+  IconWorld,
+  IconCurrencyWon,
+  IconArrowForwardUp,
+  IconSearch,
+  IconChevronRight,
+  IconCopy as Copy,
+  IconExternalLink as ExternalLink,
+  IconLink as Link2,
+  IconPhone as Phone,
+  IconNavigation as Navigation,
+  IconChevronLeft as ChevronLeft,
+  IconChevronDown as ChevronDown,
+  IconStar as Star,
+  IconShare2 as Share2,
+  IconBell as Bell,
+  type TablerIcon,
+} from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 
 import { BookingLinkNaverGuide, NAVER_PRICE_NOTICE_EXAMPLES } from "./booking-link-naver-guide";
 
-import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import {
   OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
   OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
@@ -56,7 +74,7 @@ export default function BookingLinkManagementScreen({
             <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
               <div className="flex min-w-0 w-full items-center gap-3 sm:w-auto">
                 <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#1f6b5b]">
-                  <Link2 className="h-5 w-5" />
+                  <Link2 className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">{shop.name}</p>
@@ -69,7 +87,7 @@ export default function BookingLinkManagementScreen({
                   onClick={() => void handleCopy(bookingUrl, "url")}
                   className={`${OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
                 >
-                  <Copy className="h-4 w-4" />
+                  <Copy className="h-4 w-4" aria-hidden="true" />
                   {copiedTarget === "url" ? "복사됨" : "예약 링크 복사"}
                 </button>
                 <a
@@ -78,7 +96,7 @@ export default function BookingLinkManagementScreen({
                   rel="noreferrer"
                   className={`${OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
                 >
-                  <ExternalLink className="h-4 w-4" />
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
                   스마트플레이스 열기
                 </a>
                 <a
@@ -87,7 +105,7 @@ export default function BookingLinkManagementScreen({
                   rel="noreferrer"
                   className={`${OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
                 >
-                  <ExternalLink className="h-4 w-4" />
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
                   고객 화면 열기
                 </a>
               </div>
@@ -100,7 +118,7 @@ export default function BookingLinkManagementScreen({
 
           <section className="min-w-0 border-t border-[#e8edf3] px-3 py-4 sm:px-4 sm:py-5">
             <div className="flex items-center gap-2">
-              <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 shrink-0 text-[#1f6b5b]" />
+              <IconSearch aria-hidden="true" className="h-5 w-5 shrink-0 text-[#1f6b5b]" />
               <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">예약 링크 노출 가이드</p>
             </div>
 
@@ -112,7 +130,7 @@ export default function BookingLinkManagementScreen({
                   onClick={() => void handleCopy(bookingUrl, "naverUrl")}
                   className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
                 >
-                  <Copy className="h-4 w-4" />
+                  <Copy className="h-4 w-4" aria-hidden="true" />
                   {copiedTarget === "naverUrl" ? "복사됨" : "예약 URL 복사"}
                 </button>
               </div>
@@ -167,7 +185,7 @@ function NaverPlacePreview({ shop, bookingUrl, viewportOffset }: { shop: Bootstr
               <div className="flex items-start gap-2"><NaverInfoIcon kind="price" className={iconClass} /><div className="min-w-0 flex-1 space-y-1">{NAVER_PRICE_NOTICE_EXAMPLES.map(notice => <div key={notice} className="flex items-baseline gap-1"><span>{notice}</span><span className="min-w-2 flex-1 border-b border-dotted border-[#e5e5e5]" /><span className="shrink-0">무료</span></div>)}<p className="pt-1 text-[#0068c3]">가격표 이미지로 보기</p></div></div>
               <div className="flex items-start gap-2"><NaverInfoIcon kind="globe" className={iconClass} /><a href={bookingUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 text-[#0068c3] focus-visible:outline-2 focus-visible:outline-blue-600"><span className="block truncate">{bookingUrl}</span><span className="block">예약</span></a></div>
               {settings.parking_notice && <div className="flex items-start gap-2"><NaverInfoIcon kind="price" className={iconClass} /><p>{settings.parking_notice}</p></div>}
-              <div aria-hidden="true" className="flex items-center gap-2 pt-1"><span className="h-px flex-1 bg-[#eeeeee]" /><span className="rounded-full bg-[#f6f6f6] px-4 py-2">정보 더보기 ›</span><span className="h-px flex-1 bg-[#eeeeee]" /></div>
+              <div aria-hidden="true" className="flex items-center gap-2 pt-1"><span className="h-px flex-1 bg-[#eeeeee]" /><span className="inline-flex items-center gap-1 rounded-full bg-[#f6f6f6] px-4 py-2">정보 더보기 <IconChevronRight size={14} /></span><span className="h-px flex-1 bg-[#eeeeee]" /></div>
             </div>
           </div>
           <div aria-hidden="true" className="pointer-events-none absolute bottom-2 left-1/2 h-1 w-1/3 -translate-x-1/2 rounded-full bg-[#111827]" />
@@ -183,8 +201,15 @@ function NaverPlacePreview({ shop, bookingUrl, viewportOffset }: { shop: Bootstr
   );
 }
 
+const naverInfoIcons: Record<string, TablerIcon> = {
+  pin: IconMapPin,
+  clock: IconClock,
+  globe: IconWorld,
+  price: IconCurrencyWon,
+  phone: Phone,
+};
+
 function NaverInfoIcon({ kind, className }: { kind: string; className: string }) {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className={className}>
-    {kind === "pin" ? <><path fill="currentColor" d="M12 2a8 8 0 0 0-8 8c0 5 8 12 8 12s8-7 8-12a8 8 0 0 0-8-8Z" /><circle cx="12" cy="10" r="2.5" fill="white" /></> : kind === "clock" ? <><circle cx="12" cy="12" r="11" fill="currentColor" /><path d="M12 5v7l4 2" fill="none" stroke="white" strokeWidth="1.6" strokeLinecap="round" /></> : kind === "globe" ? <><circle cx="12" cy="12" r="11" fill="currentColor" /><ellipse cx="12" cy="12" rx="4" ry="11" fill="none" stroke="white" strokeWidth="1.4" /><path d="M1 12h22" stroke="white" strokeWidth="1.4" /></> : kind === "price" ? <><circle cx="12" cy="12" r="11" fill="currentColor" /><path d="m5 7 3 10 4-10 4 10 3-10M4 11h16" fill="none" stroke="white" strokeWidth="1.5" /></> : kind === "phone" ? <path fill="currentColor" d="M4 2 2 5c0 8 9 17 17 17l3-2-5-6-3 2c-3-1-5-3-6-6l2-3-6-5Z" /> : <path d="M5 21V9h12M12 4l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
-  </svg>;
+  const Icon = naverInfoIcons[kind] ?? IconArrowForwardUp;
+  return <Icon aria-hidden="true" className={className} />;
 }

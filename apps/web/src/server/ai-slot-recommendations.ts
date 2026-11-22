@@ -100,7 +100,9 @@ function normalizeRecommendedSlots(recommendedSlots: string[], availableSlots: s
     normalized.push(slot);
   }
 
-  return selectDiverseRecommendedSlots([...normalized, ...availableSlots], availableSlots);
+  return normalized.length > 0
+    ? selectDiverseRecommendedSlots([...normalized, ...availableSlots], availableSlots)
+    : [];
 }
 
 function getRankingPolicy(params: SlotRecommendationParams) {
@@ -134,7 +136,7 @@ async function requestDeepSeekSlotRecommendations(params: SlotRecommendationPara
               serviceName: params.serviceName ?? "미용 서비스",
               durationMinutes: params.durationMinutes ?? null,
               staffScoped: params.staffScoped,
-              availableSlots: params.availableSlots.slice(0, 40),
+              availableSlots: params.availableSlots,
               currentRuleBasedRecommendations: params.baselineRecommendedSlots,
               recommendationMode: params.recommendationMode,
               customInstruction: params.customInstruction || undefined,

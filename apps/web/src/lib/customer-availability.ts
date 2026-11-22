@@ -4,6 +4,7 @@ export type RecommendationSource = "ai" | "rule";
 
 export type CustomerAvailabilityPayload = {
   slots: string[];
+  allowOtherAvailableTimes?: boolean;
   recommendedSlots?: string[];
   recommendationSource?: RecommendationSource;
   availabilityByDate?: Record<string, boolean>;
@@ -57,6 +58,7 @@ export function fetchCustomerAvailability(params: CustomerAvailabilityParams) {
 
   const request = fetchApiJson<CustomerAvailabilityPayload>(requestPath, {
     cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
     headers: { "Content-Type": "application/json" },
   }).catch((error) => {
     availabilityRequests.delete(requestPath);

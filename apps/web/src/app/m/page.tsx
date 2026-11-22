@@ -13,11 +13,19 @@ export default async function ShortManageEntryPage({
 
   if (initialAccessToken) {
     let shopId: string;
+    let rebookingSource = false;
     try {
       const payload = verifyBookingAccessToken(initialAccessToken);
       shopId = payload.shopId;
+      rebookingSource = payload.action === "rebook_source";
     } catch {
       redirect("/" as never);
+    }
+    if (rebookingSource) {
+      const rebookingUrl = new URL(`/book/${shopId}`, "http://localhost");
+      rebookingUrl.searchParams.set("experience", "revisit");
+      rebookingUrl.searchParams.set(BOOKING_ACCESS_QUERY_KEY, initialAccessToken);
+      redirect(`${rebookingUrl.pathname}${rebookingUrl.search}` as never);
     }
     const nextUrl = new URL(`/book/${shopId}/manage`, "http://localhost");
     nextUrl.searchParams.set(BOOKING_ACCESS_QUERY_KEY, initialAccessToken);

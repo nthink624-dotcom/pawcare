@@ -71,6 +71,7 @@ const updateShopSchema = z.object({
   addressDetail: z.string().trim().max(120).optional(),
   // 구버전 앱 요청은 수신하되 제품 공통 예약 정책을 바꾸지는 않습니다.
   cancelWindow: z.enum(["none", "1h", "2h", "6h", "24h"]).optional(),
+  reservationPolicySettings: z.object({ customer_other_available_times_enabled: z.boolean().optional() }).optional(),
   notificationSettings: notificationSettingsPatchSchema.optional(),
   expectedUpdatedAt: z.string().trim().min(1).max(64).optional(),
   discountCoupons: z.unknown().optional(),
@@ -180,6 +181,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = updateShopSchema.parse(await request.json());
+    const hasTimeSelectionUpdate = body.reservationPolicySettings?.customer_other_available_times_enabled !== undefined;
     const heroMediaAssetIds = body.heroMediaAssetIds;
     const heroImageUrls =
       body.heroImageUrls !== undefined ? body.heroImageUrls : body.heroImageUrl !== undefined ? (body.heroImageUrl ? [body.heroImageUrl] : []) : undefined;
@@ -217,6 +219,7 @@ export async function PATCH(request: NextRequest) {
       Object.keys(updates).length === 0 &&
       body.cancelWindow === undefined &&
       !hasNotificationSettingsUpdate &&
+      !hasTimeSelectionUpdate &&
       !hasCustomerPageUpdates
     ) {
       throw new OwnerApiError("저장할 매장 정보가 없습니다.", 400);
@@ -225,6 +228,7 @@ export async function PATCH(request: NextRequest) {
     const needsCurrentShop =
       hasCustomerPageUpdates ||
       body.cancelWindow !== undefined ||
+      hasTimeSelectionUpdate ||
       hasNotificationSettingsUpdate ||
       body.name !== undefined ||
       body.phone !== undefined ||
@@ -265,7 +269,7 @@ export async function PATCH(request: NextRequest) {
 
       currentShop = currentShopResult.data ?? null;
 
-      if (hasNotificationSettingsUpdate) {
+      if (hasNotificationSettingsUpdate || hasTimeSelectionUpdate) {
         if (!currentShop) {
           throw new OwnerApiError("현재 매장 설정을 다시 확인해 주세요.", 409);
         }
@@ -273,7 +277,7 @@ export async function PATCH(request: NextRequest) {
           throw new OwnerApiError("다른 설정 변경이 반영되었습니다. 화면을 다시 확인해 주세요.", 409);
         }
 
-        updates.notification_settings = coerceEnabledShopNotificationSettings(
+        if (hasNotificationSettingsUpdate) updates.notification_settings = coerceEnabledShopNotificationSettings(
           normalizeShopNotificationSettings({
             ...currentShop.notification_settings,
             ...toStoredNotificationSettings(body.notificationSettings!),
@@ -311,9 +315,16 @@ export async function PATCH(request: NextRequest) {
         };
       }
 
-      if (body.cancelWindow !== undefined) {
+      if (hasTimeSelectionUpdate) {
         updates.reservation_policy_settings = {
           ...(currentShop?.reservation_policy_settings ?? {}),
+          customer_other_available_times_enabled: body.reservationPolicySettings!.customer_other_available_times_enabled,
+        };
+        updates.updated_at = new Date().toISOString();
+      }
+      if (body.cancelWindow !== undefined) {
+        updates.reservation_policy_settings = {
+          ...(updates.reservation_policy_settings as Record<string, unknown> ?? currentShop?.reservation_policy_settings ?? {}),
           cancel_window: "2h",
           customer_change_enabled: true,
         };
@@ -366,7 +377,7 @@ export async function PATCH(request: NextRequest) {
       .eq("id", owner.shopId)
       .eq("owner_user_id", owner.userId);
 
-    if (hasNotificationSettingsUpdate && currentShop?.updated_at) {
+    if ((hasNotificationSettingsUpdate || hasTimeSelectionUpdate) && currentShop?.updated_at) {
       updateQuery = updateQuery.eq("updated_at", currentShop.updated_at);
     }
 

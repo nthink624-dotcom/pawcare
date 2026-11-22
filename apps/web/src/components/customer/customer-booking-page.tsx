@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { IconCheck, IconExclamationMark } from "@tabler/icons-react";
 import { addDays, format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { CSSProperties } from "react";
@@ -207,7 +208,7 @@ function CustomerBookingFeedbackDialog({
             isError ? "bg-[#fff1f1] text-[#c84b4b]" : "bg-[#fce9e4] text-[#d35f50]"
           }`}
         >
-          {isError ? "!" : "✓"}
+          {isError ? <IconExclamationMark aria-hidden="true" size={20} /> : <IconCheck aria-hidden="true" size={20} />}
         </div>
         <h2 className="text-[18px] font-bold tracking-[-0.02em] text-[#3a2e2a]">{title}</h2>
         <p className="mt-2 text-[15px] leading-6 tracking-[-0.02em] text-[#8a7a72]">{message}</p>
@@ -474,6 +475,10 @@ export default function CustomerBookingPage({
   const [firstVisitRecommendedSlots, setFirstVisitRecommendedSlots] = useState<string[]>([]);
   const [firstVisitRecommendationSource, setFirstVisitRecommendationSource] = useState<CustomerAvailabilityPayload["recommendationSource"]>();
   const [loadingFirstVisitSlots, setLoadingFirstVisitSlots] = useState(false);
+  const [slotError, setSlotError] = useState("");
+  const [dateError, setDateError] = useState("");
+  const [availabilityRetry, setAvailabilityRetry] = useState(0);
+  const [allowOtherAvailableTimes, setAllowOtherAvailableTimes] = useState(false);
   const [dateAvailability, setDateAvailability] = useState<Record<string, boolean | undefined>>({});
   const [staffAvailability, setStaffAvailability] = useState<Record<string, boolean | undefined>>({});
   const [loadingDateAvailability, setLoadingDateAvailability] = useState(false);
@@ -680,7 +685,14 @@ export default function CustomerBookingPage({
   useEffect(() => {
     let active = true;
     async function load() {
+      setSlotError("");
+      setFirstVisitSlots([]);
+      setFirstVisitRecommendedSlots([]);
+      setFirstVisitRecommendationSource(undefined);
+      setStaffAvailability({});
+      setAllowOtherAvailableTimes(false);
       if (!firstVisit.date) {
+        setLoadingFirstVisitSlots(false);
         setFirstVisitSlots([]);
         setFirstVisitRecommendedSlots([]);
         setFirstVisitRecommendationSource(undefined);
@@ -701,19 +713,22 @@ export default function CustomerBookingPage({
         });
         if (!active) return;
         setFirstVisitSlots(result.slots);
+        setAllowOtherAvailableTimes(result.allowOtherAvailableTimes === true);
         setFirstVisitRecommendedSlots((result.recommendedSlots ?? []).filter((slot) => result.slots.includes(slot)));
         setFirstVisitRecommendationSource(result.recommendationSource);
         setStaffAvailability(result.staffAvailability ?? {});
         if (firstVisit.timeSlot && !result.slots.includes(firstVisit.timeSlot)) {
           setFirstVisit((prev) => ({ ...prev, timeSlot: "" }));
         }
+      } catch {
+        if (active) setSlotError("예약 가능한 시간을 확인하지 못했어요. 다시 시도해 주세요.");
       } finally {
         if (active) setLoadingFirstVisitSlots(false);
       }
     }
     void load();
     return () => { active = false; };
-  }, [firstVisit.date, firstVisit.serviceId, firstVisit.staffId, selectedFirstServiceOption?.durationMinutes, shopId]);
+  }, [firstVisit.date, firstVisit.serviceId, firstVisit.staffId, selectedFirstServiceOption?.durationMinutes, shopId, availabilityRetry]);
 
   useEffect(() => {
     let active = true;
@@ -728,6 +743,7 @@ export default function CustomerBookingPage({
       const usesPreviewSlots = firstVisit.serviceId === CUSTOM_SERVICE_ID;
       const selectedDurationMinutes = selectedFirstServiceOption?.durationMinutes;
       setLoadingDateAvailability(true);
+      setDateError("");
       setDateAvailability({});
       try {
         const result = await fetchCustomerAvailability({
@@ -740,8 +756,10 @@ export default function CustomerBookingPage({
         });
         if (active) setDateAvailability(result.availabilityByDate ?? {});
       } catch {
-        // A failed authority read must not be presented as an unavailable date.
-        if (active) setDateAvailability({});
+        if (active) {
+          setDateAvailability({});
+          setDateError("예약 가능한 날짜를 확인하지 못했어요. 다시 시도해 주세요.");
+        }
       } finally {
         if (active) setLoadingDateAvailability(false);
       }
@@ -751,7 +769,7 @@ export default function CustomerBookingPage({
     return () => {
       active = false;
     };
-  }, [dateOptions, firstVisit.serviceId, firstVisitStep, selectedFirstServiceOption?.durationMinutes, shopId]);
+  }, [dateOptions, firstVisit.serviceId, firstVisitStep, selectedFirstServiceOption?.durationMinutes, shopId, availabilityRetry]);
 
   useEffect(() => {
     if (firstVisitStep !== 3 || !firstVisit.date || dateAvailability[firstVisit.date] !== false) return;
@@ -1029,6 +1047,10 @@ export default function CustomerBookingPage({
               availableSlots={firstVisitSlots}
               recommendedSlots={firstVisitRecommendedSlots}
               recommendationSource={firstVisitRecommendationSource}
+              allowOtherAvailableTimes={allowOtherAvailableTimes}
+              slotError={slotError}
+              dateError={dateError}
+              onAvailabilityRetry={() => setAvailabilityRetry(value => value + 1)}
               dateAvailability={dateAvailability}
               staffAvailability={staffAvailability}
               loadingDateAvailability={loadingDateAvailability}

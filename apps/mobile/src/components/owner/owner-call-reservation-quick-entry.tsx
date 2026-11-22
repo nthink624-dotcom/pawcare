@@ -1,5 +1,8 @@
 "use client";
 
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -189,7 +192,7 @@ export default function OwnerCallReservationQuickEntry({
             </label>
             <label className="grid gap-1.5">
               <span className="text-[14px] font-medium leading-5 text-[#334155]">시간</span>
-              <input type="time" value={appointmentTime} onChange={(event) => setAppointmentTime(event.target.value)} className="min-h-12 min-w-0 rounded-[10px] border border-[#e8edf3] bg-white px-2 text-[16px] text-[#15213b]" />
+              <WheelTimeField aria-label="시간 선택"  value={appointmentTime} onValueChange={(nextTime) => setAppointmentTime(nextTime)} className="min-h-12 min-w-0 rounded-[10px] border border-[#e8edf3] bg-white px-2 text-[16px] text-[#15213b]" />
             </label>
           </div>
 

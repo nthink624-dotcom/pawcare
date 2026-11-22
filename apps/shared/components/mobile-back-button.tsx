@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { IconChevronLeft as ChevronLeft } from "@tabler/icons-react";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ComponentProps } from "react";
 
 import { cn } from "../lib/cn";
@@ -26,7 +26,7 @@ export function MobileBackButton({
       className={cn(mobileBackButtonClassName, className)}
       {...props}
     >
-      <ChevronLeft className={mobileBackIconClassName} />
+      <ChevronLeft className={mobileBackIconClassName} aria-hidden="true" />
     </button>
   );
 }
@@ -48,7 +48,7 @@ export function MobileBackLinkButton({
       className={cn(mobileBackButtonClassName, className)}
       {...props}
     >
-      {children ?? <ChevronLeft className={mobileBackIconClassName} />}
+      {children ?? <ChevronLeft className={mobileBackIconClassName} aria-hidden="true" />}
     </Link>
   );
 }
@@ -70,7 +70,7 @@ export function MobileBackAnchorButton({
       className={cn(mobileBackButtonClassName, className)}
       {...props}
     >
-      {children ?? <ChevronLeft className={mobileBackIconClassName} />}
+      {children ?? <ChevronLeft className={mobileBackIconClassName} aria-hidden="true" />}
     </a>
   );
 }

@@ -35,7 +35,7 @@ test("service price settings offers camera, gallery, and direct entry immediatel
   assert.match(methodSurface, /onClick=\{\(\) => void openCamera\(\)\}/);
   assert.match(methodSurface, /onClick=\{\(\) => fileInputRef\.current\?\.click\(\)\}/);
   assert.match(methodSurface, /onClick=\{startManual\}/);
-  assert.match(fixture, /const selectionMode: Extract<Mode, "method" \| "choose"> = shopId \? "method" : "choose"/);
+  assert.match(fixture, /const selectionMode: Extract<Mode, "method" \| "choose"> = shopId \|\| setupFlow \? "method" : "choose"/);
   assert.match(fixture, /capture="environment"/);
   assert.match(fixture, /canUseExternalCameraApps\(\)/);
   assert.match(fixture, /captureWithAndroidCameraApp\("default"\)/);

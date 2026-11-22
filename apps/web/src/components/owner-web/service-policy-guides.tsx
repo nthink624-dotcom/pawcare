@@ -1,9 +1,8 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { IconTrash, IconPlus as Plus } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
-import { BasilIcon } from "@/components/owner-web/basil-icon";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
@@ -238,7 +237,7 @@ function DurationTable({
           onClick={() => onChange([...rows, { id: createRowId("duration"), label: "새 항목", minutes: "10" }])}
           className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-medium text-[#334155]"
         >
-          <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+          <Plus className="h-3.5 w-3.5" strokeWidth={1.9} aria-hidden="true" />
           {addLabel}
         </button>
       </div>
@@ -265,7 +264,7 @@ function DurationTable({
             className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-[#94a3b8] hover:bg-[#f8fafc] disabled:opacity-35"
             aria-label="소요시간 항목 삭제"
           >
-            <BasilIcon name="trash" />
+            <IconTrash aria-hidden="true" className="shrink-0 h-6 w-6" />
           </button>
         </div>
       ))}
@@ -299,7 +298,7 @@ export function ExtraCostGuideSection() {
           onClick={() => setRows([...rows, { id: createRowId("cost"), label: "새 항목", price: "" }])}
           className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-medium text-[#334155]"
         >
-          <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+          <Plus className="h-3.5 w-3.5" strokeWidth={1.9} aria-hidden="true" />
           항목 추가
         </button>
       </div>
@@ -323,7 +322,7 @@ export function ExtraCostGuideSection() {
             className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-[#94a3b8] hover:bg-[#f8fafc] disabled:opacity-35"
             aria-label="추가 비용 항목 삭제"
           >
-            <BasilIcon name="trash" />
+            <IconTrash aria-hidden="true" className="shrink-0 h-6 w-6" />
           </button>
         </div>
       ))}

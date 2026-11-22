@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import type { CommunityApi } from "@petmanager/shared/contracts/community";
+import { createDemoCommunityApi } from "@petmanager/shared/lib/demo-community";
+
+import { useEffect, useRef, useState, type ComponentProps, type ComponentType } from "react";
 import dynamic from "next/dynamic";
+import BookingPolicyScreen from "@/components/owner-web/booking-policy-screen";
+import { prefetchOwnerBookingPolicy } from "@/lib/owner-booking-policy-read";
+import { ownerCommunityApi, prefetchOwnerCommunity } from "@/lib/owner-community-read";
 
 import type { OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
@@ -49,6 +55,20 @@ function OwnerScreenLoading() {
 }
 
 const CommunityBoard = dynamic(() => import("@petmanager/shared/components/community/community-board"), { loading: OwnerScreenLoading });
+type CommunityBoardComponent = typeof import("@petmanager/shared/components/community/community-board").default;
+let preloadedCommunityBoard: CommunityBoardComponent | null = null;
+
+function preloadCommunityBoard() {
+  void import("@petmanager/shared/components/community/community-board").then((module) => { preloadedCommunityBoard = module.default; });
+}
+
+function OwnerCommunityBoard(props: ComponentProps<CommunityBoardComponent>) {
+  // Preloaded code renders directly. A first lazy render would suspend and wait for
+  // React's Suspense reveal throttle (~300ms) even when the chunk is already loaded.
+  // The choice is fixed per mount so the board is never remounted mid-session.
+  const [Board] = useState<ComponentType<ComponentProps<CommunityBoardComponent>>>(() => preloadedCommunityBoard ?? CommunityBoard);
+  return <Board {...props} />;
+}
 
 const CalendarManagementScreen = dynamic(
   () => import("@/components/owner-web/calendar-management-screen"),
@@ -85,10 +105,6 @@ const ServiceManagementScreen = dynamic(
 );
 const SettingsManagementScreen = dynamic(
   () => import("@/components/owner-web/settings-management-screen"),
-  { loading: OwnerScreenLoading },
-);
-const BookingPolicyScreen = dynamic(
-  () => import("@/components/owner-web/booking-policy-screen"),
   { loading: OwnerScreenLoading },
 );
 const StaffManagementScreen = dynamic(
@@ -225,7 +241,6 @@ function renderScreen(
   createRequest: OwnerScheduleCreateRequest | null,
   onCreateRequestHandled: (requestId: number) => void,
   onCreateReservationForCustomer: (params: { guardianId: string; petId: string | null }) => void,
-  onCreateReservationForDate: (date: string) => void,
   automaticVisitReminderAvailable: boolean,
   priceGuideOnboarding: boolean,
   initialSetupMode: boolean,
@@ -238,6 +253,7 @@ function renderScreen(
   uploadInitialSetupStaffPhoto?: StaffProfilePhotoUploader,
   onServiceSettingsBack?: () => void,
   communityProfileView?: { open: boolean; onOpenChange: (open: boolean) => void },
+  demoCommunityApi?: CommunityApi,
 ) {
   if (isOwnerStartupPresentation(initialData) && !["schedule", "customers"].includes(screen)) {
     return <OwnerStartupDetailsBoundary pending title={"\uC0C1\uC138 \uC815\uBCF4"} embedded modal={false}>{null}</OwnerStartupDetailsBoundary>;
@@ -248,7 +264,7 @@ function renderScreen(
 
   switch (screen) {
     case "community":
-      return <CommunityBoard key={initialData.shop.id} shopId={initialData.shop.id} shopName={initialData.shop.name} api={fetchApiJsonWithAuth} profileView={communityProfileView} />;
+      return <OwnerCommunityBoard key={initialData.shop.id} shopId={initialData.shop.id} shopName={initialData.shop.name} api={demoCommunityApi ?? ownerCommunityApi} profileView={communityProfileView} demo={Boolean(demoCommunityApi)} />;
     case "schedule":
       return (
         <CalendarManagementScreen
@@ -263,7 +279,7 @@ function renderScreen(
     case "customers":
       return <CustomerManagementScreen initialData={initialData} onCreateReservationForCustomer={onCreateReservationForCustomer} onDataChange={onDataChange} />;
     case "calendarRecords":
-      return <CalendarRecordsScreen initialData={initialData} shopEventsEnabled={!isDemoOwnerWebData(initialData)} onDataChange={onDataChange} onCreateReservationForDate={onCreateReservationForDate} />;
+      return <CalendarRecordsScreen initialData={initialData} shopEventsEnabled={!isDemoOwnerWebData(initialData)} onDataChange={onDataChange} staffMembers={staffMembers} />;
     case "profitability":
       return <ProfitabilityAnalyticsScreen shopId={initialData.shop.id} />;
     case "services":
@@ -355,17 +371,25 @@ export default function OwnerWebPreview({
   onDataChange,
   currentPlanCode = null,
   feedbackFixtureMode = false,
+  demoLounge = false,
 }: {
   initialData: BootstrapPayload;
   demoStaffFallback?: OwnerWebStaffMember[];
   onDataChange?: (data: BootstrapPayload) => void;
   currentPlanCode?: string | null;
   feedbackFixtureMode?: boolean;
+  demoLounge?: boolean;
 }) {
   const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>(() => getInitialOwnerWebScreen(initialData));
+  const [demoCommunityApi] = useState(() => demoLounge ? createDemoCommunityApi(initialData.shop.name) : undefined);
 
   useEffect(() => {
     const timer = window.setTimeout(preloadStaffManagementScreen, 1_200);
+    return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    // Code only: lounge data is read when the menu is hovered/focused or opened.
+    const timer = window.setTimeout(preloadCommunityBoard, 1_500);
     return () => window.clearTimeout(timer);
   }, []);
   const [initialSetupScreen, setInitialSetupScreen] = useState<OwnerWebScreenKey>("operatingHours");
@@ -604,13 +628,24 @@ export default function OwnerWebPreview({
   }
 
   function handleScreenSelect(screen: OwnerWebScreenKey) {
+    if (screen === "bookingPolicy" && !isDemoOwnerWebData(initialData)) prefetchOwnerBookingPolicy(initialData.shop.id);
     setCommunityProfileOpen(false);
     setActiveScreen(screen);
   }
 
   function handleScreenPrefetch(screen: OwnerWebScreenKey) {
     if (screen === "staff") preloadStaffManagementScreen();
-    if (screen === "bookingPolicy") void import("@/components/owner-web/booking-policy-screen");
+    if (screen === "bookingPolicy" && !isDemoOwnerWebData(initialData)) prefetchOwnerBookingPolicy(initialData.shop.id);
+    if (screen === "community") {
+      preloadCommunityBoard();
+      if (!demoCommunityApi && !isDemoOwnerWebData(initialData)) prefetchOwnerCommunity(initialData.shop.id);
+    }
+    if (screen === "alerts") {
+      void import("@/components/owner-web/settings-management-screen");
+      if (!isDemoOwnerWebData(initialData)) {
+        void import("@/lib/owner-alimtalk-read").then(({ prefetchOwnerAlimtalk }) => prefetchOwnerAlimtalk(initialData.shop.id));
+      }
+    }
   }
 
   function openInitialSetup() {
@@ -745,15 +780,6 @@ export default function OwnerWebPreview({
       guardianId: params.guardianId,
       petId: params.petId,
       date: currentDateInTimeZone(),
-    });
-    setActiveScreen("schedule");
-  }
-
-  function handleCreateReservationForDate(date: string) {
-    setScheduleCreateRequest({
-      requestId: Date.now(),
-      petId: null,
-      date,
     });
     setActiveScreen("schedule");
   }
@@ -898,7 +924,6 @@ export default function OwnerWebPreview({
             scheduleCreateRequest,
             handleScheduleCreateRequestHandled,
             handleCreateReservationForCustomer,
-            handleCreateReservationForDate,
             automaticVisitReminderAvailable,
             priceGuideOnboarding,
             false,
@@ -911,6 +936,7 @@ export default function OwnerWebPreview({
             uploadDemoInitialSetupStaffPhoto,
             () => setActiveScreen("shopInfo"),
             { open: communityProfileOpen, onOpenChange: setCommunityProfileOpen },
+            demoCommunityApi,
           )}
         </div>
       </div>
@@ -943,7 +969,6 @@ export default function OwnerWebPreview({
           scheduleCreateRequest,
           handleScheduleCreateRequestHandled,
           handleCreateReservationForCustomer,
-          handleCreateReservationForDate,
           automaticVisitReminderAvailable,
           false,
           true,

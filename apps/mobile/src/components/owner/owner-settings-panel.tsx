@@ -1,6 +1,31 @@
-﻿"use client";
+"use client";
 
-import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, MessageSquarePlus, PhoneCall, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
+import {
+  IconBell as Bell,
+  IconBellRinging as BellRing,
+  IconCalendarWeek as CalendarDays,
+  IconCamera as Camera,
+  IconCheck as Check,
+  IconChevronLeft as ChevronLeft,
+  IconChevronRight as ChevronRight,
+  IconDownload as Download,
+  IconExternalLink as ExternalLink,
+  IconFileText as FileText,
+  IconKey as KeyRound,
+  IconLogout as LogOut,
+  IconMail as Mail,
+  IconMapPin as MapPin,
+  IconMessageCircle as MessageCircle,
+  IconMessagePlus as MessageSquarePlus,
+  IconPhoneCall as PhoneCall,
+  IconPlus as Plus,
+  IconBuildingStore as Store,
+  IconUser as UserRound,
+  type TablerIcon,
+} from "@tabler/icons-react";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import dynamic from "next/dynamic";
 
@@ -660,6 +685,7 @@ export default function OwnerSettingsPanel({
     nextBusinessHours: BusinessHours,
     nextRegularClosedDays: number[],
     nextTemporaryClosedDates: string[],
+    nextAllowOtherTimes = data.shop.reservation_policy_settings?.customer_other_available_times_enabled === true,
   ): Promise<boolean> {
     operatingSaveCountRef.current += 1;
     setSavingOperatingInfo(true);
@@ -683,6 +709,7 @@ export default function OwnerSettingsPanel({
             regularClosedDays: nextRegularClosedDays,
             temporaryClosedDates: nextTemporaryClosedDates,
             businessHours: nextBusinessHours,
+            reservationPolicySettings: { ...data.shop.reservation_policy_settings, customer_other_available_times_enabled: nextAllowOtherTimes },
             notificationSettings,
           }),
         );
@@ -1015,8 +1042,17 @@ export default function OwnerSettingsPanel({
     </div>
   );
 
+  const [allowOtherTimes, setAllowOtherTimes] = useState(data.shop.reservation_policy_settings?.customer_other_available_times_enabled === true);
+  useEffect(() => { setAllowOtherTimes(data.shop.reservation_policy_settings?.customer_other_available_times_enabled === true); }, [data.shop.id, data.shop.reservation_policy_settings?.customer_other_available_times_enabled]);
+
   const closuresSection = (
     <>
+      <div className="mb-3 flex items-center justify-between gap-4 rounded-[14px] border border-[#e2e7ed] bg-white p-3.5">
+        <div className="min-w-0"><p className="text-[16px] font-medium text-[#15213b]">다른 가능한 시간 보기 허용</p><p className="mt-1 text-[13px] leading-5 text-[#64748b]">켜면 고객이 추천 외의 시간도 펼쳐볼 수 있어요.</p></div>
+        <Switch checked={allowOtherTimes} disabled={savingOperatingInfo || appRole === "staff"} aria-label="다른 가능한 시간 보기 허용" onCheckedChange={async (checked) => {
+          if (await saveOperatingInfo(businessHours, regularClosedDays, temporaryClosedDates, checked)) setAllowOtherTimes(checked);
+        }} />
+      </div>
       <div className="mb-3 rounded-[14px] border border-[#e2e7ed] bg-white p-3.5">
         <div className="divide-y divide-[#edf1f5]">
           <button
@@ -1050,7 +1086,7 @@ export default function OwnerSettingsPanel({
                     <p className={`min-w-0 truncate text-[16px] leading-6 text-[#334155] ${businessHoursRowValueWeightClass}`}>{formatBusinessHoursRange(hours)}</p>
                   )}
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.8} />
+                <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.8} aria-hidden="true" />
               </button>
             );
           })}
@@ -1067,7 +1103,7 @@ export default function OwnerSettingsPanel({
               onClick={() => setIsClosedDatePickerOpen(true)}
             >
               <span>{pendingClosedDate || "날짜 선택"}</span>
-              <CalendarDays className="h-4 w-4 text-[var(--muted)]" />
+              <CalendarDays className="h-4 w-4 text-[var(--muted)]" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -1077,7 +1113,7 @@ export default function OwnerSettingsPanel({
                 addPendingClosedDate();
               }}
             >
-              <Plus className="h-4 w-4" strokeWidth={2.4} />
+              <Plus className="h-4 w-4" strokeWidth={2.4} aria-hidden="true" />
             </button>
           </div>
           {temporaryClosedDates.length > 0 ? (
@@ -1282,7 +1318,7 @@ export default function OwnerSettingsPanel({
                         </span>
                         {selected ? (
                           <span className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#111a30] text-white" aria-hidden="true">
-                            <Check className="h-3 w-3" strokeWidth={2.2} />
+                            <Check className="h-3 w-3" strokeWidth={2.2} aria-hidden="true" />
                           </span>
                         ) : null}
                       </button>
@@ -1379,7 +1415,7 @@ export default function OwnerSettingsPanel({
             className="flex min-h-[54px] items-center justify-between gap-3 px-4 py-3 text-left"
           >
             <span className="min-w-0 text-[16px] font-medium text-[var(--text)]">{link.label}</span>
-            <ExternalLink className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
+            <ExternalLink className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} aria-hidden="true" />
           </a>
         ))}
       </div>
@@ -1394,10 +1430,10 @@ export default function OwnerSettingsPanel({
         <div className="mt-4 overflow-hidden rounded-[12px] border border-[var(--border)] divide-y divide-[var(--border)]">
           <a href={getPublicLegalMailtoHref()} className="flex min-h-[50px] items-center justify-between gap-3 px-3 py-2.5">
             <span className="flex min-w-0 items-center gap-2.5">
-              <Mail className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={1.9} />
+              <Mail className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={1.9} aria-hidden="true" />
               <span className="truncate text-[14px] font-medium text-[var(--text)]">{PUBLIC_LEGAL_CONTACT.email}</span>
             </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} aria-hidden="true" />
           </a>
         </div>
       </div>
@@ -1766,29 +1802,29 @@ function BusinessHoursSheet({
           <div className="grid grid-cols-2 gap-2.5">
             <label htmlFor={openInputId} className="block rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 focus-within:border-[#2563eb] focus-within:ring-2 focus-within:ring-[#2563eb]/15">
               <span className="mb-1.5 block text-[14px] font-medium leading-5 text-[var(--muted)]">시작 시간</span>
-              <input
+              <WheelTimeField aria-label="시간 선택"
                 id={openInputId}
-                type="time"
+                
                 step={300}
                 aria-invalid={hasInvalidRange}
                 aria-describedby={hasInvalidRange ? rangeErrorId : undefined}
-                className="min-h-11 w-full bg-transparent p-0 text-[16px] font-medium leading-6 tabular-nums tracking-[-0.02em] text-[var(--text)] outline-none"
+                className="min-h-11 w-full justify-start border-0 bg-transparent p-0 text-[16px] font-medium leading-6 tabular-nums tracking-[-0.02em] text-[var(--text)] outline-none"
                 value={draft.open}
-                onChange={(event) => onChange({ ...draft, open: event.target.value })}
+                onValueChange={(nextTime) => onChange({ ...draft, open: nextTime })}
                 disabled={draft.closed || saving}
               />
             </label>
             <label htmlFor={closeInputId} className="block rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 focus-within:border-[#2563eb] focus-within:ring-2 focus-within:ring-[#2563eb]/15">
               <span className="mb-1.5 block text-[14px] font-medium leading-5 text-[var(--muted)]">마감 시간</span>
-              <input
+              <WheelTimeField aria-label="시간 선택"
                 id={closeInputId}
-                type="time"
+                
                 step={300}
                 aria-invalid={hasInvalidRange}
                 aria-describedby={hasInvalidRange ? rangeErrorId : undefined}
-                className="min-h-11 w-full bg-transparent p-0 text-[16px] font-medium leading-6 tabular-nums tracking-[-0.02em] text-[var(--text)] outline-none"
+                className="min-h-11 w-full justify-start border-0 bg-transparent p-0 text-[16px] font-medium leading-6 tabular-nums tracking-[-0.02em] text-[var(--text)] outline-none"
                 value={draft.close}
-                onChange={(event) => onChange({ ...draft, close: event.target.value })}
+                onValueChange={(nextTime) => onChange({ ...draft, close: nextTime })}
                 disabled={draft.closed || saving}
               />
             </label>
@@ -1844,11 +1880,11 @@ function ClosedDatePickerSheet({
         <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="mb-4 flex items-center justify-between">
             <button type="button" className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onPrevMonth}>
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </button>
             <p className="text-[14px] font-medium leading-5 text-[var(--text)]">{monthLabel}</p>
             <button type="button" className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onNextMonth}>
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <div className="mb-2 grid grid-cols-7 gap-2">
@@ -1914,7 +1950,7 @@ function SettingsNavRow({
   onClick,
   href,
 }: {
-  icon: LucideIcon;
+  icon: TablerIcon;
   title: string;
   value?: string;
   onClick?: () => void;
@@ -1926,7 +1962,7 @@ function SettingsNavRow({
   const content = (
     <>
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#f2f6fb] text-[#475467]">
-        <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+        <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden="true" />
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[16px] font-medium leading-6 tracking-[-0.02em] text-[#101828]">{title}</p>
@@ -1936,7 +1972,7 @@ function SettingsNavRow({
           </p>
         ) : null}
       </div>
-      {isActionable ? <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" strokeWidth={1.9} /> : null}
+      {isActionable ? <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" strokeWidth={1.9} aria-hidden="true" /> : null}
     </>
   );
 
@@ -2133,20 +2169,20 @@ function AccountRow({
   value,
 }: {
   href?: string;
-  icon: LucideIcon;
+  icon: TablerIcon;
   label: string;
   value?: string;
 }) {
   const content = (
     <>
       <div className="flex min-w-0 items-center gap-3">
-        <Icon className="h-[18px] w-[18px] shrink-0 text-[var(--text)]" strokeWidth={1.9} />
+        <Icon className="h-[18px] w-[18px] shrink-0 text-[var(--text)]" strokeWidth={1.9} aria-hidden="true" />
         <div className="min-w-0">
           <p className="text-[16px] font-medium text-[var(--text)]">{label}</p>
           {value ? <p className="mt-0.5 truncate text-[13px] text-[var(--muted)]">{value}</p> : null}
         </div>
       </div>
-      {href ? <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" /> : null}
+      {href ? <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" aria-hidden="true" /> : null}
     </>
   );
 
@@ -2161,7 +2197,7 @@ function AccountActionRow({
   onClick,
   disabled,
 }: {
-  icon: LucideIcon;
+  icon: TablerIcon;
   label: string;
   onClick: () => void;
   disabled?: boolean;
@@ -2174,10 +2210,10 @@ function AccountActionRow({
       className="flex min-h-[52px] w-full items-center justify-between gap-3 px-1 py-2.5 text-left text-[#c43d3d] disabled:opacity-50"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />
+        <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} aria-hidden="true" />
         <p className="text-[16px] font-medium">{label}</p>
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" />
+      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" aria-hidden="true" />
     </button>
   );
 }

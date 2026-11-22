@@ -1,7 +1,8 @@
-﻿import type { ReactNode } from "react";
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+import type { ReactNode } from "react";
 import { useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, LockKeyhole, X } from "lucide-react";
+import { IconCheck as Check, IconChevronDown as ChevronDown, IconLock as LockKeyhole, IconX as X } from "@tabler/icons-react";
 
 import { GhostButton, PrimaryButton, SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { StaffPhotoField } from "@/components/owner-web/staff-photo-choice";
@@ -493,19 +494,12 @@ export function TimeSelect({
   buttonClassName?: string;
   align?: "left" | "right";
 }) {
-  const options = timeSelectOptions.some((option) => option.value === value) ? timeSelectOptions : [{ value, label: value }, ...timeSelectOptions];
-  return (
-    <SoftSelect
-      value={value}
-      onChange={onChange}
-      options={options}
-      align={align}
-      className={className}
-      buttonClassName={cn("min-h-11 bg-white px-2", buttonClassName)}
-      valueClassName="!text-[16px] !font-medium !leading-6 tracking-[-0.005em]"
-      menuClassName="max-h-[180px] overflow-y-auto overscroll-contain"
-    />
-  );
+  const times = timeSelectOptions.map((option) => option.value);
+  if (value && !times.includes(value)) times.push(value);
+  return <span className={cn("inline-flex min-w-0", className)} data-time-align={align}>
+    <WheelTimeField aria-label="근무 시간 선택" value={value} onValueChange={onChange} allowedTimes={times}
+      className={cn("min-h-11 bg-white px-2 text-[16px] font-medium", buttonClassName)} />
+  </span>;
 }
 
 export function CompactInput({
@@ -718,7 +712,7 @@ export function StaffScheduleEditModal({
             <span className="block text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#334155]">고정 휴무 기준</span>
             <span className="mt-0.5 block text-[13px] font-normal leading-5 text-[#64748b]">매주 쉬는 요일은 필요할 때만 수정합니다.</span>
           </span>
-          <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", defaultScheduleOpen && "rotate-180")} />
+          <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", defaultScheduleOpen && "rotate-180")} aria-hidden="true" />
         </button>
         {defaultScheduleOpen ? (
           <div className="border-t border-[#edf2f7] px-4 py-4">
@@ -779,7 +773,7 @@ export function StaffModal({ title, children, footer, onClose }: { title: string
             <div className="flex items-start justify-between gap-3">
               <h3 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">{title}</h3>
               <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
-                <X className="h-5 w-5" />
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
           </div>

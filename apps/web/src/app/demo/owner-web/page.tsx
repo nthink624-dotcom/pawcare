@@ -13,5 +13,5 @@ export default async function DemoOwnerWebPage({
     ? buildDemoInitialSetupBootstrap()
     : buildDemoBootstrap();
 
-  return <OwnerWebPreview initialData={initialData} />;
+  return <OwnerWebPreview initialData={initialData} demoLounge />;
 }

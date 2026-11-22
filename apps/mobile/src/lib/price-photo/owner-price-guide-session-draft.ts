@@ -11,7 +11,8 @@ function isSessionState(value: unknown): value is PriceGuideSessionState {
   return Array.isArray(draft.rows)
     && Boolean(draft.document) && typeof draft.document === "object"
     && (typeof draft.serviceId === "string" || draft.serviceId === null)
-    && (draft.resumeMode === "manual" || draft.resumeMode === "review");
+    && (draft.resumeMode === "manual" || draft.resumeMode === "review")
+    && (draft.needsSave === undefined || typeof draft.needsSave === "boolean");
 }
 
 export function readOwnerPriceGuideSessionDraft(key: string): PriceGuideSessionState | null {

@@ -1,6 +1,14 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, ChevronRight, ImagePlus, Loader2, MessageCircle, RotateCw } from "lucide-react";
+import {
+  IconAlertCircle as AlertCircle,
+  IconCircleCheck as CheckCircle2,
+  IconChevronRight as ChevronRight,
+  IconPhotoPlus as ImagePlus,
+  IconLoader2 as Loader2,
+  IconMessageCircle as MessageCircle,
+  IconRotateClockwise as RotateCw,
+} from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -225,7 +233,7 @@ export default function OwnerSupportPanel({
     <section className="space-y-4 bg-white p-4">
       <div className="hidden">
         <div className="flex items-center gap-2">
-          <MessageCircle className="h-5 w-5 text-[#2563eb]" strokeWidth={2} />
+          <MessageCircle className="h-5 w-5 text-[#2563eb]" strokeWidth={2} aria-hidden="true" />
           <h2 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">1:1 문의</h2>
         </div>
         <p className="text-[14px] leading-5 text-[var(--muted)]">
@@ -299,7 +307,7 @@ export default function OwnerSupportPanel({
 
         <div className="flex h-11 items-center gap-2.5 rounded-[10px] border border-dashed border-[#e2e7ed] bg-[#f8fafc] px-3">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-[#e2e7ed] bg-white text-[#64748b]">
-            <ImagePlus className="h-4 w-4" strokeWidth={2} />
+            <ImagePlus className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
           </div>
           <div className="min-w-0 [&>p:last-child]:hidden">
             <p className="text-[13px] font-semibold text-[#334155]">사진 첨부</p>
@@ -315,7 +323,7 @@ export default function OwnerSupportPanel({
                 : "border border-red-200 bg-red-50 text-red-700"
             }`}
           >
-            {feedback.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+            {feedback.type === "success" ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <AlertCircle className="h-4 w-4" aria-hidden="true" />}
             <span>{feedback.message}</span>
           </div>
         ) : null}
@@ -326,7 +334,7 @@ export default function OwnerSupportPanel({
           disabled={submitting}
           className="flex h-[50px] w-full items-center justify-center rounded-[12px] border border-[#2f6fd6] bg-[#2f6fd6] px-4 text-[16px] font-semibold text-white disabled:opacity-50"
         >
-          {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
           문의 보내기
         </button>
       </div>
@@ -341,14 +349,14 @@ export default function OwnerSupportPanel({
             onClick={() => void loadRequests()}
             className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-[var(--border)] bg-white px-3 text-[14px] font-medium text-[var(--text)]"
           >
-            <RotateCw className="h-3.5 w-3.5" strokeWidth={2} />
+            <RotateCw className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
             새로고침
           </button>
         </div>
 
         {loading ? (
           <div className="flex min-h-[128px] items-center justify-center rounded-[16px] border border-[var(--border)] bg-white text-[14px] text-[var(--muted)]">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
             문의 내역을 불러오는 중이에요
           </div>
         ) : requests.length === 0 ? (
@@ -385,9 +393,9 @@ export default function OwnerSupportPanel({
                       </div>
                     </div>
                     {readingId === request.id ? (
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--muted)]" />
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--muted)]" aria-hidden="true" />
                     ) : (
-                      <ChevronRight className={`h-4 w-4 shrink-0 text-[var(--muted)] transition ${expanded ? "rotate-90" : ""}`} />
+                      <ChevronRight className={`h-4 w-4 shrink-0 text-[var(--muted)] transition ${expanded ? "rotate-90" : ""}`} aria-hidden="true" />
                     )}
                   </button>
                   {expanded ? (

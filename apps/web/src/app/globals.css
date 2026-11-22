@@ -212,7 +212,17 @@ button[class*="hover:bg-[#293548]"]:hover {
   background: var(--pm-owner-main-surface-background);
   border: 1px solid var(--pm-owner-main-surface-border);
   border-radius: var(--pm-owner-main-surface-radius);
+  overflow: hidden;
+}
+
+/* 일정 보드의 떠 있는 도구는 기존처럼 바깥으로 펼칠 수 있다. */
+.pm-owner-web .pm-owner-main-surface:has([data-schedule-board-root="true"]) {
   overflow: visible;
+}
+
+/* 커뮤니티의 두 패널은 공용 큰 컨테이너의 흰 배경 안에 배치한다. */
+.pm-owner-web .pm-owner-main-surface [data-community-board] {
+  background: transparent;
 }
 
 /* 기존 direct core의 자체 외곽선은 공용 surface와 겹치지 않게 내용 경계로만 남긴다. */
@@ -1645,19 +1655,14 @@ textarea {
 .pm-owner-web .pm-owner-sidebar .pm-owner-nav-item {
   height: auto !important;
   min-height: 44px !important;
-  font-size: 18px !important;
+  font-size: 16px !important;
   font-weight: var(--weight-medium);
-  line-height: 26px !important;
+  line-height: 24px !important;
 }
 
 .pm-owner-web .pm-owner-sidebar .pm-owner-nav-item > span {
   white-space: normal;
   overflow-wrap: anywhere;
-}
-
-.pm-owner-web .pm-owner-sidebar .pm-owner-nav-item > svg {
-  width: 22px !important;
-  height: 22px !important;
 }
 
 .pm-owner-web .pm-owner-sidebar .pm-owner-nav-item > span[aria-hidden="true"] {

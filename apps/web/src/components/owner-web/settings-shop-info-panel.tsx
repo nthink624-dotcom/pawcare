@@ -1,7 +1,22 @@
 "use client";
 
-import { Camera, ImageOff, Info, LoaderCircle, Save, Scissors, Settings2, Smartphone, Store, Trash2, UserRound, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type TouchEvent } from "react";
+import {
+  IconAlertSquareRounded,
+  IconAlertTriangle,
+  IconCamera as Camera,
+  IconPhotoOff as ImageOff,
+  IconInfoCircle as Info,
+  IconLoader2 as LoaderCircle,
+  IconDeviceFloppy as Save,
+  IconScissors as Scissors,
+  IconSettings2 as Settings2,
+  IconDeviceMobile as Smartphone,
+  IconBuildingStore as Store,
+  IconTrash as Trash2,
+  IconUser as UserRound,
+  IconX as X,
+} from "@tabler/icons-react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type TouchEvent } from "react";
 
 import {
   createOwnerStaffProfileImageFromFile,
@@ -291,17 +306,11 @@ function OptionCard({
               {helpIcon === "info" ? (
                 <Info className={cn("block h-4 w-4 translate-y-[0.5px]", helpIconToneClass)} aria-hidden="true" />
               ) : (
-                <span
-                  className={cn("block h-4 w-4 translate-y-[0.5px]", helpIconToneClass)}
-                  style={
-                    {
-                      WebkitMask: `url(${helpIcon === "warningDiamond" ? "/icons/phosphor/WarningDiamond.svg" : "/icons/phosphor/Warning.svg"}) center / contain no-repeat`,
-                      mask: `url(${helpIcon === "warningDiamond" ? "/icons/phosphor/WarningDiamond.svg" : "/icons/phosphor/Warning.svg"}) center / contain no-repeat`,
-                      backgroundColor: "currentColor",
-                    } as CSSProperties
-                  }
-                  aria-hidden="true"
-                />
+                helpIcon === "warningDiamond" ? (
+                <IconAlertSquareRounded aria-hidden="true" className={cn("block h-4 w-4 translate-y-[0.5px]", helpIconToneClass)} />
+              ) : (
+                <IconAlertTriangle aria-hidden="true" className={cn("block h-4 w-4 translate-y-[0.5px]", helpIconToneClass)} />
+              )
               )}
               <span className="pointer-events-none absolute left-1/2 top-6 z-30 w-[240px] -translate-x-1/2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[12px] leading-5 text-[#475569] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.12)] transition group-hover:opacity-100 group-focus-within:opacity-100">
                 {helpText}
@@ -682,7 +691,7 @@ export default function ShopInfoSettingsPanel({
             {showCustomerPreview && <div className="mt-2 flex justify-end px-3 sm:px-5 xl:hidden">
               <button type="button" onClick={() => setPreviewDialogOpen(true)}
                 className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#e1e4ea] px-3 text-[16px] font-medium text-[#15213b]">
-                <Smartphone className="h-4 w-4" />고객 화면 미리보기
+                <Smartphone className="h-4 w-4" aria-hidden="true" />고객 화면 미리보기
               </button>
             </div>}
           </>}
@@ -697,7 +706,7 @@ export default function ShopInfoSettingsPanel({
               <div id="shop-info-panel-basic" role="tabpanel" aria-labelledby="shop-info-tab-basic" hidden={activeSectionId !== "basic"}>
                 <PanelCard
                   id="shop-info-basic"
-                  icon={<Store className="h-[17px] w-[17px]" />}
+                  icon={<Store className="h-[17px] w-[17px]" aria-hidden="true" />}
                   title="기본 정보"
                   hideHeader
                 >
@@ -763,7 +772,7 @@ export default function ShopInfoSettingsPanel({
                             ) : null}
                             {profileImagesProcessing ? (
                               <span className="absolute inset-x-2 bottom-2 z-10 inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] bg-white/92 text-[12px] font-medium leading-[18px] text-[#475569] shadow-[0_4px_12px_rgba(15,23,42,0.14)] backdrop-blur-sm">
-                                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                                <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                                 사진 처리 중
                               </span>
                             ) : null}
@@ -775,15 +784,15 @@ export default function ShopInfoSettingsPanel({
                           </span>
                         ) : isProfileImageRestorePending ? (
                           <span className="flex h-full flex-col items-center justify-center gap-2">
-                            <Camera className="h-8 w-8 animate-pulse text-[#9aa5b4]" />
+                            <Camera className="h-8 w-8 animate-pulse text-[#9aa5b4]" aria-hidden="true" />
                             <span className="text-[16px] font-normal leading-6 text-[#64748b]">사진 불러오는 중</span>
                           </span>
                         ) : (
                           <span className="flex h-full flex-col items-center justify-center gap-2">
                             {profileImagesProcessing ? (
-                              <LoaderCircle className="h-8 w-8 animate-spin text-[#64748b]" />
+                              <LoaderCircle className="h-8 w-8 animate-spin text-[#64748b]" aria-hidden="true" />
                             ) : (
-                              <Camera className="h-8 w-8" />
+                              <Camera className="h-8 w-8" aria-hidden="true" />
                             )}
                             <span className="text-[16px] font-normal leading-6 text-[#64748b]">
                               {profileImagesProcessing ? "사진 처리 중" : "사진 추가"}
@@ -836,7 +845,7 @@ export default function ShopInfoSettingsPanel({
                               >
                                 {imageFailed ? (
                                   <span className="flex h-full w-full items-center justify-center text-[#64748b]" aria-hidden="true">
-                                    <ImageOff className="h-4 w-4" />
+                                    <ImageOff className="h-4 w-4" aria-hidden="true" />
                                   </span>
                                 ) : (
                                   <img
@@ -878,7 +887,7 @@ export default function ShopInfoSettingsPanel({
                               className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-[#d8dce3] bg-[#f6f8fb] text-[#969ba4]"
                               aria-hidden="true"
                             >
-                              <Camera className="h-4 w-4 animate-pulse" />
+                              <Camera className="h-4 w-4 animate-pulse" aria-hidden="true" />
                               <span className="text-[12px] font-medium leading-[18px]">불러오는 중</span>
                             </div>
                           ))}
@@ -932,7 +941,7 @@ export default function ShopInfoSettingsPanel({
                           onClick={removeSelectedProfileImages}
                           className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-[#e2b6be] bg-white px-3 text-[13px] font-semibold text-[#a04455] transition hover:border-[#a04455] disabled:cursor-not-allowed disabled:border-[#e5e7eb] disabled:text-[#b9c3cf]"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                           선택삭제
                         </button>
                       </div>
@@ -995,7 +1004,7 @@ export default function ShopInfoSettingsPanel({
               <div id="shop-info-panel-staff-profile" role="tabpanel" aria-labelledby="shop-info-tab-staff-profile" hidden={activeSectionId !== "staff-profile"}>
                 <PanelCard
                   id="shop-info-staff-profile"
-                  icon={<UserRound className="h-[17px] w-[17px]" />}
+                  icon={<UserRound className="h-[17px] w-[17px]" aria-hidden="true" />}
                   title="프로필 관리"
                   hideHeader
                 >
@@ -1035,7 +1044,7 @@ export default function ShopInfoSettingsPanel({
                                     {draft.profileImageUrls[0] ? (
                                       <img src={draft.profileImageUrls[0]} alt={`${visibleName} 프로필`} className="h-full w-full object-cover" />
                                     ) : (
-                                      <UserRound className="h-7 w-7" strokeWidth={1.8} />
+                                      <UserRound className="h-7 w-7" strokeWidth={1.8} aria-hidden="true" />
                                     )}
                                   </span>
                                   <span className="mt-3 max-w-full truncate text-[16px] font-semibold leading-5 text-[#181b21]">
@@ -1070,7 +1079,7 @@ export default function ShopInfoSettingsPanel({
                                     onClick={() => void saveStaffProfile(staffMember.id)}
                                     className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#2f6bd4] px-3.5 text-[13px] font-semibold text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:bg-[#bdc2cb]"
                                   >
-                                    <Save className="h-3.5 w-3.5" />
+                                    <Save className="h-3.5 w-3.5" aria-hidden="true" />
                                     {isSaving ? "저장 중" : "저장"}
                                   </button>
                                 </span>
@@ -1101,7 +1110,7 @@ export default function ShopInfoSettingsPanel({
                 <div id="shop-info-panel-hours" role="tabpanel" aria-labelledby="shop-info-tab-hours" hidden={activeSectionId !== "hours"}>
                   <PanelCard
                     id="shop-info-hours"
-                    icon={<Settings2 className="h-[17px] w-[17px]" />}
+                    icon={<Settings2 className="h-[17px] w-[17px]" aria-hidden="true" />}
                     title="영업 시간"
                     hideHeader
                   >
@@ -1124,7 +1133,7 @@ export default function ShopInfoSettingsPanel({
                 <div id="shop-info-panel-menu" role="tabpanel" aria-labelledby="shop-info-tab-menu" hidden={activeSectionId !== "menu"}>
                   <PanelCard
                     id="shop-info-menu"
-                    icon={<Scissors className="h-[17px] w-[17px]" />}
+                    icon={<Scissors className="h-[17px] w-[17px]" aria-hidden="true" />}
                     title="요금표 관리"
                     hideHeader
                     contentClassName="px-0 pb-3 pt-2 sm:px-0"
@@ -1147,7 +1156,7 @@ export default function ShopInfoSettingsPanel({
         <div className="mb-4 flex items-center justify-between gap-2">
           <h3 id="shop-preview-dialog-title" className="text-[16px] font-medium">고객 화면 미리보기</h3>
           <button type="button" aria-label="미리보기 닫기" onClick={() => previewDialogRef.current?.close()}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#e1e4ea]"><X className="h-4 w-4" /></button>
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#e1e4ea]"><X className="h-4 w-4" aria-hidden="true" /></button>
         </div>
         {previewDialogOpen && customerPreview}
       </dialog>

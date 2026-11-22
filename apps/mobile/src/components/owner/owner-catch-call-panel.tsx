@@ -1,6 +1,9 @@
 "use client";
 
-import { PhoneCall, RefreshCw } from "lucide-react";
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
+import { IconPhoneCall as PhoneCall, IconRefresh as RefreshCw } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 
@@ -447,7 +450,7 @@ export default function OwnerCatchCallPanel({
               </label>
               <label className="grid gap-1.5">
                 <span className="text-[14px] font-medium leading-5 text-[#334155]">예약 시간</span>
-                <input type="time" value={appointmentTime} onChange={(event) => setAppointmentTime(event.target.value)} className="min-h-12 rounded-[10px] border border-[#e8edf3] bg-white px-3 text-[16px] text-[#15213b] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" />
+                <WheelTimeField aria-label="시간 선택"  value={appointmentTime} onValueChange={(nextTime) => setAppointmentTime(nextTime)} className="min-h-12 rounded-[10px] border border-[#e8edf3] bg-white px-3 text-[16px] text-[#15213b] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]" />
               </label>
             </div>
             <label className="grid gap-1.5">

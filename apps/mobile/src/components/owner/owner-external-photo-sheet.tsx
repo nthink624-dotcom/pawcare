@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ImagePlus, RotateCcw, X } from "lucide-react";
+import { IconCamera as Camera, IconPhotoPlus as ImagePlus, IconRotate as RotateCcw, IconX as X } from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ExternalCameraAppsAvailability } from "@/lib/media/external-camera";
@@ -123,7 +123,7 @@ export default function OwnerExternalPhotoSheet({
             disabled={busy}
             onClick={onClose}
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -140,7 +140,7 @@ export default function OwnerExternalPhotoSheet({
                 onClick={onClearPreview}
                 className="flex min-h-[52px] items-center justify-center gap-1.5 rounded-[14px] border border-[#d7e0eb] bg-white px-3 text-[16px] font-medium leading-6 text-[#526276] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
               >
-                <RotateCcw className="h-4 w-4" /> 다시 선택
+                <RotateCcw className="h-4 w-4" aria-hidden="true" /> 다시 선택
               </button>
               <button
                 type="button"
@@ -184,7 +184,7 @@ export default function OwnerExternalPhotoSheet({
               onClick={openDefaultCamera}
               className="flex min-h-[72px] w-full items-center gap-3 rounded-[18px] border border-[#a9c8f4] bg-[#eaf3ff] px-4 py-3 text-left shadow-[0_8px_18px_rgba(62,125,210,0.12)] transition active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-55"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#286bd1] text-white shadow-[0_5px_11px_rgba(40,107,209,0.24)]"><Camera className="h-5 w-5" /></span>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#286bd1] text-white shadow-[0_5px_11px_rgba(40,107,209,0.24)]"><Camera className="h-5 w-5" aria-hidden="true" /></span>
               <span className="min-w-0 flex-1 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#1b457c]">기본 카메라로 촬영</span>
             </button>
 
@@ -195,7 +195,7 @@ export default function OwnerExternalPhotoSheet({
                 onClick={openCameraAppChooser}
                 className="flex min-h-[64px] items-center gap-2.5 rounded-[16px] border border-[#e0e6ef] bg-white px-3 text-left active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
               >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#f0edfb] text-[#6751aa]"><Camera className="h-[18px] w-[18px]" /></span>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#f0edfb] text-[#6751aa]"><Camera className="h-[18px] w-[18px]" aria-hidden="true" /></span>
                 <span className="text-[16px] font-medium leading-6 text-[#3b3157]">다른 카메라 앱</span>
               </button>
               <button
@@ -204,7 +204,7 @@ export default function OwnerExternalPhotoSheet({
                 onClick={() => libraryInputRef.current?.click()}
                 className="flex min-h-[64px] items-center gap-2.5 rounded-[16px] border border-[#e0e6ef] bg-white px-3 text-left active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
               >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#edf1f5] text-[#526276]"><ImagePlus className="h-[18px] w-[18px]" /></span>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#edf1f5] text-[#526276]"><ImagePlus className="h-[18px] w-[18px]" aria-hidden="true" /></span>
                 <span className="text-[16px] font-medium leading-6 text-[#2c3b50]">앨범에서 선택</span>
               </button>
             </div>

@@ -5,7 +5,7 @@ import SignupConsentDialog from "@/components/auth/signup-consent-dialog";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Eye, EyeOff } from "lucide-react";
+import { IconCheck as Check, IconEye as Eye, IconEyeOff as EyeOff } from "@tabler/icons-react";
 
 import MobileAiPriceGuideFixture, { type PriceGuideDraftRow } from "@/components/auth/mobile-ai-price-guide-fixture";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
@@ -1399,7 +1399,7 @@ export default function SignupForm({
                     placeholder="비밀번호 입력"
                     rightSlot={
                       <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="flex h-11 w-11 items-center justify-center rounded-[8px] text-[#64748b]" aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}>
-                        {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                        {showPassword ? <EyeOff className="h-4.5 w-4.5" aria-hidden="true" /> : <Eye className="h-4.5 w-4.5" aria-hidden="true" />}
                       </button>
                     }
                   />
@@ -1423,7 +1423,7 @@ export default function SignupForm({
                         className="flex h-11 w-11 items-center justify-center rounded-[8px] text-[#64748b]"
                         aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 보기"}
                       >
-                        {showPasswordConfirm ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                        {showPasswordConfirm ? <EyeOff className="h-4.5 w-4.5" aria-hidden="true" /> : <Eye className="h-4.5 w-4.5" aria-hidden="true" />}
                       </button>
                     }
                   />

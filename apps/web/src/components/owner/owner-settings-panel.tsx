@@ -1,6 +1,24 @@
-﻿"use client";
+"use client";
 
-import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, Download, KeyRound, LogOut, MapPin, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
+import {
+  IconCalendarWeek as CalendarDays,
+  IconCamera as Camera,
+  IconCheck as Check,
+  IconChevronLeft as ChevronLeft,
+  IconChevronRight as ChevronRight,
+  IconCreditCard as CreditCard,
+  IconDownload as Download,
+  IconKey as KeyRound,
+  IconLogout as LogOut,
+  IconMapPin as MapPin,
+  IconPlus as Plus,
+  IconBuildingStore as Store,
+  IconUser as UserRound,
+  type TablerIcon,
+} from "@tabler/icons-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
@@ -804,7 +822,7 @@ export default function OwnerSettingsPanel({
                   <img src={heroImageUrl} alt={`${name || data.shop.name} 대표 이미지`} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-[#f4f5f4] text-[#9ea4a1]">
-                    <UserRound className="h-8 w-8" strokeWidth={1.8} />
+                    <UserRound className="h-8 w-8" strokeWidth={1.8} aria-hidden="true" />
                   </div>
                 )}
               </button>
@@ -814,7 +832,7 @@ export default function OwnerSettingsPanel({
                 className="absolute bottom-0 right-0 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white bg-[var(--accent)] text-white shadow-[0_6px_14px_rgba(31,107,91,0.18)]"
                 aria-label="대표 이미지 선택"
               >
-                <Camera className="h-3.5 w-3.5" strokeWidth={2} />
+                <Camera className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
               </button>
               <input
                 ref={profileImageInputRef}
@@ -984,7 +1002,7 @@ export default function OwnerSettingsPanel({
               <p className="text-[15px] tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
               <p className="mt-1 text-[12px] text-[var(--accent)]">{businessHoursSummary}</p>
             </div>
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} aria-hidden="true" />
           </button>
           {businessHoursWeekOrder.map((day) => {
             const hours = getBusinessHour(day);
@@ -1006,7 +1024,7 @@ export default function OwnerSettingsPanel({
                     <p className="min-w-0 truncate text-[14px] leading-5 text-[#938a80]">{formatBusinessHoursRange(hours)}</p>
                   )}
                 </div>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} aria-hidden="true" />
               </button>
             );
           })}
@@ -1041,7 +1059,7 @@ export default function OwnerSettingsPanel({
               onClick={() => setIsClosedDatePickerOpen(true)}
             >
               <span>{pendingClosedDate || "날짜 선택"}</span>
-              <CalendarDays className="h-4 w-4 text-[var(--muted)]" />
+              <CalendarDays className="h-4 w-4 text-[var(--muted)]" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -1342,7 +1360,7 @@ export default function OwnerSettingsPanel({
                     htmlFor={imageInputId}
                     className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-[var(--border)] bg-white px-3 text-[12px] font-semibold text-[var(--text)]"
                   >
-                    <Camera className="h-3.5 w-3.5" strokeWidth={2.2} />
+                    <Camera className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden="true" />
                     사진 올리기
                   </label>
                   {draft.profileImageUrl ? (
@@ -1739,20 +1757,20 @@ function BusinessHoursSheet({
           ) : null}
           <div className="grid grid-cols-2 gap-2.5">
             <SettingsFieldCard label="시작 시간">
-              <input
-                type="time"
-                className="w-full bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
+              <WheelTimeField aria-label="시간 선택"
+                
+                className="w-full justify-start border-0 bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
                 value={draft.open}
-                onChange={(event) => onChange({ ...draft, open: event.target.value })}
+                onValueChange={(nextTime) => onChange({ ...draft, open: nextTime })}
                 disabled={draft.closed}
               />
             </SettingsFieldCard>
             <SettingsFieldCard label="마감 시간">
-              <input
-                type="time"
-                className="w-full bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
+              <WheelTimeField aria-label="시간 선택"
+                
+                className="w-full justify-start border-0 bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
                 value={draft.close}
-                onChange={(event) => onChange({ ...draft, close: event.target.value })}
+                onValueChange={(nextTime) => onChange({ ...draft, close: nextTime })}
                 disabled={draft.closed}
               />
             </SettingsFieldCard>
@@ -1804,11 +1822,11 @@ function ClosedDatePickerSheet({
         <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="mb-4 flex items-center justify-between">
             <button type="button" className="rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onPrevMonth}>
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </button>
             <p className="text-sm font-semibold text-[var(--text)]">{monthLabel}</p>
             <button type="button" className="rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onNextMonth}>
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <div className="mb-2 grid grid-cols-7 gap-2">
@@ -1869,7 +1887,7 @@ function SettingsNavRow({
   onClick,
   accent = false,
 }: {
-  icon: LucideIcon;
+  icon: TablerIcon;
   title: string;
   onClick: () => void;
   accent?: boolean;
@@ -1886,13 +1904,13 @@ function SettingsNavRow({
         <div className={`flex h-6 w-6 shrink-0 items-center justify-center ${
           accent ? "text-[var(--accent)]" : "text-[var(--text)]"
         }`}>
-          <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+          <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden="true" />
         </div>
         <div className="min-w-0">
           <p className="text-[15px] font-normal tracking-[-0.02em] text-[var(--text)]">{title}</p>
         </div>
       </div>
-      <ChevronRight className={`h-3.5 w-3.5 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} />
+      <ChevronRight className={`h-3.5 w-3.5 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} aria-hidden="true" />
     </button>
   );
 }
@@ -2014,20 +2032,20 @@ function AccountRow({
   value,
 }: {
   href?: string;
-  icon: LucideIcon;
+  icon: TablerIcon;
   label: string;
   value?: string;
 }) {
   const content = (
     <>
       <div className="flex min-w-0 items-center gap-3">
-        <Icon className="h-[18px] w-[18px] shrink-0 text-[var(--text)]" strokeWidth={1.9} />
+        <Icon className="h-[18px] w-[18px] shrink-0 text-[var(--text)]" strokeWidth={1.9} aria-hidden="true" />
         <div className="min-w-0">
           <p className="text-[15px] font-medium text-[var(--text)]">{label}</p>
           {value ? <p className="mt-0.5 truncate text-[13px] text-[var(--muted)]">{value}</p> : null}
         </div>
       </div>
-      {href ? <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" /> : null}
+      {href ? <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" aria-hidden="true" /> : null}
     </>
   );
 
@@ -2043,7 +2061,7 @@ function AccountActionRow({
   disabled,
   tone = "danger",
 }: {
-  icon: LucideIcon;
+  icon: TablerIcon;
   label: string;
   onClick: () => void;
   disabled?: boolean;
@@ -2057,10 +2075,10 @@ function AccountActionRow({
       className={`flex min-h-[52px] w-full items-center justify-between gap-3 px-1 py-2.5 text-left disabled:opacity-50 ${tone === "danger" ? "text-[#c43d3d]" : "text-[var(--text)]"}`}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} />
+        <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.9} aria-hidden="true" />
         <p className="text-[15px] font-medium">{label}</p>
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" />
+      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" aria-hidden="true" />
     </button>
   );
 }

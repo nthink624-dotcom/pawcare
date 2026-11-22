@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ImagePlus, X } from "lucide-react";
+import { IconPhotoPlus as ImagePlus, IconX as X } from "@tabler/icons-react";
 import { StableAvatar } from "@/components/owner-web/stable-avatar";
 import type { StaffDraft } from "@/components/owner-web/staff-management-model";
 import { STAFF_PROFILE_ACCEPTED_IMAGE_TYPES, STAFF_PROFILE_MAX_SOURCE_FILE_BYTES } from "@/components/owner-web/staff-profile-photo-field";
@@ -63,7 +63,7 @@ export function StaffProfileImagePicker({ value, onChange, onClose }: {
     <dialog ref={dialogRef} aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); onClose(); }} className="fixed inset-0 m-auto max-h-[calc(100dvh-32px)] w-[calc(100%-32px)] max-w-[400px] overflow-y-auto rounded-[12px] border border-[#dbe2ea] bg-white p-5 text-[#111827] shadow-xl backdrop:bg-slate-900/30">
       <div className="flex items-center justify-between gap-3">
         <h3 id={titleId} className="text-[20px] font-semibold">프로필 이미지 선택</h3>
-        <button type="button" data-owner-control-size="content" onClick={onClose} aria-label="이미지 선택 닫기" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-[#f8fafc]"><X className="h-5 w-5" /></button>
+        <button type="button" data-owner-control-size="content" onClick={onClose} aria-label="이미지 선택 닫기" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-[#f8fafc]"><X className="h-5 w-5" aria-hidden="true" /></button>
       </div>
       <div className="mt-5 grid grid-cols-3 gap-2">
         <PhotoRegistrationCard onChange={choose} />

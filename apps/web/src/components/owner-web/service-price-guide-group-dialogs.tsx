@@ -1,9 +1,8 @@
 "use client";
 
 import { FormEvent, ReactNode, useRef, useState } from "react";
-import { PencilLine, Plus, X } from "lucide-react";
+import { IconTrash, IconPencil as PencilLine, IconPlus as Plus, IconX as X } from "@tabler/icons-react";
 
-import { BasilIcon } from "@/components/owner-web/basil-icon";
 
 const RECOMMENDED_BREEDS = [
   "말티즈", "믹스", "말티푸", "푸들", "포메라니안", "비숑", "시츄", "치와와",
@@ -59,7 +58,7 @@ function DialogShell({
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#0f172a]"
             aria-label={`${title} 닫기`}
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
         {children}
@@ -224,9 +223,9 @@ export function BreedManagementDialog({
                 className="inline-flex h-11 min-w-[80px] items-center justify-center gap-1.5 rounded-[9px] bg-[#0f172a] px-3 !text-[16px] !font-medium !leading-6 text-white transition hover:bg-[#1e293b] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {editingIndex === null ? (
-                  <Plus className="h-4 w-4" strokeWidth={2} />
+                  <Plus className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
                 ) : (
-                  <PencilLine className="h-4 w-4" strokeWidth={2} />
+                  <PencilLine className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
                 )}
                 {editingIndex === null ? "추가" : "수정"}
               </button>
@@ -283,7 +282,7 @@ export function BreedManagementDialog({
                     className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-white hover:text-[var(--accent)]"
                     aria-label={`${breed} 수정`}
                   >
-                    <PencilLine className="h-4 w-4" strokeWidth={1.9} />
+                    <PencilLine className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />
                   </button>
                   <span className="min-w-0 truncate px-2 text-center text-[16px] font-medium leading-6 text-[#1e293b]">
                     {breed}
@@ -299,7 +298,7 @@ export function BreedManagementDialog({
                     className="inline-flex h-11 w-11 items-center justify-center rounded-[7px] text-[#94a3b8] transition hover:bg-white hover:text-[#a04455]"
                     aria-label={`${breed} 삭제`}
                   >
-                    <BasilIcon name="trash" className="h-5 w-5" />
+                    <IconTrash aria-hidden="true" className="shrink-0 h-5 w-5" />
                   </button>
                 </div>
               ))}

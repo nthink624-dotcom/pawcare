@@ -1,9 +1,15 @@
 "use client";
 
-import { Camera, CheckCircle2, Loader2, RefreshCw, X } from "lucide-react";
+import {
+  IconPhoto,
+  IconCamera as Camera,
+  IconCircleCheck as CheckCircle2,
+  IconLoader2 as Loader2,
+  IconRefresh as RefreshCw,
+  IconX as X,
+} from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { BasilIcon } from "@/components/owner-web/basil-icon";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   compressImageForPetmanager,
@@ -472,7 +478,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
           className="inline-flex h-8 w-8 items-center justify-center rounded-[7px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]"
           aria-label="사진 새로고침"
         >
-          <RefreshCw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
+          <RefreshCw className={cn("h-4 w-4", loading ? "animate-spin" : "")} aria-hidden="true" />
         </button>
       </div>
 
@@ -516,7 +522,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
                 </>
               ) : (
                 <span className="flex h-full w-full flex-col items-center justify-center text-[13px] font-medium text-[#334155]">
-                  {uploading ? <Loader2 className="mb-1.5 h-5 w-5 animate-spin" /> : <BasilIcon name="picture" className="mb-1.5 h-5 w-5" />}
+                  {uploading ? <Loader2 className="mb-1.5 h-5 w-5 animate-spin" aria-hidden="true" /> : <IconPhoto aria-hidden="true" className="shrink-0 mb-1.5 h-5 w-5" />}
                   {slot.label}
                 </span>
               )}
@@ -544,11 +550,11 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
           )}
         >
           <span className="flex items-start gap-2">
-            {messageTone === "success" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : null}
+            {messageTone === "success" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : null}
             <span>{message}</span>
           </span>
           <button type="button" onClick={() => setMessage("")} className="mt-0.5 text-[#94a3b8] hover:text-[#334155]" aria-label="메시지 닫기">
-            <X className="h-3.5 w-3.5" />
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
       ) : null}
@@ -574,7 +580,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
 
       {!loading && items.length === 0 ? (
         <div className="mt-3 flex items-center gap-2 text-[12px] text-[#94a3b8]">
-          <Camera className="h-4 w-4" />
+          <Camera className="h-4 w-4" aria-hidden="true" />
           저장된 사진이 없습니다.
         </div>
       ) : null}

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff } from "lucide-react";
+import { IconEye as Eye, IconEyeOff as EyeOff } from "@tabler/icons-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 
@@ -396,7 +396,7 @@ export default function ResetPasswordForm({
                       className="shrink-0 rounded-[8px] p-1 text-[#64748b] transition hover:bg-[#f8fafc]"
                       aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
                     >
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showPassword ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
                     </button>
                   </div>
                 </FieldShell>
@@ -415,7 +415,7 @@ export default function ResetPasswordForm({
                       className="shrink-0 rounded-[8px] p-1 text-[#64748b] transition hover:bg-[#f8fafc]"
                       aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 보기"}
                     >
-                      {showPasswordConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showPasswordConfirm ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
                     </button>
                   </div>
                 </FieldShell>

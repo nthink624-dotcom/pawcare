@@ -54,7 +54,7 @@ test("newer canonical appointment snapshots replace the same id without duplicat
 
 test("owner today filters by the selected date and applies only the latest no-store bootstrap", () => {
   assert.match(ownerAppSource, /const homeWorkDateKey = homeReservationDate;/);
-  assert.match(ownerAppSource, /homeWorkDateKey === todayDate \? "오늘 할 일" : "선택한 날"/);
+  assert.match(ownerAppSource, /key: "current", label: "예약"/);
   assert.match(ownerAppSource, /isToday \? ownerHomeCopy\.currentSectionEmpty : "선택한 날짜에 처리할 예약이 없어요"/);
   assert.match(ownerAppSource, /cache: "no-store"/);
   assert.match(ownerAppSource, /dedupeAuthoritativeAppointments\(next\.appointments\)/);

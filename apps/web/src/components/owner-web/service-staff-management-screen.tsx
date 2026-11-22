@@ -1,4 +1,7 @@
-﻿"use client";
+"use client";
+
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -302,10 +305,10 @@ export default function ServiceStaffManagementScreen() {
                 </Field>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="출근 시간">
-                    <TextInput value={staffForm.start} onChange={(start) => setStaffForm((form) => ({ ...form, start }))} type="time" />
+                    <WheelTimeField aria-label="근무 시간 선택" className="w-full" value={staffForm.start} onValueChange={(start) => setStaffForm((form) => ({ ...form, start }))}  />
                   </Field>
                   <Field label="퇴근 시간">
-                    <TextInput value={staffForm.end} onChange={(end) => setStaffForm((form) => ({ ...form, end }))} type="time" />
+                    <WheelTimeField aria-label="근무 시간 선택" className="w-full" value={staffForm.end} onValueChange={(end) => setStaffForm((form) => ({ ...form, end }))}  />
                   </Field>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ShieldCheck } from "lucide-react";
+import { IconCheck, IconCircleCheck as CheckCircle2, IconShieldCheck as ShieldCheck } from "@tabler/icons-react";
 
 export default function SignupReviewStep({
   ownerName,
@@ -33,7 +33,7 @@ export default function SignupReviewStep({
             "본인인증",
             "매장 정보",
           ].map((label) => (
-            <span key={label} className="rounded-[10px] bg-[#e8f5ee] px-2 py-3 text-[#177856]">✓ {label}</span>
+            <span key={label} className="rounded-[10px] bg-[#e8f5ee] px-2 py-3 text-[#177856]"><IconCheck aria-hidden="true" size={16} className="mr-1 inline-block align-text-bottom" />{label}</span>
           ))}
         </div>
 

@@ -1,6 +1,27 @@
-﻿"use client";
+"use client";
 
-import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, House, PawPrint, Plus, QrCode, Settings, Trash2, UserRound, type LucideIcon } from "lucide-react";
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
+import {
+  IconArrowLeft,
+  IconX,
+  IconCalendarWeek as CalendarDays,
+  IconCamera as Camera,
+  IconCheck as Check,
+  IconChevronDown as ChevronDown,
+  IconChevronLeft as ChevronLeft,
+  IconChevronRight as ChevronRight,
+  IconCopy as Copy,
+  IconHome as House,
+  IconPaw as PawPrint,
+  IconPlus as Plus,
+  IconQrcode as QrCode,
+  IconSettings as Settings,
+  IconTrash as Trash2,
+  IconUser as UserRound,
+  type TablerIcon,
+} from "@tabler/icons-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
@@ -246,7 +267,7 @@ function getAppointmentMediaKindLabel(mediaKind: MediaKind | string) {
   }
 }
 
-const tabItems: { key: TabKey; label: string; icon: LucideIcon }[] = [
+const tabItems: { key: TabKey; label: string; icon: TablerIcon }[] = [
   { key: "home", label: "홈", icon: House },
   { key: "book", label: "예약조회", icon: CalendarDays },
   { key: "customers", label: "고객 관리", icon: PawPrint },
@@ -1904,7 +1925,7 @@ export default function OwnerApp({
                 >
                   <ShopAvatar name={currentOwnedShop.name} imageUrl={currentOwnedShop.heroImageUrl} />
                   <p className="min-w-0 max-w-[82px] truncate text-[13px] font-medium tracking-[-0.02em] text-[var(--text)]">{currentOwnedShop.name}</p>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" aria-hidden="true" />
                 </button>
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   <div className={cn("flex h-9 shrink-0 items-center justify-between gap-1 rounded-[12px] border border-[var(--border)] bg-white px-1", isStaffApp ? "w-[118px]" : "w-[104px]")} aria-label={`예약 날짜 선택: ${homeReservationFullDateLabel}`}>
@@ -1915,7 +1936,7 @@ export default function OwnerApp({
                       className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[#f1f5f9] disabled:cursor-not-allowed disabled:opacity-35"
                       aria-label="이전 날짜"
                     >
-                      <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} />
+                      <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
                     </button>
                     <p className="min-w-0 flex-1 whitespace-nowrap text-center text-[14px] font-medium leading-7 tracking-[-0.02em] text-[var(--text)]">{homeReservationDateLabel}</p>
                     <button
@@ -1925,7 +1946,7 @@ export default function OwnerApp({
                       className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--text)] transition hover:bg-[#f1f5f9] disabled:cursor-not-allowed disabled:opacity-35"
                       aria-label="다음 날짜"
                     >
-                      <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
+                      <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
                     </button>
                   </div>
                   {!isStaffApp ? <HomeHeaderStaffSelect options={homeStaffFilterOptions} value={homeStaffFilter} onChange={setHomeStaffFilter} /> : null}
@@ -1939,7 +1960,7 @@ export default function OwnerApp({
                   className="inline-flex h-10 w-full items-center gap-1.5 rounded-[8px] bg-transparent px-0 text-left text-sm font-semibold tracking-[-0.02em] text-[var(--text)]"
                   aria-label="설정으로 돌아가기"
                 >
-                  <ChevronRight className="h-4 w-4 shrink-0 rotate-180" strokeWidth={2} />
+                  <ChevronRight className="h-4 w-4 shrink-0 rotate-180" strokeWidth={2} aria-hidden="true" />
                   <span className="truncate">{currentSettingsScreenTitle}</span>
                 </button>
               ) : (
@@ -1958,7 +1979,7 @@ export default function OwnerApp({
                   onClick={copyBookingEntryUrl}
                   aria-label="예약 링크 복사"
                 >
-                  {bookingLinkCopied ? <Check className="h-4 w-4" strokeWidth={2.3} /> : <Copy className="h-4 w-4" strokeWidth={1.9} />}
+                  {bookingLinkCopied ? <Check className="h-4 w-4" strokeWidth={2.3} aria-hidden="true" /> : <Copy className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />}
                 </button>
                 <button
                   type="button"
@@ -2096,7 +2117,7 @@ export default function OwnerApp({
           }}
           aria-label={"달력 열기"}
         >
-          <CalendarDays className="h-[18px] w-[18px]" strokeWidth={1.9} />
+          <CalendarDays className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden="true" />
         </button>
       }
     >
@@ -2244,7 +2265,7 @@ export default function OwnerApp({
   </section>
 )}
 
-{activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[12px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[12px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
+{activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[12px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}><IconX aria-hidden="true" size={16} className="inline-block align-middle" /></button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[12px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
         {activeTab === "customers" && !selectedGuardian && (
           <section className={`space-y-4 p-4 ${isCustomerDeleteActionVisible ? "pb-0" : "pb-4"}`}>
@@ -2295,7 +2316,7 @@ export default function OwnerApp({
                     }}
                     aria-label="고객 삭제 선택 모드 열기"
                   >
-                    <Trash2 className="h-[17px] w-[17px]" strokeWidth={1.9} />
+                    <Trash2 className="h-[17px] w-[17px]" strokeWidth={1.9} aria-hidden="true" />
                   </button>
                 </div>
 
@@ -2329,7 +2350,7 @@ export default function OwnerApp({
                               <p className="truncate text-[18px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
                             </div>
                             <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#ebe3da] bg-[#fcfaf7] text-[var(--muted)] transition group-hover:text-[var(--accent)]">
-                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
+                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} aria-hidden="true" />
                             </span>
                           </div>
                           <div className="mt-0.5 border-t border-[#eee7de] pt-0.5">
@@ -2381,7 +2402,7 @@ export default function OwnerApp({
                 className="absolute left-0 inline-flex h-8 w-8 items-center justify-center text-[var(--text)]"
                 aria-label="고객 관리로 돌아가기"
               >
-                <ChevronRight className="h-5 w-5 rotate-180" strokeWidth={2} />
+                <ChevronRight className="h-5 w-5 rotate-180" strokeWidth={2} aria-hidden="true" />
               </button>
               <h2 className="text-[18px] font-medium tracking-[-0.03em] text-[var(--text)]">고객 상세</h2>
             </div>
@@ -2600,7 +2621,7 @@ export default function OwnerApp({
                         className="mt-1 flex h-[42px] w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#cfded8] bg-white px-4 text-[16px] font-medium tracking-[-0.02em] text-[var(--accent)] transition hover:bg-[#fcfaf7]"
                         onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
                       >
-                        <Plus className="h-4 w-4" strokeWidth={2.1} />
+                        <Plus className="h-4 w-4" strokeWidth={2.1} aria-hidden="true" />
                         아기 추가하기
                       </button>
                     </div>
@@ -2682,7 +2703,7 @@ export default function OwnerApp({
                     <Icon
                       className="h-[22px] w-[22px]"
                       strokeWidth={1.9}
-                      style={shouldFill ? { fill: "currentColor" } : undefined}
+                      style={shouldFill ? { fill: "currentColor" } : undefined} aria-hidden="true"
                     />
                     {isActiveHome ? <span className="pointer-events-none absolute bottom-[2px] h-[12px] w-[6px] rounded-t-[2px] bg-[var(--accent-soft)]" /> : null}
                   </div>
@@ -2785,7 +2806,7 @@ function AppointmentListTrailing({ status }: { status: AppointmentStatus | "reco
   if (status === "record-completed" || status === "completed") {
     return (
       <span className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 text-[11px] font-normal leading-none text-[var(--text)]">
-        <Check className="h-3.5 w-3.5" strokeWidth={2.2} />
+        <Check className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden="true" />
         완료
       </span>
     );
@@ -2815,7 +2836,7 @@ function AppointmentListTrailing({ status }: { status: AppointmentStatus | "reco
     );
   }
 
-  return <ChevronRight className="h-4 w-4 shrink-0 text-[#b8b2aa]" strokeWidth={2} />;
+  return <ChevronRight className="h-4 w-4 shrink-0 text-[#b8b2aa]" strokeWidth={2} aria-hidden="true" />;
 }
 
 function VisitTimelineSection({ date, appointments, records, petMap, guardianMap, serviceMap, onOpenAppointment }: { date: string; appointments: Appointment[]; records: GroomingRecord[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; onOpenAppointment: (appointment: Appointment) => void }) { return <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">{shortDate(date)}</h3><span className="text-xs text-[var(--muted)]">{appointments.length + records.length}건</span></div><div className="mt-3 space-y-2">{appointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}{records.map((record) => <VisitRecordRow key={record.id} record={record} pet={petMap[record.pet_id]} guardian={guardianMap[record.guardian_id]} service={serviceMap[record.service_id]} />)}{appointments.length === 0 && records.length === 0 ? <AppEmptyState title="이 날짜 방문 내역이 없어요" /> : null}</div></div>; }
@@ -2914,7 +2935,7 @@ function HomeHeaderStaffSelect({
         ))}
       </select>
       <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center text-[var(--muted)]">
-        <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
+        <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
       </div>
     </div>
   );
@@ -3187,20 +3208,7 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
                 {slots.length === 0 ? (
                   <div className="rounded-2xl bg-white px-4 py-5 text-center text-sm text-[var(--muted)]">선택한 날짜에 가능한 시간이 없어요.</div>
                 ) : (
-                  <HorizontalDragScroll>
-                    {slots.map((slot) => (
-                      <button
-                        key={slot}
-                        type="button"
-                        className={`min-w-[92px] shrink-0 rounded-2xl border px-4 py-3 text-center text-sm font-bold ${
-                          time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--text)]"
-                        }`}
-                        onClick={() => setTime(slot)}
-                      >
-                        {slot}
-                      </button>
-                    ))}
-                  </HorizontalDragScroll>
+                  <WheelTimeField aria-label="시간 선택" value={time} onValueChange={setTime} allowedTimes={slots} className="w-full" />
                 )}
               </div>
               <Field label="메모">
@@ -3464,13 +3472,7 @@ function NewAppointmentForm({ data, petId, saving, onClose, onSave }: { data: Bo
                 {slots.length === 0 ? (
                   <div className="rounded-2xl bg-[#fcfaf7] px-4 py-6 text-center text-sm text-[var(--muted)]">선택한 조건에 가능한 시간이 없어요.</div>
                 ) : (
-                  <HorizontalDragScroll>
-                    {slots.map((slot) => (
-                      <button key={slot} className={`min-w-[92px] shrink-0 rounded-2xl border px-4 py-3 text-center text-sm font-bold ${time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)]"}`} onClick={() => setTime(slot)}>
-                        {slot}
-                      </button>
-                    ))}
-                  </HorizontalDragScroll>
+                  <WheelTimeField aria-label="시간 선택" value={time} onValueChange={setTime} allowedTimes={slots} className="w-full" />
                 )}
               </div>
             </div>
@@ -3866,7 +3868,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                     <img src={heroImageUrl} alt={`${name || data.shop.name} 프로필`} className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-[#f4f5f4] text-[#9ea4a1]">
-                      <UserRound className="h-7 w-7" strokeWidth={1.8} />
+                      <UserRound className="h-7 w-7" strokeWidth={1.8} aria-hidden="true" />
                     </div>
                   )}
                 </button>
@@ -3876,7 +3878,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                   className="absolute bottom-0 right-0 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white bg-[var(--accent)] text-white shadow-[0_6px_14px_rgba(31,107,91,0.18)]"
                   aria-label="프로필 이미지 선택"
                 >
-                  <Camera className="h-3 w-3" strokeWidth={2} />
+                  <Camera className="h-3 w-3" strokeWidth={2} aria-hidden="true" />
                 </button>
                 <input
                   ref={fileInputRef}
@@ -3983,32 +3985,32 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                     </label>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <input
-                      type="time"
+                    <WheelTimeField aria-label="시간 선택"
+                      
                       className="field-input"
                       value={dayValue.open}
                       disabled={!dayValue.enabled}
-                      onChange={(event) =>
+                      onValueChange={(nextTime) =>
                         setBusinessHours((prev) => ({
                           ...prev,
                           [key]: {
                             ...(prev[key] || dayValue),
-                            open: event.target.value,
+                            open: nextTime,
                           },
                         }))
                       }
                     />
-                    <input
-                      type="time"
+                    <WheelTimeField aria-label="시간 선택"
+                      
                       className="field-input"
                       value={dayValue.close}
                       disabled={!dayValue.enabled}
-                      onChange={(event) =>
+                      onValueChange={(nextTime) =>
                         setBusinessHours((prev) => ({
                           ...prev,
                           [key]: {
                             ...(prev[key] || dayValue),
-                            close: event.target.value,
+                            close: nextTime,
                           },
                         }))
                       }
@@ -4081,13 +4083,13 @@ function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: stri
               onClick={handleCopy}
               aria-label="링크 복사하기"
             >
-              {copied ? <Check className="h-4 w-4" strokeWidth={2.4} /> : <Copy className="h-4 w-4" />}
+              {copied ? <Check className="h-4 w-4" strokeWidth={2.4} aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
             </button>
           </div>
         </div>
         <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="flex items-center gap-2">
-            <QrCode className="h-4 w-4 text-[var(--muted)]" />
+            <QrCode className="h-4 w-4 text-[var(--muted)]" aria-hidden="true" />
             <p className="text-sm font-bold text-[var(--text)]">QR 코드</p>
           </div>
           <div className="mt-3 flex justify-center rounded-[16px] bg-white p-4">
@@ -4356,7 +4358,7 @@ function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle 
         <span className={`h-2 w-2 shrink-0 rounded-full ${dotClassName}`} />
         <span className="truncate text-[16px] font-medium leading-[22px] tracking-[-0.02em] text-[var(--text)]">{title}</span>
       </span>
-      <ChevronDown className={`h-4 w-4 shrink-0 text-[#94a3b8] transition-transform ${expanded ? "" : "-rotate-90"}`} />
+      <ChevronDown className={`h-4 w-4 shrink-0 text-[#94a3b8] transition-transform ${expanded ? "" : "-rotate-90"}`} aria-hidden="true" />
     </button>
   );
 }
@@ -4615,7 +4617,7 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
             }}
             disabled={saving}
           >
-            <span className="text-[18px] leading-none">←</span>
+            <IconArrowLeft aria-hidden="true" size={18} />
             <span className="text-sm font-semibold">{ownerHomeCopy.slideCancel}</span>
             <span className="text-[11px] font-medium text-white/80">한 번 더 확인</span>
           </button>
@@ -4651,7 +4653,7 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
                 </p>
               </div>
             </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[#b8b2aa]" strokeWidth={1.9} />
+            <ChevronRight className="h-4 w-4 shrink-0 text-[#b8b2aa]" strokeWidth={1.9} aria-hidden="true" />
           </button>
 
           <div
@@ -4752,7 +4754,7 @@ function MobilePhotoStatusSheet({
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#d7dce2]" />
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-[var(--border)] bg-[#f8fafc] text-[var(--text)]">
-            <Camera className="h-5 w-5" strokeWidth={1.9} />
+            <Camera className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-[20px] font-medium tracking-[-0.03em] text-[var(--text)]">{action.title}</h3>

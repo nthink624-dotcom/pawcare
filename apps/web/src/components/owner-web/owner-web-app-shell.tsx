@@ -1,27 +1,30 @@
 "use client";
 
 import {
-  Bell,
-  CalendarDays,
-  ChartNoAxesCombined,
-  ChevronDown,
-  CircleHelp,
-  CircleUserRound,
-  ClipboardList,
-  Clock3,
-  CreditCard,
-  Gift,
-  HelpCircle,
-  Link2,
-  LogOut,
-  MessageSquareWarning,
-  MessagesSquare,
-  Scissors,
-  Search,
-  Store,
-  UsersRound,
-  type LucideIcon,
-} from "lucide-react";
+  IconBell as Bell,
+  IconCalendarWeek as CalendarDays,
+  IconChartBar,
+  IconChevronDown as ChevronDown,
+  IconHelpCircle as CircleHelp,
+  IconUserCircle as CircleUserRound,
+  IconClockHour3 as Clock3,
+  IconCreditCard as CreditCard,
+  IconFileCheck,
+  IconGift as Gift,
+  IconHelpCircle as HelpCircle,
+  IconHome2,
+  IconIdBadge2,
+  IconLink as Link2,
+  IconLogout as LogOut,
+  IconMessageExclamation as MessageSquareWarning,
+  IconMessages,
+  IconMessagesFilled,
+  IconScissors as Scissors,
+  IconSearch as Search,
+  IconBuildingStore as Store,
+  IconUsers,
+  type TablerIcon,
+} from "@tabler/icons-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useState, type ReactNode, type RefObject } from "react";
@@ -38,17 +41,17 @@ type OwnerWebNavigationItem =
   | { key: OwnerWebScreenKey; label: string; href?: never }
   | { key: "billing"; label: string; href: Route };
 
-const screenIconComponents: Record<OwnerWebNavigationKey, LucideIcon> = {
-  schedule: ClipboardList,
+const screenIconComponents: Record<OwnerWebNavigationKey, TablerIcon> = {
+  schedule: IconHome2,
   bookingPageManagement: Store,
   bookingLink: Link2,
   calendarRecords: CalendarDays,
-  customers: CircleUserRound,
-  profitability: ChartNoAxesCombined,
-  community: MessagesSquare,
-  bookingPolicy: ClipboardList,
+  customers: IconUsers,
+  profitability: IconChartBar,
+  community: IconMessages,
+  bookingPolicy: IconFileCheck,
   services: Scissors,
-  staff: UsersRound,
+  staff: IconIdBadge2,
   ownerProfile: CircleUserRound,
   shopInfo: Store,
   operatingHours: Clock3,
@@ -130,16 +133,20 @@ const ownerWebFlushCoreScreens = new Set<OwnerWebScreenKey>([
   "alerts",
 ]);
 
-function OwnerWebSidebarIcon({ screen }: { screen: OwnerWebNavigationKey }) {
-  const Icon = screenIconComponents[screen];
-  return <Icon className="pm-owner-sidebar-icon h-[22px] w-[22px] shrink-0" strokeWidth={2} aria-hidden="true" />;
+function OwnerWebSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey; active: boolean }) {
+  const Icon = screen === "community" && active ? IconMessagesFilled : screenIconComponents[screen];
+  return (
+    <span className="pm-owner-sidebar-icon relative -top-[0.5px] grid size-6 shrink-0 place-items-center">
+      <Icon size={24} strokeWidth={1.75} shapeRendering="geometricPrecision" aria-hidden="true" />
+    </span>
+  );
 }
 
 const OWNER_HEADER_UTILITY_BUTTON_CLASS =
-  "inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-transparent bg-transparent px-3 text-[14px] font-medium leading-5 text-[#526175] transition-colors hover:bg-white hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
+  "inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent bg-transparent px-2.5 text-[14px] font-medium leading-5 text-[#526175] transition-colors hover:bg-[#f1f5fa] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
 
 const OWNER_HEADER_MOBILE_UTILITY_CLASS =
-  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-transparent bg-transparent text-[14px] font-medium leading-5 text-[#526175] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
+  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-transparent bg-transparent text-[14px] font-medium leading-5 text-[#526175] transition-colors hover:bg-[#f1f5fa] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
 
 export default function OwnerWebAppShell({
   activeScreen,
@@ -241,14 +248,14 @@ export default function OwnerWebAppShell({
                   {group.items.map((screen) => {
                     const active = activeScreen === screen.key || (screen.key === "shopInfo" && (activeScreen === "bookingLink" || activeScreen === "bookingPageManagement"));
                     const itemClassName = cn(
-                      "pm-owner-nav-item relative flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[18px] font-medium leading-[26px] tracking-[-0.005em] text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
+                      "pm-owner-nav-item relative flex min-h-11 w-full items-center gap-2 rounded-[10px] px-3.5 text-left text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#425169] transition hover:bg-[#eef2f7] hover:text-[#111827]",
                       active &&
-                        "bg-[#eff6ff] text-[var(--acc)] shadow-none hover:bg-[#eff6ff] hover:text-[var(--acc)]",
+                        "bg-[#eff6ff] text-[var(--acc-dk)] shadow-none hover:bg-[#eff6ff] hover:text-[var(--acc-dk)]",
                     );
                     if (screen.key === "billing") {
                       return (
                         <Link key={screen.key} href={screen.href} prefetch className={itemClassName}>
-                          <OwnerWebSidebarIcon screen={screen.key} />
+                          <OwnerWebSidebarIcon screen={screen.key} active={active} />
                           <span className="min-w-0 truncate">{screen.label}</span>
                         </Link>
                       );
@@ -261,8 +268,9 @@ export default function OwnerWebAppShell({
                         onFocus={() => onScreenPrefetch?.(screen.key)}
                         onClick={() => onScreenSelect(screen.key)}
                         className={itemClassName}
+                        aria-current={active ? "page" : undefined}
                       >
-                        <OwnerWebSidebarIcon screen={screen.key} />
+                        <OwnerWebSidebarIcon screen={screen.key} active={active} />
                         <span className="min-w-0 truncate">{screen.label}</span>
                       </button>
                     );
@@ -295,13 +303,13 @@ export default function OwnerWebAppShell({
           "hidden min-h-[60px] shrink-0 items-center gap-4 border-b border-[var(--line2)] bg-[var(--card)] px-[22px]",
           setupMode ? "hidden" : "lg:flex",
         )}>
-          <label className="flex h-11 w-[300px] items-center gap-2 rounded-[10px] border border-transparent bg-[#eef1f5] px-3 text-[14px] font-normal leading-5 text-[var(--mid)] transition focus-within:border-[var(--acc)] focus-within:bg-white focus-within:shadow-[0_0_0_3px_var(--acc-tint)]">
-            <Search className="h-4 w-4 shrink-0" strokeWidth={1.7} />
+          <label className="flex h-11 min-w-0 max-w-[300px] flex-1 items-center gap-2 rounded-[10px] border border-transparent bg-[#eef1f5] px-3 text-[14px] font-normal leading-5 text-[var(--mid)] transition focus-within:border-[var(--acc)] focus-within:bg-white focus-within:shadow-[0_0_0_3px_var(--acc-tint)]">
+            <Search className="h-4 w-4 shrink-0" strokeWidth={1.7} aria-hidden="true" />
             <input className="min-w-0 flex-1 bg-transparent text-[14px] font-normal leading-5 text-[var(--ink)] outline-none placeholder:text-[var(--mut)]" placeholder="검색" />
           </label>
 
           <div data-owner-header-actions className="ml-auto flex shrink-0 items-center gap-3">
-            <div className="flex items-center gap-0.5 rounded-full bg-[#f3f5f8] p-1">
+            <div className="flex items-center gap-1">
             {depositNotices}
             <button
               type="button"
@@ -312,7 +320,7 @@ export default function OwnerWebAppShell({
                 isTester && "!border-[#decda9] !bg-[#fffaf0] !text-[#80643f] hover:!bg-[#fbf2df] hover:!text-[#6f5534]",
               )}
             >
-              <MessageSquareWarning className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} />
+              <MessageSquareWarning className="shrink-0" size={18} strokeWidth={1.75} aria-hidden="true" />
               함께 고쳐요
             </button>
             <button
@@ -321,29 +329,29 @@ export default function OwnerWebAppShell({
               onClick={onOpenHelp}
               className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
             >
-              <HelpCircle className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} />
+              <HelpCircle className="shrink-0" size={18} strokeWidth={1.75} aria-hidden="true" />
               도움 문의
             </button>
             </div>
-            <div ref={storeMenuRef} className="relative">
+            <div ref={storeMenuRef} className="relative border-l border-[var(--line2)] pl-3">
               <button
                 type="button"
                 data-owner-control-size="content"
                 onClick={onStoreMenuToggle}
-                className="grid min-h-[48px] min-w-[178px] max-w-[240px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] border border-[#e8edf3] bg-white px-2.5 py-1.5 text-left transition-colors hover:border-[#cbd5e1] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+                className="grid min-h-11 min-w-[148px] max-w-[204px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg px-2 py-1 text-left transition-colors hover:bg-[#f1f5fa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 aria-expanded:bg-[#edf4fc]"
                 aria-expanded={storeMenuOpen}
               >
-                <span className="inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#edf1f5] px-1.5 text-[12px] font-medium leading-[18px] text-[#475569]">
+                <span className="inline-flex min-h-8 min-w-8 shrink-0 items-center justify-center rounded-md bg-[#edf4fc] px-1.5 text-[12px] font-medium leading-[18px] text-[#3f5f87]">
                   {shopInitials}
                 </span>
                 <span className="min-w-0">
-                  <span className="block whitespace-normal break-keep text-[14px] font-semibold leading-5 tracking-[-0.01em] text-[var(--ink)] [overflow-wrap:anywhere]">{shopDisplayName}</span>
+                  <span className="block truncate text-[14px] font-medium leading-5 tracking-[-0.01em] text-[var(--ink)]" title={shopDisplayName}>{shopDisplayName}</span>
                   <span className="block text-[12px] font-normal leading-[18px] text-[#64748b]">운영 계정</span>
                 </span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-[var(--mid)]" strokeWidth={1.6} />
+                <ChevronDown className="h-4 w-4 shrink-0 text-[var(--mid)]" strokeWidth={1.6} aria-hidden="true" />
               </button>
               {storeMenuOpen ? (
-                <div className="absolute right-0 top-full z-50 mt-1 w-full overflow-hidden rounded-[10px] border border-[var(--bd)] bg-white py-1 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
+                <div className="absolute left-3 right-0 top-full z-50 mt-1 overflow-hidden rounded-[10px] border border-[var(--bd)] bg-white py-1 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
                   <button type="button" onClick={onOpenProfile} className="block min-h-11 w-full px-3 py-2.5 text-left text-[14px] font-medium leading-5 text-[var(--ink2)] hover:bg-[#eef1f5]">
                     프로필
                   </button>
@@ -357,7 +365,7 @@ export default function OwnerWebAppShell({
                     disabled={loggingOut}
                     className="flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left text-[14px] font-medium leading-5 text-[#a04455] hover:bg-[#fff1f2] disabled:opacity-60"
                   >
-                    <LogOut className="h-4 w-4" strokeWidth={1.6} />
+                    <LogOut className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" />
                     {loggingOut ? "로그아웃 중..." : "로그아웃"}
                   </button>
                 </div>
@@ -377,7 +385,7 @@ export default function OwnerWebAppShell({
             />
           </div>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
-            <div className="flex shrink-0 items-center gap-0.5 rounded-full bg-[#f3f5f8] p-1">
+            <div className="flex shrink-0 items-center gap-0.5">
             {depositNotices}
             <button
               type="button"
@@ -390,7 +398,7 @@ export default function OwnerWebAppShell({
               aria-label="함께 고쳐요"
               title="함께 고쳐요"
             >
-              <MessageSquareWarning className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} />
+              <MessageSquareWarning className="shrink-0" size={18} strokeWidth={1.75} aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -400,7 +408,7 @@ export default function OwnerWebAppShell({
               aria-label="도움 문의"
               title="도움 문의"
             >
-              <HelpCircle className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+              <HelpCircle className="shrink-0" size={18} strokeWidth={1.75} aria-hidden="true" />
             </button>
             {activeScreen === "community" && (
               <button
@@ -410,7 +418,7 @@ export default function OwnerWebAppShell({
                 className={OWNER_HEADER_MOBILE_UTILITY_CLASS}
                 aria-label="프로필"
               >
-                <CircleUserRound className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                <CircleUserRound className="shrink-0" size={18} strokeWidth={1.75} aria-hidden="true" />
               </button>
             )}
             </div>

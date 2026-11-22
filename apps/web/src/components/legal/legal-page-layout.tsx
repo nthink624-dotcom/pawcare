@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconArrowLeft } from "@tabler/icons-react";
 
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
@@ -17,7 +18,8 @@ export default function LegalPageLayout({
       <header className="border-b border-[#dde2e7] bg-white">
         <div className="mx-auto w-full max-w-[1180px] px-5 py-8 md:px-8 lg:px-10 lg:py-10">
           <Link href="/" className="text-[13px] font-semibold text-[#52606d] hover:text-[#17191c]">
-          ← {PETMANAGER_SERVICE_NAME} 메인으로
+            <IconArrowLeft aria-hidden="true" size={14} className="mr-1 inline-block align-text-bottom" />
+            {PETMANAGER_SERVICE_NAME} 메인으로
           </Link>
           <h1 className="mt-6 text-[30px] font-extrabold md:text-[34px]">{title}</h1>
           <p className="mt-3 max-w-[820px] text-[14px] leading-6 text-[#66717c] md:text-[15px]">{subtitle}</p>

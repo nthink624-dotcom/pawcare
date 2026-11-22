@@ -1,6 +1,12 @@
 "use client";
 
-import { CheckCircle2, FileSpreadsheet, ShieldCheck, Upload, X } from "lucide-react";
+import {
+  IconCircleCheck as CheckCircle2,
+  IconFileSpreadsheet as FileSpreadsheet,
+  IconShieldCheck as ShieldCheck,
+  IconUpload as Upload,
+  IconX as X,
+} from "@tabler/icons-react";
 import { useRef, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -104,10 +110,10 @@ export default function DataImportDialog({
       <section className="flex max-h-[88vh] w-full max-w-[1080px] flex-col overflow-hidden rounded-[12px] border border-[#dce3eb] bg-[#f7f8fa] shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
         <header className="flex items-start justify-between gap-4 border-b border-[#e2e7ee] bg-white px-5 py-4">
           <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-[9px] bg-[#edf5f2] text-[#256a5d]"><FileSpreadsheet className="h-5 w-5" /></span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-[9px] bg-[#edf5f2] text-[#256a5d]"><FileSpreadsheet className="h-5 w-5" aria-hidden="true" /></span>
             <div><h2 className="break-keep text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827] [overflow-wrap:anywhere]">티피에서 펫매니저로 옮기기</h2><p className="mt-1 break-keep text-[13px] font-normal leading-5 text-[#64748b] [overflow-wrap:anywhere]">고객·반려동물·방문기록·요금표를 한 파일에서 자동 분류합니다.</p></div>
           </div>
-          <button type="button" onClick={closeDialog} disabled={committing} aria-label="닫기" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#718096] hover:bg-[#f1f4f7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={closeDialog} disabled={committing} aria-label="닫기" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#718096] hover:bg-[#f1f4f7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"><X className="h-4 w-4" aria-hidden="true" /></button>
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto p-5">
@@ -121,7 +127,7 @@ export default function DataImportDialog({
                 </div>
                 <input ref={inputRef} type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" className="hidden" onChange={(event) => resetFile(event.target.files?.[0] ?? null)} />
                 <button type="button" onClick={() => inputRef.current?.click()} className="mt-3 flex min-h-[112px] w-full flex-col items-center justify-center rounded-[9px] border border-dashed border-[#cfd8e3] bg-[#fafbfc] px-3 text-center hover:bg-[#f7f9fb]">
-                  <Upload className="h-5 w-5 text-[#708096]" />
+                  <Upload className="h-5 w-5 text-[#708096]" aria-hidden="true" />
                   <span className="mt-2 max-w-full break-keep text-[14px] font-medium leading-5 text-[#334155] [overflow-wrap:anywhere]">{file?.name ?? ".xlsx 또는 .csv 선택"}</span>
                   <span className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">최대 10MB · 5,000행</span>
                 </button>
@@ -131,7 +137,7 @@ export default function DataImportDialog({
               </div>
 
               <div className="rounded-[10px] border border-[#e2e7ee] bg-white p-4">
-                <div className="flex gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#2f7568]" /><div><p className="text-[14px] font-medium leading-5 text-[#334155]">원본 파일은 저장하지 않습니다.</p><p className="mt-1 break-keep text-[13px] font-normal leading-5 text-[#718096] [overflow-wrap:anywhere]">확정 전에는 DB에 아무것도 쓰지 않고, 확정 후에는 중복 방지용 파일 지문과 처리 결과만 보관합니다.</p></div></div>
+                <div className="flex gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#2f7568]" aria-hidden="true" /><div><p className="text-[14px] font-medium leading-5 text-[#334155]">원본 파일은 저장하지 않습니다.</p><p className="mt-1 break-keep text-[13px] font-normal leading-5 text-[#718096] [overflow-wrap:anywhere]">확정 전에는 DB에 아무것도 쓰지 않고, 확정 후에는 중복 방지용 파일 지문과 처리 결과만 보관합니다.</p></div></div>
                 <a href="/owner?screen=help" className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[8px] border border-[#dfe5ec] px-3 py-2 text-center text-[14px] font-medium leading-5 text-[#526174] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]">펫매니저 이전 대행 요청</a>
               </div>
             </aside>
@@ -139,7 +145,7 @@ export default function DataImportDialog({
             <main className="min-w-0">
               {!preview ? (
                 <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[10px] border border-dashed border-[#d8dee8] bg-white text-center">
-                  <FileSpreadsheet className="h-8 w-8 text-[#9aa7b8]" strokeWidth={1.5} />
+                  <FileSpreadsheet className="h-8 w-8 text-[#9aa7b8]" strokeWidth={1.5} aria-hidden="true" />
                   <p className="mt-3 break-keep text-[18px] font-semibold leading-[26px] text-[#253044] [overflow-wrap:anywhere]">파일을 선택하면 먼저 이전 결과를 보여드립니다.</p>
                   <p className="mt-1 max-w-[460px] break-keep text-[13px] font-normal leading-5 text-[#718096] [overflow-wrap:anywhere]">이름과 전화번호가 모두 같은 보호자를 연결하고, 같은 보호자의 같은 반려동물은 중복 생성하지 않습니다. 오류 행은 자동 제외됩니다.</p>
                 </div>
@@ -180,7 +186,7 @@ export default function DataImportDialog({
         </div>
 
         <footer className="flex items-center justify-between gap-3 border-t border-[#e2e7ee] bg-white px-5 py-3">
-          <div>{error ? <p className="break-keep text-[13px] font-medium leading-5 text-[#a04455] [overflow-wrap:anywhere]">{error}</p> : preview ? <p className="flex items-start gap-1.5 break-keep text-[13px] font-normal leading-5 text-[#607080] [overflow-wrap:anywhere]"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#2f7568]" />확정 후 같은 파일을 다시 올려도 중복 등록되지 않습니다.</p> : null}</div>
+          <div>{error ? <p className="break-keep text-[13px] font-medium leading-5 text-[#a04455] [overflow-wrap:anywhere]">{error}</p> : preview ? <p className="flex items-start gap-1.5 break-keep text-[13px] font-normal leading-5 text-[#607080] [overflow-wrap:anywhere]"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#2f7568]" aria-hidden="true" />확정 후 같은 파일을 다시 올려도 중복 등록되지 않습니다.</p> : null}</div>
           <div className="flex flex-wrap items-center justify-end gap-2"><button type="button" onClick={closeDialog} disabled={committing} className="min-h-11 rounded-[8px] border border-[#dfe5ec] px-4 py-2 text-[14px] font-medium leading-5 text-[#526174]">취소</button><button type="button" onClick={() => { if (preview?.consentPolicy.enabled) { setConsentDecision("request"); setConfirmImportOpen(true); } else void submit("commit"); }} disabled={!preview || committing || loading} className="min-h-11 rounded-[8px] bg-[#1f6f5f] px-5 py-2 text-[14px] font-medium leading-5 text-white disabled:opacity-45">{committing ? "안전하게 이전 중..." : "이 결과대로 이전"}</button></div>
         </footer>
       </section>

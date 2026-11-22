@@ -1,8 +1,7 @@
 "use client";
 
-import { Check, PencilLine, Plus } from "lucide-react";
+import { IconTrash, IconCheck as Check, IconPencil as PencilLine, IconPlus as Plus } from "@tabler/icons-react";
 
-import { BasilIcon } from "@/components/owner-web/basil-icon";
 import type {
   ServicePriceGuideCell,
   ServicePriceGuideSection,
@@ -94,7 +93,7 @@ export function ServicePriceGuideSectionCard({
               ) : null}
               <PencilLine
                 className="h-[13px] w-[13px] shrink-0 text-[#94a3b8]"
-                strokeWidth={2}
+                strokeWidth={2} aria-hidden="true"
               />
             </label>
           ) : (
@@ -116,7 +115,7 @@ export function ServicePriceGuideSectionCard({
                 style={smallButtonStyle}
                 className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#f6f7f9]"
               >
-                <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} />
+                <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} aria-hidden="true" />
                 무게
               </button>
               <button
@@ -125,7 +124,7 @@ export function ServicePriceGuideSectionCard({
                 style={smallButtonStyle}
                 className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#f6f7f9]"
               >
-                <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} />
+                <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} aria-hidden="true" />
                 항목
               </button>
               <span className="mx-0.5 h-5 w-px shrink-0 bg-[#e2e7ed]" aria-hidden="true" />
@@ -135,7 +134,7 @@ export function ServicePriceGuideSectionCard({
                 style={smallButtonStyle}
                 className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#0f172a] bg-[#0f172a] px-[13px] text-[16px] font-medium leading-6 text-white transition-colors hover:bg-[#1c2a3e]"
               >
-                <Check className="h-[13px] w-[13px]" strokeWidth={2} />
+                <Check className="h-[13px] w-[13px]" strokeWidth={2} aria-hidden="true" />
                 완료
               </button>
               <button
@@ -146,7 +145,7 @@ export function ServicePriceGuideSectionCard({
                 title={canDeleteSection ? "그룹 삭제" : "그룹은 최소 1개가 필요합니다."}
                 aria-label={canDeleteSection ? "그룹 삭제" : "그룹 삭제 불가"}
               >
-                <BasilIcon name="trash" className="h-[13px] w-[13px]" />
+                <IconTrash aria-hidden="true" className="shrink-0 h-[13px] w-[13px]" />
               </button>
             </>
           ) : (
@@ -156,7 +155,7 @@ export function ServicePriceGuideSectionCard({
               style={smallButtonStyle}
               className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#0f172a] bg-[#0f172a] px-[13px] text-[16px] font-medium leading-6 text-white transition-colors hover:bg-[#1c2a3e]"
             >
-              <PencilLine className="h-[13px] w-[13px]" strokeWidth={2} />
+              <PencilLine className="h-[13px] w-[13px]" strokeWidth={2} aria-hidden="true" />
               편집
             </button>
           )}
@@ -185,7 +184,7 @@ export function ServicePriceGuideSectionCard({
             style={smallButtonStyle}
             className="ml-auto inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#f6f7f9]"
           >
-            <PencilLine className="h-[13px] w-[13px]" strokeWidth={2} />
+            <PencilLine className="h-[13px] w-[13px]" strokeWidth={2} aria-hidden="true" />
             품종 관리
           </button>
         ) : null}
@@ -241,7 +240,7 @@ export function ServicePriceGuideSectionCard({
                         className="inline-flex h-[13px] w-[13px] shrink-0 items-center justify-center text-[#94a3b8] transition-colors hover:text-[#d64545] disabled:opacity-35"
                         aria-label={`${item.label} 항목 삭제`}
                       >
-                        <BasilIcon name="trash" className="h-[13px] w-[13px]" />
+                        <IconTrash aria-hidden="true" className="shrink-0 h-[13px] w-[13px]" />
                       </button>
                     ) : null}
                   </div>
@@ -308,7 +307,7 @@ export function ServicePriceGuideSectionCard({
                       {isEditing ? (
                         <PencilLine
                           className="h-3 w-3 shrink-0 text-[#94a3b8]"
-                          strokeWidth={2}
+                          strokeWidth={2} aria-hidden="true"
                         />
                       ) : null}
                     </div>
@@ -403,7 +402,7 @@ export function ServicePriceGuideSectionCard({
                         className="inline-flex h-[14px] w-[14px] items-center justify-center text-[#94a3b8] transition-colors hover:text-[#d64545] disabled:opacity-35"
                         aria-label={`${band} 무게 구간 삭제`}
                       >
-                        <BasilIcon name="trash" className="h-[14px] w-[14px]" />
+                        <IconTrash aria-hidden="true" className="shrink-0 h-[14px] w-[14px]" />
                       </button>
                     </td>
                   ) : null}
@@ -421,7 +420,7 @@ export function ServicePriceGuideSectionCard({
           style={smallButtonStyle}
           className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-[#e2e7ed] bg-[#f6f7f9] text-[16px] font-medium leading-6 text-[#334155] transition-colors hover:bg-[#eef1f5]"
         >
-          <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} />
+          <Plus className="h-[13px] w-[13px]" strokeWidth={2.2} aria-hidden="true" />
           무게 구간 추가
         </button>
       ) : null}

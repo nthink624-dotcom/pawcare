@@ -1,10 +1,10 @@
 import {
-  ArrowRight,
-  Check,
-  Clock3,
-  Database,
-  UsersRound,
-} from "lucide-react";
+  IconArrowRight as ArrowRight,
+  IconCheck as Check,
+  IconClockHour3 as Clock3,
+  IconDatabase as Database,
+  IconUsers as UsersRound,
+} from "@tabler/icons-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -208,9 +208,9 @@ export function ScheduleProofSection() {
 
         <div className="mt-8 grid items-start gap-10 lg:grid-cols-[292px_minmax(0,1fr)] lg:gap-7">
           <div className="relative grid gap-1 before:absolute before:bottom-5 before:left-5 before:top-5 before:w-px before:bg-[#dbe6f1] sm:grid-cols-3 sm:gap-6 sm:before:hidden lg:grid-cols-1 lg:gap-1 lg:before:block">
-            <ScheduleFeature icon={<Clock3 className="h-[18px] w-[18px]" />} title="빈 시간까지 바로 확인" body="예약 사이의 빈 시간과 오늘 남은 시간을 한눈에 파악합니다." />
-            <ScheduleFeature icon={<UsersRound className="h-[18px] w-[18px]" />} title="담당별 일정 한눈에" body="고객·반려동물·서비스·담당자를 한 화면에서 확인합니다." />
-            <ScheduleFeature icon={<Database className="h-[18px] w-[18px]" />} title="클릭하면 상세 정보까지" body="예약을 누르면 요청사항과 코멘트가 바로 이어집니다." />
+            <ScheduleFeature icon={<Clock3 className="h-[18px] w-[18px]" aria-hidden="true" />} title="빈 시간까지 바로 확인" body="예약 사이의 빈 시간과 오늘 남은 시간을 한눈에 파악합니다." />
+            <ScheduleFeature icon={<UsersRound className="h-[18px] w-[18px]" aria-hidden="true" />} title="담당별 일정 한눈에" body="고객·반려동물·서비스·담당자를 한 화면에서 확인합니다." />
+            <ScheduleFeature icon={<Database className="h-[18px] w-[18px]" aria-hidden="true" />} title="클릭하면 상세 정보까지" body="예약을 누르면 요청사항과 코멘트가 바로 이어집니다." />
           </div>
 
           <div className="grid min-w-0 items-center gap-5 sm:relative sm:block sm:pb-3 sm:pr-[32px]">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconArrowLeft } from "@tabler/icons-react";
 
 import { ServiceBrand } from "@/components/brand/service-brand";
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
@@ -16,7 +17,8 @@ export default function LegalPageLayout({
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#faf7f2] px-5 pb-10 pt-6 text-[#1f1a17]">
       <div className="rounded-[28px] border border-[#e7e0d5] bg-white px-5 py-6 shadow-[0_6px_18px_rgba(31,26,23,0.04)]">
         <Link href="/" className="inline-flex min-h-11 items-center text-[12px] font-medium text-[#6a625b]">
-          ← 서비스 홈으로
+          <IconArrowLeft aria-hidden="true" size={14} className="mr-1 shrink-0" />
+          서비스 홈으로
         </Link>
         <ServiceBrand compact className="mt-5" />
         <h1 className="mt-4 text-[28px] font-semibold tracking-[-0.04em]">{title}</h1>

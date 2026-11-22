@@ -1,5 +1,5 @@
 import { NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
-import { requireHttpsTransportUrl } from "@/lib/https-transport-url";
+import { isLoopbackTransportUrl, requireHttpsTransportUrl } from "@/lib/https-transport-url";
 import {
   isAllowedPetManagerDevelopmentSupabaseProject,
   isPetManagerProductionSupabaseProject,
@@ -58,6 +58,36 @@ function readOptionalHttpsTransportUrl(value: string | undefined, name: string) 
   }
 }
 
+function canUseLocalDevelopmentRelay(value: string | undefined) {
+  return Boolean(
+    value
+    && !process.env.VERCEL
+    && !process.env.VERCEL_ENV
+    && process.env.SUPABASE_ENV_NAME === "development"
+    && isLoopbackTransportUrl(value)
+    && isAllowedPetManagerDevelopmentSupabaseProject(
+      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.ALLOWED_DEV_SUPABASE_REFS || process.env.NEXT_PUBLIC_ALLOWED_DEV_SUPABASE_REFS,
+    ),
+  );
+}
+
+function readOptionalAlimtalkRelayUrl(value: string | undefined, name: string) {
+  const normalized = readOptionalSecret(value);
+  if (!normalized) return undefined;
+
+  try {
+    return requireHttpsTransportUrl(normalized, name, {
+      allowLoopbackInDevelopment: true,
+      // `next start` sets NODE_ENV=production even for the local preview.
+      // Permit the local relay only when all local development DB guards match.
+      runtimeEnvironment: canUseLocalDevelopmentRelay(normalized) ? "development" : process.env.NODE_ENV,
+    });
+  } catch {
+    throw new ServerEnvError(`${name} 서버 주소는 HTTPS 연결만 허용됩니다.`, 503);
+  }
+}
+
 export const serverEnv = {
   supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
   supabasePublishableKey:
@@ -97,8 +127,8 @@ export const serverEnv = {
   alimtalkTokenKey: process.env.ALIMTALK_TOKEN_KEY,
   alimtalkProfileKey: process.env.ALIMTALK_PROFILE_KEY,
   alimtalkSenderKey: process.env.ALIMTALK_SENDER_KEY,
-  alimtalkRelayUrl: readOptionalHttpsTransportUrl(process.env.ALIMTALK_RELAY_URL, "ALIMTALK_RELAY_URL"),
-  alimtalkRelayAdminUrl: readOptionalHttpsTransportUrl(
+  alimtalkRelayUrl: readOptionalAlimtalkRelayUrl(process.env.ALIMTALK_RELAY_URL, "ALIMTALK_RELAY_URL"),
+  alimtalkRelayAdminUrl: readOptionalAlimtalkRelayUrl(
     process.env.ALIMTALK_RELAY_ADMIN_URL,
     "ALIMTALK_RELAY_ADMIN_URL",
   ),

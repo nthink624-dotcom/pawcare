@@ -19,7 +19,7 @@ test("quick call reservation matches the caller automatically and offers only th
   assert.match(quickEntry, /phoneNormalize\(guardian\.phone\) === normalizedNumber/);
   assert.match(quickEntry, /setPetId\(pets\[0\]\.id\)/);
   assert.match(quickEntry, /fieldset[\s\S]*?서비스[\s\S]*?aria-pressed/);
-  assert.match(quickEntry, /type="date"[\s\S]*?type="time"/);
+  assert.match(quickEntry, /type="date"[\s\S]*?<WheelTimeField[\s\S]*?value=\{appointmentTime\}[\s\S]*?onValueChange=/);
   assert.match(quickEntry, /staffId: null,[\s\S]*?memo: ""/);
   assert.doesNotMatch(quickEntry, /고객 검색|고객 선택/);
 });

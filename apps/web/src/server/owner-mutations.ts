@@ -695,6 +695,9 @@ export async function updateShopSettings(
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
+    if (payload.reservationPolicySettings?.customer_other_available_times_enabled === undefined) {
+      normalizedReservationPolicySettings.customer_other_available_times_enabled = store.shop.reservation_policy_settings?.customer_other_available_times_enabled === true;
+    }
     if (payload.notificationSettings.alimtalkTypeEnabled === undefined) normalizedNotificationSettings.alimtalk_type_enabled = store.shop.notification_settings.alimtalk_type_enabled;
     store.shop = {
       ...store.shop,
@@ -728,19 +731,23 @@ export async function updateShopSettings(
 
   const currentShopResult = await supabase
     .from("shops")
-    .select("name,phone,address,notification_settings")
+    .select("name,phone,address,notification_settings,reservation_policy_settings")
     .eq("id", payload.shopId)
     .maybeSingle<{
       name: string | null;
       phone: string | null;
       address: string | null;
       notification_settings: { alimtalk_type_enabled?: Record<string, boolean> } | null;
+      reservation_policy_settings: Shop["reservation_policy_settings"];
     }>();
 
   if (currentShopResult.error) {
     throw new Error(currentShopResult.error.message);
   }
 
+  if (payload.reservationPolicySettings?.customer_other_available_times_enabled === undefined) {
+    normalizedReservationPolicySettings.customer_other_available_times_enabled = currentShopResult.data?.reservation_policy_settings?.customer_other_available_times_enabled === true;
+  }
   if (payload.notificationSettings.alimtalkTypeEnabled === undefined) {
     normalizedNotificationSettings.alimtalk_type_enabled = currentShopResult.data?.notification_settings?.alimtalk_type_enabled;
   }

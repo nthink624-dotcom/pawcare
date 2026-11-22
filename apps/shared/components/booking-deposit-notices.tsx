@@ -1,4 +1,5 @@
 "use client";
+import { IconBell, IconCircleCheck, IconChevronRight } from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BookingDepositNotice } from "../contracts/booking-deposit-notice";
 import type { AlimtalkApprovalNotice } from "../contracts/alimtalk-approval-notice";
@@ -36,9 +37,9 @@ export default function BookingDepositNotices({ notices, acknowledge, error, ref
   if (!count && !error && !alwaysVisible) return null;
   return <div ref={root} className="relative shrink-0 text-[14px] font-normal leading-5 text-[#15213b]" onKeyDown={e => { if (e.key === "Escape") { setOpen(false); root.current?.querySelector('button')?.focus(); } }}>
     <button type="button" data-owner-control-size="content" aria-expanded={open} aria-label={`알림 ${count}건`} onClick={() => setOpen(v => !v)} className={triggerLabel
-      ? "relative inline-flex h-11 min-h-11 w-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-transparent bg-transparent text-[14px] font-medium leading-5 text-[#526175] transition-colors hover:bg-white hover:text-[#15213b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 lg:w-auto lg:px-3"
+      ? "relative inline-flex h-11 min-h-11 w-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent bg-transparent text-[14px] font-medium leading-5 text-[#526175] transition-colors hover:bg-[#f1f5fa] hover:text-[#15213b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 aria-expanded:bg-[#edf4fc] lg:w-auto lg:px-2.5"
       : "relative inline-flex h-11 min-h-11 w-11 items-center justify-center rounded-[10px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"}>
-      <svg aria-hidden="true" viewBox="0 0 24 24" className={triggerLabel ? "h-4.5 w-4.5 shrink-0" : "h-5 w-5"} fill="none" stroke="currentColor" strokeWidth={triggerLabel ? "1.8" : "1.7"}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <IconBell aria-hidden="true" className={triggerLabel ? "h-4.5 w-4.5 shrink-0" : "h-5 w-5"} stroke={triggerLabel ? 1.75 : 1.7} />
       {triggerLabel && <span className="hidden lg:inline">{triggerLabel}</span>}
       {count > 0 && <span data-owner-unread-count className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-[#a04455] px-1 text-center text-[12px] leading-[18px] text-white">{count > 99 ? "99+" : count}</span>}
     </button>
@@ -51,7 +52,7 @@ export default function BookingDepositNotices({ notices, acknowledge, error, ref
         catch { setMessage("알림을 확인하지 못했습니다. 다시 눌러 주세요."); }
         finally { setSaving(false); }
       }} className="flex min-h-11 w-full items-center gap-2 border-t border-[#e8edf3] py-3 text-left text-[14px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-50">
-        <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-[#1f6b5b]" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="10" cy="10" r="8" /><path d="m6 10 3 3 5-6" /></svg><span className="min-w-0 flex-1">{notice.title}</span><span aria-hidden="true" className="text-slate-400">›</span>
+        <IconCircleCheck aria-hidden="true" className="h-4 w-4 shrink-0 text-[#1f6b5b]" stroke={1.7} /><span className="min-w-0 flex-1">{notice.title}</span><IconChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400" />
       </button>)}
       {notices.length > 0 && <p className="px-1 py-2 text-[13px] leading-5 text-[#64748b]">알림을 확인해도 입금·환불 처리는 바뀌지 않습니다.</p>}
       {!count && !error && <p className="px-1 py-3 text-[14px] text-[#64748b]">새 알림이 없습니다.</p>}

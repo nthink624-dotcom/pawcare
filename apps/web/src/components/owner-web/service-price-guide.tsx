@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { PencilLine, Plus } from "lucide-react";
+import { IconTrash, IconPencil as PencilLine, IconPlus as Plus } from "@tabler/icons-react";
 
-import { BasilIcon } from "@/components/owner-web/basil-icon";
 import {
   BreedManagementDialog,
 } from "@/components/owner-web/service-price-guide-group-dialogs";
@@ -791,7 +790,7 @@ export function ServicePriceGuideEditor({
                 <p className="text-[16px] font-normal leading-6 text-[#64748b]">그룹과 무게별로 금액 / 예상시간을 함께 관리합니다.</p>
                 {guide.enabled ? (
                   <span className="inline-flex h-7 items-center gap-1 rounded-full border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#607080]">
-                    <PencilLine className="h-3.5 w-3.5" strokeWidth={1.8} />
+                    <PencilLine className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
                     입력칸을 클릭해 수정
                   </span>
                 ) : null}
@@ -857,7 +856,7 @@ export function ServicePriceGuideEditor({
 
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-white px-3 text-[16px] font-normal text-[var(--accent)] transition hover:bg-[#f6f9ff]">
-              <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.9} aria-hidden="true" />
               그룹 추가
             </button>
             {deleteHistory.length > 0 ? (
@@ -882,7 +881,7 @@ export function ServicePriceGuideEditor({
                 onClick={addExtraFee}
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-white px-3 text-[16px] font-normal text-[var(--accent)] transition hover:bg-[#f6f9ff]"
               >
-                <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+                <Plus className="h-3.5 w-3.5" strokeWidth={1.9} aria-hidden="true" />
                 항목 추가
               </button>
             </div>
@@ -918,7 +917,7 @@ export function ServicePriceGuideEditor({
                         className="inline-flex h-10 w-8 items-center justify-center rounded-[8px] text-[#94a3b8] transition hover:bg-[#f1f5f9] hover:text-[#334155]"
                         aria-label="추가 요금 항목 삭제"
                       >
-                        <BasilIcon name="trash" className="h-5 w-5" />
+                        <IconTrash aria-hidden="true" className="shrink-0 h-5 w-5" />
                       </button>
                     </div>
                   ))}

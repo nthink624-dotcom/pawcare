@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2, X } from "lucide-react";
+import { IconPlus as Plus, IconTrash as Trash2, IconX as X } from "@tabler/icons-react";
 import { FormEvent, useMemo, useRef, useState } from "react";
 
 import MobilePriceGuideExtras from "@/components/auth/mobile-price-guide-extras";
@@ -264,7 +264,7 @@ function MobileBreedDialog({
         <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
           <span aria-hidden="true" />
           <h2 id="mobile-breed-dialog-title" className="text-center text-[20px] font-semibold leading-7 text-slate-900">품종 선택</h2>
-          <button type="button" className={iconClass} onClick={onClose} aria-label="품종 선택 닫기"><X size={20} /></button>
+          <button type="button" className={iconClass} onClick={onClose} aria-label="품종 선택 닫기"><X size={20} aria-hidden="true" /></button>
         </div>
         <form className="mt-4" onSubmit={addBreed}>
           <div><label htmlFor="mobile-price-guide-breed-name" className="block text-[16px] font-medium leading-6 text-slate-800">{customBreedMode ? "기타 품종명" : "추가할 품종"}</label><span className="mt-2 flex gap-2"><input id="mobile-price-guide-breed-name" ref={inputRef} autoFocus value={input} onChange={(event) => setInput(event.target.value)} className={inputClass} placeholder={customBreedMode ? "원하는 품종 입력" : "품종 검색 또는 입력"} />

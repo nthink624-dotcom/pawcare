@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { IconUserPlus, IconChevronLeft as ChevronLeft, IconChevronRight as ChevronRight } from "@tabler/icons-react";
 
 import {
   ScheduleTable,
@@ -26,7 +26,7 @@ import {
   type StaffProfilePhotoUploader,
 } from "@/components/owner-web/staff-profile-photo-field";
 import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
-import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { createOwnerStaffProfileImageFromFile } from "@/lib/media/owner-media-client";
 import { findAvailableStaffChipColorIndex, getStaffChipColorIndex, normalizeStaffChipColorIndex } from "@/lib/staff-chip-colors";
@@ -777,7 +777,7 @@ export default function StaffManagementScreen({
                   className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] text-[#475569] transition hover:bg-white hover:text-[#15213b]"
                   aria-label="이전 달"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 </button>
                 <button
                   type="button"
@@ -792,7 +792,7 @@ export default function StaffManagementScreen({
                   className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] text-[#475569] transition hover:bg-white hover:text-[#15213b]"
                   aria-label="다음 달"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
             ) : null
@@ -812,7 +812,7 @@ export default function StaffManagementScreen({
                       className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                       aria-label="이전 주"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                     </button>
                     <button type="button" onClick={() => setWeekStart(getWeekStart())} className="h-11 px-3 !text-[16px] !font-medium !leading-6 text-[#111827]">
                       {formatWeekLabel(weekStart)}
@@ -823,7 +823,7 @@ export default function StaffManagementScreen({
                       className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                       aria-label="다음 주"
                     >
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
                     </button>
                 </div>
               ) : (
@@ -839,7 +839,7 @@ export default function StaffManagementScreen({
                     onClick={() => { setNotice(""); setStaffDialogOpen(true); }}
                     className={cn(OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS, "!text-[16px] !font-medium !leading-6")}
                   >
-                    <AssetIcon src="/icons/phosphor/UserPlus.svg" className="h-4 w-4" />
+                    <IconUserPlus aria-hidden="true" className="shrink-0 h-4 w-4" />
                     직원 추가
                   </button>
                 </>

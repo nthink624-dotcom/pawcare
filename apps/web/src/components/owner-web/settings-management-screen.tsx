@@ -1,6 +1,9 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
+import { IconCheck as Check, IconChevronDown as ChevronDown } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
@@ -660,7 +663,7 @@ function SettingSelectControl({
         )}
       >
         <span className="min-w-0 truncate text-left">{value}</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#64748b] transition", open && "rotate-180 text-[#1f6b5b]")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#64748b] transition", open && "rotate-180 text-[#1f6b5b]")} aria-hidden="true" />
       </button>
 
       {open ? (
@@ -686,7 +689,7 @@ function SettingSelectControl({
                 )}
               >
                 <span className="whitespace-nowrap">{option}</span>
-                {selected ? <Check className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
+                {selected ? <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> : <span className="h-4 w-4 shrink-0" />}
               </button>
             );
           })}
@@ -750,20 +753,20 @@ function SettingValueControl({
       <div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
         <label className="min-w-[132px]">
           <span className="mb-1 block text-left text-[12px] font-medium text-[#64748b]">시작</span>
-          <input
+          <WheelTimeField aria-label="시간 선택"
             id={`setting-control-${row.id}`}
-            type="time"
+            
             value={open}
-            onChange={(event) => updateTime({ open: event.target.value })}
+            onValueChange={(nextTime) => updateTime({ open: nextTime })}
             className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none transition focus:border-[#1f6b5b] focus:ring-2 focus:ring-[#1f6b5b]/10"
           />
         </label>
         <label className="min-w-[132px]">
           <span className="mb-1 block text-left text-[12px] font-medium text-[#64748b]">종료</span>
-          <input
-            type="time"
+          <WheelTimeField aria-label="시간 선택"
+            
             value={close}
-            onChange={(event) => updateTime({ close: event.target.value })}
+            onValueChange={(nextTime) => updateTime({ close: nextTime })}
             className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#111827] outline-none transition focus:border-[#1f6b5b] focus:ring-2 focus:ring-[#1f6b5b]/10"
           />
         </label>
@@ -1961,7 +1964,7 @@ export default function SettingsManagementScreen({
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none" aria-live="polite">
           <div className="flex min-w-[252px] items-center justify-center gap-3 rounded-[12px] border border-[#dbe2ea] bg-white px-6 py-5 text-[18px] font-semibold text-[#111827] shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#e6f3ef] text-[#2f7866]">
-              <Check className="h-5 w-5" strokeWidth={2.5} />
+              <Check className="h-5 w-5" strokeWidth={2.5} aria-hidden="true" />
             </span>
             저장 완료
           </div>

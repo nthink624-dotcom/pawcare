@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { IconArrowLeft } from "@tabler/icons-react";
 
 import AccountDeletionRequest from "@/components/account-deletion/account-deletion-request";
 import { LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
@@ -17,7 +18,8 @@ export default function AccountDeletionPage() {
           href="/"
           className="inline-flex min-h-11 items-center rounded-[8px] px-1 text-[14px] leading-5 font-medium tracking-[-0.005em] text-[#64748b] hover:text-[#15213b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
         >
-          ← {LEGAL_SERVICE_NAME} 메인으로
+          <IconArrowLeft aria-hidden="true" size={16} className="mr-1 shrink-0" />
+          {LEGAL_SERVICE_NAME} 메인으로
         </Link>
 
         <header className="mt-5">

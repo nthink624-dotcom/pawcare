@@ -1,6 +1,11 @@
-import type { LucideIcon } from "lucide-react";
-import { CalendarDays, Check, ChevronDown } from "lucide-react";
-import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import {
+  IconCalendarWeek as CalendarDays,
+  IconCheck as Check,
+  IconChevronDown as ChevronDown,
+  IconSearch,
+  type TablerIcon,
+} from "@tabler/icons-react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -50,7 +55,7 @@ export function ToolbarRow({ children, className }: { children: React.ReactNode;
 export function SearchField({ placeholder }: { placeholder: string }) {
   return (
     <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[9px] border border-[#e8edf3] bg-white px-3 text-[#64748b] transition focus-within:border-[#93c5fd] focus-within:ring-[3px] focus-within:ring-[#dbeafe]/60">
-      <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#94a3b8]" />
+      <IconSearch aria-hidden="true" className="shrink-0 h-5 w-5 text-[#94a3b8]" />
       <input
         className="w-full bg-transparent text-[16px] font-normal leading-6 text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
         placeholder={placeholder}
@@ -59,7 +64,7 @@ export function SearchField({ placeholder }: { placeholder: string }) {
   );
 }
 
-export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label: string; icon?: LucideIcon; onClick?: () => void }) {
+export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label: string; icon?: TablerIcon; onClick?: () => void }) {
   return (
     <button
       type="button"
@@ -67,7 +72,7 @@ export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label
       className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-[9px] border border-[#e8edf3] bg-white px-4 text-[14px] font-medium leading-5 text-[#334155] transition hover:border-[#cbd5e1] hover:bg-[#f8fbff]"
     >
       <span>{label}</span>
-      <Icon className="h-4 w-4 text-[#64748b]" />
+      <Icon className="h-4 w-4 text-[#64748b]" aria-hidden="true" />
     </button>
   );
 }
@@ -139,7 +144,7 @@ export function SoftSelect<T extends string = string>({
       >
         {label ? <span className={cn("text-[12px] font-medium leading-[18px] text-[#64748b]", labelClassName)}>{label}</span> : <span />}
         <span className={cn("truncate text-right text-[14px] font-medium leading-5 text-[#1f2937]", valueClassName)}>{selectedOption?.label ?? ""}</span>
-        <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", open && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", open && "rotate-180")} aria-hidden="true" />
       </button>
       {open ? (
         <div
@@ -171,34 +176,13 @@ export function SoftSelect<T extends string = string>({
                 )}
               >
                 <span className="truncate">{option.label}</span>
-                {selected ? <Check className="h-4 w-4 shrink-0" /> : null}
+                {selected ? <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
               </button>
             );
           })}
         </div>
       ) : null}
     </div>
-  );
-}
-
-export function AssetIcon({ src, className }: { src: string; className?: string }) {
-  return (
-    <span
-      className={cn("inline-block h-5 w-5 shrink-0 bg-current align-middle", className)}
-      style={
-        {
-          WebkitMaskImage: `url(${src})`,
-          maskImage: `url(${src})`,
-          WebkitMaskRepeat: "no-repeat",
-          maskRepeat: "no-repeat",
-          WebkitMaskPosition: "center",
-          maskPosition: "center",
-          WebkitMaskSize: "contain",
-          maskSize: "contain",
-        } as CSSProperties
-      }
-      aria-hidden="true"
-    />
   );
 }
 
@@ -537,7 +521,7 @@ export function EmptyCalendarHint() {
 export function DateToolbarBadge() {
   return (
     <span className="inline-flex items-center gap-2 rounded-full border border-[#e4ddd6] bg-white px-3 py-1.5 text-[13px] font-medium leading-5 text-[#6d655c]">
-      <CalendarDays className="h-4 w-4 text-[#8b8279]" />
+      <CalendarDays className="h-4 w-4 text-[#8b8279]" aria-hidden="true" />
       이번 주 기준
     </span>
   );

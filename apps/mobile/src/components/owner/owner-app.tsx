@@ -1,6 +1,11 @@
 "use client";
-import { MessagesSquare } from "lucide-react";
+
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
+import { IconArrowLeft, IconX, IconMessages as MessagesSquare } from "@tabler/icons-react";
 import CommunityBoard from "@petmanager/shared/components/community/community-board";
+import { createDemoCommunityApi } from "@petmanager/shared/lib/demo-community";
 import BookingDevelopmentNotice from "@petmanager/shared/components/booking-development-notice";
 import { env } from "@/lib/env";
 import OwnerBookingDepositPanel from "@/components/owner/owner-booking-deposit-panel";
@@ -8,7 +13,26 @@ import { isOwnerStartupPresentation } from "@petmanager/shared/lib/owner-startup
 import { OwnerStartupDetailsBoundary } from "@petmanager/shared/components/owner-startup-details-boundary";
 import BookingDepositNotices, { useBookingDepositNotices } from "@petmanager/shared/components/booking-deposit-notices";
 
-import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, LoaderCircle, PawPrint, Plus, QrCode, Settings, Sparkles, Store, UserRound, type LucideIcon } from "lucide-react";
+import {
+  IconCalendarWeek as CalendarDays,
+  IconCamera as Camera,
+  IconCheck as Check,
+  IconChevronDown as ChevronDown,
+  IconChevronLeft as ChevronLeft,
+  IconChevronRight as ChevronRight,
+  IconCopy as Copy,
+  IconExternalLink as ExternalLink,
+  IconHome as House,
+  IconLoader2 as LoaderCircle,
+  IconPaw as PawPrint,
+  IconPlus as Plus,
+  IconQrcode as QrCode,
+  IconSettings as Settings,
+  IconSparkles as Sparkles,
+  IconBuildingStore as Store,
+  IconUser as UserRound,
+  type TablerIcon,
+} from "@tabler/icons-react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { type ReactNode, useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -37,6 +61,7 @@ import {
   UrgencyPill,
 } from "@/components/owner/owner-customer-detail-ui";
 import CustomerDeleteSelectionPanel from "@/components/owner/customer-delete-selection-panel";
+import OwnerCustomerListRow from "@/components/owner/owner-customer-list-row";
 import OwnerCustomerListToolbar from "@/components/owner/owner-customer-list-toolbar";
 import OwnerBookingDatePicker from "@/components/owner/owner-booking-date-picker";
 import OwnerBookingDaySchedule from "@/components/owner/owner-booking-day-schedule";
@@ -54,6 +79,7 @@ import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import { StatusBadge as AppStatusBadge } from "@/components/ui/status-badge";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { useCalendarHolidays } from "@petmanager/shared/lib/use-owner-calendar";
+import { useSupportPrograms } from "@petmanager/shared/lib/use-support-programs";
 import { createOwnerBackgroundPoller, shouldPollOwnerData } from "@/lib/owner-background-poller";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
@@ -108,7 +134,6 @@ import { canUseTesterFeedback, resolveTesterFeedbackAppVersion, type TesterFeedb
 import { sharedOwnerFeedbackAdapter } from "@/lib/owner-feedback-adapter";
 import { getMobileGroomingStartTiming } from "@/lib/mobile-grooming-start-policy";
 import { getGroomingDurationEstimate } from "@/lib/grooming-duration-estimates";
-import { matchesCanonicalCustomerFilter, type OwnerCustomerFilter } from "@/lib/owner-customer-filter";
 import {
   ownerAppointmentVisitWeightTransport,
   type OwnerAppointmentVisitWeightTransport,
@@ -378,7 +403,7 @@ function getAppointmentMediaKindLabel(mediaKind: MediaKind | string) {
   }
 }
 
-const tabItems: { key: TabKey; label: string; icon: LucideIcon }[] = [
+const tabItems: { key: TabKey; label: string; icon: TablerIcon }[] = [
   { key: "home", label: "오늘", icon: House },
   { key: "book", label: "예약 조회", icon: CalendarDays },
   { key: "customers", label: "고객 관리", icon: PawPrint },
@@ -548,6 +573,7 @@ function OwnerAppContent({
   const [ownedShopItems, setOwnedShopItems] = useState(ownedShops);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [communityProfileOpen, setCommunityProfileOpen] = useState(false);
+  const [demoCommunityApi] = useState(() => isPreviewDemo ? createDemoCommunityApi(initialData.shop.name) : undefined);
   const communityBackRef = useRef<(() => boolean) | null>(null);
   const [todayDate, setTodayDate] = useState(() => currentDateInTimeZone());
   const [homeReservationDate, setHomeReservationDate] = useState(() => currentDateInTimeZone());
@@ -560,7 +586,6 @@ function OwnerAppContent({
   const ownerMainScrollRef = useRef<HTMLElement | null>(null);
   const [selectedCustomerPetId, setSelectedCustomerPetId] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
-  const [customerFilter, setCustomerFilter] = useState<OwnerCustomerFilter>("all");
   const [selectedGuardianIds, setSelectedGuardianIds] = useState<string[]>([]);
   const [isCustomerListEditing, setIsCustomerListEditing] = useState(false);
   const [visitDateFilter, setVisitDateFilter] = useState(currentDateInTimeZone());
@@ -1496,13 +1521,10 @@ function OwnerAppContent({
       visitCount: records.length,
       revisitCandidates,
       isAlertsOff: !guardian.notification_settings.enabled,
-      hasCanonicalFirstVisit: data.appointments.some(
-        (appointment) => appointment.guardian_id === guardian.id && appointment.customer_visit_type === "first_visit",
-      ),
     };
   }), [data.guardians, data.pets, data.groomingRecords, data.appointments, petMap, serviceMap, revisitRows, todayDate]);
 
-  const searchableCustomerSummaries = useMemo(() => {
+  const filteredGuardians = useMemo(() => {
     const query = customerSearch.trim();
     return customerSummaries
       .filter((summary) => {
@@ -1515,24 +1537,6 @@ function OwnerAppContent({
       })
       .sort((a, b) => (b.latestActivityAt ?? "").localeCompare(a.latestActivityAt ?? "") || a.guardian.name.localeCompare(b.guardian.name, "ko-KR"));
   }, [customerSearch, customerSummaries, isStaffApp]);
-  const customerFilterCounts = useMemo(
-    () => ({
-      all: searchableCustomerSummaries.length,
-      loyal: searchableCustomerSummaries.filter((summary) => matchesCanonicalCustomerFilter({ customerGradeOverride: summary.guardian.customer_grade_override, hasFirstVisit: summary.hasCanonicalFirstVisit }, "loyal")).length,
-      first_visit: searchableCustomerSummaries.filter((summary) => matchesCanonicalCustomerFilter({ customerGradeOverride: summary.guardian.customer_grade_override, hasFirstVisit: summary.hasCanonicalFirstVisit }, "first_visit")).length,
-    }),
-    [searchableCustomerSummaries],
-  );
-  const filteredGuardians = useMemo(
-    () =>
-      searchableCustomerSummaries.filter((summary) =>
-        matchesCanonicalCustomerFilter(
-          { customerGradeOverride: summary.guardian.customer_grade_override, hasFirstVisit: summary.hasCanonicalFirstVisit },
-          customerFilter,
-        ),
-      ),
-    [customerFilter, searchableCustomerSummaries],
-  );
   const deletedGuardians = useMemo(
     () =>
       (data.deletedGuardians ?? [])
@@ -1573,6 +1577,7 @@ function OwnerAppContent({
   const selectedVisitDate = visitDateFilter || todayDate;
   const bookingMonth = selectedVisitDate.slice(0, 7);
   const bookingHolidays = useCalendarHolidays(activeTab === "book" ? bookingMonth : null, fetchApiJson);
+  const { deadlines: supportDeadlines } = useSupportPrograms(activeTab === "book", fetchApiJson, data.shop.address ?? "");
   const selectedVisitHolidays = bookingHolidays.holidays.filter(holiday => holiday.date === selectedVisitDate).map(holiday => holiday.name);
   const selectedVisitRange = useMemo(() => {
     if (visitSelectionMode !== "range" || !visitRange) return null;
@@ -1851,7 +1856,7 @@ function OwnerAppContent({
     if (startupReadOnly || isOwnerDemo || typeof window === "undefined") return;
 
     const poller = createOwnerBackgroundPoller({
-      intervalMs: 30_000,
+      intervalMs: 60_000,
       canRun: () => canRefreshInBackground(),
       run: (signal) => refreshFromBackground(signal),
     });
@@ -2990,21 +2995,13 @@ function OwnerAppContent({
   const isHomeTab = activeTab === "home";
   const customerEmptyTitle = customerSearch.trim()
     ? "검색 조건과 맞는 활성 고객이 없어요"
-    : customerFilter === "loyal"
-      ? "단골 고객이 없어요"
-      : customerFilter === "first_visit"
-        ? "신규 고객이 없어요"
-        : "등록된 고객이 아직 없어요";
+    : "등록된 고객이 아직 없어요";
   const customerEmptyDescription =
     customerSearch.trim() && filteredDeletedGuardians.length > 0
       ? "삭제 고객에서는 일치하는 항목이 있어요. 삭제 고객 보기를 열어 확인해 주세요."
       : customerSearch.trim()
         ? "이름, 연락처, 반려동물 이름을 다시 확인해 주세요."
-        : customerFilter === "loyal"
-          ? "저장된 단골 표시가 있는 고객만 보여요."
-          : customerFilter === "first_visit"
-            ? "첫 방문으로 표시된 예약이 있는 고객만 보여요."
-        : "고객 추가로 첫 보호자와 반려동물을 등록해 주세요.";
+      : "고객 추가로 첫 보호자와 반려동물을 등록해 주세요.";
   const allFilteredGuardiansSelected =
     filteredGuardians.length > 0 && filteredGuardians.every((summary) => selectedGuardianIds.includes(summary.guardian.id));
   const selectedGuardianCount = selectedGuardianIds.length;
@@ -3018,9 +3015,8 @@ function OwnerAppContent({
       : activeTab === "customers" && !selectedGuardian
         ? { label: "고객추가", onClick: () => setModal({ type: "new-customer" }) }
         : null;
-  const homeCurrentSectionLabel = startupReadOnly ? (homeWorkDateKey === todayDate ? "오늘 예약" : "선택한 날 예약") : homeWorkDateKey === todayDate ? "오늘 할 일" : "선택한 날";
   const homeScheduleTabs: Array<{ key: HomeReservationSectionKey; label: string; count: number }> = [
-    { key: "current", label: homeCurrentSectionLabel, count: filteredHomeActionAppointments.length + (startupReadOnly ? 0 : filteredHomeCareReportFollowupAppointments.length) },
+    { key: "current", label: "예약", count: filteredHomeActionAppointments.length + (startupReadOnly ? 0 : filteredHomeCareReportFollowupAppointments.length) },
     { key: "cancelChange", label: ownerHomeCopy.statCancelChange, count: filteredHomeCancelChangeAppointments.length },
   ];
   const testerFeedbackScreenKey: TesterFeedbackScreenKey =
@@ -3028,6 +3024,7 @@ function OwnerAppContent({
 
   return (
     <div
+      data-wheel-time-boundary
       className={cn(
         "pm-mobile-owner relative mx-auto flex w-full max-w-[430px] flex-col bg-[var(--background)] shadow-[0_0_0_1px_rgba(15,23,42,0.04)]",
         isHomeTab && !isCustomerDetailView
@@ -3059,7 +3056,7 @@ function OwnerAppContent({
             <span className="block text-[16px] font-semibold text-[var(--text)]">새 예약이 접수되었습니다.</span>
             <span className="mt-0.5 block text-[13px] text-[var(--muted)]">눌러서 예약을 확인해 주세요.</span>
           </span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={2} />
+          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={2} aria-hidden="true" />
         </button>
       ) : null}
       {!isCustomerDetailView && activeTab !== "book" ? (
@@ -3078,7 +3075,7 @@ function OwnerAppContent({
                       <Store className="h-4 w-4" aria-hidden="true" />
                     </div>
                     <p className="pm-home-header-label m-0 min-w-0 max-w-[172px] text-[18px] font-semibold leading-6! tracking-[-0.01em] text-[#0f172a] [overflow-wrap:anywhere]">{currentOwnedShop.name}</p>
-                    <ChevronDown className="h-4 w-4 shrink-0 text-[#94a3b8]" />
+                    <ChevronDown className="h-4 w-4 shrink-0 text-[#94a3b8]" aria-hidden="true" />
                   </button>
                   {!isStaffApp ? <><BookingDepositNotices {...depositNotices} onOpen={notice => void openDepositNotice(notice.appointmentId)} /><HomeHeaderStaffSelect compact={depositNotices.notices.length > 0} options={homeStaffFilterOptions} value={homeStaffFilter} onChange={setHomeStaffFilter} staffCount={data.staffMembers.length} /></> : null}
                 </div>
@@ -3106,7 +3103,7 @@ function OwnerAppContent({
                   className="inline-flex min-h-11 w-full items-center gap-2 rounded-[8px] bg-transparent px-0 text-left text-[20px] font-semibold leading-10 tracking-[-0.03em] text-[var(--text)]"
                   aria-label="설정으로 돌아가기"
                 >
-                  <ChevronRight className="h-5 w-5 shrink-0 rotate-180" strokeWidth={2} />
+                  <ChevronRight className="h-5 w-5 shrink-0 rotate-180" strokeWidth={2} aria-hidden="true" />
                   <span className="truncate">{currentSettingsScreenTitle}</span>
                 </button>
               ) : (
@@ -3268,6 +3265,7 @@ function OwnerAppContent({
       open={isBookingDatePickerOpen}
       selectedDate={selectedVisitDate}
       showHolidays
+      supportDeadlines={supportDeadlines}
       onClose={() => setIsBookingDatePickerOpen(false)}
       onSelectDate={(date) => {
         setVisitSelectionMode("single");
@@ -3378,9 +3376,9 @@ function OwnerAppContent({
   </section>
 )}
 
-{activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[12px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[12px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
+{activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[12px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}><IconX aria-hidden="true" size={16} className="inline-block align-middle" /></button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[12px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
-        {activeTab === "community" && <CommunityBoard key={data.shop.id} shopId={data.shop.id} shopName={data.shop.name} api={fetchApiJsonWithAuth} showTitle={false} backActionRef={communityBackRef} profileView={{ open: communityProfileOpen, onOpenChange: setCommunityProfileOpen }} />}
+        {activeTab === "community" && <CommunityBoard key={data.shop.id} shopId={data.shop.id} shopName={data.shop.name} api={demoCommunityApi ?? fetchApiJsonWithAuth} showTitle={false} backActionRef={communityBackRef} profileView={{ open: communityProfileOpen, onOpenChange: setCommunityProfileOpen }} demo={Boolean(demoCommunityApi)} />}
         {activeTab === "customers" && !selectedGuardian && (
           <section className={`min-h-full bg-[#f6f9fc] ${isCustomerListEditing && filteredGuardians.length > 0 ? "pb-[160px]" : "pb-4"}`}>
             {isCustomerListEditing ? (
@@ -3411,11 +3409,8 @@ function OwnerAppContent({
               <>
                 <OwnerCustomerListToolbar
                   customerSearch={customerSearch}
-                  customerFilter={customerFilter}
-                  customerFilterCounts={customerFilterCounts}
                   isStaffApp={isStaffApp}
                   onCustomerSearchChange={setCustomerSearch}
-                  onCustomerFilterChange={setCustomerFilter}
                   onOpenDeleteMode={() => {
                     setIsCustomerListEditing((prev) => {
                       if (prev) setSelectedGuardianIds([]);
@@ -3423,49 +3418,29 @@ function OwnerAppContent({
                     });
                   }}
                 />
-                <div className="space-y-2 px-4 pb-24 pt-3">
-                {filteredGuardians.length === 0 ? (
-                  <CustomerEmptyState
-                    title={customerEmptyTitle}
-                    action={
-                      null
-                    }
-                  />
-                ) : (
-                  <div className="space-y-2">
-                    {filteredGuardians.map((summary, index) => (
-                      <div
-                        key={summary.guardian.id}
-                        className="rounded-2xl border border-[#eaf0f6] bg-white px-3.5 py-3 transition hover:bg-[#fbfcfe]"
-                      >
-                        <button
-                          type="button"
-                          className="group w-full text-left"
-                          onClick={() => {
-                            setSelectedGuardianId(summary.guardian.id);
-                            setSelectedCustomerPetId(summary.latestPet?.id ?? summary.pets[0]?.id ?? null);
-                            setDetailTab("records");
-                          }}
-                          aria-label={`${summary.guardian.name} 상세 보기`}
-                        >
-                          <div className="flex min-h-[42px] items-center gap-3">
-                            <span className={`flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-[14px] font-semibold text-[#172235] ${["bg-[#8fb4e0]", "bg-[#6f9bd1]", "bg-[#4f7cb8]", "bg-[#7ec2c9]"][index % 4]}`}>{summary.guardian.name.slice(0, 1)}</span>
-                            <div className="flex min-w-0 flex-1 flex-col gap-1 text-[16px] leading-5 tracking-[-0.02em]">
-                              <span className="block min-w-0 whitespace-normal font-semibold text-[#33404f] [overflow-wrap:anywhere]">{summary.guardian.name}</span>
-                              {!isStaffApp ? (
-                                <span className="block max-w-full break-all font-normal text-[var(--muted)]">{formatShopPhoneNumber(summary.guardian.phone)}</span>
-                              ) : null}
-                              <span className="w-fit max-w-full truncate rounded-full bg-[#e6f3f3] px-2 py-0.5 text-[12px] font-semibold text-[#245b63]">🐾 {summary.pets.map((pet) => pet.name).join(", ") || "등록된 반려동물 없음"}</span>
-                            </div>
-                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#ebe3da] bg-[#fcfaf7] text-[var(--muted)] transition group-hover:text-[var(--accent)]">
-                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
-                            </span>
-                          </div>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div className="pb-24">
+                  {filteredGuardians.length === 0 ? (
+                    <div className="px-4 pt-3">
+                      <CustomerEmptyState title={customerEmptyTitle} action={null} />
+                    </div>
+                  ) : (
+                    <ul className="space-y-1.5 px-3.5">
+                      {filteredGuardians.map((summary) => (
+                        <li key={summary.guardian.id}>
+                          <OwnerCustomerListRow
+                            name={summary.guardian.name}
+                            phone={isStaffApp ? undefined : formatShopPhoneNumber(summary.guardian.phone)}
+                            petNames={summary.pets.map((pet) => pet.name).join(", ")}
+                            onOpen={() => {
+                              setSelectedGuardianId(summary.guardian.id);
+                              setSelectedCustomerPetId(summary.latestPet?.id ?? summary.pets[0]?.id ?? null);
+                              setDetailTab("records");
+                            }}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </>
             )}
@@ -3492,7 +3467,7 @@ function OwnerAppContent({
                 className="absolute left-0 inline-flex h-8 w-8 items-center justify-center text-[var(--text)]"
                 aria-label="고객 관리로 돌아가기"
               >
-                <ChevronRight className="h-5 w-5 rotate-180" strokeWidth={2} />
+                <ChevronRight className="h-5 w-5 rotate-180" strokeWidth={2} aria-hidden="true" />
               </button>
               <h2 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[var(--text)]">고객 상세</h2>
             </div>
@@ -3530,7 +3505,7 @@ function OwnerAppContent({
                     >
                       <span className="w-16 shrink-0 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">보호자</span>
                       <span className="min-w-0 flex-1 truncate text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#0f172a]">{selectedGuardian.name}</span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} aria-hidden="true" />
                     </button>
                   )}
 
@@ -3571,7 +3546,7 @@ function OwnerAppContent({
                       <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#0f172a]">
                         <span className="truncate">{formatShopPhoneNumber(selectedGuardian.phone)}</span>
                       </span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} aria-hidden="true" />
                     </button>
                   )}
 
@@ -3611,7 +3586,7 @@ function OwnerAppContent({
                     >
                       <span className="w-16 shrink-0 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">반려동물</span>
                       <span className="min-w-0 flex-1 truncate text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#0f172a]">{selectedGuardianPetNames || "등록된 반려동물 없음"}</span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} aria-hidden="true" />
                     </button>
                   )}
 
@@ -3646,7 +3621,7 @@ function OwnerAppContent({
                     >
                       <span className="w-16 shrink-0 pt-0.5 text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">메모</span>
                       <span className={cn("min-w-0 flex-1 overflow-hidden text-[16px] font-medium leading-6 tracking-[-0.005em] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]", selectedGuardian.memo ? "text-[#0f172a]" : "text-[#94a3b8]")}>{selectedGuardian.memo || "메모를 추가해 주세요"}</span>
-                      <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
+                      <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -3764,7 +3739,7 @@ function OwnerAppContent({
                         className="mt-1 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#cfded8] bg-white px-4 py-2.5 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[var(--accent)] transition hover:bg-[#fcfaf7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/30 focus-visible:ring-offset-2"
                         onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
                       >
-                        <Plus className="h-4 w-4" strokeWidth={2.1} />
+                        <Plus className="h-4 w-4" strokeWidth={2.1} aria-hidden="true" />
                         아기 추가하기
                       </button>
                     </div>
@@ -3806,7 +3781,7 @@ function OwnerAppContent({
       {pendingCallReservationAction?.pending && !isStaffApp ? (
         <div className="fixed inset-0 z-[60] flex flex-col bg-[#f4f6f9]" role="dialog" aria-modal="true" aria-label="전화 예약 등록">
           <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-[#e8edf3] bg-white px-4">
-            <button type="button" onClick={() => { setPendingCallReservationAction(null); void clearOwnerCallReservationAction(); }} className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[16px] text-[#334155]" aria-label="닫기">×</button>
+            <button type="button" onClick={() => { setPendingCallReservationAction(null); void clearOwnerCallReservationAction(); }} className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[16px] text-[#334155]" aria-label="닫기"><IconX aria-hidden="true" size={16} className="inline-block align-middle" /></button>
             <h1 className="text-[18px] font-semibold leading-6 text-[#15213b]">전화 예약 등록</h1>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(var(--pm-safe-bottom)+16px)]">
@@ -3895,7 +3870,7 @@ function OwnerAppContent({
                     <Icon
                       className="h-[22px] w-[22px]"
                       strokeWidth={1.9}
-                      style={shouldFill ? { fill: "currentColor" } : undefined}
+                      style={shouldFill ? { fill: "currentColor" } : undefined} aria-hidden="true"
                     />
                     {isActiveHome ? <span className="pointer-events-none absolute bottom-[2px] h-[12px] w-[6px] rounded-t-[2px] bg-[var(--accent-soft)]" /> : null}
                   </div>
@@ -4101,7 +4076,7 @@ function AppointmentListTrailing({ status }: { status: AppointmentStatus | "reco
   if (status === "record-completed" || status === "completed") {
     return (
       <span className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 text-[12px] font-normal leading-none text-[var(--text)]">
-        <Check className="h-3.5 w-3.5" strokeWidth={2.2} />
+        <Check className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden="true" />
         완료
       </span>
     );
@@ -4139,7 +4114,7 @@ function AppointmentListTrailing({ status }: { status: AppointmentStatus | "reco
     );
   }
 
-  return <ChevronRight className="h-4 w-4 shrink-0 text-[#b8b2aa]" strokeWidth={2} />;
+  return <ChevronRight className="h-4 w-4 shrink-0 text-[#b8b2aa]" strokeWidth={2} aria-hidden="true" />;
 }
 
 function VisitTimelineSection({ date, appointments, records, petMap, guardianMap, serviceMap, onOpenAppointment }: { date: string; appointments: Appointment[]; records: GroomingRecord[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; onOpenAppointment: (appointment: Appointment) => void }) { return <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">{shortDate(date)}</h3><span className="text-xs text-[var(--muted)]">{appointments.length + records.length}건</span></div><div className="mt-3 space-y-2">{appointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}{records.map((record) => <VisitRecordRow key={record.id} record={record} pet={petMap[record.pet_id]} guardian={guardianMap[record.guardian_id]} service={serviceMap[record.service_id]} />)}{appointments.length === 0 && records.length === 0 ? <AppEmptyState title="이 날짜 방문 내역이 없어요" /> : null}</div></div>; }
@@ -4205,7 +4180,7 @@ function HomeScheduleTabs({
             onClick={onAdd}
             aria-label="예약추가"
           >
-            <Plus className="h-[18px] w-[18px]" strokeWidth={2.3} />
+            <Plus className="h-[18px] w-[18px]" strokeWidth={2.3} aria-hidden="true" />
           </button>
         </div>
       ) : null}
@@ -4293,14 +4268,14 @@ function HomeHeaderStaffSelect({
               />
             </span>
           ) : (
-            <UserRound className="h-4 w-4 shrink-0 text-[#64748b]" strokeWidth={1.8} />
+            <UserRound className="h-4 w-4 shrink-0 text-[#64748b]" strokeWidth={1.8} aria-hidden="true" />
           )
         )}
         <span className={cn("pm-home-header-label relative -top-px min-w-0 truncate text-[14px] font-medium leading-6! tracking-[-0.01em] text-[#334155]", compact && "sr-only")}>
           {showStaffStack ? "전체" : selectedOption?.label ?? "담당자"}
         </span>
       </button>
-      {!compact && <ChevronDown className={cn("pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8] transition", open ? "rotate-180" : "")} strokeWidth={2} />}
+      {!compact && <ChevronDown className={cn("pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8] transition", open ? "rotate-180" : "")} strokeWidth={2} aria-hidden="true" />}
 
       {open ? (
         <div className="absolute right-0 top-[50px] z-50 w-[164px] overflow-hidden rounded-[14px] border border-[#dbe5f1] bg-white p-1.5 shadow-[0_14px_32px_rgba(15,23,42,0.14)]" role="listbox">
@@ -4336,7 +4311,7 @@ function HomeHeaderStaffSelect({
                 </span>
                 <span className="flex shrink-0 items-center gap-1.5">
                   {option.key !== "all" ? <span className={cn("text-[12px]", active ? "text-[#2f6fd6]" : "text-[#94a3b8]")}>{option.count}건</span> : null}
-                  {active ? <Check className="h-4 w-4" strokeWidth={2.2} /> : null}
+                  {active ? <Check className="h-4 w-4" strokeWidth={2.2} aria-hidden="true" /> : null}
                 </span>
               </button>
             );
@@ -4896,7 +4871,7 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
                 onClick={closeScheduleEditing}
                 className="-ml-1 inline-flex min-h-11 items-center gap-1 rounded-[10px] px-2 text-[14px] font-medium text-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
               >
-                <ChevronLeft className="h-4 w-4" strokeWidth={2} />
+                <ChevronLeft className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
                 예약 상세로
               </button>
               {serviceGroups.length > 0 ? (
@@ -4957,20 +4932,7 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
                 {slots.length === 0 ? (
                   <div className="rounded-2xl bg-white px-4 py-5 text-center text-[14px] font-normal leading-5 text-[var(--muted)]">선택한 날짜에 가능한 시간이 없어요.</div>
                 ) : (
-                  <HorizontalDragScroll>
-                    {slots.map((slot) => (
-                      <button
-                        key={slot}
-                        type="button"
-                        className={`min-h-11 min-w-[92px] shrink-0 rounded-[14px] border px-4 py-3 text-center text-[16px] font-medium leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] ${
-                          time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--text)]"
-                        }`}
-                        onClick={() => setTime(slot)}
-                      >
-                        {slot}
-                      </button>
-                    ))}
-                  </HorizontalDragScroll>
+                  <WheelTimeField aria-label="시간 선택" value={time} onValueChange={setTime} allowedTimes={slots} className="w-full" />
                 )}
               </div>
               <div className="rounded-[14px] border border-[#e8edf3] bg-white px-4 py-3" aria-label="변경할 예약 시간 요약">
@@ -5003,7 +4965,7 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
           <div className="rounded-[14px] border border-[#d4e3f2] bg-[#f8fbfe] p-3">
             <div className="mb-2 flex items-center justify-between"><span className="text-[16px] font-semibold leading-6 text-[#526b84]">케어리포트</span><span className={`text-[13px] font-medium leading-5 ${resolvedCareReportStatus === "published" ? "text-[#2f8c72]" : resolvedCareReportStatus === "draft" ? "text-[#4b77b6]" : "text-[#64748b]"}`}>{resolvedCareReportStatus === "published" ? "발송 완료" : resolvedCareReportStatus === "draft" ? "임시저장" : "작성 전"}</span></div>
             <button type="button" onClick={onOpenCareReport} disabled={careReportLoading} aria-busy={careReportLoading} className="flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#c9ddef] bg-white text-[16px] font-semibold text-[#326fac] disabled:opacity-60">
-              {careReportLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Sparkles className="h-4 w-4" />}{resolvedCareReportStatus === "published" ? "케어리포트 보기" : resolvedCareReportStatus === "draft" ? "이어서 작성" : "AI 케어리포트 작성"}
+              {careReportLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}{resolvedCareReportStatus === "published" ? "케어리포트 보기" : resolvedCareReportStatus === "draft" ? "이어서 작성" : "AI 케어리포트 작성"}
             </button>
           </div>
         ) : null}
@@ -5308,13 +5270,7 @@ function NewAppointmentForm({ data, petId, saving, savePending = false, canViewG
                 {slots.length === 0 ? (
                   <div className="rounded-2xl bg-[#fcfaf7] px-4 py-6 text-center text-sm text-[var(--muted)]">선택한 조건에 가능한 시간이 없어요.</div>
                 ) : (
-                  <HorizontalDragScroll>
-                    {slots.map((slot) => (
-                      <button key={slot} className={`min-w-[92px] shrink-0 rounded-2xl border px-4 py-3 text-center text-sm font-semibold ${time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)]"}`} onClick={() => setTime(slot)}>
-                        {slot}
-                      </button>
-                    ))}
-                  </HorizontalDragScroll>
+                  <WheelTimeField aria-label="시간 선택" value={time} onValueChange={setTime} allowedTimes={slots} className="w-full" />
                 )}
               </div>
             </div>
@@ -5712,7 +5668,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                     <Image src={heroImageUrl} alt={`${name || data.shop.name} 프로필`} fill sizes="60px" unoptimized className="object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-[#f4f5f4] text-[#9ea4a1]">
-                      <UserRound className="h-7 w-7" strokeWidth={1.8} />
+                      <UserRound className="h-7 w-7" strokeWidth={1.8} aria-hidden="true" />
                     </div>
                   )}
                 </button>
@@ -5722,7 +5678,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                   className="absolute bottom-0 right-0 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white bg-[var(--accent)] text-white shadow-[0_6px_14px_rgba(31,107,91,0.18)]"
                   aria-label="프로필 이미지 선택"
                 >
-                  <Camera className="h-3 w-3" strokeWidth={2} />
+                  <Camera className="h-3 w-3" strokeWidth={2} aria-hidden="true" />
                 </button>
                 <input
                   ref={fileInputRef}
@@ -5829,32 +5785,32 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                     </label>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <input
-                      type="time"
+                    <WheelTimeField aria-label="시간 선택"
+                      
                       className="field-input"
                       value={dayValue.open}
                       disabled={!dayValue.enabled}
-                      onChange={(event) =>
+                      onValueChange={(nextTime) =>
                         setBusinessHours((prev) => ({
                           ...prev,
                           [key]: {
                             ...(prev[key] || dayValue),
-                            open: event.target.value,
+                            open: nextTime,
                           },
                         }))
                       }
                     />
-                    <input
-                      type="time"
+                    <WheelTimeField aria-label="시간 선택"
+                      
                       className="field-input"
                       value={dayValue.close}
                       disabled={!dayValue.enabled}
-                      onChange={(event) =>
+                      onValueChange={(nextTime) =>
                         setBusinessHours((prev) => ({
                           ...prev,
                           [key]: {
                             ...(prev[key] || dayValue),
-                            close: event.target.value,
+                            close: nextTime,
                           },
                         }))
                       }
@@ -5923,7 +5879,7 @@ function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: stri
                 className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-semibold tracking-[-0.01em] text-white"
                 onClick={handleCopy}
               >
-                {copied ? <Check className="h-4 w-4" strokeWidth={2.4} /> : <Copy className="h-4 w-4" strokeWidth={2} />}
+                {copied ? <Check className="h-4 w-4" strokeWidth={2.4} aria-hidden="true" /> : <Copy className="h-4 w-4" strokeWidth={2} aria-hidden="true" />}
                 링크 복사
               </button>
               <a
@@ -5932,7 +5888,7 @@ function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: stri
                 rel="noreferrer"
                 className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[var(--border)] bg-white px-4 text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]"
               >
-                <ExternalLink className="h-4 w-4" strokeWidth={2} />
+                <ExternalLink className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
                 고객 화면 열기
               </a>
             </div>
@@ -5946,7 +5902,7 @@ function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: stri
         </div>
         <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="flex items-center gap-2">
-            <QrCode className="h-4 w-4 text-[var(--muted)]" />
+            <QrCode className="h-4 w-4 text-[var(--muted)]" aria-hidden="true" />
             <p className="text-sm font-semibold text-[var(--text)]">QR 코드</p>
           </div>
           <div className="mt-3 flex justify-center rounded-[16px] bg-white p-4">
@@ -6230,7 +6186,7 @@ function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle 
         <span className={`h-2 w-2 shrink-0 rounded-full ${dotClassName}`} />
         <span className="truncate text-[16px] font-medium leading-[22px] tracking-[-0.02em] text-[var(--text)]">{title}</span>
       </span>
-      <ChevronDown className={`h-4 w-4 shrink-0 text-[#94a3b8] transition-transform ${expanded ? "" : "-rotate-90"}`} />
+      <ChevronDown className={`h-4 w-4 shrink-0 text-[#94a3b8] transition-transform ${expanded ? "" : "-rotate-90"}`} aria-hidden="true" />
     </button>
   );
 }
@@ -6479,7 +6435,7 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, petDisplayPhot
             }}
             disabled={saving}
           >
-            <span className="text-[18px] leading-none">←</span>
+            <IconArrowLeft aria-hidden="true" size={18} />
             <span className="text-sm font-semibold">{ownerHomeCopy.slideCancel}</span>
             <span className="text-[12px] font-medium text-white/80">한 번 더 확인</span>
           </button>
@@ -6515,7 +6471,7 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, petDisplayPhot
                 {service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}
               </p>
             </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[#b8b2aa]" strokeWidth={1.9} />
+            <ChevronRight className="h-4 w-4 shrink-0 text-[#b8b2aa]" strokeWidth={1.9} aria-hidden="true" />
           </button>
 
           <div
@@ -6690,7 +6646,7 @@ function MobilePhotoStatusSheet({
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#d7dce2]" />
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-[var(--border)] bg-[#f8fafc] text-[var(--text)]">
-            <Camera className="h-5 w-5" strokeWidth={1.9} />
+            <Camera className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-[20px] font-medium tracking-[-0.03em] text-[var(--text)]">{action.title}</h3>

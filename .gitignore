@@ -22,3 +22,11 @@ archive/
 **/google-services.json
 *.jks
 *.keystore
+
+# Local tool and evidence folders. Scripts, tests and worktrees use them in place; never commit them.
+/.codex-work/
+/.tmp/
+/apps/web/.tmp/
+/evidence/
+/ops/
+/supabase/.branches/

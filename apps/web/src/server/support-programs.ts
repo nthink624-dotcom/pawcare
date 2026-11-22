@@ -97,8 +97,13 @@ async function fetchPage(key: string, page: number) {
   return readSupportProgramPage(JSON.parse(raw) as unknown);
 }
 
+/** The Bizinfo feed uses the same decoded data.go.kr account key as the holiday API unless a separate key is set. */
+export function supportProgramServiceKey(env: Record<string, string | undefined> = process.env) {
+  return env.DATA_GO_KR_SUPPORT_SERVICE_KEY?.trim() || env.DATA_GO_KR_SERVICE_KEY?.trim() || null;
+}
+
 const readSupportPrograms = unstable_cache(async () => {
-  const key = process.env.DATA_GO_KR_SUPPORT_SERVICE_KEY?.trim();
+  const key = supportProgramServiceKey();
   if (!key) throw new Error("Support program service key is missing");
   const first = await fetchPage(key, 1);
   const count = Math.min(maxPages, Math.ceil(first.total / pageSize));

@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readSupportProgramPage } from "../../src/server/support-programs.ts";
+import { readSupportProgramPage, supportProgramServiceKey } from "../../src/server/support-programs.ts";
 import { supportProgramsForShop } from "@petmanager/shared/lib/support-program-coverage";
+
+test("지원사업 전용 키가 없으면 공휴일과 같은 공공데이터 키를 쓴다", () => {
+  assert.equal(supportProgramServiceKey({ DATA_GO_KR_SERVICE_KEY: " shared " }), "shared");
+  assert.equal(supportProgramServiceKey({ DATA_GO_KR_SUPPORT_SERVICE_KEY: "support", DATA_GO_KR_SERVICE_KEY: "shared" }), "support");
+  assert.equal(supportProgramServiceKey({ DATA_GO_KR_SUPPORT_SERVICE_KEY: " ", DATA_GO_KR_SERVICE_KEY: "shared" }), "shared");
+  assert.equal(supportProgramServiceKey({}), null);
+});
 
 const officialNotice = "https://www.bizinfo.go.kr/web/lay1/bbs/S1T122C128/AS/74/view.do?pblancId=PBLN_0001";
 

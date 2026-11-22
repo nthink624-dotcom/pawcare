@@ -133,20 +133,20 @@ export default function MobileLoginScreenTemplate({
         {socialLogin}
 
         <div
-          className="mt-1 flex flex-wrap items-center justify-center gap-x-1 text-center text-[12px] font-normal leading-[18px] text-[#64748b] [@media(max-height:700px)]:mt-0"
+          className="mt-1 flex flex-wrap items-center justify-center gap-x-1 text-center text-[16px] font-medium leading-6 text-[#64748b] [@media(max-height:700px)]:mt-0"
           data-login-helper-links
         >
           {helperLinks.map((link, index) => (
             <span key={`${link.href}-${link.label}`} className="contents">
               {index > 0 ? <span className="text-[#d5dce5]">|</span> : null}
-              <Link href={link.href as never} replace className="inline-flex min-h-11 items-center whitespace-nowrap px-1.5 font-normal! text-[#64748b] hover:text-[#0f172a]">
+              <Link href={link.href as never} replace className="inline-flex min-h-11 items-center whitespace-nowrap px-1.5 font-medium! text-[#64748b] hover:text-[#0f172a]">
                 {link.label}
               </Link>
             </span>
           ))}
         </div>
 
-        <div className="text-center text-[12px] font-normal leading-[18px] text-[#64748b]">
+        <div className="auth-type-helper mt-1 text-center text-[#64748b]">
           <a href={PUBLIC_LEGAL_URLS.privacy} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center font-normal! underline underline-offset-4 hover:text-[#64748b]">
             개인정보처리방침
           </a>

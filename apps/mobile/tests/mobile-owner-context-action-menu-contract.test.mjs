@@ -8,7 +8,7 @@ const menu = await readFile(menuPath, "utf8");
 const ownerApp = await readFile(ownerAppPath, "utf8");
 
 test("the quick-menu trigger keeps a 44px hit area around a compact 40px visual circle", () => {
-  assert.match(menu, /MessageSquareWarning, Plus/);
+  assert.match(menu, /IconMessageExclamation as MessageSquareWarning,\s*IconPlus as Plus/);
   assert.match(menu, /scheduleAppearance\?: boolean/);
   assert.match(menu, /scheduleAppearance = false/);
   assert.match(menu, /BUTTON_SIZE_PX = 44/);

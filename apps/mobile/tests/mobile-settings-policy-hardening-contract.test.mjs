@@ -50,7 +50,7 @@ test("runtime state keeps preference, app, channel, connecting, failure, and rec
 });
 
 test("photo analysis requires a distinct just-in-time OpenAI disclosure and affirmative action", () => {
-  assert.match(price, /type Mode = "choose" \| "consent"/);
+  assert.match(price, /type Mode = [^;]*"choose" \| "consent"/);
   assert.match(price, /비식별 파생 이미지를 OpenAI로 전송해 서비스명·가격 초안을 생성합니다/);
   assert.match(price, /원본 사진에 고객 이름, 전화번호 등 개인정보가 보이지 않는지 다시 확인해 주세요/);
   assert.match(price, /동의하고 분석/);

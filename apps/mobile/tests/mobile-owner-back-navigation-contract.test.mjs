@@ -32,21 +32,21 @@ function loadPolicy() {
   return compiledModule.exports;
 }
 
-test("only a second root back press inside two seconds exits", () => {
-  const { OWNER_ROOT_BACK_CONFIRMATION_MS, shouldExitOwnerApp } = loadPolicy();
-  assert.equal(OWNER_ROOT_BACK_CONFIRMATION_MS, 2_000);
-  assert.equal(shouldExitOwnerApp(null, 10_000), false);
-  assert.equal(shouldExitOwnerApp(10_000, 11_999), true);
-  assert.equal(shouldExitOwnerApp(10_000, 12_001), false);
+// The two-press exit was removed on 2026-09-19 (0d29fb37); mobile-back-d-parity keeps the app open at root.
+test("root back press keeps the app open without a two-press exit timer", () => {
+  const policy = loadPolicy();
+  assert.equal(typeof policy.addOwnerAndroidBackButtonListener, "function");
+  assert.equal("shouldExitOwnerApp" in policy, false);
+  assert.equal("OWNER_ROOT_BACK_CONFIRMATION_MS" in policy, false);
 });
 
 test("Android forwards back only while the single JS listener is mounted", () => {
   assert.match(activity, /registerPlugin\(OwnerBackNavigationPlugin\.class\)/);
-  assert.match(activity, /public void onBackPressed\(\)/);
-  assert.match(activity, /dispatchHardwareBack\(\)\) return/);
+  assert.match(activity, /getOnBackPressedDispatcher\(\)\.addCallback\(this, new OnBackPressedCallback\(true\)/);
+  assert.match(activity, /if \(dismissKeyboardIfVisible\(\)\) return;\s*dispatchOwnerBack\(\);/);
   assert.match(plugin, /hasListeners\("backButton"\)/);
   assert.match(plugin, /notifyListeners\("backButton", new JSObject\(\)\)/);
-  assert.match(plugin, /finishAndRemoveTask\(\)/);
+  assert.doesNotMatch(plugin, /finishAndRemoveTask\(\)/);
   assert.match(policySource, /Capacitor\.getPlatform\(\) !== "android"/);
   assert.match(policySource, /handle\.remove\(\)/);
 });
@@ -59,11 +59,9 @@ test("owner back priority closes local layers before tabs and never uses browser
   assert.match(ownerApp, /if \(settingsEntryScreen\)/);
   assert.match(ownerApp, /new CustomEvent\("owner-mobile-back-request", \{ cancelable: true \}\)/);
   assert.match(ownerApp, /if \(backRequest\.defaultPrevented\)/);
-  assert.match(ownerApp, /owner-root-back-exit-notice/);
   assert.match(await readFile(new URL("../src/components/auth/mobile-ai-price-guide-fixture.tsx", import.meta.url), "utf8"), /owner-mobile-back-request/);
   assert.match(ownerApp, /activeTabBackStackRef\.current\.pop\(\)/);
   assert.match(ownerApp, /window\.location\.replace\("\/owner\/mobile"\)/);
-  assert.match(ownerApp, /한 번 더 누르면 앱이 종료됩니다/);
   assert.doesNotMatch(ownerApp, /history\.back\(|router\.back\(/);
 });
 

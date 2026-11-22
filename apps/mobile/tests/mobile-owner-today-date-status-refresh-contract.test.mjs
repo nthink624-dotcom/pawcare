@@ -70,7 +70,7 @@ test("today date controls share the task-tab row with inline relative label, wit
   assert.match(navigatorSource, /aria-label="이전 날짜"/);
   assert.match(navigatorSource, /aria-label="다음 날짜"/);
   assert.match(navigatorSource, /h-11 w-11/);
-  assert.match(navigatorSource, /w-\[92px\]/);
+  assert.match(navigatorSource, /inline-flex h-11 shrink-0 items-center justify-center gap-1/);
   assert.match(navigatorSource, /text-\[16px\] font-medium/);
   assert.match(navigatorSource, /text-\[13px\] font-medium/);
   assert.match(navigatorSource, /tabular-nums/);
@@ -81,15 +81,15 @@ test("today date controls share the task-tab row with inline relative label, wit
   assert.match(pickerSource, /aria-label="빠른 날짜 선택"/);
   assert.match(pickerSource, /min-h-11/);
   assert.match(pickerSource, /aria-label="이전 달" className="inline-flex h-11 w-11/);
-  assert.match(pickerSource, /className="flex h-11 items-center justify-center/);
+  assert.match(pickerSource, /className="flex min-h-11 min-w-0 flex-col items-center justify-center/);
 });
 
 test("today task tabs keep Korean labels on one line while the date control uses only its required width", () => {
   assert.match(ownerAppSource, /flex min-w-0 flex-1 items-center gap-2/);
-  assert.match(ownerAppSource, /flex min-h-11 shrink-0 items-center gap-\[5px\]/);
+  assert.match(ownerAppSource, /flex h-14 shrink-0 items-center gap-\[5px\]/);
   assert.match(ownerAppSource, /<span className="whitespace-nowrap text-center">\{tab\.label\}<\/span>/);
-  assert.match(navigatorSource, /flex shrink-0 items-center gap-1/);
-  assert.match(navigatorSource, /h-11 w-\[92px\]/);
+  assert.match(navigatorSource, /"flex shrink-0 items-center gap-0"/);
+  assert.doesNotMatch(navigatorSource, /w-\[92px\]/);
 });
 
 test("today reservation chips emphasize only the core time, pet, and service roles", () => {
@@ -121,7 +121,7 @@ test("all owner tabs share one contextual menu that opens the canonical reservat
   assert.match(contextMenuSource, /data-testid="owner-context-action-trigger"/);
   assert.match(contextMenuSource, /aria-label="빠른 메뉴 열기 및 이동"/);
   assert.match(contextMenuSource, />\s*새 예약 추가\s*</);
-  assert.match(contextMenuSource, /h-12 w-12/);
+  assert.match(contextMenuSource, /inline-flex h-11 w-11 touch-none/);
   assert.match(contextMenuSource, /document\.querySelector<HTMLElement>\("\.pm-mobile-owner"\)\?\.getBoundingClientRect\(\)/);
   assert.match(contextMenuSource, /const left = shell \? Math\.max\(viewportLeft, shell\.left\) : viewportLeft;/);
   assert.match(contextMenuSource, /const right = shell \? Math\.min\(viewportRight, shell\.right\) : viewportRight;/);
@@ -129,5 +129,5 @@ test("all owner tabs share one contextual menu that opens the canonical reservat
   assert.doesNotMatch(contextMenuSource, /clampAxis\(\s*position\.x,\s*EDGE_GAP_PX \+ half,\s*window\.innerWidth/s);
   assert.match(ownerAppSource, /setModal\(\{ type: "new-appointment" \}\)/);
   assert.match(ownerAppSource, /modal\.type === "new-appointment"[\s\S]*onSave=\{\(payload\) => mutate\("\/api\/appointments"/);
-  assert.match(ownerAppSource, /pb-\[calc\(env\(safe-area-inset-bottom\)\+128px\)\]/);
+  assert.match(ownerAppSource, /pb-\[calc\(var\(--pm-safe-bottom\)\+128px\)\]/);
 });

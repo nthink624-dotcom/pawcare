@@ -97,7 +97,7 @@ test("booking detail shares heading roles and keeps one divider at each requeste
   assert.match(mediaDetail, /className=\{APPOINTMENT_DETAIL_HISTORY_HEADING_CLASS\}>사진 기록<\/h2>/);
   assert.match(appointmentDetail, /className=\{APPOINTMENT_DETAIL_HISTORY_HEADING_CLASS\}>알림톡 이력<\/h2>/);
 
-  assert.match(appointmentDetail, /<section className="mt-3 pb-3">[\s\S]*?담당자 메모[\s\S]*?<\/section>[\s\S]*?<AppointmentVisitWeightEditor/);
+  assert.match(appointmentDetail, />담당자 메모<\/h2>[\s\S]*?<AppointmentVisitWeightEditor/);
   assert.doesNotMatch(appointmentDetail, /<section className="mt-3 border-b border-\[#e8edf3\] pb-3">/);
   assert.equal((visitWeightEditor.match(/border-t border-\[#e8edf3\]/g) ?? []).length, 1);
   assert.equal((mediaDetail.match(/border-b border-\[#e8edf3\]/g) ?? []).length, 1);
@@ -110,6 +110,6 @@ test("photo history keeps empty and present items between its heading and single
   assert.match(mediaDetail, /\{items\.length === 0 \? \(/);
   assert.match(mediaDetail, /이 예약에 연결된 시작\/완료 사진이 아직 없어요/);
   assert.match(mediaDetail, /items\.map\(\(\{ item, signedUrl \}\) => \(/);
-  assert.match(mediaDetail, /<img[\s\S]*?src=\{signedUrl\}[\s\S]*?getAppointmentMediaKindLabel/);
+  assert.match(mediaDetail, /<(?:img|Image)[\s\S]*?src=\{signedUrl\}[\s\S]*?getAppointmentMediaKindLabel/);
   assert.doesNotMatch(mediaDetail, /rounded-\[18px\][\s\S]*?rounded-\[18px\]/);
 });

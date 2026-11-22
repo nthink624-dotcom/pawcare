@@ -270,14 +270,15 @@ test("native Android headers use the measured system status-bar inset", async ()
   assert.match(platform, /Capacitor\.isNativePlatform\(\)/);
   assert.match(platform, /const platform = Capacitor\.getPlatform\(\);[\s\S]*root\.dataset\.pmNativePlatform = platform/);
   assert.match(globals, /--pm-safe-top:\s*env\(safe-area-inset-top, 0px\)/);
-  assert.match(globals, /:root\[data-pm-native-platform="android"\]\s*\{\s*--pm-safe-top:\s*0px/);
+  assert.match(globals, /--pm-safe-top:\s*max\(env\(safe-area-inset-top\), var\(--pm-native-safe-top\)\)/);
+  assert.match(globals, /:root\[data-pm-native-platform="android"\]\s*\{\s*--pm-native-safe-top:\s*0px/);
   assert.match(platform, /OwnerSystemBars\.getStatusBarInset\(\)/);
   assert.match(platform, /root\.style\.setProperty\("--pm-safe-top", inset\)/);
   assert.match(platform, /--pm-android-statusbar-inset/);
   const nativeSystemBars = await readFile(new URL("../android/app/src/main/java/kr/petmanager/owner/OwnerSystemBarsPlugin.java", import.meta.url), "utf8");
   assert.match(nativeSystemBars, /Type\.statusBars\(\)/);
   const mainActivity = await readFile(new URL("../android/app/src/main/java/kr/petmanager/owner/MainActivity.java", import.meta.url), "utf8");
-  assert.match(mainActivity, /setStatusBarColor\(Color\.WHITE\)/);
+  assert.match(mainActivity, /setStatusBarColor\(STATUS_BAR_BACKGROUND\)/);
   assert.match(mainActivity, /setAppearanceLightStatusBars\(true\)/);
 });
 
@@ -493,5 +494,5 @@ test("owner app connects real staff and exact selected dates", () => {
 
 test("booking scrollport reserves the fixed bottom navigation", () => {
   assert.match(ownerApp, /activeTab === "book"\s*\? "h-dvh"/);
-  assert.match(ownerApp, /activeTab === "book" \? "mb-\[calc\(env\(safe-area-inset-bottom\)\+60px\)\] min-h-0 overflow-y-auto overscroll-y-contain pb-0"/);
+  assert.match(ownerApp, /activeTab === "book"\s*\? "mb-\[calc\(var\(--pm-safe-bottom\)\+60px\)\] min-h-0 overflow-y-auto overscroll-y-contain pb-0"/);
 });

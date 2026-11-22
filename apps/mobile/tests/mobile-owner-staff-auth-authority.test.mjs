@@ -8,6 +8,7 @@ const ownerPage = await readFile(new URL("../src/app/owner/mobile/page.tsx", imp
 const ownerApp = await readFile(new URL("../src/components/owner/owner-app.tsx", import.meta.url), "utf8");
 const ownerShell = await readFile(new URL("../src/components/owner/owner-shell.tsx", import.meta.url), "utf8");
 const integritySource = await readFile(new URL("../src/lib/owner-customer-pet-integrity.ts", import.meta.url), "utf8");
+const ownerEntry = await readFile(new URL("../src/lib/owner-entry.ts", import.meta.url), "utf8");
 
 function extractFunction(source, name, fileName) {
   const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -77,14 +78,15 @@ test("mobile role is derived from the canonical staff-scoped bootstrap, not URL 
 });
 
 test("initial mobile role waits for the launch bootstrap authority projection", () => {
-  const loadStart = ownerPage.indexOf("const cachedBootstrapRequest = storedShopId");
+  const loadStart = ownerPage.indexOf("const entry = await loadOwnerEntry(storedShopId");
   const roleResolution = ownerPage.indexOf("const roleContext = resolveOwnerMobileRoleContext(canonicalBootstrap);", loadStart);
   const loadEnd = ownerPage.indexOf("} catch (error) {", roleResolution);
   assert.ok(loadStart >= 0 && roleResolution > loadStart && loadEnd > roleResolution, "initial bootstrap role block must exist");
 
   const initialRoleLoad = ownerPage.slice(loadStart, loadEnd);
-  assert.match(initialRoleLoad, /`\/api\/bootstrap\?shopId=\$\{encodeURIComponent\(storedShopId\)\}&phase=launch`/);
-  assert.match(initialRoleLoad, /`\/api\/bootstrap\?shopId=\$\{encodeURIComponent\(resolvedShopId\)\}&phase=launch`/);
+  // Startup reads are combined in loadOwnerEntry; its bootstrap fallback still asks for the launch phase only.
+  assert.match(ownerEntry, /\/api\/bootstrap\?phase=launch/);
+  assert.doesNotMatch(ownerEntry, /phase=essential/);
   assert.doesNotMatch(initialRoleLoad, /phase=essential/);
   assert.ok(initialRoleLoad.indexOf("assertOwnerBootstrapPayload(bootstrap") < initialRoleLoad.indexOf("resolveOwnerMobileRoleContext(canonicalBootstrap)"));
   assert.match(initialRoleLoad, /setMobileRoleContext\(roleContext\)/);
@@ -107,7 +109,7 @@ test("staff appointment UI scope rejects a missing or stale staff binding", asyn
 test("staff entry does not depend on the owner-only subscription endpoint", () => {
   assert.match(
     ownerPage,
-    /roleContext\.appRole === "owner"\s*&&\s*readiness\.completed\s*&&\s*shouldResolveSubscriptionBeforeRender\s*\? await fetchApiJsonWithAuth<OwnerSubscriptionSummary>/,
+    /roleContext\.appRole === "owner"\s*&&\s*readiness\.completed\s*&&\s*shouldResolveSubscriptionBeforeRender\s*\?[\s\S]{0,200}?await fetchApiJsonWithAuth<OwnerSubscriptionSummary>/,
   );
   assert.match(ownerPage, /: null;/);
   assert.ok(ownerPage.indexOf("resolveOwnerMobileRoleContext(canonicalBootstrap)") < ownerPage.indexOf('`/api/subscription?shopId='));
@@ -115,7 +117,7 @@ test("staff entry does not depend on the owner-only subscription endpoint", () =
 
 test("Android renders after launch authority bootstrap and refreshes subscription in OwnerShell", () => {
   assert.match(ownerPage, /const isAndroidApp = Capacitor\.getPlatform\(\) === "android";/);
-  assert.match(ownerPage, /const shouldResolveSubscriptionBeforeRender = !isAndroidApp;/);
+  assert.match(ownerPage, /const shouldResolveSubscriptionBeforeRender = !isAndroidApp(?:\s*&&[^;]*)?;/);
   assert.match(ownerPage, /readiness\.completed && shouldResolveSubscriptionBeforeRender/);
   assert.match(ownerShell, /void refreshSummary\(\);/);
 });

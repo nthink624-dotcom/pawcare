@@ -18,10 +18,10 @@ const [startSheet, careReport, ownerApp, speechBridge, manifest, nativePlugin, m
 
 test("grooming start copy keeps choices but removes the redundant mutation sentence", () => {
   assert.doesNotMatch(startSheet, /시작하면 예약 상태가 진행 중으로 변경됩니다/);
-  assert.match(startSheet, /사진 촬영 후 시작/);
-  assert.match(startSheet, /사진 없이 바로 시작/);
-  assert.match(startSheet, /onPhotoStart/);
-  assert.match(startSheet, /onStartWithoutPhoto/);
+  assert.match(startSheet, /"촬영 후 시작"/);
+  assert.match(startSheet, /"바로 시작"/);
+  assert.match(startSheet, /onClick=\{onPhotoAction\}/);
+  assert.match(startSheet, /onClick=\{onDirectAction\}/);
 });
 
 test("Android speech bridge requests microphone permission and exposes no audio payload", () => {

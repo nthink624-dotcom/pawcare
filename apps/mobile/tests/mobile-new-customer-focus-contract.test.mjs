@@ -45,8 +45,8 @@ test("new-customer guardian focus order and state bindings remain unchanged", ()
 });
 
 test("new-customer save still trims and sends the existing guardian payload", () => {
-  assert.match(form, /const canSave = !saving && guardianName\.trim\(\) && phone\.trim\(\)/);
+  assert.match(form, /const canSave = !saving && !savePending && guardianName\.trim\(\) && phone\.trim\(\)/);
   assert.match(form, /\{ shopId, name: guardianName\.trim\(\), phone: phone\.trim\(\), memo: memo\.trim\(\) \}/);
-  assert.match(form, />\s*고객 저장\s*<\/ActionButton>/);
+  assert.match(form, /\{savePending \? "최신 상태 확인 중" : "고객 저장"\}\s*<\/ActionButton>/);
   assert.doesNotMatch(form, /fetch\(|fetchApiJsonWithAuth|\/api\/guardians/);
 });

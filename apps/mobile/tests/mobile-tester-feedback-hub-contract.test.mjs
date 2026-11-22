@@ -8,6 +8,7 @@ const feedbackSheet = await readFile(new URL("../src/components/owner/owner-test
 const feedbackContract = await readFile(new URL("../src/lib/tester-feedback.ts", import.meta.url), "utf8");
 const feedbackAdapter = await readFile(new URL("../src/lib/owner-feedback-adapter.ts", import.meta.url), "utf8");
 const apiClient = await readFile(new URL("../src/lib/api.ts", import.meta.url), "utf8");
+const mobileEnv = await readFile(new URL("../src/lib/env.ts", import.meta.url), "utf8");
 const fixturePage = await readFile(new URL("../src/app/dev/owner-feedback-preview/page.tsx", import.meta.url), "utf8");
 const fixture = await readFile(new URL("../src/components/owner/owner-feedback-dev-preview.tsx", import.meta.url), "utf8");
 const domain = await readFile(new URL("../src/types/domain.ts", import.meta.url), "utf8");
@@ -24,7 +25,7 @@ test("tester access changes only amber emphasis while every authenticated owner 
   assert.doesNotMatch(ownerApp, /ReservationCreateFab/);
   assert.match(ownerApp, /!isStaffApp && !modal/);
   assert.match(ownerApp, /<OwnerContextActionMenu/);
-  assert.match(ownerApp, /isSuppressed=\{isTesterFeedbackHubOpen\}/);
+  assert.match(ownerApp, /isSuppressed=\{isTesterFeedbackHubOpen\b/);
   assert.match(ownerApp, /returnFocusRef=\{ownerFeedbackReturnFocusRef\}/);
   assert.match(ownerApp, /adapter=\{sharedOwnerFeedbackAdapter\}/);
   assert.match(contextMenu, /isTester \? "border-\[#d8c59c\] bg-\[#fff5d9\]" : "border-\[#cfd8e3\] bg-white"/);
@@ -83,8 +84,10 @@ test("shared feedback transport keeps retry receipts private and POST payload al
   assert.match(feedbackAdapter, /fetchApiJsonWithAuth<\{ feedback: Omit<OwnerFeedbackAcknowledgement, "replayed">; replayed: boolean \}>\("\/api\/owner\/tester-feedback"/);
   assert.match(feedbackAdapter, /method: "POST"/);
   assert.match(feedbackAdapter, /body: JSON\.stringify\(submission\)/);
-  assert.match(apiClient, /if \(env\.apiBaseUrl\)/);
-  assert.equal(apiClient.includes('return `${env.apiBaseUrl.replace(/\\/$/, "")}${normalizedPath}`;'), true);
+  // API URLs are built by buildMobileApiUrl, which only allows the configured origin list.
+  assert.match(apiClient, /return buildMobileApiUrl\(path\);/);
+  assert.match(mobileEnv, /const allowedOrigins = runtimeStage === "development" \? DEVELOPMENT_API_ORIGINS : PRODUCTION_API_ORIGINS;/);
+  assert.match(mobileEnv, /if \(url\.origin !== origin\) \{/);
   assert.match(feedbackAdapter, /createOwnerMediaAssetFromFile\(\s*\{ shopId \},\s*"feedback_screenshot"/);
   assert.match(feedbackAdapter, /createProviderReadyVariant: false/);
   assert.match(feedbackAdapter, /consent: true/);

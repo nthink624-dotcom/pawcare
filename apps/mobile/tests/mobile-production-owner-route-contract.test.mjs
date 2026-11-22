@@ -16,8 +16,8 @@ test("production owner mobile route renders the canonical app without loopback r
 
   assert.doesNotMatch(
     nextConfig,
-    /source:\s*["']\/owner\/mobile["']/,
-    "next.config.ts must not redirect the canonical /owner/mobile route",
+    /\b(?:redirects|rewrites)\s*\(\)/,
+    "next.config.ts must not redirect or rewrite the canonical /owner/mobile route",
   );
   assert.doesNotMatch(
     ownerMobilePage,
@@ -32,7 +32,7 @@ test("production owner mobile route renders the canonical app without loopback r
   assert.doesNotMatch(ownerMobilePage, /\bredirect\s*\(/, "the canonical page must not self-redirect");
 
   assert.match(ownerMobilePage, /import OwnerShell from ["']@\/components\/owner\/owner-shell["']/);
-  assert.match(ownerMobilePage, /return\s*\(\s*<OwnerShell\b/);
+  assert.match(ownerMobilePage, /return\s*\(\s*(?:<>\s*)?<OwnerShell\b/);
   assert.match(ownerApp, /<HomeScheduleTabs/);
   assert.match(ownerApp, /<OwnerHomeDateNavigator/);
   assert.match(ownerApp, /<TodayConfirmedContent/);

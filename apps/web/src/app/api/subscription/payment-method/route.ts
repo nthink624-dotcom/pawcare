@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
       issueId: payload.issueId,
       paymentMethodLabel: payload.paymentMethodLabel,
       autoRenewPlanCode: payload.planCode,
+      verifyPortoneIssue: true,
     });
     return NextResponse.json(summary);
   } catch (error) {

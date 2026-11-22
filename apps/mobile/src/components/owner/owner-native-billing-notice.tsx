@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { IconRefresh as RefreshCw } from "@tabler/icons-react";
 
 import { AppButton } from "@/components/ui/app-button";
 import { getOwnerPlanDisplayName, getOwnerPlanByCode } from "@/lib/billing/owner-plans";

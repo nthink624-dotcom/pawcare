@@ -12,7 +12,7 @@ test("owner billing plan, consent, and card registration stay in one accessible 
     source("src/components/owner/owner-billing-screen.tsx"),
     source("src/components/owner/owner-billing-plan-picker.tsx"),
     source("src/features/billing/BillingConsent.tsx"),
-    source("src/features/billing/OwnerBillingCardRegistrationForm.tsx"),
+    source("src/features/billing/OwnerHostedCardRegistration.tsx"),
     source("src/features/billing/PaymentMethodSheet.tsx"),
   ]);
 
@@ -27,7 +27,8 @@ test("owner billing plan, consent, and card registration stay in one accessible 
   assert.match(screen, /<OwnerBillingModal[\s\S]*labelledBy="owner-billing-card-registration-title"/);
   assert.match(screen, /<OwnerBillingModal[\s\S]*labelledBy="owner-billing-consent-title"/);
   assert.match(screen, /<OwnerBillingModal[\s\S]*labelledBy="owner-billing-plan-picker-title"/);
-  assert.match(screen, /<OwnerBillingCardRegistrationForm\s+variant="modal"/);
+  assert.match(screen, /<OwnerHostedCardRegistration/);
+  assert.doesNotMatch(screen, /<OwnerBillingCardRegistrationForm/);
   assert.match(screen, /<BillingConsent\s+variant="modal"/);
   assert.match(screen, /<OwnerBillingPlanPicker\s+variant="modal"/);
   assert.doesNotMatch(screen, /if \(cardRegistrationOpen\) \{\s*return/);
@@ -36,7 +37,8 @@ test("owner billing plan, consent, and card registration stay in one accessible 
   assert.match(picker, /variant\?: "page" \| "modal"/);
   assert.match(picker, /repeat\(auto-fit,minmax\(min\(100%,280px\),1fr\)\)/);
   assert.match(consent, /variant === "page"/);
-  assert.match(cardForm, /variant === "page"/);
+  assert.match(cardForm, /type="checkbox"/);
+  assert.doesNotMatch(cardForm, /cardNumber|expiry|cvc|passwordTwoDigits/i);
   assert.match(paymentSheet, /z-\[80\]/);
 
   assert.doesNotMatch(picker, /모든 플랜에 기본 제공/);

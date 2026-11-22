@@ -30,15 +30,20 @@ test("owner subscription profile and shop record are loaded concurrently", async
   assert.match(read, /Promise\.all\(\[\s*getOwnerProfile\(identity\.id\),\s*admin[\s\S]*?from\(BILLING_TABLE\)/);
 });
 
-test("owner recurring billing uses direct card API without a hosted certificate flow", async () => {
-  const [client, api, issue, route] = await Promise.all([
+test("web owner checkout uses the hosted billing-key flow while legacy API callers retain their contract", async () => {
+  const [client, api, issue, route, screen, hostedRoute] = await Promise.all([
     source("src/lib/billing/owner-billing-client.ts"),
     source("src/api/billing.ts"),
     source("src/server/owner-billing-key-issue.ts"),
     source("src/app/api/subscription/payment-method/issue/route.ts"),
+    source("src/components/owner/owner-billing-screen.tsx"),
+    source("src/app/api/subscription/payment-method/route.ts"),
   ]);
 
-  assert.doesNotMatch(client, /@portone\/browser-sdk|requestIssueBillingKey|billingKeyMethod/);
+  assert.match(client, /requestIssueBillingKey\(\{[\s\S]*billingKeyMethod: "CARD"/);
+  assert.match(screen, /requestOwnerHostedBillingKey/);
+  assert.doesNotMatch(screen, /issueOwnerBillingKeyByApi|OwnerBillingCardRegistrationForm/);
+  assert.match(hostedRoute, /verifyPortoneIssue: true/);
   assert.match(client, /subscriptionPath\("\/api\/subscription\/payment-method\/issue", shopId\)/);
   assert.match(api, /registerOwnerBillingCard = issueOwnerBillingKeyByApi/);
   assert.match(issue, /fetch\("https:\/\/api\.portone\.io\/billing-keys"/);

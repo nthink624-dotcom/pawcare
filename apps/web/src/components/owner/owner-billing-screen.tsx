@@ -1,21 +1,21 @@
 ﻿"use client";
 
-import { CalendarX2, CreditCard, X } from "lucide-react";
+import { IconCalendarX as CalendarX2, IconCreditCard as CreditCard, IconX as X } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
 import { OwnerBillingModal } from "@/components/owner/owner-billing-modal";
+import { OwnerHostedCardRegistration } from "@/features/billing/OwnerHostedCardRegistration";
 import {
   BillingConsent,
-  OwnerBillingCardRegistrationForm,
   PaymentMethodSheet,
-  type OwnerBillingCardCredentials,
   type PaymentMethodOption,
 } from "@/features/billing";
 import {
   cancelOwnerSubscriptionRenewal,
-  issueOwnerBillingKeyByApi,
+  registerOwnerBillingKey,
+  requestOwnerHostedBillingKey,
   saveOwnerSubscriptionPreferences,
   retryOwnerSubscriptionPayment,
 } from "@/lib/billing/owner-billing-client";
@@ -29,7 +29,6 @@ import {
 } from "@/lib/billing/owner-plans";
 import { addDaysIso, addMonthsIso, type OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
-import { env } from "@/lib/env";
 import { won } from "@/lib/utils";
 
 function formatDate(iso: string | null) {
@@ -62,11 +61,10 @@ function formatProjectedServiceEndDate(
   return formatDate(displayEndsAt);
 }
 
-function hasSuccessfulPayment(summary: OwnerSubscriptionSummary) {
+export function hasSuccessfulPayment(summary: OwnerSubscriptionSummary) {
   return summary.lastPaymentStatus === "paid" || summary.status === "active";
 }
 
-const OWNER_BILLING_PENDING_KEY = "owner-billing:pending-register-and-pay";
 const cancellationReasons = [
   "가격 부담이 큽니다",
   "당분간 사용을 쉬려고 합니다",
@@ -75,47 +73,11 @@ const cancellationReasons = [
   "기타",
 ];
 
-function storePendingBillingRegistration(planCode: OwnerPlanCode) {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(
-    OWNER_BILLING_PENDING_KEY,
-    JSON.stringify({
-      planCode,
-      requestedAt: Date.now(),
-    }),
-  );
-}
-
-function readPendingBillingRegistration(): { planCode: OwnerPlanCode; requestedAt: number } | null {
-  if (typeof window === "undefined") return null;
-
-  const raw = window.sessionStorage.getItem(OWNER_BILLING_PENDING_KEY);
-  if (!raw) return null;
-
-  try {
-    const parsed = JSON.parse(raw) as { planCode?: OwnerPlanCode; requestedAt?: number };
-    if (!parsed.planCode || typeof parsed.requestedAt !== "number") {
-      return null;
-    }
-    return {
-      planCode: parsed.planCode,
-      requestedAt: parsed.requestedAt,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function clearPendingBillingRegistration() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(OWNER_BILLING_PENDING_KEY);
-}
-
 function getDefaultPickerPlanCode(currentPlanCode: OwnerPlanCode, fallbackPlanCode: OwnerPlanCode) {
   return currentPlanCode === OWNER_SINGLE_MONTHLY_PLAN_CODE ? currentPlanCode : fallbackPlanCode;
 }
 
-function buildBillingSuccessUrl(summary: OwnerSubscriptionSummary) {
+export function buildBillingSuccessUrl(summary: OwnerSubscriptionSummary) {
   const params = new URLSearchParams();
   params.set("plan", summary.currentPlanCode);
   if (summary.currentPeriodEndsAt) {
@@ -213,7 +175,7 @@ export default function OwnerBillingScreen({
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<"saved" | "new">(
     initialSummary.paymentMethodExists && !initialSummary.paymentMethodResetRequired ? "saved" : "new",
   );
-  const [resumingRegisteredCardPayment, setResumingRegisteredCardPayment] = useState(false);
+  const hostedCardInFlightRef = useRef(false);
   const copy = statusCopy(summary);
   const [message, setMessage] = useState<string | null>(null);
   const agreementContinueRef = useRef<HTMLButtonElement | null>(null);
@@ -244,7 +206,7 @@ export default function OwnerBillingScreen({
   const billingCycleLabel = "매월 자동 결제";
   const nextBillingDateLabel = formatDate(addMonthsIso(new Date().toISOString(), 1));
   const agreementContinueLabel =
-    registeringCard || retryingPayment || resumingRegisteredCardPayment
+    registeringCard || retryingPayment
       ? "결제 진행 중..."
       : hasUsableRegisteredPaymentMethod
         ? "동의하고 결제하기"
@@ -306,68 +268,6 @@ export default function OwnerBillingScreen({
     setPaymentSheetOpen(true);
   }, [hasUsableRegisteredPaymentMethod, isFreePlan, openPaymentSheet]);
 
-  useEffect(() => {
-    const pending = readPendingBillingRegistration();
-    if (!pending) return;
-    if (Date.now() - pending.requestedAt > 1000 * 60 * 20) {
-      clearPendingBillingRegistration();
-      return;
-    }
-    if (resumingRegisteredCardPayment || retryingPayment) {
-      return;
-    }
-    if (!summary.paymentMethodExists) {
-      return;
-    }
-
-    let cancelled = false;
-    const pendingPlanCode = pending.planCode;
-
-    async function resumePayment() {
-      setResumingRegisteredCardPayment(true);
-      setMessage("등록한 카드로 결제를 이어서 진행하고 있어요.");
-
-      try {
-        let activeSummary = summary;
-        if (pendingPlanCode !== summary.currentPlanCode) {
-          const savedSummary = await saveOwnerSubscriptionPreferences(summary.shopId);
-          if (cancelled) return;
-          activeSummary = savedSummary;
-          setSummary(savedSummary);
-          setSelectedPlanCode(savedSummary.currentPlanCode);
-        }
-
-        clearPendingBillingRegistration();
-
-        const nextSummary = await retryOwnerSubscriptionPayment(activeSummary.shopId);
-        if (cancelled) return;
-
-        setSummary(nextSummary);
-        setSelectedPlanCode(nextSummary.currentPlanCode);
-        if (hasSuccessfulPayment(nextSummary)) {
-          setMessage(null);
-          router.replace(buildBillingSuccessUrl(nextSummary) as never);
-        } else {
-          setMessage("카드 등록은 완료됐지만 결제를 완료하지 못했습니다. 다시 확인해 주세요.");
-        }
-      } catch (error) {
-        if (cancelled) return;
-        clearPendingBillingRegistration();
-        setMessage(error instanceof Error ? error.message : "카드 등록 후 결제를 이어서 진행하지 못했습니다.");
-      } finally {
-        if (!cancelled) {
-          setResumingRegisteredCardPayment(false);
-        }
-      }
-    }
-
-    void resumePayment();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [resumingRegisteredCardPayment, retryingPayment, summary]);
-
   function handleRegisterCard() {
     if (registeringCard || retryingPayment) return;
     setPaymentSheetOpen(false);
@@ -375,28 +275,18 @@ export default function OwnerBillingScreen({
     setMessage(null);
   }
 
-  async function handleApiCardRegistration(credentials: OwnerBillingCardCredentials) {
-    if (registeringCard || retryingPayment) return;
+  async function handleHostedCardRegistration() {
+    if (hostedCardInFlightRef.current || registeringCard || retryingPayment) return;
 
+    hostedCardInFlightRef.current = true;
     setRegisteringCard(true);
     setRetryingPayment(true);
     setMessage(null);
 
     try {
-      await persistSelectedPlanIfNeeded();
-      storePendingBillingRegistration(selectedPlanCode);
-
-      const registeredSummary = await issueOwnerBillingKeyByApi({
-        shopId: summary.shopId,
-        ...credentials,
-        customerName: summary.ownerName || "매장 사장님",
-        phoneNumber: summary.ownerPhoneNumber,
-        email: summary.ownerEmail,
-      });
-
-      if (!registeredSummary) {
-        return;
-      }
+      const issued = await requestOwnerHostedBillingKey(summary.shopId, summary.portoneCustomerId);
+      if (!issued) return;
+      const registeredSummary = await registerOwnerBillingKey(issued);
 
       setSummary(registeredSummary);
       setSelectedPlanCode(registeredSummary.currentPlanCode);
@@ -404,7 +294,6 @@ export default function OwnerBillingScreen({
       const paidSummary = await retryOwnerSubscriptionPayment(registeredSummary.shopId);
       setSummary(paidSummary);
       setSelectedPlanCode(paidSummary.currentPlanCode);
-      clearPendingBillingRegistration();
       if (hasSuccessfulPayment(paidSummary)) {
         setMessage(null);
         router.replace(buildBillingSuccessUrl(paidSummary) as never);
@@ -412,9 +301,9 @@ export default function OwnerBillingScreen({
         setMessage("카드 등록은 완료됐지만 결제를 완료하지 못했습니다. 다시 확인해 주세요.");
       }
     } catch (error) {
-      clearPendingBillingRegistration();
       setMessage(error instanceof Error ? error.message : "카드 등록 또는 결제를 완료하지 못했습니다.");
     } finally {
+      hostedCardInFlightRef.current = false;
       setRegisteringCard(false);
       setRetryingPayment(false);
     }
@@ -629,7 +518,7 @@ export default function OwnerBillingScreen({
     </div>
   ) : null;
 
-  const billingFlowBusy = registeringCard || retryingPayment || resumingRegisteredCardPayment;
+  const billingFlowBusy = registeringCard || retryingPayment;
 
   function closeBillingFlow() {
     if (billingFlowBusy) return;
@@ -690,7 +579,7 @@ export default function OwnerBillingScreen({
         <div className="mt-4 rounded-[12px] border border-[#e8edf3] bg-white px-4 py-4">
           <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#bfdbfe] bg-[#eff6ff] text-[#1677ff]">
-              <CreditCard className="h-[18px] w-[18px]" />
+              <CreditCard className="h-[18px] w-[18px]" aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[var(--ink)]">신용/체크카드</p>
@@ -736,19 +625,15 @@ export default function OwnerBillingScreen({
           labelledBy="owner-billing-card-registration-title"
           closeLabel="카드 등록 닫기"
           onClose={closeCardRegistration}
-          maxWidthClassName="max-w-[720px]"
+          maxWidthClassName="max-w-[880px]"
           dismissible={!billingFlowBusy}
         >
-          <OwnerBillingCardRegistrationForm
-            variant="modal"
+          <OwnerHostedCardRegistration
             planLabel={selectedPlanLabel}
             amountLabel={`월 ${won(selectedBillingAmount.monthlyTotalAmount)}`}
-            loading={registeringCard || retryingPayment}
+            busy={billingFlowBusy}
             message={message}
-            onBack={closeCardRegistration}
-            onSubmit={async (credentials) => {
-              await handleApiCardRegistration(credentials);
-            }}
+            onContinue={() => void handleHostedCardRegistration()}
           />
         </OwnerBillingModal>
       ) : isSelectingPlan ? (

@@ -3,11 +3,13 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import OwnerBillingScreen from "@/components/owner/owner-billing-screen";
+import OwnerBillingScreen, { buildBillingSuccessUrl, hasSuccessfulPayment } from "@/components/owner/owner-billing-screen";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   fetchOwnerSubscriptionSummary,
   registerOwnerBillingKey,
+  retryOwnerSubscriptionPayment,
+  takeOwnerHostedCardAttempt,
 } from "@/lib/billing/owner-billing-client";
 import {
   readOwnerBillingSummaryCache,
@@ -68,12 +70,13 @@ function OwnerBillingPageContent() {
   const notice = searchParams.get("notice");
   const billingReturn = searchParams.get("billingReturn") === "1";
   const returnedBillingKey = searchParams.get("billingKey");
-  const returnedIssueId = searchParams.get("issueId");
-  const returnedBillingError = searchParams.get("message") || searchParams.get("code");
+  const returnedIssueId = searchParams.get("attempt");
+  const returnedBillingError = Boolean(searchParams.get("code") || searchParams.get("message"));
   const [summary, setSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [activeShopId, setActiveShopId] = useState<string | null>(null);
   const [freshSummaryShopId, setFreshSummaryShopId] = useState<string | null>(null);
   const [message, setMessage] = useState("구독 정보를 불러오는 중입니다.");
+  const [billingReturnError, setBillingReturnError] = useState<string | null>(null);
   const handledBillingKeyRef = useRef<string | null>(null);
   const activeShopIdRef = useRef<string | null>(null);
   const activeShopResolutionRef = useRef(0);
@@ -192,6 +195,7 @@ function OwnerBillingPageContent() {
     if (
       !billingReturn ||
       !returnedBillingKey ||
+      returnedBillingError ||
       !preferredPlan ||
       !summary ||
       !activeShopId ||
@@ -203,42 +207,47 @@ function OwnerBillingPageContent() {
     if (handledBillingKeyRef.current === returnedBillingKey) return;
 
     const billingKey = returnedBillingKey;
-    const planCode = preferredPlan;
     const verifiedShopId = activeShopId;
-    let active = true;
-
     async function finishBillingKeyRegistration() {
       if (activeShopIdRef.current !== verifiedShopId) return;
       handledBillingKeyRef.current = billingKey;
-      setMessage("카드 등록 정보를 확인하고 있어요.");
+      if (!returnedIssueId || !takeOwnerHostedCardAttempt(verifiedShopId, returnedIssueId)) {
+        setBillingReturnError("이 매장의 카드 등록 요청을 확인하지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      setMessage("카드 등록과 결제 결과를 확인하고 있어요.");
 
       try {
-        await registerOwnerBillingKey({
+        const registered = await registerOwnerBillingKey({
           shopId: verifiedShopId,
           billingKey,
           issueId: returnedIssueId,
-          paymentMethodLabel: "등록 카드",
         });
-        if (!active) return;
+        if (activeShopIdRef.current !== verifiedShopId || !isSummaryForActiveShop(registered, verifiedShopId)) return;
+        writeOwnerBillingSummaryCache(registered);
 
-        const params = new URLSearchParams({ compare: "1", plan: planCode });
-        router.replace(`/owner/billing?${params.toString()}` as never);
-        router.refresh();
+        const paid = await retryOwnerSubscriptionPayment(verifiedShopId);
+        if (activeShopIdRef.current !== verifiedShopId || !isSummaryForActiveShop(paid, verifiedShopId)) return;
+        writeOwnerBillingSummaryCache(paid);
+        setSummary(paid);
+        if (hasSuccessfulPayment(paid)) {
+          router.replace(buildBillingSuccessUrl(paid) as never);
+        } else {
+          setBillingReturnError("카드는 등록했지만 첫 결제를 완료하지 못했습니다. 구독 상태를 확인해 주세요.");
+        }
       } catch (error) {
-        if (!active) return;
-        setMessage(error instanceof Error ? error.message : "카드 등록 정보를 처리하지 못했습니다.");
+        if (activeShopIdRef.current !== verifiedShopId) return;
+        setBillingReturnError(error instanceof Error ? error.message : "카드 등록 정보를 처리하지 못했습니다.");
       }
     }
 
     void finishBillingKeyRegistration();
-    return () => {
-      active = false;
-    };
   }, [
     activeShopId,
     billingReturn,
     freshSummaryShopId,
     preferredPlan,
+    returnedBillingError,
     returnedBillingKey,
     returnedIssueId,
     router,
@@ -259,12 +268,15 @@ function OwnerBillingPageContent() {
     );
   }
 
-  if (billingReturn && !returnedBillingKey && returnedBillingError) {
+  if (billingReturn) {
+    const error = billingReturnError || (returnedBillingError || !returnedBillingKey || !preferredPlan
+      ? "카드 등록을 완료하지 못했습니다. 다시 시도해 주세요."
+      : null);
     return (
       <main className="owner-font pm-owner-web min-h-screen bg-[var(--bg)] px-8 py-10">
         <div className="mx-auto w-full max-w-[1180px] rounded-[12px] border border-[var(--bd)] bg-white px-6 py-5 text-[14px] leading-6 text-[var(--mid)] shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
-          <p>카드 등록을 완료하지 못했습니다. {returnedBillingError}</p>
-          <button
+          <p role={error ? "alert" : "status"}>{error ?? "카드 등록과 결제 결과를 확인하고 있어요."}</p>
+          {error ? <button
             type="button"
             onClick={() =>
               router.replace(
@@ -274,7 +286,7 @@ function OwnerBillingPageContent() {
             className="mt-4 h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
           >
             결제로 돌아가기
-          </button>
+          </button> : null}
         </div>
       </main>
     );

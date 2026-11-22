@@ -189,6 +189,12 @@ function buildOwnerBillingNoticeUrl() {
 }
 
 type PortoneBillingKeyInfoResponse = {
+  status?: string;
+  issueId?: string;
+  storeId?: string;
+  customer?: { id?: string | null } | null;
+  channels?: Array<{ key?: string; pgProvider?: string }>;
+  methods?: Array<NonNullable<PortoneBillingKeyInfoResponse["paymentMethod"]>>;
   billingKeyInfo?: {
     paymentMethod?: {
       type?: string;
@@ -500,7 +506,7 @@ function extractCardPrefix(value: string | null | undefined) {
 }
 
 function buildBillingMethodLabelFromInfo(payload: PortoneBillingKeyInfoResponse | null | undefined) {
-  const source = payload?.billingKeyInfo?.paymentMethod ?? payload?.paymentMethod ?? null;
+  const source = payload?.methods?.find((method) => method.type === "CARD") ?? payload?.billingKeyInfo?.paymentMethod ?? payload?.paymentMethod;
   const card = source?.card ?? null;
   const company = normalizeCardCompanyLabel(card?.issuer ?? card?.publisher ?? null);
   const prefix = extractCardPrefix(card?.number ?? null);
@@ -1682,10 +1688,31 @@ export async function registerOwnerBillingMethod(
     issueId?: string | null;
     paymentMethodLabel?: string | null;
     autoRenewPlanCode?: OwnerPlanCode;
+    verifyPortoneIssue?: boolean;
   },
 ) {
   if (!canWriteProtectedBillingData()) {
     throw new OwnerBillingError("운영 결제수단 보호를 위해 카드 등록은 배포 서버에서만 진행할 수 있습니다.", 400);
+  }
+
+  let verifiedBillingKeyInfo: PortoneBillingKeyInfoResponse | undefined;
+  if (payload.verifyPortoneIssue) {
+    if (!env.portoneStoreId || !serverEnv.portoneBillingChannelKey) {
+      throw new OwnerBillingError("카드 등록 서버 설정을 확인해 주세요.", 503);
+    }
+    if (!payload.issueId) throw new OwnerBillingError("카드 등록 요청을 다시 시작해 주세요.", 400);
+
+    const info = await portoneFetch<PortoneBillingKeyInfoResponse>(
+      `/billing-keys/${encodeURIComponent(payload.billingKey)}?storeId=${encodeURIComponent(env.portoneStoreId)}`,
+    );
+    if (
+      info.status !== "ISSUED" || info.storeId !== env.portoneStoreId || info.issueId !== payload.issueId ||
+      info.customer?.id !== createOwnerShopPortoneCustomerId(identity.id, shopId) ||
+      !info.channels?.some((channel) => channel.key === serverEnv.portoneBillingChannelKey && channel.pgProvider === "KCP_V2")
+    ) {
+      throw new OwnerBillingError("이 매장의 카드 등록 요청과 결제창 결과가 일치하지 않습니다.", 400);
+    }
+    verifiedBillingKeyInfo = info;
   }
 
   const { record, profile, tableReady } = await readOrCreateSubscription(identity, shopId);
@@ -1697,20 +1724,12 @@ export async function registerOwnerBillingMethod(
   }
 
   const previousBillingKey = readStoredBillingKey(record);
-  if (previousBillingKey && previousBillingKey !== payload.billingKey) {
-    try {
-      await portoneFetch(`/billing-keys/${encodeURIComponent(previousBillingKey)}?storeId=${encodeURIComponent(env.portoneStoreId ?? "")}`, {
-        method: "DELETE",
-      });
-    } catch {
-      // ignore old billing key delete errors
-    }
+  if (verifiedBillingKeyInfo && previousBillingKey === payload.billingKey && record.billing_issue_id === payload.issueId) {
+    return await buildOwnerSubscriptionSummary(identity, shopId, record, profile);
   }
-
-  const resolvedPaymentMethodLabel = await resolveBillingMethodLabel(
-    payload.billingKey,
-    payload.paymentMethodLabel ?? record.payment_method_label,
-  );
+  const resolvedPaymentMethodLabel = verifiedBillingKeyInfo
+    ? buildBillingMethodLabelFromInfo(verifiedBillingKeyInfo) ?? "등록된 카드"
+    : await resolveBillingMethodLabel(payload.billingKey, payload.paymentMethodLabel ?? record.payment_method_label);
 
   let nextRecord: OwnerSubscriptionRecord = {
     ...applyOwnerPlanContract(record, OWNER_SINGLE_MONTHLY_PLAN_CODE),
@@ -1725,6 +1744,15 @@ export async function registerOwnerBillingMethod(
   nextRecord.subscription_status = nextStatusForRecord(nextRecord);
 
   let saved = await persistSubscriptionRecord(identity, nextRecord);
+  if (previousBillingKey && previousBillingKey !== payload.billingKey) {
+    try {
+      await portoneFetch(`/billing-keys/${encodeURIComponent(previousBillingKey)}?storeId=${encodeURIComponent(env.portoneStoreId ?? "")}`, {
+        method: "DELETE",
+      });
+    } catch {
+      // The subscription already points to the new key.
+    }
+  }
   if (saved.subscription_status === "trialing" || saved.subscription_status === "trial_will_end") {
     saved = await persistSubscriptionRecord(identity, await scheduleUpcomingCharge(identity, profile, saved));
   }

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { Capacitor } from "@capacitor/core";
-import { CreditCard } from "lucide-react";
+import { IconCreditCard as CreditCard } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -663,7 +663,7 @@ export default function OwnerBillingScreen({
         <div className="mt-4 rounded-[22px] border border-[#d9d2c7] bg-white px-4 py-4">
           <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-[14px] border border-[#d8d1c5] bg-[#fffdf8] text-[#1f5b51]">
-              <CreditCard className="h-[18px] w-[18px]" />
+              <CreditCard className="h-[18px] w-[18px]" aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <p className="text-[18px] font-semibold tracking-[-0.03em] text-[#173b33]">신용/체크카드</p>

@@ -29,7 +29,7 @@ function DayPanelSupportProgramList({ programs, title, controls, footer, referen
   referenceDate?: string;
 }) {
   return <section aria-label={title} className="min-w-0">
-    <div className="mb-1 flex min-w-0 items-center justify-between gap-3 px-0.5">
+    <div className="mb-2 flex min-w-0 items-center justify-between gap-3 px-0.5">
       <h3 className="flex min-w-0 items-center gap-1 text-[15px] font-semibold leading-[22px] text-[#1e293b]">
         <IconFlag size={18} stroke={1.8} className="mr-0.5 shrink-0 text-[#475569]" aria-hidden="true" />
         <span className="truncate">{title}</span>

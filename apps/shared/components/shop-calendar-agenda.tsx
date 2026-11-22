@@ -1,6 +1,7 @@
 "use client";
 
-import { IconCalendarEvent, IconChevronRight, IconNote, IconPlus } from "@tabler/icons-react";
+import { IconCalendarEvent, IconChevronRight, IconPlus } from "@tabler/icons-react";
+import { NoteSectionIcon } from "./day-panel-icons";
 import { useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import type { CalendarRequest, ShopCalendarEvent, ShopCalendarEventInput } from "../contracts/owner-calendar";
 import { cn } from "../lib/cn";
@@ -45,17 +46,17 @@ export function ShopCalendarAgenda({ date, shopId, events, canEdit, loading, err
     const openNew = () => setEditor({ id: crypto.randomUUID() });
     return (
       <section aria-label="노트" className="min-w-0">
-        <div className="mb-1 flex min-w-0 items-center justify-between gap-2 px-0.5">
+        <div className="mb-2 flex min-w-0 items-center justify-between gap-2 px-0.5">
           <h3 className="flex min-w-0 items-center gap-1 text-[15px] font-semibold leading-[22px] text-[#1e293b]">
-            <span className="mr-0.5 inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px] bg-[#fef3c7] text-[#b45309]" aria-hidden="true">
-              <IconNote size={15} stroke={2} />
-            </span>
+            <NoteSectionIcon className="mr-0.5 shrink-0" />
             <span className="truncate">노트</span>
             <span className="font-medium tabular-nums text-[#64748b]">{events.length}</span>
           </h3>
           {canEdit && events.length > 0 ? (
-            <button type="button" data-owner-control-size="content" onClick={openNew} className="-my-3 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded px-1 text-[12px] text-[#6b7a90] hover:text-[#334155] focus-visible:outline-2 focus-visible:outline-[#1677ff]">
-              <IconPlus size={14} stroke={1.8} aria-hidden="true" />추가
+            <button type="button" data-owner-control-size="content" onClick={openNew} className="group -my-3 -mr-1.5 inline-flex min-h-11 shrink-0 items-center rounded-[6px] focus-visible:outline-2 focus-visible:outline-[#1677ff]">
+              <span className="inline-flex h-7 items-center gap-0.5 rounded-[6px] px-1.5 text-[13px] font-semibold text-[#1677ff] transition-colors group-hover:bg-[#eef5ff] group-hover:text-[#0f62d6]">
+                <IconPlus size={15} stroke={2.2} aria-hidden="true" />추가
+              </span>
             </button>
           ) : null}
         </div>
@@ -66,8 +67,8 @@ export function ShopCalendarAgenda({ date, shopId, events, canEdit, loading, err
           </div>
         ) : events.length === 0 ? (
           canEdit && !loading ? (
-            <button type="button" data-owner-control-size="content" onClick={openNew} className="flex min-h-10 w-full items-center gap-1.5 rounded-[10px] border border-dashed border-[#cbd5e1] bg-white/70 px-3 py-2 text-left text-[13px] leading-[18px] text-[#6b7a90] transition-colors hover:bg-white hover:text-[#334155] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff]">
-              <IconPlus size={14} stroke={1.8} aria-hidden="true" />노트 추가
+            <button type="button" data-owner-control-size="content" onClick={openNew} className="flex min-h-10 w-full items-center gap-1.5 rounded-[10px] border border-dashed border-[#bcd4f7] bg-white px-3 py-2 text-left text-[13px] font-medium leading-[18px] text-[#1677ff] transition-colors hover:border-[#8db8f5] hover:bg-[#f5f9ff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff]">
+              <IconPlus size={15} stroke={2.2} aria-hidden="true" />노트 추가
             </button>
           ) : (
             <p role="status" className="overflow-hidden rounded-[10px] border border-[#e8edf3] bg-white px-3 py-3 text-center text-[13px] leading-[18px] text-[#6b7a90]">

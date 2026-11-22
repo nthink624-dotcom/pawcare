@@ -2,7 +2,6 @@
 
 import {
   IconSearch,
-  IconCalendarEvent,
   IconCalendarPlus as CalendarPlus,
   IconFileImport,
   IconChevronDown as ChevronDown,
@@ -15,6 +14,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarHolidayLabel, ShopCalendarAgenda } from "@petmanager/shared/components/shop-calendar-agenda";
 import { SupportProgramList } from "@petmanager/shared/components/support-program-list";
+import { ReservationSectionIcon } from "@petmanager/shared/components/day-panel-icons";
 import type { SupportProgram } from "@petmanager/shared/contracts/support-programs";
 import { calendarSecondaryButtonClass } from "@petmanager/shared/components/calendar-dialog";
 import { calendarHolidaysByDate, layoutShopEventBars, shopEventsOnDate } from "@petmanager/shared/lib/owner-calendar";
@@ -1277,14 +1277,14 @@ function GroomingDatePanel({
       >
         <section ref={reservationRef} aria-label={itemLabel} className={dayPanelSectionClass}>
           {cancelledItems.length > 0 ? (
-            <div className="mb-1 flex min-w-0 items-center gap-1 px-0.5">
-              <span className="mr-0.5 inline-flex shrink-0 text-[#475569]" aria-hidden="true"><IconCalendarEvent size={18} stroke={1.8} /></span>
+            <div className="mb-2 flex min-w-0 items-center gap-1 px-0.5">
+              <ReservationSectionIcon className="mr-0.5 shrink-0" />
               <DayPanelListToggle label={itemLabel} count={visibleItems.length} selected={!showCancelled} onSelect={() => setCancelledListDate(null)} />
               <span className="mx-1 h-3.5 w-px shrink-0 bg-[#cbd5e1]" aria-hidden="true" />
               <DayPanelListToggle label="취소" count={cancelledItems.length} selected={showCancelled} onSelect={() => setCancelledListDate(date)} />
             </div>
           ) : (
-            <DayPanelSectionLabel icon={<IconCalendarEvent size={18} stroke={1.8} />} title={itemLabel} count={visibleItems.length} />
+            <DayPanelSectionLabel icon={<ReservationSectionIcon />} title={itemLabel} count={visibleItems.length} />
           )}
           {listedItems.length > 0 ? (
             <DayItemSection items={listedItems} label={showCancelled ? "취소된 예약" : undefined} onSelectItem={onSelectItem} />
@@ -1311,7 +1311,7 @@ function DayPanelSectionLabel({ icon, title, count, tone = "neutral" }: {
   tone?: "neutral" | "amber";
 }) {
   return (
-    <h3 className={cn("mb-1 flex min-w-0 items-center gap-1 px-0.5 text-[15px] font-semibold leading-[22px]", tone === "amber" ? "text-[#7a4f00]" : "text-[#1e293b]")}>
+    <h3 className={cn("mb-2 flex min-w-0 items-center gap-1 px-0.5 text-[15px] font-semibold leading-[22px]", tone === "amber" ? "text-[#7a4f00]" : "text-[#1e293b]")}>
       <span className={cn("mr-0.5 inline-flex shrink-0", tone === "amber" ? "text-[#b98121]" : "text-[#475569]")} aria-hidden="true">{icon}</span>
       <span className="truncate">{title}</span>
       <span className={cn("font-medium tabular-nums", tone === "amber" ? "text-[#a8741a]" : "text-[#64748b]")}>{count}</span>

@@ -1,6 +1,8 @@
 "use client";
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
 
-import { Check, ChevronLeft, UserRound } from "lucide-react";
+
+import { IconCheck as Check, IconChevronLeft as ChevronLeft, IconUser as UserRound } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import CustomerBreedAutocomplete from "@/components/customer/customer-breed-autocomplete";
@@ -229,7 +231,7 @@ function Nav({ title, onBack, showBack = true }: { title: string; step?: string;
     <div className="nav">
       {showBack ? (
         <button className="back" onClick={onBack} type="button" aria-label="이전">
-          <ChevronLeft size={22} strokeWidth={2} />
+          <ChevronLeft size={22} strokeWidth={2} aria-hidden="true" />
         </button>
       ) : (
         <span className="back" aria-hidden="true" />
@@ -251,6 +253,10 @@ export default function CustomerFirstVisitClaudeFlow({
   availableSlots,
   recommendedSlots,
   recommendationSource,
+  allowOtherAvailableTimes = false,
+  slotError = "",
+  dateError = "",
+  onAvailabilityRetry,
   dateAvailability,
   staffAvailability,
   loadingDateAvailability,
@@ -295,6 +301,10 @@ export default function CustomerFirstVisitClaudeFlow({
   availableSlots: string[];
   recommendedSlots: string[];
   recommendationSource?: "ai" | "rule";
+  allowOtherAvailableTimes?: boolean;
+  slotError?: string;
+  dateError?: string;
+  onAvailabilityRetry?: () => void;
   dateAvailability: Record<string, boolean | undefined>;
   staffAvailability: Record<string, boolean | undefined>;
   loadingDateAvailability: boolean;
@@ -329,6 +339,9 @@ export default function CustomerFirstVisitClaudeFlow({
   onAddBooking: () => void;
 }) {
   const breedInputRef = useRef<HTMLInputElement | null>(null);
+  const [expandedTimesKey, setExpandedTimesKey] = useState("");
+  const timesKey = `${firstVisit.date}:${firstVisit.staffId}:${firstVisit.serviceId}:${selectedServiceOption?.durationMinutes}`;
+  const otherTimesExpanded = expandedTimesKey === timesKey;
   const savedPetPickerKey = `${step}:${savedPets.length}`;
   const [newPetPickerKey, setNewPetPickerKey] = useState<string | null>(null);
   const serviceSummaryName = firstVisit.serviceId === CUSTOM_SERVICE_ID ? "상담 후 결정" : selectedServiceOption?.displayName || selectedService?.name || "서비스 선택";
@@ -359,7 +372,7 @@ export default function CustomerFirstVisitClaudeFlow({
         {env.supabaseEnvName === "development" && <p className="px-4 py-2 text-[13px] leading-5 text-[#8a5b11]">테스트 화면 · 실제 송금 및 메시지 발송 금지</p>}
         <div className="done">
           <div className="ic">
-            <Check size={42} strokeWidth={2.2} />
+            <Check size={42} strokeWidth={2.2} aria-hidden="true" />
           </div>
           <h2>{previewOnly ? "예약 흐름을 확인했습니다" : appointment?.status === "pending" ? "예약금 입금 대기" : appointment?.status === "confirmed" ? "예약이 확정되었습니다" : "예약이 접수되었습니다"}</h2>
           <div className="rcard">
@@ -542,6 +555,9 @@ export default function CustomerFirstVisitClaudeFlow({
                 <h3>날짜 선택</h3>
                 <span className="swipe-hint">예약 가능 여부를 확인해요</span>
               </div>
+              {dateError ? <div role="alert" className="mb-3 text-[14px] leading-6 text-[#9a5e4e]">
+                <p>{dateError}</p><button type="button" onClick={onAvailabilityRetry} className="min-h-11 underline">날짜 다시 확인</button>
+              </div> : null}
               <div className="dstrip">
                 {dateOptions.map((date, index) => {
                   const active = firstVisit.date === date.value;
@@ -576,7 +592,7 @@ export default function CustomerFirstVisitClaudeFlow({
                     disabled={!firstVisit.date || dateAvailability[firstVisit.date] !== true || loadingDateAvailability}
                     onClick={() => onStaffSelect("")}
                   >
-                    <span className="avatar"><UserRound size={22} /></span>
+                    <span className="avatar"><UserRound size={22} aria-hidden="true" /></span>
                     <span className="name">빠른 예약</span>
                     <span className="state">{firstVisit.date && dateAvailability[firstVisit.date] === true ? "예약 가능" : "날짜를 먼저 선택"}</span>
                   </button>
@@ -595,7 +611,7 @@ export default function CustomerFirstVisitClaudeFlow({
                       onClick={() => onStaffSelect(staff.id)}
                     >
                       <span className="avatar">
-                        {staff.profileImageUrl ? <img src={staff.profileImageUrl} alt="" /> : <UserRound size={22} />}
+                        {staff.profileImageUrl ? <img src={staff.profileImageUrl} alt="" /> : <UserRound size={22} aria-hidden="true" />}
                       </span>
                       <span className="name">{getStaffCustomerName(staff)}</span>
                       <span id={isUnavailable ? `staff-${staff.id}-availability` : undefined} className="state">
@@ -609,7 +625,9 @@ export default function CustomerFirstVisitClaudeFlow({
 
             <div className="sec">
               <h3>예약 가능한 시간</h3>
-              {loadingSlots ? (
+              {slotError ? (
+                <div role="alert" className="text-[14px] leading-6 text-[#9a5e4e]"><p>{slotError}</p><button type="button" onClick={onAvailabilityRetry} className="min-h-11 underline">시간 다시 확인</button></div>
+              ) : loadingSlots ? (
                 <div className="hint">가능한 시간을 확인하고 있어요.</div>
               ) : uniqueAvailableSlots.length === 0 ? (
                 <div className="empty-slots" role="status">
@@ -622,23 +640,20 @@ export default function CustomerFirstVisitClaudeFlow({
                     <div>
                       <p className="mb-2 text-[13px] font-medium text-[#15213b]">{recommendationSource === "ai" ? "AI 추천 시간" : "추천 시간"}<span className="ml-1.5 font-normal text-[#64748b]">예약 흐름을 고려했어요</span></p>
                       <div className="tgrid">
-                        {uniqueRecommendedSlots.map((slot) => (
-                          <button key={`recommended-${slot}`} type="button" className={`tcell border-[#cbd5e1] bg-[#f8fafc]${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
-                            {slot}<span className="rec">추천</span>
-                          </button>
-                        ))}
+                        <WheelTimeField aria-label="시간 선택" value={firstVisit.timeSlot} onValueChange={onTimeSelect} allowedTimes={uniqueRecommendedSlots} className="col-span-full w-full" />
                       </div>
                     </div>
                   ) : null}
-                  {uniqueAvailableSlots.some((slot) => !uniqueRecommendedSlots.includes(slot)) ? (
+                  {allowOtherAvailableTimes && uniqueAvailableSlots.some((slot) => !uniqueRecommendedSlots.includes(slot)) ? (
+                    <button type="button" aria-expanded={otherTimesExpanded} onClick={() => setExpandedTimesKey(otherTimesExpanded ? "" : timesKey)} className="min-h-11 w-full rounded-[8px] border border-[#dbe2ea] px-3 text-[14px] text-[#15213b]">
+                      {otherTimesExpanded ? "다른 가능한 시간 접기" : "다른 가능한 시간 보기"}
+                    </button>
+                  ) : null}
+                  {allowOtherAvailableTimes && otherTimesExpanded && uniqueAvailableSlots.some((slot) => !uniqueRecommendedSlots.includes(slot)) ? (
                     <div>
                       {uniqueRecommendedSlots.length > 0 ? <p className="mb-2 text-[13px] font-medium text-[#15213b]">다른 예약 가능한 시간</p> : null}
                       <div className="tgrid">
-                        {uniqueAvailableSlots.filter((slot) => !uniqueRecommendedSlots.includes(slot)).map((slot) => (
-                          <button key={slot} type="button" className={`tcell${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
-                            {slot}
-                          </button>
-                        ))}
+                        <WheelTimeField aria-label="다른 예약 시간 선택" value={firstVisit.timeSlot} onValueChange={onTimeSelect} allowedTimes={uniqueAvailableSlots.filter((slot) => !uniqueRecommendedSlots.includes(slot))} className="col-span-full w-full" />
                       </div>
                     </div>
                   ) : null}
@@ -660,7 +675,7 @@ export default function CustomerFirstVisitClaudeFlow({
               <span className="k">일정</span>
               <span className="v">{firstVisit.date && firstVisit.timeSlot ? `${formatDateForSummary(firstVisit.date)} · ${firstVisit.timeSlot}` : "날짜와 시간을 골라주세요"}</span>
             </div>
-            <button className="cta" type="button" disabled={!firstVisit.date || !firstVisit.timeSlot || staffSelectionRequiresAction} onClick={onNext}>다음</button>
+            <button className="cta" type="button" disabled={!firstVisit.date || !firstVisit.timeSlot || staffSelectionRequiresAction || loadingSlots || Boolean(slotError) || Boolean(dateError)} onClick={onNext}>다음</button>
           </div>
         </>
       ) : null}

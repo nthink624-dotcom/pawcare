@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Loader2, X } from "lucide-react";
+import { IconCircleCheck as CheckCircle2, IconLoader2 as Loader2, IconX as X } from "@tabler/icons-react";
 import { type FocusEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { CalendarCareNoteInput } from "@/components/owner-web/calendar-care-note-input";
@@ -32,14 +32,14 @@ function AiGeneratingMessage({ onCancel }: { onCancel: () => void }) {
   return (
     <div className="flex items-center justify-center px-4 py-6 text-[#5f6d7b]">
       <div className="inline-flex items-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin text-[#526171]" />
+        <Loader2 className="h-4 w-4 animate-spin text-[#526171]" aria-hidden="true" />
         <span className="text-[16px] font-normal leading-6">AI가 케어리포트를 정리하고 있어요</span>
         <button
           type="button"
           onClick={onCancel}
           className="inline-flex min-h-11 items-center gap-1 rounded-[8px] px-2 text-[16px] font-medium leading-6 text-[#526171] hover:bg-[#f3f5f7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
         >
-          <X className="h-4 w-4" /> 취소
+          <X className="h-4 w-4" aria-hidden="true" /> 취소
         </button>
       </div>
     </div>
@@ -330,7 +330,7 @@ export function CalendarCareReportCompletionPanel({
               disabled={!reportText.trim() || !savedReport || disabled || saving}
               className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f6fd6] text-[16px] font-medium leading-6 text-white shadow-[0_7px_18px_rgba(47,111,214,0.18)] transition hover:bg-[#245fbd] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {savingAction === "publish" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              {savingAction === "publish" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
               확정하여 보내기
             </button>
             <button
@@ -340,7 +340,7 @@ export function CalendarCareReportCompletionPanel({
               aria-label="케어리포트 임시저장"
               className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[10px] border border-[#d5dbe2] bg-white text-[16px] font-medium leading-6 text-[#526171] transition hover:bg-[#f3f5f7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50"
             >
-              {savingAction === "draft" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {savingAction === "draft" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
               임시저장
             </button>
           </div>

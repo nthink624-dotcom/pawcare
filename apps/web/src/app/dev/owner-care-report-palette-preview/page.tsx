@@ -1,4 +1,11 @@
-import { Check, Clock3, Eye, ImageIcon, Send, Sparkles } from "lucide-react";
+import {
+  IconCheck as Check,
+  IconClockHour3 as Clock3,
+  IconEye as Eye,
+  IconPhoto as ImageIcon,
+  IconSend as Send,
+  IconSparkles as Sparkles,
+} from "@tabler/icons-react";
 import { notFound } from "next/navigation";
 
 type Tone = "neutral" | "blue";
@@ -66,13 +73,13 @@ function CareReportPanel({ tone }: { tone: Tone }) {
               <p className={`mt-1 text-[12px] ${muted}`}>전체미용 · 김서연 디자이너 · 10:30</p>
             </div>
             <button className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-black/10 bg-white px-3 text-[12px] font-semibold text-[#596575]">
-              <Eye className="h-3.5 w-3.5" /> 고객 화면 미리보기
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" /> 고객 화면 미리보기
             </button>
           </div>
 
           <div className={`mt-4 rounded-[16px] border px-4 py-3 ${blue ? "border-[#c9daf0] bg-[#f4f8fe]" : "border-[#e0e5ea] bg-[#f8f9fa]"}`}>
             <p className={`inline-flex items-center gap-1.5 text-[11px] font-semibold ${blue ? "text-[#5878a6]" : "text-[#687482]"}`}>
-              <Sparkles className="h-3.5 w-3.5" /> AI가 정리한 오늘의 한 줄
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> AI가 정리한 오늘의 한 줄
             </p>
             <p className={`mt-1.5 text-[15px] font-semibold ${title}`}>피부가 조금 건조해 보였지만 편안하게 미용을 마쳤어요.</p>
           </div>
@@ -81,7 +88,7 @@ function CareReportPanel({ tone }: { tone: Tone }) {
             <div className="grid grid-cols-2 gap-2">
               {["미용 전", "미용 후"].map((label) => (
                 <div key={label} className={`flex min-h-[138px] flex-col items-center justify-center rounded-[14px] border ${blue ? "border-[#d4e1f2] bg-[#f5f8fc]" : "border-[#e2e6ea] bg-[#f7f8f9]"}`}>
-                  <ImageIcon className={`h-5 w-5 ${muted}`} />
+                  <ImageIcon className={`h-5 w-5 ${muted}`} aria-hidden="true" />
                   <span className={`mt-2 text-[11px] font-semibold ${muted}`}>{label}</span>
                 </div>
               ))}
@@ -96,16 +103,16 @@ function CareReportPanel({ tone }: { tone: Tone }) {
                 <p className={`mt-1 text-[13px] leading-5 ${title}`}>귀 뒤쪽은 일주일에 2~3회 빗질해 주세요.</p>
               </div>
               <div className="flex items-center justify-between rounded-[13px] border border-black/[0.07] px-3.5 py-3">
-                <span className={`inline-flex items-center gap-1.5 text-[12px] font-semibold ${muted}`}><Clock3 className="h-3.5 w-3.5" /> 다음 권장 방문</span>
+                <span className={`inline-flex items-center gap-1.5 text-[12px] font-semibold ${muted}`}><Clock3 className="h-3.5 w-3.5" aria-hidden="true" /> 다음 권장 방문</span>
                 <strong className={`text-[13px] ${title}`}>9월 22일</strong>
               </div>
             </div>
           </div>
 
           <div className="mt-4 flex items-center justify-between border-t border-black/[0.07] pt-4">
-            <span className={`inline-flex items-center gap-1.5 text-[12px] ${muted}`}><Check className="h-4 w-4" /> AI 초안 자동 저장됨</span>
+            <span className={`inline-flex items-center gap-1.5 text-[12px] ${muted}`}><Check className="h-4 w-4" aria-hidden="true" /> AI 초안 자동 저장됨</span>
             <button className="inline-flex h-10 items-center gap-2 rounded-[11px] bg-[#ef7d78] px-4 text-[13px] font-semibold text-white shadow-[0_8px_18px_rgba(220,102,100,0.20)]">
-              <Send className="h-3.5 w-3.5" /> 확인 후 고객에게 발송
+              <Send className="h-3.5 w-3.5" aria-hidden="true" /> 확인 후 고객에게 발송
             </button>
           </div>
         </div>

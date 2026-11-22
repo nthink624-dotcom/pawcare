@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, ImagePlus } from "lucide-react";
+import { IconChevronLeft as ChevronLeft, IconChevronRight as ChevronRight, IconPhotoPlus as ImagePlus } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { CARE_REPORT_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
@@ -26,9 +26,9 @@ function CarePhotoSideFrame({
       className="absolute left-1/2 top-1/2 z-0 aspect-[4/3] w-[210px] overflow-hidden rounded-[14px] border border-[#d7dde4] bg-[#f3f5f7] opacity-80 transition duration-300 ease-out hover:opacity-100 disabled:cursor-default disabled:opacity-55"
       style={{ transform: isPrevious ? "translate(-78%, -50%) rotateY(15deg) scale(.86)" : "translate(-22%, -50%) rotateY(-15deg) scale(.86)" }}
     >
-      {imageUrl ? <img src={imageUrl} alt="" draggable={false} className="pointer-events-none h-full w-full select-none object-cover" /> : <span className="grid h-full w-full place-items-center text-[#a8b1bc]"><ImagePlus className="h-5 w-5" /></span>}
+      {imageUrl ? <img src={imageUrl} alt="" draggable={false} className="pointer-events-none h-full w-full select-none object-cover" /> : <span className="grid h-full w-full place-items-center text-[#a8b1bc]"><ImagePlus className="h-5 w-5" aria-hidden="true" /></span>}
       <span className="absolute inset-y-0 grid w-9 place-items-center bg-white/60 text-[#526171] backdrop-blur-[1px]" style={{ [isPrevious ? "left" : "right"]: 0 }}>
-        {isPrevious ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        {isPrevious ? <ChevronLeft className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
       </span>
     </button>
   );
@@ -179,7 +179,7 @@ export function CalendarCareReportPhotoCard({
         {!imageUrl ? (
           <span key={label} className="relative flex flex-col items-center text-[#263547]">
             <span className="mb-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef1f4] text-[#274563]">
-              <ImagePlus className="h-4 w-4" />
+              <ImagePlus className="h-4 w-4" aria-hidden="true" />
             </span>
             <strong className={`${CARE_REPORT_TYPOGRAPHY.bodyStrong} break-keep [line-height:1.45]`}>{label} 사진 추가</strong>
             <span className={`${CARE_REPORT_TYPOGRAPHY.helper} mt-0.5 break-keep text-[#7b8794] [line-height:1.45]`}>등록된 {label} 사진이 없습니다</span>

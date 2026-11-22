@@ -1,16 +1,16 @@
 "use client";
 
 import {
-  ArrowRight,
-  CalendarDays,
-  Camera,
-  ClipboardList,
-  MessageCircle,
-  Download,
-  RefreshCcw,
-  Sparkles,
-  UserRound,
-} from "lucide-react";
+  IconArrowRight as ArrowRight,
+  IconCalendarWeek as CalendarDays,
+  IconCamera as Camera,
+  IconClipboardList as ClipboardList,
+  IconDownload as Download,
+  IconMessageCircle as MessageCircle,
+  IconRefresh as RefreshCcw,
+  IconSparkles as Sparkles,
+  IconUser as UserRound,
+} from "@tabler/icons-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
@@ -323,7 +323,7 @@ export function CustomerGroomingResultCard({
         <section aria-label="케어리포트 본문">
           {summaryContent ?? (
             <>
-              <CustomerReportSectionTitle icon={<MessageCircle />}>오늘의 리포트</CustomerReportSectionTitle>
+              <CustomerReportSectionTitle icon={<MessageCircle aria-hidden="true" />}>오늘의 리포트</CustomerReportSectionTitle>
               <div className={styles.speechBubble}><p>{careSummary}</p></div>
             </>
           )}
@@ -332,7 +332,7 @@ export function CustomerGroomingResultCard({
         <section aria-labelledby={`grooming-record-title-${record.id}`}>
           <CustomerReportSectionTitle
             id={`grooming-record-title-${record.id}`}
-            icon={<ClipboardList />}
+            icon={<ClipboardList aria-hidden="true" />}
           >
             미용 정보
           </CustomerReportSectionTitle>
@@ -368,7 +368,7 @@ export function CustomerGroomingResultCard({
         <CustomerWeightTrendCard history={weightHistory} />
 
         <section aria-labelledby={`rebooking-title-${record.id}`}>
-          <CustomerReportSectionTitle id={`rebooking-title-${record.id}`} icon={<CalendarDays />}>다음 미용 예약</CustomerReportSectionTitle>
+          <CustomerReportSectionTitle id={`rebooking-title-${record.id}`} icon={<CalendarDays aria-hidden="true" />}>다음 미용 예약</CustomerReportSectionTitle>
           <p className="mt-2.5 text-[14px] leading-[22px] text-[#8b7377]">
             이번 미용이 마음에 드셨다면,<br />
             다음 방문 날짜와 시간을 확인해보세요.

@@ -1,6 +1,17 @@
 "use client";
 
-import { ArrowUp, Camera, Check, ImagePlus, LoaderCircle, Mic, Pause, Send, X } from "lucide-react";
+import {
+  IconChevronRight,
+  IconArrowUp as ArrowUp,
+  IconCamera as Camera,
+  IconCheck as Check,
+  IconPhotoPlus as ImagePlus,
+  IconLoader2 as LoaderCircle,
+  IconMicrophone as Mic,
+  IconPlayerPause as Pause,
+  IconSend as Send,
+  IconX as X,
+} from "@tabler/icons-react";
 import Image from "next/image";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
@@ -678,7 +689,7 @@ export default function OwnerAiCareReportSheet({
       >
         <header className="flex shrink-0 items-start justify-between border-b border-[#dce7f2] bg-white px-5 pb-3 pt-[calc(env(safe-area-inset-top)+12px)]">
           <div className="min-w-0 pr-2"><h1 className="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#14213a]">케어리포트 작성</h1><p className="mt-1 text-[14px] font-normal leading-5 text-[#637890] [overflow-wrap:anywhere]">{pet.name} · {staffName || "담당 디자이너"} · {selectedService?.name ?? "서비스 확인 필요"}</p></div>
-          <button type="button" onClick={requestClose} className="ml-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef4fa] text-[#58708a]" aria-label="닫기"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={requestClose} className="ml-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef4fa] text-[#58708a]" aria-label="닫기"><X className="h-5 w-5" aria-hidden="true" /></button>
         </header>
 
         <div data-testid="care-report-scroll-region" role="region" aria-label="케어리포트 내용" tabIndex={0} className="min-h-0 max-h-[calc(100dvh-180px)] flex-none overflow-y-auto px-5 pb-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]" style={{ flex: "1 1 auto", maxHeight: "none" }}>
@@ -717,7 +728,7 @@ export default function OwnerAiCareReportSheet({
           </section>
           <button data-testid="care-report-revisit-row" type="button" onClick={openReminderSettings} aria-haspopup="dialog" style={{ fontWeight: 400 }} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-b-[14px] border-x border-b border-[#e8edf3] bg-white px-3 py-0 text-left font-normal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#2563eb]">
             <span className="text-[16px] font-normal leading-6 text-[#526b84]">재예약 알림 설정</span>
-            <span className="min-w-0 text-right text-[16px] font-normal leading-6 text-[#64748b]">{nextDate ? `${reminderDaysBetween(today, nextDate)}일 후` : `매장 기본값 · ${defaultReminderDays}일 후`} <span aria-hidden="true" className="text-[#a5b1bf]">›</span></span>
+            <span className="min-w-0 text-right text-[16px] font-normal leading-6 text-[#64748b]">{nextDate ? `${reminderDaysBetween(today, nextDate)}일 후` : `매장 기본값 · ${defaultReminderDays}일 후`} <IconChevronRight aria-hidden="true" size={16} className="shrink-0 text-[#a5b1bf]" /></span>
           </button>
           </div>
 

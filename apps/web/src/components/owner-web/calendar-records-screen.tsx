@@ -582,6 +582,16 @@ const CALENDAR_NOTE_MAX_LANES = 2;
 const CALENDAR_NOTE_BAR_HEIGHT = 18;
 const CALENDAR_NOTE_BAR_STEP = 20;
 const CALENDAR_NOTE_BAR_TOP = 31;
+// Each note in the month gets the next tone in order of its first bar, so neighbouring and stacked notes never share a color
+// and a note that wraps to the next week keeps its color. Hues stay clear of the green/slate/red status dots.
+const CALENDAR_NOTE_TONES = [
+  { background: "#fff0e3", accent: "#ef8a42", text: "#8f4512" },
+  { background: "#f1ecff", accent: "#8b5cf6", text: "#5b3fa8" },
+  { background: "#e3f6f8", accent: "#14a3b8", text: "#0e6170" },
+  { background: "#fde8f1", accent: "#e0559a", text: "#9a2c63" },
+  { background: "#e8eefe", accent: "#5b7bea", text: "#2f4aa8" },
+  { background: "#fdf5d3", accent: "#d4a514", text: "#7a5d06" },
+] as const;
 
 function getCalendarCellStatusLines(items: DayItem[]) {
   const counts = { reserved: 0, completed: 0, cancelled: 0 };
@@ -786,6 +796,10 @@ export default function CalendarRecordsScreen({
   const shopEventsByDate = useMemo(() => new Map(monthDates.flatMap(date => date ? [[date, shopEventsOnDate(events, date)] as const] : [])), [events, monthDates]);
   const calendarWeekRows = Math.max(5, Math.ceil(monthDates.length / 7));
   const noteLayout = useMemo(() => layoutShopEventBars(events, monthDates, CALENDAR_NOTE_MAX_LANES), [events, monthDates]);
+  const noteToneById = useMemo(() => {
+    const ids = [...new Set(noteLayout.bars.map((bar) => bar.event.id))];
+    return new Map(ids.map((id, index) => [id, CALENDAR_NOTE_TONES[index % CALENDAR_NOTE_TONES.length]]));
+  }, [noteLayout]);
   const dayItemsByDate = useMemo(() => {
     const map = new Map<string, DayItem[]>();
     for (const date of monthDates) {
@@ -977,7 +991,7 @@ export default function CalendarRecordsScreen({
                       <span className="flex items-baseline justify-between gap-1">
                         <span className={cn("shrink-0 text-[14px] font-medium leading-5", isRedDay ? "text-[#d6303a]" : "text-[#111827]")}>{Number(date.slice(-2))}</span>
                         {supportCount > 0 ? (
-                          <span className="min-w-0 truncate text-right text-[12px] font-medium leading-[18px] text-[#42658f]" title={`지원사업 마감 ${supportCount}건`} aria-hidden="true">
+                          <span className="min-w-0 truncate text-right text-[12px] font-semibold leading-[18px] text-[#42658f]" title={`지원사업 마감 ${supportCount}건`} aria-hidden="true">
                             <span className="hidden @[84px]/calendar-day:inline">지원사업 {supportCount}건</span>
                             <span className="@[84px]/calendar-day:hidden"><span className="hidden @[56px]/calendar-day:inline">지원 </span>{supportCount}건</span>
                           </span>
@@ -1016,14 +1030,17 @@ export default function CalendarRecordsScreen({
                   </button>
                 );
               })}
-              {noteLayout.bars.map((bar) => (
+              {noteLayout.bars.map((bar) => {
+                const tone = noteToneById.get(bar.event.id) ?? CALENDAR_NOTE_TONES[0];
+                return (
                 <span
                   key={`${bar.event.id}/${bar.row}`}
                   aria-hidden="true"
                   title={bar.event.title}
+                  data-calendar-note-bar="true"
                   className={cn(
-                    "pointer-events-none relative z-[1] flex min-w-0 items-center self-start overflow-hidden bg-[#fff0e3] px-1.5 text-[11px] font-medium leading-[18px] text-[#8f4512]",
-                    bar.continuesBefore ? "" : "ml-1.5 rounded-l-[4px] border-l-[3px] border-[#ef8a42]",
+                    "pointer-events-none relative z-[1] flex min-w-0 items-center self-start overflow-hidden px-1.5 text-[11px] font-medium leading-[18px]",
+                    bar.continuesBefore ? "" : "ml-1.5 rounded-l-[4px] border-l-[3px]",
                     bar.continuesAfter ? "" : "mr-1.5 rounded-r-[4px]",
                   )}
                   style={{
@@ -1031,11 +1048,15 @@ export default function CalendarRecordsScreen({
                     gridColumn: `${bar.startColumn + 1} / ${bar.endColumn + 2}`,
                     marginTop: CALENDAR_NOTE_BAR_TOP + bar.lane * CALENDAR_NOTE_BAR_STEP,
                     height: CALENDAR_NOTE_BAR_HEIGHT,
+                    backgroundColor: tone.background,
+                    borderColor: tone.accent,
+                    color: tone.text,
                   }}
                 >
                   <span className="truncate">{bar.event.title.split("\n")[0]}</span>
                 </span>
-              ))}
+                );
+              })}
             </div>
             </div>
           </section>
@@ -1228,7 +1249,7 @@ function GroomingDatePanel({
       >
         <section ref={reservationRef} aria-label={itemLabel} className={dayPanelSectionClass}>
           {cancelledItems.length > 0 ? (
-            <div className="mb-2 flex min-w-0 items-center gap-1 px-0.5">
+            <div className="mb-1 flex min-w-0 items-center gap-1 px-0.5">
               <span className="mr-0.5 inline-flex shrink-0 text-[#475569]" aria-hidden="true"><IconCalendarEvent size={18} stroke={1.8} /></span>
               <DayPanelListToggle label={itemLabel} count={visibleItems.length} selected={!showCancelled} onSelect={() => setCancelledListDate(null)} />
               <span className="mx-1 h-3.5 w-px shrink-0 bg-[#cbd5e1]" aria-hidden="true" />
@@ -1262,7 +1283,7 @@ function DayPanelSectionLabel({ icon, title, count, tone = "neutral" }: {
   tone?: "neutral" | "amber";
 }) {
   return (
-    <h3 className={cn("mb-2 flex min-w-0 items-center gap-1 px-0.5 text-[15px] font-semibold leading-[22px]", tone === "amber" ? "text-[#7a4f00]" : "text-[#1e293b]")}>
+    <h3 className={cn("mb-1 flex min-w-0 items-center gap-1 px-0.5 text-[15px] font-semibold leading-[22px]", tone === "amber" ? "text-[#7a4f00]" : "text-[#1e293b]")}>
       <span className={cn("mr-0.5 inline-flex shrink-0", tone === "amber" ? "text-[#b98121]" : "text-[#475569]")} aria-hidden="true">{icon}</span>
       <span className="truncate">{title}</span>
       <span className={cn("font-medium tabular-nums", tone === "amber" ? "text-[#a8741a]" : "text-[#64748b]")}>{count}</span>

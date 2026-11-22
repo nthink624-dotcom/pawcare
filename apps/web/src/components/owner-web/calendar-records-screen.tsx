@@ -18,7 +18,7 @@ import { CalendarHolidayLabel, ShopCalendarAgenda } from "@petmanager/shared/com
 import { SupportProgramList } from "@petmanager/shared/components/support-program-list";
 import type { SupportProgram } from "@petmanager/shared/contracts/support-programs";
 import { calendarSecondaryButtonClass } from "@petmanager/shared/components/calendar-dialog";
-import { calendarHolidaysByDate, shopEventsOnDate } from "@petmanager/shared/lib/owner-calendar";
+import { calendarHolidaysByDate, layoutShopEventBars, shopEventsOnDate } from "@petmanager/shared/lib/owner-calendar";
 import { useCalendarHolidays, useShopCalendarEvents } from "@petmanager/shared/lib/use-owner-calendar";
 import { useSupportPrograms } from "@petmanager/shared/lib/use-support-programs";
 
@@ -576,6 +576,13 @@ function getItemStatusGroup(item: Pick<DayItem, "type" | "status">): CalendarSta
 // Exact counts stay in the cell's title/aria-label and in the date panel.
 const CALENDAR_CELL_MAX_STATUS_DOTS = 5;
 
+// Notes are drawn as bars across the days they cover, at most this many stacked per week row.
+// The top offset places the first bar right under the date line: 1px border + 8px padding + 20px date line + 2px gap.
+const CALENDAR_NOTE_MAX_LANES = 2;
+const CALENDAR_NOTE_BAR_HEIGHT = 18;
+const CALENDAR_NOTE_BAR_STEP = 20;
+const CALENDAR_NOTE_BAR_TOP = 31;
+
 function getCalendarCellStatusLines(items: DayItem[]) {
   const counts = { reserved: 0, completed: 0, cancelled: 0 };
   for (const item of items) {
@@ -778,6 +785,7 @@ export default function CalendarRecordsScreen({
   const holidaysByDate = useMemo(() => calendarHolidaysByDate(holidays), [holidays]);
   const shopEventsByDate = useMemo(() => new Map(monthDates.flatMap(date => date ? [[date, shopEventsOnDate(events, date)] as const] : [])), [events, monthDates]);
   const calendarWeekRows = Math.max(5, Math.ceil(monthDates.length / 7));
+  const noteLayout = useMemo(() => layoutShopEventBars(events, monthDates, CALENDAR_NOTE_MAX_LANES), [events, monthDates]);
   const dayItemsByDate = useMemo(() => {
     const map = new Map<string, DayItem[]>();
     for (const date of monthDates) {
@@ -930,21 +938,26 @@ export default function CalendarRecordsScreen({
                 const active = date === selectedDate;
                 const hasItems = items.length > 0 || birthdayCount > 0;
                 const isToday = date === currentDateInTimeZone();
+                // Explicit placement keeps the note bars below from shifting the auto-placed cells.
+                const cellPlacement = { gridRow: Math.floor(index / 7) + 1, gridColumn: (index % 7) + 1 };
                 if (!date) {
-                  return <div key={`empty-${index}`} className="min-h-0 rounded-[10px] bg-[#fdfefe]" />;
+                  return <div key={`empty-${index}`} className="min-h-0 bg-[#fdfefe]" style={cellPlacement} />;
                 }
 
                 const workNotice = getStaffWorkNotice(initialData, date, staffFilter);
                 const holidays = holidaysByDate.get(date) ?? [];
                 const supportCount = supportDeadlines.get(date)?.length ?? 0;
+                const noteCount = shopEventsByDate.get(date)?.length ?? 0;
                 const statusLines = getCalendarCellStatusLines(items);
                 const isRedDay = holidays.length > 0 || new Date(`${date}T00:00:00`).getDay() === 0;
+                const noteLanes = noteLayout.lanesByRow[Math.floor(index / 7)] ?? 0;
                 const cellLabel = [
                   date,
                   workNotice.closed ? "매장 휴무" : "",
                   ...statusLines.map((line) => `${line.label} ${line.count}건`),
                   holidays.join(" · "),
                   workNotice.closed ? "" : [workNotice.offLabel, workNotice.halfLabel].filter(Boolean).join(" · "),
+                  noteCount ? `노트 ${noteCount}건` : "",
                   supportCount ? `지원사업 마감 ${supportCount}건` : "",
                 ].filter(Boolean).join(", ");
 
@@ -953,8 +966,9 @@ export default function CalendarRecordsScreen({
                     key={date}
                     type="button"
                     onClick={() => openDate(date)}
+                    style={cellPlacement}
                     className={cn(
-                      "relative flex min-h-0 flex-col justify-between gap-1 overflow-hidden rounded-[10px] border px-3 py-2 text-left transition duration-150",
+                      "relative flex min-h-0 flex-col justify-between gap-1 overflow-hidden border px-3 py-2 text-left transition duration-150",
                       getCalendarCellTone(active, isToday, hasItems, workNotice.closed),
                     )}
                     aria-label={cellLabel}
@@ -969,6 +983,7 @@ export default function CalendarRecordsScreen({
                           </span>
                         ) : null}
                       </span>
+                      {noteLanes > 0 ? <span className="block" style={{ height: noteLanes * CALENDAR_NOTE_BAR_STEP - (CALENDAR_NOTE_BAR_STEP - CALENDAR_NOTE_BAR_HEIGHT) }} aria-hidden="true" /> : null}
                       {holidays.length ? <span className="block truncate text-[12px] font-medium leading-[18px] text-[#d6303a]" title={holidays.join(" · ")}>{holidays.join(" · ")}</span> : null}
                       {workNotice.closed ? (
                         <span className="block truncate text-[12px] leading-[18px] text-[#64748b]">매장 휴무</span>
@@ -1001,6 +1016,26 @@ export default function CalendarRecordsScreen({
                   </button>
                 );
               })}
+              {noteLayout.bars.map((bar) => (
+                <span
+                  key={`${bar.event.id}/${bar.row}`}
+                  aria-hidden="true"
+                  title={bar.event.title}
+                  className={cn(
+                    "pointer-events-none relative z-[1] flex min-w-0 items-center self-start overflow-hidden bg-[#fff0e3] px-1.5 text-[11px] font-medium leading-[18px] text-[#8f4512]",
+                    bar.continuesBefore ? "" : "ml-1.5 rounded-l-[4px] border-l-[3px] border-[#ef8a42]",
+                    bar.continuesAfter ? "" : "mr-1.5 rounded-r-[4px]",
+                  )}
+                  style={{
+                    gridRow: bar.row + 1,
+                    gridColumn: `${bar.startColumn + 1} / ${bar.endColumn + 2}`,
+                    marginTop: CALENDAR_NOTE_BAR_TOP + bar.lane * CALENDAR_NOTE_BAR_STEP,
+                    height: CALENDAR_NOTE_BAR_HEIGHT,
+                  }}
+                >
+                  <span className="truncate">{bar.event.title.split("\n")[0]}</span>
+                </span>
+              ))}
             </div>
             </div>
           </section>

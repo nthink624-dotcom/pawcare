@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { parseCalendarHolidays } from "../../src/server/calendar-holidays.ts";
 import { parseCalendarImport } from "../../src/server/parse-calendar-import.ts";
-import { calendarMonthBounds, isCalendarDate, shopEventsOnDate } from "@petmanager/shared/lib/owner-calendar";
+import { calendarMonthBounds, isCalendarDate, layoutShopEventBars, shopEventDayRange, shopEventsOnDate } from "@petmanager/shared/lib/owner-calendar";
 
 function ics(...lines) {
   return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//PetManager test//KO", ...lines, "END:VCALENDAR"].join("\r\n");
@@ -77,4 +77,29 @@ test("ICS includes RDATE additions, separate periods, and matching exceptions", 
     ["2026-12-04T01:00:00.000Z", "2026-12-04T02:00:00.000Z"],
     ["2026-12-05T01:00:00.000Z", "2026-12-05T03:00:00.000Z"],
   ]);
+});
+
+test("note bars split by week row, stack longer notes first, and cap the lanes", () => {
+  const note = (id, first, last) => ({ id, title: id, source: "manual", allDay: true,
+    startsAt: new Date(`${first}T00:00:00+09:00`).toISOString(),
+    endsAt: new Date(Date.parse(`${last}T00:00:00+09:00`) + 86_400_000).toISOString() });
+  assert.deepEqual(shopEventDayRange(note("a", "2026-11-05", "2026-11-09")), { first: "2026-11-05", last: "2026-11-09" });
+  assert.deepEqual(shopEventDayRange({ startsAt: "2026-11-05T01:00:00.000Z", endsAt: "2026-11-05T03:00:00.000Z" }), { first: "2026-11-05", last: "2026-11-05" });
+  // November 2026 starts on a Sunday: rows are 1-7, 8-14, 15-21, 22-28, 29-30 + blanks.
+  const cells = Array.from({ length: 30 }, (_, index) => `2026-11-${String(index + 1).padStart(2, "0")}`);
+  cells.push(null, null, null, null, null);
+  const { bars, lanesByRow } = layoutShopEventBars([
+    note("short", "2026-11-06", "2026-11-06"),
+    note("long", "2026-11-05", "2026-11-09"),
+    note("third", "2026-11-06", "2026-11-07"),
+    note("hidden", "2026-11-06", "2026-11-06"),
+  ], cells, 2);
+  const summary = bars.map(({ event, row, startColumn, endColumn, lane, continuesBefore, continuesAfter }) =>
+    [event.id, row, startColumn, endColumn, lane, continuesBefore, continuesAfter].join(":"));
+  assert.deepEqual(summary, [
+    "long:0:4:6:0:false:true",
+    "third:0:5:6:1:false:false",
+    "long:1:0:1:0:true:false",
+  ]);
+  assert.deepEqual(lanesByRow, [2, 1, 0, 0, 0]);
 });

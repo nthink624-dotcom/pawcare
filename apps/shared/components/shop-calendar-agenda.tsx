@@ -1,10 +1,10 @@
 "use client";
 
-import { IconChevronRight, IconNote, IconPlus } from "@tabler/icons-react";
+import { IconCalendarEvent, IconChevronRight, IconNote, IconPlus } from "@tabler/icons-react";
 import { useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import type { CalendarRequest, ShopCalendarEvent, ShopCalendarEventInput } from "../contracts/owner-calendar";
 import { cn } from "../lib/cn";
-import { seoulCalendarDate, seoulCalendarInstant, seoulCalendarTime, shiftCalendarDate } from "../lib/owner-calendar";
+import { isCalendarDate, seoulCalendarDate, seoulCalendarInstant, seoulCalendarTime, shiftCalendarDate, shopEventDayRange } from "../lib/owner-calendar";
 import { calendarSecondaryButtonClass } from "./calendar-dialog";
 
 export function CalendarHolidayLabel({ names }: { names?: string[] }) {
@@ -77,12 +77,14 @@ export function ShopCalendarAgenda({ date, shopId, events, canEdit, loading, err
             {events.map(event => {
               // Notes are day-long by default, so "종일" adds nothing; only show times for timed or imported events.
               const timeLabel = eventTimeLabel(event, date);
-              const showMeta = timeLabel !== "종일" || event.source === "ics";
+              const rangeLabel = noteRangeLabel(event);
+              const showMeta = Boolean(rangeLabel) || timeLabel !== "종일" || event.source === "ics";
               const body = (
                 <span className="min-w-0 flex-1">
                   <span className="line-clamp-3 whitespace-pre-line break-keep text-[14px] font-medium leading-5 text-[#0f1b2d] [overflow-wrap:anywhere]">{event.title}</span>
                   {showMeta ? (
                     <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-[12px] leading-4 text-[#6b7a90]">
+                      {rangeLabel ? <span className="whitespace-nowrap">{rangeLabel}</span> : null}
                       {timeLabel !== "종일" ? <span className="whitespace-nowrap tabular-nums">{timeLabel}</span> : null}
                       {event.source === "ics" ? <span>가져온 일정</span> : null}
                     </span>
@@ -146,19 +148,25 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
   const event = editor.event;
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
   const [title, setTitle] = useState(event?.title ?? "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const url = `/api/owner/calendar-events?${new URLSearchParams({ shopId, id: editor.id })}`;
-  const noteDate = event ? seoulCalendarDate(event.startsAt) : date;
-  const [, noteMonth, noteDay] = noteDate.split("-").map(Number);
+  const initialRange = event ? shopEventDayRange(event) : { first: date, last: date };
+  const [startDate, setStartDate] = useState(initialRange.first);
+  const [endDate, setEndDate] = useState(initialRange.last);
   const heading = event ? "노트 수정" : "노트 추가";
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     dialog.showModal();
+    // showModal focuses the first date field; start in the text instead, with the cursor after the existing note.
+    const text = textRef.current;
+    text?.focus();
+    text?.setSelectionRange(text.value.length, text.value.length);
     return () => dialog.close();
   }, []);
 
@@ -166,11 +174,24 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
     e.preventDefault();
     const text = title.trim();
     if (busy || confirmDelete || !text) return;
-    // A note belongs to a single day: a new note is stored as an all-day event on the selected date,
-    // and editing only changes the text, keeping the original dates and times (including imported events).
-    const input: ShopCalendarEventInput = event
-      ? { title: text, startsAt: new Date(event.startsAt).toISOString(), endsAt: new Date(event.endsAt).toISOString(), allDay: event.allDay }
-      : { title: text, startsAt: seoulCalendarInstant(date, "00:00"), endsAt: seoulCalendarInstant(shiftCalendarDate(date, 1), "00:00"), allDay: true };
+    if (!isCalendarDate(startDate) || !isCalendarDate(endDate) || endDate < startDate) {
+      setError("날짜를 다시 확인해 주세요.");
+      return;
+    }
+    // Notes cover whole days from the start date through the end date (stored with an exclusive end midnight).
+    // A timed (imported) event keeps its times of day and only moves by the days the dates moved.
+    const input: ShopCalendarEventInput = !event || event.allDay
+      ? { title: text, startsAt: seoulCalendarInstant(startDate), endsAt: seoulCalendarInstant(shiftCalendarDate(endDate, 1)), allDay: true }
+      : {
+        title: text,
+        startsAt: new Date(Date.parse(event.startsAt) + calendarDayDiff(initialRange.first, startDate) * dayMs).toISOString(),
+        endsAt: new Date(Date.parse(event.endsAt) + calendarDayDiff(initialRange.last, endDate) * dayMs).toISOString(),
+        allDay: false,
+      };
+    if (Date.parse(input.endsAt) <= Date.parse(input.startsAt)) {
+      setError("날짜를 다시 확인해 주세요.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -200,8 +221,15 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
     >
       <form onSubmit={save} className="relative flex min-h-[380px] flex-col bg-white px-7 pb-5 pt-7 text-[#0f1b2d]" style={{ clipPath: `polygon(0 0, calc(100% - ${noteFoldSize}px) 0, 100% ${noteFoldSize}px, 100% 100%, 0 100%)` }}>
         <span aria-hidden="true" className="pointer-events-none absolute right-0 top-0 rounded-bl-[4px]" style={{ width: noteFoldSize, height: noteFoldSize, background: "linear-gradient(to bottom left, transparent 50%, #eef1f5 50%, #d3d9e1 100%)" }} />
-        <h2 id={titleId} className="sr-only">{noteMonth}월 {noteDay}일 {heading}</h2>
+        <h2 id={titleId} className="sr-only">{heading}</h2>
+        <div className="mb-3 flex min-w-0 flex-wrap items-center gap-x-0.5 gap-y-1 pr-12 text-[14px] text-[#334155]">
+          <IconCalendarEvent size={17} stroke={1.8} className="mr-1 shrink-0 text-[#8a97a8]" aria-hidden="true" />
+          <NoteDateField label="시작일" value={startDate} disabled={busy || confirmDelete} onChange={value => { setStartDate(value); if (endDate < value) setEndDate(value); }} />
+          <span className="px-0.5 text-[#a3afbf]" aria-hidden="true">~</span>
+          <NoteDateField label="종료일" value={endDate} min={startDate} disabled={busy || confirmDelete} onChange={value => setEndDate(value < startDate ? startDate : value)} />
+        </div>
         <textarea
+          ref={textRef}
           value={title}
           onChange={e => setTitle(e.target.value)}
           maxLength={noteMaxLength}
@@ -211,7 +239,6 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
           placeholder="메모를 적어 주세요"
           className="min-h-[200px] w-full flex-1 resize-none bg-transparent pr-8 text-[19px] leading-[1.55] text-[#0f1b2d] outline-none placeholder:text-[#a3afbf] [overflow-wrap:anywhere] disabled:opacity-70"
         />
-        <p className="mt-2 text-right text-[12px] tabular-nums text-[#a3afbf]" aria-hidden="true">{title.length}/{noteMaxLength}</p>
         {error ? <p role="alert" className="mt-2 break-words text-[13px] leading-5 text-[#c62f37]">{error}</p> : null}
         <div className="mt-4 flex min-h-10 items-center gap-1.5">
           {confirmDelete ? (
@@ -222,7 +249,7 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
             </>
           ) : (
             <>
-              <p className="mr-auto min-w-0 truncate text-[13px] italic text-[#8a97a8]">- {noteMonth}월 {noteDay}일 노트</p>
+              <p className="mr-auto min-w-0 text-[12px] tabular-nums text-[#a3afbf]" aria-hidden="true">{title.length}/{noteMaxLength}</p>
               {event ? <button type="button" data-owner-control-size="content" disabled={busy} className={cn(noteGhostButtonClass, "text-[#c62f37] hover:bg-[#fff0f0] hover:text-[#a8232b]")} onClick={() => setConfirmDelete(true)}>삭제</button> : null}
               <button type="button" data-owner-control-size="content" disabled={busy} className={noteGhostButtonClass} onClick={onClose}>취소</button>
               <button type="submit" data-owner-control-size="content" disabled={busy || !title.trim()} className="inline-flex min-h-10 items-center rounded-[8px] bg-[#1e293b] px-4 text-[14px] font-semibold text-white hover:bg-[#0f172a] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff] disabled:bg-[#e2e8f0] disabled:text-[#94a3b8]">{busy ? "저장 중…" : "저장"}</button>
@@ -234,6 +261,47 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
   );
 }
 
+function NoteDateField({ label, value, min, disabled, onChange }: {
+  label: string;
+  value: string;
+  min?: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <span className="relative inline-flex h-8 shrink-0 items-center rounded-[6px] px-1.5 font-medium transition-colors focus-within:outline-2 focus-within:outline-[#1677ff] hover:bg-[#f1f5f9] has-[:disabled]:opacity-60 has-[:disabled]:hover:bg-transparent">
+      <span aria-hidden="true">{calendarDayLabel(value)}</span>
+      <input
+        type="date"
+        aria-label={label}
+        value={value}
+        min={min}
+        required
+        disabled={disabled}
+        onClick={e => { try { e.currentTarget.showPicker(); } catch { /* Keyboard entry still works where the picker can't open. */ } }}
+        onChange={e => { if (isCalendarDate(e.target.value)) onChange(e.target.value); }}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-default"
+      />
+    </span>
+  );
+}
+
+function calendarDayLabel(date: string) {
+  const [, month, day] = date.split("-").map(Number);
+  return `${month}월 ${day}일`;
+}
+
+function noteRangeLabel(event: ShopCalendarEvent) {
+  const { first, last } = shopEventDayRange(event);
+  if (first === last) return null;
+  return first.slice(0, 7) === last.slice(0, 7) ? `${calendarDayLabel(first)} ~ ${Number(last.slice(8))}일` : `${calendarDayLabel(first)} ~ ${calendarDayLabel(last)}`;
+}
+
+function calendarDayDiff(from: string, to: string) {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / dayMs);
+}
+
+const dayMs = 86_400_000;
 const noteFoldSize = 44;
 const noteMaxLength = 160;
 const noteGhostButtonClass = "inline-flex min-h-10 items-center rounded-[8px] px-3 text-[14px] font-medium text-[#475569] hover:bg-[#f1f5f9] hover:text-[#1e293b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff] disabled:opacity-40";

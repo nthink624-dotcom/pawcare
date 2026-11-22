@@ -45,6 +45,54 @@ export function calendarHolidaysByDate(holidays: CalendarHoliday[]) {
   return names;
 }
 
+/** The first and last Korea calendar day an event covers; `endsAt` is exclusive. */
+export function shopEventDayRange(event: Pick<ShopCalendarEvent, "startsAt" | "endsAt">) {
+  const first = seoulCalendarDate(event.startsAt);
+  const end = Date.parse(event.endsAt);
+  const last = end > Date.parse(event.startsAt) ? seoulCalendarDate(new Date(end - 1).toISOString()) : first;
+  return { first, last: last < first ? first : last };
+}
+
+export type ShopEventBar = {
+  event: ShopCalendarEvent;
+  /** Week row (0-based) of the month grid. */
+  row: number;
+  /** First and last covered column (0-based, Sunday first) within the row. */
+  startColumn: number;
+  endColumn: number;
+  lane: number;
+  continuesBefore: boolean;
+  continuesAfter: boolean;
+};
+
+/**
+ * Lays events out as one bar per week row over a month grid of 7-day rows (`null` = blank cell).
+ * Longer events take the upper lanes; bars that would need more than `maxLanes` lanes in a row are left out.
+ */
+export function layoutShopEventBars(events: ShopCalendarEvent[], cells: (string | null)[], maxLanes: number) {
+  const ranges = events.map(event => ({ event, ...shopEventDayRange(event) }))
+    .sort((a, b) => a.first.localeCompare(b.first) || b.last.localeCompare(a.last) || Date.parse(a.event.startsAt) - Date.parse(b.event.startsAt));
+  const bars: ShopEventBar[] = [];
+  const lanesByRow: number[] = [];
+  for (let row = 0; row * 7 < cells.length; row += 1) {
+    const week = cells.slice(row * 7, row * 7 + 7);
+    const laneEnds: number[] = [];
+    for (const { event, first, last } of ranges) {
+      const columns = week.flatMap((date, column) => date && date >= first && date <= last ? [column] : []);
+      if (!columns.length) continue;
+      const startColumn = columns[0];
+      const endColumn = columns[columns.length - 1];
+      let lane = laneEnds.findIndex(end => end < startColumn);
+      if (lane < 0) lane = laneEnds.length;
+      if (lane >= maxLanes) continue;
+      laneEnds[lane] = endColumn;
+      bars.push({ event, row, startColumn, endColumn, lane, continuesBefore: first < week[startColumn]!, continuesAfter: last > week[endColumn]! });
+    }
+    lanesByRow.push(laneEnds.length);
+  }
+  return { bars, lanesByRow };
+}
+
 export function shopEventsOnDate(events: ShopCalendarEvent[], date: string) {
   const start = Date.parse(seoulCalendarInstant(date));
   const end = Date.parse(seoulCalendarInstant(shiftCalendarDate(date, 1)));

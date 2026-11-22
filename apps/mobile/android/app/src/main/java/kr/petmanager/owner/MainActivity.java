@@ -1,9 +1,11 @@
 package kr.petmanager.owner;
 
 import android.content.Intent;
-import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
+import android.widget.FrameLayout;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.view.ViewCompat;
@@ -16,6 +18,8 @@ import com.getcapacitor.PluginHandle;
 
 public class MainActivity extends BridgeActivity {
 
+    private static final int STATUS_BAR_BACKGROUND = 0xFFE9EEF5;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ExternalCameraPlugin.class);
@@ -27,6 +31,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(OwnerCallScreeningPlugin.class);
         registerPlugin(OwnerSocialLoginPlugin.class);
         super.onCreate(savedInstanceState);
+        addStatusBarBackground();
         configureSystemBars();
         handleCallIntent(getIntent());
 
@@ -40,8 +45,32 @@ public class MainActivity extends BridgeActivity {
 
     }
 
+    private void addStatusBarBackground() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return;
+
+        // Android 15+ draws a transparent status bar over the activity.
+        View background = new View(this);
+        background.setBackgroundColor(STATUS_BAR_BACKGROUND);
+        background.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        FrameLayout.LayoutParams layout = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, 0, Gravity.TOP
+        );
+        ViewCompat.setOnApplyWindowInsetsListener(background, (view, insets) -> {
+            int height = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            if (layout.height != height) {
+                layout.height = height;
+                view.setLayoutParams(layout);
+            }
+            return insets;
+        });
+        addContentView(background, layout);
+        ViewCompat.requestApplyInsets(background);
+    }
+
     private void configureSystemBars() {
-        getWindow().setStatusBarColor(Color.WHITE);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            getWindow().setStatusBarColor(STATUS_BAR_BACKGROUND);
+        }
         WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
         controller.setAppearanceLightStatusBars(true);
     }

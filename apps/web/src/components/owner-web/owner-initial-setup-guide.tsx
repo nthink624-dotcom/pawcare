@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronLeft, X } from "lucide-react";
+import { IconCheck as Check, IconChevronLeft as ChevronLeft, IconX as X } from "@tabler/icons-react";
 import {
   createContext,
   useCallback,
@@ -127,7 +127,7 @@ function SetupChecklist({
                   : "inline-flex h-5 w-5 shrink-0 rounded-[6px] border border-[#cbd5e1] bg-white"}
                 aria-hidden="true"
               >
-                {complete ? <Check className="h-3.5 w-3.5" /> : null}
+                {complete ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : null}
               </span>
               <span className="min-w-0 text-[16px] font-medium leading-6 text-[#15213b] [overflow-wrap:anywhere]">
                 {item.railLabel}

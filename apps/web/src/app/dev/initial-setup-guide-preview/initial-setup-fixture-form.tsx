@@ -1,5 +1,8 @@
 "use client";
 
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
 import { useCallback, useState, type FormEvent } from "react";
 
 import { OwnerInitialSetupSaveNextActions, type OwnerInitialSetupStepKey } from "@/components/owner-web/owner-initial-setup-guide";
@@ -75,11 +78,11 @@ function HoursFixtureForm({ onSaved, onNext }: { onSaved: (step: OwnerInitialSet
         <div className="grid min-w-0 gap-3 sm:grid-cols-2">
           <label className="min-w-0">
             <FieldLabel>영업 시작</FieldLabel>
-            <input type="time" value={openTime} onChange={(event) => setOpenTime(event.target.value)} className={INPUT_CLASS} />
+            <WheelTimeField aria-label="시간 선택"  value={openTime} onValueChange={(nextTime) => setOpenTime(nextTime)} className={INPUT_CLASS} />
           </label>
           <label className="min-w-0">
             <FieldLabel>영업 종료</FieldLabel>
-            <input type="time" value={closeTime} onChange={(event) => setCloseTime(event.target.value)} className={INPUT_CLASS} />
+            <WheelTimeField aria-label="시간 선택"  value={closeTime} onValueChange={(nextTime) => setCloseTime(nextTime)} className={INPUT_CLASS} />
           </label>
         </div>
         <div className="grid min-w-0 gap-3 sm:grid-cols-2">

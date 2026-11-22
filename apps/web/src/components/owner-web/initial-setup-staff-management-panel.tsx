@@ -1,5 +1,8 @@
 "use client";
 
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
 import { OwnerInitialSetupSaveNextActions } from "@/components/owner-web/owner-initial-setup-guide";
 import StaffProfilePhotoField, {
   type InitialSetupStaffPhotoDraft,
@@ -199,12 +202,12 @@ export default function InitialSetupStaffManagementPanel({
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_16px_minmax(0,1fr)] items-end gap-2">
             <label className="block min-w-0">
               <span className="text-[14px] font-medium leading-5 text-[#475569]">출근 시간</span>
-              <input type="time" value={draft.startTime} onChange={(event) => onDraftChange({ startTime: event.target.value })} className={`${INPUT_CLASS} tabular-nums`} />
+              <WheelTimeField aria-label="시간 선택"  value={draft.startTime} onValueChange={(nextTime) => onDraftChange({ startTime: nextTime })} className={`${INPUT_CLASS} tabular-nums`} />
             </label>
             <span className="mb-3 text-center text-[14px] font-normal leading-5 text-[#94a3b8]">–</span>
             <label className="block min-w-0">
               <span className="text-[14px] font-medium leading-5 text-[#475569]">퇴근 시간</span>
-              <input type="time" value={draft.endTime} onChange={(event) => onDraftChange({ endTime: event.target.value })} className={`${INPUT_CLASS} tabular-nums`} />
+              <WheelTimeField aria-label="시간 선택"  value={draft.endTime} onValueChange={(nextTime) => onDraftChange({ endTime: nextTime })} className={`${INPUT_CLASS} tabular-nums`} />
             </label>
           </div>
         </section>

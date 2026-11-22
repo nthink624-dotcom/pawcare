@@ -2,6 +2,230 @@
   display: none;
 }
 
+/* Match the supplied reference inside this wizard, without changing other owner screens. */
+.referenceFrame {
+  font-family: system-ui, "Malgun Gothic", sans-serif;
+  font-weight: 400;
+  letter-spacing: 0;
+  -webkit-font-smoothing: auto;
+  text-rendering: auto;
+  /* Keep every setup stage equally sized, with room for the staff form. */
+  height: 576px;
+  max-height: calc(100dvh - var(--setup-modal-margin, 64px) - 2px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+/* The setup body scrolls inside the dialog; the page should not reserve a scrollbar gutter. */
+:global(html):has(dialog[open] > .referenceFrame) {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+.referenceFrame [data-owner-setup-body] {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.referenceFrame [data-owner-setup-body]::-webkit-scrollbar {
+  width: 4px;
+}
+
+.referenceFrame [data-setup-content="hours"] {
+  --setup-hours-inset: 21px;
+  display: flex;
+  flex-direction: column;
+  padding-inline: var(--setup-hours-inset);
+}
+
+.referenceFrame [data-setup-content="hours"] > [data-setup-section] {
+  flex: 1;
+}
+
+.referenceFrame [data-setup-content="hours"] > [data-setup-section] > fieldset {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.referenceFrame [data-setup-hours-list] {
+  display: grid;
+  flex: 1;
+  grid-template-rows: repeat(7, minmax(48px, 1fr));
+}
+
+.referenceFrame [data-setup-day] {
+  min-height: 48px;
+}
+
+.referenceFrame [data-setup-hours-bulk] {
+  margin-inline: calc(-1 * var(--setup-hours-inset));
+  padding-inline: var(--setup-hours-inset);
+}
+
+@media (max-width: 389px) {
+  .referenceFrame [data-setup-hours-bulk][data-pending="true"] [data-bulk-range],
+  .referenceFrame [data-setup-hours-bulk][data-pending="true"] [data-bulk-actions] {
+    grid-column: 2 / -1;
+  }
+
+  .referenceFrame [data-setup-hours-bulk][data-pending="true"] [data-bulk-actions] {
+    justify-self: end;
+  }
+}
+
+@media (max-width: 359px) {
+  .referenceFrame [data-setup-content="hours"] {
+    --setup-hours-inset: 16px;
+  }
+}
+
+.referenceFrame [data-price-guide-mode="method"] {
+  min-height: 100%;
+}
+
+.referenceFrame [data-price-guide-method] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.referenceFrame [data-price-guide-method-options] {
+  flex: 1;
+  grid-template-rows: repeat(3, minmax(64px, 1fr));
+}
+
+.referenceFrame [data-price-guide-method-options] > button {
+  height: 100%;
+  min-height: 64px;
+}
+
+.timeField {
+  position: relative;
+  min-width: 0;
+  width: 80px;
+  max-width: 80px;
+  flex: 0 1 80px;
+}
+
+.timeFieldSurface {
+  pointer-events: none;
+  position: absolute;
+  inset: 6px 0;
+  border: 1px solid #d3dce7;
+  border-radius: 8px;
+  background: #fff;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.timeField:hover .timeFieldSurface,
+.timeField:focus-within .timeFieldSurface {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.timeFieldIndicator {
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: 6px;
+  width: 12px;
+  height: 12px;
+  transform: translateY(-50%);
+  color: #64748b;
+}
+
+.referenceFrame [data-price-guide-review-footer]:not([data-setup-navigation]) {
+  margin: 0;
+  padding: 14px 21px 21px;
+}
+
+.referenceFrame [data-price-guide-review-footer] button {
+  min-height: 50px;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+@media (max-width: 319px) {
+  .referenceFrame [data-setup-content="hours"] {
+    --setup-hours-inset: 12px;
+  }
+
+  .referenceFrame [data-owner-setup-body]:not([data-setup-content="pricing"]) {
+    padding-inline: 12px;
+  }
+
+  .referenceFrame [data-setup-section] {
+    gap: 8px;
+  }
+
+  .referenceFrame [data-setup-day] {
+    min-height: 44px;
+    grid-template-columns: 48px minmax(0, 1fr) 44px;
+    column-gap: 6px;
+  }
+
+  .referenceFrame [data-setup-day] > span,
+  .referenceFrame [data-setup-time-control] {
+    font-size: 15px;
+  }
+
+  .referenceFrame [data-setup-time-control] {
+    justify-content: center;
+    padding-inline: 4px;
+  }
+
+  .referenceFrame .timeFieldIndicator {
+    display: none;
+  }
+
+  .referenceFrame [data-setup-day] [role="switch"] > span {
+    width: 34px;
+    height: 20px;
+  }
+
+  .referenceFrame [data-setup-day] [role="switch"] > span > span {
+    width: 16px;
+    height: 16px;
+    left: 2px;
+  }
+
+  .referenceFrame [data-setup-day] [role="switch"][aria-checked="true"] > span > span {
+    left: 16px;
+  }
+}
+
+@media (max-width: 319px), (max-height: 600px) {
+  .referenceFrame [data-setup-navigation] {
+    padding: 8px 12px;
+  }
+
+  .referenceFrame [data-setup-navigation] button {
+    min-height: 44px;
+    height: 44px;
+    font-size: 14px;
+  }
+
+  .referenceFrame [data-setup-navigation] button[data-setup-next] {
+    font-size: 15px;
+  }
+
+  .referenceFrame [data-setup-day] {
+    min-height: 44px;
+  }
+
+  .referenceFrame [data-price-guide-review-footer]:not([data-setup-navigation]) {
+    padding: 8px 12px;
+  }
+
+  .referenceFrame [data-price-guide-review-footer] button {
+    min-height: 44px;
+  }
+}
+
+.referenceFrame [data-setup-navigation][data-price-guide-review-footer] button {
+  font-size: 16px;
+}
+
 .holidayRow {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 48px;

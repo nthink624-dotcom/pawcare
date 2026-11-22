@@ -2,6 +2,9 @@
 
 import { useRef, useState } from "react";
 import SetupModal from "@/components/ui/setup-modal";
+import OwnerApp from "./owner-app";
+import OwnerInitialSetupFrame, { SetupStepNavigation } from "./owner-initial-setup-frame";
+import type { MobilePricePhotoAdapter } from "@/lib/price-photo/mobile-price-photo-adapter";
 import MobileAiPriceGuideFixture, { type PriceGuideSessionState } from "@/components/auth/mobile-ai-price-guide-fixture";
 import { readBootstrapPriceGuideState } from "@/lib/price-photo/bootstrap-price-guide-state";
 import { ownerPriceGuideSessionKey, readOwnerPriceGuideSessionDraft, writeOwnerPriceGuideSessionDraft } from "@/lib/price-photo/owner-price-guide-session-draft";
@@ -10,11 +13,17 @@ import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileRoleContext } from "@/lib/owner-customer-pet-integrity";
 import { SetupHoursFields, setupButton } from "./initial-setup-fields";
 import SetupStaffFields from "./setup-staff-fields";
-import SetupClosedDays from "./setup-closed-days";
 import { bookingBoundsFromHours, validateClosedPolicy, restoreTemporaryClosedDates, unifiedHoursPolicy, type SetupClosureCycle } from "@/lib/initial-setup-hours-policy";
 import { readHoursDraft, saveHoursDraft, clearHoursDraft } from "@/lib/initial-setup-hours-draft";
+import { readSetupResumeDraft, saveSetupResumeDraft, clearSetupResumeDraft } from "@/lib/initial-setup-resume-draft";
 
 type OwnerInitialSetupState = { readiness: SetupReadiness; roleContext: OwnerMobileRoleContext; bootstrap?: BootstrapPayload };
+export type InitialSetupOperations = {
+  saveStep: typeof saveSetupStep;
+  reload: typeof reloadSetup;
+  pricePhotoAdapter?: MobilePricePhotoAdapter;
+};
+const liveSetupOperations: InitialSetupOperations = { saveStep: saveSetupStep, reload: reloadSetup };
 export default function OwnerInitialSetupFlow({ setup, onRefresh, onDefer, onFinish }: {
   setup: OwnerInitialSetupState; onRefresh: () => void; onFinish: () => void;
   onDefer: () => void;
@@ -27,44 +36,63 @@ export default function OwnerInitialSetupFlow({ setup, onRefresh, onDefer, onFin
   return <InitialSetupWizard bootstrap={setup.bootstrap} readiness={setup.readiness} onDefer={onDefer} onFinish={onFinish} />;
 }
 
-function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { bootstrap: BootstrapPayload; readiness: SetupReadiness; onDefer: () => void; onFinish: () => void }) {
+export function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish, operations = liveSetupOperations }: { bootstrap: BootstrapPayload; readiness: SetupReadiness; onDefer: () => void; onFinish: () => void; operations?: InitialSetupOperations }) {
+  const { saveStep: saveSetupStep, reload: reloadSetup } = operations;
   const key = `petmanager:initial-setup:${bootstrap.shop.owner_user_id ?? "owner"}:${bootstrap.shop.id}`;
   const priceGuideKey = ownerPriceGuideSessionKey(bootstrap);
   const [hoursDraft] = useState(() => readHoursDraft(key));
-  const [draftNotice, setDraftNotice] = useState("");
-  const [step, setStep] = useState<SetupStep>(() => readSetupCheckpoint(key, readiness));
+  const [resumeDraft] = useState(() => readSetupResumeDraft(key, readiness, bootstrap.staffMembers));
+  const [step, setStep] = useState<SetupStep>(() => resumeDraft?.step ?? readSetupCheckpoint(key, readiness));
   const initialCycle = hoursDraft?.cycle ?? bootstrap.shop.regular_closed_cycle ?? "weekly";
   const initialClosedDays = hoursDraft?.regularClosedDays ?? bootstrap.shop.regular_closed_days;
   const [hours, setHours] = useState(() => Object.fromEntries(Object.entries(hoursDraft?.hours ?? bootstrap.shop.business_hours).map(([day, value]) => [day,
     value && initialClosedDays.includes(Number(day)) ? { ...value, enabled: false } : value,
   ])));
-  const [temporaryClosedDates, setTemporaryClosedDates] = useState(() => restoreTemporaryClosedDates(bootstrap.shop.temporary_closed_dates, hoursDraft?.temporaryClosedDates, hoursDraft?.temporaryClosedDatesBaseline));
-  const [staff, setStaff] = useState(bootstrap.staffMembers);
+  const [temporaryClosedDates] = useState(() => restoreTemporaryClosedDates(bootstrap.shop.temporary_closed_dates, hoursDraft?.temporaryClosedDates, hoursDraft?.temporaryClosedDatesBaseline));
+  const [staff, setStaff] = useState(resumeDraft?.staff ?? bootstrap.staffMembers);
   const [savedStaffIds, setSavedStaffIds] = useState(() => bootstrap.staffMembers.map((member) => member.id));
-  const [cycle, setCycle] = useState<SetupClosureCycle>(initialCycle === "biweekly" ? "weekly" : initialCycle);
+  const [cycle] = useState<SetupClosureCycle>(initialCycle === "biweekly" ? "weekly" : initialCycle);
   const { businessHours: canonicalHours, regularClosedDays } = unifiedHoursPolicy(hours, cycle);
   const { bookingStart, bookingEnd } = bookingBoundsFromHours(canonicalHours);
   const [draft, setDraft] = useState<PriceGuideSessionState | null>(() => readOwnerPriceGuideSessionDraft(priceGuideKey) ?? readBootstrapPriceGuideState(bootstrap.services));
   const [uploading, setUploading] = useState(false);
+  const [editingHours, setEditingHours] = useState(false);
   const uploadLock = useRef(false);
   const [busy, setBusy] = useState(false);
+  const [priceBusy, setPriceBusy] = useState(false);
+  const [priceFooterTarget, setPriceFooterTarget] = useState<HTMLDivElement | null>(null);
   const [error, setError] = useState("");
   const lock = useRef(false);
   const verifiedStaffDraft = useRef<string | null>(null);
-  const advance = (next: SetupStep) => { writeSetupCheckpoint(key, next); setStep(next); setError(""); };
-  const pause = () => { if (!lock.current && !uploadLock.current && step !== "complete") { writeSetupCheckpoint(key, step); onDefer(); } };
+  const advance = (next: SetupStep) => { clearSetupResumeDraft(key); writeSetupCheckpoint(key, next); setStep(next); setError(""); };
 
-  function saveTemporaryHours() {
-    if (lock.current) return;
-    setError(""); setDraftNotice("");
+  function persistAndDefer(priceDraft = draft) {
+    if (step === "complete") return false;
+    setError("");
     try {
       saveHoursDraft(key, { hours, bookingStart, bookingEnd, regularClosedDays, cycle, temporaryClosedDates, temporaryClosedDatesBaseline: bootstrap.shop.temporary_closed_dates });
-      setDraftNotice("이 브라우저에 24시간 임시 저장했어요.");
-    } catch { setError("임시 저장하지 못했어요. 브라우저 저장 공간을 확인해 주세요."); }
+      saveSetupResumeDraft(key, step, staff);
+      writeOwnerPriceGuideSessionDraft(priceGuideKey, priceDraft);
+      if (JSON.stringify(readOwnerPriceGuideSessionDraft(priceGuideKey)) !== JSON.stringify(priceDraft)) throw new Error("Price draft readback failed");
+      writeSetupCheckpoint(key, step);
+      onDefer();
+      return true;
+    } catch {
+      setError("작성 내용을 보관하지 못했어요. 입력 내용과 브라우저 저장 공간을 확인해 주세요.");
+      requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-owner-setup-frame] [role='alert']")?.scrollIntoView({ block: "nearest" }));
+      return false;
+    }
   }
 
+  const pause = () => {
+    if (lock.current || uploadLock.current || priceBusy || step === "complete") return;
+    if (step !== "pricing") { persistAndDefer(); return; }
+    const request = new Event("owner-mobile-setup-pause-request", { cancelable: true });
+    window.dispatchEvent(request);
+  };
+
   async function save() {
-    if (lock.current || uploadLock.current || (step !== "hours" && step !== "staff")) return;
+    if (lock.current || uploadLock.current || editingHours || (step !== "hours" && step !== "staff")) return;
     lock.current = true; setBusy(true); setError("");
     try {
       if (step === "hours") {
@@ -92,7 +120,7 @@ function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { boots
           role: member.role ?? "직원", position: member.position ?? "직원",
         })) });
       }
-      if (step === "hours") { clearHoursDraft(key); setDraftNotice(""); advance("staff"); }
+      if (step === "hours") { clearHoursDraft(key); advance("staff"); }
       else { verifiedStaffDraft.current = JSON.stringify(staff); setSavedStaffIds(staff.map((member) => member.id)); advance("pricing"); }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "설정을 저장하지 못했어요."); }
     finally { lock.current = false; setBusy(false); }
@@ -104,46 +132,49 @@ function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish }: { boots
     try {
       const fresh = await reloadSetup(bootstrap.shop.id);
       if (!fresh.initialSetupReadiness.completed) throw new Error("설정이 모두 저장되지 않았어요. 이전 단계의 저장 상태를 확인해 주세요.");
+      clearHoursDraft(key);
       advance("complete");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "저장 상태를 확인하지 못했어요."); }
     finally { lock.current = false; setBusy(false); }
   }
 
-  if (step === "pricing") return <SetupModal label="초기 설정 · 서비스와 가격" onCancel={() => { if (!lock.current) window.dispatchEvent(new Event("owner-mobile-back-request", { cancelable: true })); }}>
-    {error && <p role="alert" className="px-5 pt-4 text-[14px] text-red-600">{error}</p>}
-    {busy ? <p role="status" className="p-5">저장 상태를 확인하고 있어요.</p> : <MobileAiPriceGuideFixture
-      presentation="modal" setupFlow shopId={bootstrap.shop.id} ownerBottomNavigation={false}
-      initialRows={draft?.rows ?? null} initialDocument={draft?.document ?? null} initialServiceId={draft?.serviceId ?? null} initialResumeMode={draft?.resumeMode}
-      onAutoSave={(_rows, state) => setDraft(state)}
-      onComplete={(_rows, state) => { if (state) setDraft(state); writeOwnerPriceGuideSessionDraft(priceGuideKey, null); void verifyComplete(); }}
-      onExit={(_rows, state) => { setDraft(state ?? null); writeOwnerPriceGuideSessionDraft(priceGuideKey, state ?? null); advance("pricing"); }}
-    />}
-  </SetupModal>;
+  const onPrevious = step === "staff" ? () => { if (!lock.current && !uploadLock.current) advance("hours"); }
+    : step === "pricing" ? () => { if (!lock.current) window.dispatchEvent(new Event("owner-mobile-back-request", { cancelable: true })); } : undefined;
+  const actions = step === "hours" || step === "staff" ? <SetupStepNavigation onPrevious={onPrevious} onNext={() => void save()} busy={busy || uploading} nextDisabled={editingHours} nextLabel={busy ? "저장 중…" : "다음"} /> : step === "complete" ? <div className="border-t border-[#e5eaf1] p-4">
+    <button type="button" className={`${setupButton} w-full`} onClick={() => { try { window.sessionStorage.removeItem(key); } catch { /* Optional navigation hint. */ } onFinish(); }}>매장 시작하기</button>
+  </div> : undefined;
 
-  const titles = { hours: "영업시간 설정", staff: "담당자 설정", pricing: "서비스와 가격", complete: "초기 설정을 완료했어요" };
-  return <SetupModal hideScrollbar label={titles[step]} onCancel={pause}>
-    <section className={`space-y-5 py-5 text-[16px] leading-6 ${step === "staff" ? "px-4" : "px-5"}`}>
-      <header className="flex items-center justify-between gap-3"><h1 className="text-[20px] font-semibold leading-7">{titles[step]}</h1>
-        {(step === "hours" || step === "staff") && <button disabled={busy || uploading} className="min-h-11 text-[14px] text-[#64748b]" onClick={pause}>나중에 하기</button>}
-      </header>
-      {step === "complete" ? <>
-        <p className="text-[#64748b]">매장 운영을 시작할 준비가 됐어요.</p>
-        <button className={`${setupButton} w-full`} onClick={() => { try { window.sessionStorage.removeItem(key); } catch { /* Optional navigation hint. */ } onFinish(); }}>매장 시작하기</button>
-      </> : <>
-        <fieldset disabled={busy || uploading}>
-          {step === "hours" ? <>
-            <SetupHoursFields hours={hours} onChange={setHours} monthlyClosure={cycle !== "weekly"} />
-            <SetupClosedDays cycle={cycle} onCycleChange={setCycle} dates={temporaryClosedDates} onDatesChange={setTemporaryClosedDates} />
-          </> : <SetupStaffFields staff={staff} onChange={setStaff} savedIds={savedStaffIds} shopId={bootstrap.shop.id} onUploadingChange={(value) => { uploadLock.current = value; setUploading(value); }} />}
-        </fieldset>
-        {error && <p role="alert" className="text-[14px] text-red-600">{error}</p>}
-        {step === "hours" && draftNotice && <p role="status" className="text-[13px] leading-5 text-[#64748b]" style={{ marginTop: 12 }}>{draftNotice}</p>}
-        <div className="grid gap-3" style={{ gridTemplateColumns: step === "staff" ? "minmax(0,35fr) minmax(0,65fr)" : "auto minmax(0,1fr)" }}>
-          {step === "hours" && <button type="button" disabled={busy || uploading} className="min-h-12 rounded-[10px] border border-[#d9e1ec] px-3 text-[14px] text-[#475569] disabled:opacity-50" onClick={saveTemporaryHours}>임시 저장</button>}
-          {step === "staff" && <button disabled={busy || uploading} className="min-h-12 rounded-[10px] border border-[#d9e1ec]" onClick={() => advance("hours")}>이전</button>}
-          <button disabled={busy || uploading} className={setupButton} onClick={() => void save()}>{busy ? "저장 중…" : "저장하고 다음"}</button>
-        </div>
-      </>}
-    </section>
-  </SetupModal>;
+  return <>
+    {/* The real Today screen stays behind the dialog. Only the wizard can write
+        while setup is open; the backdrop uses the same bootstrap for display. */}
+    <div inert aria-hidden="true" data-owner-setup-background>
+      <OwnerApp initialData={bootstrap} ownedShops={[{ id: bootstrap.shop.id, name: bootstrap.shop.name, address: bootstrap.shop.address, heroImageUrl: bootstrap.shop.customer_page_settings.hero_image_url }]} selectedShopId={bootstrap.shop.id} appRole="owner" isPreviewDemo startupReadOnly />
+    </div>
+    <OwnerInitialSetupFrame step={step} footer={actions} footerRef={setPriceFooterTarget} navigationDisabled={busy || uploading || priceBusy} onClose={step === "complete" ? onFinish : pause}>
+    {step === "pricing" ? <>
+      {error && <p role="alert" className="px-4 pt-4 text-[14px] text-red-600">{error}</p>}
+      {busy ? <p role="status" className="p-5">저장 상태를 확인하고 있어요.</p> : <MobileAiPriceGuideFixture
+        presentation="embedded" setupFlow shopId={bootstrap.shop.id} ownerBottomNavigation={false}
+        onNavigationBusyChange={setPriceBusy}
+        pricePhotoAdapter={operations.pricePhotoAdapter} setupFooterTarget={priceFooterTarget}
+        initialRows={draft?.rows ?? null} initialDocument={draft?.document ?? null} initialServiceId={draft?.serviceId ?? null} initialResumeMode={draft?.resumeMode}
+        initialNeedsSave={draft?.needsSave ?? false}
+        onAutoSave={(_rows, state) => { setDraft(state); writeOwnerPriceGuideSessionDraft(priceGuideKey, state); }}
+        onComplete={(_rows, state) => { if (state) setDraft(state); writeOwnerPriceGuideSessionDraft(priceGuideKey, null); void verifyComplete(); }}
+        onPause={(state) => { setDraft(state); return persistAndDefer(state); }}
+        onExit={(_rows, state) => { setDraft(state ?? null); writeOwnerPriceGuideSessionDraft(priceGuideKey, state ?? null); advance("staff"); }}
+      />}
+    </> : step === "complete" ? <div className="space-y-3">
+      <h2 className="text-[20px] font-semibold leading-7 text-[#15213b]">매장 운영을 시작할 준비가 됐어요.</h2>
+      <p className="text-[16px] leading-6 text-slate-600">영업시간, 담당자, 서비스·가격을 모두 등록했어요.</p>
+    </div> : <section data-setup-section className="flex flex-col gap-3 text-[15px] leading-6">
+      <fieldset disabled={busy || uploading}>
+        {step === "hours" ? <>
+          <SetupHoursFields hours={hours} onChange={setHours} monthlyClosure={cycle !== "weekly"} onBulkEditingChange={setEditingHours} />
+        </> : <SetupStaffFields staff={staff} onChange={setStaff} savedIds={savedStaffIds} shopId={bootstrap.shop.id} onUploadingChange={(value) => { uploadLock.current = value; setUploading(value); }} />}
+      </fieldset>
+      {error && <p role="alert" className="text-[14px] text-red-600">{error}</p>}
+    </section>}
+    </OwnerInitialSetupFrame>
+  </>;
 }

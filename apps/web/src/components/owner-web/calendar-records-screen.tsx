@@ -368,6 +368,13 @@ function getMonthDates(monthAnchor: string) {
   return dates;
 }
 
+// The previous or next month's date that falls on a grid cell outside the month.
+function getAdjacentMonthDate(monthAnchor: string, index: number) {
+  const parsed = new Date(`${monthAnchor}T00:00:00`);
+  const firstDay = new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+  return new Date(firstDay.getFullYear(), firstDay.getMonth(), 1 - firstDay.getDay() + index);
+}
+
 function getMonthRange(monthAnchor: string) {
   const parsed = new Date(`${monthAnchor}T00:00:00`);
   const year = parsed.getFullYear();
@@ -798,6 +805,10 @@ export default function CalendarRecordsScreen({
   const holidaysByDate = useMemo(() => calendarHolidaysByDate(holidays), [holidays]);
   const shopEventsByDate = useMemo(() => new Map(monthDates.flatMap(date => date ? [[date, shopEventsOnDate(events, date)] as const] : [])), [events, monthDates]);
   const calendarWeekRows = Math.max(5, Math.ceil(monthDates.length / 7));
+  const gridCells = useMemo(
+    () => Array.from({ length: calendarWeekRows * 7 }, (_, index) => monthDates[index] ?? null),
+    [calendarWeekRows, monthDates],
+  );
   const noteLayout = useMemo(() => layoutShopEventBars(events, monthDates, CALENDAR_NOTE_MAX_LANES), [events, monthDates]);
   const noteToneById = useMemo(() => {
     const ids = [...new Set(noteLayout.bars.map((bar) => bar.event.id))];
@@ -948,7 +959,7 @@ export default function CalendarRecordsScreen({
               className="grid min-h-0 min-w-[720px] flex-1 grid-cols-7 gap-px bg-[#eef2f7] lg:min-w-0"
               style={{ gridTemplateRows: `repeat(${calendarWeekRows}, minmax(0, 1fr))` }}
             >
-              {monthDates.map((date, index) => {
+              {gridCells.map((date, index) => {
                 const items = date ? dayItemsByDate.get(date) ?? [] : [];
                 const birthdays = date ? birthdayItemsByDate.get(date) ?? [] : [];
                 const birthdayCount = birthdays.length;
@@ -958,7 +969,21 @@ export default function CalendarRecordsScreen({
                 // Explicit placement keeps the note bars below from shifting the auto-placed cells.
                 const cellPlacement = { gridRow: Math.floor(index / 7) + 1, gridColumn: (index % 7) + 1 };
                 if (!date) {
-                  return <div key={`empty-${index}`} className="min-h-0 bg-[#fdfefe]" style={cellPlacement} />;
+                  // Dates of the previous/next month stay faded on a gray cell; the first one carries its month.
+                  const adjacent = getAdjacentMonthDate(monthAnchor, index);
+                  const showMonth = index === 0 || adjacent.getDate() === 1;
+                  return (
+                    <div key={`adjacent-${index}`} aria-hidden="true" className="@container/calendar-adjacent min-h-0 min-w-0 border border-transparent bg-[#f8fafc] px-3 py-2" style={cellPlacement}>
+                      <span className={cn("block whitespace-nowrap text-[14px] leading-5", adjacent.getDay() === 0 ? "text-[#e8a9ae]" : "text-[#b6c0cc]")}>
+                        {showMonth ? (
+                          <>
+                            <span className="hidden @[60px]/calendar-adjacent:inline">{adjacent.getMonth() + 1}월 {adjacent.getDate()}일</span>
+                            <span className="@[60px]/calendar-adjacent:hidden">{adjacent.getMonth() + 1}/{adjacent.getDate()}</span>
+                          </>
+                        ) : adjacent.getDate()}
+                      </span>
+                    </div>
+                  );
                 }
 
                 const workNotice = getStaffWorkNotice(initialData, date, staffFilter);

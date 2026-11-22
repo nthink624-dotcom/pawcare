@@ -4,9 +4,9 @@
 
 ## 현재 결과
 
-2026-11-06 기준, 대표가 승인한 검수용 `petmanager-dev`에서 세 공급자의 실제 로그인과 기존 매장 진입을 확인했다. 운영 Auth 설정·배포·공개 서비스 검수는 수행하지 않았다.
+2026-11-06 기준, 검수용 `petmanager-dev`에서 세 공급자의 실제 로그인과 기존 매장 진입을 확인한 뒤 대표 승인으로 운영 설정·배포를 완료했다. 운영에서도 대표 소유 계정으로 네이버·카카오·구글 각각 실제 공급자 인증, PKCE 교환 200, 새 OAuth 세션, 원래 사용자와 정확히 같은 매장 1개, bootstrap 200 및 `/owner` 진입을 확인했다. 공급자 일반 공개 승인과 이 계정의 실제 로그인 성공은 구분한다.
 
-| 공급자 | 실제 확인 결과 |
+| 공급자 | 검수용 실제 확인 결과 |
 | --- | --- |
 | 구글 | 대표가 계정 선택·동의를 직접 완료했다. `/owner` 복귀, 서버 사용자 인증 200, Google identity와 OAuth 인증 방식, 기존 매장 3개, 현재 매장 권한, 실제 Supabase bootstrap 200과 매장 일치, 화면 로딩 완료를 확인했다. |
 | 네이버 | 기존 `넘친Day` 앱 관리자 계정으로 진행했다. 기존 매장 계정에 공식 연결한 뒤 일반 로그인도 통과했다. 원래 사용자와 매장 3개 유지, 현재 매장 권한·bootstrap 200, 연결 화면의 `연결됨`을 확인했다. |
@@ -54,8 +54,16 @@ Supabase의 정확한 애플리케이션 복귀 주소는 `http://127.0.0.1:3000
 
 ## 검증과 남은 경계
 
-집중 인증 테스트 12개와 관련 lint는 통과했다. 로그인·연결 화면은 실제 전용 Chrome에서 1440·1024·430·390 CSS px 폭의 버튼·대기 상태·오류·가로 넘침을 확인했다. 전체 웹 TypeScript 검사는 기존 `demo/customer-care-report-preview/page.tsx:58`의 `shopPhone` 오류가 남아 있어 전체 통과로 보고하지 않는다.
+집중 인증 테스트 16개와 관련 lint는 통과했다. 로그인·연결 화면은 실제 전용 Chrome에서 1440·1024·430·390 CSS px 폭의 버튼·대기 상태·오류·가로 넘침을 확인했다. 선별 운영 소스의 일반 빌드와 TypeScript 검사는 통과했다. 정본 전체 웹 TypeScript 검사에는 기존 `demo/customer-care-report-preview/page.tsx:58`의 `shopPhone` 오류가 있어 정본 전체 검사 통과로 보고하지 않는다.
 
-작업 전용 `.codex-work`의 공급자별 `social-login-*-live-verification.json`, 연결 검증, `social-login-kakao-transfer-verification.json`, `social-login-final-live-verification.json`에 비밀정보 없는 결과를 보존했다. 소스 수정·검수용 실제 로그인 통과·운영 배포·공급자 공개 승인은 서로 다른 상태다. 운영 적용은 별도 승인 후 설정·배포·운영 로그인 왕복을 확인해야 한다.
+작업 전용 `.codex-work`의 공급자별 `social-login-*-live-verification.json`, 연결 검증, `social-login-kakao-transfer-verification.json`, `social-login-final-live-verification.json`에 검수용 결과를 보존했다. 소스 수정·검수용 실제 로그인 통과·운영 배포·공급자 공개 승인은 서로 다른 상태다.
+
+최신 운영 배포 `dpl_Bs8qhYfYpcjtQvAbqfDX6KPwHV57`은 일반 빌드 검사 통과 후 `https://www.petmanager.co.kr`에 반영하고 별칭을 다시 확인했다. 기존 운영 파일 17개와 다른 업무를 보존한 별도 스냅샷으로 배포했다. 운영 공급자의 기존 자격증명과 네이버 OIDC 설정을 보존했다. 수동 연결 활성화와 정확한 운영 callback 저장 후 기존 설정 보존을 확인했다. 조회 응답을 병렬로 즉시 소비하도록 수정하고 읽기 대기 시간을 조정했으며, 일시적인 설정 조회 503·네트워크 실패는 한 번만 재시도한다. 인증·연결 쓰기는 자동 재시도하지 않는다.
+
+운영 네이버 연결은 매장 없는 예전 계정에 붙어 있어 대표의 별도 명시적 승인 후 현재 매장 계정으로 공식 이전했다. 암호화 백업을 검증했고 예전 Auth 사용자·이메일·이메일 identity를 이전 후 다시 읽어 보존을 확인했다. Auth 사용자 삭제나 직접 DB·매장 멤버십 변경은 하지 않았다. 각 공급자의 최종 로그인은 이전 세션 재사용을 성공으로 오인하지 않도록 실제 공급자 요청, PKCE 교환, 새 세션 식별자와 원래 매장 집합까지 확인했다.
+
+기존 `넘친Day` 앱은 2026-07-24 불필요한 이메일 제공정보 요청 사유로 반려됐으며, 대표 승인으로 2026-11-07 재검수를 접수했다. 이름·휴대전화번호 수집은 유지하고 이메일 제공정보 요청은 해제된 상태를 보존했다. 실제 운영 프로필의 두 정보와 활용처 설명, 기존 계정 연결·로그인 절차, 네이버 연결 완료 화면을 개인정보 마스킹한 3쪽 PDF로 보완했다. 재검수 신청서의 적용 형태는 현재 구현에 맞춰 `회원가입 없이 단순 로그인 인증에 적용`으로 선택했다.
+
+제출 후 새로고침한 개발자센터 상태는 `검수요청`, 최종 요청일은 `2026.11.07`이다. 263자 소명문이 서버에 저장됐고 기존 첨부 6개를 보존한 채 새 증빙 PDF 3개 참조가 각 제출 항목에 추가돼 총 9개가 저장됐음을 확인했다. 새 첨부 3개를 내려받아 모두 원본 PDF와 SHA-256이 일치하는 것도 확인했다. 제공정보 선택·필수 항목은 제출 후 다시 읽어 변경 전 값과 일치함을 확인했다. 네이버 승인과 일반 이용자 공개 가능 여부는 별도 단계이며 아직 승인 완료로 보고하지 않는다. 증빙은 `output/pdf/naver-login-review-evidence-20261107.pdf`, 접수 기록은 `.codex-work/social-login-production-20261106/naver-review-submission-verified-20261107.json`에 있다.
 
 공식 문서: [Supabase Google](https://supabase.com/docs/guides/auth/social-sign-in/auth-google), [Supabase Kakao](https://supabase.com/docs/guides/auth/social-sign-in/auth-kakao), [Custom OAuth/OIDC](https://supabase.com/docs/guides/auth/custom-oauth-providers), [Identity linking](https://supabase.com/docs/guides/auth/auth-identity-linking), [카카오 로그인 REST API](https://developers.kakao.com/docs/ko/kakaologin/rest-api), [네이버 OIDC discovery](https://nid.naver.com/.well-known/openid-configuration).

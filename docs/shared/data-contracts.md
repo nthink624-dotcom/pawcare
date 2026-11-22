@@ -582,14 +582,15 @@ PC/admin may own shop-level Alimtalk settings. Mobile customer detail may edit o
 
 - Owners choose an approved compatible template under 예약 정책 → 알림톡 문구 through `GET/PUT /api/owner/alimtalk-template-selection`. Owner/manager access is resolved server-side for the requested shop; staff/cross-shop writes are denied. Provider codes are opaque selection values, not owner-entered codes, and no notification type is inferred from names.
 - `shop_alimtalk_template_selections` has one `(shop_id, template_alias)` row with the selected provider code/body/buttons/bindings, actor and monotonically increasing `version`. `set_shop_alimtalk_template_selection` is service-role-only, uses an advisory lock plus expected-version CAS, and saves selection and audit event in one transaction. Direct anon/authenticated table/RPC access is denied with RLS enabled. Existing requests and platform defaults are preserved.
-- Explicit owner selection takes precedence over the shop's approved review request and the platform default in dispatch, button defaults and previews. An invalid/stopped/drifted explicit selection blocks delivery rather than falling back or adopting a newly approved request. Catalog choices exclude other shops' private request codes and must pass existing approval, mandatory body/button and canonical variable validation. Known platform bindings for the same alias/code are reused server-side; owners do not manually map variables. Refresh retrieves newly approved compatible templates; selection is explicit, not automatic newest-by-name.
+- Explicit owner selection takes precedence over the shop's approved review request and the platform default in dispatch, button defaults and previews. An invalid/stopped/drifted explicit selection blocks delivery rather than falling back or adopting a newly approved request. Catalog choices exclude other shops' private request codes and must pass approval, alias-specific body/button association and canonical variable validation. Known platform bindings for the same alias/code are reused server-side; owners do not manually map variables. Refresh retrieves newly approved compatible templates; selection is explicit, not automatic newest-by-name.
+- Owner selection reads the live shared SSODAA catalog and offers only approved, usable entries. A provider template must either be explicitly associated with the alias through this shop's own submitted request or the platform alias mapping, or match the alias's canonical body and button contract. Unassociated templates that merely share broadly allowed variables are excluded. A provider code with no prior ownership row is claimed as `platform` only inside the owner's explicit, version-checked selection transaction; reserved `PM…` codes, retired codes, and codes already claimed by a shop remain private. The selected alias/code stays shop-scoped; no provider name or code is used to infer the alias.
 - Migration `20261025082704_shop_alimtalk_template_selections.sql` follows `20261025082702_atomic_alimtalk_template_mapping.sql`. It does not rewrite existing selections or reservations and does not activate jobs or send notifications.
 
 - The platform default mapping is the single active `ssodaa` row in `platform_alimtalk_templates` for each stable notification alias. Provider names/codes never determine the alias. Missing/unverifiable DB mappings fail closed; relay/environment codes are not fallback delivery connections. Changing approval in Ssodaa alone does not replace a platform mapping.
 - A platform mapping is sendable only when the provider inspection is approved and its service status is ready or active. Stopped, rejected, or unresolved templates must stay out of the active mapping.
 - Supported platform aliases include booking consent, confirmation and cancellation; direct, same-day and day-before visit reminders; grooming start, pickup and completion variants; revisit and birthday notifications. The migration `20261009113956_extend_platform_alimtalk_template_aliases.sql` keeps these aliases and their config keys within the database constraints.
 - Owner-authored templates are stored per shop in `shop_alimtalk_template_requests`; clients access them only through owner-authenticated APIs, while the table is service-role only.
-- A saved draft is never used for sending. Owner submission registers the template with Ssodaa and requests review through the server relay.
+- A saved draft is never used for sending. Owner submission registers the template with Ssodaa and requests review through the server relay. The API marks it requested only after the relay confirms both registration and review submission; ambiguous outcomes stay `unknown` and cannot be blindly resubmitted.
 - Only an explicitly approved and usable Ssodaa template whose body and buttons match the submitted shop snapshot may override the platform template. Pending/rejected replacements leave the current shop connection (or platform connection when none exists) unchanged. `is_current` and a partial unique index identify one current request per shop/alias. `activate_shop_alimtalk_template` locks that key, compares the expected current ID and submitted snapshot, then atomically changes the marker and records an audit event. Old request rows are preserved.
 - Provider status is refreshed from the Ssodaa template catalog. An unknown submission result must not be retried automatically because Ssodaa may already have accepted the request.
 - `variable_bindings` maps provider variable names to canonical notification data keys; matching names need no explicit binding. Body and button variables are discovered from the approved detail, unknown/unbound variables are rejected before mapping, and unavailable or unresolved runtime values block delivery. Deposit/consent mandatory text/button contracts and canonical semantics remain unchanged. Their provider codes are mutable metadata too: an explicitly selected, approved replacement code is allowed only when the mandatory contract still matches; an old-version body is not made valid by renaming its code.
@@ -919,7 +920,15 @@ The existing `platform_alimtalk_templates.template_alias` and `notification_type
 - Concurrent identical mobile startup reads may share only their in-flight request. The full URL and authorization headers isolate their keys; slots are released after success or failure. Mutations invalidate pending read slots. Completed responses are not retained as a success cache.
 - Release order: deploy the canonical web API privacy/preflight headers first and read back authenticated response Cache-Control and allowed OPTIONS headers; only then release the mobile transport change. Do not release the client against an API whose private response contract has not been confirmed.
 - Network fixture verification must show that returned customer-data requests still execute on every read while repeated preflight requests decrease; modal timing alone is not proof of physical-device cold launch time.
+
 - In-flight startup sharing is limited to 500 ms so a later retry starts a fresh request even while an earlier network operation is pending.
+
+### Owner AlimTalk provider-name separation (2026-10-29)
+
+- The owner-entered `template_name` is a shop-scoped display title and may repeat across shops or notification types. It is never the provider identity.
+- New Ssodaa review submissions use deterministic `PM_<template_code>` as the provider-facing template name. `template_code` is globally unique, so owners do not coordinate names with other shops; retries use the same provider name.
+- Connected PetManager templates are displayed to owners as `기본 문안`; provider template names/codes remain backend identifiers. Owner-authored templates display the owner's title.
+- Default Kakao preview buttons come from the selected approved provider detail. If that detail omits button labels but the independently resolved approved default button metadata is available, the preview uses those labels. Dispatch still validates the full provider button type, name, URLs, and required variables before sending.
 
 ## Combined owner entry (2026-10-29)
 
@@ -934,6 +943,30 @@ The existing `platform_alimtalk_templates.template_alias` and `notification_type
 - Authentication, account state, membership, billing access and subscription maintenance remain in their existing server guards. Deposit expiry still runs through the existing maintenance call and refreshes appointments if it changed them. Full/background and public snapshots retain the existing query path.
 - Missing/ambiguous relationships and compatible older schemas may use the existing queries and staff-column compatibility reader. Permission failures, network outages and malformed/cross-shop results do not produce an empty successful snapshot. Server-Timing distinguishes a successful data_bundle read from data_bundle_fallback; completed data is never cached across requests.
 
+## Owner cash-basis revenue analytics v2 (2026-10-30)
+
+- `GET /api/owner/profitability?version=2&shopId=...` returns the shared `apps/shared/contracts/revenue-analytics.ts` contract. Unsupported versions fail with 426 rather than mixing inferred historical revenue with verified cash. Owner/manager membership, account and subscription guards run before every real-shop read/write/export. Public `demo-shop`/`owner-demo` responses are explicitly synthetic and cannot mutate or export real data. Responses are private/no-store, with the existing allowed-origin mobile CORS contract.
+- `shop_revenue_cash_events` is the cash fact: positive integer amount, payment/refund type, actual occurred_at in UTC, original payment reference for a refund, tender, actor, immutable item/staff snapshots and request/position identity. Tables/views/RPCs are inaccessible to anon/authenticated; service role can select/insert cash facts but cannot update/delete them. Same-shop/entry references, server-authorized actor, atomic entry row locks and a request fingerprint prevent cross-shop writes, overcollection, over-refunds and duplicate retries. Refunds use the original payment method and cannot precede the original receipt. This records completed money movement; it does not invoke a PG charge, cancellation or bank transfer.
+- Existing `shop_revenue_entries` amounts/statuses are preserved with `cash_review_required=true`; no historical receipt is fabricated. New grooming completion creates an unpaid entry with review=false. Owner-confirmed partial/full receipt clears review; completion-note edits preserve the booked price once cash exists. Existing legacy refund_amount remains preserved and reduces the old amount awaiting confirmation; new refunds live only in cash events. Cash summaries do not count the old inferred paid field.
+- `owner_revenue_report_v2` aggregates the full eligible set in SQL, independent of detail pagination. `owner_revenue_transactions_v2` pages details and total count. Staff/tender filters apply identically to current/previous cash and groups. Refunds reduce their own category and actual-date bucket. Split tenders sum once, while paidCount counts distinct revenue entries with payments in that period. Discount is allocated proportionally to payments, retaining the final rounding remainder; it is already included in the collected amount and must not be subtracted twice.
+- Dates are Korea calendar dates. Quarter means the current calendar month plus two earlier months, through today. Month compares corresponding previous-month dates, quarter shifts three months, year compares prior-year matching dates, leap/month-end dates clamp safely. Custom periods compare the immediately preceding equal-length interval. Both comparison bounds are returned. Zero net revenue with transactions is different from no transactions. Queries reject impossible/reversed/future dates and spans longer than 1096 inclusive days.
+- Outstanding entries use service entry_date through the selected end date, including older debts; staff filters apply but tender filters do not, because cash is not collected yet. Detail display identifies legacy review-required rows. No guardian phone, address or birth date is exposed by this analytics contract. Authorized detail may show guardian/pet names; CSV omits those names and exports only item/staff/tender/amount/entry identity.
+- The query-generated snapshotAt is used for aggregate/detail/export created_at bounds. CSV export returns bounded 500-row JSON chunks from `/api/owner/revenue/export`; the client retains one snapshot, checks total consistency, completes all chunks before creating the BOM/UTF-8 CSV and stops without a file on failure. CSV text is quoted/escaped and formula-prefixed input is neutralized; signed numeric amounts stay numeric. No hidden 5000-row cap is permitted.
+- Request cancellation/identity prevents a completed old request from rendering under a new period/shop. Numbers are hidden while new conditions load or fail. Same-preset clicks do not start loading; explicit refresh remains available after failure. Touch targets are at least44px; signed charts have a zero line, keyboard/touch selection, amount readout and transaction drilldown. Existing reservation-detail navigation is reused.
+- Cash writes serialize with existing terminal account-deletion claims. Pending deletion blocks receipts/refunds; the existing deletion request is blocked before media cleanup when receipt/refund evidence requires retention-policy review. New retention periods are not invented. The migration is a local artifact until explicitly applied to the intended remote environment; schema creation is not deployment or remote readback proof.
+- Refund item/staff snapshots are copied from the original payment, including after later booking edits. Completed-work service duration recommendations retain a separate owner/manager-only GET /api/owner/service-duration-recommendations?shopId=... contract with { durationRecommendations }; the service settings panel does not consume the cash analytics payload.
+- Calendar presets in paginated details and CSV exports resolve against the validated snapshotAt Korea date, capped at the current server time for permitted clock skew. Crossing midnight, month-end or year-end cannot silently change the original report period or comparison dates; an explicit refresh clears the snapshot and computes the current period.
+
+
+### 고객 추천시간과 다른 예약 가능한 시간 선택
+
+- `shops.reservation_policy_settings.customer_other_available_times_enabled`는 오너가 저장하는 선택적 boolean이다. 생략값은 `false`로 기존 추천시간 전용 동작을 유지한다. 기존 JSONB 안의 설정이므로 새 DB 컬럼은 추가하지 않는다.
+- PC의 `/api/settings`와 모바일의 `/api/owner/shops`는 같은 매장 JSONB 필드에 이 값을 저장한다. 모바일 프록시는 공용 서버의 동일 경로로 전달한다. 다른 설정 저장 요청에서 이 필드를 생략하면 저장된 값을 보존한다.
+- `GET /api/availability`는 `allowOtherAvailableTimes`를 반환한다. 꺼진 매장은 `slots`에 추천 후보만 반환하며 `full=1`로 우회할 수 없다. 켜진 매장은 정본 예약 가능 시간 전체를 `slots`에, 추천 후보를 `recommendedSlots`에 반환한다.
+- 고객 첫 예약과 예약 변경 화면은 추천 후보를 먼저 표시하고, 허용된 매장에만 다른 시간 펼치기 버튼을 제공한다. 휴무·겹침·마감 등 예약 가능 여부와 실제 예약 생성 검증은 계속 서버 정본을 따른다.
+- 조회 실패는 빈 시간 없음과 구분해 오류와 재시도 수단을 표시한다. 날짜·서비스·담당자 변경 시 이전 후보를 먼저 비우고, 이전 요청의 늦은 응답을 적용하지 않는다.
+- AI가 HTTP 오류·빈 후보·유효하지 않은 후보를 반환하면 규칙 추천으로 전환하고 출처를 `rule`로 반환한다. AI 입력은 후반 시간대가 잘리지 않도록 전체 유효 후보를 포함한다. 추천 기준에는 앞 예약 종료와 다음 예약 시작 직전의 정확한 소요시간 맞춤 후보가 포함된다.
+
 
 ### Booking grooming history (2026-11-01)
 
@@ -944,9 +977,41 @@ Photos reuse owner media/assets (shop/pet/record scope) and batch media/signed-u
 - Pending receipt/refund attempts store only the existing idempotency request payload in the current tab sessionStorage under a shop/entry/type/original-payment key. This is unacknowledged operation metadata, never an alternative ledger. It is written before sending, restored after closing/navigation/reload in the same tab, and removed only after success or a definitive business rejection. Network failures, server errors and authentication uncertainty retain the request and lock its fields; retries use the original ID even if the current remaining balance has changed. Storage failure blocks a new send. No guardian/pet names or contact data are stored by this helper.
 
 
+### Local AlimTalk read-only runtime (2026-11-02)
+
+- Local web uses ALIMTALK_RELAY_ACCESS_MODE=read-only; relay uses immutable startup RELAY_ACCESS_MODE=read-only. GET /health adds accessMode only in this mode; the existing full-mode payload stays unchanged.
+- Relay permits only health and template catalog/detail/category reads. Other authenticated operations return HTTP403 { ok:false, code:"RELAY_READ_ONLY", message } before provider access; invalid credentials return401. Provider transport independently permits only catalog read endpoints.
+- Owner template POST action=submit returns403 before draft/provider state changes. action=save remains a development DB operation. Web sending rejects before either relay or direct-provider transport. No fake delivery success is returned.
+- Startup requires the approved development DB, loopback endpoints, local-only relay credential, and matching authenticated read-only health. Production configuration/full-mode behavior and provider API-key permissions are unchanged.
+- Local template response adds providerReadOnly:true only in read-only mode. The owner editor explains this restriction and disables review submission. Failed selection reads are shown as unknown, not as zero approved/current templates.
+
+
 ### Member community (2026-11-09)
 
-See [community-contract.md](community-contract.md) for the canonical shared PC/mobile community contract.
+Canonical PC/mobile community contract: [community-contract.md](community-contract.md). Shared member posts, comments, private photos and videos, moderation, RLS and cleanup queue use one backend. Video attachments use direct signed uploads and an atomic post attachment claim.
+
+
+2026-11-11 member community reactions: Post payloads add likeCount, liked and saved. Authenticated like/save mutations set an explicit boolean state. savedOnly=true returns the current account's private saved posts from community_post_likes/community_post_saves. Both apps share the same API and rows; no device-only storage. The member feed has no search or category controls. See community-contract.md for persistence, retries, access control and migration boundaries.
+
+2026-11-22 community photo display copies: list and savedOnly responses return an 800px WebP display copy (`<original>.thumb.webp`, same private bucket/folder, no DB row) as images[].url, falling back to the original for older photos; detail and admin responses keep originals. Field shape unchanged; signed links still expire after 60 seconds. All Storage cleanups remove the display copy with its original. See community-contract.md.
+
+
+## Community nested comment contract (2026-11-11)
+
+- Canonical details: docs/shared/community-contract.md; shared UI: apps/shared/components/ui/reddit-nested-thread-reply.tsx.
+- CommunityComment adds parentId:null|UUID, isPostAuthor:boolean, unavailable:boolean, score:number, vote:-1|0|1. create_comment accepts optional parentId; vote_comment sets {postId,commentId,value} using verified server identity and returns commentReaction:{id,score,vote}.
+- Same-post parent FK, eight-level stored depth, twenty visible rows per page plus ancestor context, redacted hidden/blocked ancestors. Parent deletion preserves other authors replies by clearing their parent reference.
+- community_comment_votes: server-only RLS table keyed by comment/account, signed vote, cascade deletion, no exposed voter identities. Korean web/mobile UI shares these exact rows; no local-only state.
+- Canonical migration: supabase/migrations/20261111131239_community_nested_comments.sql. Hosted application requires explicit project-specific authorization.
+
+
+## Community operator resources (2026-11-12)
+
+- Shared detail: docs/shared/community-contract.md. Full-width discussion/resources panels; same canonical backend rows for web/mobile.
+- CommunityResource: id,title,body,sourceUrl,closesOn,closed,published,createdAt,updatedAt. Member GET /api/owner/community/resources requires verified membership; returns only published rows, private/no-store,20 per page.
+- Admin GET/POST /api/admin/community/resources requires independently verified active operator. Stable create UUID, optimistic expectedUpdatedAt for updates/deletion, safe URL/date validation and streaming40KB limit. Member input cannot grant publication rights.
+- RLS/service-only community_resources and helper/list/admin invoker RPCs; operator audit identifiers are not exposed to members. No scraping, AI replies or scheduled posts.
+- Canonical migration: supabase/migrations/20261111153437_community_resources.sql. Apply to a named hosted project only with explicit authorization.
 
 ## Owner lounge
 

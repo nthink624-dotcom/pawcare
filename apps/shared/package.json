@@ -9,6 +9,13 @@
     "./lib/*": "./lib/*.ts"
   },
   "dependencies": {
+    "@heroicons/react": "2.2.0",
+    "@hugeicons/core-free-icons": "4.4.0",
+    "@hugeicons/react": "1.1.10",
+    "@iconify-icons/line-md": "2.0.0",
+    "@iconify/react": "6.0.4",
+    "@phosphor-icons/react": "2.1.10",
+    "@remixicon/react": "4.9.0",
     "@tabler/icons-react": "3.52.0",
     "clsx": "^2.1.1",
     "framer-motion": "14.10.1",

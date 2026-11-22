@@ -13,7 +13,6 @@ const mobileGlobals = readText("../mobile/src/app/globals.css");
 const typography = readText("src/components/owner-web/owner-typography.ts");
 const actionButtons = readText("src/components/owner-web/owner-web-action-button-styles.ts");
 const shell = readText("src/components/owner-web/owner-web-app-shell.tsx");
-const legacyOwnerDesktop = readText("src/components/owner/owner-desktop-app.tsx");
 const customerTable = readText("src/components/owner-web/customer-management-table.tsx");
 const operatingHours = readText("src/components/owner-web/operating-hours-settings.tsx");
 const ownerUi = readText("src/components/owner-web/owner-web-ui.tsx");
@@ -169,10 +168,14 @@ test("keeps the calendar time wheel on approved size and line-height steps", () 
   assert.doesNotMatch(calendar, /fontSize: 15[, }]/);
 });
 
-test("uses one slightly lighter outline stroke for owner sidebar icons", () => {
-  assert.match(shell, /const screenIconComponents: Record<OwnerWebNavigationKey, LucideIcon>/);
-  assert.match(shell, /h-\[18px\] w-\[18px\] shrink-0" strokeWidth=\{1\.8\}/);
-  assert.match(legacyOwnerDesktop, /h-4 w-4" strokeWidth=\{1\.8\}/);
+test("keeps the compact owner sidebar icons legible", () => {
+  assert.match(shell, /const screenIconComponents: Record<OwnerWebNavigationKey, TablerIcon>/);
+  assert.match(shell, /pm-owner-sidebar-icon relative -top-\[0\.5px\] grid size-6 shrink-0 place-items-center/);
+  assert.match(shell, /<Icon size=\{24\} strokeWidth=\{1\.75\} shapeRendering="geometricPrecision"/);
+  assert.match(shell, /community: IconMessages,/);
+  assert.match(shell, /screen === "community" && active \? IconMessagesFilled : screenIconComponents\[screen\]/);
+  assert.doesNotMatch(globals, /\.pm-owner-nav-item\s*>\s*svg\s*\{/);
+  assert.match(globals, /\.pm-owner-nav-item\s*\{[^}]*font-size: 16px !important[^}]*line-height: 24px !important/);
   assert.match(shell, /text-\[14px\] font-medium leading-5/);
   assert.match(shell, /text-\[16px\] font-medium leading-6 tracking-\[-0\.005em\]/);
   assert.doesNotMatch(shell, /screenIconPaths|maskImage/);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronRight, PawPrint } from "lucide-react";
+import { IconCheck as Check, IconChevronRight as ChevronRight, IconPaw as PawPrint } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { getPetAgeLabel } from "@/lib/pet-age";
@@ -40,7 +40,7 @@ function SelectionControl({ checked, onToggle }: { checked: boolean; onToggle: (
       )}
     >
       <span className={cn("inline-flex h-5 w-5 items-center justify-center rounded-[5px] border", checked ? "border-[#2f7866] bg-[#2f7866] text-white" : "border-[#cbd5e1]")}>
-        {checked ? <Check className="h-3.5 w-3.5" /> : null}
+        {checked ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : null}
       </span>
     </button>
   );
@@ -125,7 +125,7 @@ export default function CustomerManagementTable({
                   {deleteMode ? <td className="px-2"><SelectionControl checked={checked} onToggle={() => onToggleDelete(row.id)} /></td> : null}
                   <td className="truncate px-2 py-3 text-center text-[16px] font-medium leading-6 text-[#15213b]" title={row.name}>{row.name}</td>
                   <td className={cn("truncate px-3 text-center tabular-nums", !row.phone && "text-[#64748b]")}>{formatPhoneNumber(row.phone)}</td>
-                  <td className="px-3 text-center font-normal text-[#334155]" title={row.pets.map((pet) => pet.name).join(", ")}><span className="flex min-w-0 items-center justify-center gap-2"><span aria-hidden="true" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5f0e9] text-[#87664a]"><PawPrint className="h-4 w-4" strokeWidth={1.7} /></span><span className="truncate">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</span></span></td>
+                  <td className="px-3 text-center font-normal text-[#334155]" title={row.pets.map((pet) => pet.name).join(", ")}><span className="flex min-w-0 items-center justify-center gap-2"><span aria-hidden="true" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5f0e9] text-[#87664a]"><PawPrint className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /></span><span className="truncate">{row.pets.map((pet) => pet.name).join(", ") || "미등록"}</span></span></td>
                   <td className={cn("truncate px-2", !row.pets.some((pet) => pet.birthday) && "text-[#64748b]")}>{row.pets.map((pet) => getPetAgeLabel(pet)).join(", ") || "미등록"}</td>
                   <td className={cn("truncate px-2 tabular-nums", !row.recentVisitDate && "text-[#64748b]")}>{row.recentVisitDate || "미방문"}</td>
                   <td className={cn("break-words px-2 py-3", !row.recentService && "text-[#64748b]")} title={row.recentService || undefined}>{row.recentService || (row.recentVisitDate ? "미등록" : "미방문")}</td>
@@ -151,7 +151,7 @@ export default function CustomerManagementTable({
                       <span className="min-w-0 break-keep text-[16px] font-medium leading-6 text-[#17243c] [overflow-wrap:anywhere]">{row.name}</span>
                       <span className={cn("inline-flex min-h-6 shrink-0 items-center rounded-md px-2 text-[13px] font-medium leading-5", row.customerGrade === "단골" ? "bg-[#edf6f2] text-[#1f6b5b]" : row.customerGrade === "신규" ? "bg-[#eff4fa] text-[#476184]" : "bg-[#f1f3f6] text-[#64748b]")}>{row.customerGrade}</span>
                     </span>
-                    <ChevronRight className="absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
+                    <ChevronRight className="absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" aria-hidden="true" />
                   </span>
                   <span className="mt-1 block truncate text-[16px] leading-6 font-normal text-[#475569]">{formatPhoneNumber(row.phone)}</span>
                 </button>

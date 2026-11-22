@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronRight, Trash2 } from "lucide-react";
+import { IconChevronRight as ChevronRight, IconTrash as Trash2 } from "@tabler/icons-react";
 
 import { customerRows } from "@/components/owner-web/owner-web-data";
 import {
@@ -105,7 +105,7 @@ export default function CustomerManagementScreen() {
                 </div>,
                 <div key="recent" className="flex items-center justify-between gap-2">
                   <span className="text-[14px] text-[#17211f]">{row.recentVisit}</span>
-                  {!deleteMode ? <ChevronRight className="h-4 w-4 text-[#b1a69c]" /> : null}
+                  {!deleteMode ? <ChevronRight className="h-4 w-4 text-[#b1a69c]" aria-hidden="true" /> : null}
                 </div>,
               ]}
             />
@@ -126,7 +126,7 @@ export default function CustomerManagementScreen() {
             onClick={() => setDeleteMode((current) => !current)}
             className="inline-flex items-center gap-2 text-[13px] font-medium text-[#94624f]"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
             고객 선택 삭제 모드
           </button>
         </DetailPanel>

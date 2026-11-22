@@ -1,7 +1,14 @@
 "use client";
 import CustomerConsentCard from "@/components/owner-web/customer-consent-card";
 
-import { CalendarPlus, Check, Copy, ImagePlus, Sparkles, X } from "lucide-react";
+import {
+  IconCalendarPlus as CalendarPlus,
+  IconCheck as Check,
+  IconCopy as Copy,
+  IconPhotoPlus as ImagePlus,
+  IconSparkles as Sparkles,
+  IconX as X,
+} from "@tabler/icons-react";
 import { Fragment, useEffect, useState } from "react";
 
 import {
@@ -237,7 +244,7 @@ export default function CustomerDetailPanel({
               className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-[#2563eb]"
               aria-label="닫기"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -332,7 +339,7 @@ export default function CustomerDetailPanel({
 function ActionButton({ icon: Icon, label, primary = false, onClick }: { icon: typeof CalendarPlus; label: string; primary?: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className={primary ? OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS : OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}>
-      <Icon className="h-4 w-4" />
+      <Icon className="h-4 w-4" aria-hidden="true" />
       {label}
     </button>
   );
@@ -398,7 +405,7 @@ function SummaryCard({
                 aria-label={copied ? "전화번호 복사됨" : "전화번호 복사"}
                 title={copied ? "복사됨" : "복사"}
               >
-                <Copy className="h-4 w-4" />
+                <Copy className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           </SummaryField>
@@ -511,7 +518,7 @@ function PetOverviewSection({
                 </div>
                 {selected ? (
                   <span className="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2f7866] text-white">
-                    <Check className="h-3.5 w-3.5" />
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
                   </span>
                 ) : null}
               </button>
@@ -1304,7 +1311,7 @@ export function GroomingRecordDetailPanel({
             <p className="mt-1 text-[14px] text-[#64748b]">전송용 사진은 60일 후 자동 정리되며, 미용기록에 저장한 사진은 직접 삭제하거나 계정을 삭제할 때까지 보관됩니다.</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]" aria-label="닫기">
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </header>
 
@@ -1414,7 +1421,7 @@ export function PhotoLightbox({ photo, onClose }: { photo: { preview: GroomingPh
             <p className="text-[13px] font-normal leading-5 text-[#64748b]">{formatPhotoRetention(photo.preview.asset)}</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]" aria-label="닫기">
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <div className="flex max-h-[calc(100vh-150px)] items-center justify-center bg-[#0f172a]">
@@ -1826,7 +1833,7 @@ function PetProfilePhotoField({ previewUrl, fileName, onChange }: { previewUrl: 
       <p className="mb-2 text-[14px] font-medium leading-5 text-[#64748b]">프로필 사진</p>
       <div className="flex items-center gap-3">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white text-[#94a3b8]">
-          {previewUrl ? <img src={previewUrl} alt="반려동물 프로필 미리보기" className="h-full w-full object-cover" /> : <ImagePlus className="h-7 w-7" />}
+          {previewUrl ? <img src={previewUrl} alt="반려동물 프로필 미리보기" className="h-full w-full object-cover" /> : <ImagePlus className="h-7 w-7" aria-hidden="true" />}
         </div>
         <div className="min-w-0 flex-1">
           <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] font-medium leading-6 text-[#334155] hover:bg-[#f8fafc] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563eb]">
@@ -2083,7 +2090,7 @@ function EmptyState({ title, description, compact = false }: { title: string; de
   return (
     <div className={cn("flex flex-col items-center justify-center text-center", compact ? "px-3 py-4" : "min-h-[320px] px-6")}>
       <div className={cn("flex items-center justify-center rounded-full bg-[#eef7f4] text-[#2f7866]", compact ? "h-8 w-8" : "h-10 w-10")}>
-        <Sparkles className="h-4 w-4" />
+        <Sparkles className="h-4 w-4" aria-hidden="true" />
       </div>
       <p className={cn("break-keep text-[16px] font-medium leading-6 text-[#111827] [overflow-wrap:anywhere]", compact ? "mt-2" : "mt-3")}>{title}</p>
       <p className="mt-1 break-keep text-[16px] font-normal leading-6 text-[#64748b] [overflow-wrap:anywhere]">{description}</p>

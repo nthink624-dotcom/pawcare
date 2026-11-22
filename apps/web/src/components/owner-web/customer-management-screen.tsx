@@ -1,17 +1,27 @@
 "use client";
 
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, CalendarPlus, MessageSquareText, Trash2, X } from "lucide-react";
+import {
+  IconSearch,
+  IconUserPlus,
+  IconTrash,
+  IconBell as Bell,
+  IconCalendarPlus as CalendarPlus,
+  IconMessage2 as MessageSquareText,
+  IconTrash as Trash2,
+  IconX as X,
+} from "@tabler/icons-react";
 
 import { isOwnerStartupPresentation } from "@petmanager/shared/lib/owner-startup-projection";
 import { OwnerStartupDetailsBoundary } from "@petmanager/shared/components/owner-startup-details-boundary";
-import { BasilIcon } from "@/components/owner-web/basil-icon";
 import CustomerDetailPanel from "@/components/owner-web/customer-detail-panel";
 import { buildCustomerDetailFromBootstrap } from "@/components/owner-web/customer-detail-helpers";
 import CustomerExcelTools from "@/components/owner-web/customer-excel-tools";
 import CustomerManagementTable, { type CustomerManagementTableRow } from "@/components/owner-web/customer-management-table";
 import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
-import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { estimatePetServiceDuration } from "@petmanager/shared/lib/pet-duration-estimate";
@@ -1433,7 +1443,7 @@ export default function CustomerManagementScreen({
         <div className="border-b border-[#e8edf3] p-3 sm:p-4">
           <div className="flex flex-wrap items-center gap-2.5">
             <label className="flex h-11 min-w-0 basis-full items-center gap-3 rounded-[10px] border border-[#3b82f6] bg-white px-3 text-[#64748b] transition focus-within:border-[#2563eb] focus-within:ring-2 focus-within:ring-[#2563eb]/10 sm:min-w-[240px] sm:flex-1 sm:basis-0">
-              <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-4 w-4 text-[#94a3b8]" />
+              <IconSearch aria-hidden="true" className="shrink-0 h-4 w-4 text-[#94a3b8]" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -1451,7 +1461,7 @@ export default function CustomerManagementScreen({
               onClick={openNewCustomerModal}
               className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
             >
-              <AssetIcon src="/icons/phosphor/UserCirclePlus.svg" className="h-4 w-4" />
+              <IconUserPlus aria-hidden="true" className="shrink-0 h-4 w-4" />
               고객 추가
             </button>
             <button
@@ -1465,7 +1475,7 @@ export default function CustomerManagementScreen({
                   : "border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc] hover:text-[#334155]",
               )}
             >
-              <BasilIcon name="trash" />
+              <IconTrash aria-hidden="true" className="shrink-0 h-6 w-6" />
             </button>
           </div>
         </div>
@@ -1615,7 +1625,7 @@ function CustomerReservationModal({
               {guardian ? `${guardian.name} 보호자 · ${formatPhoneNumber(guardian.phone)}` : "고객 예약"}
             </p>
             <h3 className="mt-1 flex items-center gap-2 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">
-              <CalendarPlus className="h-5 w-5 text-[#2f7866]" />
+              <CalendarPlus className="h-5 w-5 text-[#2f7866]" aria-hidden="true" />
               예약 추가
             </h3>
           </div>
@@ -1694,11 +1704,11 @@ function CustomerReservationModal({
             </label>
             <label className="block">
               <span className="mb-1 block text-[14px] font-medium leading-5 text-[#64748b]">예약 시간</span>
-              <input
-                type="time"
+              <WheelTimeField aria-label="시간 선택"
+                
                 step={300}
                 value={draft.time}
-                onChange={(event) => patchDraft({ time: event.target.value })}
+                onValueChange={(nextTime) => patchDraft({ time: nextTime })}
                 className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
               />
             </label>
@@ -1761,7 +1771,7 @@ function NewCustomerModal({
             <h2 className="mt-1 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#111827]">신규 고객 추가</h2>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -1876,7 +1886,7 @@ function NewCustomerModal({
 
             <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
               <div className="flex items-center gap-2">
-                <MessageSquareText className="h-4 w-4 text-[#64748b]" />
+                <MessageSquareText className="h-4 w-4 text-[#64748b]" aria-hidden="true" />
                 <h3 className="text-[16px] font-semibold text-[#111827]">메모</h3>
               </div>
               <label className="mt-3 block">
@@ -2004,7 +2014,7 @@ function CustomerDetailSheet({
             </div>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -2115,7 +2125,7 @@ function CustomerDetailSheet({
 
           <section className="mt-5">
             <div className="flex items-center gap-2">
-              <MessageSquareText className="h-4 w-4 text-[#64748b]" />
+              <MessageSquareText className="h-4 w-4 text-[#64748b]" aria-hidden="true" />
               <h3 className="text-[16px] font-semibold text-[#111827]">메모</h3>
             </div>
             <div className="mt-2 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
@@ -2145,7 +2155,7 @@ function CustomerDetailSheet({
           <section className="mt-4 rounded-[8px] border border-[#dbe2ea] bg-white">
             <div className="flex items-center justify-between gap-3 border-b border-[#edf2f7] px-4 py-3">
               <div className="flex items-center gap-2">
-                <Bell className="h-4 w-4 text-[#64748b]" />
+                <Bell className="h-4 w-4 text-[#64748b]" aria-hidden="true" />
                 <h3 className="text-[16px] font-medium text-[#111827]">알림 이력</h3>
               </div>
               <span className="text-[16px] text-[#94a3b8]">최근 {notifications.length}건</span>
@@ -2188,7 +2198,7 @@ function CustomerDetailSheet({
 
         <div className="border-t border-[#edf2f7] bg-white px-5 py-3.5">
           <button type="button" onClick={onToggleDeleteMode} className="inline-flex h-8 items-center gap-1.5 text-[16px] font-medium text-[#94624f] hover:underline">
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
             고객 삭제 모드로 이동
           </button>
         </div>

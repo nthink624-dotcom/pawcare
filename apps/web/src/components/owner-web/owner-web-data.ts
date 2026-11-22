@@ -5,6 +5,7 @@
   | "customers"
   | "calendarRecords"
   | "profitability"
+  | "community"
   | "services"
   | "staff"
   | "ownerProfile"
@@ -21,6 +22,7 @@ export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string
   { key: "calendarRecords", label: "캘린더" },
   { key: "customers", label: "고객 관리" },
   { key: "profitability", label: "매출 분석" },
+  { key: "community", label: "커뮤니티" },
   { key: "services", label: "요금표 관리" },
   { key: "staff", label: "직원 관리" },
   { key: "shopInfo", label: "매장 정보" },

@@ -56,11 +56,11 @@ export default function OwnerAccountDeletionPanel({
     <form onSubmit={submit} className="space-y-4 py-3" aria-label="계정 삭제 확인">
       <div className="space-y-2">
         <h3 className="text-[20px] font-semibold leading-7 text-[#101a31]">계정을 삭제할까요?</h3>
-        <p className="text-[14px] font-normal leading-5 text-[#475569]">계정과 매장 운영 정보는 삭제됩니다. 법령상 보존이 필요한 결제 기록은 정해진 기간 동안 분리 보관 후 삭제됩니다.</p>
+        <p className="text-[14px] font-normal leading-5 text-[#475569]">계정과 매장 정보가 삭제되며 복구할 수 없습니다.<br />법정 보관 기록은 제외됩니다.</p>
       </div>
       <label className="flex min-h-[52px] items-start gap-3 rounded-[10px] border border-[#e2e8f0] bg-white px-3 py-3">
         <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="mt-1 size-5 accent-[#9a4e45] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]" />
-        <span className="text-[14px] font-medium leading-5 text-[#1e293b]">삭제 후 계정과 운영 정보를 복구할 수 없음을 확인했습니다.</span>
+        <span className="text-[14px] font-medium leading-5 text-[#1e293b]">삭제 내용을 확인했습니다.</span>
       </label>
       <label className="block space-y-2">
         <span className="text-[14px] font-medium leading-5 text-[#1e293b]">현재 비밀번호</span>

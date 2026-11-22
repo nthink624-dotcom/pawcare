@@ -4,13 +4,19 @@ import {
   ArrowRight,
   CalendarDays,
   Camera,
-  Download,
+  ClipboardList,
   MessageCircle,
+  Download,
   RefreshCcw,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+
+import { CustomerReportSectionTitle } from "@/components/customer/customer-report-section-title";
+
+import styles from "./customer-care-report.module.css";
 
 import {
   CustomerWeightTrendCard,
@@ -29,17 +35,6 @@ export type CustomerResultMediaAsset = {
 type SignedUrlsResponse = {
   items: Array<{ mediaAssetId: string; signedUrl: string }>;
 };
-
-function formatResultDate(value: string | null | undefined) {
-  if (!value) return "오너와 상의해 주세요";
-  const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "long",
-    day: "numeric",
-    weekday: "short",
-  }).format(parsed);
-}
 
 function formatActualDuration(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "기록 없음";
@@ -77,18 +72,16 @@ function getRebookingServiceOptionId(appointment: Appointment) {
 function CarePhotoCarousel({
   slides,
   activeIndex,
-  onChange,
 }: {
   slides: Array<{ label: string; url: string | null }>;
   activeIndex: number;
-  onChange: (index: number) => void;
 }) {
   const activeSlide = slides[activeIndex] ?? slides[0];
 
   return (
     <div>
-      <figure className="relative overflow-hidden rounded-[22px] bg-[#f4eeee]">
-        <div className="relative aspect-[4/3] w-full">
+      <figure className="relative overflow-hidden rounded-[18px] bg-[#f4eeee]">
+        <div className="relative aspect-[16/10] w-full">
         {activeSlide?.url ? (
           <Image
             src={activeSlide.url}
@@ -106,28 +99,23 @@ function CarePhotoCarousel({
           </div>
         )}
         </div>
-        <div className="absolute left-3 top-3 flex rounded-full bg-white/92 p-1 shadow-[0_4px_14px_rgba(70,48,52,0.14)]" aria-label="미용 전후 사진 선택">
-          {slides.map((slide, index) => (
-            <button
-              key={slide.label}
-              type="button"
-              onClick={() => onChange(index)}
-              aria-label={`${slide.label} 사진 보기`}
-              aria-pressed={index === activeIndex}
-              className={`h-8 rounded-full px-3 text-[14px] font-semibold tracking-[0.04em] transition-colors ${
-                index === activeIndex ? "bg-[#df7079] text-white" : "text-[#9a7d82]"
-              }`}
-            >
-              {slide.label === "미용 전" ? "BEFORE" : "AFTER"}
-            </button>
-          ))}
-        </div>
-        <span className="absolute bottom-3 right-3 rounded-full bg-white/85 px-2.5 py-1 text-[14px] font-semibold text-[#7e8796]">
+        <span className="absolute bottom-3 right-3 rounded-full bg-white/90 px-2.5 py-1 text-[13px] font-medium text-[#7e8796]">
           {activeIndex + 1} / {slides.length}
         </span>
       </figure>
     </div>
   );
+}
+
+function formatCareReportDate(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Seoul",
+  }).format(date);
 }
 
 export function CustomerGroomingResultCard({
@@ -138,11 +126,13 @@ export function CustomerGroomingResultCard({
   petName,
   serviceName,
   staffName,
-  shopPhone,
+  staffProfileImageUrl,
   mediaAssets,
   previewPhotoUrls,
   weightHistory = [],
   embedded = false,
+  headerContent,
+  summaryContent,
 }: {
   shopId: string;
   accessToken: string;
@@ -151,15 +141,20 @@ export function CustomerGroomingResultCard({
   petName: string;
   serviceName: string;
   staffName?: string;
-  shopPhone?: string;
+  staffProfileImageUrl?: string;
   mediaAssets: CustomerResultMediaAsset[];
   previewPhotoUrls?: Record<string, string>;
   weightHistory?: CustomerWeightMeasurement[];
   embedded?: boolean;
+  headerContent?: ReactNode;
+  summaryContent?: ReactNode;
 }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>(previewPhotoUrls ?? {});
   const [photoError, setPhotoError] = useState("");
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [failedStaffImageUrl, setFailedStaffImageUrl] = useState<string | null>(null);
+  const staffImageUrl = staffProfileImageUrl?.trim();
+  const reportDate = formatCareReportDate(appointment.appointment_date);
   const [preparingRebooking, setPreparingRebooking] = useState(false);
   const [rebookingError, setRebookingError] = useState("");
   const confirmedCareReport = record.care_report_owner_confirmed_at ? record.care_report_data : null;
@@ -209,8 +204,6 @@ export function CustomerGroomingResultCard({
     { label: "미용 후", url: afterUrl },
   ];
   const careSummary = confirmedCareReport?.reportText ?? getCareSummary(record, petName);
-  const groomingDetailText = record.style_notes;
-  const treatmentDetail = groomingDetailText.trim() || `${serviceName}을 완료했습니다.`;
   const showCareReportPhotos = record.care_report_photo_consent !== false;
 
   async function startRebooking() {
@@ -243,7 +236,7 @@ export function CustomerGroomingResultCard({
       >
         <div className="bg-[#fde9e7] px-5 py-7 text-center">
           <p className="text-[14px] font-medium tracking-[0.04em] text-[#db6872]">펫매니저 케어리포트</p>
-          <h4 id={`grooming-result-${record.id}`} className="mt-2 text-[24px] font-semibold tracking-[-0.05em] text-[#302629]">
+          <h4 id={`grooming-result-${record.id}`} className="mt-2 text-[24px] font-normal tracking-[-0.05em] text-[#302629]">
             {petName}의 미용이 완료되었어요
           </h4>
         </div>
@@ -273,120 +266,125 @@ export function CustomerGroomingResultCard({
       className={embedded ? "overflow-hidden bg-white" : "mt-3 overflow-hidden rounded-[28px] bg-white shadow-[0_22px_54px_rgba(171,91,101,0.1)]"}
       aria-labelledby={`grooming-result-${record.id}`}
     >
-      <header className="bg-[#fde9e7] px-5 py-7 text-center">
-        <p className="text-[14px] font-medium tracking-[0.04em] text-[#d95f6a]">펫매니저 케어리포트</p>
-        <h4 id={`grooming-result-${record.id}`} className="mt-2 text-[24px] font-semibold leading-[1.3] tracking-[-0.05em] text-[#302629]">
-          {petName}, 오늘 더 예뻐지고 왔어요 🎀
-        </h4>
-      </header>
-
-      <div className="space-y-7 px-5 py-6">
-        <section aria-label="케어리포트 본문">
-          <div className="rounded-[20px] bg-[#fde9e5] px-4 py-[18px]">
-            <p className="whitespace-pre-wrap text-[16px] font-normal leading-[1.75] tracking-[-0.02em] text-[#433438]">{careSummary}</p>
+      {headerContent ?? (
+        <header className={styles.header}>
+          <p className={styles.eyebrow}>케어리포트</p>
+          <h4 id={`grooming-result-${record.id}`} className={styles.title}>
+            {petName}의 케어리포트
+          </h4>
+          <div className={styles.dateLine}>
+            {reportDate ? (
+              <>
+                <time dateTime={appointment.appointment_date}>{reportDate}</time>
+                <span className={styles.dot} aria-hidden="true">·</span>
+              </>
+            ) : null}
+            <span>{serviceName}</span>
           </div>
-        </section>
+        </header>
+      )}
 
+      <div className="flex flex-col gap-6 px-5 pb-6 pt-5">
         {showCareReportPhotos ? (
-          <section>
-            <div className="flex items-center justify-between">
-              <p className="text-[18px] font-medium tracking-[-0.02em] text-[#795f64]">오늘의 변화</p>
+          <section aria-label="미용 전후 사진">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="relative flex h-11 shrink-0 items-center px-0.5" aria-label="미용 전후 사진 선택">
+                <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-1/2 h-8 -translate-y-1/2 rounded-full border border-[#f0e6e8] bg-white" />
+                {photoSlides.map((slide, index) => (
+                  <button
+                    key={slide.label}
+                    type="button"
+                    onClick={() => setActivePhotoIndex(index)}
+                    aria-label={`${slide.label} 사진 보기`}
+                    aria-pressed={index === activePhotoIndex}
+                    className="relative z-10 flex h-11 items-center rounded-full text-[13px] font-normal tracking-normal"
+                  >
+                    <span className={`inline-flex h-7 items-center rounded-full px-2.5 transition-colors ${index === activePhotoIndex ? "bg-[#fde9e7] font-medium text-[#a44f5b]" : "text-[#9a7d82]"}`}>
+                      {slide.label === "미용 전" ? "BEFORE" : "AFTER"}
+                    </span>
+                  </button>
+                ))}
+              </div>
               {afterUrl ? (
                 <a
                   href={afterUrl}
                   download={`${petName}-미용후.jpg`}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-3 text-[14px] font-medium text-[#866d71] shadow-sm"
+                  className="inline-flex h-11 items-center rounded-full text-[13px] font-normal text-[#866d71]"
                 >
-                  <Download className="h-3.5 w-3.5" aria-hidden="true" /> 사진 저장
+                  <span className="inline-flex h-8 items-center gap-1 rounded-full border border-[#f0e6e8] bg-white px-2.5"><Download className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" /> 사진 저장</span>
                 </a>
               ) : null}
             </div>
-            <div className="mt-2.5">
-              <CarePhotoCarousel slides={photoSlides} activeIndex={activePhotoIndex} onChange={setActivePhotoIndex} />
-            </div>
+            <CarePhotoCarousel slides={photoSlides} activeIndex={activePhotoIndex} />
             {photoError ? <p className="mt-2 text-[14px] text-[#a04455]">{photoError}</p> : null}
           </section>
         ) : null}
 
-        <CustomerWeightTrendCard history={weightHistory} />
+        <section aria-label="케어리포트 본문">
+          {summaryContent ?? (
+            <>
+              <CustomerReportSectionTitle icon={<MessageCircle />}>오늘의 리포트</CustomerReportSectionTitle>
+              <div className={styles.speechBubble}><p>{careSummary}</p></div>
+            </>
+          )}
+        </section>
 
         <section aria-labelledby={`grooming-record-title-${record.id}`}>
-          <p
+          <CustomerReportSectionTitle
             id={`grooming-record-title-${record.id}`}
-            className="text-[18px] font-medium tracking-[-0.02em] text-[#795f64]"
+            icon={<ClipboardList />}
           >
-            오늘의 미용 기록
+            미용 정보
+          </CustomerReportSectionTitle>
+          <div className="mt-2.5 overflow-hidden rounded-[18px] border border-[#f4e4e9] bg-white">
+            <div className="bg-[#fff3f5] p-4">
+              {staffName ? (
+                <div className="flex items-center gap-3">
+                  <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-white text-[#bc7580]">
+                    {staffImageUrl && failedStaffImageUrl !== staffImageUrl ? (
+                      <Image src={staffImageUrl} alt={`${staffName} 프로필`} fill sizes="48px" className="object-cover" unoptimized onError={() => setFailedStaffImageUrl(staffImageUrl)} />
+                    ) : <UserRound className="h-6 w-6" strokeWidth={1.6} aria-hidden="true" />}
+                  </span>
+                  <dl className="min-w-0">
+                    <dt className="whitespace-nowrap text-[13px] font-semibold leading-5 text-[#8e5f69]">디자이너</dt>
+                    <dd className="break-keep text-[18px] font-bold leading-[26px] tracking-[-0.02em] text-[#433438] [overflow-wrap:anywhere]">{staffName}</dd>
+                  </dl>
+                </div>
+              ) : null}
+              <dl className={`${staffName ? "mt-2.5 " : ""}grid grid-cols-2 rounded-[10px] bg-white px-3 py-1.5`}>
+                <div className="min-w-0 pr-3">
+                  <dt className="whitespace-nowrap text-[13px] font-semibold leading-5 text-[#8e5f69]">예약 서비스</dt>
+                  <dd className="break-keep text-[16px] font-bold leading-6 text-[#433438] [overflow-wrap:anywhere]">{serviceName}</dd>
+                </div>
+                <div className="min-w-0 border-l border-[#f3e8ec] pl-3">
+                  <dt className="whitespace-nowrap text-[13px] font-semibold leading-5 text-[#8e5f69]">미용 시간</dt>
+                  <dd className="whitespace-nowrap text-[16px] font-bold leading-6 text-[#433438]">{formatActualDuration(record.actual_duration_minutes)}</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </section>
+
+        <CustomerWeightTrendCard history={weightHistory} />
+
+        <section aria-labelledby={`rebooking-title-${record.id}`}>
+          <CustomerReportSectionTitle id={`rebooking-title-${record.id}`} icon={<CalendarDays />}>다음 미용 예약</CustomerReportSectionTitle>
+          <p className="mt-2.5 text-[14px] leading-[22px] text-[#8b7377]">
+            이번 미용이 마음에 드셨다면,<br />
+            다음 방문 날짜와 시간을 확인해보세요.
           </p>
-          <dl className="mt-2.5 overflow-hidden rounded-[14px] border border-[#d9e0e7] bg-white">
-            {staffName ? (
-              <div className="grid grid-cols-[132px_minmax(0,1fr)] border-b border-[#dfe5eb]">
-                <dt className="whitespace-nowrap border-r border-[#dfe5eb] bg-[#f4f7f9] px-4 py-3 text-[16px] font-normal leading-6 tracking-[-0.01em] text-[#657281]">
-                  담당 디자이너
-                </dt>
-                <dd className="px-4 py-3 text-[16px] font-normal leading-6 tracking-[-0.01em] text-[#384553]">
-                  {staffName}
-                </dd>
-              </div>
-            ) : null}
-            <div className="grid grid-cols-[132px_minmax(0,1fr)] border-b border-[#dfe5eb]">
-              <dt className="whitespace-nowrap border-r border-[#dfe5eb] bg-[#f4f7f9] px-4 py-3 text-[16px] font-normal leading-6 tracking-[-0.01em] text-[#657281]">
-                총 작업 시간
-              </dt>
-              <dd className="px-4 py-3 text-[16px] font-normal leading-6 tracking-[-0.01em] text-[#384553]">
-                {formatActualDuration(record.actual_duration_minutes)}
-              </dd>
-            </div>
-            <div className="grid grid-cols-[132px_minmax(0,1fr)] border-b border-[#dfe5eb]">
-              <dt className="border-r border-[#dfe5eb] bg-[#f4f7f9] px-4 py-3 text-[16px] font-normal leading-6 tracking-[-0.01em] text-[#657281]">
-                예약 서비스
-              </dt>
-              <dd className="px-4 py-3 text-[16px] font-normal leading-6 tracking-[-0.01em] text-[#384553]">
-                {serviceName}
-              </dd>
-            </div>
-            <div className="grid grid-cols-[132px_minmax(0,1fr)]">
-              <dt className="border-r border-[#dfe5eb] bg-[#f4f7f9] px-4 py-3 text-[16px] font-normal leading-6 tracking-[-0.01em] text-[#657281]">
-                진행 내용
-              </dt>
-              <dd className="whitespace-pre-wrap break-words px-4 py-3 text-[16px] font-normal leading-6 tracking-[-0.01em] text-[#384553]">
-                {treatmentDetail}
-              </dd>
-            </div>
-          </dl>
-        </section>
-
-        <section className="overflow-hidden rounded-[20px] bg-white shadow-[0_5px_18px_rgba(120,74,82,0.05)]">
-          <div className="flex items-center justify-between gap-4 px-4 py-4">
-            <div>
-              <p className="inline-flex items-center gap-1.5 text-[18px] font-medium text-[#8b7377]">
-                <CalendarDays className="h-4 w-4" aria-hidden="true" /> 다음 케어 권장 시점
-              </p>
-              <p className="mt-1.5 text-[22px] font-semibold tracking-[-0.035em] text-[#433438]">{formatResultDate(record.next_recommended_visit_date)}</p>
-            </div>
-            <span className="shrink-0 rounded-full bg-[#fde9e7] px-3 py-1.5 text-[14px] font-medium text-[#d96570]">잊기 전에 예약</span>
-          </div>
-          <div className="px-3 pb-3">
-            <button
-              type="button"
-              onClick={() => void startRebooking()}
-              disabled={preparingRebooking}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[15px] bg-[#e56f78] px-4 text-[16px] font-semibold text-white shadow-[0_9px_20px_rgba(199,85,99,0.18)] transition hover:bg-[#d4626d] disabled:opacity-60"
-            >
-              {preparingRebooking ? "저장된 정보를 불러오는 중" : "같은 조건으로 다시 예약"}
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-            {rebookingError ? <p className="mt-2 text-center text-[14px] text-[#a04455]">{rebookingError}</p> : null}
-          </div>
-        </section>
-
-        {shopPhone ? (
-          <a
-            href={`tel:${shopPhone}`}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[14px] text-[16px] font-medium text-[#816a6e]"
+          <button
+            type="button"
+            onClick={() => void startRebooking()}
+            disabled={preparingRebooking}
+            className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#e56f78] px-4 text-[16px] font-semibold text-white transition hover:bg-[#d4626d] disabled:opacity-60"
           >
-            <MessageCircle className="h-4 w-4" aria-hidden="true" /> 매장에 문의하기
-          </a>
-        ) : null}
+            {preparingRebooking ? "예약 정보를 불러오는 중" : "예약 가능한 시간 보기"}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+          {rebookingError ? <p className="mt-2 text-center text-[14px] text-[#a04455]">{rebookingError}</p> : null}
+        </section>
+        <footer className="pt-1 text-center text-[12px] font-normal leading-[18px] text-[#a18b92]">넘친Day 펫매니저</footer>
       </div>
     </section>
   );

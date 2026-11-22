@@ -70,6 +70,7 @@ import {
   replaceScheduleRangeInBootstrap,
 } from "@/components/owner-web/calendar-owner-api";
 import { CalendarToolbar } from "@/components/owner-web/calendar-toolbar";
+import { useCalendarStaffFilter } from "@/components/owner-web/use-calendar-staff-filter";
 import { NotificationTimingPopover } from "@/components/owner-web/notification-timing-popover";
 import { calendarBookings } from "@/components/owner-web/owner-web-data";
 import {
@@ -1610,15 +1611,18 @@ function getVisibleDialogFocusableElements(dialog: HTMLElement | null) {
 }
 
 const dockedBookingMediaQuery = "(min-width: 1440px)";
+// 1280~1439px 노트북 화면은 예약을 열 때만 상세를 달력 옆에 붙인다. 덮는 시트가 오른쪽 직원 칸을 가리지 않게 한다.
+const openDockedBookingMediaQuery = "(min-width: 1280px)";
 
 function subscribeToDockedBookingViewport(onChange: () => void) {
-  const media = window.matchMedia(dockedBookingMediaQuery);
-  media.addEventListener("change", onChange);
-  return () => media.removeEventListener("change", onChange);
+  const medias = [dockedBookingMediaQuery, openDockedBookingMediaQuery].map((query) => window.matchMedia(query));
+  medias.forEach((media) => media.addEventListener("change", onChange));
+  return () => medias.forEach((media) => media.removeEventListener("change", onChange));
 }
 
-function getDockedBookingViewport() {
-  return window.matchMedia(dockedBookingMediaQuery).matches;
+function getDockedBookingViewport(): "wide" | "medium" | "narrow" {
+  if (window.matchMedia(dockedBookingMediaQuery).matches) return "wide";
+  return window.matchMedia(openDockedBookingMediaQuery).matches ? "medium" : "narrow";
 }
 
 import BookingPreparationPanel from "@/components/booking/booking-preparation-panel";
@@ -2260,6 +2264,14 @@ function BookingSidePanel({
       >
       <style>{`.pm-booking-side-panel-scroll { scrollbar-width: none; -ms-overflow-style: none; } .pm-booking-side-panel-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }`}</style>
       <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-0">
+        {docked ? (
+          <div className="flex shrink-0 items-center justify-between border-b border-[#f0f2f4] pl-4 pr-1.5">
+            <h2 className="text-[16px] font-semibold leading-6 text-[#15213b]">예약 상세</h2>
+            <button type="button" onClick={onClose} aria-label="예약 상세 닫기" className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563eb]">
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
         <BookingDevelopmentNotice environment={env.supabaseEnvName} shopId={shopId} />
         <div className="pm-booking-side-panel-scroll min-h-0 flex-1 overflow-y-auto">
           <div className="bg-white px-4 pb-3 pt-5">
@@ -4172,7 +4184,7 @@ export default function CalendarManagementScreen({
     : bootstrapData.mode === "supabase"
       ? "buildDailyBookingsFromBootstrap"
       : "blocked-non-supabase-owner-data";
-  const [staff, setStaff] = useState<StaffFilter>("전체 직원");
+  const { staff, selectedStaffKeys, setSelectedStaffKeys, selectedVisibleStaff } = useCalendarStaffFilter(visibleStaff);
   const [activeMetric, setActiveMetric] = useState<SummaryMetricKey>("today");
   const [reservationStatusFilter, setReservationStatusFilter] = useState<ReservationStatusFilter>("all");
   const [bookings, setBookings] = useState<DailyBooking[]>(() => selectedDateBookings);
@@ -4212,8 +4224,8 @@ export default function CalendarManagementScreen({
       (createRequest.guardianId ? bootstrapData.pets.find((pet) => pet.guardian_id === createRequest.guardianId) : null) ??
       null;
     const targetStaff =
-      (selectedBoardStaffKey ? visibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
-      (staff === "전체 직원" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0]);
+      (selectedBoardStaffKey ? selectedVisibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
+      selectedVisibleStaff[0];
 
     setSelectedDate(targetDate);
     setScheduleForm({
@@ -4226,7 +4238,7 @@ export default function CalendarManagementScreen({
     setScheduleError("");
     setScheduleDialogOpen(true);
     onCreateRequestHandled?.(createRequest.requestId);
-  }, [bootstrapData, createRequest, onCreateRequestHandled, selectedBoardStaffKey, selectedDate, staff, visibleStaff]);
+  }, [bootstrapData, createRequest, onCreateRequestHandled, selectedBoardStaffKey, selectedDate, selectedVisibleStaff, staff, visibleStaff]);
   const staffScopedBookings = useMemo(
     () => {
       const visibleStaffKeys = new Set(visibleStaff.map((item) => item.key));
@@ -4244,9 +4256,9 @@ export default function CalendarManagementScreen({
         ];
       });
 
-      return staff === "전체 직원" ? normalizedBookings : normalizedBookings.filter((item) => item.staffKey === staff);
+      return selectedStaffKeys.length ? normalizedBookings.filter((item) => selectedStaffKeys.includes(item.staffKey)) : normalizedBookings;
     },
-    [bookings, staff, visibleStaff],
+    [bookings, selectedStaffKeys, visibleStaff],
   );
   const displayScopedBookings = useMemo(
     () =>
@@ -4339,8 +4351,9 @@ export default function CalendarManagementScreen({
       try {
         const currentData = bootstrapDataRef.current;
         const range = await fetchOwnerScheduleRange(currentData.shop.id, selectedDate, selectedDate);
-        if (cancelled || statusChangeInFlightRef.current) return;
+        if (cancelled || statusChangeInFlightRef.current || bootstrapDataRef.current !== currentData) return;
         const nextBootstrapData = applyRecentStatusOverrides(replaceScheduleRangeInBootstrap(currentData, range));
+        if (nextBootstrapData === currentData) return;
         bootstrapDataRef.current = nextBootstrapData;
         setBootstrapData(nextBootstrapData);
         onDataChangeRef.current?.(nextBootstrapData);
@@ -4375,35 +4388,20 @@ export default function CalendarManagementScreen({
   ]);
 
   useEffect(() => {
-    if (visibleStaff.length === 1 && staff !== visibleStaff[0].key) {
-      setStaff(visibleStaff[0].key);
-      return;
-    }
-    if (staff !== "전체 직원" && !visibleStaff.some((item) => item.key === staff)) {
-      setStaff("전체 직원");
-    }
-  }, [staff, visibleStaff]);
-
-  useEffect(() => {
-    if (visibleStaff.length === 0) {
+    if (selectedVisibleStaff.length === 0) {
       setSelectedBoardStaffKey(null);
       return;
     }
 
-    if (visibleStaff.length === 1) {
-      setSelectedBoardStaffKey(visibleStaff[0].key);
-      return;
-    }
-
-    if (staff !== "전체 직원") {
-      setSelectedBoardStaffKey(staff);
+    if (selectedVisibleStaff.length === 1) {
+      setSelectedBoardStaffKey(selectedVisibleStaff[0].key);
       return;
     }
 
     setSelectedBoardStaffKey((current) =>
-      current && visibleStaff.some((item) => item.key === current) ? current : null,
+      current && selectedVisibleStaff.some((item) => item.key === current) ? current : selectedStaffKeys.length ? selectedVisibleStaff[0].key : null,
     );
-  }, [staff, visibleStaff]);
+  }, [selectedStaffKeys.length, selectedVisibleStaff]);
 
   useEffect(() => {
     const nextBookings = selectedDateBookings;
@@ -4468,8 +4466,11 @@ export default function CalendarManagementScreen({
     const id = depositOpenRequest.current;
     if (id && filteredBookings.some(booking => booking.id === id)) { setSelectedBookingId(id); depositOpenRequest.current = null; }
   }, [filteredBookings]);
-  const wideBookingViewport = useSyncExternalStore(subscribeToDockedBookingViewport, getDockedBookingViewport, () => false);
-  const dockedBookingDetail = wideBookingViewport && visibleStaff.length > 0 && (visibleStaff.length <= 2 || staff !== "전체 직원");
+  const bookingViewport = useSyncExternalStore(subscribeToDockedBookingViewport, getDockedBookingViewport, () => "narrow" as const);
+  // 넓은 화면에서는 직원 수와 관계없이 상세를 달력 옆에 붙인다. 직원이 많거나 1280~1439px 화면이면 예약을 열 때만 붙여 빈 상세 칸으로 달력을 좁히지 않는다.
+  const dockedBookingDetail = visibleStaff.length > 0 && (bookingViewport === "wide"
+    ? visibleStaff.length <= 2 || staff !== "전체 직원" || Boolean(selectedBooking)
+    : bookingViewport === "medium" && Boolean(selectedBooking));
 
   useEffect(() => {
     if (selectedBookingId && !filteredBookings.some((booking) => booking.id === selectedBookingId)) {
@@ -5235,8 +5236,8 @@ export default function CalendarManagementScreen({
 
   function handleAddSchedule() {
     const targetStaff =
-      (selectedBoardStaffKey ? visibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
-      (staff === "전체 직원" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0]);
+      (selectedBoardStaffKey ? selectedVisibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
+      selectedVisibleStaff[0];
     setScheduleForm({
       ...buildDefaultScheduleForm(bootstrapData, visibleStaff, selectedDate, staff),
       staffKey: targetStaff?.key ?? "staff-1",
@@ -5645,17 +5646,20 @@ export default function CalendarManagementScreen({
           <CalendarToolbar
             shop={bootstrapData.shop}
             selectedDate={selectedDate}
-            staff={staff}
+            selectedStaffKeys={selectedStaffKeys}
             visibleStaff={visibleStaff}
+            staffMembers={staffMembers}
+            staffScheduleOverrides={bootstrapData.staffScheduleOverrides}
             onDateChange={setSelectedDate}
-            onStaffChange={setStaff}
+            onStaffChange={setSelectedStaffKeys}
             onAddSchedule={handleAddSchedule}
           />
           <DailyScheduleGrid
             shopId={bootstrapData.shop.id}
             bookings={filteredBookings}
+            services={bootstrapData.services}
             staff={staff}
-            visibleStaff={visibleStaff}
+            visibleStaff={selectedVisibleStaff}
             staffMembers={staffMembers}
             staffScheduleOverrides={bootstrapData.staffScheduleOverrides}
             activeMetric={activeMetric}

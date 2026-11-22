@@ -14,6 +14,7 @@ import { fetchApiJson } from "@/lib/api";
 import BookingPreparationPanel from "@/components/booking/booking-preparation-panel";
 import BookingDevelopmentNotice from "@petmanager/shared/components/booking-development-notice";
 import { env } from "@/lib/env";
+import { resolveStaffProfileFallbackImageUrl } from "@/lib/staff-profile-fallback";
 import { useBookingResumeRefresh } from "@/lib/use-booking-resume-refresh";
 import { invalidateCustomerAvailability } from "@/lib/customer-availability";
 import { isShopClosedOnDate } from "@/lib/availability";
@@ -251,6 +252,15 @@ export default function CustomerBookingManagePanel({
   );
   const staffMap = useMemo(
     () => Object.fromEntries(staffMembers.map((staff) => [staff.id, staff.name])),
+    [staffMembers],
+  );
+  const staffProfileImageMap = useMemo(
+    () => Object.fromEntries(staffMembers.map((staff) => [
+      staff.id,
+      staff.profileImageUrls?.find((url) => url.trim())?.trim()
+        || staff.profileImageUrl?.trim()
+        || resolveStaffProfileFallbackImageUrl(staff.profileImageFallbackKey),
+    ])),
     [staffMembers],
   );
   const orderedStaffMembers = useMemo(() => {
@@ -684,7 +694,7 @@ export default function CustomerBookingManagePanel({
                       petName={pet?.name || "반려동물"}
                       serviceName={serviceLabel}
                       staffName={staffName}
-                      shopPhone={shop.phone}
+                      staffProfileImageUrl={appointment.staff_id ? staffProfileImageMap[appointment.staff_id] : undefined}
                       mediaAssets={(lookupResult.resultMediaAssets ?? []).filter(
                         (asset) => asset.appointmentId === appointment.id,
                       )}
@@ -701,7 +711,7 @@ export default function CustomerBookingManagePanel({
                         예약 취소
                       </button>
                     </div>
-                  ) : !operationsLocked ? (
+                  ) : !operationsLocked && !isResultView ? (
                     <button
                       type="button"
                       onClick={() => {

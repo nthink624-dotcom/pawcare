@@ -1,6 +1,18 @@
 "use client";
 
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Database, Maximize2, Sparkles, TriangleAlert, UserRoundPen, X, Zap } from "lucide-react";
+import {
+  IconArrowRight as ArrowRight,
+  IconCheck as Check,
+  IconChevronLeft as ChevronLeft,
+  IconChevronRight as ChevronRight,
+  IconDatabase as Database,
+  IconMaximize as Maximize2,
+  IconSparkles as Sparkles,
+  IconAlertTriangle as TriangleAlert,
+  IconUserEdit as UserRoundPen,
+  IconX as X,
+  IconBolt as Zap,
+} from "@tabler/icons-react";
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 
 import {
@@ -492,24 +504,26 @@ export function BookingSystemStory() {
               <button type="button" aria-label="AI 예약 최적화 보기" aria-current={scheduleSlide === "after" ? "true" : undefined} onClick={() => setScheduleSlide("after")} className={`rounded-full transition-all ${scheduleSlide === "after" ? "h-2 w-8 bg-[#76e6a8]" : "h-2 w-2 bg-white/35 hover:bg-white/60"}`} />
             </div>
           </div>
-          <div className={`${styles.firstLive} relative mt-5 flex min-h-80 min-w-0 items-center gap-3 overflow-hidden rounded-[22px] border border-[#d8e5df] bg-[#f7fbf8] px-6 py-5 sm:px-8`}>
-            <div className={`${styles.firstLiveCopy} relative z-10 min-w-0`}>
-              <p className="text-[12px] font-bold tracking-[0.12em] text-[#26825a]">LIVE AI BOOKING</p>
-              <p className={`mt-3 text-[21px] font-semibold leading-[1.32] text-[#172033] sm:text-[24px] ${COPY_CLASS}`}>AI가 추천한 시간을<br />실제 예약 화면에서</p>
-              <p className="mt-3 text-[14px] leading-5 text-[#607080]">추천 시간과 전체 예약 가능 시간을<br />직접 눌러 확인할 수 있습니다.</p>
-              <button
-                type="button"
-                onClick={() => setExpandedBookingPreview("ai")}
-                className="mt-4 flex min-h-11 items-center gap-1.5 rounded-full border border-[#1f714a] bg-white px-4 text-[13px] font-semibold text-[#1f714a] transition hover:bg-[#eef8f1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f9d55] focus-visible:ring-offset-2"
-                aria-label="AI 추천 시간 예약 화면 크게 보기"
-              >
-                <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
-                화면 크게 보기
-              </button>
+          <div data-landing-ai-booking-preview className="relative mt-5 overflow-hidden rounded-[22px] border border-[#d8e5df] bg-[#f7fbf8] px-5 py-7 max-[359px]:px-3 sm:px-8 sm:py-10">
+            <div className="relative z-10 mx-auto grid max-w-[890px] items-center gap-7 md:grid-cols-[minmax(0,1fr)_minmax(0,344px)] md:gap-10 lg:gap-16">
+              <div className="min-w-0">
+                <p className="text-[14px] font-semibold tracking-[0.1em] text-[#1f714a]">LIVE AI BOOKING</p>
+                <p className={`mt-3 text-[28px] font-semibold leading-[1.25] text-[#172033] sm:text-[32px] lg:text-[36px] ${COPY_CLASS}`}>AI가 추천한 시간을<br className="hidden lg:block" /> 실제 예약 화면에서</p>
+                <p className="mt-4 max-w-[380px] break-keep text-[17px] leading-relaxed text-[#4d615b] sm:text-[18px]">추천 시간과 전체 예약 가능 시간을 직접 눌러 확인할 수 있습니다.</p>
+                <button
+                  type="button"
+                  onClick={() => setExpandedBookingPreview("ai")}
+                  className="mt-5 inline-flex min-h-12 items-center gap-2 rounded-full border border-[#1f714a] bg-white px-5 text-[16px] font-semibold text-[#1f714a] transition hover:bg-[#eef8f1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f9d55] focus-visible:ring-offset-2"
+                  aria-label="AI 추천 시간 예약 화면 크게 보기"
+                >
+                  <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                  화면 크게 보기
+                </button>
+              </div>
+              <figure className="mx-auto w-full max-w-[344px]">
+                <CustomerBookingPhonePreview experience="ai" className="w-full drop-shadow-[0_16px_28px_rgba(15,47,40,0.18)]" />
+              </figure>
             </div>
-            <figure className={`${styles.centeredPhonePreview} relative z-10 flex w-44 shrink-0 items-center justify-center sm:w-48`}>
-              <CustomerBookingPhonePreview experience="ai" className="w-full drop-shadow-[0_16px_28px_rgba(15,47,40,0.18)]" />
-            </figure>
             <div className="pointer-events-none absolute -bottom-24 -right-16 h-64 w-64 rounded-full bg-[#dff2e8] opacity-80 blur-2xl" aria-hidden="true" />
           </div>
         </article>
@@ -535,7 +549,7 @@ export function BookingSystemStory() {
                 화면 크게 보기
               </button>
             </div>
-            <figure className="relative z-10 mx-auto flex w-40 shrink-0 items-center justify-center sm:w-44">
+            <figure className="relative z-10 mx-auto flex w-44 shrink-0 items-center justify-center sm:w-48">
               <CustomerBookingPhonePreview experience="revisit" className="w-full drop-shadow-[0_16px_28px_rgba(92,52,45,0.16)]" />
             </figure>
             <div className="pointer-events-none absolute -bottom-24 -left-20 h-64 w-64 rounded-full bg-white/55 blur-2xl" aria-hidden="true" />

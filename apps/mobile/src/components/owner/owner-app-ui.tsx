@@ -205,7 +205,7 @@ export function Sheet({
   }
 
   return (
-    <div className="pm-mobile-sheet-scrim fixed inset-0 z-30 flex items-end justify-center bg-black/30" onClick={onClose}>
+    <div className="pm-mobile-sheet-scrim fixed inset-0 z-[45] flex items-end justify-center bg-black/30" onClick={onClose}>
       <div
         ref={dialogRef}
         role={dialogLabel ? "dialog" : undefined}

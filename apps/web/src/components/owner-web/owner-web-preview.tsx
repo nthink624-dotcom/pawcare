@@ -48,6 +48,8 @@ function OwnerScreenLoading() {
   );
 }
 
+const CommunityBoard = dynamic(() => import("@petmanager/shared/components/community/community-board"), { loading: OwnerScreenLoading });
+
 const CalendarManagementScreen = dynamic(
   () => import("@/components/owner-web/calendar-management-screen"),
   { loading: OwnerScreenLoading },
@@ -173,7 +175,7 @@ function getRequestedOwnerWebScreen(data: BootstrapPayload): OwnerWebScreenKey {
   if (typeof window === "undefined") return "schedule";
   const searchParams = new URLSearchParams(window.location.search);
   const screen = searchParams.get("screen") as OwnerWebScreenKey | null;
-  if (screen && ["schedule", "bookingPageManagement", "bookingLink", "customers", "calendarRecords", "profitability", "services", "staff", "ownerProfile", "shopInfo", "bookingPolicy", "operatingHours", "benefits", "alerts", "help"].includes(screen)) {
+  if (screen && ["schedule", "bookingPageManagement", "bookingLink", "customers", "calendarRecords", "profitability", "community", "services", "staff", "ownerProfile", "shopInfo", "bookingPolicy", "operatingHours", "benefits", "alerts", "help"].includes(screen)) {
     return screen;
   }
   if (!getBootstrapOwnerInitialSetupReadiness(data).completed) return "schedule";
@@ -235,6 +237,7 @@ function renderScreen(
   onInitialSetupPricingNext: () => void,
   uploadInitialSetupStaffPhoto?: StaffProfilePhotoUploader,
   onServiceSettingsBack?: () => void,
+  communityProfileView?: { open: boolean; onOpenChange: (open: boolean) => void },
 ) {
   if (isOwnerStartupPresentation(initialData) && !["schedule", "customers"].includes(screen)) {
     return <OwnerStartupDetailsBoundary pending title={"\uC0C1\uC138 \uC815\uBCF4"} embedded modal={false}>{null}</OwnerStartupDetailsBoundary>;
@@ -244,6 +247,8 @@ function renderScreen(
   };
 
   switch (screen) {
+    case "community":
+      return <CommunityBoard key={initialData.shop.id} shopId={initialData.shop.id} shopName={initialData.shop.name} api={fetchApiJsonWithAuth} profileView={communityProfileView} />;
     case "schedule":
       return (
         <CalendarManagementScreen
@@ -258,7 +263,7 @@ function renderScreen(
     case "customers":
       return <CustomerManagementScreen initialData={initialData} onCreateReservationForCustomer={onCreateReservationForCustomer} onDataChange={onDataChange} />;
     case "calendarRecords":
-      return <CalendarRecordsScreen initialData={initialData} onDataChange={onDataChange} onCreateReservationForDate={onCreateReservationForDate} />;
+      return <CalendarRecordsScreen initialData={initialData} shopEventsEnabled={!isDemoOwnerWebData(initialData)} onDataChange={onDataChange} onCreateReservationForDate={onCreateReservationForDate} />;
     case "profitability":
       return <ProfitabilityAnalyticsScreen shopId={initialData.shop.id} />;
     case "services":
@@ -365,6 +370,7 @@ export default function OwnerWebPreview({
   }, []);
   const [initialSetupScreen, setInitialSetupScreen] = useState<OwnerWebScreenKey>("operatingHours");
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
+  const [communityProfileOpen, setCommunityProfileOpen] = useState(false);
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [initialSetupOpen, setInitialSetupOpen] = useState(false);
@@ -598,6 +604,7 @@ export default function OwnerWebPreview({
   }
 
   function handleScreenSelect(screen: OwnerWebScreenKey) {
+    setCommunityProfileOpen(false);
     setActiveScreen(screen);
   }
 
@@ -851,7 +858,14 @@ export default function OwnerWebPreview({
         setStoreMenuOpen((current) => !current);
         setAlimtalkCreditMenuOpen(false);
       }}
-      onOpenProfile={() => openSettingsTab("profile")}
+      onOpenProfile={() => {
+        if (activeScreen === "community") {
+          setCommunityProfileOpen(true);
+          setStoreMenuOpen(false);
+          return;
+        }
+        openSettingsTab("profile");
+      }}
       onOpenShop={() => openSettingsTab("shop")}
       onOpenAlerts={() => openSettingsTab("alerts")}
       onOpenHelp={() => {
@@ -896,6 +910,7 @@ export default function OwnerWebPreview({
             handleInitialSetupPricingNext,
             uploadDemoInitialSetupStaffPhoto,
             () => setActiveScreen("shopInfo"),
+            { open: communityProfileOpen, onOpenChange: setCommunityProfileOpen },
           )}
         </div>
       </div>

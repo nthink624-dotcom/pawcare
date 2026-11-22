@@ -550,11 +550,16 @@ export default function SignupForm({
 
   useEffect(() => {
     const expiresAt = draftStartedAtRef.current + VOLATILE_SIGNUP_DRAFT_TTL_MS;
-    const expire = () => { if (!completingSessionTokenRef.current && Date.now() >= expiresAt) resetSignup(); };
+    const expire = () => {
+      // Let an already-started, bounded verification/signup operation settle.
+      // Phase changes recheck the original privacy deadline after it finishes.
+      if (!completingSessionTokenRef.current && !signupFlowRef.current &&
+          !providerAttemptRef.current && Date.now() >= expiresAt) resetSignup();
+    };
     const timer = setTimeout(expire, Math.max(0, expiresAt - Date.now()));
     window.addEventListener?.("focus", expire);
     return () => { clearTimeout(timer); window.removeEventListener?.("focus", expire); };
-  }, [resetSignup, signupRequestId]);
+  }, [resetSignup, signupRequestId, signupPhase, loading]);
 
   const requiredAgreed = agreements.service && agreements.privacy;
   const allAgreed = ownerSignupTerms.every((term) => agreements[term.id]);
@@ -928,6 +933,7 @@ export default function SignupForm({
       // Keep provider details and internal diagnostics out of customer copy.
       retainVerificationFailure(code === "SDK_CANCELLED" ? "본인인증을 취소했어요." :
         code === "POPUP_BLOCKED" ? "팝업을 허용한 뒤 다시 시도해 주세요." :
+        code === "SDK_CALL_TIMEOUT" ? "본인인증 제한 시간이 지났어요. 인증을 다시 시작해 주세요." :
         "본인인증을 완료하지 못했어요. 다시 시도해 주세요.");
     };
     try {
@@ -959,6 +965,7 @@ export default function SignupForm({
       const identityVerificationId = requestResult.providerIdentityVerificationId;
 
       failureStage = "SDK_CALL";
+      // Match the server's fifteen-minute provider-request lifetime.
       const result = await waitForIdentityOperation(requestIdentityVerification({
         storeId: env.portoneStoreId,
         channelKey,
@@ -973,7 +980,7 @@ export default function SignupForm({
           birthDay: identity.birthDate.slice(6, 8),
         },
         ...(bypass ? { bypass } : {}),
-      }), attempt.signal, 120_000);
+      }), attempt.signal, 15 * 60 * 1000);
       if (identityRevisionRef.current !== identityRevision || attempt.signal.aborted) return;
 
       if (!result || result.code || result.identityVerificationId !== identityVerificationId) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { buildServiceReservationChipTones, type ReservationChipService } from "@petmanager/shared/lib/reservation-chip-colors";
 import type { PointerEvent, ReactNode } from "react";
 import type { Appointment, StaffScheduleOverride } from "@/types/domain";
 import { addDate, currentDateInTimeZone, currentMinutesInTimeZone } from "@/lib/utils";
@@ -32,6 +33,7 @@ const STATUS_PRESENTATION: Record<Appointment["status"], { label: string; compac
 };
 
 const DETAILED_BOOKING_MINUTES = 90;
+const HIDDEN_TIMELINE_STATUSES = new Set<Appointment["status"]>(["cancelled", "noshow", "rejected"]);
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
@@ -56,6 +58,7 @@ type Props = {
   petNames: Record<string, string>;
   guardianNames: Record<string, string>;
   serviceNames: Record<string, string>;
+  services: readonly ReservationChipService[];
   serviceDurations: Record<string, number>;
   staffOptions: StaffOption[];
   selectedStaffId: string;
@@ -66,6 +69,7 @@ type Props = {
   onOpenDatePicker: () => void;
   onOpenAppointment: (appointment: Appointment) => void;
   attention?: ReactNode;
+  holidayNames?: readonly string[];
 };
 
 function clockMinutes(value: string) {
@@ -111,13 +115,18 @@ function currentTimeBadgeOverlapsHourLabel(currentTop: number, hourTop: number) 
   return Math.abs(currentTop - hourTop) < CURRENT_TIME_LABEL_COLLISION_DISTANCE;
 }
 
+// 서로 겹치는 예약 묶음 전체가 같은 칸 수를 쓴다. 먼저 놓인 예약도 뒤에 겹친 예약만큼 좁아져야 카드가 서로 덮지 않는다.
 function assignCollisionColumns(appointments: Appointment[], serviceDurations: Record<string, number>): LaneItem[] {
   const active: Array<{ end: number; column: number }> = [];
-  return [...appointments]
+  const groupColumns: number[] = [];
+  let groupEnd = -Infinity;
+  const placed = [...appointments]
     .sort((a, b) => clockMinutes(a.appointment_time) - clockMinutes(b.appointment_time))
     .map((appointment) => {
       const start = clockMinutes(appointment.appointment_time);
       const end = start + appointmentDuration(appointment, serviceDurations);
+      if (start >= groupEnd) groupColumns.push(0);
+      groupEnd = Math.max(groupEnd, end);
       for (let index = active.length - 1; index >= 0; index -= 1) {
         if (active[index].end <= start) active.splice(index, 1);
       }
@@ -125,8 +134,11 @@ function assignCollisionColumns(appointments: Appointment[], serviceDurations: R
       let column = 0;
       while (used.has(column)) column += 1;
       active.push({ end, column });
-      return { appointment, column, collisionColumns: Math.max(column + 1, active.length) };
+      const group = groupColumns.length - 1;
+      groupColumns[group] = Math.max(groupColumns[group], column + 1);
+      return { appointment, column, group };
     });
+  return placed.map(({ appointment, column, group }) => ({ appointment, column, collisionColumns: groupColumns[group] }));
 }
 
 function ScheduleLane({
@@ -134,11 +146,13 @@ function ScheduleLane({
   petNames,
   guardianNames,
   serviceNames,
+  services,
   serviceDurations,
   onOpenAppointment,
-}: Pick<Props, "petNames" | "guardianNames" | "serviceNames" | "serviceDurations" | "onOpenAppointment"> & {
+}: Pick<Props, "petNames" | "guardianNames" | "serviceNames" | "services" | "serviceDurations" | "onOpenAppointment"> & {
   appointments: Appointment[];
 }) {
+  const serviceTones = useMemo(() => buildServiceReservationChipTones(services), [services]);
   const items = assignCollisionColumns(appointments, serviceDurations);
   const cardEdgeInsets = getAdjacentScheduleCardEdgeInsets(
     items.map(({ appointment, column }) => {
@@ -159,7 +173,7 @@ function ScheduleLane({
         const top = BOARD_TOP_PADDING + ((start - START_HOUR * 60) / 60) * HOUR_HEIGHT;
         const height = (minutes / 60) * HOUR_HEIGHT;
         const status = STATUS_PRESENTATION[appointment.status];
-        const identityTone = getAppointmentIdentityTone(appointment.pet_id || appointment.id);
+        const identityTone = getAppointmentIdentityTone(appointment.service_id, serviceTones);
         const completed = appointment.status === "completed";
         const detailedCard = minutes >= DETAILED_BOOKING_MINUTES;
         const memo = appointment.memo?.trim() ?? "";
@@ -184,11 +198,10 @@ function ScheduleLane({
           >
             <span
               data-testid="appointment-card-surface"
-              className="absolute inset-x-0 overflow-hidden rounded-[10px] border border-l-[3px] px-2.5 py-1.5 shadow-none"
+              className="absolute inset-x-0 overflow-hidden rounded-[10px] border px-2.5 py-1.5 shadow-none"
               style={{
                 top: edgeInsets.top, bottom: edgeInsets.bottom,
-                borderColor: identityTone.border,
-                borderLeftColor: identityTone.accent,
+                borderColor: completed ? identityTone.mutedBackground : identityTone.border,
                 backgroundColor: completed ? identityTone.mutedBackground : identityTone.background,
               }}
             >
@@ -204,19 +217,19 @@ function ScheduleLane({
                       {status.label}
                     </span>
                   </span>
-                  <span className="block truncate text-[14px] font-medium leading-5" style={{ color: completed ? "#64748b" : identityTone.text }}>
+                  <span className="block truncate text-[14px] font-medium leading-5" style={{ color: completed ? "#526174" : identityTone.text }}>
                     {petNames[appointment.pet_id] ?? "반려동물"} · {guardianNames[appointment.guardian_id] ?? "보호자"}
                   </span>
                   <span className="block truncate text-[13px] font-normal leading-5 text-[#526174]">
                     {serviceNames[appointment.service_id] ?? "서비스"}
                   </span>
-                  <span className="block truncate text-[12px] font-normal leading-[18px] text-[#64748b]" title={memoLabel} aria-label={memoLabel} data-booking-customer-memo={memo ? "present" : "empty"}>
+                  <span className="block truncate text-[12px] font-normal leading-[18px] text-[#526174]" title={memoLabel} aria-label={memoLabel} data-booking-customer-memo={memo ? "present" : "empty"}>
                     <span className="font-medium text-[#475569]">고객 메모</span>{" "}{memo || "없음"}
                   </span>
                 </span>
               ) : (
                 <span className="flex h-full min-w-0 items-center gap-1.5">
-                  <span className="min-w-0 flex-1 truncate text-[14px] font-medium leading-5" style={{ color: completed ? "#64748b" : identityTone.text }}>
+                  <span className="min-w-0 flex-1 truncate text-[14px] font-medium leading-5" style={{ color: completed ? "#526174" : identityTone.text }}>
                     {petNames[appointment.pet_id] ?? "반려동물"}
                   </span>
                   <span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#526174] [font-variant-numeric:tabular-nums]">
@@ -241,7 +254,7 @@ function ScheduleLane({
 
 export default function OwnerBookingDaySchedule(props: Props) {
   const {
-    date, appointments, petNames, guardianNames, serviceNames, serviceDurations, staffOptions,
+    date, appointments, petNames, guardianNames, serviceNames, services, serviceDurations, staffOptions,
     selectedStaffId, staffScheduleOverrides, isShopClosed, onSelectStaff, onSelectDate,
     onOpenDatePicker, onOpenAppointment,
   } = props;
@@ -271,8 +284,9 @@ export default function OwnerBookingDaySchedule(props: Props) {
     return () => window.clearInterval(timer);
   }, []);
 
+  // 시간표에는 진행할 예약만 둔다. 취소·노쇼·거절은 PC 달력처럼 빼서 다른 예약과 겹쳐 보이지 않게 한다.
   const visibleAppointments = useMemo(
-    () => appointments.filter((appointment) => appointment.appointment_date === date && appointment.status !== "rejected"),
+    () => appointments.filter((appointment) => appointment.appointment_date === date && !HIDDEN_TIMELINE_STATUSES.has(appointment.status)),
     [appointments, date],
   );
   const laneOptions = useMemo(() => staffOptions.filter((staff) => staff.id !== "all"), [staffOptions]);
@@ -359,6 +373,7 @@ export default function OwnerBookingDaySchedule(props: Props) {
           <button type="button" aria-label={`${dateLabel} ${selectedWeekdayLabel}요일 날짜 선택`} onClick={onOpenDatePicker} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">
             <span data-testid="date-primary" className="whitespace-nowrap text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[#172033] [font-variant-numeric:tabular-nums]">{dateLabel}</span>
             <span data-testid="weekday-label" className="whitespace-nowrap text-[14px] font-medium leading-5 text-[#64748b]">{selectedWeekdayLabel}</span>
+            {props.holidayNames?.length ? <span data-calendar-holiday className="min-w-0 truncate text-[14px] font-medium leading-5 text-[#a04455]">{props.holidayNames.join(" · ")}</span> : null}
           </button>
           <div className="flex shrink-0 items-center gap-1">{props.attention}<span data-testid="date-total" className="shrink-0 whitespace-nowrap text-[14px] font-medium leading-5 text-[#37557a] [font-variant-numeric:tabular-nums]">예약 {visibleAppointments.length}건</span></div>
         </div>
@@ -423,7 +438,7 @@ export default function OwnerBookingDaySchedule(props: Props) {
                     <div data-testid="staff-lane-board" className="relative bg-white" style={{ height: BOARD_HEIGHT }}>
                       {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, index) => <span key={index} className="absolute inset-x-0 border-t border-[#e3e8ef]" style={{ top: BOARD_TOP_PADDING + index * HOUR_HEIGHT }} />)}
                       {unavailable ? <div className="absolute inset-0 z-[1] flex items-start justify-center bg-[#f1f4f7]/80 pt-4 text-[13px] leading-5 text-[#526174]">근무하지 않음</div> : null}
-                      <ScheduleLane appointments={laneAppointments} petNames={petNames} guardianNames={guardianNames} serviceNames={serviceNames} serviceDurations={serviceDurations} onOpenAppointment={onOpenAppointment} />
+                      <ScheduleLane appointments={laneAppointments} petNames={petNames} guardianNames={guardianNames} serviceNames={serviceNames} services={services} serviceDurations={serviceDurations} onOpenAppointment={onOpenAppointment} />
                       {showNow ? <span className="absolute inset-x-0 z-20 h-px bg-[#2f5fb3]" style={{ top: nowTop }} aria-hidden="true" /> : null}
                     </div>
                   </div>

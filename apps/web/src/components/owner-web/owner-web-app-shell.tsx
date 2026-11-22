@@ -15,6 +15,7 @@ import {
   Link2,
   LogOut,
   MessageSquareWarning,
+  MessagesSquare,
   Scissors,
   Search,
   Store,
@@ -44,6 +45,7 @@ const screenIconComponents: Record<OwnerWebNavigationKey, LucideIcon> = {
   calendarRecords: CalendarDays,
   customers: CircleUserRound,
   profitability: ChartNoAxesCombined,
+  community: MessagesSquare,
   bookingPolicy: ClipboardList,
   services: Scissors,
   staff: UsersRound,
@@ -67,6 +69,7 @@ const ownerWebNavigationGroups: Array<{
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
       { key: "profitability", label: "매출 분석" },
+      { key: "community", label: "사장님 라운지" },
       { key: "staff", label: "직원 관리" },
     ],
   },
@@ -92,6 +95,7 @@ const ownerWebSidebarGroups: Array<{
       { key: "calendarRecords", label: "캘린더" },
       { key: "customers", label: "고객 관리" },
       { key: "profitability", label: "매출 분석" },
+      { key: "community", label: "사장님 라운지" },
       { key: "staff", label: "직원 관리" },
     ],
   },
@@ -128,7 +132,7 @@ const ownerWebFlushCoreScreens = new Set<OwnerWebScreenKey>([
 
 function OwnerWebSidebarIcon({ screen }: { screen: OwnerWebNavigationKey }) {
   const Icon = screenIconComponents[screen];
-  return <Icon className="pm-owner-sidebar-icon h-6 w-6 shrink-0" strokeWidth={2} aria-hidden="true" />;
+  return <Icon className="pm-owner-sidebar-icon h-[22px] w-[22px] shrink-0" strokeWidth={2} aria-hidden="true" />;
 }
 
 const OWNER_HEADER_UTILITY_BUTTON_CLASS =
@@ -396,8 +400,19 @@ export default function OwnerWebAppShell({
               aria-label="도움 문의"
               title="도움 문의"
             >
-              <HelpCircle className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} />
+              <HelpCircle className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
             </button>
+            {activeScreen === "community" && (
+              <button
+                type="button"
+                data-owner-control-size="content"
+                onClick={onOpenProfile}
+                className={OWNER_HEADER_MOBILE_UTILITY_CLASS}
+                aria-label="프로필"
+              >
+                <CircleUserRound className="h-4.5 w-4.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+              </button>
+            )}
             </div>
             <SoftSelect<OwnerWebScreenKey>
               value={activeScreen === "bookingLink" || activeScreen === "bookingPageManagement" ? "shopInfo" : activeScreen}
@@ -445,7 +460,9 @@ export default function OwnerWebAppShell({
                 ? "overflow-y-auto overflow-x-hidden p-3 sm:p-4"
                 : usesFlushCore
                   ? "overflow-visible"
-                  : "overflow-hidden p-3 sm:p-4",
+                  : activeScreen === "community"
+                    ? "overflow-hidden"
+                    : "overflow-hidden p-3 sm:p-4",
             )}>
               {children}
             </div>

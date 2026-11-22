@@ -1,0 +1,8 @@
+.dateLine { display: inline-flex; max-width: 100%; align-items: center; gap: 7px; margin-top: 13px; padding: 5px 10px; border-radius: 999px; background: #ffffffb8; color: #7b6c70; font-size: 12px; line-height: 18px; }
+.dot { color: #c2a0a5; }
+.speechBubble { position: relative; margin-top: 12px; padding: 16px; border: 1px solid #f4dedb; border-radius: 18px; background: #fff0ed; }
+.speechBubble::before { content: ""; position: absolute; top: -7px; left: 21px; width: 12px; height: 12px; border-top: 1px solid #f4dedb; border-left: 1px solid #f4dedb; transform: rotate(45deg); background: #fff0ed; }
+.speechBubble p { position: relative; margin: 0; font-size: 16px; line-height: 1.55; font-weight: 400; color: #514348; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+.header { padding: 24px 20px 22px; background: #fde9e7; }
+.eyebrow { margin: 0 0 6px; font-size: 14px; font-weight: 500; color: #a44f5b; }
+.title { margin: 0; font-size: 28px; line-height: 1.3; font-weight: 400; letter-spacing: -.035em; }

@@ -25,6 +25,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(OwnerBackNavigationPlugin.class);
         registerPlugin(OwnerPlayUpdatePlugin.class);
         registerPlugin(OwnerCallScreeningPlugin.class);
+        registerPlugin(OwnerSocialLoginPlugin.class);
         super.onCreate(savedInstanceState);
         configureSystemBars();
         handleCallIntent(getIntent());

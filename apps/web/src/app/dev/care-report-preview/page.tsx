@@ -58,7 +58,6 @@ export default function CareReportPreviewPage() {
           petName="두부"
           serviceName="전체미용"
           staffName="김서연 디자이너"
-          shopPhone="02-1234-5678"
           mediaAssets={mediaAssets}
           previewPhotoUrls={{
             "care-report-before": "/images/customer-booking-hero-original.jpg",

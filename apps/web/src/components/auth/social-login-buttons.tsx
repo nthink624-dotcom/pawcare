@@ -66,11 +66,11 @@ export default function SocialLoginButtons({ nextPath, disabled, onPendingChange
   }
 
   return (
-    <div className="mt-6">
-      <div className="mb-4 flex items-center gap-3 text-[13px] leading-5 text-[#64748b]"><span className="h-px flex-1 bg-[#e8edf3]" /><span>간편 로그인</span><span className="h-px flex-1 bg-[#e8edf3]" /></div>
-      <div className="grid gap-2.5" aria-label="소셜 로그인">
+    <div className="mt-4 [@media(max-height:700px)]:mt-3">
+      <div className="mb-2 flex items-center gap-3 text-[13px] leading-5 text-[#64748b]"><span className="h-px flex-1 bg-[#e8edf3]" /><span>간편 로그인</span><span className="h-px flex-1 bg-[#e8edf3]" /></div>
+      <div className="grid gap-2 [@media(max-height:700px)]:gap-1" aria-label="소셜 로그인">
         {SOCIAL_LOGIN_PROVIDERS.map(({ id, label }) => (
-          <button key={id} data-testid={`social-login-${id}`} type="button" disabled={disabled || pending !== null} aria-busy={pending === id} onClick={() => void startLogin(id)} className={`grid min-h-12 w-full grid-cols-[20px_minmax(0,1fr)_20px] items-center gap-3 rounded-[10px] border px-4 py-3 text-[16px] font-medium leading-6 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-wait disabled:opacity-60 ${providerStyles[id]}`}>
+          <button key={id} data-testid={`social-login-${id}`} type="button" disabled={disabled || pending !== null} aria-busy={pending === id} onClick={() => void startLogin(id)} className={`grid min-h-11 w-full grid-cols-[20px_minmax(0,1fr)_20px] items-center gap-3 rounded-[10px] border px-4 py-2 text-[16px] font-medium leading-6 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-wait disabled:opacity-60 ${providerStyles[id]}`}>
             <ProviderIcon provider={id} />
             <span>{pending === id ? `${label} 로그인 연결 중…` : `${label}로 로그인`}</span>
             <span aria-hidden="true" />

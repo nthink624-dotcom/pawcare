@@ -137,9 +137,9 @@ export async function POST(request: NextRequest) {
       { deferNotifications: (task) => after(task), bootstrapData: setupBootstrap },
     );
 
-    const consentTask = () => processOwnerBookingConsent(owner, { id: appointment.id, guardianId, petId }, consentChoice);
-    if (consentChoice) await consentTask();
-    else after(consentTask);
+    const consentIdentity = { id: appointment.id, guardianId, petId };
+    if (consentChoice) await processOwnerBookingConsent(owner, consentIdentity, consentChoice, after);
+    else after(() => processOwnerBookingConsent(owner, consentIdentity, null));
     after(() => flushDepositOutbox(shopId));
 
     return ownerMobileCorsJson(request, { guardian, pet, appointment });

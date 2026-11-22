@@ -104,6 +104,33 @@ test("schedule endpoint omits unused owner projections without removing authoriz
   assert.match(source, /scopeBootstrapForStaff\(data, owner\)/);
 });
 
+test("daily schedule polling skips identical results and ignores a response started before another update", async () => {
+  const h = harness("calendar-management-screen.tsx", "const syncScheduleRange = async");
+  h.context.replaceScheduleRangeInBootstrap = current => current;
+  h.setNow(5_000);
+  h.listeners.get("initialTimeout")();
+  await h.finish();
+  assert.equal(h.calls(), 1);
+  assert.equal(h.updates(), 0);
+
+  h.context.replaceScheduleRangeInBootstrap = current => ({ ...current });
+  h.setNow(15_000);
+  h.listeners.get("interval")();
+  const updated = { ...h.context.bootstrapDataRef.current, changedElsewhere: true };
+  h.context.bootstrapDataRef.current = updated;
+  await h.finish();
+  assert.equal(h.calls(), 2);
+  assert.equal(h.context.bootstrapDataRef.current, updated);
+  assert.equal(h.updates(), 0);
+
+  h.setNow(30_000);
+  h.listeners.get("interval")();
+  await h.finish();
+  assert.equal(h.calls(), 3);
+  assert.equal(h.updates(), 1);
+  h.cleanup();
+});
+
 test("owner dashboard preloads profitability code without fetching unused report data", () => {
   const preview = readFileSync(new URL("../../src/components/owner-web/owner-web-preview.tsx", import.meta.url), "utf8");
   const profitabilityScreen = readFileSync(new URL("../../src/components/owner-web/profitability-analytics-screen.tsx", import.meta.url), "utf8");

@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
+import { readSocialLoginAvailability, SOCIAL_LOGIN_PROVIDERS, SocialLoginFailure, type SocialLoginProvider } from "@petmanager/shared/lib/owner-social-login";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -15,11 +18,19 @@ import {
   withOwnerLoginTimeout,
 } from "@/lib/auth/owner-login-timeout";
 import { getSafeNextPath } from "@/lib/auth/safe-next-path";
+import { beginMobileSocialAttempt, cancelMobileSocialAttempt, consumeMobileSocialReturn } from "@/lib/auth/mobile-social-login-attempt";
+import { finishMobileSocialLogin, getSocialAttemptStorage, hasNativeSocialLogin, openMobileSocialLogin, socialLoginMessages } from "@/lib/auth/mobile-social-login";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
+import SocialProviderLogo from "./social-provider-logo";
 
 const SAVED_EMAIL_KEY = "petmanager.savedOwnerEmail";
+const SOCIAL_BUTTON_STYLE: Record<SocialLoginProvider, string> = {
+  naver: "border-[#03c75a] bg-[#03c75a] text-white hover:bg-[#02b350]",
+  kakao: "border-[#fee500] bg-[#fee500] text-[#191919] hover:bg-[#f5dc00]",
+  google: "border-[#dadce0] bg-white text-[#3c4043] hover:bg-[#f8fafd]",
+};
 
 type LoginResponse = {
   message?: string;
@@ -61,6 +72,11 @@ export default function LoginForm({
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
   const [rememberEmail, setRememberEmail] = useState(false);
   const [canResendConfirmation, setCanResendConfirmation] = useState(false);
+  const [socialPending, setSocialPending] = useState<SocialLoginProvider | null>(null);
+  const [returning, setReturning] = useState(false);
+  const [browserOpened, setBrowserOpened] = useState(false);
+  const socialStarting = useRef(false);
+  const loginInFlight = useRef(false);
 
   useEffect(() => {
     const savedEmail = window.localStorage.getItem(SAVED_EMAIL_KEY);
@@ -70,7 +86,93 @@ export default function LoginForm({
     }
   }, []);
 
+  const completeNativeReturn = useEffectEvent(async (url: string) => {
+    if (loginInFlight.current) return;
+    let result: ReturnType<typeof consumeMobileSocialReturn>;
+    try { result = consumeMobileSocialReturn(url, getSocialAttemptStorage()); }
+    catch { return; }
+    if (!result) return;
+    setBrowserOpened(false);
+    if (result.error) {
+      setMessage(socialLoginMessages[result.error]);
+      return;
+    }
+    loginInFlight.current = true;
+    setReturning(true);
+    setMessage(null);
+    try {
+      await finishMobileSocialLogin(result.code);
+      router.replace(result.nextPath as never);
+    } catch (error) {
+      setMessage(socialLoginMessages[error instanceof SocialLoginFailure ? error.reason : "social-failed"]);
+    } finally {
+      loginInFlight.current = false;
+      setReturning(false);
+    }
+  });
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !hasNativeSocialLogin()) return;
+    let active = true;
+    const listener = App.addListener("appUrlOpen", ({ url }) => {
+      if (active) void completeNativeReturn(url);
+    });
+    void listener.then(() => App.getLaunchUrl()).then((launch) => {
+      if (active && launch?.url) void completeNativeReturn(launch.url);
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+      void listener.then((handle) => handle.remove()).catch(() => undefined);
+    };
+  }, []);
+
+  const startSocialLogin = async (id: SocialLoginProvider) => {
+    if (loginInFlight.current || socialStarting.current || resending) return;
+    const native = Capacitor.isNativePlatform();
+    if (native && !hasNativeSocialLogin()) {
+      setMessage("간편 로그인을 사용하려면 최신 앱이 필요합니다. 이메일로 로그인해 주세요.");
+      return;
+    }
+    if (!supabaseReady || !supabase) {
+      setMessage(socialLoginMessages["social-failed"]);
+      return;
+    }
+
+    const provider = SOCIAL_LOGIN_PROVIDERS.find((item) => item.id === id)!;
+    socialStarting.current = true;
+    setSocialPending(id);
+    setBrowserOpened(false);
+    setMessage(null);
+    setCanResendConfirmation(false);
+    let storage: Storage | undefined;
+    try {
+      storage = getSocialAttemptStorage();
+      cancelMobileSocialAttempt(storage);
+      const availability = await readSocialLoginAvailability();
+      if (!availability[id]) {
+        setMessage(`${provider.label} 로그인은 현재 준비 중입니다. 이메일로 로그인해 주세요.`);
+        return;
+      }
+      const redirectTo = beginMobileSocialAttempt(storage, safeNextPath, native ? undefined : window.location.origin);
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: provider.provider,
+        options: { redirectTo, skipBrowserRedirect: true },
+      });
+      if (error || !data.url) throw new Error("Social login could not start");
+      setBrowserOpened(native);
+      await openMobileSocialLogin(data.url);
+    } catch {
+      if (storage) cancelMobileSocialAttempt(storage);
+      setBrowserOpened(false);
+      setMessage(socialLoginMessages["social-failed"]);
+    } finally {
+      socialStarting.current = false;
+      setSocialPending(null);
+    }
+  };
+
   const handleLogin = async () => {
+    if (loginInFlight.current || socialStarting.current || resending) return;
     const normalizedEmail = normalizeOwnerEmail(email);
     if (!isValidOwnerEmail(normalizedEmail) || !password) {
       setMessage("이메일과 비밀번호를 입력해 주세요.");
@@ -81,6 +183,9 @@ export default function LoginForm({
       return;
     }
 
+    loginInFlight.current = true;
+    try { cancelMobileSocialAttempt(getSocialAttemptStorage()); } catch { /* Email login can proceed without social storage. */ }
+    setBrowserOpened(false);
     setLoading(true);
     setMessage(null);
     setCanResendConfirmation(false);
@@ -142,11 +247,13 @@ export default function LoginForm({
       );
     } finally {
       window.clearTimeout(requestTimer);
+      loginInFlight.current = false;
       setLoading(false);
     }
   };
 
   const resendConfirmation = async () => {
+    if (loginInFlight.current || socialStarting.current) return;
     const normalizedEmail = normalizeOwnerEmail(email);
     if (!isValidOwnerEmail(normalizedEmail)) {
       setMessage("인증 메일을 다시 받으려면 이메일을 입력해 주세요.");
@@ -173,6 +280,7 @@ export default function LoginForm({
       password={password}
       rememberEmail={rememberEmail}
       loading={loading}
+      loginDisabled={socialPending !== null || returning}
       message={message}
       nextPath={safeNextPath}
       canResendConfirmation={canResendConfirmation}
@@ -182,6 +290,27 @@ export default function LoginForm({
       onRememberEmailChange={setRememberEmail}
       onLogin={() => void handleLogin()}
       onResendConfirmation={() => void resendConfirmation()}
+      socialLogin={
+        <div className="mt-2 [@media(max-height:700px)]:mt-1">
+          <div className="mb-1 flex items-center gap-3 text-[12px] font-normal leading-[18px] text-[#64748b]">
+            <span className="h-px flex-1 bg-[#e8edf3]" aria-hidden="true" />
+            간편 로그인
+            <span className="h-px flex-1 bg-[#e8edf3]" aria-hidden="true" />
+          </div>
+          <div className="grid gap-1.5 [@media(max-height:700px)]:gap-1" aria-label="소셜 로그인" role="group">
+            {SOCIAL_LOGIN_PROVIDERS.map(({ id, label }) => (
+              <button key={id} type="button" data-testid={`social-login-${id}`} disabled={loading || resending || socialPending !== null || returning}
+                onClick={() => void startSocialLogin(id)} aria-busy={socialPending === id}
+                aria-label={socialPending === id ? `${label} 로그인 연결 중` : `${label}로 로그인`}
+                className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-[10px] border px-3 py-1 text-[16px] font-medium leading-6 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-60 ${SOCIAL_BUTTON_STYLE[id]}`}>
+                <SocialProviderLogo provider={id} />
+                <span className="text-center">{socialPending === id ? `${label} 연결 중…` : `${label}로 로그인`}</span>
+              </button>
+            ))}
+          </div>
+          {browserOpened || returning ? <p role="status" className="mt-2 text-center text-[13px] text-[#64748b]">{returning ? "로그인 정보를 확인하는 중입니다." : "브라우저에서 로그인을 마쳐 주세요."}</p> : null}
+        </div>
+      }
     />
   );
 }

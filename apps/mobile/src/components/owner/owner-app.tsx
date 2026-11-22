@@ -1,4 +1,6 @@
 "use client";
+import { MessagesSquare } from "lucide-react";
+import CommunityBoard from "@petmanager/shared/components/community/community-board";
 import BookingDevelopmentNotice from "@petmanager/shared/components/booking-development-notice";
 import { env } from "@/lib/env";
 import OwnerBookingDepositPanel from "@/components/owner/owner-booking-deposit-panel";
@@ -50,7 +52,9 @@ import OwnerCallReservationQuickEntry from "@/components/owner/owner-call-reserv
 import { StaffProfilePhoto } from "@/components/owner/staff-profile-photo";
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import { StatusBadge as AppStatusBadge } from "@/components/ui/status-badge";
-import { fetchApiJsonWithAuth } from "@/lib/api";
+import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
+import { useCalendarHolidays } from "@petmanager/shared/lib/use-owner-calendar";
+import { createOwnerBackgroundPoller, shouldPollOwnerData } from "@/lib/owner-background-poller";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
@@ -153,7 +157,7 @@ const OwnerSettingsPanel = dynamic(() => import("@/components/owner/owner-settin
 const OwnerTesterFeedbackSheet = dynamic(() => import("@/components/owner/owner-tester-feedback-sheet"));
 const KakaoPostcodeSheet = dynamic(() => import("@/components/ui/kakao-postcode-sheet"));
 
-type TabKey = "home" | "book" | "customers" | "settings";
+type TabKey = "home" | "book" | "customers" | "community" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
 type SettingsEntryScreen = "shop" | "closures" | "price" | "notifications" | "appNotifications" | "catchcall" | "staff" | "support" | "legal" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
@@ -378,6 +382,7 @@ const tabItems: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "home", label: "오늘", icon: House },
   { key: "book", label: "예약 조회", icon: CalendarDays },
   { key: "customers", label: "고객 관리", icon: PawPrint },
+  { key: "community", label: "라운지", icon: MessagesSquare },
   { key: "settings", label: "설정", icon: Settings },
 ];
 
@@ -542,6 +547,8 @@ function OwnerAppContent({
   const [data, setData] = useState(initialData);
   const [ownedShopItems, setOwnedShopItems] = useState(ownedShops);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
+  const [communityProfileOpen, setCommunityProfileOpen] = useState(false);
+  const communityBackRef = useRef<(() => boolean) | null>(null);
   const [todayDate, setTodayDate] = useState(() => currentDateInTimeZone());
   const [homeReservationDate, setHomeReservationDate] = useState(() => currentDateInTimeZone());
   const [homeReservationSlideDirection, setHomeReservationSlideDirection] = useState<"prev" | "next">("next");
@@ -776,6 +783,7 @@ function OwnerAppContent({
       clearRootBackExitNotice();
       return;
     }
+    if (activeTab === "community" && communityBackRef.current?.()) return;
     if (activeTab !== "home") {
       restoringBackTabRef.current = true;
       setActiveTab("home");
@@ -1084,14 +1092,15 @@ function OwnerAppContent({
     );
   }
 
-  function refresh() {
+  function refresh(signal?: AbortSignal) {
     if (isOwnerDemo || startupReadOnly) return Promise.resolve();
     if (refreshInFlightRef.current) return refreshInFlightRef.current;
 
     const requestId = ++refreshRequestIdRef.current;
     const appointmentMutationVersion = appointmentMutationVersionRef.current;
-    const request = fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`, { cache: "no-store" })
+    const request = fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`, { cache: "no-store", ...(signal ? { signal } : {}) })
       .then((next) => {
+        if (signal?.aborted) return;
         if (!isAppointmentRefreshCurrent(appointmentMutationVersion, appointmentMutationVersionRef.current)) return;
         if (!shouldApplyOwnerMobileRefresh(requestId, lastAppliedRefreshRequestIdRef.current)) return;
 
@@ -1106,9 +1115,10 @@ function OwnerAppContent({
       });
 
     refreshInFlightRef.current = request;
-    void request.finally(() => {
+    const clearPendingRefresh = () => {
       if (refreshInFlightRef.current === request) refreshInFlightRef.current = null;
-    });
+    };
+    void request.then(clearPendingRefresh, clearPendingRefresh);
     return request;
   }
 
@@ -1120,7 +1130,13 @@ function OwnerAppContent({
     }
   }
 
-  const refreshSilentlyFromEffect = useEffectEvent(refreshSilently);
+  const refreshFromBackground = useEffectEvent((signal: AbortSignal) => refresh(signal));
+  const canRefreshInBackground = useEffectEvent(() => shouldPollOwnerData({
+    visible: document.visibilityState === "visible",
+    online: navigator.onLine !== false,
+    activeTab,
+    busy: saving || Boolean(modal) || isAnyCustomerFieldEditing || isCustomerListEditing || isShopPickerOpen,
+  }));
 
   async function reconcileAfterAppointmentMutation() {
     const pendingRefresh = refreshInFlightRef.current;
@@ -1555,6 +1571,9 @@ function OwnerAppContent({
   }, [data.appointments, data.groomingRecords]);
 
   const selectedVisitDate = visitDateFilter || todayDate;
+  const bookingMonth = selectedVisitDate.slice(0, 7);
+  const bookingHolidays = useCalendarHolidays(activeTab === "book" ? bookingMonth : null, fetchApiJson);
+  const selectedVisitHolidays = bookingHolidays.holidays.filter(holiday => holiday.date === selectedVisitDate).map(holiday => holiday.name);
   const selectedVisitRange = useMemo(() => {
     if (visitSelectionMode !== "range" || !visitRange) return null;
     return visitRange.start <= visitRange.end ? visitRange : { start: visitRange.end, end: visitRange.start };
@@ -1831,29 +1850,21 @@ function OwnerAppContent({
   useEffect(() => {
     if (startupReadOnly || isOwnerDemo || typeof window === "undefined") return;
 
-    const syncIfIdle = () => {
-      const canSync =
-        document.visibilityState === "visible" &&
-        !saving &&
-        !modal &&
-        !isAnyCustomerFieldEditing &&
-        !isCustomerListEditing &&
-        !isShopPickerOpen;
-
-      if (!canSync) return;
-      void refreshSilentlyFromEffect();
-    };
-
-    const intervalId = window.setInterval(syncIfIdle, 15000);
+    const poller = createOwnerBackgroundPoller({
+      intervalMs: 30_000,
+      canRun: () => canRefreshInBackground(),
+      run: (signal) => refreshFromBackground(signal),
+    });
+    const syncIfIdle = () => void poller.request();
     window.addEventListener("focus", syncIfIdle);
     document.addEventListener("visibilitychange", syncIfIdle);
 
     return () => {
-      window.clearInterval(intervalId);
+      poller.stop();
       window.removeEventListener("focus", syncIfIdle);
       document.removeEventListener("visibilitychange", syncIfIdle);
     };
-  }, [isAnyCustomerFieldEditing, isCustomerListEditing, isOwnerDemo, isShopPickerOpen, modal, saving, startupReadOnly]);
+  }, [isOwnerDemo, startupReadOnly, data.shop.id]);
 
   useEffect(() => {
     if (!selectedGuardian) {
@@ -2972,8 +2983,8 @@ function OwnerAppContent({
   const isSettingsDetailView = activeTab === "settings" && Boolean(settingsEntryScreen);
   const currentSettingsScreenTitle = settingsEntryScreen ? settingsEntryScreenTitles[settingsEntryScreen] : "";
   const screenTitle =
-    activeTab === "customers"
-      ? "고객 관리"
+    activeTab === "community" ? "사장님 라운지"
+      : activeTab === "customers" ? "고객 관리"
       : tabItems.find((item) => item.key === activeTab)?.label;
   const bookingEntryUrl = `${ownerPageOrigin || ""}/s/${data.shop.id}`;
   const isHomeTab = activeTab === "home";
@@ -3105,7 +3116,16 @@ function OwnerAppContent({
               )
             )}
           </div>
-          {headerAction ? (
+          {activeTab === "community" ? (
+            <button
+              type="button"
+              aria-label="프로필"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] text-[var(--muted)] hover:bg-[#f8fafc] focus-visible:outline-2 focus-visible:outline-blue-500"
+              onClick={() => setCommunityProfileOpen(true)}
+            >
+              <UserRound className="size-5" strokeWidth={1.8} aria-hidden="true" />
+            </button>
+          ) : headerAction ? (
             <button
               type="button"
               disabled={headerAction.disabled}
@@ -3223,11 +3243,13 @@ function OwnerAppContent({
   <section className="min-h-full space-y-3.5 bg-[#f6f9fc] p-0">
     <OwnerBookingDaySchedule
       attention={!isStaffApp ? <BookingDepositNotices {...depositNotices} onOpen={notice => void openDepositNotice(notice.appointmentId)} /> : undefined}
+      holidayNames={selectedVisitHolidays}
       date={selectedVisitDate}
       appointments={bookingVisibleAppointments}
       petNames={Object.fromEntries(data.pets.map((pet) => [pet.id, pet.name]))}
       guardianNames={Object.fromEntries(data.guardians.map((guardian) => [guardian.id, guardian.name]))}
       serviceNames={Object.fromEntries(data.services.map((service) => [service.id, service.name]))}
+      services={data.services}
       serviceDurations={Object.fromEntries(data.services.map((service) => [service.id, service.duration_minutes]))}
       staffOptions={bookingStaffFilterOptions}
       selectedStaffId={bookingStaffFilter}
@@ -3245,6 +3267,7 @@ function OwnerAppContent({
     <OwnerBookingDatePicker
       open={isBookingDatePickerOpen}
       selectedDate={selectedVisitDate}
+      showHolidays
       onClose={() => setIsBookingDatePickerOpen(false)}
       onSelectDate={(date) => {
         setVisitSelectionMode("single");
@@ -3357,6 +3380,7 @@ function OwnerAppContent({
 
 {activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[12px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[12px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
+        {activeTab === "community" && <CommunityBoard key={data.shop.id} shopId={data.shop.id} shopName={data.shop.name} api={fetchApiJsonWithAuth} showTitle={false} backActionRef={communityBackRef} profileView={{ open: communityProfileOpen, onOpenChange: setCommunityProfileOpen }} />}
         {activeTab === "customers" && !selectedGuardian && (
           <section className={`min-h-full bg-[#f6f9fc] ${isCustomerListEditing && filteredGuardians.length > 0 ? "pb-[160px]" : "pb-4"}`}>
             {isCustomerListEditing ? (
@@ -3828,7 +3852,7 @@ function OwnerAppContent({
       ) : null}
 
       <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white/95 px-2.5 pb-[calc(var(--pm-safe-bottom)+2px)] pt-1 backdrop-blur-xl">
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-5 gap-1">
             {tabItems.map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.key;
@@ -3846,6 +3870,7 @@ function OwnerAppContent({
                       : "text-[var(--muted)] hover:bg-[#f8fafc]"
                   }`}
                   onClick={() => {
+                    setCommunityProfileOpen(false);
                     setActiveTab(item.key);
                     if (item.key === "book") {
                       setVisitSelectionMode("single");
@@ -4811,22 +4836,23 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
     >
       <BookingDevelopmentNotice environment={env.supabaseEnvName} shopId={data.shop.id} />
       <div className="space-y-3">
-        <div className="px-1 text-[16px] leading-6">
-          <div className="flex min-w-0 items-start justify-between gap-3 max-[300px]:flex-col max-[300px]:items-stretch">
+        <div className="text-[16px] leading-6">
+          <div data-appointment-summary className="rounded-[16px] bg-[#f5f7fa] px-4 pb-3.5 pt-3">
+          <div className="flex min-w-0 items-center justify-between gap-3 max-[300px]:flex-col max-[300px]:items-stretch">
             <p className="min-w-0 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[var(--text)] [overflow-wrap:anywhere]">
               {pet.name} {ownerHomeCopy.separator} {guardian.name}
             </p>
             {canEditSchedule && !isEditingSchedule ? (
               <button
                 type="button"
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[10px] bg-[#eaf2ff] px-3 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[var(--accent)] max-[300px]:w-full"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[10px] px-2 text-[15px] font-medium leading-6 tracking-[-0.005em] text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] max-[300px]:w-full"
                 onClick={openScheduleEditing}
               >
                 예약 일정 수정
               </button>
             ) : null}
           </div>
-          <div className="mt-3 space-y-2.5 border-y border-[#e8edf3] py-3">
+          <div className="mt-1.5 space-y-2">
             <AppointmentDetailInfoRow
               label="예약 일시"
               value={`${appointment.appointment_date} ${formatClockTime(appointment.appointment_time)}`}
@@ -4841,16 +4867,23 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
               muted={!appointment.staff_id}
             />
           </div>
-          <section className="mt-3 pb-3">
-            <div>
-              <h2 className={APPOINTMENT_DETAIL_SECTION_HEADING_CLASS}>고객 요청 메모</h2>
-              <p className={`mt-1 whitespace-pre-wrap text-[16px] font-normal leading-6 [overflow-wrap:anywhere] ${appointment.memo ? "text-[#33404f]" : "text-[#64748b]"}`}>{appointment.memo || "고객이 남긴 요청 메모가 없어요."}</p>
-            </div>
-            <div className="mt-3 border-t border-[#e8edf3] pt-3">
-              <h2 className={APPOINTMENT_DETAIL_SECTION_HEADING_CLASS}>담당자 메모</h2>
-              <p className={`mt-1 whitespace-pre-wrap text-[16px] font-normal leading-6 [overflow-wrap:anywhere] ${appointment.staff_memo ? "text-[#33404f]" : "text-[#64748b]"}`}>{appointment.staff_memo || "담당자 메모가 없어요."}</p>
-            </div>
-          </section>
+          </div>
+          {appointment.memo?.trim() || appointment.staff_memo?.trim() ? (
+            <section data-appointment-memos className="mt-4 space-y-3 px-1">
+              {appointment.memo?.trim() ? (
+                <div>
+                  <h2 className={APPOINTMENT_DETAIL_SECTION_HEADING_CLASS}>고객 요청 메모</h2>
+                  <p className="mt-1 whitespace-pre-wrap text-[16px] font-normal leading-6 text-[#33404f] [overflow-wrap:anywhere]">{appointment.memo}</p>
+                </div>
+              ) : null}
+              {appointment.staff_memo?.trim() ? (
+                <div>
+                  <h2 className={APPOINTMENT_DETAIL_SECTION_HEADING_CLASS}>담당자 메모</h2>
+                  <p className="mt-1 whitespace-pre-wrap text-[16px] font-normal leading-6 text-[#33404f] [overflow-wrap:anywhere]">{appointment.staff_memo}</p>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
           {appointment.rejection_reason && (
             <p className="mt-3 rounded-[14px] bg-[#fff6f4] px-3 py-2 text-[14px] font-medium leading-5 text-[#a04455]">
               미승인 사유: {appointment.rejection_reason}
@@ -4966,28 +4999,6 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
         </div>
         {!isEditingSchedule && !isReadOnly && canViewGuardianContact ? <OwnerBookingDepositPanel key={appointment.id} shopId={data.shop.id} appointmentId={appointment.id} guardianId={guardian.id} initialDeposit={appointment.deposit_summary} initialStatus={appointment.status} initialServiceAmount={appointment.final_service_price} onLedger={setHasDeposit} onReload={onReload} /> : null}
         {!isEditingSchedule && !isReadOnly ? <AppointmentVisitWeightEditor shopId={data.shop.id} appointmentId={appointment.id} disabled={saving} transport={visitWeightTransport} /> : null}
-        {!isEditingSchedule && canCancelAppointment ? (
-          <section className="border-b border-[#e8edf3] pb-3">
-            <button
-              type="button"
-              ref={cancelActionRef}
-              onClick={() => setIsCancelConfirmOpen(true)}
-              disabled={saving}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-[10px] border border-[#d8bfc5] bg-white px-3 text-[16px] font-medium leading-6 text-[#9a5e4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9a5e4e] focus-visible:ring-offset-2 disabled:opacity-50"
-            >
-              예약 취소
-            </button>
-            {isCancelConfirmOpen ? (
-              <div role="alertdialog" aria-modal="true" aria-label="예약 취소 확인" className="mt-2 rounded-[10px] border border-[#ead5d9] bg-[#fff7f8] p-3">
-                <p className="text-[14px] font-medium leading-5 text-[#101a31]">이 예약을 취소할까요?</p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button ref={cancelConfirmRef} type="button" onClick={() => setIsCancelConfirmOpen(false)} disabled={saving} className="min-h-11 rounded-[10px] border border-[#d8e0e9] bg-white px-3 text-[16px] font-medium leading-6 text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">유지</button>
-                  <button type="button" onClick={() => onUpdate({ status: "cancelled" })} disabled={saving} className="min-h-11 rounded-[10px] bg-[#9a5e4e] px-3 text-[16px] font-medium leading-6 text-white disabled:opacity-50">예약 취소</button>
-                </div>
-              </div>
-            ) : null}
-          </section>
-        ) : null}
         {appointment.status === "completed" ? (
           <div className="rounded-[14px] border border-[#d4e3f2] bg-[#f8fbfe] p-3">
             <div className="mb-2 flex items-center justify-between"><span className="text-[16px] font-semibold leading-6 text-[#526b84]">케어리포트</span><span className={`text-[13px] font-medium leading-5 ${resolvedCareReportStatus === "published" ? "text-[#2f8c72]" : resolvedCareReportStatus === "draft" ? "text-[#4b77b6]" : "text-[#64748b]"}`}>{resolvedCareReportStatus === "published" ? "발송 완료" : resolvedCareReportStatus === "draft" ? "임시저장" : "작성 전"}</span></div>
@@ -5017,6 +5028,28 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
               totalPages={totalNotificationPages}
               onChange={(page) => setNotificationPageState({ appointmentId: appointment.id, page })}
             />
+          </section>
+        ) : null}
+        {!isEditingSchedule && canCancelAppointment ? (
+          <section data-appointment-cancel className="border-t border-[#e8edf3] pt-2 text-center">
+            <button
+              type="button"
+              ref={cancelActionRef}
+              onClick={() => setIsCancelConfirmOpen(true)}
+              disabled={saving}
+              className="inline-flex min-h-11 items-center justify-center rounded-[10px] px-4 text-[15px] font-medium leading-6 text-[#9a5e4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9a5e4e] focus-visible:ring-offset-2 disabled:opacity-50"
+            >
+              예약 취소
+            </button>
+            {isCancelConfirmOpen ? (
+              <div role="alertdialog" aria-modal="true" aria-label="예약 취소 확인" className="mt-2 rounded-[10px] border border-[#ead5d9] bg-[#fff7f8] p-3 text-left">
+                <p className="text-[14px] font-medium leading-5 text-[#101a31]">이 예약을 취소할까요?</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button ref={cancelConfirmRef} type="button" onClick={() => setIsCancelConfirmOpen(false)} disabled={saving} className="min-h-11 rounded-[10px] border border-[#d8e0e9] bg-white px-3 text-[16px] font-medium leading-6 text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">유지</button>
+                  <button type="button" onClick={() => onUpdate({ status: "cancelled" })} disabled={saving} className="min-h-11 rounded-[10px] bg-[#9a5e4e] px-3 text-[16px] font-medium leading-6 text-white disabled:opacity-50">예약 취소</button>
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
       </div>

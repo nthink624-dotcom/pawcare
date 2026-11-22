@@ -44,15 +44,29 @@
   background: #fff8f5;
 }
 
+@media (max-width: 639px) {
+  .firstLive,
+  .revisitPreview {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .firstLiveCopy,
+  .revisitPreview > div:first-child {
+    flex: none;
+    width: 100%;
+  }
+}
+
 @media (min-width: 1024px) {
   .compactSplit {
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-    height: 384px;
+    min-height: 448px;
   }
 
   .firstSplit {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    height: 424px;
+    min-height: 448px;
   }
 
   .compactPrimary {
@@ -65,8 +79,9 @@
 
   .firstLiveCopy {
     position: static;
-    flex: 0 0 228px;
-    width: 228px;
+    flex: 1 1 196px;
+    width: auto;
+    max-width: 228px;
     transform: none;
   }
 
@@ -78,7 +93,7 @@
 
   .firstLive {
     justify-content: center;
-    gap: 28px;
+    gap: 20px;
   }
 
 }

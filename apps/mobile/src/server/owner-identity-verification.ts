@@ -13,6 +13,7 @@ import {
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 const CHALLENGE_EXPIRES_IN_MS = 1000 * 60 * 5;
+const PORTONE_REQUEST_EXPIRES_IN_MS = 1000 * 60 * 15;
 const VERIFIED_EXPIRES_IN_MS = 1000 * 60 * 10;
 const OWNER_IDENTITY_TABLE = "owner_identity_verifications";
 
@@ -292,7 +293,7 @@ export async function createProviderIdentityVerificationRequest(input: {
     phone_number: normalizePhoneNumber(input.phoneNumber),
     provider_identity_verification_id: providerIdentityVerificationId,
     provider_request_state_hash: hashProviderState(verificationState),
-    provider_request_expires_at: addMs(CHALLENGE_EXPIRES_IN_MS),
+    provider_request_expires_at: addMs(PORTONE_REQUEST_EXPIRES_IN_MS),
     created_at: createdAt,
     updated_at: createdAt,
   });

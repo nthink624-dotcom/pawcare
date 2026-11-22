@@ -44,6 +44,7 @@ export const serverEnv = {
   bookingAccessSecret: readOptionalSecret(process.env.BOOKING_ACCESS_SECRET),
   portoneStoreId: readOptionalSecret(process.env.PORTONE_STORE_ID || process.env.NEXT_PUBLIC_PORTONE_STORE_ID),
   portoneApiSecret: readOptionalSecret(process.env.PORTONE_API_SECRET),
+  portoneIdentityApiSecret: readOptionalSecret(process.env.PORTONE_IDENTITY_API_SECRET),
   portoneWebhookSecret: readOptionalSecret(process.env.PORTONE_WEBHOOK_SECRET),
   billingKeyEncryptionSecret: readOptionalSecret(process.env.BILLING_KEY_ENCRYPTION_SECRET),
   alimtalkProvider: process.env.ALIMTALK_PROVIDER || "generic",
@@ -117,6 +118,10 @@ export function isUnsafeProdSupabaseServerEnv() {
 
 export function hasPortoneServerEnv() {
   return Boolean(serverEnv.portoneApiSecret);
+}
+
+export function hasPortoneIdentityServerEnv() {
+  return Boolean(serverEnv.portoneIdentityApiSecret || serverEnv.portoneApiSecret);
 }
 
 export function hasFirebaseMessagingServerEnv() {

@@ -17,12 +17,12 @@ export default function OwnerDepositControls({ d, busy, appointmentStatus, remai
 }) {
   const cancelled = ["cancelled", "noshow"].includes(appointmentStatus), complete = appointmentStatus === "completed";
   const confirmNeeded = !cancelled && (d.state === "pending" || d.state === "reported" || d.unverified);
-  const [step, setStep] = useState<"confirm" | "refund" | null>(null), [amount, setAmount] = useState(""), [note, setNote] = useState(""), [sent, setSent] = useState(false);
-  const [name, setName] = useState(d.payerName), [editName, setEditName] = useState(false), [operation, setOperation] = useState("");
+  const [step, setStep] = useState<"refund" | null>(null), [amount, setAmount] = useState(""), [note, setNote] = useState(""), [sent, setSent] = useState(false);
+  const [name, setName] = useState(d.payerName), [operation, setOperation] = useState("");
   const [error, setError] = useState(""), [loading, setLoading] = useState(false), [expanded, setExpanded] = useState(false);
   const detailsFlight = useRef<Promise<void> | null>(null), detailsId = useId();
   const operationRef = useRef<HTMLFieldSetElement | null>(null);
-  useEffect(() => { setStep(null); setAmount(""); setNote(""); setSent(false); setName(d.payerName); setEditName(false); setOperation(""); setExpanded(false); }, [d.id, d.version]);
+  useEffect(() => { setStep(null); setAmount(""); setNote(""); setSent(false); setName(d.payerName); setOperation(""); setExpanded(false); }, [d.id, d.version]);
   async function details() {
     if (d.historyLoaded !== false) return;
     if (detailsFlight.current) return detailsFlight.current;
@@ -59,14 +59,7 @@ export default function OwnerDepositControls({ d, busy, appointmentStatus, remai
     {d.confirmationReviewRequired && <p role="status" className={helper}>입금을 다시 확인하거나 재요청하기 전까지 자동 확정·취소가 보류됩니다.</p>}
     {confirmNeeded && <p>{d.payerName ? `입금자 ${d.payerName} · ` : ""}요청 예약금 {money(d.requestedAmount)}</p>}
     {d.refundDue > 0 && <p className="flex justify-between gap-3"><span>환불할 금액</span><span className="tabular-nums">{money(d.refundDue)}</span></p>}
-    {!step && (d.refundDue > 0 ? <button type="button" className={primary} disabled={busy} onClick={() => { setSent(false); setStep("refund"); }}>환불 완료</button> : confirmNeeded ? <button type="button" className={primary} disabled={busy} onClick={() => { setAmount(""); setStep("confirm"); }}>입금 확인</button> : null)}
-    {step === "confirm" && <fieldset disabled={busy} data-deposit-form className="space-y-3">
-      <label className="grid gap-1.5">계좌에서 확인한 입금 총액 (원)<input autoFocus aria-label="실제 입금 총액" className={input} type="number" inputMode="numeric" min={1} max={10000000} value={amount} onChange={e => setAmount(e.target.value)} /></label>
-      <p className={helper}>실제 계좌 내역을 확인해 입력하세요. 나눠 입금했다면 합계만 입력합니다.</p>
-      {(!d.payerName || editName) ? <label className="grid gap-1.5">입금자명<input aria-label="오너 확인 입금자명" className={input} value={name} maxLength={50} onChange={e => setName(e.target.value)} /></label> : <button type="button" className={`${button} !text-[#64748b]`} onClick={() => setEditName(true)}>입금자명 수정</button>}
-      <button type="button" data-deposit-confirm className={primary} disabled={!amount || !Number.isInteger(Number(amount)) || Number(amount) <= 0 || Number(amount) > 10000000 || !name.trim()} onClick={() => void act("confirm_deposit", { amount: Number(amount), payerName: name, note: "실제 계좌 내역 확인" })}>입금 확인 완료</button>
-      <button type="button" className={`${button} w-full`} onClick={() => setStep(null)}>닫기</button>
-    </fieldset>}
+    {!step && (d.refundDue > 0 ? <button type="button" className={primary} disabled={busy} onClick={() => { setSent(false); setStep("refund"); }}>환불 완료</button> : confirmNeeded ? <button type="button" data-deposit-confirm className={primary} disabled={busy} onClick={() => void act("confirm_deposit", { amount: Math.max(d.requestedAmount + d.refundedTotal, d.receivedTotal), payerName: d.payerName || undefined, note: "실제 계좌 내역 확인" })}>입금 확인</button> : null)}
     {step === "refund" && <fieldset disabled={busy} data-deposit-form className="space-y-3">
       <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sent} onChange={e => setSent(e.target.checked)} />{money(d.refundDue)}을 고객에게 직접 송금했습니다.</label>
       <p className={helper}>이 버튼은 은행 송금을 실행하지 않습니다.</p><button type="button" className={primary} disabled={!sent} onClick={() => void act("refund_record", { amount: d.refundDue, note: "고객에게 직접 송금 완료 확인" })}>환불 완료 기록</button><button type="button" className={`${button} w-full`} onClick={() => setStep(null)}>닫기</button>

@@ -1,0 +1,2 @@
+const fs=require('node:fs');
+(async()=>{const p='.codex-work/community-20261109/browser-resources.json';if(!fs.existsSync(p))return;const ids=JSON.parse(fs.readFileSync(p)).ownedTabs;const tabs=await(await fetch('http://127.0.0.1:5171/json/list')).json();for(const id of ids){if(tabs.some(t=>t.id===id&&t.url.includes('/dev/community-preview')))await fetch('http://127.0.0.1:5171/json/close/'+id);}})().catch(error=>{console.error(error.message);process.exitCode=1;});

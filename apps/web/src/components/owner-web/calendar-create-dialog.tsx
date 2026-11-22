@@ -1,7 +1,7 @@
 ﻿"use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, CircleHelp } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { ScheduleDropdown, type ScheduleDropdownOption } from "@/components/owner-web/calendar-schedule-dropdown";
 import type { OwnerWebStaffColumn } from "@/components/owner-web/owner-web-staff-data";
@@ -12,6 +12,15 @@ import type { ConsentRecord } from "@petmanager/shared/contracts/booking-prepara
 export type ScheduleConsentPrompt = { policyVersion: number; documents: ConsentRecord[] };
 export type ScheduleConsentChoice = { decision: "send" | "recognize"; policyVersion: number; documents: Array<{ id: string; version: number }> };
 
+function ScheduleConsentHelp({ title, children }: { title: string; children: ReactNode }) {
+  return <details name="schedule-consent-help" data-schedule-consent-help>
+    <summary aria-label={`${title} 도움말`} className="absolute right-3 top-3 flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-[8px] text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#15213b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] [&::-webkit-details-marker]:hidden">
+      <CircleHelp className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
+    </summary>
+    <div className="mt-2 space-y-3 border-t border-[#e2e8f0] pt-3 text-[14px] font-normal leading-[21px] text-[#526175]">{children}</div>
+  </details>;
+}
+
 export function ScheduleConsentChoiceDialog({ prompt, saving, error, onCancel, onConfirm }: { prompt: ScheduleConsentPrompt; saving: boolean; error: string; onCancel: () => void; onConfirm: (choice: ScheduleConsentChoice) => void }) {
   const [decision, setDecision] = useState<"send" | "recognize">("send");
   const dialogRef = useRef<HTMLElement>(null);
@@ -20,9 +29,14 @@ export function ScheduleConsentChoiceDialog({ prompt, saving, error, onCancel, o
     const dialog = dialogRef.current;
     dialog?.querySelector<HTMLInputElement>("input:not(:disabled)")?.focus();
     const keydown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape" && !saving) { event.preventDefault(); event.stopPropagation(); onCancel(); }
+      if (event.key === "Escape" && !saving) {
+        event.preventDefault(); event.stopPropagation();
+        const help = dialog?.querySelector<HTMLDetailsElement>("[data-schedule-consent-help][open]");
+        if (help) { help.open = false; help.querySelector("summary")?.focus(); }
+        else onCancel();
+      }
       if (event.key !== "Tab" || !dialog) return;
-      const controls = Array.from(dialog.querySelectorAll<HTMLElement>("input:not(:disabled),button:not(:disabled)")).filter(control => !(control instanceof HTMLInputElement) || control.type !== "radio" || control.checked);
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>("input:not(:disabled),button:not(:disabled),summary")).filter(control => !(control instanceof HTMLInputElement) || control.type !== "radio" || control.checked);
       const first = controls[0], last = controls.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -36,10 +50,24 @@ export function ScheduleConsentChoiceDialog({ prompt, saving, error, onCancel, o
       <h2 id="schedule-consent-title" className="text-[20px] font-semibold leading-7 text-[#15213b]">동의서는 어떻게 할까요?</h2>
       {error && <p role="alert" className="text-[14px] leading-5 text-[#9a5e4e]">{error}</p>}
       <div className="space-y-2 text-[16px] leading-6 text-[#15213b]">
-        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e2e8f0] p-3"><input className="mt-1.5" type="radio" name="schedule-consent" checked={decision === "send"} disabled={saving} onChange={() => setDecision("send")} /><span>고객에게 동의서 보내기<span className="mt-1 block text-[14px] text-[#64748b]">예약 등록 후 작성 알림톡을 보냅니다.</span></span></label>
-        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e2e8f0] p-3"><input className="mt-1.5" type="radio" name="schedule-consent" checked={decision === "recognize"} disabled={saving || !eligible.length} onChange={() => setDecision("recognize")} /><span>기존에 받은 동의서 인정하기<span className="mt-1 block text-[14px] text-[#64748b]">아래 문서와 같은 내용의 동의를 실제로 받은 경우에만 선택해 주세요. 고객 전자서명과 구분해 기록합니다.</span></span></label>
+        <div className="relative rounded-[10px] border border-[#e2e8f0] p-3">
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 pr-12"><input type="radio" name="schedule-consent" checked={decision === "send"} disabled={saving} onChange={() => setDecision("send")} /><span>고객에게 동의서 보내기</span></label>
+          <ScheduleConsentHelp title="고객에게 동의서 보내기">
+            <p>예약을 등록한 뒤, 아직 작성하지 않은 동의서의 작성 링크를 알림톡으로 요청합니다. 보호자가 링크에서 문서를 확인하고 직접 동의해야 동의 완료로 기록됩니다.</p>
+            <p>발송 요청만으로 동의한 것으로 처리하지 않습니다. 매장·고객의 알림 설정과 사용 가능한 템플릿에 따라 발송이 제한될 수 있으며, 발송에 실패해도 등록한 예약은 유지됩니다. 고객 상세에서 동의 상태와 발송 결과를 확인해 주세요.</p>
+            <div className="space-y-1"><p className="font-medium text-[#15213b]">이번 예약에서 확인할 문서</p>{prompt.documents.map(doc => <p key={doc.id}>{doc.title} · 버전 {doc.version}</p>)}</div>
+          </ScheduleConsentHelp>
+        </div>
+        <div className="relative rounded-[10px] border border-[#e2e8f0] p-3">
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 pr-12"><input type="radio" name="schedule-consent" checked={decision === "recognize"} disabled={saving || !eligible.length} onChange={() => setDecision("recognize")} /><span>기존에 받은 동의서 인정하기</span></label>
+          <ScheduleConsentHelp title="기존에 받은 동의서 인정하기">
+            <p>이 반려동물에 대해 아래 문서와 같은 내용의 동의를 이미 받은 경우에 선택합니다. 저장하면 오너가 기존 동의를 확인한 기록을 남기며, 고객이 직접 작성한 전자서명과 구분해 보관합니다.</p>
+            <p>인정 기록이 유효하고 추가로 작성할 문서가 없으면, 같은 반려동물의 다음 예약에서는 이 선택 창을 다시 띄우지 않습니다.</p>
+            <p>다른 반려동물이나 새로 추가된 문서, 다시 동의를 받도록 변경된 문서는 별도로 확인합니다. 예약마다 작성하는 문서는 기존 동의 인정 대상이 아니므로 보호자에게 작성을 요청합니다.</p>
+            <div className="space-y-1"><p className="font-medium text-[#15213b]">기존 동의를 인정할 문서</p>{eligible.length ? eligible.map(doc => <p key={doc.id}>{doc.title} · 버전 {doc.version}</p>) : <p>현재 기존 동의로 인정할 수 있는 문서가 없습니다.</p>}</div>
+          </ScheduleConsentHelp>
+        </div>
       </div>
-      <div className="space-y-1 text-[14px] leading-5 text-[#64748b]">{eligible.map(doc => <p key={doc.id}>{doc.title} · 버전 {doc.version}</p>)}{prompt.documents.some(doc => doc.scope === "appointment") && <p>예약마다 작성하는 문서는 고객에게 요청합니다.</p>}</div>
       <div className="flex justify-end gap-2"><button type="button" disabled={saving} className="min-h-11 rounded-[8px] border border-[#e2e8f0] px-4 text-[16px] text-[#475569]" onClick={onCancel}>돌아가기</button><button type="button" disabled={saving} className="min-h-11 rounded-[8px] bg-[#111a30] px-4 text-[16px] font-medium text-white disabled:opacity-50" onClick={() => onConfirm({ decision, policyVersion: prompt.policyVersion, documents: eligible.map(({ id, version }) => ({ id, version })) })}>{saving ? "등록 중" : "선택하고 예약 등록"}</button></div>
     </section>
   </div>;

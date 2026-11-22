@@ -43,7 +43,7 @@ function normalizeWindow(start: number | null, end: number | null) {
   return { start: nextStart, end: nextEnd };
 }
 
-function getStaffWorkWindow(
+export function getStaffWorkWindow(
   staff: OwnerWebStaffMember,
   overrides: StaffScheduleOverride[] | undefined,
   date: string,

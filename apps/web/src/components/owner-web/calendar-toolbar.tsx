@@ -1,17 +1,17 @@
 "use client";
 
-import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { IconCalendarPlus as CalendarPlus, IconChevronLeft as ChevronLeft, IconChevronRight as ChevronRight } from "@tabler/icons-react";
 
 import { OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { StableAvatar } from "@/components/owner-web/stable-avatar";
-import { SoftSelect } from "@/components/owner-web/owner-web-ui";
+import { MemberSelector, type Member } from "@/components/ui/member-selector";
+import { getStaffWorkWindow } from "@/components/owner-web/calendar-staff-lane-columns";
+import { getScheduleStaffIdentityTone } from "@/lib/staff-chip-colors";
 import { cn } from "@/lib/utils";
-import type { OwnerWebStaffColumn } from "@/components/owner-web/owner-web-staff-data";
+import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { addDate, currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
-
-type StaffFilter = "전체 직원" | string;
 
 function formatSchedulePickerDateLabel(date: string) {
   const [year, month, day] = date.split("-").map(Number);
@@ -30,32 +30,40 @@ function formatSchedulePickerRelativeLabel(date: string, shop?: BootstrapPayload
 export function CalendarToolbar({
   shop,
   selectedDate,
-  staff,
+  selectedStaffKeys,
   visibleStaff,
+  staffMembers,
+  staffScheduleOverrides,
   onDateChange,
   onStaffChange,
   onAddSchedule,
 }: {
   shop: BootstrapPayload["shop"];
   selectedDate: string;
-  staff: StaffFilter;
+  selectedStaffKeys: string[];
   visibleStaff: OwnerWebStaffColumn[];
+  staffMembers: OwnerWebStaffMember[];
+  staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"];
   onDateChange: (date: string) => void;
-  onStaffChange: (staff: StaffFilter) => void;
+  onStaffChange: (staff: string[]) => void;
   onAddSchedule: () => void;
 }) {
   const singleStaff = visibleStaff.length <= 1;
   const dateStep = 1;
-  const selectedStaff = singleStaff
-    ? visibleStaff[0] ?? null
-    : staff === "전체 직원"
-      ? null
-      : visibleStaff.find((item) => item.key === staff) ?? null;
-  const staffLabel = selectedStaff?.name ?? (singleStaff ? "담당 없음" : "전체 직원");
+  const shopClosed = isShopClosedOnDate(shop, selectedDate);
+  const members: Member[] = visibleStaff.map((member) => {
+    const source = staffMembers.find((item) => item.id === member.key);
+    return {
+      id: member.key,
+      name: member.name,
+      color: getScheduleStaffIdentityTone(member.key, member.chipColorIndex).color,
+      workStatus: source ? !shopClosed && getStaffWorkWindow(source, staffScheduleOverrides, selectedDate) ? "working" : "off" : undefined,
+    };
+  });
 
   return (
     <div className="border-b border-[#e8edf3] bg-white px-4 py-2.5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-1">
           <button
             type="button"
@@ -63,7 +71,7 @@ export function CalendarToolbar({
             className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
             aria-label="이전 날짜"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -78,62 +86,37 @@ export function CalendarToolbar({
             className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-transparent text-[#64748b] transition hover:border-[#e1e7ef] hover:bg-[#f8fafc] hover:text-[#0f172a]"
             aria-label="다음 날짜"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="flex items-center justify-end gap-2 sm:ml-auto">
-          {singleStaff ? (
-            <div className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-[9px] border border-[#dfe6ee] bg-white px-3 text-[#0f172a] sm:w-[196px] sm:flex-none">
-              <span className="text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]">담당</span>
-              <span className="flex min-w-0 items-center gap-2">
-                {selectedStaff ? (
-                  <StableAvatar
-                    identity={selectedStaff.key}
-                    name={selectedStaff.name}
-                    imageUrl={selectedStaff.profileImageUrl}
-                    imageAssetId={selectedStaff.profileImageAssetIds?.[0]}
-                    size="sm"
-                    className="h-8 w-8"
-                  />
-                ) : null}
-                <span className="truncate text-[16px] font-medium leading-6 tracking-[-0.005em]">{staffLabel}</span>
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2" data-calendar-staff-filter="true">
-              {selectedStaff ? (
-                <StableAvatar
-                  identity={selectedStaff.key}
-                  name={selectedStaff.name}
-                  imageUrl={selectedStaff.profileImageUrl}
-                  imageAssetId={selectedStaff.profileImageAssetIds?.[0]}
-                  size="sm"
-                  className="h-8 w-8"
-                />
-              ) : null}
-              <SoftSelect<StaffFilter>
-                label="담당"
-                value={staff}
-                onChange={onStaffChange}
-                options={[
-                  { value: "전체 직원", label: "전체 직원" },
-                  ...visibleStaff.map((option) => ({ value: option.key, label: option.name })),
-                ]}
-                className="w-[164px]"
-                buttonClassName="!h-10"
-                labelClassName="text-[14px] font-medium leading-5 tracking-[-0.005em] text-[#64748b]"
-                valueClassName="text-[16px] font-medium leading-6 tracking-[-0.005em] text-[#111827]"
-                menuClassName="w-[164px] min-w-0"
-              />
-            </div>
-          )}
+        <div className="flex w-full min-w-0 items-center justify-end gap-2 sm:ml-auto sm:w-auto">
+          {visibleStaff.length ? <div className="w-[136px] min-w-0 shrink" data-calendar-staff-filter="true">
+            <MemberSelector
+              allLabel={singleStaff ? undefined : "전체 직원"}
+              members={members}
+              selected={selectedStaffKeys}
+              onChange={onStaffChange}
+              className="w-full"
+              renderAvatar={(member) => {
+                const option = visibleStaff.find((item) => item.key === member.id);
+                return <StableAvatar
+                  identity={member.id} name={member.name}
+                  imageUrl={option?.profileImageUrl} imageUrls={option?.profileImageUrls}
+                  imageAssetIds={option?.profileImageAssetIds}
+                  profileImageFallbackKey={option?.profileImageFallbackKey}
+                  className="h-full w-full"
+                />;
+              }}
+            />
+          </div> : <span className="text-[14px] text-[#64748b]">담당 없음</span>}
           <button
             type="button"
+            data-owner-control-size="content"
             onClick={onAddSchedule}
             className={cn(
               OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
-              "!min-w-[136px] !px-5 !text-[16px] !leading-6 !tracking-[-0.005em] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
+              "h-11 min-w-[110px] shrink-0 px-3 text-[15px] sm:min-w-[136px] sm:px-5 sm:text-[16px] focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
             )}
           >
             <CalendarPlus className="h-[18px] w-[18px]" aria-hidden="true" />

@@ -17,6 +17,7 @@ const screenKeyByOwnerScreen: Record<OwnerWebScreenKey, TesterFeedbackScreenKey>
   customers: "customers",
   calendarRecords: "calendar",
   profitability: "other",
+  community: "other",
   services: "services",
   staff: "staff",
   ownerProfile: "shop_settings",

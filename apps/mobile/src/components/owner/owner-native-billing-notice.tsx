@@ -3,7 +3,7 @@
 import { RefreshCw } from "lucide-react";
 
 import { AppButton } from "@/components/ui/app-button";
-import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
+import { getOwnerPlanDisplayName, getOwnerPlanByCode } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 
 function formatDate(value: string | null) {
@@ -45,7 +45,7 @@ export function OwnerNativeBillingNotice({
       <section className="border-b border-[#e8e5df] pb-6">
         <p className="text-[13px] font-semibold text-[#1f5b51]">현재 플랜</p>
         <h1 className="mt-2 text-[24px] font-semibold leading-[1.3] tracking-[0]">
-          {getOwnerPlanDisplayName(summary.currentPlanCode)}
+          {getOwnerPlanByCode(summary.currentPlanCode) ? getOwnerPlanDisplayName(summary.currentPlanCode) : summary.currentPlan.title}
         </h1>
         <div className="mt-5 grid grid-cols-2 gap-3 text-[14px]">
           <div className="rounded-[8px] border border-[#e4e1da] bg-[#faf9f7] px-4 py-3">

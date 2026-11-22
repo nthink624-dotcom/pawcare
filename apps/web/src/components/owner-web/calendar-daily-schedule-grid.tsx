@@ -3,6 +3,7 @@
 import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { NotebookPen, Scissors } from "lucide-react";
+import { buildServiceReservationChipTones, type ReservationChipService } from "@petmanager/shared/lib/reservation-chip-colors";
 
 import {
   buildScheduleStaffLaneColumns,
@@ -12,7 +13,7 @@ import {
 import { CalendarStaffLaneHeader } from "@/components/owner-web/calendar-staff-lane-header";
 import { CalendarTimeRail, CalendarTimeRailHeader } from "@/components/owner-web/calendar-time-rail";
 import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
-import { getStaffChipTone } from "@/lib/staff-chip-colors";
+import { getReservationChipTone } from "@/lib/reservation-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { StaffScheduleOverride } from "@/types/domain";
 
@@ -48,6 +49,7 @@ type DailyBooking = {
   pet: string;
   customer: string;
   service: string;
+  serviceId?: string;
   petId?: string;
   status: string;
   sourceStatus?: string;
@@ -330,6 +332,7 @@ function hasStaffBookingConflict(bookings: DailyBooking[], bookingId: string, ne
 export function DailyScheduleGrid({
   shopId,
   bookings,
+  services,
   staff,
   visibleStaff,
   staffMembers,
@@ -348,6 +351,7 @@ export function DailyScheduleGrid({
 }: {
   shopId: string;
   bookings: DailyBooking[];
+  services: readonly ReservationChipService[];
   staff: StaffFilter;
   visibleStaff: OwnerWebStaffColumn[];
   staffMembers: OwnerWebStaffMember[];
@@ -364,6 +368,7 @@ export function DailyScheduleGrid({
   onMoveBooking: (bookingId: string, next: { staffKey: StaffKey; staffName: string; staff: string; start: number }) => void;
   onResizeBooking: (bookingId: string, duration: number) => void;
 }) {
+  const serviceTones = useMemo(() => buildServiceReservationChipTones(services), [services]);
   const timelineViewportRef = useRef<HTMLDivElement | null>(null);
   const headerScrollerRef = useRef<HTMLDivElement | null>(null);
   const bodyScrollerRef = useRef<HTMLDivElement | null>(null);
@@ -402,6 +407,8 @@ export function DailyScheduleGrid({
       ? "0 0 25%"
       : `0 0 calc(100% / ${columnCount})`;
   const scheduleTrackStyle = scheduleTrackWidth ? { width: scheduleTrackWidth, minWidth: scheduleTrackWidth } : undefined;
+  // 상세가 옆에 붙어 달력이 좁아지면 직원 4명 이하여도 칸(최소 240px)이 넘칠 수 있으므로 끌어서 옆으로 넘길 수 있게 한다.
+  const horizontallyPannable = scrollable || (scheduleTrackWidth !== null && columnCount * 240 > scheduleTrackWidth);
   const displayedVisibleBookings = resizingBooking
     ? visibleBookings.map((booking) =>
         booking.id === resizingBooking.bookingId ? { ...booking, duration: resizingBooking.nextDuration } : booking,
@@ -483,6 +490,19 @@ export function DailyScheduleGrid({
     return () => resizeObserver.disconnect();
   }, [columnCount]);
 
+  // 예약을 열면 그 예약의 직원 칸이 보이도록 가로 스크롤한다. 덮는 상세 시트가 있으면 시트 왼쪽까지만 보이는 영역으로 본다.
+  useEffect(() => {
+    const scroller = bodyScrollerRef.current;
+    if (!selectedBookingId || !scroller) return;
+    const column = scroller.querySelector<HTMLElement>(`[data-booking-id="${CSS.escape(selectedBookingId)}"]`)?.closest<HTMLElement>("[data-schedule-staff-column]");
+    if (!column) return;
+    const view = scroller.getBoundingClientRect(), target = column.getBoundingClientRect();
+    const sheet = document.querySelector<HTMLElement>('[data-booking-detail-mode="sheet"] > [role="dialog"]');
+    const right = Math.min(view.right, sheet?.getBoundingClientRect().left ?? view.right);
+    const offset = target.left < view.left - 1 ? target.left - view.left : target.right > right + 1 ? Math.min(target.right - right, target.left - view.left) : 0;
+    if (offset) scroller.scrollLeft += offset;
+  }, [selectedBookingId, scheduleTrackWidth]);
+
   function syncHorizontalScroll(source: "header" | "body") {
     if (syncingScrollRef.current) return;
     const from = source === "header" ? headerScrollerRef.current : bodyScrollerRef.current;
@@ -510,7 +530,7 @@ export function DailyScheduleGrid({
   }
 
   function handleBoardPanPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!scrollable) return;
+    if (!horizontallyPannable) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     if (shouldSkipBoardPan(event.target)) return;
 
@@ -731,7 +751,7 @@ export function DailyScheduleGrid({
         className={cn(
           "pm-schedule-y-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-white select-none",
           boardPanning && "cursor-grabbing snap-none",
-          !boardPanning && scrollable && "cursor-grab",
+          !boardPanning && horizontallyPannable && "cursor-grab",
         )}
       >
         <div className="flex">
@@ -824,8 +844,7 @@ export function DailyScheduleGrid({
                           const changeStatus = isChangeBookingStatus(booking.status);
                           const timedStatus = getTimedBookingStatus(booking, selectedDate, currentHour);
                           const completedBooking = isCompletedBookingStatus(booking.sourceStatus ?? booking.status);
-                          const bookingStaff = visibleStaff.find((member) => member.key === booking.staffKey);
-                          const identityTone = getStaffChipTone(booking.staffKey, bookingStaff?.chipColorIndex);
+                          const identityTone = getReservationChipTone(booking.serviceId, serviceTones);
                           const canAdjustBookingTime = !changeStatus && !completedBooking;
                           const density = getBookingCardDensity(booking.duration);
                           const expandedMicro = density === "compact" && expandedMicroBookingId === booking.id;
@@ -852,16 +871,15 @@ export function DailyScheduleGrid({
                                   onSelectStaff(booking.staffKey || firstStaffKey);
                                 }}
                                 className={cn(
-                                  "group/booking absolute z-20 box-border flex min-h-11 items-start justify-start overflow-hidden rounded-[14px] border border-l-[3px] p-0 text-left text-[#334155] shadow-[0_1px_2px_rgba(15,23,42,0.03)] outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_3px_10px_rgba(15,23,42,0.07)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
+                                  "group/booking absolute z-20 box-border flex min-h-11 items-start justify-start overflow-hidden rounded-[14px] border p-0 text-left text-[#334155] shadow-[0_1px_2px_rgba(15,23,42,0.03)] outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_3px_10px_rgba(15,23,42,0.07)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1",
                                   selected && "!border-[#bcd5fa] shadow-[0_3px_12px_rgba(37,99,235,0.09)] ring-1 ring-[#bcd5fa]",
                                 )}
                                 style={{
                                   ...bookingLayoutStyle,
                                   top: getBookingTop(booking.start, scheduleDisplayLayout),
                                   height: bookingHeight,
-                                  backgroundColor: completedBooking ? "#f8fafc" : identityTone.background,
-                                  borderColor: completedBooking ? "#dde5ef" : identityTone.border,
-                                  borderLeftColor: identityTone.selectedBackground,
+                                  backgroundColor: completedBooking ? identityTone.mutedBackground : identityTone.background,
+                                  borderColor: completedBooking ? identityTone.mutedBackground : identityTone.border,
                                 }}
                               >
                                 <BookingChipContent booking={booking} timeLabel={booking.scheduledTimeLabel ?? timeLabel} statusLabel={statusLabel} statusPillClass={statusPillClass} height={bookingHeight} pendingOverlapLabel={pendingOverlapLabel} />
@@ -887,7 +905,7 @@ export function DailyScheduleGrid({
                                 setExpandedMicroBookingId(density === "compact" ? booking.id : null);
                               }}
                               className={cn(
-                                "group/booking absolute z-20 box-border cursor-grab overflow-hidden rounded-[14px] border border-l-[3px] p-0 text-left shadow-[0_1px_2px_rgba(15,23,42,0.03)] outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_3px_10px_rgba(15,23,42,0.07)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1 active:cursor-grabbing",
+                                "group/booking absolute z-20 box-border cursor-grab overflow-hidden rounded-[14px] border p-0 text-left shadow-[0_1px_2px_rgba(15,23,42,0.03)] outline-none transition-[filter,box-shadow] hover:brightness-[0.99] hover:shadow-[0_3px_10px_rgba(15,23,42,0.07)] focus-visible:ring-2 focus-visible:ring-[#1677ff]/70 focus-visible:ring-offset-1 active:cursor-grabbing",
                                 !canAdjustBookingTime && "cursor-pointer active:cursor-pointer",
                                 resizingBooking?.bookingId === booking.id && "cursor-ns-resize",
                                 draggingBookingId === booking.id && "opacity-70 ring-1 ring-[#93c5fd]",
@@ -898,9 +916,8 @@ export function DailyScheduleGrid({
                                 ...bookingLayoutStyle,
                                 top: getBookingTop(booking.start, scheduleDisplayLayout),
                                 height: bookingHeight,
-                                backgroundColor: completedBooking ? "#f8fafc" : identityTone.background,
-                                borderColor: completedBooking ? "#dde5ef" : identityTone.border,
-                                borderLeftColor: identityTone.selectedBackground,
+                                backgroundColor: completedBooking ? identityTone.mutedBackground : identityTone.background,
+                                borderColor: completedBooking ? identityTone.mutedBackground : identityTone.border,
                               }}
                             >
                               <BookingChipContent booking={booking} timeLabel={displayTimeLabel} statusLabel={statusLabel} statusPillClass={statusPillClass} height={bookingHeight} pendingOverlapLabel={pendingOverlapLabel} />

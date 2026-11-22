@@ -931,7 +931,7 @@ export default function CalendarRecordsScreen({
         </div> : null}
 
         <div data-calendar-month-layout="true" className="grid min-h-0 flex-1 items-stretch overflow-visible rounded-b-[14px] sm:overflow-hidden lg:grid-cols-[minmax(0,1fr)_clamp(300px,24vw,380px)]">
-          <section data-calendar-month-board="true" className="flex min-h-0 min-w-0 flex-col overflow-visible rounded-b-[14px] bg-[#f1f5f9] sm:overflow-hidden xl:border-r xl:border-[#edf2f7]">
+          <section data-calendar-month-board="true" className="flex min-h-0 min-w-0 flex-col overflow-visible bg-white sm:overflow-hidden">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-auto">
             <div className="grid min-w-[720px] shrink-0 grid-cols-7 border-b border-[#e5e7eb] bg-white lg:min-w-0">
               {weekdayLabels.map((label) => (
@@ -945,7 +945,7 @@ export default function CalendarRecordsScreen({
 
             <div
               data-calendar-month-grid="true"
-              className="grid min-h-0 min-w-[720px] flex-1 grid-cols-7 gap-px bg-[#eef2f7] p-px lg:min-w-0"
+              className="grid min-h-0 min-w-[720px] flex-1 grid-cols-7 gap-px bg-[#eef2f7] lg:min-w-0"
               style={{ gridTemplateRows: `repeat(${calendarWeekRows}, minmax(0, 1fr))` }}
             >
               {monthDates.map((date, index) => {
@@ -1185,7 +1185,7 @@ function GroomingDatePanel({
   ];
 
   return (
-    <aside data-calendar-month-detail-panel="true" className="min-h-0 min-w-0 overflow-y-auto rounded-b-[14px] bg-[#f2f5f8] lg:flex lg:flex-col lg:overflow-hidden">
+    <aside data-calendar-month-detail-panel="true" className="min-h-0 min-w-0 overflow-y-auto border-t border-[#e8edf3] bg-white lg:flex lg:flex-col lg:overflow-hidden lg:border-l lg:border-t-0">
       <div
         className={cn(
           "relative z-[1] border-b border-[#edf1f5] bg-white px-4 pb-3 pt-4 transition-shadow duration-200 lg:shrink-0",

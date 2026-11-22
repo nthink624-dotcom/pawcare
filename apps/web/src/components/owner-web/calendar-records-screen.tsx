@@ -9,7 +9,6 @@ import {
   IconChevronLeft as ChevronLeft,
   IconChevronRight as ChevronRight,
   IconPaw as PawPrint,
-  IconPlus,
   IconX as X,
 } from "@tabler/icons-react";
 import dynamic from "next/dynamic";
@@ -25,7 +24,8 @@ import { useSupportPrograms } from "@petmanager/shared/lib/use-support-programs"
 import { fetchOwnerScheduleRange, replaceScheduleRangeInBootstrap } from "@/components/owner-web/calendar-owner-api";
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
 import { OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
-import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, statusIndicatorColor, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
+import type { OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
+import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
@@ -33,6 +33,10 @@ import type { AppointmentChangeEvent, AppointmentStatus, BootstrapPayload } from
 
 const BookingPreparationPanel = dynamic(() => import("@/components/booking/booking-preparation-panel"));
 const CalendarImportDialog = dynamic(() => import("@/components/owner-web/calendar-import-dialog"));
+// Same create flow as the daily schedule, opened in place so the owner stays on the calendar.
+const OwnerDateScheduleCreateFlow = dynamic(() =>
+  import("@/components/owner-web/calendar-management-screen").then((module) => module.OwnerDateScheduleCreateFlow),
+);
 
 type GroomingCalendarRecord = {
   id: string;
@@ -572,10 +576,6 @@ function getItemStatusGroup(item: Pick<DayItem, "type" | "status">): CalendarSta
   return "confirmed";
 }
 
-// Each status gets its own row in a cell: one dot per item up to this many, above it the row ends with a "+" mark.
-// Exact counts stay in the cell's title/aria-label and in the date panel.
-const CALENDAR_CELL_MAX_STATUS_DOTS = 5;
-
 // Notes are drawn as bars across the days they cover, at most this many stacked per week row.
 // The top offset places the first bar right under the date line: 1px border + 8px padding + 20px date line + 2px gap.
 const CALENDAR_NOTE_MAX_LANES = 2;
@@ -583,7 +583,7 @@ const CALENDAR_NOTE_BAR_HEIGHT = 18;
 const CALENDAR_NOTE_BAR_STEP = 20;
 const CALENDAR_NOTE_BAR_TOP = 31;
 // Each note in the month gets the next tone in order of its first bar, so neighbouring and stacked notes never share a color
-// and a note that wraps to the next week keeps its color. Hues stay clear of the green/slate/red status dots.
+// and a note that wraps to the next week keeps its color. Hues stay clear of the green/slate/red status colors.
 const CALENDAR_NOTE_TONES = [
   { background: "#fff0e3", accent: "#ef8a42", text: "#8f4512" },
   { background: "#f1ecff", accent: "#8b5cf6", text: "#5b3fa8" },
@@ -593,6 +593,7 @@ const CALENDAR_NOTE_TONES = [
   { background: "#fdf5d3", accent: "#d4a514", text: "#7a5d06" },
 ] as const;
 
+// Day cells draw no status marks (the date panel lists them); these counts only feed the cell's screen-reader label.
 function getCalendarCellStatusLines(items: DayItem[]) {
   const counts = { reserved: 0, completed: 0, cancelled: 0 };
   for (const item of items) {
@@ -602,9 +603,9 @@ function getCalendarCellStatusLines(items: DayItem[]) {
     else counts.reserved += 1;
   }
   return [
-    { key: "reserved", label: "예약", count: counts.reserved, color: statusIndicatorColor.confirmed },
-    { key: "completed", label: "완료", count: counts.completed, color: statusIndicatorColor.completed },
-    { key: "cancelled", label: "취소", count: counts.cancelled, color: statusIndicatorColor.cancelled },
+    { label: "예약", count: counts.reserved },
+    { label: "완료", count: counts.completed },
+    { label: "취소", count: counts.cancelled },
   ].filter((line) => line.count > 0);
 }
 
@@ -671,12 +672,13 @@ export default function CalendarRecordsScreen({
   initialData,
   shopEventsEnabled = initialData.mode === "supabase",
   onDataChange,
-  onCreateReservationForDate,
+  staffMembers,
 }: {
   initialData: BootstrapPayload;
   shopEventsEnabled?: boolean;
   onDataChange?: (data: BootstrapPayload) => void;
-  onCreateReservationForDate?: (date: string) => void;
+  /** Saved staff used by the in-place reservation create flow; omit to hide 예약 추가. */
+  staffMembers?: OwnerWebStaffMember[];
 }) {
   const records = useMemo(() => buildRecordsFromBootstrap(initialData), [initialData]);
   const initialReservations = useMemo(() => buildReservationsFromBootstrap(initialData), [initialData]);
@@ -688,6 +690,7 @@ export default function CalendarRecordsScreen({
   const [statusFilter, setStatusFilter] = useState<CalendarStatusFilter>("all");
   const [selectedItem, setSelectedItem] = useState<DayItem | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [createDate, setCreateDate] = useState<string | null>(null);
   const month = monthAnchor.slice(0, 7);
   const { holidays, holidayError, reloadHolidays } = useCalendarHolidays(month, fetchApiJson);
   const { deadlines: supportDeadlines } = useSupportPrograms(true, fetchApiJson, initialData.shop.address ?? "");
@@ -1009,24 +1012,6 @@ export default function CalendarRecordsScreen({
                         </span>
                       ) : null}
                     </span>
-                    {statusLines.length > 0 ? (
-                      <span
-                        className="flex shrink-0 flex-col gap-[3px]"
-                        title={statusLines.map((line) => `${line.label} ${line.count}`).join(" · ")}
-                        aria-hidden="true"
-                      >
-                        {statusLines.map((line) => (
-                          <span key={line.key} className="flex h-2 items-center gap-[3px]">
-                            {Array.from({ length: Math.min(line.count, CALENDAR_CELL_MAX_STATUS_DOTS) }, (_, index) => (
-                              <span key={index} className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ backgroundColor: line.color }} />
-                            ))}
-                            {line.count > CALENDAR_CELL_MAX_STATUS_DOTS ? (
-                              <IconPlus size={9} stroke={3} className="shrink-0" style={{ color: line.color }} />
-                            ) : null}
-                          </span>
-                        ))}
-                      </span>
-                    ) : null}
                   </button>
                 );
               })}
@@ -1081,12 +1066,30 @@ export default function CalendarRecordsScreen({
               onRefresh={reloadEvents}
             /> : null}
             onSelectItem={openItem}
-            onAddReservation={onCreateReservationForDate ? () => onCreateReservationForDate(selectedDate) : undefined}
+            onAddReservation={staffMembers ? () => setCreateDate(selectedDate) : undefined}
           />
         </div>
       </section>
 
-      {importOpen ? <CalendarImportDialog key={initialData.shop.id} shopId={initialData.shop.id} month={month} onClose={() => setImportOpen(false)} onImported={reloadEvents} /> : null}
+      {createDate && staffMembers ? (
+        <OwnerDateScheduleCreateFlow
+          key={`${initialData.shop.id}/${createDate}`}
+          data={initialData}
+          staffMembers={staffMembers}
+          date={createDate}
+          staffKey={staffFilter === "all" ? null : staffFilter}
+          onClose={() => setCreateDate(null)}
+          onCreated={(nextData, date) => {
+            latestDataRef.current = nextData;
+            onDataChangeRef.current?.(nextData);
+            setCreateDate(null);
+            setSelectedDate(date);
+            if (date.slice(0, 7) !== month) setMonthAnchor(date);
+          }}
+        />
+      ) : null}
+
+      {importOpen ?<CalendarImportDialog key={initialData.shop.id} shopId={initialData.shop.id} month={month} onClose={() => setImportOpen(false)} onImported={reloadEvents} /> : null}
 
       {selectedItem ? (
         <GroomingRecordSheet

@@ -23,13 +23,14 @@ test("owner schedule keeps staff metadata readable and has no weekly view entry 
 
 test("schedule toolbar keeps the assignee filter and add-booking control on the Korean UI type scale", () => {
   const toolbar = source("src/components/owner-web/calendar-toolbar.tsx");
+  const selector = source("src/components/ui/member-selector.tsx");
 
-  assert.match(toolbar, /labelClassName="text-\[14px\] font-medium leading-5 tracking-\[-0\.005em\] text-\[#64748b\]"/);
-  assert.match(toolbar, /valueClassName="text-\[16px\] font-medium leading-6 tracking-\[-0\.005em\] text-\[#111827\]"/);
-  assert.match(toolbar, /buttonClassName="!h-11"/);
-  assert.match(toolbar, /!text-\[16px\] !font-medium !leading-6 !tracking-\[-0\.005em\]/);
-  assert.match(toolbar, /!bg-\[#1d4ed8\][\s\S]*focus-visible:ring-\[#2563eb\]/);
-  assert.match(toolbar, /CalendarPlus className="h-4 w-4" aria-hidden="true"/);
+  assert.match(toolbar, /<MemberSelector\s+allLabel=\{singleStaff \? undefined : "전체 직원"\}/);
+  assert.match(toolbar, /data-owner-control-size="content"[\s\S]*onClick=\{onAddSchedule\}/);
+  assert.match(toolbar, /OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,\s+"h-11 [^"\n]*text-\[15px\][^"\n]*sm:text-\[16px\]/);
+  assert.match(selector, /summaryClass = "flex h-11 [^"\n]*text-sm font-medium/);
+  assert.match(selector, /aria-expanded=\{isOpen\} aria-haspopup="dialog"/);
+  assert.match(selector, /allSelected && allLabel \? "전체"/);
 });
 
 test("booking dialog scopes editable-field focus to clear blue without changing global inputs", () => {

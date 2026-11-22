@@ -1,34 +1,37 @@
 "use client";
 
+import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
+
+
 import { isOwnerStartupPresentation } from "@petmanager/shared/lib/owner-startup-projection";
 import { OwnerStartupDetailsBoundary } from "@petmanager/shared/components/owner-startup-details-boundary";
 
 
 import {
-  AlertTriangle,
-  CalendarPlus,
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Clock,
-  Copy,
-  History,
-  Loader2,
-  MessageCircle,
-  NotebookPen,
-  PawPrint,
-  Pencil,
-  Play,
-  QrCode,
-  Scissors,
-  Send,
-  ShieldAlert,
-  Sparkles,
-  User,
-  X,
-} from "lucide-react";
+  IconAlertTriangle as AlertTriangle,
+  IconCalendarPlus as CalendarPlus,
+  IconCircleCheck as CheckCircle2,
+  IconChevronDown as ChevronDown,
+  IconChevronLeft as ChevronLeft,
+  IconChevronRight as ChevronRight,
+  IconClipboardList as ClipboardList,
+  IconClock as Clock,
+  IconCopy as Copy,
+  IconHistory as History,
+  IconLoader2 as Loader2,
+  IconMessageCircle as MessageCircle,
+  IconNotes as NotebookPen,
+  IconPaw as PawPrint,
+  IconPencil as Pencil,
+  IconPlayerPlay as Play,
+  IconQrcode as QrCode,
+  IconScissors as Scissors,
+  IconSend as Send,
+  IconShieldExclamation as ShieldAlert,
+  IconSparkles as Sparkles,
+  IconUser as User,
+  IconX as X,
+} from "@tabler/icons-react";
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
@@ -2433,7 +2436,7 @@ function BookingSidePanel({
                 cancelAction={preparationCancelAction?.bookingId === selectedBooking.id ? preparationCancelAction : null}
                 onStatusChanged={(status) => onRefreshAfterStatusChange(selectedBooking.id, selectedBooking.appointmentDate ?? selectedBooking.date, status)}
               /></div>
-              {detailEditMode === "time" && <div ref={timeEditorRef} className="space-y-3 rounded-[10px] border border-[#e5e8ec] p-3"><label className="grid gap-1.5 text-[16px]">예약 날짜<input aria-label="변경할 예약 날짜" type="date" className="min-h-11 w-full rounded-[10px] border border-[#dbe2ea] px-3" value={editableDate} onChange={e => setEditableDate(e.target.value)} /></label><div className="grid grid-cols-2 gap-3"><label className="grid gap-1.5">시작<input aria-label="변경할 시작 시간" type="time" className="min-h-11 w-full min-w-0 rounded-[10px] border border-[#dbe2ea] px-3" value={editableStartTime} onChange={e => setEditableStartTime(e.target.value)} /></label><label className="grid gap-1.5">종료<input aria-label="변경할 종료 시간" type="time" className="min-h-11 w-full min-w-0 rounded-[10px] border border-[#dbe2ea] px-3" value={editableEndTime} onChange={e => setEditableEndTime(e.target.value)} /></label></div>{editableDate !== selectedBooking.appointmentDate && selectedBooking.depositSummary && <label className="grid gap-1.5">기존 예약금을 새 날짜에도 사용할까요?<select className="min-h-11 rounded-[10px] border border-[#dbe2ea] px-3" aria-label="날짜 변경 예약금 승계" value={depositTransfer} onChange={e => setDepositTransfer(e.target.value)}><option value="">선택해 주세요</option><option value="yes">기존 예약금 사용</option><option value="no">새 날짜는 별도로 요청</option></select></label>}<button type="button" disabled={detailSaving} className="min-h-11 w-full rounded-[10px] bg-[#111a30] px-3 text-[16px] text-white disabled:opacity-50" onClick={() => void saveEditableDetail()}>예약 수정 저장</button></div>}
+              {detailEditMode === "time" && <div ref={timeEditorRef} className="space-y-3 rounded-[10px] border border-[#e5e8ec] p-3"><label className="grid gap-1.5 text-[16px]">예약 날짜<input aria-label="변경할 예약 날짜" type="date" className="min-h-11 w-full rounded-[10px] border border-[#dbe2ea] px-3" value={editableDate} onChange={e => setEditableDate(e.target.value)} /></label><div className="grid grid-cols-2 gap-3"><label className="grid gap-1.5">시작<WheelTimeField aria-label="변경할 시작 시간"  className="min-h-11 w-full min-w-0 rounded-[10px] border border-[#dbe2ea] px-3" value={editableStartTime} onValueChange={nextTime => setEditableStartTime(nextTime)} /></label><label className="grid gap-1.5">종료<WheelTimeField aria-label="변경할 종료 시간"  className="min-h-11 w-full min-w-0 rounded-[10px] border border-[#dbe2ea] px-3" value={editableEndTime} onValueChange={nextTime => setEditableEndTime(nextTime)} /></label></div>{editableDate !== selectedBooking.appointmentDate && selectedBooking.depositSummary && <label className="grid gap-1.5">기존 예약금을 새 날짜에도 사용할까요?<select className="min-h-11 rounded-[10px] border border-[#dbe2ea] px-3" aria-label="날짜 변경 예약금 승계" value={depositTransfer} onChange={e => setDepositTransfer(e.target.value)}><option value="">선택해 주세요</option><option value="yes">기존 예약금 사용</option><option value="no">새 날짜는 별도로 요청</option></select></label>}<button type="button" disabled={detailSaving} className="min-h-11 w-full rounded-[10px] bg-[#111a30] px-3 text-[16px] text-white disabled:opacity-50" onClick={() => void saveEditableDetail()}>예약 수정 저장</button></div>}
               {selectedGuardianAlimtalkBlockedReason ? (
                 <div className="mb-2 rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[14px] leading-5 text-[#475569]">
                   {selectedGuardianAlimtalkBlockedReason}
@@ -2447,12 +2450,12 @@ function BookingSidePanel({
                 </div>
                 <div className="flex min-w-0 items-center gap-3 border-b border-[#f0f2f4] bg-white px-3.5 py-2.5 text-[16px] font-normal leading-6 text-[#15213b]">
                   <span className="inline-flex min-w-0 items-center gap-1.5 tabular-nums">
-                    <Clock className="h-4 w-4 shrink-0 text-[#94a3b8]" />
+                    <Clock className="h-4 w-4 shrink-0 text-[#94a3b8]" aria-hidden="true" />
                     {timeRange}
                   </span>
                     <span className="h-4 w-px shrink-0 bg-[#eef0f2]" aria-hidden="true" />
                   <span className="inline-flex min-w-0 items-center gap-1.5">
-                    <User className="h-4 w-4 shrink-0 text-[#94a3b8]" />
+                    <User className="h-4 w-4 shrink-0 text-[#94a3b8]" aria-hidden="true" />
                     <span className="truncate">{staffLabel} 담당자</span>
                   </span>
                 </div>
@@ -2547,7 +2550,7 @@ function BookingSidePanel({
               onClick={() => onOpenCareReport(selectedBooking)}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[#2f6fd6] px-3 text-[16px] font-medium leading-6 text-white transition hover:bg-[#255fc1]"
             >
-              <Sparkles className="h-4 w-4 shrink-0" />
+              <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
               {careReportWriting ? "케어리포트 작성 중" : "AI 케어리포트 작성·이어보기"}
             </button>
           </section>
@@ -2562,7 +2565,7 @@ function BookingSidePanel({
                     disabled={statusChanging}
                     className="inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px] bg-[var(--acc-dk)] px-3 text-[16px] font-medium text-white transition hover:brightness-[0.92] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Play className="h-4 w-4 shrink-0" />
+                    <Play className="h-4 w-4 shrink-0" aria-hidden="true" />
                     {statusChanging ? "상태 저장 중" : "미용 시작하기"}
                   </button>
                   <div className="grid grid-cols-2 gap-2">
@@ -2597,7 +2600,7 @@ function BookingSidePanel({
                     disabled={statusChanging}
                     className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[var(--acc-dk)] px-3 text-[16px] font-medium text-white transition hover:brightness-[0.92] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
                     {statusChanging ? "상태 저장 중" : "픽업 준비"}
                 </button>
               ) : sourceStatus === "픽업 준비" ? (
@@ -2608,7 +2611,7 @@ function BookingSidePanel({
                     disabled={statusChanging}
                     className="inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[var(--acc-dk)] px-3 text-[16px] font-medium text-white transition hover:brightness-[0.92] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
                     미용 완료
                   </button>
                 </div>
@@ -2630,7 +2633,7 @@ function BookingSidePanel({
                       onClick={() => requestStatusChange(selectedBooking.id, "취소")}
                       className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#475569] transition hover:bg-[#f8fafc]"
                     >
-                      <X className="h-4 w-4 text-[#64748b]" />
+                      <X className="h-4 w-4 text-[#64748b]" aria-hidden="true" />
                       예약 취소
                     </button>
                   ) : null}
@@ -2827,7 +2830,7 @@ function DetailCard({ icon: Icon, title, children, className }: { icon: typeof U
   return (
     <section className={cn("rounded-[8px] border border-[#e2e8f0] bg-white p-4", className)}>
       <div className="mb-3 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-[#2f7866]" />
+        <Icon className="h-4 w-4 text-[#2f7866]" aria-hidden="true" />
         <h4 className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">{title}</h4>
       </div>
       {children}
@@ -2849,7 +2852,7 @@ function GuardianInfoCard({ name, phone, onCopyPhone }: { name: string; phone: s
           onClick={onCopyPhone}
           className="inline-flex min-h-11 items-center justify-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[14px] font-medium leading-5 text-[#334155] hover:bg-[#f8fafc]"
         >
-          <Copy className="h-4 w-4 text-[#64748b]" />
+          <Copy className="h-4 w-4 text-[#64748b]" aria-hidden="true" />
           번호 복사
         </button>
       </div>
@@ -3182,7 +3185,7 @@ function PetBiteLevelScale({ level }: { level: PetBiteLevel }) {
 function PetImageBlock({ pet }: { pet: string }) {
   return (
     <div className="flex h-[112px] w-[128px] shrink-0 items-center justify-center rounded-[8px] border border-[#d5dde7] bg-[#f8fafc]">
-      <PawPrint className="h-9 w-9 text-[#9aa8ba]" />
+      <PawPrint className="h-9 w-9 text-[#9aa8ba]" aria-hidden="true" />
       <span className="sr-only">{pet} 이미지</span>
     </div>
   );
@@ -3206,7 +3209,7 @@ function MissedStartAlert({
   return (
     <div className={cn("rounded-[8px] border px-4 py-3", strong ? "border-[#e8c67e] bg-[#fff7ed]" : "border-[#dbe2ea] bg-[#f8fafc]")}>
       <div className="flex items-start gap-3">
-        <AlertTriangle className={cn("mt-0.5 h-5 w-5", strong ? "text-[#b98121]" : "text-[#64748b]")} />
+        <AlertTriangle className={cn("mt-0.5 h-5 w-5", strong ? "text-[#b98121]" : "text-[#64748b]")} aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-[#e8c67e] bg-white px-2 py-0.5 text-[12px] font-medium text-[#9a640f]">방문 확인 필요</span>
@@ -3292,7 +3295,7 @@ function PersistentBookingPanelHero({
               : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]",
           )}
         >
-          {startEnabled ? <Play className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
+          {startEnabled ? <Play className="h-4 w-4" aria-hidden="true" /> : <MessageCircle className="h-4 w-4" aria-hidden="true" />}
           {startEnabled ? "미용 시작하기" : finalActionLabel}
         </button>
         <div className="grid grid-cols-2 gap-2">
@@ -3339,7 +3342,7 @@ function ReservationDetailSheet({
             <h3 className="mt-0.5 text-[20px] font-semibold text-[#111827]">{booking.pet} · {booking.customer}</h3>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f1f5f9]" aria-label="닫기">
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
         <div className="space-y-4 p-6">
@@ -3405,17 +3408,17 @@ function ConfirmedReservationDetail({
         <div className="mt-5">
           {canStart ? (
             <button type="button" onClick={() => onChangeStatus(booking.id, "진행 중")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[16px] font-medium leading-6 text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
-              <Play className="h-5 w-5" />
+              <Play className="h-5 w-5" aria-hidden="true" />
               미용 시작하기
             </button>
           ) : canComplete ? (
             <button type="button" onClick={() => onChangeStatus(booking.id, "완료")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[16px] font-medium leading-6 text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
-              <Scissors className="h-5 w-5" />
+              <Scissors className="h-5 w-5" aria-hidden="true" />
               미용 완료하기
             </button>
           ) : canFinish ? (
             <button type="button" onClick={() => onChangeStatus(booking.id, "완료")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[16px] font-medium leading-6 text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
-              <CheckCircle2 className="h-5 w-5" />
+              <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
               완료 처리하기
             </button>
           ) : completed ? (
@@ -3950,7 +3953,7 @@ function PhotoStatusDialog({
           <div className={isCompletionMode ? "flex min-w-0 items-center gap-3" : ""}>
             {isCompletionMode ? (
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-[#edf4ff] text-[#2f6fd6]">
-                <Sparkles className="h-5 w-5" />
+                <Sparkles className="h-5 w-5" aria-hidden="true" />
               </span>
             ) : null}
             <div>
@@ -3967,7 +3970,7 @@ function PhotoStatusDialog({
           </div>
           {isCompletionMode ? (
             <button ref={closeButtonRef} type="button" onClick={() => void handleSaveAndClose()} disabled={busy || careReportBusy} aria-label="닫기" className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[#66717f] transition hover:bg-[#f2f4f6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-40">
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           ) : null}
         </div>
@@ -4070,7 +4073,7 @@ function PhotoStatusDialog({
         ) : (
           <div className="rounded-[10px] bg-[#fbfcfd] p-4">
             <div className="flex items-center gap-2">
-              <QrCode className="h-4 w-4 text-[#2f7866]" />
+              <QrCode className="h-4 w-4 text-[#2f7866]" aria-hidden="true" />
               <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#111827]">모바일로 촬영하기</p>
             </div>
             <div className="mt-3 flex justify-center rounded-[10px] bg-white p-3">
@@ -4136,6 +4139,372 @@ function buildDefaultScheduleForm(data: BootstrapPayload, visibleStaff: OwnerWeb
     time: "",
     memo: "",
   };
+}
+
+type OwnerScheduleCreated = { data: BootstrapPayload; appointment: Appointment; staffAssignments: StaffAssignments; date: string };
+
+// One reservation-create path for the daily schedule and the month calendar:
+// same form, slot rules, consent prompt and API, so the two screens cannot drift.
+export function OwnerScheduleCreateFlow({
+  data: bootstrapData,
+  initialForm,
+  visibleStaff,
+  staffMembers,
+  staffAssignments,
+  getDateBookings,
+  onCreated,
+  onClose,
+}: {
+  data: BootstrapPayload;
+  initialForm: ScheduleCreateFormState;
+  visibleStaff: OwnerWebStaffColumn[];
+  staffMembers: OwnerWebStaffMember[];
+  staffAssignments: StaffAssignments;
+  getDateBookings: (date: string) => DailyBooking[];
+  onCreated: (created: OwnerScheduleCreated) => void;
+  onClose: () => void;
+}) {
+  const [scheduleForm, setScheduleForm] = useState(initialForm);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleError, setScheduleError] = useState("");
+  const [scheduleConsentPrompt, setScheduleConsentPrompt] = useState<ScheduleConsentPrompt | null>(null);
+
+  async function handleCreateSchedule(consentChoice?: ScheduleConsentChoice) {
+    if (scheduleSaving) return;
+    let selectedPet = bootstrapData.pets.find((pet) => pet.id === scheduleForm.petId) ?? null;
+    let selectedGuardian = selectedPet ? bootstrapData.guardians.find((guardian) => guardian.id === selectedPet?.guardian_id) ?? null : null;
+    const selectedService = bootstrapData.services.find((service) => service.id === scheduleForm.serviceId);
+    const targetStaff = visibleStaff.find((item) => item.key === scheduleForm.staffKey);
+    const newCustomerName = scheduleForm.customerName.trim();
+    const newPetName = scheduleForm.petName.trim();
+    const newCustomerPhone = normalizeSchedulePhone(scheduleForm.customerPhone);
+
+    if (scheduleForm.customerMode === "new") {
+      if (!newCustomerName || !newPetName || newCustomerPhone.length < 10) {
+        setScheduleError("고객명, 반려동물 이름, 고객 연락처를 모두 입력해 주세요.");
+        return;
+      }
+    } else if (!selectedPet || !selectedGuardian) {
+      setScheduleError("기존 고객과 반려동물을 선택해 주세요.");
+      return;
+    }
+
+    if (!selectedService || !targetStaff || !scheduleForm.date || !scheduleForm.time) {
+      setScheduleError("고객, 서비스, 담당자, 날짜와 시간을 모두 선택해 주세요.");
+      return;
+    }
+
+    const duration = selectedService.duration_minutes / 60;
+    const dateBookings = getDateBookings(scheduleForm.date);
+    const availableSlots = buildOwnerCreateAvailableSlots({
+      shop: bootstrapData.shop,
+      date: scheduleForm.date,
+      serviceId: selectedService.id,
+      duration,
+      staffKey: targetStaff.key,
+      services: bootstrapData.services,
+      appointments: bootstrapData.appointments,
+      staffMembers,
+      staffScheduleOverrides: bootstrapData.staffScheduleOverrides,
+      bookings: dateBookings,
+    });
+
+    if (!availableSlots.includes(scheduleForm.time)) {
+      setScheduleError("선택한 시간에는 예약할 수 없습니다. 가능한 시간에서 다시 선택해 주세요.");
+      return;
+    }
+
+    if (
+      hasStaffBookingConflict(dateBookings, "__new-booking__", {
+        staffKey: targetStaff.key,
+        start: timeToHour(scheduleForm.time),
+        duration,
+      })
+    ) {
+      setScheduleError("선택한 담당자에게 같은 시간 예약이 있습니다.");
+      return;
+    }
+
+    if (!isStaffWorkingWindow(staffMembers, bootstrapData.staffScheduleOverrides, targetStaff.key, scheduleForm.date, timeToHour(scheduleForm.time), duration)) {
+      setScheduleError("선택한 담당자의 근무요일 또는 근무시간 밖입니다.");
+      return;
+    }
+
+    setScheduleSaving(true);
+    setScheduleError("");
+    let createdGuardian: Guardian | null = null;
+    let createdPet: Pet | null = null;
+
+    const applyCreatedAppointment = (appointment: Appointment) => {
+      setScheduleConsentPrompt(null);
+      const nextAssignments = { ...staffAssignments, [appointment.id]: targetStaff.key };
+      const nextGuardian = createdGuardian;
+      const nextPet = createdPet;
+      const nextBootstrapData = {
+        ...bootstrapData,
+        guardians: nextGuardian
+          ? [...bootstrapData.guardians.filter((item) => item.id !== nextGuardian.id), nextGuardian]
+          : bootstrapData.guardians,
+        pets: nextPet ? [...bootstrapData.pets.filter((item) => item.id !== nextPet.id), nextPet] : bootstrapData.pets,
+        appointments: [...bootstrapData.appointments.filter((item) => item.id !== appointment.id), appointment],
+      };
+      onCreated({ data: nextBootstrapData, appointment, staffAssignments: nextAssignments, date: scheduleForm.date });
+    };
+
+    // The owner demo is an isolated reservation sandbox. Keep every test
+    // mutation in the browser state so a signed-in owner cannot accidentally
+    // create development or production appointments from the demo URL.
+    if (bootstrapData.mode !== "supabase") {
+      if (scheduleForm.customerMode === "new") {
+        createdGuardian = buildLocalGuardian({
+          shopId: bootstrapData.shop.id,
+          name: newCustomerName,
+          phone: newCustomerPhone,
+        });
+        createdPet = buildLocalPet({
+          shopId: bootstrapData.shop.id,
+          guardianId: createdGuardian.id,
+          name: newPetName,
+        });
+        selectedGuardian = createdGuardian;
+        selectedPet = createdPet;
+      }
+
+      if (!selectedGuardian || !selectedPet) {
+        setScheduleError("고객과 반려동물 정보를 확인해 주세요.");
+        setScheduleSaving(false);
+        return;
+      }
+
+      applyCreatedAppointment(
+        buildLocalOwnerAppointment({
+          shopId: bootstrapData.shop.id,
+          guardianId: selectedGuardian.id,
+          petId: selectedPet.id,
+          serviceId: selectedService.id,
+          staffId: targetStaff.key,
+          appointmentDate: scheduleForm.date,
+          appointmentTime: scheduleForm.time,
+          memo: scheduleForm.memo,
+          durationMinutes: selectedService.duration_minutes,
+        }),
+      );
+      setScheduleSaving(false);
+      return;
+    }
+
+    if (scheduleForm.customerMode === "new") {
+      try {
+        const result = await postOwnerScheduleCreate({
+          shopId: bootstrapData.shop.id,
+          customerMode: "new",
+          customerName: newCustomerName,
+          customerPhone: newCustomerPhone,
+          petName: newPetName,
+          serviceId: selectedService.id,
+          staffId: targetStaff.key,
+          appointmentDate: scheduleForm.date,
+          appointmentTime: scheduleForm.time,
+          memo: scheduleForm.memo,
+        });
+
+        createdGuardian = result.guardian;
+        createdPet = result.pet;
+        applyCreatedAppointment(result.appointment);
+        return;
+      } catch (error) {
+        const message = getApiErrorMessage(error, "");
+        if (!message.includes("Supabase 연결") && !message.includes("로그인이 필요")) {
+          setScheduleError(getApiErrorMessage(error, "예약 등록 중 문제가 발생했습니다."));
+          setScheduleSaving(false);
+          return;
+        }
+      }
+
+      try {
+        selectedGuardian = await postOwnerGuardian({
+          shopId: bootstrapData.shop.id,
+          name: newCustomerName,
+          phone: newCustomerPhone,
+          memo: "",
+        });
+      } catch (error) {
+        const message = getApiErrorMessage(error, "");
+        if (message.includes("로그인이 필요")) {
+          selectedGuardian = buildLocalGuardian({
+            shopId: bootstrapData.shop.id,
+            name: newCustomerName,
+            phone: newCustomerPhone,
+          });
+        } else {
+          setScheduleError(getApiErrorMessage(error, "고객 저장 중 문제가 발생했습니다."));
+          setScheduleSaving(false);
+          return;
+        }
+      }
+
+      createdGuardian = selectedGuardian;
+
+      try {
+        selectedPet = await postOwnerPet({
+          shopId: bootstrapData.shop.id,
+          guardianId: selectedGuardian.id,
+          name: newPetName,
+          breed: "미입력",
+          groomingCycleWeeks: 4,
+        });
+      } catch (error) {
+        const message = getApiErrorMessage(error, "");
+        if (message.includes("로그인이 필요")) {
+          selectedPet = buildLocalPet({
+            shopId: bootstrapData.shop.id,
+            guardianId: selectedGuardian.id,
+            name: newPetName,
+          });
+        } else {
+          setScheduleError(getApiErrorMessage(error, "반려동물 저장 중 문제가 발생했습니다."));
+          setScheduleSaving(false);
+          return;
+        }
+      }
+
+      createdPet = selectedPet;
+    }
+
+    if (!selectedPet || !selectedGuardian) {
+      setScheduleError("고객과 반려동물 정보를 확인해 주세요.");
+      setScheduleSaving(false);
+      return;
+    }
+
+    if (scheduleForm.customerMode === "existing" && !consentChoice) {
+      try {
+        const query = new URLSearchParams({ shopId: bootstrapData.shop.id, guardianId: selectedGuardian.id, petId: selectedPet.id });
+        const state = await fetchApiJsonWithAuth<ScheduleConsentPrompt & { enabled: boolean }>(`/api/owner/customer-consents?${query}`, { cache: "no-store" });
+        const pending = state.documents.filter(doc => doc.status === "pending");
+        if (state.enabled && pending.length) {
+          setScheduleConsentPrompt({ policyVersion: state.policyVersion, documents: pending });
+          setScheduleSaving(false);
+          return;
+        }
+      } catch {
+        setScheduleError("동의서 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
+        setScheduleSaving(false);
+        return;
+      }
+    }
+
+    const payload = {
+      shopId: bootstrapData.shop.id,
+      customerMode: "existing" as const,
+      guardianId: selectedGuardian.id,
+      petId: selectedPet.id,
+      serviceId: selectedService.id,
+      staffId: targetStaff.key,
+      appointmentDate: scheduleForm.date,
+      appointmentTime: scheduleForm.time,
+      memo: scheduleForm.memo,
+      consentChoice,
+    };
+
+    try {
+      const result = await postOwnerScheduleCreate(payload);
+      applyCreatedAppointment(result.appointment);
+    } catch (error) {
+      const message = getApiErrorMessage(error, "예약 등록 중 문제가 발생했습니다.");
+      if (message.includes("로그인이 필요")) {
+        applyCreatedAppointment(
+          buildLocalOwnerAppointment({
+            ...payload,
+            durationMinutes: selectedService.duration_minutes,
+          }),
+        );
+        return;
+      }
+      setScheduleError(getApiErrorMessage(error, "예약 등록 중 문제가 발생했습니다."));
+    } finally {
+      setScheduleSaving(false);
+    }
+  }
+
+
+  const getScheduleCreateAvailableSlots = useCallback(
+    ({ date, serviceId, duration, staffKey }: { date: string; serviceId: string; duration: number; staffKey: StaffKey }) =>
+      buildOwnerCreateAvailableSlots({
+        shop: bootstrapData.shop,
+        date,
+        serviceId,
+        duration,
+        staffKey,
+        services: bootstrapData.services,
+        appointments: bootstrapData.appointments,
+        staffMembers,
+        staffScheduleOverrides: bootstrapData.staffScheduleOverrides,
+        bookings: getDateBookings(date),
+      }),
+    [bootstrapData, getDateBookings, staffMembers],
+  );
+
+  return (
+    <>
+      <ScheduleCreateDialog
+        data={bootstrapData}
+        form={scheduleForm}
+        visibleStaff={visibleStaff}
+        getAvailableSlots={getScheduleCreateAvailableSlots}
+        saving={scheduleSaving}
+        error={scheduleError}
+        onChange={form => { setScheduleForm(form); setScheduleConsentPrompt(null); }}
+        onClose={() => {
+          if (!scheduleSaving) onClose();
+        }}
+        onSubmit={() => void handleCreateSchedule()}
+      />
+      {scheduleConsentPrompt && <ScheduleConsentChoiceDialog prompt={scheduleConsentPrompt} saving={scheduleSaving} error={scheduleError} onCancel={() => { setScheduleConsentPrompt(null); setScheduleError(""); }} onConfirm={choice => void handleCreateSchedule(choice)} />}
+    </>
+  );
+}
+
+const noStaffAssignments: StaffAssignments = {};
+
+// Month calendar entry point: opens the shared create flow for a chosen date without leaving the calendar.
+export function OwnerDateScheduleCreateFlow({
+  data,
+  staffMembers,
+  date,
+  staffKey,
+  onCreated,
+  onClose,
+}: {
+  data: BootstrapPayload;
+  staffMembers: OwnerWebStaffMember[];
+  date: string;
+  staffKey?: string | null;
+  onCreated: (data: BootstrapPayload, date: string) => void;
+  onClose: () => void;
+}) {
+  const visibleStaff = useMemo(() => staffMembers.map(toOwnerWebStaffColumn), [staffMembers]);
+  const [initialForm] = useState<ScheduleCreateFormState>(() => ({
+    ...buildDefaultScheduleForm(data, visibleStaff, date, staffKey && visibleStaff.some((item) => item.key === staffKey) ? staffKey : "전체 직원"),
+    customerMode: "new",
+    petId: "",
+  }));
+  const getDateBookings = useCallback(
+    (targetDate: string) => buildDailyBookingsFromBootstrap(data, targetDate, noStaffAssignments, visibleStaff),
+    [data, visibleStaff],
+  );
+  return (
+    <OwnerScheduleCreateFlow
+      data={data}
+      initialForm={initialForm}
+      visibleStaff={visibleStaff}
+      staffMembers={staffMembers}
+      staffAssignments={noStaffAssignments}
+      getDateBookings={getDateBookings}
+      onCreated={(created) => onCreated(created.data, created.date)}
+      onClose={onClose}
+    />
+  );
 }
 
 export default function CalendarManagementScreen({
@@ -4208,9 +4577,6 @@ export default function CalendarManagementScreen({
   const [scheduleForm, setScheduleForm] = useState<ScheduleCreateFormState>(() =>
     buildDefaultScheduleForm(initialData, visibleStaff, currentDateInTimeZone(), "전체 직원"),
   );
-  const [scheduleSaving, setScheduleSaving] = useState(false);
-  const [scheduleError, setScheduleError] = useState("");
-  const [scheduleConsentPrompt, setScheduleConsentPrompt] = useState<ScheduleConsentPrompt | null>(null);
   const [boardError, setBoardError] = useState("");
   const [pendingOutOfHoursMove, setPendingOutOfHoursMove] = useState<PendingOutOfHoursMove | null>(null);
   const [statusChanging, setStatusChanging] = useState(false);
@@ -4235,7 +4601,6 @@ export default function CalendarManagementScreen({
       staffKey: targetStaff?.key ?? "",
       date: targetDate,
     });
-    setScheduleError("");
     setScheduleDialogOpen(true);
     onCreateRequestHandled?.(createRequest.requestId);
   }, [bootstrapData, createRequest, onCreateRequestHandled, selectedBoardStaffKey, selectedDate, selectedVisibleStaff, staff, visibleStaff]);
@@ -4337,7 +4702,6 @@ export default function CalendarManagementScreen({
         typeof document === "undefined" ||
         (document.visibilityState === "visible" &&
           !scheduleDialogOpen &&
-          !scheduleSaving &&
           !statusChangeInFlightRef.current &&
           !careReportChoiceBooking &&
           !photoStatusAction &&
@@ -4383,7 +4747,6 @@ export default function CalendarManagementScreen({
     earlyStartBooking,
     photoStatusAction,
     scheduleDialogOpen,
-    scheduleSaving,
     selectedDate,
   ]);
 
@@ -5243,320 +5606,43 @@ export default function CalendarManagementScreen({
       staffKey: targetStaff?.key ?? "staff-1",
       date: selectedDate,
     });
-    setScheduleError("");
     setScheduleDialogOpen(true);
   }
 
-  async function handleCreateSchedule(consentChoice?: ScheduleConsentChoice) {
-    if (scheduleSaving) return;
-    let selectedPet = bootstrapData.pets.find((pet) => pet.id === scheduleForm.petId) ?? null;
-    let selectedGuardian = selectedPet ? bootstrapData.guardians.find((guardian) => guardian.id === selectedPet?.guardian_id) ?? null : null;
-    const selectedService = bootstrapData.services.find((service) => service.id === scheduleForm.serviceId);
-    const targetStaff = visibleStaff.find((item) => item.key === scheduleForm.staffKey);
-    const newCustomerName = scheduleForm.customerName.trim();
-    const newPetName = scheduleForm.petName.trim();
-    const newCustomerPhone = normalizeSchedulePhone(scheduleForm.customerPhone);
-
-    if (scheduleForm.customerMode === "new") {
-      if (!newCustomerName || !newPetName || newCustomerPhone.length < 10) {
-        setScheduleError("고객명, 반려동물 이름, 고객 연락처를 모두 입력해 주세요.");
-        return;
-      }
-    } else if (!selectedPet || !selectedGuardian) {
-      setScheduleError("기존 고객과 반려동물을 선택해 주세요.");
-      return;
-    }
-
-    if (!selectedService || !targetStaff || !scheduleForm.date || !scheduleForm.time) {
-      setScheduleError("고객, 서비스, 담당자, 날짜와 시간을 모두 선택해 주세요.");
-      return;
-    }
-
-    const duration = selectedService.duration_minutes / 60;
-    const dateBookings = scheduleForm.date === selectedDate ? bookings : buildDailyBookingsFromBootstrap(bootstrapData, scheduleForm.date, staffAssignments, visibleStaff);
-    const availableSlots = buildOwnerCreateAvailableSlots({
-      shop: bootstrapData.shop,
-      date: scheduleForm.date,
-      serviceId: selectedService.id,
-      duration,
-      staffKey: targetStaff.key,
-      services: bootstrapData.services,
-      appointments: bootstrapData.appointments,
-      staffMembers,
-      staffScheduleOverrides: bootstrapData.staffScheduleOverrides,
-      bookings: dateBookings,
-    });
-
-    if (!availableSlots.includes(scheduleForm.time)) {
-      setScheduleError("선택한 시간에는 예약할 수 없습니다. 가능한 시간에서 다시 선택해 주세요.");
-      return;
-    }
-
-    if (
-      hasStaffBookingConflict(dateBookings, "__new-booking__", {
-        staffKey: targetStaff.key,
-        start: timeToHour(scheduleForm.time),
-        duration,
-      })
-    ) {
-      setScheduleError("선택한 담당자에게 같은 시간 예약이 있습니다.");
-      return;
-    }
-
-    if (!isStaffWorkingWindow(staffMembers, bootstrapData.staffScheduleOverrides, targetStaff.key, scheduleForm.date, timeToHour(scheduleForm.time), duration)) {
-      setScheduleError("선택한 담당자의 근무요일 또는 근무시간 밖입니다.");
-      return;
-    }
-
-    setScheduleSaving(true);
-    setScheduleError("");
-    let createdGuardian: Guardian | null = null;
-    let createdPet: Pet | null = null;
-
-    const applyCreatedAppointment = (appointment: Appointment) => {
-      setScheduleConsentPrompt(null);
-      const nextAssignments = { ...staffAssignments, [appointment.id]: targetStaff.key };
-      const nextGuardian = createdGuardian;
-      const nextPet = createdPet;
-      const nextBootstrapData = {
-        ...bootstrapData,
-        guardians: nextGuardian
-          ? [...bootstrapData.guardians.filter((item) => item.id !== nextGuardian.id), nextGuardian]
-          : bootstrapData.guardians,
-        pets: nextPet ? [...bootstrapData.pets.filter((item) => item.id !== nextPet.id), nextPet] : bootstrapData.pets,
-        appointments: [...bootstrapData.appointments.filter((item) => item.id !== appointment.id), appointment],
-      };
-      const nextBookings = buildDailyBookingsFromBootstrap(nextBootstrapData, scheduleForm.date, nextAssignments);
-
-      setStaffAssignments(nextAssignments);
-      setBootstrapData(nextBootstrapData);
-      onDataChange?.(nextBootstrapData);
-      setSelectedDate(scheduleForm.date);
-      setBookings(nextBookings);
-      setSelectedBookingId(appointment.id);
-      setActiveMetric("today");
-      setReservationStatusFilter("all");
-      setScheduleDialogOpen(false);
-    };
-
-    // The owner demo is an isolated reservation sandbox. Keep every test
-    // mutation in the browser state so a signed-in owner cannot accidentally
-    // create development or production appointments from the demo URL.
-    if (bootstrapData.mode !== "supabase") {
-      if (scheduleForm.customerMode === "new") {
-        createdGuardian = buildLocalGuardian({
-          shopId: bootstrapData.shop.id,
-          name: newCustomerName,
-          phone: newCustomerPhone,
-        });
-        createdPet = buildLocalPet({
-          shopId: bootstrapData.shop.id,
-          guardianId: createdGuardian.id,
-          name: newPetName,
-        });
-        selectedGuardian = createdGuardian;
-        selectedPet = createdPet;
-      }
-
-      if (!selectedGuardian || !selectedPet) {
-        setScheduleError("고객과 반려동물 정보를 확인해 주세요.");
-        setScheduleSaving(false);
-        return;
-      }
-
-      applyCreatedAppointment(
-        buildLocalOwnerAppointment({
-          shopId: bootstrapData.shop.id,
-          guardianId: selectedGuardian.id,
-          petId: selectedPet.id,
-          serviceId: selectedService.id,
-          staffId: targetStaff.key,
-          appointmentDate: scheduleForm.date,
-          appointmentTime: scheduleForm.time,
-          memo: scheduleForm.memo,
-          durationMinutes: selectedService.duration_minutes,
-        }),
-      );
-      setScheduleSaving(false);
-      return;
-    }
-
-    if (scheduleForm.customerMode === "new") {
-      try {
-        const result = await postOwnerScheduleCreate({
-          shopId: bootstrapData.shop.id,
-          customerMode: "new",
-          customerName: newCustomerName,
-          customerPhone: newCustomerPhone,
-          petName: newPetName,
-          serviceId: selectedService.id,
-          staffId: targetStaff.key,
-          appointmentDate: scheduleForm.date,
-          appointmentTime: scheduleForm.time,
-          memo: scheduleForm.memo,
-        });
-
-        createdGuardian = result.guardian;
-        createdPet = result.pet;
-        applyCreatedAppointment(result.appointment);
-        return;
-      } catch (error) {
-        const message = getApiErrorMessage(error, "");
-        if (!message.includes("Supabase 연결") && !message.includes("로그인이 필요")) {
-          setScheduleError(getApiErrorMessage(error, "예약 등록 중 문제가 발생했습니다."));
-          setScheduleSaving(false);
-          return;
-        }
-      }
-
-      try {
-        selectedGuardian = await postOwnerGuardian({
-          shopId: bootstrapData.shop.id,
-          name: newCustomerName,
-          phone: newCustomerPhone,
-          memo: "",
-        });
-      } catch (error) {
-        const message = getApiErrorMessage(error, "");
-        if (message.includes("로그인이 필요")) {
-          selectedGuardian = buildLocalGuardian({
-            shopId: bootstrapData.shop.id,
-            name: newCustomerName,
-            phone: newCustomerPhone,
-          });
-        } else {
-          setScheduleError(getApiErrorMessage(error, "고객 저장 중 문제가 발생했습니다."));
-          setScheduleSaving(false);
-          return;
-        }
-      }
-
-      createdGuardian = selectedGuardian;
-
-      try {
-        selectedPet = await postOwnerPet({
-          shopId: bootstrapData.shop.id,
-          guardianId: selectedGuardian.id,
-          name: newPetName,
-          breed: "미입력",
-          groomingCycleWeeks: 4,
-        });
-      } catch (error) {
-        const message = getApiErrorMessage(error, "");
-        if (message.includes("로그인이 필요")) {
-          selectedPet = buildLocalPet({
-            shopId: bootstrapData.shop.id,
-            guardianId: selectedGuardian.id,
-            name: newPetName,
-          });
-        } else {
-          setScheduleError(getApiErrorMessage(error, "반려동물 저장 중 문제가 발생했습니다."));
-          setScheduleSaving(false);
-          return;
-        }
-      }
-
-      createdPet = selectedPet;
-    }
-
-    if (!selectedPet || !selectedGuardian) {
-      setScheduleError("고객과 반려동물 정보를 확인해 주세요.");
-      setScheduleSaving(false);
-      return;
-    }
-
-    if (scheduleForm.customerMode === "existing" && !consentChoice) {
-      try {
-        const query = new URLSearchParams({ shopId: bootstrapData.shop.id, guardianId: selectedGuardian.id, petId: selectedPet.id });
-        const state = await fetchApiJsonWithAuth<ScheduleConsentPrompt & { enabled: boolean }>(`/api/owner/customer-consents?${query}`, { cache: "no-store" });
-        const pending = state.documents.filter(doc => doc.status === "pending");
-        if (state.enabled && pending.length) {
-          setScheduleConsentPrompt({ policyVersion: state.policyVersion, documents: pending });
-          setScheduleSaving(false);
-          return;
-        }
-      } catch {
-        setScheduleError("동의서 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
-        setScheduleSaving(false);
-        return;
-      }
-    }
-
-    const payload = {
-      shopId: bootstrapData.shop.id,
-      customerMode: "existing" as const,
-      guardianId: selectedGuardian.id,
-      petId: selectedPet.id,
-      serviceId: selectedService.id,
-      staffId: targetStaff.key,
-      appointmentDate: scheduleForm.date,
-      appointmentTime: scheduleForm.time,
-      memo: scheduleForm.memo,
-      consentChoice,
-    };
-
-    try {
-      const result = await postOwnerScheduleCreate(payload);
-      applyCreatedAppointment(result.appointment);
-    } catch (error) {
-      const message = getApiErrorMessage(error, "예약 등록 중 문제가 발생했습니다.");
-      if (message.includes("로그인이 필요")) {
-        applyCreatedAppointment(
-          buildLocalOwnerAppointment({
-            ...payload,
-            durationMinutes: selectedService.duration_minutes,
-          }),
-        );
-        return;
-      }
-      setScheduleError(getApiErrorMessage(error, "예약 등록 중 문제가 발생했습니다."));
-    } finally {
-      setScheduleSaving(false);
-    }
-  }
-
-  const getScheduleCreateAvailableSlots = useCallback(
-    ({ date, serviceId, duration, staffKey }: { date: string; serviceId: string; duration: number; staffKey: StaffKey }) => {
-      const dateBookings =
-        date === selectedDate ? bookings : buildDailyBookingsFromBootstrap(bootstrapData, date, staffAssignments, visibleStaff);
-      return buildOwnerCreateAvailableSlots({
-        shop: bootstrapData.shop,
-        date,
-        serviceId,
-        duration,
-        staffKey,
-        services: bootstrapData.services,
-        appointments: bootstrapData.appointments,
-        staffMembers,
-        staffScheduleOverrides: bootstrapData.staffScheduleOverrides,
-        bookings: dateBookings,
-      });
-    },
-    [bookings, bootstrapData, selectedDate, staffAssignments, staffMembers, visibleStaff],
+  const getScheduleDateBookings = useCallback(
+    (date: string) =>
+      date === selectedDate ? bookings : buildDailyBookingsFromBootstrap(bootstrapData, date, staffAssignments, visibleStaff),
+    [bookings, bootstrapData, selectedDate, staffAssignments, visibleStaff],
   );
+
+  function handleScheduleCreated({ data: nextBootstrapData, appointment, staffAssignments: nextAssignments, date }: OwnerScheduleCreated) {
+    const nextBookings = buildDailyBookingsFromBootstrap(nextBootstrapData, date, nextAssignments);
+
+    setStaffAssignments(nextAssignments);
+    setBootstrapData(nextBootstrapData);
+    onDataChange?.(nextBootstrapData);
+    setSelectedDate(date);
+    setBookings(nextBookings);
+    setSelectedBookingId(appointment.id);
+    setActiveMetric("today");
+    setReservationStatusFilter("all");
+    setScheduleDialogOpen(false);
+  }
 
   return (
     <div className="h-full min-h-0 space-y-2">
       {scheduleDialogOpen ? (
-        <ScheduleCreateDialog
+        <OwnerScheduleCreateFlow
           data={bootstrapData}
-          form={scheduleForm}
+          initialForm={scheduleForm}
           visibleStaff={visibleStaff}
-          getAvailableSlots={getScheduleCreateAvailableSlots}
-          saving={scheduleSaving}
-          error={scheduleError}
-          onChange={form => { setScheduleForm(form); setScheduleConsentPrompt(null); }}
-          onClose={() => {
-            if (!scheduleSaving) {
-              setScheduleDialogOpen(false);
-              setScheduleError("");
-              setScheduleConsentPrompt(null);
-            }
-          }}
-          onSubmit={() => void handleCreateSchedule()}
+          staffMembers={staffMembers}
+          staffAssignments={staffAssignments}
+          getDateBookings={getScheduleDateBookings}
+          onCreated={handleScheduleCreated}
+          onClose={() => setScheduleDialogOpen(false)}
         />
       ) : null}
-      {scheduleDialogOpen && scheduleConsentPrompt && <ScheduleConsentChoiceDialog prompt={scheduleConsentPrompt} saving={scheduleSaving} error={scheduleError} onCancel={() => { setScheduleConsentPrompt(null); setScheduleError(""); }} onConfirm={choice => void handleCreateSchedule(choice)} />}
       {pendingOutOfHoursMove ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/25 px-4" onClick={cancelOutOfHoursMove}>
           <div
@@ -5618,7 +5704,7 @@ export default function CalendarManagementScreen({
                 onClick={() => setBoardError("")}
                 className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
             <button

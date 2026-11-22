@@ -1,6 +1,12 @@
 "use client";
 
-import { ArrowUp, Loader2, Mic, MicOff, Square } from "lucide-react";
+import {
+  IconArrowUp as ArrowUp,
+  IconLoader2 as Loader2,
+  IconMicrophone as Mic,
+  IconMicrophoneOff as MicOff,
+  IconSquare as Square,
+} from "@tabler/icons-react";
 import { type FocusEvent, type KeyboardEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { CARE_REPORT_TYPOGRAPHY as OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
@@ -188,7 +194,7 @@ export function CalendarCareNoteInput({
       />
 
       {speechError ? (
-        <p className={`${OWNER_TYPOGRAPHY.label} mb-2 ml-4 mr-[96px] flex items-center gap-1.5 text-[#a04455] [line-height:1.5]`}><MicOff className="h-4 w-4" /> {speechError}</p>
+        <p className={`${OWNER_TYPOGRAPHY.label} mb-2 ml-4 mr-[96px] flex items-center gap-1.5 text-[#a04455] [line-height:1.5]`}><MicOff className="h-4 w-4" aria-hidden="true" /> {speechError}</p>
       ) : null}
 
       {listening ? <p className="sr-only" aria-live="polite">{interimText || "듣고 있어요"}</p> : null}
@@ -203,7 +209,7 @@ export function CalendarCareNoteInput({
           className="group grid h-11 w-11 place-items-center rounded-full text-[#44566a] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-35"
         >
           <span className={`grid h-8 w-8 place-items-center rounded-full transition ${listening ? "bg-[#e8edf2] text-[#14273f]" : "bg-[#f3f5f7] group-hover:bg-[#e9eef3]"}`}>
-            {listening ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
+            {listening ? <Square className="h-3.5 w-3.5 fill-current" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />}
           </span>
         </button>
         <button
@@ -214,7 +220,7 @@ export function CalendarCareNoteInput({
           disabled={disabled || submitting || !value.trim()}
           className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium leading-6 text-white transition hover:bg-[#1b2944] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-45"
         >
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ArrowUp className="h-4 w-4" aria-hidden="true" />}
           {submitLabel}
         </button>
       </div>

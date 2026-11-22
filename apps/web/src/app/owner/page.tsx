@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 
@@ -160,6 +160,11 @@ export default function OwnerPage() {
     preparedRead: preparedStartupRead,
   });
   const backgroundRefreshReadyAtRef = useRef(Date.now() + 5000);
+  const localDataRevisionRef = useRef(0);
+  const handleOwnerDataChange = useCallback((nextData: BootstrapPayload) => {
+    localDataRevisionRef.current += 1;
+    setData(nextData);
+  }, []);
 
   async function getOwnerAccessContext(): Promise<OwnerAccessContext | null> {
     if (!supabase) return null;
@@ -416,11 +421,16 @@ export default function OwnerPage() {
     if (!selectedShopId || !accessToken || typeof window === "undefined") return;
 
     let active = true;
+    let refreshInFlight = false;
 
     const refreshDesktopData = async () => {
       if (document.visibilityState !== "visible") return;
       if (Date.now() < backgroundRefreshReadyAtRef.current) return;
+      if (refreshInFlight) return;
 
+      refreshInFlight = true;
+      const writeRevision = getOwnerStartupRevision();
+      const localRevision = localDataRevisionRef.current;
       try {
         const nextSubscription = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>(
           `/api/subscription?shopId=${encodeURIComponent(selectedShopId)}`,
@@ -440,12 +450,18 @@ export default function OwnerPage() {
           `/api/bootstrap?shopId=${encodeURIComponent(selectedShopId)}`,
           { cache: "no-store" },
         );
-        if (active) {
+        // A booking saved or a screen refreshed while this read was in flight is newer than the read;
+        // applying it would briefly drop that booking until the schedule's own sync brings it back.
+        const changedMeanwhile =
+          writeRevision !== getOwnerStartupRevision() || localRevision !== localDataRevisionRef.current;
+        if (active && !changedMeanwhile) {
           setData(nextBootstrap);
           acceptFreshStartup(nextBootstrap);
         }
       } catch {
         // Keep the current dashboard stable when a background sync misses.
+      } finally {
+        refreshInFlight = false;
       }
     };
 
@@ -544,6 +560,6 @@ export default function OwnerPage() {
 
   return <>
     {startupSnapshot ? <OwnerStartupNotice capturedAt={startupSnapshot.capturedAt} /> : null}
-    <OwnerWebPreview key={`${displayData.actor?.userId ?? "current"}:${displayData.shop.id}`} initialData={displayData} onDataChange={setData} currentPlanCode={subscriptionSummary?.currentPlanCode ?? null} />
+    <OwnerWebPreview key={`${displayData.actor?.userId ?? "current"}:${displayData.shop.id}`} initialData={displayData} onDataChange={handleOwnerDataChange} currentPlanCode={subscriptionSummary?.currentPlanCode ?? null} />
   </>;
 }

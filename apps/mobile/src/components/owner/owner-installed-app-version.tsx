@@ -2,7 +2,7 @@
 
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import { Smartphone } from "lucide-react";
+import { IconDeviceMobile as Smartphone } from "@tabler/icons-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 type AppVersionPlatform = "pending" | "web" | "native-outdated" | "native";

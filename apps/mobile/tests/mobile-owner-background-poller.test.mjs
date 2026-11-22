@@ -44,7 +44,7 @@ test("focus storms and ticks share one read, counting the interval from completi
     run: () => { calls++; return new Promise(resolve => { release = resolve; }); } });
   await advance(30_000); assert.equal(calls, 1);
   for (let i = 0; i < 20; i++) void p.request();
-  await advance(10_000); assert.equal(calls, 1);
+  await advance(5_000); assert.equal(calls, 1);
   release(); await settle();
   await advance(29_999); assert.equal(calls, 1);
   await advance(1); assert.equal(calls, 2);
@@ -70,11 +70,23 @@ test("successful recovery resets the next interval to thirty seconds", async () 
   await advance(30_000); assert.equal(calls, 3); p.stop();
 }));
 
-test("a twenty-second timeout aborts transport without overlapping an unsettled read", async () => clock(async ({ advance, settle }) => {
+test("one-minute polling backs off 60/120/240/300 seconds and recovery restores one minute", async () => clock(async ({ advance, now }) => {
+  const calls = [];
+  const p = createOwnerBackgroundPoller({ intervalMs: 60_000, canRun: () => true,
+    run: async () => { calls.push(now()); if (calls.length <= 4) throw Error("unavailable"); } });
+  await advance(59_999); assert.equal(calls.length, 0);
+  await advance(1); await advance(60_000); await advance(120_000); await advance(240_000); await advance(300_000);
+  assert.deepEqual(calls, [60_000, 120_000, 240_000, 480_000, 780_000]);
+  await advance(59_999); await p.request(); assert.equal(calls.length, 5);
+  await advance(1); assert.equal(calls.at(-1), 840_000); p.stop();
+}));
+
+test("a ten-second timeout aborts transport without overlapping an unsettled read", async () => clock(async ({ advance, settle }) => {
   let calls = 0, signal, release;
   const p = createOwnerBackgroundPoller({ intervalMs: 30_000, canRun: () => true,
     run: s => { calls++; signal = s; return new Promise(resolve => { release = resolve; }); } });
-  await advance(30_000); await advance(20_000); assert.equal(signal.aborted, true);
+  await advance(30_000); await advance(9_999); assert.equal(signal.aborted, false);
+  await advance(1); assert.equal(signal.aborted, true);
   await advance(300_000); void p.request(); assert.equal(calls, 1);
   release(); await settle(); await advance(59_999); assert.equal(calls, 1);
   await advance(1); assert.equal(calls, 2); p.stop(); release();
@@ -132,8 +144,9 @@ test("the real notification watcher keeps its cooldown on equivalent bootstrap r
   try {
     Function("module", "exports", "require", code)(loaded, loaded.exports, req);
     const render = () => loaded.exports.default({ shopId: "shop one", initialNotifications: [{ id: "old", type: "owner_booking_requested", status: "sent" }] });
-    render(); await advance(30_000); assert.equal(calls, 1); assert.equal(received.length, 0);
-    render(); win.dispatchEvent(new Event("focus")); await advance(29_999); assert.equal(calls, 1);
+    render(); await advance(59_999); assert.equal(calls, 0);
+    await advance(1); assert.equal(calls, 1); assert.equal(received.length, 0);
+    render(); win.dispatchEvent(new Event("focus")); await advance(59_999); assert.equal(calls, 1);
     await advance(1); assert.equal(calls, 2); assert.equal(lastSignal instanceof AbortSignal, true);
     assert.deepEqual(received, [{ kind: "owner_booking_requested", shopId: "shop one", appointmentId: "a2", opened: false }]);
     doc.visibilityState = "hidden"; await advance(60_000); assert.equal(calls, 2);

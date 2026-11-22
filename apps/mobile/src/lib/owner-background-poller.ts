@@ -20,7 +20,7 @@ export function createOwnerBackgroundPoller({
   run,
   canRun,
   intervalMs,
-  timeoutMs = 20_000,
+  timeoutMs = 10_000,
   maxBackoffMs = 300_000,
 }: Options) {
   let stopped = false;
@@ -64,7 +64,9 @@ export function createOwnerBackgroundPoller({
       controller = undefined;
       // Count the interval from completion. Never overlap a slow/aborted read,
       // even if its transport does not settle immediately after abort().
-      const delay = Math.min(maxBackoffMs, intervalMs * 2 ** failures);
+      const delay = failures === 0
+        ? intervalMs
+        : Math.min(maxBackoffMs, Math.max(intervalMs, 60_000) * 2 ** (failures - 1));
       nextAllowedAt = Date.now() + delay;
       schedule();
     }

@@ -5,7 +5,7 @@ import AdminCommunityResources from "./admin-community-resources";
 import { fetchApiJson } from "@/lib/api";
 import { communityButton, communityPrimary } from "@petmanager/shared/components/community/community-form";
 
-type Report = { id: string; reason: string; targetType: "post" | "comment"; createdAt: string; title: string | null; postBody: string | null; commentBody: string | null; hidden: boolean | null; images: { mediaAssetId: string; url: string }[] };
+type Report = { id: string; reason: string; targetType: "post" | "comment"; createdAt: string; title: string | null; postBody: string | null; commentBody: string | null; hidden: boolean | null; images: { mediaAssetId: string; url: string }[]; video?: { url: string } };
 function AdminCommunityReports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
@@ -30,6 +30,7 @@ function AdminCommunityReports() {
       <h2 className="text-[20px] font-semibold [overflow-wrap:anywhere]">{report.title ?? "삭제된 게시글"}</h2>
       <p className="whitespace-pre-wrap text-[16px] leading-6 [overflow-wrap:anywhere]">{(report.targetType === "comment" ? report.commentBody : report.postBody) ?? "작성자가 내용을 삭제했습니다."}</p>
       <div className="flex flex-wrap gap-2">{report.images.map((image) => <img key={image.mediaAssetId} src={image.url} alt="신고 게시글 첨부 사진" className="max-h-64 max-w-full rounded-[10px] object-contain" />)}</div>
+      {report.video && <video src={report.video.url} controls playsInline preload="none" className="max-h-64 max-w-full rounded-[10px]" aria-label="신고된 게시글 첨부 동영상" />}
       <p className="text-[14px] leading-5 [overflow-wrap:anywhere]">신고 사유: {report.reason}</p>
       <div className="flex flex-wrap gap-2"><button className={communityPrimary} disabled={busy || !!report.hidden || !(report.targetType === "comment" ? report.commentBody : report.postBody)} onClick={() => void review(report.id, "hide")}>{report.hidden ? "이미 숨겨진 내용" : "신고된 내용 숨기기"}</button><button className={communityButton} disabled={busy} onClick={() => void review(report.id, "dismiss")}>신고 종결</button></div>
     </article>)}

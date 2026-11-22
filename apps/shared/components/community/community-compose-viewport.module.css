@@ -1,0 +1,44 @@
+@media (max-width: 767px), (pointer: coarse) {
+  .dialog:modal {
+    --compose-safe-top: var(--pm-safe-top, env(safe-area-inset-top, 0px));
+    --compose-safe-bottom: var(--pm-safe-bottom, env(safe-area-inset-bottom, 0px));
+    position: fixed;
+    inset: var(--community-compose-top, 0px) 0 auto;
+    width: min(100%, 430px);
+    max-width: none;
+    height: var(--community-compose-height, 100dvh);
+    max-height: none;
+    margin: 0 auto;
+    padding-block: var(--compose-safe-top) var(--compose-safe-bottom);
+    overflow: hidden;
+  }
+
+  .dialog:modal > form {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .dialog:modal > form > :is(header, footer) { flex: none; }
+
+  .dialog:modal .content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    container: community-compose / size;
+  }
+
+  .dialog:modal .grid { grid-template-columns: minmax(0, 1fr); }
+
+  .dialog:modal textarea {
+    min-height: 0;
+    height: clamp(40px, 100cqh, 180px);
+    resize: none;
+  }
+
+  @container community-compose (max-height: 85px) {
+    .dialog:modal textarea { padding-block: 6px; }
+  }
+}

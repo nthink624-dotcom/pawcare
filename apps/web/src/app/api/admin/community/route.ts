@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const admin = await requireAdminSession(request);
     const { data, error } = await communityAdmin().rpc("community_moderate", { p_admin: admin.id, p_action: "list" });
     if (error) communityDatabaseError(error);
-    const signed = await resolveCommunityImages({ posts: data.reports });
+    const signed = await resolveCommunityImages({ posts: data.reports }, { listVideos: true });
     return NextResponse.json({ reports: signed.posts }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return fail(error); }
 }

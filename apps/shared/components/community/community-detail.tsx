@@ -1,5 +1,5 @@
 "use client";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { IconPencil as Pencil, IconShieldExclamation as ShieldAlert, IconTrash as Trash2 } from "@tabler/icons-react";
 import { type CommunityComment, type CommunityPost, type CommunityCommentVote } from "../../contracts/community";
 import { CommentThread } from "../ui/reddit-nested-thread-reply";
@@ -11,14 +11,16 @@ import { CommunityPostActions, type CommunityReactionControls } from "./communit
 export { communityDate };
 export type CommunityTarget = { targetType: "post" | "comment"; targetId: string };
 export type CommunityIntent = CommunityTarget & { action: "report" | "block" | "delete_post" | "delete_comment" };
-export function CommunityDetail({ post, comments, busy, page, hasMore, onPage, onEdit, onIntent, onComment, onVote, authorName, reactions }: {
+export function CommunityDetail({ post, comments, busy, page, hasMore, onPage, onEdit, onIntent, onComment, onVote, authorName, reactions, onReloadVideo }: {
   post: CommunityPost; comments: CommunityComment[]; busy: boolean; page: number; hasMore: boolean; authorName?: string;
   onPage: (page: number) => void; onEdit: () => void; onIntent: (intent: CommunityIntent) => void;
   onComment: (id: string, body: string, parentId: string | null) => Promise<void>;
   onVote: (commentId: string, value: CommunityCommentVote) => Promise<void>;
   reactions: CommunityReactionControls;
+  onReloadVideo: () => void;
 }) {
   const commentRef = useRef<HTMLTextAreaElement>(null);
+  const [failedVideoUrl, setFailedVideoUrl] = useState<string>();
   return <article className={styles.detail}>
     <section className={styles.article}>
       <h2>{post.title}</h2>
@@ -26,6 +28,12 @@ export function CommunityDetail({ post, comments, busy, page, hasMore, onPage, o
       {post.updatedAt !== post.createdAt && <p className={styles.meta}>수정됨 · {communityDate(post.updatedAt)}</p>}
       <p className={styles.articleBody}>{post.body}</p>
       {post.images.length > 0 && <div className={styles.articleImages}>{post.images.map((image, i) => <img key={image.mediaAssetId} src={image.url} alt={"게시글 첨부 사진 " + (i + 1)} />)}</div>}
+      {post.video && <div className={styles.articleVideo}>
+        {failedVideoUrl === post.video.url
+          ? <button type="button" className={communityButton} onClick={onReloadVideo}>동영상 다시 불러오기</button>
+          : <video src={post.video.url} controls playsInline preload="none" aria-label="게시글 첨부 동영상"
+            onError={() => setFailedVideoUrl(post.video?.url)} />}
+      </div>}
       <div className={styles.detailReactions}><CommunityPostActions post={post} onComment={() => commentRef.current?.focus()} {...reactions} /></div>
       <div className={styles.articleActions}>{post.isMine ? <><button type="button" className={communityButton} disabled={busy} onClick={onEdit}><Pencil size={15} aria-hidden />수정</button><button type="button" className={communityButton} disabled={busy} onClick={() => onIntent({ action: "delete_post", targetType: "post", targetId: post.id })}><Trash2 size={15} aria-hidden />삭제</button></> : <><button type="button" className={communityButton} disabled={busy} onClick={() => onIntent({ action: "report", targetType: "post", targetId: post.id })}><ShieldAlert size={15} aria-hidden />신고</button><button type="button" className={communityButton} disabled={busy} onClick={() => onIntent({ action: "block", targetType: "post", targetId: post.id })}>작성자 차단</button></>}</div>
     </section>

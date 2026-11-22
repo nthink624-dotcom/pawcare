@@ -38,10 +38,10 @@ export function CommunitySavedPosts({ shopId, api, refreshVersion, busy, onOpen,
   function changePage(next: number) { setLoading(true); setPage(next); }
   return <div data-community-saved>
     {error && <div className={styles.resourceError}><p role="alert">{error}</p><button type="button" className={communityButton} onClick={() => setRevision((value) => value + 1)}>다시 시도</button></div>}
-    {loading ? <p className={styles.resourceEmpty} role="status">저장한 글을 불러오고 있습니다.</p> : data?.posts?.length ? <div className={styles.savedList}>{data.posts.map((post) => <article key={post.id} className={styles.savedItem} data-saved-post={post.id}>
+    {loading ? <p className={styles.resourceEmpty} role="status">저장한 글을 불러오고 있습니다.</p> : data?.posts?.length ? <div className={styles.savedList}>{data.posts.map((post, index) => <article key={post.id} className={styles.savedItem} data-saved-post={post.id}>
       <button type="button" className={styles.savedOpen} aria-label={`저장한 게시글 열기: ${post.title}`} disabled={busy} onClick={() => onOpen(post.id)}>
         <span className={styles.savedText}><span className={styles.savedAuthor}>{post.authorName}</span><span className={styles.savedTitle}>{post.title}</span><span className={styles.savedExcerpt}>{post.body}</span></span>
-        {post.images[0] && <img src={post.images[0].url} alt="" className={styles.savedThumb} loading="lazy" />}
+        {post.images[0] && <img src={post.images[0].url} alt="" className={styles.savedThumb} loading={index < 3 ? "eager" : "lazy"} />}
       </button>
       <button type="button" className={styles.savedRemove} data-owner-control-size="content" aria-label={`저장 해제: ${post.title}`} title="저장 해제" aria-pressed={true} disabled={busy || !!pendingId} onClick={() => void unsave(post)}>{pendingId === post.id ? <IconLoader2 size={18} className={styles.loadingIcon} aria-hidden /> : <IconBookmarkFilled size={18} aria-hidden />}</button>
     </article>)}</div> : !error && <CommunityStatus kind="saved" title="저장한 글이 없어요" description="다시 보고 싶은 글은 저장 버튼을 눌러 모아보세요." />}

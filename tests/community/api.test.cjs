@@ -53,3 +53,40 @@ test('mobile preflight permits only known app origins',()=>{
   assert.equal(good.status,204);assert.equal(good.headers.get('Access-Control-Allow-Origin'),'capacitor://localhost');
   const bad=r.OPTIONS(new NextRequest('http://127.0.0.1/api/owner/community',{method:'OPTIONS',headers:{Origin:'https://evil.example'}}));assert.equal(bad.headers.get('Access-Control-Allow-Origin'),null);
 });
+
+test('saved-only query parses true/false explicitly and rejects ambiguous values',async()=>{
+  const r=route();
+  for(const value of ['true','false']){
+    const response=await r.GET(new NextRequest('http://127.0.0.1/api/owner/community?shopId=a&savedOnly='+value));
+    assert.equal(response.status,200);assert.equal(r.calls.at(-1)[2].savedOnly,value==='true');
+  }
+  assert.equal((await r.GET(new NextRequest('http://127.0.0.1/api/owner/community?shopId=a&savedOnly=1'))).status,400);
+});
+
+test('like/save desired state uses the verified actor and strips forged private fields',async()=>{
+  const r=route();
+  for(const action of ['like','save']){
+    const response=await r.POST(new NextRequest('http://127.0.0.1/api/owner/community?shopId=a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,postId:id,active:false,userId:'victim',savedBy:'victim',likeCount:999})}));
+    assert.equal(response.status,200);const call=r.calls.at(-1);
+    assert.equal(call[0].userId,'verified-user');assert.deepEqual(call[1],{action,postId:id,active:false});
+  }
+});
+
+test('reaction requests require a post UUID and boolean desired state',async()=>{
+  const r=route();
+  for(const payload of [{action:'like',postId:id,active:'false'},{action:'save',postId:id},{action:'save',postId:'bad',active:true}]){
+    const response=await r.POST(new NextRequest('http://127.0.0.1/api/owner/community?shopId=a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
+    assert.equal(response.status,400);
+  }
+  assert.equal(r.calls.length,0);
+});
+
+test('nested comments and votes strip forged identity and reject malformed parents or votes',async()=>{
+ const r=route();
+ const request=payload=>r.POST(new NextRequest('http://127.0.0.1/api/owner/community?shopId=a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
+ assert.equal((await request({action:'create_comment',id,postId:id,parentId:null,body:'답글 내용',authorName:'위조',userId:'victim',isPostAuthor:true})).status,200);
+ assert.deepEqual(r.calls.at(-1)[1],{action:'create_comment',id,postId:id,parentId:null,body:'답글 내용'});
+ assert.equal((await request({action:'vote_comment',postId:id,commentId:id,value:-1,userId:'victim',score:999})).status,200);
+ assert.deepEqual(r.calls.at(-1)[1],{action:'vote_comment',postId:id,commentId:id,value:-1});
+ for(const payload of [{action:'create_comment',id,postId:id,parentId:'bad',body:'답글'},{action:'vote_comment',postId:id,commentId:id,value:2},{action:'vote_comment',postId:id,commentId:id,value:'1'}])assert.equal((await request(payload)).status,400);
+});

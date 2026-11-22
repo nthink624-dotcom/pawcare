@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
-import { IconCheck as Check, IconChevronDown as ChevronDown, IconPlus as Plus, IconSearch as Search } from "@tabler/icons-react";
+import { IconCheck as Check, IconPlus as Plus } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 
@@ -56,11 +56,13 @@ function GroupImage({ members, renderAvatar }: { members: Member[]; renderAvatar
   );
 }
 
-function MemberDropdown({ members, selected, onSelect, onClear, allLabel, renderAvatar, max, position, panelRef, id }: {
+function MemberDropdown({ members, selected, allSelected, onSelect, onSelectAll, onApply, allLabel, renderAvatar, max, position, panelRef, id }: {
   members: Member[];
   selected: string[];
+  allSelected: boolean;
   onSelect: (id: string) => void;
-  onClear: () => void;
+  onSelectAll: () => void;
+  onApply: () => void;
   allLabel?: string;
   renderAvatar?: MemberSelectorProps["renderAvatar"];
   max?: number;
@@ -68,11 +70,9 @@ function MemberDropdown({ members, selected, onSelect, onClear, allLabel, render
   panelRef: React.RefObject<HTMLDivElement | null>;
   id: string;
 }) {
-  const [query, setQuery] = React.useState("");
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  React.useEffect(() => { inputRef.current?.focus(); }, []);
-  const filtered = members.filter((member) => `${member.name} ${member.email ?? ""}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
-  const allSelected = !selected.length || members.every((member) => selected.includes(member.id));
+  React.useEffect(() => {
+    panelRef.current?.querySelector<HTMLButtonElement>("[data-member-all], [data-member-id]")?.focus();
+  }, [panelRef]);
 
   return (
     <motion.div ref={panelRef} id={id} role="dialog" aria-label="직원 선택" style={position}
@@ -80,28 +80,18 @@ function MemberDropdown({ members, selected, onSelect, onClear, allLabel, render
       className="fixed z-[100] flex flex-col overflow-hidden rounded-[14px] border border-[#e8edf3] bg-white text-[#101a31] shadow-lg"
       onKeyDown={(event) => {
         if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-        if (event.target === inputRef.current && event.key !== "ArrowDown") return;
-        const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+        if (event.target instanceof HTMLButtonElement && !event.target.matches("[data-member-all], [data-member-id]")) return;
+        const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[data-member-all]:not(:disabled), [data-member-id]:not(:disabled)"));
         if (!buttons.length) return;
         event.preventDefault();
         const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
         const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowUp" ? -1 : 1) + buttons.length) % buttons.length;
         buttons[next]?.focus();
       }}>
-      <div className="border-b border-[#e8edf3] p-3">
-        <div className="mb-3 flex items-center justify-between gap-3 text-sm font-medium">
-          <span>담당 직원</span><span role="status" aria-live="polite" className="text-xs font-normal text-[#64748b]">{allSelected ? "전체 선택" : `${selected.length}명 선택`}</span>
-        </div>
-        <div className="relative">
-          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
-          <input ref={inputRef} aria-label="직원 검색" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="직원 이름 검색"
-            className={cn("min-h-11 w-full rounded-[10px] border border-[#e8edf3] bg-[#f8fafc] py-2 pl-9 pr-3 text-sm placeholder:text-[#64748b]", focusClass)} />
-        </div>
-      </div>
       <div className="min-h-0 overflow-y-auto overscroll-contain p-3">
         <div className="grid grid-cols-[repeat(auto-fit,minmax(52px,1fr))] items-start gap-x-2 gap-y-3">
-        {allLabel && !query.trim() && (
-          <motion.button type="button" onClick={onClear} aria-label={allLabel} aria-pressed={allSelected} data-member-all="true" whileTap={{ scale: 0.96 }} className={cn("flex min-h-11 min-w-0 flex-col items-center gap-1.5 rounded-[8px] py-1 hover:bg-[#f3f7ff]", focusClass)}>
+        {allLabel && (
+          <motion.button type="button" onClick={onSelectAll} aria-label={allLabel} aria-pressed={allSelected} data-member-all="true" whileTap={{ scale: 0.96 }} className={cn("flex min-h-11 min-w-0 flex-col items-center gap-1.5 rounded-[8px] py-1 hover:bg-[#f3f7ff]", focusClass)}>
             <span aria-hidden="true" className={cn("relative block rounded-full transition-[opacity,filter]", !allSelected && "opacity-50 grayscale")}>
               <GroupImage members={members} renderAvatar={renderAvatar} />
               {allSelected && <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-[#1677ff] text-white"><Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" /></span>}
@@ -109,7 +99,7 @@ function MemberDropdown({ members, selected, onSelect, onClear, allLabel, render
             <span className="w-full break-words text-center text-sm font-medium text-[#101a31]">전체</span>
           </motion.button>
         )}
-        {filtered.map((member) => {
+        {members.map((member) => {
           const active = allSelected || selected.includes(member.id);
           const disabled = !active && max !== undefined && max !== 1 && selected.length >= max;
           return (
@@ -127,7 +117,15 @@ function MemberDropdown({ members, selected, onSelect, onClear, allLabel, render
           );
         })}
         </div>
-        {!filtered.length && <p role="status" className="px-3 py-6 text-center text-sm text-[#64748b]">검색 결과가 없습니다.</p>}
+      </div>
+      {/* Keep Apply after the staff choices in keyboard order. */}
+      <div className="order-first flex shrink-0 items-center justify-between gap-3 border-b border-[#e8edf3] px-3 py-1 text-sm font-medium">
+        <span>담당 직원</span>
+        <span role="status" aria-live="polite" className="sr-only">{allSelected ? "전체 선택" : `${selected.length}명 선택`}</span>
+        <button type="button" onClick={onApply} disabled={!allSelected && selected.length === 0}
+          className={cn("min-h-11 min-w-16 shrink-0 whitespace-nowrap rounded-[8px] bg-[#111a30] px-3 text-sm font-medium text-white hover:bg-[#23304b] disabled:bg-[#e8edf3] disabled:text-[#64748b]", focusClass)}>
+          적용
+        </button>
       </div>
     </motion.div>
   );
@@ -136,7 +134,8 @@ function MemberDropdown({ members, selected, onSelect, onClear, allLabel, render
 const MemberSelector = React.forwardRef<HTMLDivElement, MemberSelectorProps>(function MemberSelector(
   { members, selected, onChange, max, maxVisible = 4, className, allLabel, renderAvatar }, ref,
 ) {
-  const [isOpen, setIsOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState<"all" | string[] | null>(null);
+  const isOpen = draft !== null;
   const [position, setPosition] = React.useState<React.CSSProperties>({});
   const containerRef = React.useRef<HTMLDivElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
@@ -145,6 +144,8 @@ const MemberSelector = React.forwardRef<HTMLDivElement, MemberSelectorProps>(fun
   const selectionKey = selected.join("\0");
   const allSelected = !selected.length || members.every((member) => selected.includes(member.id));
   const selectedMembers = members.filter((member) => allSelected || selected.includes(member.id));
+  const draftIds = Array.isArray(draft) ? members.filter((member) => draft.includes(member.id)).map((member) => member.id) : [];
+  const draftAllSelected = draft === "all" || (members.length > 0 && draftIds.length === members.length);
   const summary = allSelected && allLabel ? "전체" : selectedMembers.length === 1 ? selectedMembers[0].name : selectedMembers.length ? `${selectedMembers.length}명` : "직원 선택";
 
   React.useLayoutEffect(() => {
@@ -170,10 +171,10 @@ const MemberSelector = React.forwardRef<HTMLDivElement, MemberSelectorProps>(fun
   React.useEffect(() => {
     if (!isOpen) return;
     function handleOutside(event: Event) {
-      if (!containerRef.current?.contains(event.target as Node) && !panelRef.current?.contains(event.target as Node)) setIsOpen(false);
+      if (!containerRef.current?.contains(event.target as Node) && !panelRef.current?.contains(event.target as Node)) setDraft(null);
     }
     function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") { event.preventDefault(); setIsOpen(false); triggerRef.current?.focus(); }
+      if (event.key === "Escape") { event.preventDefault(); setDraft(null); triggerRef.current?.focus(); }
     }
     document.addEventListener("pointerdown", handleOutside);
     document.addEventListener("focusin", handleOutside);
@@ -182,17 +183,34 @@ const MemberSelector = React.forwardRef<HTMLDivElement, MemberSelectorProps>(fun
   }, [isOpen]);
 
   function toggleMember(memberId: string) {
-    if (allSelected) onChange([memberId]);
-    else if (selected.includes(memberId)) onChange(selected.filter((item) => item !== memberId));
-    else if (max === 1) onChange([memberId]);
-    else if (max === undefined || selected.length < max) onChange([...selected, memberId]);
+    setDraft((current) => {
+      if (current === null) return current;
+      if (current === "all") return [memberId];
+      const ids = members.filter((member) => current.includes(member.id)).map((member) => member.id);
+      if (ids.includes(memberId)) return ids.filter((id) => id !== memberId);
+      if (max === 1) return [memberId];
+      return max === undefined || ids.length < max ? [...ids, memberId] : current;
+    });
   }
 
-  const summaryClass = "flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[8px] border border-[#dce5ef] bg-white px-2 text-sm font-medium text-[#334155]";
+  function closeAndFocus() {
+    setDraft(null);
+    triggerRef.current?.focus();
+  }
+
+  function applyDraft() {
+    if (!isOpen || (!draftAllSelected && draftIds.length === 0)) return;
+    const selectionChanged = draftAllSelected !== allSelected ||
+      (!draftAllSelected && (draftIds.length !== selectedMembers.length || draftIds.some((id) => !selected.includes(id))));
+    if (selectionChanged) onChange(draftAllSelected ? [] : draftIds);
+    closeAndFocus();
+  }
+
+  const summaryClass = "flex h-11 w-full min-w-0 items-center justify-center gap-2 rounded-[8px] border border-[#dce5ef] bg-white px-2 text-sm font-medium text-[#334155]";
   const summaryContent = <>
     {selectedMembers.length > 0 && <span aria-hidden="true" className="flex shrink-0 -space-x-4">
       {selectedMembers.slice(0, Math.max(0, maxVisible)).map((member) => (
-        <span key={member.id} className="block h-6 w-6 overflow-hidden rounded-full ring-2 ring-white">
+        <span key={member.id} className="block h-8 w-8 overflow-hidden rounded-full ring-2 ring-white">
           <MemberImage member={member} renderAvatar={renderAvatar} />
         </span>
       ))}
@@ -209,13 +227,22 @@ const MemberSelector = React.forwardRef<HTMLDivElement, MemberSelectorProps>(fun
       <div ref={ref} data-member-selector="group" className={cn("relative w-[136px] max-w-full", className)}>
         <div ref={containerRef}>
           <button ref={triggerRef} type="button" data-owner-control-size="content" aria-label={`담당 직원 선택: ${summary}`} aria-expanded={isOpen} aria-haspopup="dialog" aria-controls={isOpen ? `${id}-dropdown` : undefined}
-            onClick={() => setIsOpen((open) => !open)}
+            onClick={() => setDraft(isOpen ? null : allSelected ? "all" : selectedMembers.map((member) => member.id))}
             className={cn(summaryClass, "transition-colors hover:border-[#b8d6fc] hover:bg-[#f4f8ff]", isOpen && "border-[#b8d6fc] bg-[#f4f8ff]", focusClass)}>
             {summaryContent}
-            <ChevronDown aria-hidden="true" className={cn("h-3.5 w-3.5 shrink-0 text-[#64748b] transition-transform", isOpen && "rotate-180")} />
           </button>
         </div>
-        {typeof document !== "undefined" && createPortal(<AnimatePresence>{isOpen && <MemberDropdown key="dropdown" id={`${id}-dropdown`} panelRef={panelRef} position={position} members={members} selected={selected} onSelect={toggleMember} onClear={() => onChange([])} allLabel={allLabel} max={max} renderAvatar={renderAvatar} />}</AnimatePresence>, document.body)}
+        {typeof document !== "undefined" && createPortal(
+          <AnimatePresence>
+            {isOpen && <MemberDropdown
+              key="dropdown" id={`${id}-dropdown`} panelRef={panelRef} position={position} members={members}
+              selected={draftIds} allSelected={draftAllSelected} onSelect={toggleMember}
+              onSelectAll={() => setDraft("all")} onApply={applyDraft}
+              allLabel={allLabel} max={max} renderAvatar={renderAvatar}
+            />}
+          </AnimatePresence>,
+          document.body,
+        )}
       </div>
     </MotionConfig>
   );

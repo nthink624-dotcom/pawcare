@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   IconAlertCircle,
   IconBookmark as Bookmark,
@@ -30,16 +31,27 @@ export function CommunityAuthor({ name, date, mine = false }: { name: string; da
   </div>;
 }
 
-export function CommunityPostCard({ post, onOpen, reactions }: { post: CommunityPost; onOpen: () => void; reactions: CommunityReactionControls }) {
+export function CommunityPostCard({ post, onOpen, onComment, commentRegion, reactions, children, eagerImages = false }: {
+  post: CommunityPost;
+  onOpen: () => void;
+  onComment: () => void;
+  commentRegion: { expanded: boolean; id: string };
+  reactions: CommunityReactionControls;
+  children?: ReactNode;
+  /** Posts at the top of the feed start their photo downloads with the first render. */
+  eagerImages?: boolean;
+}) {
   return <article className={styles.post} data-community-post={post.id}>
     <div className={styles.postTop}><CommunityAuthor name={post.authorName} date={post.createdAt} mine={post.isMine} /></div>
     <button type="button" className={styles.postTitleButton} onClick={onOpen}><h2>{post.title}</h2></button>
     <p className={styles.excerpt}>{post.body}</p>
     {post.images.length > 0 && <button className={styles.postImageButton} type="button" onClick={onOpen} aria-label={`${post.title} 첨부 사진 보기`}>
-      <div className={styles.feedImages} data-count={Math.min(post.images.length, 2)}>{post.images.slice(0, 2).map((image, i) => <img key={image.mediaAssetId} src={image.url} alt={`게시글 첨부 사진 ${i + 1}`} loading="lazy" />)}</div>
+      <div className={styles.feedImages} data-count={Math.min(post.images.length, 2)}>{post.images.slice(0, 2).map((image, i) => <img key={image.mediaAssetId} src={image.url} alt={`게시글 첨부 사진 ${i + 1}`} loading={eagerImages ? "eager" : "lazy"} />)}</div>
       {post.images.length > 2 && <span className={styles.photoCount}>사진 {post.images.length}장</span>}
     </button>}
-    <div className={styles.postFooter}><CommunityPostActions post={post} onComment={onOpen} {...reactions} /></div>
+    {post.hasVideo && <button type="button" className={styles.quietButton} onClick={onOpen}>동영상 보기</button>}
+    <div className={styles.postFooter}><CommunityPostActions post={post} onComment={onComment} commentRegion={commentRegion} {...reactions} /></div>
+    {children}
   </article>;
 }
 

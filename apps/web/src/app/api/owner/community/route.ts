@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { after, NextRequest } from "next/server";
 import { z } from "zod";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
@@ -20,8 +20,9 @@ export async function GET(request: NextRequest) {
     const input = communityReadSchema.parse(Object.fromEntries(request.nextUrl.searchParams));
     const owner = await requireOwnerShop(request, input.shopId, undefined, { deferBillingMaintenance: true });
     const result = await communityDispatch(owner, input.postId ? "detail" : "list", input);
-    await cleanCommunityMedia().catch(() => undefined);
-    return reply(request, await resolveCommunityImages(result));
+    // Queue cleanup must not hold the reader's response.
+    after(() => cleanCommunityMedia().catch(() => undefined));
+    return reply(request, await resolveCommunityImages(result, { thumbnails: !input.postId }));
   } catch (error) { return failure(request, error); }
 }
 export async function POST(request: NextRequest) {

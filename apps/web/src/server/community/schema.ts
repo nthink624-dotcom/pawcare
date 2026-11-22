@@ -1,15 +1,19 @@
 import { z } from "zod";
+import { COMMUNITY_ATTACHMENT_LIMIT, COMMUNITY_VIDEO_MAX_BYTES } from "@petmanager/shared/contracts/community";
 
 const uuid = z.string().uuid();
 const target = { targetType: z.enum(["post", "comment"]), targetId: uuid };
 const post = {
   id: uuid, category: z.enum(["operations", "knowledge", "lounge", "feedback"]),
   title: z.string().trim().min(1).max(100), body: z.string().trim().min(1).max(10000),
-  retainedMediaIds: z.array(uuid).max(3).default([]),
+  retainedMediaIds: z.array(uuid).max(COMMUNITY_ATTACHMENT_LIMIT).default([]),
+  videoUploadId: uuid.optional(),
+  removeVideo: z.boolean().default(false),
 };
 export const communityMutationSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create_post"), ...post }),
   z.object({ action: z.literal("update_post"), ...post, expectedUpdatedAt: z.iso.datetime({ offset: true }) }),
+  z.object({ action: z.literal("prepare_video"), id: uuid, uploadId: uuid, bytes: z.number().int().min(16).max(COMMUNITY_VIDEO_MAX_BYTES) }),
   z.object({ action: z.literal("delete_post"), id: uuid }),
   z.object({ action: z.literal("create_comment"), id: uuid, postId: uuid, parentId: uuid.nullable().default(null), body: z.string().trim().min(1).max(2000) }),
   z.object({ action: z.literal("vote_comment"), postId: uuid, commentId: uuid, value: z.union([z.literal(-1), z.literal(0), z.literal(1)]) }),

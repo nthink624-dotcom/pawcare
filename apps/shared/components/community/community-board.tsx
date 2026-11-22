@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { IconArrowLeft, IconPencilPlus } from "@tabler/icons-react";
-import { type CommunityApi, type CommunityPost, type CommunityResponse, type CommunityMutationResult, type CommunityReactionAction, type CommunityCommentVote } from "../../contracts/community";
+import { type CommunityApi, type CommunityPost, type CommunityResponse, type CommunityMutationResult, type CommunityReactionAction, type CommunityCommentVote, type CommunityVideoUpload } from "../../contracts/community";
 import { CommunityForm, communityButton, communityControl, communityPrimary, type CommunityDraft } from "./community-form";
 import { CommunityDetail, type CommunityIntent } from "./community-detail";
 import { CommunityAvatar, CommunityNotice, CommunityStatus } from "./community-presentation";
@@ -10,9 +10,10 @@ import { CommunitySidebar, type CommunitySideView } from "./community-sidebar";
 import { CommunityFeed } from "./community-feed";
 import styles from "./community.module.css";
 
-export default function CommunityBoard({ shopId, api, shopName, showTitle = true, backActionRef, profileView }: {
+export default function CommunityBoard({ shopId, api, shopName, showTitle = true, backActionRef, profileView, demo = false }: {
   shopId: string; api: CommunityApi; shopName?: string; showTitle?: boolean; backActionRef?: RefObject<(() => boolean) | null>;
   profileView?: { open: boolean; onOpenChange: (open: boolean) => void };
+  demo?: boolean;
 }) {
   const areaId = useId();
   const [selectedArea, setSelectedArea] = useState<"discussion" | "resources">("discussion");
@@ -98,9 +99,45 @@ export default function CommunityBoard({ shopId, api, shopName, showTitle = true
     } finally { setBusy(false); }
   }
   async function save(draft: CommunityDraft) {
-    const { photos, ...payload } = draft;
-    const result = await mutate({ ...payload, action: editor === "new" ? "create_post" : "update_post" }, photos);
-    setEditor(null); setPostId(result.id ?? draft.id); setPage(0); setNotice("게시글이 저장되었습니다."); refresh();
+    const { photos, video, ...payload } = draft;
+    setBusy(true);
+    try {
+      if (video) {
+        const upload = await api<CommunityVideoUpload>(base, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "prepare_video", id: draft.id, uploadId: video.uploadId, bytes: video.file.size }),
+        });
+        if (!upload.uploaded) {
+          const url = new URL(upload.uploadUrl);
+          if (url.protocol !== "https:" || !url.pathname.includes("/storage/v1/object/upload/sign/community-videos/") || !url.searchParams.has("token")) {
+            throw new Error("동영상 업로드 주소를 확인하지 못했습니다.");
+          }
+          const body = new FormData();
+          body.set("cacheControl", "0");
+          body.append("", video.file.slice(0, video.file.size, "video/mp4"), "video.mp4");
+          const controller = new AbortController();
+          const timeout = window.setTimeout(() => controller.abort(), 120_000);
+          try {
+            const response = await fetch(url, {
+              method: "PUT", headers: { "x-upsert": "false" }, body,
+              credentials: "omit", redirect: "error", signal: controller.signal,
+            });
+            if (!response.ok) throw new Error("Storage upload failed");
+          } catch {
+            throw new Error("동영상을 올리지 못했습니다. 작성한 내용을 유지하고 다시 시도해 주세요.");
+          } finally {
+            window.clearTimeout(timeout);
+          }
+        }
+      }
+      const result = await mutate({
+        ...payload, action: editor === "new" ? "create_post" : "update_post", ...(video ? { videoUploadId: video.uploadId } : {}),
+      }, photos);
+      setEditor(null); setPostId(result.id ?? draft.id); setPage(0); setNotice("게시글이 저장되었습니다."); refresh();
+    } finally {
+      setBusy(false);
+    }
   }
   const openIntent = (value: CommunityIntent) => { setIntent(value); setReason(""); setDialogError(""); };
   const openEditor = () => { setSelectedArea("discussion"); setEditor("new"); setNotice(""); setActionError(""); };
@@ -131,26 +168,42 @@ export default function CommunityBoard({ shopId, api, shopName, showTitle = true
       reactingRef.current = false; setPendingReaction(null);
     }
   }
-  async function voteOnComment(commentId: string, value: CommunityCommentVote) {
-    if (busy || loading || reactingRef.current || !postId) return;
+  async function createComment(targetPostId: string, id: string, body: string, parentId: string | null) {
+    await mutate({ action: "create_comment", id, postId: targetPostId, body, parentId });
+  }
+  async function saveCommentVote(targetPostId: string, commentId: string, value: CommunityCommentVote) {
+    if (busy || loading || reactingRef.current) throw new Error("잠시 후 다시 시도해 주세요.");
     activeReadRef.current?.abort(); sequence.current++;
     reactingRef.current = true; setActionError("");
     try {
-      const result = await mutate({ action: "vote_comment", postId, commentId, value });
+      const result = await mutate({ action: "vote_comment", postId: targetPostId, commentId, value });
       if (!result.commentReaction || result.commentReaction.id !== commentId) throw new Error("추천 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
-      const reaction = result.commentReaction;
-      setData((previous) => previous ? { ...previous, comments: previous.comments?.map((comment) => comment.id === commentId ? { ...comment, ...reaction } : comment) } : previous);
+      return result.commentReaction;
     } finally { reactingRef.current = false; }
   }
+  async function voteOnComment(commentId: string, value: CommunityCommentVote) {
+    if (!postId) return;
+    const reaction = await saveCommentVote(postId, commentId, value);
+    setData((previous) => previous?.post?.id === postId
+      ? { ...previous, comments: previous.comments?.map((comment) => comment.id === commentId ? { ...comment, ...reaction } : comment) }
+      : previous);
+  }
+  const syncCommentCount = useCallback((targetPostId: string, count: number) => {
+    setData((previous) => {
+      if (!previous?.posts?.some((post) => post.id === targetPostId && post.commentCount !== count)) return previous;
+      return { ...previous, posts: previous.posts.map((post) => post.id === targetPostId ? { ...post, commentCount: count } : post) };
+    });
+  }, []);
   const reactionControls = (post: CommunityPost) => ({
     busy: busy || loading,
     pendingAction: pendingReaction?.postId === post.id ? pendingReaction.action : undefined,
     onReact: reactToPost,
   });
   const noShop = error === "소유한 매장이 없습니다.";
-  const showFeed = !postId && !settings && !editor;
+  const showFeed = !postId && !settings;
   const showComposer = showFeed && !loading && !error && !!data;
   return <section className={styles.root} data-community-board aria-label="사장님 라운지">
+    {demo && <p className={styles.demoNote}>데모에서 체험한 내용은 이 화면에서만 확인할 수 있어요.</p>}
     <div className={styles.areaTabs} role="tablist" aria-label="라운지 영역" onKeyDown={(event) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       event.preventDefault(); const nextArea = activeArea === "discussion" ? "resources" : "discussion"; selectArea(nextArea);
@@ -177,13 +230,18 @@ export default function CommunityBoard({ shopId, api, shopName, showTitle = true
     </div>}
     <div className={styles.boardContent}><div className={styles.content}>
       {(settings || (postId && !editor)) && <div className={styles.backRow}><button type="button" className={styles.quietButton} disabled={busy} onClick={() => back()}><IconArrowLeft size={17} aria-hidden />{settings && (postId || editor) ? "뒤로" : "목록"}</button></div>}
-      {editor && <div hidden={settings}><CommunityForm key={editor === "new" ? "new" : editor.id} post={editor === "new" ? undefined : editor} authorName={data?.viewer.nickname} onSave={save} onCancel={() => setEditor(null)} /></div>}
-      {(!editor || settings) && <>
-        {loading ? <div className={styles.loading} role="status"><span className="sr-only">라운지를 불러오고 있습니다.</span>{[0, 1].map((item) => <div className={styles.skeleton} key={item} aria-hidden><span /><span /><span /></div>)}</div> : error ? <div className={styles.feedState}><CommunityStatus kind={noShop ? "no-shop" : "error"} title={noShop ? "연결된 매장이 없습니다" : "게시글을 불러오지 못했어요"} description={noShop ? "매장을 연결하면 사장님들과 이야기를 나눌 수 있어요." : undefined} onRetry={refresh} /></div> : settings && data ? <CommunitySettings nickname={data.viewer.nickname} shopName={shopName} blockedUsers={data.blockedUsers} busy={busy} onSave={async (nickname) => { await mutate({ action: "profile", nickname }); setNotice("표시 이름을 저장했어요."); refresh(); }} onUnblock={async (id) => { await mutate({ action: "unblock", id }); refresh(); }} /> : postId && data?.post ? <CommunityDetail key={data.post.id} post={data.post} comments={data.comments ?? []} busy={busy} page={page} hasMore={data.hasMore} onPage={setPage} onEdit={() => setEditor(data.post!)} onIntent={openIntent} authorName={data.viewer.nickname} reactions={reactionControls(data.post)} onVote={voteOnComment} onComment={async (id, body, parentId) => { await mutate({ action: "create_comment", id, postId, body, parentId }); setNotice("댓글이 등록되었습니다."); refresh(); }} /> : <>
-          {data?.posts?.length ? <CommunityFeed posts={data.posts} controls={reactionControls} onOpen={openPost} /> : <div className={styles.feedState}><CommunityStatus kind="feed" title="아직 올라온 이야기가 없어요" /></div>}
+      {editor && !settings && <CommunityForm key={editor === "new" ? "new" : editor.id} post={editor === "new" ? undefined : editor} authorName={data?.viewer.nickname} onSave={save} onCancel={() => setEditor(null)} />}
+      <>
+        {loading ? <div className={styles.loading} role="status"><span className="sr-only">라운지를 불러오고 있습니다.</span>{[0, 1].map((item) => <div className={styles.skeleton} key={item} aria-hidden><span /><span /><span /></div>)}</div> : error ? <div className={styles.feedState}><CommunityStatus kind={noShop ? "no-shop" : "error"} title={noShop ? "연결된 매장이 없습니다" : "게시글을 불러오지 못했어요"} description={noShop ? "매장을 연결하면 사장님들과 이야기를 나눌 수 있어요." : undefined} onRetry={refresh} /></div> : settings && data ? <CommunitySettings nickname={data.viewer.nickname} shopName={shopName} blockedUsers={data.blockedUsers} busy={busy} onSave={async (nickname) => { await mutate({ action: "profile", nickname }); setNotice("표시 이름을 저장했어요."); refresh(); }} onUnblock={async (id) => { await mutate({ action: "unblock", id }); refresh(); }} /> : postId && data?.post ? <CommunityDetail key={data.post.id} post={data.post} comments={data.comments ?? []} busy={busy} page={page} hasMore={data.hasMore} onPage={setPage} onEdit={() => setEditor(data.post!)} onIntent={openIntent} authorName={data.viewer.nickname} reactions={reactionControls(data.post)} onVote={voteOnComment} onReloadVideo={refresh} onComment={async (id, body, parentId) => { await createComment(postId, id, body, parentId); setNotice("댓글이 등록되었습니다."); refresh(); }} /> : <>
+          {data?.posts?.length ? <CommunityFeed
+            posts={data.posts}
+            controls={reactionControls}
+            onOpen={openPost}
+            comments={{ api, base, authorName: data.viewer.nickname, revision, onCount: syncCommentCount, onComment: createComment, onVote: saveCommentVote, onModerate: openIntent }}
+          /> : <div className={styles.feedState}><CommunityStatus kind="feed" title="아직 올라온 이야기가 없어요" /></div>}
           {(page > 0 || data?.hasMore) && <nav className={styles.pagination} aria-label="게시글 페이지"><button type="button" className={communityButton} disabled={page === 0} onClick={() => setPage(page - 1)}>이전</button><span>{page + 1} 페이지</span><button type="button" className={communityButton} disabled={!data?.hasMore} onClick={() => setPage(page + 1)}>다음</button></nav>}
         </>}
-      </>}
+      </>
     </div></div>
     {intent && <dialog ref={dialogRef} aria-label={intent.action === "report" ? "신고하기" : intent.action === "block" ? "작성자 차단" : "삭제하기"} onCancel={(event) => { event.preventDefault(); if (!busy) setIntent(null); }} className="fixed inset-0 m-auto w-[calc(100%-32px)] max-w-[420px] rounded-[14px] border border-[#e8edf3] bg-white p-5 text-[#15213b] backdrop:bg-black/30">
       <form className="space-y-4" onSubmit={async (event) => {
@@ -191,7 +249,7 @@ export default function CommunityBoard({ shopId, api, shopName, showTitle = true
         try {
           const payload = intent.action.startsWith("delete_") ? { action: intent.action, id: intent.targetId } : { ...intent, reason };
           await mutate(payload); setIntent(null);
-          if (intent.action === "delete_post" || intent.action === "block") { setPostId(null); setPage(0); }
+          if (intent.action === "delete_post" || (intent.action === "block" && postId)) { setPostId(null); setPage(0); }
           setNotice(intent.action === "report" ? "신고가 접수되었습니다. 운영자가 확인하겠습니다." : intent.action === "block" ? "작성자를 차단했습니다." : "삭제되었습니다."); refresh();
         } catch (cause) { setDialogError(cause instanceof Error ? cause.message : "처리하지 못했습니다."); }
       }}>
@@ -202,7 +260,7 @@ export default function CommunityBoard({ shopId, api, shopName, showTitle = true
       </form>
     </dialog>}
     </section>
-    <aside className={styles.resourcesPanel} id={areaId + "-resources"} role="tabpanel" aria-label="모아보기" data-area-active={activeArea === "resources"} data-resources-panel data-community-sidebar><CommunitySidebar shopId={shopId} api={api} view={sideView} onViewChange={setSideView} refreshVersion={savedRevision} busy={busy || loading || !!editor} onOpen={openPost} onToggleSave={(post) => reactToPost(post, "save")} requiresShop={noShop} /></aside>
+    <aside className={styles.resourcesPanel} id={areaId + "-resources"} role="tabpanel" aria-label="모아보기" data-area-active={activeArea === "resources"} data-resources-panel data-community-sidebar><CommunitySidebar shopId={shopId} api={api} view={sideView} onViewChange={setSideView} refreshVersion={savedRevision} busy={busy || loading || !!editor} onOpen={openPost} onToggleSave={(post) => reactToPost(post, "save")} requiresShop={noShop} demo={demo} /></aside>
     </div>
   </section>;
 }

@@ -1440,8 +1440,8 @@ export default function CustomerManagementScreen({
   return (
     <div data-customer-management className="h-full min-h-0 overflow-hidden text-[16px] font-normal leading-6">
       <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[14px] border border-[#e8edf3] bg-white">
-        <div className="border-b border-[#e8edf3] p-3 sm:p-4">
-          <div className="flex flex-wrap items-center gap-2.5">
+        <div className="border-b border-[#e8edf3] px-3 py-2.5 sm:px-5">
+          <div className="flex min-h-11 flex-wrap items-center gap-2.5">
             <label className="flex h-11 min-w-0 basis-full items-center gap-3 rounded-[10px] border border-[#3b82f6] bg-white px-3 text-[#64748b] transition focus-within:border-[#2563eb] focus-within:ring-2 focus-within:ring-[#2563eb]/10 sm:min-w-[240px] sm:flex-1 sm:basis-0">
               <IconSearch aria-hidden="true" className="shrink-0 h-4 w-4 text-[#94a3b8]" />
               <input

@@ -1277,7 +1277,7 @@ function GroomingDatePanel({
       >
         <section ref={reservationRef} aria-label={itemLabel} className={dayPanelSectionClass}>
           {cancelledItems.length > 0 ? (
-            <div className="mb-2 flex min-w-0 items-center gap-1 px-0.5">
+            <div className="mb-2 flex min-w-0 items-center gap-1 pr-0.5">
               <ReservationSectionIcon className="mr-0.5 shrink-0" />
               <DayPanelListToggle label={itemLabel} count={visibleItems.length} selected={!showCancelled} onSelect={() => setCancelledListDate(null)} />
               <span className="mx-1 h-3.5 w-px shrink-0 bg-[#cbd5e1]" aria-hidden="true" />
@@ -1311,7 +1311,7 @@ function DayPanelSectionLabel({ icon, title, count, tone = "neutral" }: {
   tone?: "neutral" | "amber";
 }) {
   return (
-    <h3 className={cn("mb-2 flex min-w-0 items-center gap-1 px-0.5 text-[15px] font-semibold leading-[22px]", tone === "amber" ? "text-[#7a4f00]" : "text-[#1e293b]")}>
+    <h3 className={cn("mb-2 flex min-w-0 items-center gap-1 pr-0.5 text-[15px] font-semibold leading-[22px]", tone === "amber" ? "text-[#7a4f00]" : "text-[#1e293b]")}>
       <span className={cn("mr-0.5 inline-flex shrink-0", tone === "amber" ? "text-[#b98121]" : "text-[#475569]")} aria-hidden="true">{icon}</span>
       <span className="truncate">{title}</span>
       <span className={cn("font-medium tabular-nums", tone === "amber" ? "text-[#a8741a]" : "text-[#64748b]")}>{count}</span>

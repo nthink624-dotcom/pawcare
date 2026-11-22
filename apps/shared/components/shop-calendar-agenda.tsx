@@ -46,7 +46,7 @@ export function ShopCalendarAgenda({ date, shopId, events, canEdit, loading, err
     const openNew = () => setEditor({ id: crypto.randomUUID() });
     return (
       <section aria-label="노트" className="min-w-0">
-        <div className="mb-2 flex min-w-0 items-center justify-between gap-2 px-0.5">
+        <div className="mb-2 flex min-w-0 items-center justify-between gap-2 pr-0.5">
           <h3 className="flex min-w-0 items-center gap-1 text-[15px] font-semibold leading-[22px] text-[#1e293b]">
             <NoteSectionIcon className="mr-0.5 shrink-0" />
             <span className="truncate">노트</span>

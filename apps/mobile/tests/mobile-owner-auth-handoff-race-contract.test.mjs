@@ -26,8 +26,19 @@ function loadHandoffModule() {
   const compiledModule = { exports: {} };
   const storage = createStorage();
   const fakeWindow = { sessionStorage: storage, localStorage: storage, atob: (value) => Buffer.from(value, "base64").toString("utf8") };
-  Function("module", "exports", "window", output)(compiledModule, compiledModule.exports, fakeWindow);
-  return { api: compiledModule.exports, storage };
+  const snapshotClears = [];
+  // The handoff clears cached startup snapshots when the signed-in principal changes.
+  const requireStub = (specifier) => {
+    if (specifier === "@petmanager/shared/lib/owner-startup-store") {
+      return {
+        clearOwnerStartupSnapshots: async () => { snapshotClears.push(true); },
+        ownerStartupPrincipalHint: () => null,
+      };
+    }
+    throw new Error(`Unexpected handoff dependency: ${specifier}`);
+  };
+  Function("module", "exports", "window", "require", output)(compiledModule, compiledModule.exports, fakeWindow, requireStub);
+  return { api: compiledModule.exports, storage, snapshotClears };
 }
 
 test("handoff remains readable until cache persistence explicitly clears it", () => {

@@ -35,10 +35,9 @@ test("appointment interaction and surface restore the original rounded-lg radius
     /data-testid="appointment-card-surface"[\s\S]*?className="([^"]+)"/,
   );
 
+  // The decluttered day schedule (17dda86a) softened the card surface to 10px; the tap target keeps rounded-lg.
   assert.match(appointmentButtonClass, /(?:^|\s)rounded-lg(?:\s|$)/);
-  assert.match(appointmentSurfaceClass, /(?:^|\s)rounded-lg(?:\s|$)/);
-  assert.doesNotMatch(appointmentButtonClass, /rounded-\[10px\]/);
-  assert.doesNotMatch(appointmentSurfaceClass, /rounded-\[10px\]/);
+  assert.match(appointmentSurfaceClass, /(?:^|\s)rounded-\[10px\](?:\s|$)/);
   assert.match(appointmentSurfaceClass, /(?:^|\s)overflow-hidden(?:\s|$)/);
   assert.match(schedule, /left: `calc\(\$\{column \* width\}% \+ 8px\)`/);
   assert.match(schedule, /width: `calc\(\$\{width\}% - 12px\)`/);

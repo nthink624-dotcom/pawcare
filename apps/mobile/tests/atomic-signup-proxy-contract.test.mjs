@@ -138,6 +138,8 @@ test("F signup route contains no direct write or PII logging code", async () => 
 test("signup client sends one atomic payload and navigates only after success", async () => {
   const source = await readFile(new URL("../src/components/auth/signup-form.tsx", import.meta.url), "utf8");
   for (const field of ["signupRequestId", "identityVerificationToken", "servicePrices"]) assert.match(source, new RegExp(`\\b${field}\\b`));
-  assert.match(source, /if \(loading\) return;/);
+  // Duplicate submits are blocked by the in-flight signup flow ref as well as the loading state.
+  assert.match(source, /const moveToVerificationStep = async \(\) => \{\s*if \(signupFlowRef\.current \|\| loading \|\| checkingEmail\) return;/);
+  assert.match(source, /signupFlowRef\.current = flow;/);
   assert.ok(source.indexOf("if (!response.ok || !result.success)") < source.indexOf("message=signup-success"));
 });

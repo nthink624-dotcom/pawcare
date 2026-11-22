@@ -6,15 +6,19 @@ const templatePath = new URL("../src/components/auth/mobile-login-screen-templat
 const formPath = new URL("../src/components/auth/login-form.tsx", import.meta.url);
 const routePath = new URL("../src/app/api/auth/login/route.ts", import.meta.url);
 const timeoutPath = new URL("../src/lib/auth/owner-login-timeout.ts", import.meta.url);
-const [template, form, route, timeout] = await Promise.all([
-  readFile(templatePath, "utf8"), readFile(formPath, "utf8"), readFile(routePath, "utf8"), readFile(timeoutPath, "utf8"),
+const globalsPath = new URL("../src/app/globals.css", import.meta.url);
+const [template, form, route, timeout, globals] = await Promise.all([
+  readFile(templatePath, "utf8"), readFile(formPath, "utf8"), readFile(routePath, "utf8"), readFile(timeoutPath, "utf8"), readFile(globalsPath, "utf8"),
 ]);
 
 test("mobile owner login is a full-viewport page without modal chrome", () => {
   assert.match(template, /<main className="min-h-\[100dvh\] w-full bg-white/);
   assert.match(template, /<form[\s\S]*className="mx-auto flex min-h-\[100dvh\] w-full max-w-\[430px\]/);
-  assert.match(template, /env\(safe-area-inset-top\)/);
-  assert.match(template, /env\(safe-area-inset-bottom\)/);
+  // Safe areas come from the shared --pm-safe-* variables, which resolve env(safe-area-inset-*).
+  assert.match(template, /pt-\[calc\(var\(--pm-safe-top,0px\)/);
+  assert.match(template, /pb-\[calc\(var\(--pm-safe-bottom,0px\)/);
+  assert.match(globals, /--pm-safe-top: max\(env\(safe-area-inset-top\)/);
+  assert.match(globals, /--pm-safe-bottom: max\(env\(safe-area-inset-bottom\)/);
   assert.doesNotMatch(template, /<section[^>]+rounded-/);
   assert.doesNotMatch(template, /<section[^>]+shadow-/);
   assert.doesNotMatch(template, /<section[^>]+border /);
@@ -24,7 +28,7 @@ test("mobile owner login is a full-viewport page without modal chrome", () => {
 test("a normal login button activation crosses the native form submit boundary exactly once", () => {
   assert.match(template, /<form[\s\S]*onSubmit=\{\(event\) => \{/);
   assert.match(template, /event\.preventDefault\(\)/);
-  assert.match(template, /if \(!loading\) onLogin\(\)/);
+  assert.match(template, /if \(!loading && !loginDisabled\) onLogin\(\)/);
   assert.match(template, /data-testid="owner-login-submit"[\s\S]*type="submit"/);
   assert.doesNotMatch(template, /data-testid="owner-login-submit"[\s\S]{0,120}onClick=\{onLogin\}/);
 });
@@ -33,8 +37,10 @@ test("login controls preserve accessible mobile sizing and error recovery", () =
   assert.match(template, /data-testid="owner-login-email"/);
   assert.match(template, /data-testid="owner-login-password"/);
   assert.match(template, /data-testid="owner-login-submit"/);
-  assert.match(template, /auth-type-control min-h-\[52px\]/);
-  assert.match(template, /auth-type-control min-h-\[56px\]/);
+  // Since the social sign-in layout (2026-11-19): 44px inputs and a 48px submit, both at or above the 44px target.
+  assert.match(template, /data-testid="owner-login-email"[\s\S]*?className="auth-type-control min-h-11 /);
+  assert.match(template, /data-testid="owner-login-password"[\s\S]*?className="auth-type-control min-h-11 /);
+  assert.match(template, /data-testid="owner-login-submit"[\s\S]*?className="auth-type-control min-h-12 /);
   assert.match(template, /focus:border-\[#2563eb\] focus:ring-2/);
   assert.match(template, /canResendConfirmation/);
   assert.match(template, /인증 메일 다시 받기/);

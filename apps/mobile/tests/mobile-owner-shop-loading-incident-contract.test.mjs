@@ -4,31 +4,34 @@ import test from "node:test";
 
 const pagePath = new URL("../src/app/owner/mobile/page.tsx", import.meta.url);
 const shellPath = new URL("../src/components/owner/owner-shell.tsx", import.meta.url);
+const entryPath = new URL("../src/lib/owner-entry.ts", import.meta.url);
 const pageSource = await readFile(pagePath, "utf8");
 const shellSource = await readFile(shellPath, "utf8");
+const entrySource = await readFile(entryPath, "utf8");
 
 test("initial load scopes subscription and bootstrap to the same authorized shop", () => {
-  assert.match(pageSource, /shops\.some\(\(shop\) => shop\.id === storedShopId\)/);
-  assert.match(pageSource, /shops\[0\]\?\.id/);
+  // Initial load goes through loadOwnerEntry: the server entry endpoint authorizes the shop hint,
+  // and the fallback validates membership before accepting any launch bootstrap.
+  assert.match(pageSource, /const entry = await loadOwnerEntry\(storedShopId,/);
+  assert.match(pageSource, /\(storedShopId && shops\.some\(\(shop\) => shop\.id === storedShopId\) \? storedShopId : shops\[0\]\?\.id\) \?\? null/);
   assert.match(
     pageSource,
     /`\/api\/subscription\?shopId=\$\{encodeURIComponent\(resolvedShopId\)\}`/,
-  );
-  assert.match(
-    pageSource,
-    /`\/api\/bootstrap\?shopId=\$\{encodeURIComponent\(resolvedShopId\)\}&phase=launch`/,
   );
   assert.doesNotMatch(
     pageSource,
     /fetchApiJsonWithAuth<OwnerSubscriptionSummary>\("\/api\/subscription"/,
   );
 
-  const cachedBootstrapStart = pageSource.indexOf("const cachedBootstrapRequest = storedShopId");
-  const shopsRequest = pageSource.indexOf('const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops")');
-  const membershipCheck = pageSource.indexOf("shops.some((shop) => shop.id === storedShopId)");
-  const cachedResult = pageSource.indexOf("const cachedBootstrap = storedShopId === resolvedShopId");
-  assert.ok(cachedBootstrapStart >= 0 && shopsRequest > cachedBootstrapStart, "cached bootstrap must start before the shops request completes");
-  assert.ok(membershipCheck > shopsRequest && cachedResult > membershipCheck, "cached bootstrap must be used only after membership validation");
+  assert.match(entrySource, /if \(shopHint\) query\.set\("shopId", shopHint\);/);
+  assert.match(entrySource, /const staleHint = Boolean\(shopHint\) && error instanceof ApiRequestError && error\.status === 403;/);
+  const launchRead = entrySource.indexOf("const bootstrapRead = read<BootstrapPayload>(");
+  const shopsRequest = entrySource.indexOf('read<OwnerEntryShop[]>("/api/owner/shops")');
+  const membershipCheck = entrySource.indexOf("shops.some(shop => shop.id === shopHint)");
+  const shopMatch = entrySource.indexOf("initial.payload.shop?.id === shopId");
+  assert.ok(launchRead >= 0 && shopsRequest > launchRead, "launch bootstrap must start alongside the shops request");
+  assert.ok(membershipCheck > shopsRequest && shopMatch > membershipCheck, "launch bootstrap is accepted only for the validated shop");
+  assert.match(entrySource, /`\/api\/bootstrap\?shopId=\$\{encodeURIComponent\(shopId\)\}&phase=launch`/);
   assert.match(pageSource, /setData\(canonicalBootstrap\);[\s\S]*void fetchApiJsonWithAuth<CanonicalOwnerBootstrapPayload>/);
 });
 
@@ -41,7 +44,7 @@ test("shop changes and foreground refreshes keep subscription scoped to the acti
     shellSource,
     /`\/api\/subscription\?shopId=\$\{encodeURIComponent\(initialData\.shop\.id\)\}`/,
   );
-  assert.match(shellSource, /\}, \[initialData\.shop\.id\]\);/);
+  assert.match(shellSource, /\}, \[initialData\.shop\.id(?:, [\w.]+)*\]\);/);
   assert.doesNotMatch(
     shellSource,
     /fetchApiJsonWithAuth<OwnerSubscriptionSummary>\("\/api\/subscription"/,

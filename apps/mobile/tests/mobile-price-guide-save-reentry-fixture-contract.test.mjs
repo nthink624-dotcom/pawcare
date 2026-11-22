@@ -39,6 +39,10 @@ const matrixModule = transpile(matrixSource, (specifier) => {
 const adapterModule = transpile(adapterSource, (specifier) => {
   if (specifier === "@/lib/api") return { getAccessTokenWithRecovery: async () => "token" };
   if (specifier === "@/lib/supabase/client") return { getSupabaseBrowserClient: () => null };
+  // Canvas compression is browser-only; pass the fixture file through with its real size as the compressed upload.
+  if (specifier === "@/lib/media/client-image-compression") {
+    return { compressImageForPetmanager: async (file) => ({ file, width: 1, height: 1, sourceByteSize: file.size }) };
+  }
   if (specifier === "./mobile-price-photo-cleanup") return cleanupModule;
   if (specifier === "./mobile-price-photo-adapter") return coordinatorModule;
   if (specifier === "./generated-price-guide-core") return generatedCoreModule;

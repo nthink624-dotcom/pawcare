@@ -68,6 +68,7 @@ test("POST keeps the committed appointment successful when booking-link notifica
   const capacityModule = loadTypeScriptModule(capacitySource, () => ({}));
   const database = createDatabaseClient();
   const warnings = [];
+  const operationalEvents = [];
   let notificationAttempts = 0;
   const safeConsole = {
     log() {},
@@ -138,6 +139,9 @@ test("POST keeps the committed appointment successful when booking-link notifica
       if (specifier === "@/server/schemas") {
         return { appointmentInputSchema: { parse: (value) => value } };
       }
+      if (specifier === "@/server/observability") {
+        return { logOperationalEvent: (event, context) => operationalEvents.push({ event, context }) };
+      }
       throw new Error(`Unexpected owner mutation dependency: ${specifier}`);
     },
     safeConsole,
@@ -179,15 +183,13 @@ test("POST keeps the committed appointment successful when booking-link notifica
     database.calls.map((call) => call.kind),
     ["from", "insert", "select", "single"],
   );
-  assert.deepEqual(warnings, [
-    {
-      message: "[appointments-api] notification dispatch failed after appointment commit",
-      context: {
-        appointmentId: response.body.id,
-        notificationType: "booking_confirmed",
-        reason: "dispatch_failed",
-      },
-    },
-  ]);
-  assert.doesNotMatch(JSON.stringify(warnings), /BOOKING_ACCESS_SECRET|server configuration is missing/);
+  // Post-commit failures are recorded through the redacted operational event boundary, not console warnings.
+  assert.deepEqual(
+    operationalEvents.filter(({ event }) => event.startsWith("appointment_notification.")),
+    [
+      { event: "appointment_notification.started", context: { operation: "notification_dispatch", code: "booking_confirmed", status: 202 } },
+      { event: "appointment_notification.failed", context: { operation: "notification_dispatch", code: "dispatch_failed", status: 502 } },
+    ],
+  );
+  assert.doesNotMatch(JSON.stringify({ warnings, operationalEvents }), /BOOKING_ACCESS_SECRET|server configuration is missing/);
 });

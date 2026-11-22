@@ -24,6 +24,8 @@ function declarationText(sourceText, name, fileName) {
 }
 
 async function importMobileApiBoundaryHarness(envSource, apiSource) {
+  // fetchApiJsonWithAuth first applies the shared startup write fence; load the real implementation.
+  const fenceSource = await readFile(path.join(projectRoot, "../shared/lib/owner-startup-write-fence.ts"), "utf8");
   const moduleSource = [
     'const env = { apiBaseUrl: "", siteUrl: "http://localhost:3000" };',
     'const window = { location: { origin: "http://127.0.0.1:3100", protocol: "http:", hostname: "127.0.0.1" } };',
@@ -73,6 +75,12 @@ async function importMobileApiBoundaryHarness(envSource, apiSource) {
         text: async () => '{"ok":true}',
       };
     }`,
+    declarationText(fenceSource, "pending", "owner-startup-write-fence.ts"),
+    declarationText(fenceSource, "revision", "owner-startup-write-fence.ts"),
+    declarationText(fenceSource, "invalidateOwnerStartupRevision", "owner-startup-write-fence.ts"),
+    declarationText(fenceSource, "assertOwnerStartupWriteReady", "owner-startup-write-fence.ts"),
+    declarationText(apiSource, "OWNER_STARTUP_JOIN_WINDOW_MS", "api.ts"),
+    declarationText(apiSource, "ownerStartupReadsInFlight", "api.ts"),
     declarationText(apiSource, "fetchApiJsonAtUrl", "api.ts"),
     declarationText(apiSource, "fetchApiJsonWithAuth", "api.ts"),
     declarationText(apiSource, "fetchAppApiJson", "api.ts"),

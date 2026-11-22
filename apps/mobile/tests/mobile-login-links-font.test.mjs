@@ -29,7 +29,8 @@ test("login helper links keep 44px targets and whole Korean labels", () => {
 
 test("login helper labels and destinations remain unchanged", () => {
   assert.match(loginTemplate, /\{ href: "\/login\/find-email", label: "이메일 찾기" \}/);
-  assert.match(loginTemplate, /\{ href: "\/login\/reset", label: "비밀번호 재설정" \}/);
+  // The label became "비밀번호 찾기" with the social sign-in layout (2026-11-19); the destination is unchanged.
+  assert.match(loginTemplate, /\{ href: "\/login\/reset", label: "비밀번호 찾기" \}/);
   assert.match(
     loginTemplate,
     /\{ href: `\/signup\?next=\$\{encodeURIComponent\(nextPath\)\}`, label: "회원가입" \}/,

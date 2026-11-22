@@ -15,7 +15,8 @@ test("mobile media applies the shared 60-day temporary retention contract", asyn
   assert.match(policy, /PETMANAGER_MEDIA_TRANSIENT_RETENTION_DAYS = 60/);
   assert.match(mediaClient, /message_image[\s\S]*customer_shared[\s\S]*feedback_screenshot[\s\S]*"transient"/);
   assert.match(mediaService, /expiresAt\.setUTCDate\([\s\S]*PETMANAGER_MEDIA_TRANSIENT_RETENTION_DAYS/);
-  assert.match(mediaService, /`\$\{lifecyclePrefix\}\/shops\//);
+  // Objects stay shop-scoped under the lifecycle prefix; the storage provider segment sits between them.
+  assert.match(mediaService, /`\$\{lifecyclePrefix\}\/\$\{params\.storageProvider\}\/shops\/\$\{params\.shopId\}\//);
   assert.match(mediaService, /expires_at: getExpiresAt\(retentionPolicy\)/);
   assert.match(mediaService, /retentionPolicy === "archive"[\s\S]*OwnerApiError/);
   assert.match(privacyPolicy, /60일 동안 보관하며, 보관기간 만료 후 일일 자동 정리 작업에서 삭제/);

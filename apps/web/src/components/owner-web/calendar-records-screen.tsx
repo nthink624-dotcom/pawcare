@@ -1,19 +1,38 @@
 "use client";
 
-import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, PawPrint, X } from "lucide-react";
+import {
+  IconSearch,
+  IconCalendarEvent,
+  IconCalendarPlus as CalendarPlus,
+  IconFileImport,
+  IconChevronDown as ChevronDown,
+  IconChevronLeft as ChevronLeft,
+  IconChevronRight as ChevronRight,
+  IconPaw as PawPrint,
+  IconPlus,
+  IconX as X,
+} from "@tabler/icons-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarHolidayLabel, ShopCalendarAgenda } from "@petmanager/shared/components/shop-calendar-agenda";
+import { SupportProgramList } from "@petmanager/shared/components/support-program-list";
+import type { SupportProgram } from "@petmanager/shared/contracts/support-programs";
+import { calendarSecondaryButtonClass } from "@petmanager/shared/components/calendar-dialog";
+import { calendarHolidaysByDate, shopEventsOnDate } from "@petmanager/shared/lib/owner-calendar";
+import { useCalendarHolidays, useShopCalendarEvents } from "@petmanager/shared/lib/use-owner-calendar";
+import { useSupportPrograms } from "@petmanager/shared/lib/use-support-programs";
 
 import { fetchOwnerScheduleRange, replaceScheduleRangeInBootstrap } from "@/components/owner-web/calendar-owner-api";
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
 import { OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
-import { AssetIcon } from "@/components/owner-web/owner-web-ui";
-import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
+import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, statusIndicatorColor, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
+import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
 import type { AppointmentChangeEvent, AppointmentStatus, BootstrapPayload } from "@/types/domain";
 
 const BookingPreparationPanel = dynamic(() => import("@/components/booking/booking-preparation-panel"));
+const CalendarImportDialog = dynamic(() => import("@/components/owner-web/calendar-import-dialog"));
 
 type GroomingCalendarRecord = {
   id: string;
@@ -117,7 +136,7 @@ const staffDayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   pending: "예약 대기",
-  confirmed: "예약 예정",
+  confirmed: "예약 확정",
   in_progress: "진행 중",
   almost_done: "픽업 준비",
   completed: "완료",
@@ -264,7 +283,7 @@ function getRecordClockTime(value: string) {
 
 function formatMonthLabel(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
-  return `${parsed.getMonth() + 1}월`;
+  return `${parsed.getFullYear()}년 ${parsed.getMonth() + 1}월`;
 }
 
 function formatShortDate(date: string) {
@@ -274,7 +293,7 @@ function formatShortDate(date: string) {
 
 function formatFullDate(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
-  return `${String(parsed.getFullYear()).slice(-2)}년 ${parsed.getMonth() + 1}월 ${parsed.getDate()}일 ${weekdayLabels[parsed.getDay()]}요일`;
+  return `${parsed.getMonth() + 1}월 ${parsed.getDate()}일 ${weekdayLabels[parsed.getDay()]}요일`;
 }
 
 function formatHistoryTimestamp(value?: string | null) {
@@ -357,9 +376,9 @@ function getMonthRange(monthAnchor: string) {
 }
 
 function moveMonth(date: string, offset: number) {
-  const parsed = new Date(`${date}T00:00:00`);
-  parsed.setMonth(parsed.getMonth() + offset);
-  return parsed.toLocaleDateString("en-CA");
+  const parsed = new Date(`${date.slice(0, 7)}-01T00:00:00Z`);
+  parsed.setUTCMonth(parsed.getUTCMonth() + offset);
+  return parsed.toISOString().slice(0, 10);
 }
 
 function buildDayItems(records: GroomingCalendarRecord[], reservations: ReservationRow[], date: string): DayItem[] {
@@ -528,19 +547,6 @@ function matchesCalendarSearch(fields: Array<string | undefined | null>, query: 
   return haystack.includes(normalizedQuery) || Boolean(queryDigits && haystackDigits.includes(queryDigits));
 }
 
-function getRecordTone(item: DayItem) {
-  if (item.type === "record") return "border-[#dbe2ea]";
-  return "border-[#c8ded6]";
-}
-
-function getBadgeTone(item: DayItem) {
-  return "text-[#111827]";
-}
-
-function getTimeTone(item: DayItem) {
-  return "text-[#111827]";
-}
-
 function getStatusAccent(item: DayItem): StatusIndicatorTone {
   if (item.type === "record") return "slate";
   if (item.status === "취소" || item.status === "거절" || item.status === "노쇼") return "burgundy";
@@ -559,49 +565,30 @@ type CalendarStatusKey = "confirmed" | "completed" | "changed" | "cancelled";
 type CalendarStatusFilter = "all" | CalendarStatusKey;
 type CalendarStaffFilter = "all" | string;
 
-type CalendarStatusIndicator = {
-  key: CalendarStatusKey;
-  label: string;
-  tone: StatusIndicatorTone;
-};
-
-const calendarStatusIndicators: CalendarStatusIndicator[] = [
-  { key: "confirmed", label: "확정", tone: "confirmed" },
-  { key: "changed", label: "변경", tone: "amber" },
-  { key: "cancelled", label: "취소", tone: "burgundy" },
-  { key: "completed", label: "완료", tone: "slate" },
-];
-
-function getCalendarStatusCounts(items: DayItem[]) {
-  const reservationItems = items.filter((item) => item.type === "reservation");
-
-  return {
-    confirmed: reservationItems.filter((item) => item.status === "확정" || item.status === "진행 중" || item.status === "픽업 준비").length,
-    completed: items.filter((item) => item.type === "record" || item.status.includes("완료")).length,
-    changed: reservationItems.filter((item) => item.status.includes("변경")).length,
-    cancelled: reservationItems.filter((item) => item.status.includes("취소") || item.status.includes("거절") || item.status.includes("노쇼")).length,
-  };
-}
-
-function getCalendarStatusSummaryClass(tone: StatusIndicatorTone) {
-  if (tone === "amber") return "border-[#d6a34c] bg-[#fff2cf] text-[#7a4d0b] shadow-[0_1px_3px_rgba(185,129,33,0.18)]";
-  if (tone === "confirmed") return "border-[#8fd2a9] bg-[#eefbf4] text-[#166534] shadow-[0_1px_3px_rgba(31,157,85,0.18)]";
-  if (tone === "burgundy") return "border-[#d9919d] bg-[#fff0f3] text-[#8f2438] shadow-[0_1px_3px_rgba(160,68,85,0.18)]";
-  return "border-[#b9c3cf] bg-[#f8fafc] text-[#475569] shadow-[0_1px_3px_rgba(15,23,42,0.12)]";
-}
-
-function getCalendarStatusShortLabel(key: CalendarStatusKey) {
-  if (key === "confirmed") return "확정";
-  if (key === "completed") return "완료";
-  if (key === "changed") return "변경";
-  return "취소";
-}
-
 function getItemStatusGroup(item: Pick<DayItem, "type" | "status">): CalendarStatusKey {
   if (item.type === "record" || item.status.includes("완료")) return "completed";
   if (item.status.includes("변경")) return "changed";
   if (item.status.includes("취소") || item.status.includes("거절") || item.status.includes("노쇼")) return "cancelled";
   return "confirmed";
+}
+
+// Each status gets its own row in a cell: one dot per item up to this many, above it the row ends with a "+" mark.
+// Exact counts stay in the cell's title/aria-label and in the date panel.
+const CALENDAR_CELL_MAX_STATUS_DOTS = 5;
+
+function getCalendarCellStatusLines(items: DayItem[]) {
+  const counts = { reserved: 0, completed: 0, cancelled: 0 };
+  for (const item of items) {
+    const group = getItemStatusGroup(item);
+    if (group === "completed") counts.completed += 1;
+    else if (group === "cancelled") counts.cancelled += 1;
+    else counts.reserved += 1;
+  }
+  return [
+    { key: "reserved", label: "예약", count: counts.reserved, color: statusIndicatorColor.confirmed },
+    { key: "completed", label: "완료", count: counts.completed, color: statusIndicatorColor.completed },
+    { key: "cancelled", label: "취소", count: counts.cancelled, color: statusIndicatorColor.cancelled },
+  ].filter((line) => line.count > 0);
 }
 
 function matchesStatusFilter(item: Pick<DayItem, "type" | "status">, filter: CalendarStatusFilter) {
@@ -610,7 +597,7 @@ function matchesStatusFilter(item: Pick<DayItem, "type" | "status">, filter: Cal
 
 function getOperationalPriority(item: Pick<DayItem, "type" | "status">) {
   if (item.status.includes("변경")) return 1;
-  if (item.status === "확정" || item.status === "진행 중" || item.status === "픽업 준비") return 2;
+  if (item.status === "예약 확정" || item.status === "진행 중" || item.status === "픽업 준비") return 2;
   if (item.status.includes("취소") || item.status.includes("거절") || item.status.includes("노쇼")) return 3;
   return item.type === "record" ? 4 : 3;
 }
@@ -632,7 +619,7 @@ function getStaffDayKey(date: string) {
 }
 
 function getStaffWorkNotice(data: BootstrapPayload, date: string, staffFilter: CalendarStaffFilter) {
-  if (isShopClosedOnDate(data.shop, date)) return { closed: true, label: "매장 휴무", description: "예약을 받지 않는 날입니다." };
+  if (isShopClosedOnDate(data.shop, date)) return { closed: true, label: "매장 휴무", description: "예약을 받지 않는 날입니다.", offLabel: "", halfLabel: "" };
 
   const staffMembers =
     staffFilter === "all"
@@ -650,24 +637,27 @@ function getStaffWorkNotice(data: BootstrapPayload, date: string, staffFilter: C
     return override?.status === "half";
   });
 
-  const parts = [
-    offStaff.length > 0 ? `${offStaff.map((staff) => staff.name).join(", ")} 휴무` : "",
-    halfStaff.length > 0 ? `${halfStaff.map((staff) => staff.name).join(", ")} 반차` : "",
-  ].filter(Boolean);
+  const offLabel = offStaff.length > 0 ? `${offStaff.map((staff) => staff.name).join(", ")} 휴무` : "";
+  const halfLabel = halfStaff.length > 0 ? `${halfStaff.map((staff) => staff.name).join(", ")} 반차` : "";
+  const parts = [offLabel, halfLabel].filter(Boolean);
 
   return {
     closed: false,
     label: parts.length > 0 ? parts.join(" · ") : "근무 가능",
     description: parts.length > 0 ? "근무표 기준 예약 가능 여부를 확인해 주세요." : "근무표상 특이사항이 없습니다.",
+    offLabel,
+    halfLabel,
   };
 }
 
 export default function CalendarRecordsScreen({
   initialData,
+  shopEventsEnabled = initialData.mode === "supabase",
   onDataChange,
   onCreateReservationForDate,
 }: {
   initialData: BootstrapPayload;
+  shopEventsEnabled?: boolean;
   onDataChange?: (data: BootstrapPayload) => void;
   onCreateReservationForDate?: (date: string) => void;
 }) {
@@ -680,6 +670,13 @@ export default function CalendarRecordsScreen({
   const [staffFilter, setStaffFilter] = useState<CalendarStaffFilter>("all");
   const [statusFilter, setStatusFilter] = useState<CalendarStatusFilter>("all");
   const [selectedItem, setSelectedItem] = useState<DayItem | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const month = monthAnchor.slice(0, 7);
+  const { holidays, holidayError, reloadHolidays } = useCalendarHolidays(month, fetchApiJson);
+  const { deadlines: supportDeadlines } = useSupportPrograms(true, fetchApiJson, initialData.shop.address ?? "");
+  const { events, canEdit, eventsLoading, eventsError, reloadEvents } = useShopCalendarEvents(
+    shopEventsEnabled ? initialData.shop.id : null, month, fetchApiJsonWithAuth,
+  );
   const latestDataRef = useRef(initialData);
   const onDataChangeRef = useRef(onDataChange);
 
@@ -778,6 +775,8 @@ export default function CalendarRecordsScreen({
   }, [query, reservations, staffFilter, statusFilter]);
 
   const monthDates = useMemo(() => getMonthDates(monthAnchor), [monthAnchor]);
+  const holidaysByDate = useMemo(() => calendarHolidaysByDate(holidays), [holidays]);
+  const shopEventsByDate = useMemo(() => new Map(monthDates.flatMap(date => date ? [[date, shopEventsOnDate(events, date)] as const] : [])), [events, monthDates]);
   const calendarWeekRows = Math.max(5, Math.ceil(monthDates.length / 7));
   const dayItemsByDate = useMemo(() => {
     const map = new Map<string, DayItem[]>();
@@ -797,7 +796,6 @@ export default function CalendarRecordsScreen({
   }, [initialData, monthDates, query]);
   const selectedItems = dayItemsByDate.get(selectedDate) ?? [];
   const selectedBirthdays = birthdayItemsByDate.get(selectedDate) ?? [];
-  const selectedWorkNotice = getStaffWorkNotice(initialData, selectedDate, staffFilter);
   const staffOptions = useMemo(
     () => [
       { value: "all", label: "전체 직원" },
@@ -818,6 +816,12 @@ export default function CalendarRecordsScreen({
     setSelectedItem(null);
   }
 
+  function changeMonth(amount: number) {
+    const next = moveMonth(monthAnchor, amount);
+    setMonthAnchor(next);
+    openDate(next);
+  }
+
   function openItem(item: DayItem) {
     setSelectedDate(item.date);
     setSelectedItem(item);
@@ -830,20 +834,20 @@ export default function CalendarRecordsScreen({
           <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-2 sm:w-auto sm:flex-nowrap sm:justify-start">
             <button
               type="button"
-              onClick={() => setMonthAnchor((current) => moveMonth(current, -1))}
+              onClick={() => changeMonth(-1)}
               className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff]"
               aria-label="이전 달"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </button>
             <p className="order-first flex min-h-11 w-full min-w-0 items-center justify-center px-3 text-center text-[16px] font-medium text-[#111827] sm:order-none sm:w-auto sm:min-w-[110px]">{formatMonthLabel(monthAnchor)}</p>
             <button
               type="button"
-              onClick={() => setMonthAnchor((current) => moveMonth(current, 1))}
+              onClick={() => changeMonth(1)}
               className="relative inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff]"
               aria-label="다음 달"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -858,7 +862,7 @@ export default function CalendarRecordsScreen({
             </button>
           </div>
           <label className="flex min-h-11 min-w-0 w-full flex-none items-center gap-3 rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-[#64748b] sm:min-w-[280px] sm:flex-1">
-            <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-4 w-4 text-[#94a3b8]" />
+            <IconSearch aria-hidden="true" className="shrink-0 h-4 w-4 text-[#94a3b8]" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -877,7 +881,7 @@ export default function CalendarRecordsScreen({
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" aria-hidden="true" />
             </label>
             <label className="relative block min-w-0 flex-1 sm:flex-none">
               <select
@@ -889,10 +893,17 @@ export default function CalendarRecordsScreen({
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" aria-hidden="true" />
             </label>
+            {canEdit ? <button type="button" className={calendarSecondaryButtonClass} onClick={() => setImportOpen(true)}>
+              <IconFileImport size={16} stroke={1.75} aria-hidden="true" />일정 가져오기
+            </button> : null}
           </div>
         </div>
+        {holidayError ? <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e8edf3] px-3 text-[13px] text-[#64748b] sm:px-5" role="status">
+          공휴일을 불러오지 못했어요.
+          <button className="min-h-11 rounded-md px-1.5 text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600" type="button" onClick={reloadHolidays}>공휴일 다시 조회</button>
+        </div> : null}
 
         <div data-calendar-month-layout="true" className="grid min-h-0 flex-1 items-stretch overflow-visible rounded-b-[14px] sm:overflow-hidden lg:grid-cols-[minmax(0,1fr)_clamp(300px,24vw,380px)]">
           <section data-calendar-month-board="true" className="flex min-h-0 min-w-0 flex-col overflow-visible rounded-b-[14px] bg-[#f1f5f9] sm:overflow-hidden xl:border-r xl:border-[#edf2f7]">
@@ -900,7 +911,7 @@ export default function CalendarRecordsScreen({
             <div className="grid min-w-[720px] shrink-0 grid-cols-7 border-b border-[#e5e7eb] bg-white lg:min-w-0">
               {weekdayLabels.map((label) => (
                 <div key={label} className="flex h-9 items-center justify-center text-center text-[13px] font-medium">
-                  <span className="inline-flex h-6 min-w-8 items-center justify-center px-2 text-[#111827]">
+                  <span className={cn("inline-flex h-6 min-w-8 items-center justify-center px-2", label === "일" ? "text-[#d6303a]" : "text-[#111827]")}>
                     {label}
                   </span>
                 </div>
@@ -915,8 +926,6 @@ export default function CalendarRecordsScreen({
               {monthDates.map((date, index) => {
                 const items = date ? dayItemsByDate.get(date) ?? [] : [];
                 const birthdays = date ? birthdayItemsByDate.get(date) ?? [] : [];
-                const recordCount = items.filter((item) => item.type === "record").length;
-                const reservationCount = items.filter((item) => item.type === "reservation").length;
                 const birthdayCount = birthdays.length;
                 const active = date === selectedDate;
                 const hasItems = items.length > 0 || birthdayCount > 0;
@@ -926,10 +935,18 @@ export default function CalendarRecordsScreen({
                 }
 
                 const workNotice = getStaffWorkNotice(initialData, date, staffFilter);
-                const statusCounts = getCalendarStatusCounts(items);
-                const visibleStatuses = calendarStatusIndicators.filter((indicator) => statusCounts[indicator.key] > 0);
-                const primaryStatuses = visibleStatuses.slice(0, 3);
-                const hiddenStatusCount = visibleStatuses.length - primaryStatuses.length;
+                const holidays = holidaysByDate.get(date) ?? [];
+                const supportCount = supportDeadlines.get(date)?.length ?? 0;
+                const statusLines = getCalendarCellStatusLines(items);
+                const isRedDay = holidays.length > 0 || new Date(`${date}T00:00:00`).getDay() === 0;
+                const cellLabel = [
+                  date,
+                  workNotice.closed ? "매장 휴무" : "",
+                  ...statusLines.map((line) => `${line.label} ${line.count}건`),
+                  holidays.join(" · "),
+                  workNotice.closed ? "" : [workNotice.offLabel, workNotice.halfLabel].filter(Boolean).join(" · "),
+                  supportCount ? `지원사업 마감 ${supportCount}건` : "",
+                ].filter(Boolean).join(", ");
 
                 return (
                   <button
@@ -937,67 +954,49 @@ export default function CalendarRecordsScreen({
                     type="button"
                     onClick={() => openDate(date)}
                     className={cn(
-                      "relative flex min-h-0 flex-col justify-between overflow-hidden rounded-[10px] border px-3 py-2 text-left transition duration-150",
+                      "relative flex min-h-0 flex-col justify-between gap-1 overflow-hidden rounded-[10px] border px-3 py-2 text-left transition duration-150",
                       getCalendarCellTone(active, isToday, hasItems, workNotice.closed),
                     )}
-                    aria-label={`${date} 예약 ${reservationCount}건`}
+                    aria-label={cellLabel}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <span
-                        className={cn(
-                          "leading-5",
-                          isToday
-                            ? "text-[14px] font-medium text-[#111827]"
-                            : active
-                              ? "text-[14px] font-medium text-[#111827]"
-                              : hasItems
-                                ? "text-[14px] font-medium text-[#111827]"
-                                : "text-[14px] font-medium text-[#111827]",
-                        )}
-                      >
-                        {Number(date.slice(-2))}
-                      </span>
-                      {reservationCount > 0 ? (
-                        <span className="pt-0.5 text-[12px] font-medium leading-[18px] text-[#64748b]">
-                          {reservationCount}건
-                        </span>
-                      ) : birthdayCount > 0 ? (
-                        <span className="pt-0.5 text-[12px] font-medium leading-[18px] text-[#8c6e53]">
-                          생일 {birthdayCount}
-                        </span>
-                      ) : workNotice.closed ? (
-                        <span className="rounded-full border border-[#dbe2ea] bg-white/85 px-2 py-0.5 text-[12px] font-medium leading-[18px] text-[#64748b]">휴무</span>
-                      ) : null}
-                    </div>
-                    {!workNotice.closed && workNotice.label !== "근무 가능" ? (
-                      <span className="line-clamp-1 text-[12px] font-normal leading-[18px] text-[#64748b]">{workNotice.label}</span>
-                    ) : null}
-                    {visibleStatuses.length > 0 ? (
-                      <div className="flex flex-wrap items-end gap-1">
-                        {primaryStatuses.map((indicator) => (
-                          <span
-                            key={indicator.key}
-                            className={cn(
-                              "inline-flex min-h-6 min-w-[42px] items-center justify-center rounded-full border px-2 text-[12px] font-medium leading-[18px]",
-                              getCalendarStatusSummaryClass(indicator.tone),
-                            )}
-                            title={`${indicator.label} ${statusCounts[indicator.key]}건`}
-                          >
-                            {getCalendarStatusShortLabel(indicator.key)} {statusCounts[indicator.key]}
-                          </span>
-                        ))}
-                        {hiddenStatusCount > 0 ? (
-                          <span className="inline-flex min-h-6 min-w-[34px] items-center justify-center rounded-full border border-[#b9c3cf] bg-[#f8fafc] px-2 text-[12px] font-medium leading-[18px] text-[#475569] shadow-[0_1px_3px_rgba(15,23,42,0.1)]">
-                            +{hiddenStatusCount}
+                    <span className="@container/calendar-day block min-h-0 min-w-0 space-y-0.5 overflow-hidden">
+                      <span className="flex items-baseline justify-between gap-1">
+                        <span className={cn("shrink-0 text-[14px] font-medium leading-5", isRedDay ? "text-[#d6303a]" : "text-[#111827]")}>{Number(date.slice(-2))}</span>
+                        {supportCount > 0 ? (
+                          <span className="min-w-0 truncate text-right text-[12px] font-medium leading-[18px] text-[#42658f]" title={`지원사업 마감 ${supportCount}건`} aria-hidden="true">
+                            <span className="hidden @[84px]/calendar-day:inline">지원사업 {supportCount}건</span>
+                            <span className="@[84px]/calendar-day:hidden"><span className="hidden @[56px]/calendar-day:inline">지원 </span>{supportCount}건</span>
                           </span>
                         ) : null}
-                      </div>
-                    ) : birthdayCount > 0 ? (
-                      <div className="flex flex-wrap items-end gap-1">
-                        <span className="inline-flex min-h-6 min-w-[42px] items-center justify-center rounded-full border border-[#d6a34c] bg-[#fff2cf] px-2 text-[12px] font-medium leading-[18px] text-[#7a4d0b] shadow-[0_1px_3px_rgba(185,129,33,0.16)]">
-                          생일 {birthdayCount}
+                      </span>
+                      {holidays.length ? <span className="block truncate text-[12px] font-medium leading-[18px] text-[#d6303a]" title={holidays.join(" · ")}>{holidays.join(" · ")}</span> : null}
+                      {workNotice.closed ? (
+                        <span className="block truncate text-[12px] leading-[18px] text-[#64748b]">매장 휴무</span>
+                      ) : workNotice.offLabel || workNotice.halfLabel ? (
+                        <span className="line-clamp-1 text-[12px] leading-[18px]">
+                          {workNotice.offLabel ? <span className="text-[#64748b]">{workNotice.offLabel}</span> : null}
+                          {workNotice.offLabel && workNotice.halfLabel ? <span className="text-[#94a3b8]"> · </span> : null}
+                          {workNotice.halfLabel ? <span className="text-[#64748b]">{workNotice.halfLabel}</span> : null}
                         </span>
-                      </div>
+                      ) : null}
+                    </span>
+                    {statusLines.length > 0 ? (
+                      <span
+                        className="flex shrink-0 flex-col gap-[3px]"
+                        title={statusLines.map((line) => `${line.label} ${line.count}`).join(" · ")}
+                        aria-hidden="true"
+                      >
+                        {statusLines.map((line) => (
+                          <span key={line.key} className="flex h-2 items-center gap-[3px]">
+                            {Array.from({ length: Math.min(line.count, CALENDAR_CELL_MAX_STATUS_DOTS) }, (_, index) => (
+                              <span key={index} className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ backgroundColor: line.color }} />
+                            ))}
+                            {line.count > CALENDAR_CELL_MAX_STATUS_DOTS ? (
+                              <IconPlus size={9} stroke={3} className="shrink-0" style={{ color: line.color }} />
+                            ) : null}
+                          </span>
+                        ))}
+                      </span>
                     ) : null}
                   </button>
                 );
@@ -1010,12 +1009,28 @@ export default function CalendarRecordsScreen({
             date={selectedDate}
             items={selectedItems}
             birthdays={selectedBirthdays}
-            workNotice={selectedWorkNotice}
+            holidayNames={holidaysByDate.get(selectedDate)}
+            supportPrograms={supportDeadlines.get(selectedDate) ?? []}
+            shopEventCount={shopEventsByDate.get(selectedDate)?.length ?? 0}
+            shopAgenda={shopEventsEnabled ? <ShopCalendarAgenda
+              key={`${initialData.shop.id}/${selectedDate}`}
+              date={selectedDate}
+              variant="day-panel"
+              shopId={initialData.shop.id}
+              events={shopEventsByDate.get(selectedDate) ?? []}
+              canEdit={canEdit}
+              loading={eventsLoading}
+              error={eventsError}
+              request={fetchApiJsonWithAuth}
+              onRefresh={reloadEvents}
+            /> : null}
             onSelectItem={openItem}
             onAddReservation={onCreateReservationForDate ? () => onCreateReservationForDate(selectedDate) : undefined}
           />
         </div>
       </section>
+
+      {importOpen ? <CalendarImportDialog key={initialData.shop.id} shopId={initialData.shop.id} month={month} onClose={() => setImportOpen(false)} onImported={reloadEvents} /> : null}
 
       {selectedItem ? (
         <GroomingRecordSheet
@@ -1041,161 +1056,265 @@ export default function CalendarRecordsScreen({
   );
 }
 
+const dayPanelSectionClass = "px-4 pt-4";
+const dayPanelCardClass = "overflow-hidden rounded-[10px] border border-[#e8edf3] bg-white";
+
+type DayPanelSection = "items" | "shop" | "support";
+
+type DayPanelStat = {
+  key: string;
+  label: string;
+  value: number;
+  alert?: boolean;
+  target: DayPanelSection | null;
+};
+
 function GroomingDatePanel({
   date,
   items,
   birthdays,
-  workNotice,
+  holidayNames,
+  supportPrograms,
+  shopEventCount,
+  shopAgenda,
   onSelectItem,
   onAddReservation,
 }: {
   date: string;
   items: DayItem[];
   birthdays: BirthdayItem[];
-  workNotice: ReturnType<typeof getStaffWorkNotice>;
+  holidayNames?: string[];
+  supportPrograms: SupportProgram[];
+  shopEventCount?: number;
+  shopAgenda?: React.ReactNode;
   onSelectItem: (item: DayItem) => void;
   onAddReservation?: () => void;
 }) {
-  const visibleItems = sortOperationalItems(items);
-  const hasVisibleContent = visibleItems.length > 0 || birthdays.length > 0;
+  const sortedItems = sortOperationalItems(items);
+  const visibleItems = sortedItems.filter((item) => getItemStatusGroup(item) !== "cancelled");
+  const cancelledItems = sortedItems.filter((item) => getItemStatusGroup(item) === "cancelled");
+  // Remember which date the 취소 list was opened for, so moving to another date falls back to the main list.
+  const [cancelledListDate, setCancelledListDate] = useState<string | null>(null);
+  const showCancelled = cancelledListDate === date && cancelledItems.length > 0;
+  const listedItems = showCancelled ? cancelledItems : visibleItems;
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const reservationRef = useRef<HTMLElement>(null);
+  const shopRef = useRef<HTMLDivElement>(null);
+  const supportRef = useRef<HTMLDivElement>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const parsedDate = new Date(`${date}T00:00:00`);
+  const today = currentDateInTimeZone();
+  const itemLabel = date < today ? "기록" : "예약";
+
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 });
+  }, [date]);
+
+  function jumpTo(section: DayPanelSection) {
+    const body = bodyRef.current;
+    const target = section === "items" ? reservationRef.current : section === "shop" ? shopRef.current : supportRef.current;
+    if (!body || !target) return;
+    const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    if (body.scrollHeight > body.clientHeight) body.scrollTo({ top: target.offsetTop, behavior });
+    else target.scrollIntoView({ block: "start", behavior });
+  }
+
+  const stats: DayPanelStat[] = [
+    { key: "items", label: itemLabel, value: visibleItems.length, target: "items" },
+    ...(shopAgenda ? [{ key: "shop", label: "노트", value: shopEventCount ?? 0, target: "shop" as const }] : []),
+    { key: "support", label: "마감", value: supportPrograms.length, alert: true, target: supportPrograms.length > 0 ? "support" : null },
+  ];
 
   return (
-    <aside data-calendar-month-detail-panel="true" className="min-h-0 min-w-0 overflow-y-auto rounded-b-[14px] bg-white">
-      <div className="px-4 py-4">
-        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <h3 className="text-[16px] font-normal leading-6 text-[#334155]">{formatFullDate(date)}</h3>
-          <div className="flex shrink-0 items-center gap-2">
-            {onAddReservation ? (
-              <button
-                type="button"
-                onClick={onAddReservation}
-                className={cn(
-                  OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
-                )}
-              >
-                <CalendarPlus className="h-4 w-4" />
-                예약 추가
-              </button>
-            ) : null}
+    <aside data-calendar-month-detail-panel="true" className="min-h-0 min-w-0 overflow-y-auto rounded-b-[14px] bg-[#f2f5f8] lg:flex lg:flex-col lg:overflow-hidden">
+      <div
+        className={cn(
+          "relative z-[1] border-b border-[#edf1f5] bg-white px-4 pb-3 pt-4 transition-shadow duration-200 lg:shrink-0",
+          scrolled && "shadow-[0_8px_16px_-12px_rgba(15,27,45,0.16)]",
+        )}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="flex flex-wrap items-baseline gap-x-1.5 text-[20px] font-semibold leading-7 tracking-[-0.01em] text-[#0f1b2d]">
+              <time dateTime={date}>{parsedDate.getMonth() + 1}월 {parsedDate.getDate()}일</time>
+              <span className="text-[14px] font-normal tracking-normal text-[#6b7a90]">{weekdayLabels[parsedDate.getDay()]}요일</span>
+            </h3>
+            <CalendarHolidayLabel names={holidayNames} />
           </div>
-        </div>
-
-        <div className="mt-3">
-          {!hasVisibleContent ? (
-            <div
+          {onAddReservation ? (
+            <button
+              type="button"
+              data-owner-control-size="content"
+              onClick={onAddReservation}
               className={cn(
-                "mb-2 rounded-[8px] border px-3 py-2 text-[13px] leading-5",
-                workNotice.closed
-                  ? "border-[#ead6dc] bg-[#fffafa] text-[#a04455]"
-                  : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
+                OWNER_WEB_COMPACT_PRIMARY_ACTION_BUTTON_CLASS,
+                "h-9 min-h-9 shrink-0 gap-1 rounded-[8px] px-3 text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1677ff] focus-visible:ring-offset-2",
               )}
             >
-              <p className="font-medium">{workNotice.label}</p>
-              <p className="mt-0.5">{workNotice.description}</p>
-            </div>
+              <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+              예약 추가
+            </button>
           ) : null}
-          {visibleItems.length > 0 ? (
-            <DayItemSection
-              title="일정"
-              count={visibleItems.length}
-              items={visibleItems}
-              onSelectItem={onSelectItem}
-              hideHeader
-            />
-          ) : null}
-          {birthdays.length > 0 ? <BirthdaySection birthdays={birthdays} /> : null}
         </div>
+
+        <div className="mt-3 flex divide-x divide-[#e6ebf1] rounded-[8px] bg-[#f7f9fb]">
+          {stats.map((stat) => {
+            const cellClass = "flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-2 first:rounded-l-[8px] last:rounded-r-[8px]";
+            const content = (
+              <>
+                <span className="truncate text-[12px] leading-5 text-[#6b7a90]">{stat.label}</span>
+                <span className={cn("text-[14px] font-medium leading-5 tabular-nums text-[#0f1b2d]", stat.alert && stat.value > 0 && "text-[#d6303a]")}>{stat.value}</span>
+              </>
+            );
+            const target = stat.target;
+            return target ? (
+              <button
+                key={stat.key}
+                type="button"
+                data-owner-control-size="content"
+                aria-label={`${stat.label} ${stat.value}건, 목록으로 이동`}
+                onClick={() => jumpTo(target)}
+                className={cn(cellClass, "transition-colors hover:bg-[#eef2f6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff]")}
+              >
+                {content}
+              </button>
+            ) : (
+              <div key={stat.key} className={cellClass}>{content}</div>
+            );
+          })}
+        </div>
+
+      </div>
+
+      <div
+        ref={bodyRef}
+        onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 2)}
+        className="relative pb-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain [scrollbar-color:#d5deea_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d5deea] [&::-webkit-scrollbar]:w-1.5"
+      >
+        <section ref={reservationRef} aria-label={itemLabel} className={dayPanelSectionClass}>
+          {cancelledItems.length > 0 ? (
+            <div className="mb-2 flex min-w-0 items-center gap-1 px-0.5">
+              <span className="mr-0.5 inline-flex shrink-0 text-[#475569]" aria-hidden="true"><IconCalendarEvent size={18} stroke={1.8} /></span>
+              <DayPanelListToggle label={itemLabel} count={visibleItems.length} selected={!showCancelled} onSelect={() => setCancelledListDate(null)} />
+              <span className="mx-1 h-3.5 w-px shrink-0 bg-[#cbd5e1]" aria-hidden="true" />
+              <DayPanelListToggle label="취소" count={cancelledItems.length} selected={showCancelled} onSelect={() => setCancelledListDate(date)} />
+            </div>
+          ) : (
+            <DayPanelSectionLabel icon={<IconCalendarEvent size={18} stroke={1.8} />} title={itemLabel} count={visibleItems.length} />
+          )}
+          {listedItems.length > 0 ? (
+            <DayItemSection items={listedItems} label={showCancelled ? "취소된 예약" : undefined} onSelectItem={onSelectItem} />
+          ) : (
+            <p className={cn(dayPanelCardClass, "px-3 py-3 text-center text-[13px] leading-[18px] text-[#6b7a90]")}>이 날은 {itemLabel}이 없어요</p>
+          )}
+        </section>
+        {birthdays.length > 0 ? <BirthdaySection birthdays={birthdays} /> : null}
+        {shopAgenda ? <div ref={shopRef} className={dayPanelSectionClass}>{shopAgenda}</div> : null}
+        {supportPrograms.length > 0 ? (
+          <div ref={supportRef} className={dayPanelSectionClass}>
+            <SupportProgramList title="지원사업 마감" programs={supportPrograms} variant="day-panel" referenceDate={today} />
+          </div>
+        ) : null}
       </div>
     </aside>
   );
 }
 
+function DayPanelSectionLabel({ icon, title, count, tone = "neutral" }: {
+  icon: React.ReactNode;
+  title: string;
+  count: number;
+  tone?: "neutral" | "amber";
+}) {
+  return (
+    <h3 className={cn("mb-2 flex min-w-0 items-center gap-1 px-0.5 text-[15px] font-semibold leading-[22px]", tone === "amber" ? "text-[#7a4f00]" : "text-[#1e293b]")}>
+      <span className={cn("mr-0.5 inline-flex shrink-0", tone === "amber" ? "text-[#b98121]" : "text-[#475569]")} aria-hidden="true">{icon}</span>
+      <span className="truncate">{title}</span>
+      <span className={cn("font-medium tabular-nums", tone === "amber" ? "text-[#a8741a]" : "text-[#64748b]")}>{count}</span>
+    </h3>
+  );
+}
+
+function DayPanelListToggle({ label, count, selected, onSelect }: {
+  label: string;
+  count: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-owner-control-size="content"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={cn(
+        "-my-[5px] inline-flex h-8 min-w-0 items-center gap-1 rounded-[6px] px-1 text-[15px] font-semibold leading-[22px] transition-colors focus-visible:outline-2 focus-visible:outline-[#1677ff]",
+        selected ? "text-[#1e293b]" : "text-[#94a3b8] hover:text-[#475569]",
+      )}
+    >
+      <span className="truncate">{label}</span>
+      <span className={cn("font-medium tabular-nums", selected ? "text-[#64748b]" : "text-[#a3afbf]")}>{count}</span>
+    </button>
+  );
+}
+
 function BirthdaySection({ birthdays }: { birthdays: BirthdayItem[] }) {
   return (
-    <section className="mt-2 rounded-[8px] border border-[#ead9b8] bg-[#fffaf0] p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[13px] font-medium text-[#8a5a00]">반려동물 생일</p>
-        <span className="text-[12px] text-[#b98121]">{birthdays.length}마리</span>
-      </div>
-      <div className="space-y-1.5">
+    <section aria-label="반려동물 생일" className={dayPanelSectionClass}>
+      <DayPanelSectionLabel tone="amber" icon={<PawPrint size={18} stroke={1.8} />} title="반려동물 생일" count={birthdays.length} />
+      <ul className={cn(dayPanelCardClass, "divide-y divide-[#edf1f5]")}>
         {birthdays.map((birthday) => (
-          <div key={birthday.id} className="flex min-w-0 items-center gap-2 rounded-[8px] border border-[#f0dfbd] bg-white px-3 py-2">
-            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff4dc] text-[#b98121]">
-              <PawPrint className="h-4 w-4" />
-            </span>
+          <li key={birthday.id} className="flex min-w-0 items-center gap-3 px-3 py-2.5">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[14px] font-medium text-[#111827]">{birthday.pet} · {birthday.breed}</p>
-              <p className="mt-0.5 truncate text-[12px] text-[#64748b]">{birthday.customer} 보호자</p>
+              <p className="truncate text-[14px] font-medium leading-5 text-[#0f1b2d]">{birthday.pet} · {birthday.breed}</p>
+              <p className="mt-0.5 truncate text-[12px] leading-4 text-[#6b7a90]">{birthday.customer} 보호자</p>
             </div>
-            {birthday.phone ? <span className="shrink-0 text-[12px] tabular-nums text-[#64748b]">{formatRecordPhone(birthday.phone)}</span> : null}
-          </div>
+            {birthday.phone ? <span className="shrink-0 text-[12px] tabular-nums text-[#6b7a90]">{formatRecordPhone(birthday.phone)}</span> : null}
+          </li>
         ))}
-      </div>
+      </ul>
     </section>
   );
 }
 
-function DayItemSection({
-  title,
-  count,
-  items,
-  onSelectItem,
-  hideHeader = false,
-}: {
-  title: string;
-  count: number;
+function getDayItemBadgeClass(item: Pick<DayItem, "type" | "status">) {
+  const group = getItemStatusGroup(item);
+  if (group === "cancelled") return "bg-[#fdf0f3] text-[#8f2438]";
+  if (group === "changed" || item.status === appointmentStatusLabels.pending) return "bg-[#fff4dc] text-[#8a5a00]";
+  if (group === "completed") return "bg-[#f1f4f8] text-[#5b6b82]";
+  return "bg-[#e9f6ee] text-[#177a43]";
+}
+
+function DayItemSection({ items, label = "예약 및 기록", onSelectItem }: {
   items: DayItem[];
+  label?: string;
   onSelectItem: (item: DayItem) => void;
-  hideHeader?: boolean;
 }) {
   return (
-    <section>
-      {!hideHeader ? (
-        <div className="mb-1.5 flex items-center justify-between">
-          <p className="text-[13px] font-semibold text-[#334155]">{title}</p>
-          <span className="text-[12px] text-[#94a3b8]">{count}건</span>
-        </div>
-      ) : null}
-      {items.length > 0 ? (
-        <div className="space-y-1">
-          {items.map((item) => {
-            return (
-            <div
-              key={`${item.type}-${item.id}`}
-              className={cn(
-                "relative w-full overflow-hidden rounded-[8px] border bg-white transition hover:bg-[#f8fafc]",
-                getRecordTone(item),
-                getWrapIndicatorClass(getStatusAccent(item)),
-              )}
-            >
-              <button type="button" onClick={() => onSelectItem(item)} className="w-full px-3 py-2 text-left">
-                <div className="flex min-w-0 items-start justify-between gap-3 pl-1">
-                  <div className="min-w-0">
-                    <p className="truncate text-[14px] font-medium leading-5 text-[#111827]">{item.pet} · {item.customer}</p>
-                  </div>
-                  {item.time ? <span className={cn("shrink-0 text-[14px] font-normal leading-5 tabular-nums", getTimeTone(item))}>{item.time}</span> : null}
-                </div>
-                <div className="mt-1 flex min-w-0 items-end justify-between gap-3 pl-1">
-                  <p className="line-clamp-1 min-w-0 text-[12px] font-medium leading-[18px] text-[#64748b]">
-                    {item.service}
-                    {item.note ? ` · ${item.note}` : ""}
-                  </p>
-                  <span className={cn("shrink-0 bg-white px-0 py-0 text-[12px] font-medium leading-[18px]", getBadgeTone(item))}>
-                    {item.type === "record" ? "기록" : item.status}
-                  </span>
-                </div>
-              </button>
-            </div>
-          );
-          })}
-        </div>
-      ) : (
-        <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-white px-3 py-3 text-[12px] text-[#94a3b8]">
-          표시할 항목이 없습니다.
-        </div>
-      )}
-    </section>
+    <ul aria-label={label} className={cn(dayPanelCardClass, "divide-y divide-[#edf1f5]")}>
+      {items.map((item) => (
+        <li key={`${item.type}-${item.id}`}>
+          <button
+            type="button"
+            data-owner-control-size="content"
+            onClick={() => onSelectItem(item)}
+            className="grid min-h-11 w-full min-w-0 grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-2.5 px-3 py-2.5 text-left transition-colors hover:bg-[#f8fafc] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#1677ff]"
+          >
+            <span className={cn("whitespace-nowrap text-[13px] font-medium leading-5 tabular-nums", item.time ? "text-[#334155]" : "text-[#a3afbf]")}>{item.time || "–"}</span>
+            <span className="min-w-0">
+              <span className="block break-keep text-[14px] font-medium leading-5 text-[#0f1b2d] [overflow-wrap:anywhere]">{item.pet} · {item.customer}</span>
+              <span className="mt-0.5 block break-keep text-[12px] leading-4 text-[#6b7a90] [overflow-wrap:anywhere]">
+                {item.service}
+                {item.note ? ` · ${item.note}` : ""}
+              </span>
+            </span>
+            <span className={cn("mt-px inline-flex h-[18px] max-w-[88px] items-center rounded-[5px] px-1.5 text-[11px] font-medium", getDayItemBadgeClass(item))}>
+              <span className="truncate">{item.type === "record" ? "기록" : item.status}</span>
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -1404,7 +1523,7 @@ function GroomingRecordSheet({
                 <h3 className="break-keep text-[24px] font-semibold leading-8 tracking-[-0.03em] text-[#111827] [overflow-wrap:anywhere]">{item.pet}</h3>
                 {item.breed ? (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#d7eadf] bg-[#f2faf6] px-2 py-0.5 text-[14px] font-medium leading-5 text-[#2f7866]">
-                    <PawPrint className="h-3.5 w-3.5" />
+                    <PawPrint className="h-3.5 w-3.5" aria-hidden="true" />
                     {item.breed}
                   </span>
                 ) : null}
@@ -1418,7 +1537,7 @@ function GroomingRecordSheet({
               className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
               aria-label="닫기"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -1682,7 +1801,7 @@ function RecordHistoryCard({
         <span className={cn("h-2 w-2 rounded-full", statusIndicatorBgClass[getStatusAccent(item)])} aria-hidden="true" />
             <span className="text-[14px] font-medium leading-5 text-[#334155]">기록 히스토리</span>
         {lastItem ? <span className="ml-auto truncate text-right text-[12px] text-[#64748b]">{lastItem.title} · {lastItem.time}</span> : null}
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#94a3b8] transition", open && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#94a3b8] transition", open && "rotate-180")} aria-hidden="true" />
       </button>
       {open ? (
         <div className="border-t border-[#edf2f7] px-3 py-2">

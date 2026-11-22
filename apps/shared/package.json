@@ -9,6 +9,7 @@
     "./lib/*": "./lib/*.ts"
   },
   "dependencies": {
+    "@tabler/icons-react": "3.52.0",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.5.0",
     "lucide-react": "^0.577.0"

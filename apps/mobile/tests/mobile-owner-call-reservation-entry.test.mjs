@@ -65,6 +65,8 @@ function loadCallPanel(source, overrides = {}) {
   const localRequire = (specifier) => {
     if (overrides[specifier]) return overrides[specifier];
     if (specifier === "@/components/owner/owner-app-ui") return { InfoTip: ({ children }) => React.createElement("span", null, children) };
+    // The shared wheel picker needs motion/react, which only resolves from apps/shared; the gating under test does not depend on it.
+    if (specifier === "@petmanager/shared/components/ui/wheel-time-field") return { WheelTimeField: ({ value }) => React.createElement("span", { "data-wheel-time-field": "true" }, value ?? "") };
     if (specifier === "@/lib/api") return { fetchApiJsonWithAuth: () => new Promise(() => {}) };
     if (specifier === "@/lib/owner-call-screening") return {};
     return specifier.startsWith("@/") ? loadSource(specifier.slice(2)) : require(specifier);

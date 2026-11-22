@@ -48,7 +48,8 @@ test("consent Alimtalk requires provider approval, active service, exact body, a
     templateContent: contract,
     inspectionStatus: "APR",
     serviceStatus: "ACT",
-    buttons: [{ type: "WL", name: "동의서 작성", linkMobile: "https://www.petmanager.co.kr/book/manage?t=#{예약 확인 링크}" }],
+    // The approved consent button uses the signed booking token variable; the legacy /book/manage entry normalizes to /m.
+    buttons: [{ type: "WL", name: "동의서 작성", linkMobile: "https://www.petmanager.co.kr/book/manage?t=#{예약관리토큰}" }],
   };
 
   assert.equal(isApprovedAndUsableTemplate(detail), true);
@@ -58,6 +59,9 @@ test("consent Alimtalk requires provider approval, active service, exact body, a
   assert.equal(hasApprovedBookingConsentTemplateContract(detail), true);
   assert.equal(hasApprovedBookingConsentTemplateContract({ ...detail, templateContent: `${contract} 변경` }), false);
   assert.equal(hasApprovedBookingConsentTemplateContract({ ...detail, buttons: [{ ...detail.buttons[0], name: "예약 확인" }] }), false);
+  assert.equal(hasApprovedBookingConsentTemplateContract({ ...detail, buttons: [{ ...detail.buttons[0], linkMobile: "https://www.petmanager.co.kr/m?t=#{예약관리토큰}" }] }), true);
+  assert.equal(hasApprovedBookingConsentTemplateContract({ ...detail, buttons: [{ ...detail.buttons[0], linkMobile: "https://www.petmanager.co.kr/book/manage?t=#{예약 확인 링크}" }] }), false);
+  assert.equal(hasApprovedBookingConsentTemplateContract({ ...detail, buttons: [{ ...detail.buttons[0], linkMobile: "https://evil.example/book/manage?t=#{예약관리토큰}" }] }), false);
   assert.match(resolver, /!isSameBookingManageLink\(linkMobile, bookingManageUrl\) \|\| !isSameBookingManageLink\(linkPc, bookingManageUrl\)/);
   const preparation = await read("src/server/booking-preparation.ts");
   assert.match(preparation, /if \(!active && !\["refund_record", "correct_noshow", "set_condition", "set_preferences"\]\.includes\(input\.action\)\)/);

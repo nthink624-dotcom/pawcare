@@ -199,9 +199,17 @@ test("service duration UI keeps the configured baseline separate from read-only 
     new URL("../../src/components/owner-web/service-management-screen.tsx", import.meta.url),
     "utf8",
   );
+  const routeSource = readFileSync(
+    new URL("../../src/app/api/owner/service-duration-recommendations/route.ts", import.meta.url),
+    "utf8",
+  );
 
   assert.match(panelSource, /초기 평균 시간을 정해 주세요\. 실제 완료 기록이 쌓이면 평균을 자동 계산해 추천해 드려요\./);
-  assert.match(panelSource, /range=365d/);
+  // Recommendations come from a dedicated read-only route that still covers one year of completed work.
+  assert.match(panelSource, /\/api\/owner\/service-duration-recommendations\?shopId=\$\{encodeURIComponent\(shopId\)\}/);
+  assert.match(routeSource, /assertOwnerOrManager\(owner\)/);
+  assert.match(routeSource, /loadProfitabilityPayload\(owner\.shopId, "365d"\)/);
+  assert.match(routeSource, /"Cache-Control": "private, no-store"/);
   assert.doesNotMatch(panelSource, /updatePriceGuide|onApply|durationMinutes\s*:/);
   assert.match(screenSource, /<ServiceDurationRecommendationPanel/);
 });

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { IconEye as Eye, IconEyeOff as EyeOff, IconShieldCheck as ShieldCheck } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -38,7 +38,7 @@ export default function AdminLoginForm({ nextPath }: { nextPath: string }) {
     <main className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-[#171411]">
       <div className="rounded-[24px] border border-[#e8dfd3] bg-white px-5 py-6 shadow-[0_18px_40px_rgba(23,20,17,0.06)]">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">
-          <ShieldCheck className="h-6 w-6" />
+          <ShieldCheck className="h-6 w-6" aria-hidden="true" />
         </div>
 
         <div className="mt-5 text-center">
@@ -73,7 +73,7 @@ export default function AdminLoginForm({ nextPath }: { nextPath: string }) {
               className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-[#8a8075]"
               aria-label={passwordVisible ? "비밀번호 숨기기" : "비밀번호 보기"}
             >
-              {passwordVisible ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+              {passwordVisible ? <EyeOff className="h-4.5 w-4.5" aria-hidden="true" /> : <Eye className="h-4.5 w-4.5" aria-hidden="true" />}
             </button>
           </div>
         </div>

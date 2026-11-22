@@ -1,18 +1,18 @@
 "use client";
 
 import {
-  BarChart3,
-  BellRing,
-  ClipboardCheck,
-  ChevronDown,
-  ClipboardList,
-  DoorOpen,
-  MessageCircle,
-  MessageSquareText,
-  RefreshCcw,
-  Users,
-  X,
-} from "lucide-react";
+  IconChartBar as BarChart3,
+  IconBellRinging as BellRing,
+  IconClipboardCheck as ClipboardCheck,
+  IconChevronDown as ChevronDown,
+  IconClipboardList as ClipboardList,
+  IconDoorExit as DoorOpen,
+  IconMessageCircle as MessageCircle,
+  IconMessage2 as MessageSquareText,
+  IconRefresh as RefreshCcw,
+  IconUsers as Users,
+  IconX as X,
+} from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -194,7 +194,7 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
               aria-label="관리자 홈 새로고침"
               className="inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-[8px] border border-[#DCE7EE] bg-white px-3 text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 sm:px-4"
             >
-              <RefreshCcw className={`h-4 w-4 ${loadState === "loading" ? "animate-spin" : ""}`} />
+              <RefreshCcw className={`h-4 w-4 ${loadState === "loading" ? "animate-spin" : ""}`} aria-hidden="true" />
               <span className={`hidden sm:inline ${ADMIN_TYPOGRAPHY.helper}`}>새로고침</span>
             </button>
             <button
@@ -203,7 +203,7 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
               aria-label="관리자 로그아웃"
               className="inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-[8px] border border-[#DCE7EE] bg-white px-3 text-[#475569] transition hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 sm:px-4"
             >
-              <DoorOpen className="h-4 w-4" />
+              <DoorOpen className="h-4 w-4" aria-hidden="true" />
               <span className={`hidden sm:inline ${ADMIN_TYPOGRAPHY.helper}`}>로그아웃</span>
             </button>
           </div>
@@ -288,13 +288,13 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
             </h2>
             <div className="-mx-4 mt-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6 md:mx-0 md:overflow-visible md:px-0 md:pb-0">
               <nav aria-label="관리 메뉴" className="grid w-max min-w-full snap-x snap-mandatory grid-cols-[repeat(4,minmax(240px,78vw))] gap-3 md:w-full md:grid-cols-2 xl:grid-cols-4">
-                <MenuCard href="/admin/marketing" title="워크룸" description="업무 진행과 검수 확인" color="#0873C6" textColor="#FFFFFF" icon={<ClipboardList className="h-6 w-6" />} />
-                <MenuCard href="/owner/admin" title="계정 관리" description="오너 계정 운영" color="#31A5F6" textColor="#082F49" icon={<Users className="h-6 w-6" />} />
-                <MenuCard href="/admin/support" title="고객 문의" description="접수·답변·처리 현황" color="#31D6C6" textColor="#103E45" icon={<MessageCircle className="h-6 w-6" />} />
-                <MenuCard href="/admin/notifications" title="알림 실패" description="발송 실패 확인·재처리" color="#F2C94C" textColor="#4A3500" icon={<BellRing className="h-6 w-6" />} />
-                <MenuCard href="/admin/alimtalk-templates" title="알림톡 템플릿" description="예약 확정 템플릿 설정" color="#E1F2FF" textColor="#123B63" icon={<MessageSquareText className="h-6 w-6" />} />
-                <MenuCard href="/admin/audit" title="감사 로그" description="운영 변경 주체·상태 확인" color="#D9E7FF" textColor="#163A68" icon={<ClipboardCheck className="h-6 w-6" />} />
-                <MenuCard onClick={openRevenue} controls="revenue" title="매출 현황" description="결제와 구독 매출" color="#31BCFC" textColor="#082F49" icon={<BarChart3 className="h-6 w-6" />} />
+                <MenuCard href="/admin/marketing" title="워크룸" description="업무 진행과 검수 확인" color="#0873C6" textColor="#FFFFFF" icon={<ClipboardList className="h-6 w-6" aria-hidden="true" />} />
+                <MenuCard href="/owner/admin" title="계정 관리" description="오너 계정 운영" color="#31A5F6" textColor="#082F49" icon={<Users className="h-6 w-6" aria-hidden="true" />} />
+                <MenuCard href="/admin/support" title="고객 문의" description="접수·답변·처리 현황" color="#31D6C6" textColor="#103E45" icon={<MessageCircle className="h-6 w-6" aria-hidden="true" />} />
+                <MenuCard href="/admin/notifications" title="알림 실패" description="발송 실패 확인·재처리" color="#F2C94C" textColor="#4A3500" icon={<BellRing className="h-6 w-6" aria-hidden="true" />} />
+                <MenuCard href="/admin/alimtalk-templates" title="알림톡 템플릿" description="예약 확정 템플릿 설정" color="#E1F2FF" textColor="#123B63" icon={<MessageSquareText className="h-6 w-6" aria-hidden="true" />} />
+                <MenuCard href="/admin/audit" title="감사 로그" description="운영 변경 주체·상태 확인" color="#D9E7FF" textColor="#163A68" icon={<ClipboardCheck className="h-6 w-6" aria-hidden="true" />} />
+                <MenuCard onClick={openRevenue} controls="revenue" title="매출 현황" description="결제와 구독 매출" color="#31BCFC" textColor="#082F49" icon={<BarChart3 className="h-6 w-6" aria-hidden="true" />} />
               </nav>
             </div>
           </section>
@@ -340,7 +340,7 @@ export default function AdminHome({ adminName = "관리자님" }: { adminName?: 
                   ))}
                 </div>
                 <button type="button" onClick={() => void refresh()} disabled={loadState === "loading"} className={`inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] px-4 text-[#64748b] disabled:opacity-60 ${ADMIN_TYPOGRAPHY.helper}`}>
-                  <RefreshCcw className={`h-4 w-4 ${loadState === "loading" ? "animate-spin" : ""}`} />새로고침
+                  <RefreshCcw className={`h-4 w-4 ${loadState === "loading" ? "animate-spin" : ""}`} aria-hidden="true" />새로고침
                 </button>
               </div>
               <div className="max-h-[420px] divide-y divide-[#edf2f7] overflow-y-auto">
@@ -411,8 +411,8 @@ function MenuCard({ href, onClick, controls, title, description, color, textColo
 function cardToWorkItem(card: AdminAoCard, lane: AdminAoLaneId) { return { id: card.key, title: card.title, directiveSummary: "상세에서 확인", breakdown: [], owner: card.assignee, stage: stageFromLane(lane), actualStatus: card.statusLabel, blocker: null, nextAction: card.nextAction, ownerDecision: card.approvalRequired ? "대표 판단 필요" : null, checkedAt: card.updatedAt ?? "확인 시각 기록 없음", source: card.source, sourceLabel: card.sourceLabel, completionCriteria: [], verificationResults: [] }; }
 function stageFromLane(lane: AdminAoLaneId): AdminWorkStage { return lane === "queued" ? "directive" : lane === "working" ? "in_progress" : lane === "action" ? "action_required" : lane === "review" ? "review_required" : "complete"; }
 function KanbanColumn({ stage, title, tone, items, sourceAvailable, onSelect }: { stage: AdminWorkStage; title: string; tone: StatusIndicatorTone; items: AdminWorkCard[]; sourceAvailable: boolean; onSelect: (item: AdminWorkCard, trigger: HTMLButtonElement) => void }) { const visible = items.filter((item) => item.stage === stage); return <section className="min-w-0 rounded-[10px] border border-[#dce5f0] bg-[#f8fafc] p-3" aria-label={title}><header className="flex min-h-11 items-center justify-between"><h3 className="text-[14px] font-medium text-[#0f172a]">{title}</h3><span className={`inline-flex items-center gap-2 text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}><span className={getDotIndicatorClass(tone)} />{visible.length}</span></header><div className="grid gap-2">{visible.map((item) => <button key={item.id} type="button" data-kanban-item-id={item.id} onClick={(event) => onSelect(item, event.currentTarget)} className={`${getWrapIndicatorClass(item.tone)} min-h-11 w-full px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2`}><span className="line-clamp-2 text-[14px] font-medium text-[#0f172a]">{item.title}</span><span className={`mt-1 block truncate text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>{item.actualStatus}</span></button>)}{visible.length === 0 ? <p className={`rounded-[8px] border border-dashed border-[#dbe2ea] bg-white px-3 py-4 text-center text-[#94a3b8] ${ADMIN_TYPOGRAPHY.helper}`}>{sourceAvailable ? "등록된 업무가 없습니다" : "업무 원장 연결 전"}</p> : null}</div></section>; }
-function WorkDetailPanel({ item, onClose }: { item: AdminWorkCard; onClose: () => void }) { const closeButtonRef = useRef<HTMLButtonElement>(null); useEffect(() => { closeButtonRef.current?.focus(); const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", closeOnEscape); return () => window.removeEventListener("keydown", closeOnEscape); }, [onClose]); return <div className="fixed inset-0 z-50 flex justify-end bg-[#0f172a]/25" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside role="dialog" aria-modal="true" aria-labelledby="work-detail-title" className="h-full w-full overflow-y-auto border-l border-[#dce5f0] bg-white p-5 sm:max-w-[560px] sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className={`${ADMIN_TYPOGRAPHY.meta} text-[#2563eb]`}>{item.stageLabel}</p><h2 id="work-detail-title" className={`mt-1 text-[#0f172a] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>{item.title}</h2></div><button ref={closeButtonRef} type="button" onClick={onClose} aria-label="상세 닫기" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe4ef]"><X className="h-5 w-5" /></button></div><div className="mt-6 grid gap-5"><DetailRow label="원 지시 요약" value={item.directiveSummary} /><DetailList label="계획·업무 분해" values={item.breakdown} /><DetailRow label="담당" value={item.owner} /><DetailRow label="실제 상태" value={item.actualStatus} /><DetailRow label="막힘" value={item.blocker ?? "없음"} /><DetailRow label="다음 순서" value={item.nextAction} /><DetailRow label="대표 판단 필요" value={item.ownerDecision ?? "없음"} /><DetailRow label="확인 시각" value={item.checkedAt} /><DetailRow label="출처" value={`${item.sourceLabel} · ${item.source}`} /><DetailList label="완료 조건" values={item.completionCriteria} /><DetailList label="검수 결과" values={item.verificationResults} /></div></aside></div>; }
+function WorkDetailPanel({ item, onClose }: { item: AdminWorkCard; onClose: () => void }) { const closeButtonRef = useRef<HTMLButtonElement>(null); useEffect(() => { closeButtonRef.current?.focus(); const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", closeOnEscape); return () => window.removeEventListener("keydown", closeOnEscape); }, [onClose]); return <div className="fixed inset-0 z-50 flex justify-end bg-[#0f172a]/25" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside role="dialog" aria-modal="true" aria-labelledby="work-detail-title" className="h-full w-full overflow-y-auto border-l border-[#dce5f0] bg-white p-5 sm:max-w-[560px] sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className={`${ADMIN_TYPOGRAPHY.meta} text-[#2563eb]`}>{item.stageLabel}</p><h2 id="work-detail-title" className={`mt-1 text-[#0f172a] ${ADMIN_TYPOGRAPHY.sectionTitle}`}>{item.title}</h2></div><button ref={closeButtonRef} type="button" onClick={onClose} aria-label="상세 닫기" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe4ef]"><X className="h-5 w-5" aria-hidden="true" /></button></div><div className="mt-6 grid gap-5"><DetailRow label="원 지시 요약" value={item.directiveSummary} /><DetailList label="계획·업무 분해" values={item.breakdown} /><DetailRow label="담당" value={item.owner} /><DetailRow label="실제 상태" value={item.actualStatus} /><DetailRow label="막힘" value={item.blocker ?? "없음"} /><DetailRow label="다음 순서" value={item.nextAction} /><DetailRow label="대표 판단 필요" value={item.ownerDecision ?? "없음"} /><DetailRow label="확인 시각" value={item.checkedAt} /><DetailRow label="출처" value={`${item.sourceLabel} · ${item.source}`} /><DetailList label="완료 조건" values={item.completionCriteria} /><DetailList label="검수 결과" values={item.verificationResults} /></div></aside></div>; }
 function DetailRow({ label, value }: { label: string; value: string }) { return <section><h3 className={`${ADMIN_TYPOGRAPHY.meta} text-[#475569]`}>{label}</h3><p className={`mt-1 whitespace-pre-wrap text-[#0f172a] ${ADMIN_TYPOGRAPHY.body}`}>{value}</p></section>; }
 function DetailList({ label, values }: { label: string; values: string[] }) { return <section><h3 className={`${ADMIN_TYPOGRAPHY.meta} text-[#475569]`}>{label}</h3>{values.length ? <ul className={`mt-1 grid gap-1 text-[#0f172a] ${ADMIN_TYPOGRAPHY.body}`}>{values.map((value) => <li key={value}>· {value}</li>)}</ul> : <p className={`mt-1 text-[#64748b] ${ADMIN_TYPOGRAPHY.body}`}>기록 없음</p>}</section>; }
-function Details({ id, detailsRef, summaryRef, title, summary, onOpen, children }: { id?: string; detailsRef?: React.RefObject<HTMLDetailsElement | null>; summaryRef?: React.RefObject<HTMLElement | null>; title: string; summary: string; onOpen: () => void; children: React.ReactNode }) { return <details id={id} ref={detailsRef} onToggle={(event) => { if (event.currentTarget.open) onOpen(); }} className="group scroll-mt-4 overflow-hidden rounded-[10px] border border-[#dce5f0] bg-white"><summary ref={summaryRef} className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-medium text-[#334155] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]"><span>{title}</span><span className={`flex items-center gap-2 text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>{summary}<ChevronDown className="h-4 w-4 transition group-open:rotate-180" /></span></summary><div className="border-t border-[#edf2f7]">{children}</div></details>; }
+function Details({ id, detailsRef, summaryRef, title, summary, onOpen, children }: { id?: string; detailsRef?: React.RefObject<HTMLDetailsElement | null>; summaryRef?: React.RefObject<HTMLElement | null>; title: string; summary: string; onOpen: () => void; children: React.ReactNode }) { return <details id={id} ref={detailsRef} onToggle={(event) => { if (event.currentTarget.open) onOpen(); }} className="group scroll-mt-4 overflow-hidden rounded-[10px] border border-[#dce5f0] bg-white"><summary ref={summaryRef} className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-medium text-[#334155] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb]"><span>{title}</span><span className={`flex items-center gap-2 text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>{summary}<ChevronDown className="h-4 w-4 transition group-open:rotate-180" aria-hidden="true" /></span></summary><div className="border-t border-[#edf2f7]">{children}</div></details>; }
 function Metric({ label, value }: { label: string; value: string }) { return <div className="bg-white px-4 py-4"><p className={`text-[#64748b] ${ADMIN_TYPOGRAPHY.helper}`}>{label}</p><p className="mt-1 text-[17px] font-semibold text-[#0f172a]">{value}</p></div>; }

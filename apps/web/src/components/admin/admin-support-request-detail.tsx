@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Loader2, X } from "lucide-react";
+import { IconExternalLink as ExternalLink, IconLoader2 as Loader2, IconX as X } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -157,7 +157,7 @@ export default function AdminSupportRequestDetail({
             aria-label="문의 상세 닫기"
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe4ef] text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -209,7 +209,7 @@ export default function AdminSupportRequestDetail({
                   className={`inline-flex min-h-11 items-center justify-between gap-3 rounded-[8px] border border-[#dbe4ef] px-3 text-[#334155] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] ${ADMIN_TYPOGRAPHY.body}`}
                 >
                   <span className="truncate">{attachment.fileName}</span>
-                  <ExternalLink className="h-4 w-4 shrink-0" />
+                  <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
                 </a>
               ))}
             </div>
@@ -262,7 +262,7 @@ export default function AdminSupportRequestDetail({
           disabled={saving}
           className={`mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] px-4 text-white disabled:opacity-60 ${ADMIN_TYPOGRAPHY.control}`}
         >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
           {saving ? "저장 중" : answerMessage.trim() ? "답변 저장" : "상태 저장"}
         </button>
       </aside>

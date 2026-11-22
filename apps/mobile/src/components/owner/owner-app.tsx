@@ -4820,7 +4820,7 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
             {canEditSchedule && !isEditingSchedule ? (
               <button
                 type="button"
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[10px] px-2 text-[15px] font-medium leading-6 tracking-[-0.005em] text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] max-[300px]:w-full"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[10px] px-2 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] max-[300px]:w-full"
                 onClick={openScheduleEditing}
               >
                 예약 일정 수정
@@ -4999,7 +4999,7 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
               ref={cancelActionRef}
               onClick={() => setIsCancelConfirmOpen(true)}
               disabled={saving}
-              className="inline-flex min-h-11 items-center justify-center rounded-[10px] px-4 text-[15px] font-medium leading-6 text-[#9a5e4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9a5e4e] focus-visible:ring-offset-2 disabled:opacity-50"
+              className="inline-flex min-h-11 items-center justify-center rounded-[10px] px-4 text-[16px] font-medium leading-6 text-[#9a5e4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9a5e4e] focus-visible:ring-offset-2 disabled:opacity-50"
             >
               예약 취소
             </button>

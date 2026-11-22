@@ -4836,22 +4836,23 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
     >
       <BookingDevelopmentNotice environment={env.supabaseEnvName} shopId={data.shop.id} />
       <div className="space-y-3">
-        <div className="px-1 text-[16px] leading-6">
-          <div className="flex min-w-0 items-start justify-between gap-3 max-[300px]:flex-col max-[300px]:items-stretch">
+        <div className="text-[16px] leading-6">
+          <div data-appointment-summary className="rounded-[16px] bg-[#f5f7fa] px-4 pb-3.5 pt-3">
+          <div className="flex min-w-0 items-center justify-between gap-3 max-[300px]:flex-col max-[300px]:items-stretch">
             <p className="min-w-0 text-[20px] font-semibold leading-7 tracking-[-0.015em] text-[var(--text)] [overflow-wrap:anywhere]">
               {pet.name} {ownerHomeCopy.separator} {guardian.name}
             </p>
             {canEditSchedule && !isEditingSchedule ? (
               <button
                 type="button"
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[10px] bg-[#eaf2ff] px-3 text-[16px] font-medium leading-6 tracking-[-0.005em] text-[var(--accent)] max-[300px]:w-full"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[10px] px-2 text-[15px] font-medium leading-6 tracking-[-0.005em] text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] max-[300px]:w-full"
                 onClick={openScheduleEditing}
               >
                 예약 일정 수정
               </button>
             ) : null}
           </div>
-          <div className="mt-3 space-y-2.5 border-y border-[#e8edf3] py-3">
+          <div className="mt-1.5 space-y-2">
             <AppointmentDetailInfoRow
               label="예약 일시"
               value={`${appointment.appointment_date} ${formatClockTime(appointment.appointment_time)}`}
@@ -4866,16 +4867,23 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
               muted={!appointment.staff_id}
             />
           </div>
-          <section className="mt-3 pb-3">
-            <div>
-              <h2 className={APPOINTMENT_DETAIL_SECTION_HEADING_CLASS}>고객 요청 메모</h2>
-              <p className={`mt-1 whitespace-pre-wrap text-[16px] font-normal leading-6 [overflow-wrap:anywhere] ${appointment.memo ? "text-[#33404f]" : "text-[#64748b]"}`}>{appointment.memo || "고객이 남긴 요청 메모가 없어요."}</p>
-            </div>
-            <div className="mt-3 border-t border-[#e8edf3] pt-3">
-              <h2 className={APPOINTMENT_DETAIL_SECTION_HEADING_CLASS}>담당자 메모</h2>
-              <p className={`mt-1 whitespace-pre-wrap text-[16px] font-normal leading-6 [overflow-wrap:anywhere] ${appointment.staff_memo ? "text-[#33404f]" : "text-[#64748b]"}`}>{appointment.staff_memo || "담당자 메모가 없어요."}</p>
-            </div>
-          </section>
+          </div>
+          {appointment.memo?.trim() || appointment.staff_memo?.trim() ? (
+            <section data-appointment-memos className="mt-4 space-y-3 px-1">
+              {appointment.memo?.trim() ? (
+                <div>
+                  <h2 className={APPOINTMENT_DETAIL_SECTION_HEADING_CLASS}>고객 요청 메모</h2>
+                  <p className="mt-1 whitespace-pre-wrap text-[16px] font-normal leading-6 text-[#33404f] [overflow-wrap:anywhere]">{appointment.memo}</p>
+                </div>
+              ) : null}
+              {appointment.staff_memo?.trim() ? (
+                <div>
+                  <h2 className={APPOINTMENT_DETAIL_SECTION_HEADING_CLASS}>담당자 메모</h2>
+                  <p className="mt-1 whitespace-pre-wrap text-[16px] font-normal leading-6 text-[#33404f] [overflow-wrap:anywhere]">{appointment.staff_memo}</p>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
           {appointment.rejection_reason && (
             <p className="mt-3 rounded-[14px] bg-[#fff6f4] px-3 py-2 text-[14px] font-medium leading-5 text-[#a04455]">
               미승인 사유: {appointment.rejection_reason}
@@ -4991,28 +4999,6 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
         </div>
         {!isEditingSchedule && !isReadOnly && canViewGuardianContact ? <OwnerBookingDepositPanel key={appointment.id} shopId={data.shop.id} appointmentId={appointment.id} guardianId={guardian.id} initialDeposit={appointment.deposit_summary} initialStatus={appointment.status} initialServiceAmount={appointment.final_service_price} onLedger={setHasDeposit} onReload={onReload} /> : null}
         {!isEditingSchedule && !isReadOnly ? <AppointmentVisitWeightEditor shopId={data.shop.id} appointmentId={appointment.id} disabled={saving} transport={visitWeightTransport} /> : null}
-        {!isEditingSchedule && canCancelAppointment ? (
-          <section className="border-b border-[#e8edf3] pb-3">
-            <button
-              type="button"
-              ref={cancelActionRef}
-              onClick={() => setIsCancelConfirmOpen(true)}
-              disabled={saving}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-[10px] border border-[#d8bfc5] bg-white px-3 text-[16px] font-medium leading-6 text-[#9a5e4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9a5e4e] focus-visible:ring-offset-2 disabled:opacity-50"
-            >
-              예약 취소
-            </button>
-            {isCancelConfirmOpen ? (
-              <div role="alertdialog" aria-modal="true" aria-label="예약 취소 확인" className="mt-2 rounded-[10px] border border-[#ead5d9] bg-[#fff7f8] p-3">
-                <p className="text-[14px] font-medium leading-5 text-[#101a31]">이 예약을 취소할까요?</p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button ref={cancelConfirmRef} type="button" onClick={() => setIsCancelConfirmOpen(false)} disabled={saving} className="min-h-11 rounded-[10px] border border-[#d8e0e9] bg-white px-3 text-[16px] font-medium leading-6 text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">유지</button>
-                  <button type="button" onClick={() => onUpdate({ status: "cancelled" })} disabled={saving} className="min-h-11 rounded-[10px] bg-[#9a5e4e] px-3 text-[16px] font-medium leading-6 text-white disabled:opacity-50">예약 취소</button>
-                </div>
-              </div>
-            ) : null}
-          </section>
-        ) : null}
         {appointment.status === "completed" ? (
           <div className="rounded-[14px] border border-[#d4e3f2] bg-[#f8fbfe] p-3">
             <div className="mb-2 flex items-center justify-between"><span className="text-[16px] font-semibold leading-6 text-[#526b84]">케어리포트</span><span className={`text-[13px] font-medium leading-5 ${resolvedCareReportStatus === "published" ? "text-[#2f8c72]" : resolvedCareReportStatus === "draft" ? "text-[#4b77b6]" : "text-[#64748b]"}`}>{resolvedCareReportStatus === "published" ? "발송 완료" : resolvedCareReportStatus === "draft" ? "임시저장" : "작성 전"}</span></div>
@@ -5042,6 +5028,28 @@ export function AppointmentDetail({ data, appointment, pet, guardian, service, s
               totalPages={totalNotificationPages}
               onChange={(page) => setNotificationPageState({ appointmentId: appointment.id, page })}
             />
+          </section>
+        ) : null}
+        {!isEditingSchedule && canCancelAppointment ? (
+          <section data-appointment-cancel className="border-t border-[#e8edf3] pt-2 text-center">
+            <button
+              type="button"
+              ref={cancelActionRef}
+              onClick={() => setIsCancelConfirmOpen(true)}
+              disabled={saving}
+              className="inline-flex min-h-11 items-center justify-center rounded-[10px] px-4 text-[15px] font-medium leading-6 text-[#9a5e4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9a5e4e] focus-visible:ring-offset-2 disabled:opacity-50"
+            >
+              예약 취소
+            </button>
+            {isCancelConfirmOpen ? (
+              <div role="alertdialog" aria-modal="true" aria-label="예약 취소 확인" className="mt-2 rounded-[10px] border border-[#ead5d9] bg-[#fff7f8] p-3 text-left">
+                <p className="text-[14px] font-medium leading-5 text-[#101a31]">이 예약을 취소할까요?</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button ref={cancelConfirmRef} type="button" onClick={() => setIsCancelConfirmOpen(false)} disabled={saving} className="min-h-11 rounded-[10px] border border-[#d8e0e9] bg-white px-3 text-[16px] font-medium leading-6 text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">유지</button>
+                  <button type="button" onClick={() => onUpdate({ status: "cancelled" })} disabled={saving} className="min-h-11 rounded-[10px] bg-[#9a5e4e] px-3 text-[16px] font-medium leading-6 text-white disabled:opacity-50">예약 취소</button>
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
       </div>

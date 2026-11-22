@@ -1,0 +1,53 @@
+/** Owner/manager-only cash ledger contract shared by web and mobile API consumers. */
+export const revenuePaymentMethods = ["card", "cash", "transfer", "easy_pay", "other", "unknown"] as const;
+export type RevenuePaymentMethod = (typeof revenuePaymentMethods)[number];
+export type RevenuePreset = "today" | "yesterday" | "month" | "previous_month" | "quarter" | "year" | "custom";
+export type RevenueView = "payments" | "outstanding";
+export type RevenuePeriod = { preset: RevenuePreset; from: string; to: string; previousFrom: string; previousTo: string };
+export type RevenueFilters = { staffId: string; paymentMethod: RevenuePaymentMethod | "all"; date?: string; eventType?: "payment" | "refund" };
+export type RevenueTotals = { collectedAmount: number; refundAmount: number; netAmount: number; discountAmount: number; paidCount: number; eventCount: number };
+export type RevenueGroup = { key: string; name: string; collectedAmount: number; refundAmount: number; netAmount: number; count: number };
+export type RevenueTransaction = {
+  id: string;
+  entryId: string;
+  appointmentId: string | null;
+  appointmentDate: string;
+  occurredAt: string;
+  title: string;
+  guardianName: string | null;
+  petName: string | null;
+  staffName: string;
+  eventType: "payment" | "refund" | "outstanding";
+  paymentMethod: RevenuePaymentMethod;
+  amount: number;
+  discountAmount: number;
+  refundableAmount: number;
+  confirmationRequired: boolean;
+};
+export type RevenueAnalyticsPayload = {
+  contractVersion: 2;
+  generatedAt: string;
+  cashSnapshot: string;
+  outstandingRevision: string;
+  period: RevenuePeriod;
+  filters: RevenueFilters;
+  summary: RevenueTotals;
+  previous: RevenueTotals;
+  daily: Array<{ date: string; collectedAmount: number; refundAmount: number; netAmount: number }>;
+  categories: RevenueGroup[];
+  staff: RevenueGroup[];
+  paymentMethods: RevenueGroup[];
+  benefits: Array<{ name: string; usageCount: number; discountAmount: number; freeServiceCount: number }>;
+  staffOptions: Array<{ id: string; name: string }>;
+  outstanding: { amount: number; count: number; reviewRequiredCount: number; through: string };
+  transactions: RevenueTransaction[];
+  pagination: { page: number; pageSize: number; total: number; view: RevenueView };
+};
+export type RevenueCashMutation = {
+  requestId: string;
+  entryId: string;
+  type: "payment" | "refund";
+  occurredAt: string;
+  tenders: Array<{ method: RevenuePaymentMethod; amount: number }>;
+  paymentEventId?: string;
+};

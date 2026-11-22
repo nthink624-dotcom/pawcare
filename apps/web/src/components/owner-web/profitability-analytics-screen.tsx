@@ -1,171 +1,127 @@
 "use client";
 
-import { BarChart3, CalendarDays, RefreshCw, TrendingUp } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-
+import { useEffect, useRef, useState } from "react";
+import { IconDownload as Download, IconRefresh as RefreshCw } from "@tabler/icons-react";
+import type { RevenueAnalyticsPayload, RevenueGroup, RevenueTransaction } from "@petmanager/shared/contracts/revenue-analytics";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import type { ProfitabilityPayload, ProfitabilityRange } from "@/types/profitability";
+import { formatRevenueWon as won, paymentMethodLabels, resolveRevenuePeriod, revenueComparison, revenueToday, shiftRevenueMonth } from "@/lib/revenue-analytics";
+import RevenueControls, { type RevenueScreenQuery } from "@/components/owner-web/revenue-controls";
+import RevenueChart from "@/components/owner-web/revenue-chart";
+import RevenueTransactions from "@/components/owner-web/revenue-transactions";
+import RevenueCashDialog from "@/components/owner-web/revenue-cash-dialog";
+import styles from "./revenue-analytics.module.css";
 
-const rangeOptions: Array<{ value: ProfitabilityRange; label: string }> = [
-  { value: "30d", label: "이번 달" },
-  { value: "90d", label: "최근 3개월" },
-  { value: "365d", label: "올해" },
-];
+const action = "inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg border border-[#dfe5ec] bg-white px-3 text-[14px] font-medium text-[#172033] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:opacity-50";
+type LoadedState = { key: string; status: "loading" | "ready" | "error"; payload: RevenueAnalyticsPayload | null; error: string };
 
-const won = (value: number) => `${Math.round(value).toLocaleString("ko-KR")}원`;
-
-function Metric({ label, value, note }: { label: string; value: string; note: string }) {
-  return <div className="min-w-0 rounded-xl border border-[#e5eaf0] bg-white p-4">
-    <p className="text-[14px] leading-5 text-[#66758a]">{label}</p>
-    <p className="mt-1 text-[22px] font-semibold leading-7 tracking-tight text-[#172033] tabular-nums [overflow-wrap:anywhere]">{value}</p>
-    <p className="mt-1 text-[13px] leading-5 text-[#718096]">{note}</p>
-  </div>;
-}
-
-function Section({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
-  return <section className="border-t border-[#e8edf3] px-4 py-5 sm:px-5">
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-[18px] font-semibold leading-6 text-[#172033]">{title}</h2>{aside}</div>{children}
-  </section>;
+function Group({ title, rows, methods = false }: { title: string; rows: RevenueGroup[]; methods?: boolean }) {
+  return <section className="border-t border-[#e8edf3] px-4 py-5 sm:px-5"><h2 className="text-[18px] font-semibold leading-6 text-[#172033]">{title}</h2>{!rows.length && <p className="mt-3 text-[14px] text-[#64748b]">기록된 내역이 없습니다.</p>}<ul className="mt-2 divide-y divide-[#e8edf3]">{rows.map(row => <li key={row.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3 text-[14px] leading-5"><div className="min-w-0"><p className="break-words font-medium text-[#172033]">{methods ? paymentMethodLabels[row.key as keyof typeof paymentMethodLabels] ?? row.name : row.name}</p><p className="mt-1 text-[13px] text-[#64748b]">수금 {won(row.collectedAmount)} · 환불 {won(row.refundAmount)}</p></div><p className={`font-medium tabular-nums ${row.netAmount < 0 ? "text-[#9a5e4e]" : "text-[#172033]"}`}>{won(row.netAmount)}</p></li>)}</ul></section>;
 }
 
 export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: string }) {
-  const [range, setRange] = useState<ProfitabilityRange>("30d");
-  const [payload, setPayload] = useState<ProfitabilityPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [reloadKey, setReloadKey] = useState(0);
+  const today = revenueToday();
+  const [query, setQuery] = useState<RevenueScreenQuery>({ preset: "month", from: today.slice(0, 7) + "-01", to: today, staffId: "", paymentMethod: "all", view: "payments", page: 1, snapshotAt: "", cashSnapshot: "", outstandingRevision: "", kind: "all" });
+  const [custom, setCustom] = useState({ from: query.from, to: query.to });
+  const [reload, setReload] = useState(0);
+  const [state, setState] = useState<LoadedState>({ key: "", status: "loading", payload: null, error: "" });
+  const [selected, setSelected] = useState<RevenueTransaction | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState("");
+  const [notice, setNotice] = useState("");
+  const exportAbort = useRef<AbortController | null>(null);
+  const demo = ["demo-shop", "owner-demo"].includes(shopId);
+  const key = JSON.stringify({ shopId, query, reload });
+  const busy = state.key !== key || state.status === "loading";
+  const payload = state.key === key && state.status === "ready" ? state.payload : null;
+  const controlsPayload = state.payload;
 
   useEffect(() => {
-    let active = true;
-    const request = shopId === "demo-shop" || shopId === "owner-demo" ? fetchApiJson : fetchApiJsonWithAuth;
-    void request<ProfitabilityPayload>(`/api/owner/profitability?shopId=${encodeURIComponent(shopId)}&range=${range}${reloadKey ? "&refresh=1" : ""}`, { cache: "no-store" })
-      .then((result) => { if (active) setPayload(result); })
-      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "매출 정보를 불러오지 못했습니다."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [range, reloadKey, shopId]);
+    const abort = new AbortController();
+    const params = new URLSearchParams({ shopId, preset: query.preset, from: query.from, to: query.to, staffId: query.staffId, paymentMethod: query.paymentMethod, view: query.view, kind: query.kind, version: "2", page: String(query.page) });
+    if (query.snapshotAt) params.set("snapshotAt", query.snapshotAt);
+    if (query.cashSnapshot) params.set("cashSnapshot", query.cashSnapshot);
+    if (query.outstandingRevision) params.set("outstandingRevision", query.outstandingRevision);
+    setState(previous => ({ ...previous, key, status: "loading", error: "" }));
+    const request = demo ? fetchApiJson : fetchApiJsonWithAuth;
+    void request<RevenueAnalyticsPayload>(`/api/owner/profitability?${params}`, { cache: "no-store", signal: abort.signal })
+      .then(result => { if (!abort.signal.aborted) { if (result.contractVersion !== 2) throw new Error("매출 화면 업데이트가 필요합니다. 새로고침해 주세요."); setState({ key, status: "ready", payload: result, error: "" }); } })
+      .catch(reason => { if (!abort.signal.aborted) setState({ key, status: "error", payload: null, error: reason instanceof Error ? reason.message : "매출 정보를 불러오지 못했습니다." }); });
+    return () => abort.abort();
+  }, [demo, key, query, shopId]);
+  useEffect(() => () => exportAbort.current?.abort(), []);
+  useEffect(() => { setSelected(null); }, [shopId]);
 
-  const chartRows = useMemo(() => {
-    const buckets = new Map<string, number>();
-    for (const item of payload?.sales.daily ?? []) {
-      let key = item.date;
-      if (range === "365d") key = `${item.date.slice(0, 7)}-01`;
-      if (range === "90d") {
-        const date = new Date(`${item.date}T00:00:00Z`);
-        date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7);
-        key = date.toISOString().slice(0, 10);
+  function change(patch: Partial<RevenueScreenQuery>) {
+    setNotice("");
+    setQuery(previous => {
+      const next = { ...previous, ...patch, page: 1, snapshotAt: "", cashSnapshot: "", outstandingRevision: "" };
+      return JSON.stringify(next) === JSON.stringify(previous) ? previous : next;
+    });
+  }
+  function refresh() { setNotice(""); setQuery(previous => ({ ...previous, snapshotAt: "", cashSnapshot: "", outstandingRevision: "" })); setReload(value => value + 1); }
+  function applyCustom() {
+    try { resolveRevenuePeriod("custom", custom); change({ preset: "custom", ...custom }); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "기간을 확인해 주세요."); }
+  }
+  function moveMonth(direction: number) {
+    const period = resolveRevenuePeriod(query.preset, { from: query.from, to: query.to });
+    const from = shiftRevenueMonth(period.from.slice(0, 7) + "-01", direction);
+    const last = new Date(Date.parse(shiftRevenueMonth(from, 1) + "T00:00:00Z") - 86400000).toISOString().slice(0, 10);
+    if (from > today) return;
+    const next = { from, to: last > today ? today : last };
+    setCustom(next); change({ preset: "custom", ...next });
+  }
+  function showTransactions(view: "payments" | "outstanding", kind: "all" | "payment" | "refund" = "all") {
+    if (query.view !== view || query.page !== 1 || query.kind !== kind) setQuery(previous => ({ ...previous, view, kind, page: 1, snapshotAt: payload?.generatedAt ?? "", cashSnapshot: payload?.cashSnapshot ?? "", outstandingRevision: payload?.outstandingRevision ?? "" }));
+    document.getElementById("revenue-transactions")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  async function download() {
+    if (!payload || downloadProgress || demo) return;
+    const abort = new AbortController(); exportAbort.current = abort;
+    setNotice(""); setDownloadProgress("자료 준비 중…");
+    const parts: string[] = ["\uFEFF"];
+    let snapshotAt = payload.generatedAt;
+    let filename = "펫매니저_매출.csv";
+    let expectedTotal: number | null = null;
+    try {
+      for (let page = 1; ; page += 1) {
+        const params = new URLSearchParams({ shopId, preset: payload.period.preset, from: payload.period.from, to: payload.period.to, staffId: payload.filters.staffId, paymentMethod: payload.filters.paymentMethod, view: payload.pagination.view, snapshotAt, cashSnapshot: payload.cashSnapshot, outstandingRevision: payload.outstandingRevision, page: String(page) });
+        const chunk = await fetchApiJsonWithAuth<{ csv: string; filename: string; total: number; snapshotAt: string; cashSnapshot: string; outstandingRevision: string; done: boolean }>(`/api/owner/revenue/export?${params}`, { cache: "no-store", signal: abort.signal });
+        if (chunk.cashSnapshot !== payload.cashSnapshot || chunk.outstandingRevision !== payload.outstandingRevision) throw new Error("조회 기준이 변경되었습니다. 새로고침 후 다시 내려받아 주세요.");
+        if (expectedTotal !== null && expectedTotal !== chunk.total) throw new Error("거래 내역이 변경되었습니다. 새로고침 후 다시 내려받아 주세요.");
+        expectedTotal = chunk.total; snapshotAt = chunk.snapshotAt; filename = chunk.filename; parts.push(chunk.csv);
+        setDownloadProgress(`${Math.min(page * 500, chunk.total).toLocaleString("ko-KR")} / ${chunk.total.toLocaleString("ko-KR")}건 준비`);
+        if (chunk.done) break;
       }
-      buckets.set(key, (buckets.get(key) ?? 0) + item.paidAmount);
-    }
-    if (!payload) return [];
+      if (abort.signal.aborted) return;
+      const url = URL.createObjectURL(new Blob(parts, { type: "text/csv;charset=utf-8;" }));
+      const link = document.createElement("a"); link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (reason) { if (!abort.signal.aborted) setNotice(reason instanceof Error ? reason.message : "자료를 내려받지 못했습니다."); }
+    finally { if (exportAbort.current === abort) { exportAbort.current = null; setDownloadProgress(""); } }
+  }
 
-    const start = new Date(`${payload.from}T00:00:00Z`);
-    const end = new Date(`${payload.to}T00:00:00Z`);
-    const keys: string[] = [];
-    if (range === "365d") {
-      const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
-      while (cursor <= end) {
-        keys.push(cursor.toISOString().slice(0, 10));
-        cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-      }
-    } else if (range === "90d") {
-      const cursor = new Date(start);
-      cursor.setUTCDate(cursor.getUTCDate() - (cursor.getUTCDay() + 6) % 7);
-      while (cursor <= end) {
-        keys.push(cursor.toISOString().slice(0, 10));
-        cursor.setUTCDate(cursor.getUTCDate() + 7);
-      }
-    } else {
-      const cursor = new Date(start);
-      while (cursor <= end) {
-        keys.push(cursor.toISOString().slice(0, 10));
-        cursor.setUTCDate(cursor.getUTCDate() + 1);
-      }
-    }
+  const metrics = payload ? [
+    { label: "수금 매출", value: won(payload.summary.netAmount), note: revenueComparison(payload.summary.netAmount, payload.previous.netAmount, payload.previous.eventCount), onClick: () => showTransactions("payments") },
+    { label: "수금 건수", value: `${payload.summary.paidCount.toLocaleString("ko-KR")}건`, note: "같은 원장 항목의 복합결제는 1건", onClick: () => showTransactions("payments") },
+    { label: "적용 할인", value: won(payload.summary.discountAmount), note: "수금액에 이미 반영된 할인", onClick: () => showTransactions("payments") },
+    { label: "환불", value: won(payload.summary.refundAmount), note: "실제 환불 날짜에 차감", onClick: () => showTransactions("payments", "refund") },
+  ] : [];
 
-    return keys.map((date, index) => ({
-      date,
-      paidAmount: buckets.get(date) ?? 0,
-      label: range === "365d"
-        ? date.slice(5, 7) + "월"
-        : range === "90d"
-          ? date.slice(5, 10).replace("-", "/")
-          : index % 5 === 0 || index === keys.length - 1 ? date.slice(8) : "",
-    }));
-  }, [payload, range]);
-  const maxBucket = useMemo(() => Math.max(1, ...chartRows.map((item) => item.paidAmount)), [chartRows]);
-  const bestBucket = useMemo(() => chartRows.reduce<(typeof chartRows)[number] | null>((best, item) => item.paidAmount > (best?.paidAmount ?? 0) ? item : best, null), [chartRows]);
-  const bestBucketLabel = bestBucket
-    ? range === "365d"
-      ? `${bestBucket.date.slice(0, 4)}년 ${Number(bestBucket.date.slice(5, 7))}월`
-      : bestBucket.date.slice(5).replace("-", "/")
-    : "";
-  const averagePerDay = payload
-    ? Math.round(payload.sales.paidAmount / Math.max(1, Math.floor((new Date(`${payload.to}T00:00:00Z`).getTime() - new Date(`${payload.from}T00:00:00Z`).getTime()) / 86400000) + 1))
-    : 0;
-  const categoryTotal = payload?.sales.categories.reduce((sum, item) => sum + item.amount, 0) ?? 0;
-  const change = payload?.sales.previousPaidAmount ? Math.round((payload.sales.paidAmount - payload.sales.previousPaidAmount) / Math.abs(payload.sales.previousPaidAmount) * 100) : null;
-  const hasPaidSales = Boolean(payload && (payload.sales.paidCount > 0 || payload.sales.paidAmount !== 0));
-
-  return <div data-profitability-main-surface className="h-full min-h-0 min-w-0 overflow-auto">
-      <header className="flex flex-col justify-between gap-3 border-b border-[#e8edf3] px-4 py-4 sm:flex-row sm:items-center sm:px-5">
-        <div className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-[#2563eb]" strokeWidth={2} /><h1 className="text-[20px] font-semibold leading-7 text-[#172033]">매출 분석</h1></div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-lg bg-[#f2f5f9] p-1" aria-label="분석 기간">
-            {rangeOptions.map((option) => <button key={option.value} type="button" aria-pressed={range === option.value} onClick={() => { setLoading(true); setError(""); setRange(option.value); }} className={cn("min-h-10 rounded-md px-3 text-[14px] transition", range === option.value ? "bg-white font-medium text-[#172033] shadow-sm" : "text-[#68778c] hover:text-[#243247]")}>{option.label}</button>)}
-          </div>
-          <button type="button" onClick={() => { setLoading(true); setError(""); setReloadKey((value) => value + 1); }} disabled={loading} aria-label="매출 새로고침" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#dfe5ec] text-[#64748b] hover:bg-[#f8fafc] disabled:opacity-50"><RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} /></button>
-        </div>
-      </header>
-      {error && <div className="border-b border-[#f0d8dc] bg-[#fff8f8] px-5 py-3 text-[14px] text-[#9f3a48]">{error}</div>}
-      {loading && !payload ? <div className="px-5 py-16 text-center text-[14px] text-[#64748b]">매출 정보를 불러오고 있습니다.</div> : payload && <>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 pb-3 pt-4 text-[13px] text-[#64748b] sm:px-5"><CalendarDays className="h-4 w-4 shrink-0" />{payload.from} ~ {payload.to}<span className="ml-auto">결제 완료분 · 미수/예정 제외</span></div>
-        <section className="grid grid-cols-2 gap-2 px-4 pb-5 lg:grid-cols-4 sm:px-5">
-          <Metric label="결제 매출" value={won(payload.sales.paidAmount)} note={change === null ? "비교 기간 자료 없음" : `이전 기간보다 ${change > 0 ? "+" : ""}${change}%`} />
-          <Metric label="결제 건수" value={`${payload.sales.paidCount.toLocaleString("ko-KR")}건`} note={`건당 평균 ${won(payload.sales.averagePaidAmount)}`} />
-          <Metric label="할인" value={won(payload.sales.discountAmount)} note="결제된 항목에 기록된 할인" />
-          <Metric label="환불" value={won(payload.sales.refundAmount)} note="결제 원장에 기록된 환불" />
-        </section>
-        {!hasPaidSales ? <div className="flex min-h-[280px] flex-col items-center justify-center border-t border-[#e8edf3] px-5 py-10 text-center">
-          <BarChart3 className="h-6 w-6 text-[#8a98aa]" strokeWidth={1.8} aria-hidden="true" />
-          <h2 className="mt-2 text-[18px] font-medium leading-6 text-[#253044]">선택한 기간에 결제된 매출이 없습니다</h2>
-          <p className="mt-1 max-w-[34rem] text-[14px] leading-5 text-[#64748b]">결제가 완료되면 매출 추이와 구성, 적용된 혜택을 확인할 수 있습니다.</p>
-        </div> : <>
-        <Section title={range === "365d" ? "월별 매출" : range === "90d" ? "주별 매출" : "일별 매출"} aside={<span className="text-[13px] text-[#718096]">결제 완료분</span>}>
-          {chartRows.length ? <>
-            <div role="list" aria-label={range === "365d" ? "월별 결제 매출" : range === "90d" ? "주별 결제 매출" : "일별 결제 매출"} className="flex h-36 items-end gap-1 border-b border-[#e8edf3] pb-2 sm:gap-2">
-              {chartRows.map((item) => <div key={item.date} role="listitem" aria-label={`${item.date}: ${won(item.paidAmount)}`} title={`${item.date}: ${won(item.paidAmount)}`} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
-                <div className={cn("w-full max-w-8 rounded-t", item.paidAmount ? "bg-[#4b83f5]" : "bg-[#e8edf3]")} style={{ height: `${Math.max(item.paidAmount ? 4 : 2, item.paidAmount / maxBucket * 100)}%` }} />
-                <span className="min-h-4 text-[12px] leading-4 text-[#718096]">{item.label}</span>
-              </div>)}
-            </div>
-            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-[14px] leading-5 text-[#64748b]">
-              {bestBucket && bestBucket.paidAmount > 0 && <span>가장 높은 구간 <span className="font-medium text-[#172033]">{bestBucketLabel} · {won(bestBucket.paidAmount)}</span></span>}
-              <span>하루 평균 <span className="font-medium text-[#172033]">{won(averagePerDay)}</span></span>
-            </div>
-          </> : <p className="py-5 text-center text-[14px] text-[#718096]">선택한 기간의 결제 매출이 없습니다.</p>}
-        </Section>
-        {(payload.sales.categories.length > 0 || payload.sales.paidCount > 0) && <Section title="매출 구성" aside={<span className="text-[13px] text-[#718096]">항목이 기록된 매출 기준</span>}>
-          {payload.sales.categories.length ? <div className="divide-y divide-[#edf0f4]">
-            {payload.sales.categories.map((item) => {
-              const share = categoryTotal > 0 ? Math.max(0, Math.round(item.amount / categoryTotal * 100)) : 0;
-              return <div key={item.name} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 py-3 text-[14px]">
-                <div className="min-w-0"><p className="truncate font-medium text-[#29364a]">{item.name}</p><p className="mt-0.5 text-[13px] text-[#718096]">{item.count}건 · {share}%</p></div>
-                <p className="shrink-0 font-medium tabular-nums text-[#172033]">{won(item.amount)}</p>
-                <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-[#edf1f5]" aria-hidden="true"><div className="h-full rounded-full bg-[#8aa8dc]" style={{ width: `${share}%` }} /></div>
-              </div>;
-            })}
-          </div> : <p className="py-2 text-[14px] text-[#718096]">상품·서비스 매출 구분이 기록된 항목이 없습니다.</p>}
-          {categoryTotal > 0 && categoryTotal < payload.sales.paidAmount && <p className="mt-2 text-[13px] leading-5 text-[#718096]">일부 결제 항목은 유형이 기록되지 않아 위 구성에서 제외될 수 있습니다.</p>}
-        </Section>}
-        {(payload.sales.benefits.length > 0 || payload.sales.paidCount > 0) && <Section title="혜택 사용" aside={<span className="text-[13px] text-[#718096]">기록된 혜택만 표시</span>}>
-          {payload.sales.benefits.length ? <div className="divide-y divide-[#edf0f4]">
-            {payload.sales.benefits.map((item) => <div key={item.name} className="flex flex-wrap items-center justify-between gap-2 py-3 text-[14px]"><p className="font-medium text-[#29364a]">{item.name}</p><p className="text-[#58677c]">{item.usageCount}회 사용{item.freeServiceCount ? ` · 무료 서비스 ${item.freeServiceCount}회` : ""}{item.discountAmount ? ` · 할인 ${won(item.discountAmount)}` : ""}</p></div>)}
-          </div> : <p className="py-2 text-[14px] text-[#718096]">선택한 기간에 기록된 쿠폰·서비스 혜택이 없습니다.</p>}
-        </Section>}
-        </>}
-        {(payload.sales.unpaidAmount || payload.sales.expectedAmount) ? <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-[#e8edf3] bg-[#f8fafc] px-4 py-3 text-[13px] text-[#68778c] sm:px-5"><span>미수 {won(payload.sales.unpaidAmount)}</span><span>예정 {won(payload.sales.expectedAmount)}</span><span className="text-[#8591a0]">결제 매출 합계에는 포함하지 않았습니다.</span></div> : null}
-      </>}
+  return <div id="owner-revenue-analytics" data-profitability-main-surface aria-busy={busy} className={`${styles.surface} h-full min-h-0 min-w-0 overflow-auto bg-white text-[#172033]`}>
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8edf3] px-4 py-4 sm:px-5"><h1 className="text-[20px] font-semibold leading-7">매출 분석</h1><div className="flex flex-wrap gap-2"><button data-owner-control-size="content" type="button" onClick={download} disabled={busy || !payload || Boolean(downloadProgress) || demo} className={action}><Download className="h-4 w-4" aria-hidden="true" />{downloadProgress || "기간 CSV"}</button><button data-owner-control-size="content" type="button" onClick={refresh} disabled={busy} aria-label="매출 새로고침" className={action}><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} aria-hidden="true" /><span className="sr-only">새로고침</span></button></div></header>
+    <RevenueControls query={query} payload={controlsPayload} custom={custom} onCustom={setCustom} onChange={change} onApplyCustom={applyCustom} onMonth={moveMonth} />
+    {notice && <p role="alert" className="border-b border-[#e8edf3] px-4 py-3 text-[14px] leading-5 text-[#9a5e4e]">{notice}</p>}
+    {busy ? <div role="status" data-profitability-state="loading" className="px-5 py-16 text-center text-[14px] text-[#64748b]">선택한 조건의 매출을 불러오고 있습니다.</div> : state.status === "error" ? <div role="alert" data-profitability-state="error" className="space-y-3 px-5 py-10 text-center"><p className="text-[14px] text-[#9a5e4e]">{state.error}</p><button data-owner-control-size="content" type="button" onClick={refresh} className={action}>다시 조회</button></div> : payload && <>
+      <div className="space-y-1 px-4 py-4 text-[13px] leading-5 text-[#64748b] sm:px-5"><p>조회 {payload.period.from} ~ {payload.period.to} · 실제 수금·환불일 기준</p><p>비교 {payload.period.previousFrom} ~ {payload.period.previousTo}</p><p>기준 시각 {new Date(payload.generatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}{demo ? " · 데모 데이터" : ""}</p></div>
+      <section aria-label="매출 요약" className="grid grid-cols-2 gap-2 px-4 pb-4 lg:grid-cols-4 sm:px-5">{metrics.map(metric => <button data-owner-control-size="content" key={metric.label} type="button" aria-label={`${metric.label} 상세 내역`} onClick={metric.onClick} className="min-h-11 min-w-0 rounded-lg border border-[#e8edf3] p-3 text-left focus-visible:outline-2 focus-visible:outline-[#2563eb]"><span className="block text-[14px] leading-5 text-[#64748b]">{metric.label}</span><span className="mt-1 block break-words text-[24px] font-semibold leading-8 tabular-nums">{metric.value}</span><span className="mt-1 block text-[13px] leading-5 text-[#64748b]">{metric.note}</span></button>)}</section>
+      <p className="px-4 pb-4 text-[14px] leading-5 text-[#64748b] sm:px-5">수금액 {won(payload.summary.collectedAmount)} − 환불 {won(payload.summary.refundAmount)} = 수금 매출 {won(payload.summary.netAmount)}</p>
+      {payload.outstanding.count > 0 && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e8edf3] bg-[#f8fafc] px-4 py-4 sm:px-5"><div><p className="text-[16px] font-medium">미수·확인 필요 {won(payload.outstanding.amount)} · {payload.outstanding.count}건</p><p className="mt-1 text-[13px] leading-5 text-[#64748b]">{payload.outstanding.reviewRequiredCount ? `기존 기록 ${payload.outstanding.reviewRequiredCount}건은 수금 여부를 확인해야 합니다. ` : ""}수금 매출 합계에 포함하지 않았습니다.</p></div><button data-owner-control-size="content" type="button" onClick={() => showTransactions("outstanding")} className={action}>내역 확인</button></div>}
+      <RevenueChart key={`${payload.period.from}:${payload.period.to}`} payload={payload} onDrillDown={bucket => { const next = { from: bucket.from, to: bucket.to }; setCustom(next); change({ preset: "custom", ...next, view: "payments", kind: "all" }); }} />
+      <Group title="서비스·상품별 구성" rows={payload.categories} />
+      <section className="border-t border-[#e8edf3] px-4 py-5 sm:px-5"><h2 className="text-[18px] font-semibold leading-6">혜택 적용</h2><p className="mt-1 text-[13px] leading-5 text-[#64748b]">수금 거래에 기록된 혜택입니다. 할인은 수금액에 이미 반영되어 있습니다.</p>{payload.benefits?.length ? <ul className="mt-2 divide-y divide-[#e8edf3]">{payload.benefits.map(benefit => <li key={benefit.name} className="flex flex-wrap items-center justify-between gap-2 py-3 text-[14px] leading-5"><span>{benefit.name}</span><span className="text-[#64748b]">적용 거래 {benefit.usageCount}건{benefit.freeServiceCount ? ` · 무료 서비스 ${benefit.freeServiceCount}건` : ""}{benefit.discountAmount ? ` · 할인 ${won(benefit.discountAmount)}` : ""}</span></li>)}</ul> : <p className="mt-3 text-[14px] text-[#64748b]">수금 거래에 기록된 혜택이 없습니다.</p>}</section>
+      <Group title="담당자별 매출" rows={payload.staff} />
+      <Group title="결제수단별 매출" rows={payload.paymentMethods} methods />
+      <RevenueTransactions shopId={shopId} payload={payload} demo={demo} onView={showTransactions} onKind={kind => showTransactions("payments", kind)} onPage={page => setQuery(previous => ({ ...previous, page, snapshotAt: payload.generatedAt, cashSnapshot: payload.cashSnapshot, outstandingRevision: payload.outstandingRevision }))} onRecord={setSelected} />
+    </>}
+    {selected && <RevenueCashDialog shopId={shopId} transaction={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); refresh(); setNotice("수금·환불 기록을 저장했습니다."); }} />}
   </div>;
 }

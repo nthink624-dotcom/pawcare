@@ -1,0 +1,6 @@
+/* The legacy owner-wide form rule forces 40px !important. Keep the larger
+   revenue touch contract local instead of changing other active screens. */
+.surface:global(#owner-revenue-analytics) :is(input:not([type="checkbox"]):not([type="radio"]), select) {
+  height: 44px !important;
+  min-height: 44px !important;
+}

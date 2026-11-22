@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { IconX as X } from "@tabler/icons-react";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { isConfirmedPriceGuideDuration } from "@/lib/price-guide-duration-confirmation";

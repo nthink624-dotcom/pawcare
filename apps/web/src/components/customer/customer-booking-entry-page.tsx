@@ -1,6 +1,13 @@
 "use client";
 
-import { ChevronDown, Copy, Navigation, Phone, UserRound, X } from "lucide-react";
+import {
+  IconChevronDown as ChevronDown,
+  IconCopy as Copy,
+  IconNavigation as Navigation,
+  IconPhone as Phone,
+  IconUser as UserRound,
+  IconX as X,
+} from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 
 import CustomerEntryServicePicker from "@/components/customer/customer-entry-service-picker";
@@ -937,7 +944,7 @@ export default function CustomerBookingEntryPage({
                   }}
                 >
                   <div className="av" style={profile.imageUrl ? { backgroundImage: cssBackgroundUrl(profile.imageUrl) } : undefined}>
-                    {profile.imageUrl ? null : <UserRound className="h-6 w-6" strokeWidth={1.8} />}
+                    {profile.imageUrl ? null : <UserRound className="h-6 w-6" strokeWidth={1.8} aria-hidden="true" />}
                   </div>
                   <div className="who">
                     <div className="nm">{profile.name}</div>
@@ -971,7 +978,7 @@ export default function CustomerBookingEntryPage({
           <div className="srow">
             <div className={`hours${hoursOpen ? " open" : ""}`}>
               <div className={`top${operatingStatus.label === "휴무" ? " closed" : ""}`} onClick={() => setHoursOpen((value) => !value)}>
-                <span className="od" />{operatingStatus.label}<ChevronDown className="chev" strokeWidth={2} />
+                <span className="od" />{operatingStatus.label}<ChevronDown className="chev" strokeWidth={2} aria-hidden="true" />
               </div>
               {hoursOpen ? (
                 <div className="list"><div className="inner">
@@ -1039,10 +1046,10 @@ export default function CustomerBookingEntryPage({
             aria-label="전화하기"
             onClick={previewMode ? (event) => event.preventDefault() : undefined}
           >
-            <Phone className="h-5 w-5" strokeWidth={1.9} />
+            <Phone className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
           </a>
           <button className="quick" type="button" onClick={() => setDirectionsOpen(true)} aria-label="길찾기">
-            <Navigation className="h-5 w-5" strokeWidth={1.9} />
+            <Navigation className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
           </button>
           {previewMode && onPreviewBookingStart && selectedServiceOption ? (
             <button
@@ -1072,7 +1079,7 @@ export default function CustomerBookingEntryPage({
                 <p>총 {heroImages.length}장</p>
               </div>
               <button type="button" className="close" onClick={() => setHeroGalleryOpen(false)} aria-label="매장 사진 닫기">
-                <X className="h-4.5 w-4.5" strokeWidth={1.8} />
+                <X className="h-4.5 w-4.5" strokeWidth={1.8} aria-hidden="true" />
               </button>
             </div>
             <div className="gallery-grid">
@@ -1095,7 +1102,7 @@ export default function CustomerBookingEntryPage({
             <div className="head">
               <h3>{profileViewer.name}</h3>
               <button type="button" className="close" onClick={() => setProfileViewer(null)} aria-label="직원 프로필 닫기">
-                <X className="h-4.5 w-4.5" strokeWidth={1.8} />
+                <X className="h-4.5 w-4.5" strokeWidth={1.8} aria-hidden="true" />
               </button>
             </div>
             <div
@@ -1106,7 +1113,7 @@ export default function CustomerBookingEntryPage({
                   : undefined
               }
             >
-              {profileViewer.imageUrls[profileViewerImageIndex] ? null : <UserRound className="h-12 w-12" strokeWidth={1.7} />}
+              {profileViewer.imageUrls[profileViewerImageIndex] ? null : <UserRound className="h-12 w-12" strokeWidth={1.7} aria-hidden="true" />}
             </div>
             {profileViewer.imageUrls.length > 1 ? (
               <div className="photo-dots" aria-label="직원 프로필 사진 선택">
@@ -1149,7 +1156,7 @@ export default function CustomerBookingEntryPage({
                   onClick={() => setPriceSheetOpen(false)}
                   aria-label="요금표 닫기"
                 >
-                  <X className="h-4.5 w-4.5" strokeWidth={1.8} />
+                  <X className="h-4.5 w-4.5" strokeWidth={1.8} aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -1204,7 +1211,7 @@ export default function CustomerBookingEntryPage({
                 onClick={() => setDirectionsOpen(false)}
                 aria-label="길찾기 닫기"
               >
-                <X className="h-4.5 w-4.5" strokeWidth={1.8} />
+                <X className="h-4.5 w-4.5" strokeWidth={1.8} aria-hidden="true" />
               </button>
             </div>
 
@@ -1216,7 +1223,7 @@ export default function CustomerBookingEntryPage({
                   onClick={handleCopyAddress}
                   className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-[12px] border border-[#e8edf3] bg-white px-4 text-[16px] font-normal text-[#15213b] hover:bg-[#f8fafc]"
                 >
-                  <Copy className="h-4 w-4" strokeWidth={1.9} />
+                  <Copy className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />
                   {addressCopied ? "복사 완료" : "주소 복사"}
                 </button>
               </div>
@@ -1248,7 +1255,7 @@ function MapButton({ label, onClick }: { label: string; onClick: () => void }) {
     >
       <span className="flex items-center gap-3">
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#edf2f8] text-[#15213b]">
-          <Navigation className="h-4.5 w-4.5" strokeWidth={2} />
+          <Navigation className="h-4.5 w-4.5" strokeWidth={2} aria-hidden="true" />
         </span>
         <span className="text-[16px] font-normal tracking-[-0.02em] text-[#15213b]">{label}</span>
       </span>

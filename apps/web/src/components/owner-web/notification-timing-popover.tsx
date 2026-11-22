@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { IconChevronDown as ChevronDown, IconChevronUp as ChevronUp } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 
@@ -90,7 +90,7 @@ export function NotificationTimingPopover({
               className="flex min-h-11 items-center justify-center rounded-[8px] bg-white text-[#64748b] transition hover:text-[#0f172a]"
               aria-label="알림 시간 늘리기"
             >
-              <ChevronUp className="h-4 w-4" />
+              <ChevronUp className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -98,7 +98,7 @@ export function NotificationTimingPopover({
               className="flex min-h-11 items-center justify-center rounded-[8px] bg-white text-[#64748b] transition hover:text-[#0f172a]"
               aria-label="알림 시간 줄이기"
             >
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         </div>

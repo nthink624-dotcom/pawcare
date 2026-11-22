@@ -2,7 +2,7 @@
 
 import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { NotebookPen, Scissors } from "lucide-react";
+import { IconNotes as NotebookPen, IconScissors as Scissors } from "@tabler/icons-react";
 import { buildServiceReservationChipTones, type ReservationChipService } from "@petmanager/shared/lib/reservation-chip-colors";
 
 import {

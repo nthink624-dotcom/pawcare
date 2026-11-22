@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, X } from "lucide-react";
+import { IconPhotoPlus as ImagePlus, IconX as X } from "@tabler/icons-react";
 
 export type SelectedSupportAttachment = {
   id: string;
@@ -26,7 +26,7 @@ export default function OwnerSupportAttachmentPicker({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[14px] font-semibold text-[#334155]">문제 화면 첨부</span>
         <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[9px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]">
-          <ImagePlus className="h-4 w-4" />
+          <ImagePlus className="h-4 w-4" aria-hidden="true" />
           스크린샷 추가
           <input
             type="file"
@@ -52,7 +52,7 @@ export default function OwnerSupportAttachmentPicker({
                 className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-[#334155] shadow-[0_4px_12px_rgba(15,23,42,0.16)]"
                 title="첨부 제거"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           ))}

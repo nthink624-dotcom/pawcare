@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound } from "lucide-react";
+import { IconKey as KeyRound } from "@tabler/icons-react";
 
 import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 
@@ -13,7 +13,7 @@ export default function OwnerAdminPasswordPanel({
     <section className="rounded-[14px] border border-[#E8EDF3] bg-[#F8FAFC] p-4">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#EFF6FF] text-[#2563EB]">
-          <KeyRound className="h-4 w-4" />
+          <KeyRound className="h-4 w-4" aria-hidden="true" />
         </div>
         <div className="min-w-0">
           <p className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#0f172a]`}>계정 접근 관리</p>

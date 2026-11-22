@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { IconExternalLink as ExternalLink } from "@tabler/icons-react";
 
 import type { Shop } from "@/types/domain";
 
@@ -85,7 +85,7 @@ export default function CustomerShopFrontPanel({
                 />
               </span>
               <span className="truncate">{label}</span>
-              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[#b6a89f]" strokeWidth={1.8} />
+              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[#b6a89f]" strokeWidth={1.8} aria-hidden="true" />
             </a>
           ))}
         </div>

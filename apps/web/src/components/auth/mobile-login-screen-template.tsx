@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { SignInCard2 } from "@/components/ui/sign-in-card-2";
-import { Eye, EyeOff } from "lucide-react";
+import { IconEye as Eye, IconEyeOff as EyeOff } from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 type Props = {
@@ -147,7 +147,7 @@ export default function MobileLoginScreenTemplate({
             className="absolute right-1 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center text-[#98aac7] transition hover:text-[#617492]"
             aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
           >
-            {showPassword ? <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.8} /> : <Eye className="h-[18px] w-[18px]" strokeWidth={1.8} />}
+            {showPassword ? <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" /> : <Eye className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />}
           </button>
         </div>
 

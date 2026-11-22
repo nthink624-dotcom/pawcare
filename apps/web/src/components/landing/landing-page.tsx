@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ArrowUp, Check, X } from "lucide-react";
+import { IconArrowRight as ArrowRight, IconArrowUp as ArrowUp, IconCheck as Check, IconX as X } from "@tabler/icons-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 

@@ -1,6 +1,11 @@
 "use client";
 
-import { CheckCircle2, Clock3, MessageCircle, RefreshCcw } from "lucide-react";
+import {
+  IconCircleCheck as CheckCircle2,
+  IconClockHour3 as Clock3,
+  IconMessageCircle as MessageCircle,
+  IconRefresh as RefreshCcw,
+} from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {

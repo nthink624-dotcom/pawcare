@@ -1,6 +1,12 @@
 "use client";
 
-import { ChevronDown, Loader2, RotateCcw, ShieldAlert, Store } from "lucide-react";
+import {
+  IconChevronDown as ChevronDown,
+  IconLoader2 as Loader2,
+  IconRotate as RotateCcw,
+  IconShieldExclamation as ShieldAlert,
+  IconBuildingStore as Store,
+} from "@tabler/icons-react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 
 import OwnerAdminPasswordPanel from "@/components/admin/owner-admin-password-panel";
@@ -48,7 +54,7 @@ export default function OwnerAdminDetailPanel({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#EFF6FF] text-[#2563EB]">
-                        <Store className="h-4 w-4" />
+                        <Store className="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div className="min-w-0">
             <p className={`truncate text-[#0f172a] ${ADMIN_TYPOGRAPHY.bodyStrong}`}>{selectedOwner.ownerName}</p>
@@ -74,7 +80,7 @@ export default function OwnerAdminDetailPanel({
                       </span>
               <span className={`inline-flex items-center gap-1 ${ADMIN_TYPOGRAPHY.meta}`}>
                         상세
-                        <ChevronDown className="h-3 w-3 transition group-open:rotate-180" />
+                        <ChevronDown className="h-3 w-3 transition group-open:rotate-180" aria-hidden="true" />
                       </span>
                     </summary>
                     <div className="space-y-2 border-t border-[#E8EDF3] px-3 py-3">
@@ -199,7 +205,7 @@ export default function OwnerAdminDetailPanel({
                   <div className="rounded-[14px] border border-[#E8EDF3] bg-white p-4">
                     <div className="flex items-center gap-3">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#FFF4F1] text-[#9A5E4E]">
-                        <ShieldAlert className="h-4 w-4" />
+                        <ShieldAlert className="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div className="min-w-0">
               <p className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#0f172a]`}>계정 정지 / 정지 해제</p>
@@ -270,7 +276,7 @@ export default function OwnerAdminDetailPanel({
                   <div className="rounded-[14px] border border-[#E8EDF3] bg-white p-4">
                     <div className="flex items-center gap-3">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#EFF6FF] text-[#2563EB]">
-                        <RotateCcw className="h-4 w-4" />
+                        <RotateCcw className="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div className="min-w-0">
               <p className={`${ADMIN_TYPOGRAPHY.sectionTitle} text-[#0f172a]`}>결제 내역 / 취소</p>
@@ -362,7 +368,7 @@ export default function OwnerAdminDetailPanel({
                   >
                     {savingUserId === selectedOwner.userId ? (
                       <span className="inline-flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                         저장 중...
                       </span>
                     ) : (

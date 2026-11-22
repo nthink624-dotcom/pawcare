@@ -1,14 +1,14 @@
 "use client";
 
 import {
-  Bell,
-  Bug,
-  HelpCircle,
-  Lightbulb,
-  MessageSquareText,
-  Send,
-  UserCog,
-} from "lucide-react";
+  IconBell as Bell,
+  IconBug as Bug,
+  IconHelpCircle as HelpCircle,
+  IconBulb as Lightbulb,
+  IconMessage2 as MessageSquareText,
+  IconSend as Send,
+  IconUserCog as UserCog,
+} from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
@@ -406,7 +406,7 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
                 disabled={submitting}
                 className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#316fe8] px-4 text-[14px] font-semibold text-white transition hover:bg-[#245bd0] disabled:bg-[#94a3b8]"
               >
-                <Send className="h-4 w-4" />
+                <Send className="h-4 w-4" aria-hidden="true" />
                 {submitting ? "업로드 중" : "접수하기"}
               </button>
             </div>

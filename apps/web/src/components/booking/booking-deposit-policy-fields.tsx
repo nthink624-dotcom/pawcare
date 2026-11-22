@@ -1,4 +1,5 @@
 "use client";
+import { IconHelpCircle } from "@tabler/icons-react";
 import { useId, useRef, useState } from "react";
 import type { BookingPolicy } from "@petmanager/shared/contracts/booking-preparation";
 const input = "min-h-11 min-w-0 w-full rounded-[10px] border border-slate-300 bg-white px-3 text-[16px] font-normal text-[#15213b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500";
@@ -78,7 +79,7 @@ export default function BookingDepositPolicyFields({ policy, change, refund = fa
       <input aria-label="예약하고 오지 않은 횟수" className={`${input} max-w-[72px]`} type="number" min={1} max={100} step={1} value={policy.depositNoShowCount ?? 1} onChange={event => { if (event.target.value !== "") change("depositNoShowCount", Number(event.target.value)); }} /><span>번 이상 예약하고 오지 않은 고객</span>
     </div><p className={helper}>1개월은 30일 기준이에요.</p></div>}
     <div className="space-y-2" onKeyDown={event => { if (event.key === "Escape" && helpOpen) { setHelpOpen(false); helpButton.current?.focus(); } }}>
-      <div className="flex items-center justify-between gap-2"><h4 className="font-medium">입금 확인 알림</h4><button ref={helpButton} type="button" aria-label="입금 확인 알림 도움말" aria-expanded={helpOpen} aria-controls={helpId} onClick={() => setHelpOpen(open => !open)} className="grid min-h-11 min-w-11 place-items-center rounded-[8px] text-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.7-2.5 1.7-2.5 3.5M12 16h.01" strokeLinecap="round" /></svg></button></div>
+      <div className="flex items-center justify-between gap-2"><h4 className="font-medium">입금 확인 알림</h4><button ref={helpButton} type="button" aria-label="입금 확인 알림 도움말" aria-expanded={helpOpen} aria-controls={helpId} onClick={() => setHelpOpen(open => !open)} className="grid min-h-11 min-w-11 place-items-center rounded-[8px] text-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"><IconHelpCircle aria-hidden="true" size={18} stroke={1.7} /></button></div>
       <p id={helpId} hidden={!helpOpen} className={`${helper} rounded-[10px] bg-slate-50 p-3`}>고객이 “입금했어요”를 눌렀는데 사장님이 아직 확인하지 않았다면, 정한 시간 뒤에 사장님께 알려드려요. 예약이 취소되는 시간은 아니에요.</p>
       <div className="space-y-2"><p>언제 알려드릴까요?</p><NumberChoice label="입금 확인 알림 시간" value={policy.depositReviewMinutes ?? 30} max={1440} unit="분 후" options={[15, 30, 60, 120, 240, 720, 1440].map(value => ({ value, label: reminderTimeLabel(value) }))} onChange={value => change("depositReviewMinutes", value)} /></div>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
+import { IconEye as Eye, IconEyeOff as EyeOff } from "@tabler/icons-react";
 import { useState, type ReactNode } from "react";
 
 import { ServiceBrand } from "@/components/brand/service-brand";

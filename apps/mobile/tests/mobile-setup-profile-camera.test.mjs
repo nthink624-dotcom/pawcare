@@ -18,7 +18,7 @@ async function harness({ availability = 'available', capture, mobile = false }) 
   vm.runInNewContext(compiled, { exports, Error, navigator: { userAgent: mobile ? 'Android' : 'Desktop', platform: 'Win32', maxTouchPoints: 0 }, document: { createElement: () => ({ capture: '' }) }, require: name => {
     if (name === 'react') return react;
     if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx };
-    if (name === 'lucide-react') return { Camera: 'camera-icon', ImagePlus: 'album-icon' };
+    if (name === '@tabler/icons-react') return { IconCamera: 'camera-icon', IconPhotoPlus: 'album-icon' };
     if (name.includes('external-camera')) return { resolveExternalCameraAppsAvailability: async () => availability, captureWithAndroidCameraApp: capture };
     throw new Error(name);
   } });

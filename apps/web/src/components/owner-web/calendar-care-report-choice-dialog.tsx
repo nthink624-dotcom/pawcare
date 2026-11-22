@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardCheck, Loader2, Sparkles } from "lucide-react";
+import { IconClipboardCheck as ClipboardCheck, IconLoader2 as Loader2, IconSparkles as Sparkles } from "@tabler/icons-react";
 import { useEffect, useRef } from "react";
 
 const FOCUSABLE_SELECTOR = [

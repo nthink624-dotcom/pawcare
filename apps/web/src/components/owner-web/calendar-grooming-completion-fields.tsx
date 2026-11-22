@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { IconChevronDown as ChevronDown } from "@tabler/icons-react";
 import { useState } from "react";
 
 import { CARE_REPORT_TYPOGRAPHY as OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
@@ -107,7 +107,7 @@ export function CalendarGroomingCompletionFields({
                       <option key={service.id} value={service.id}>{service.name}</option>
                     ))}
                   </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#697684]" />
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#697684]" aria-hidden="true" />
                 </div>
               ) : (
                 <p className="min-w-0 break-words text-[14px] font-normal leading-5 text-[#1b2d43]">{bookedService}</p>

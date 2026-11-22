@@ -1,6 +1,11 @@
 "use client";
 
-import { BadgePercent, CalendarDays, ChevronDown, Trash2 } from "lucide-react";
+import {
+  IconRosetteDiscount as BadgePercent,
+  IconCalendarWeek as CalendarDays,
+  IconChevronDown as ChevronDown,
+  IconTrash as Trash2,
+} from "@tabler/icons-react";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { buildDiscountServiceScopeOptions } from "@/components/owner-web/discount-service-scope";
@@ -30,7 +35,7 @@ function SelectFrame({
   return (
     <div className={cn("relative", className)}>
       {children}
-      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
+      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" aria-hidden="true" />
     </div>
   );
 }
@@ -289,7 +294,7 @@ export default function DiscountCouponEditor({
                 aria-expanded={!collapsed}
               >
                 {collapsed ? "펼치기" : "접기"}
-                <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition-transform", !collapsed && "rotate-180")} />
+                <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition-transform", !collapsed && "rotate-180")} aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -298,7 +303,7 @@ export default function DiscountCouponEditor({
                 className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:opacity-40"
                 aria-label={`${coupon.owner_label ?? coupon.name} 삭제`}
               >
-                <Trash2 className="h-4.5 w-4.5" />
+                <Trash2 className="h-4.5 w-4.5" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -307,7 +312,7 @@ export default function DiscountCouponEditor({
           <div className="grid border-t border-[#edf2f7] bg-white xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
             <div className="flex h-full min-h-0 flex-col overflow-hidden p-4 xl:border-r xl:border-[#e5eaf0]">
               <div className="mb-2 flex items-center gap-2">
-                <BadgePercent className="h-4.5 w-4.5 text-[#607080]!" strokeWidth={1.8} />
+                <BadgePercent className="h-4.5 w-4.5 text-[#607080]!" strokeWidth={1.8} aria-hidden="true" />
                 <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#334155]">혜택 조건</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -405,7 +410,7 @@ export default function DiscountCouponEditor({
 
             <div className="flex h-full min-h-0 flex-col overflow-hidden border-t border-[#e5eaf0] p-4 xl:border-t-0">
               <div className="mb-2 flex items-center gap-2">
-                <CalendarDays className="h-4.5 w-4.5 text-[#607080]!" strokeWidth={1.8} />
+                <CalendarDays className="h-4.5 w-4.5 text-[#607080]!" strokeWidth={1.8} aria-hidden="true" />
                 <p className="text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[#334155]">적용 범위</p>
               </div>
               <div className="h-[170px] overflow-hidden">

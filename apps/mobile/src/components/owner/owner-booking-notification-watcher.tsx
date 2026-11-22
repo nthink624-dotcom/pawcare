@@ -36,7 +36,7 @@ export default function OwnerBookingNotificationWatcher({ shopId, initialNotific
     let active = true;
     let knownNotificationIds = new Set<string>(JSON.parse(initialNotificationSignature));
     const poller = createOwnerBackgroundPoller({
-      intervalMs: 30_000,
+      intervalMs: 60_000,
       canRun: () => document.visibilityState === "visible" && navigator.onLine !== false,
       run: async (signal) => {
         const next = await fetchApiJsonWithAuth<OwnerBookingNotificationSnapshot>(

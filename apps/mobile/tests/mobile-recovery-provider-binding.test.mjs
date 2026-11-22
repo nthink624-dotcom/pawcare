@@ -45,7 +45,7 @@ function harness(kind, options = {}) {
   const mocks = {
     react: hooks, "react-hook-form": { useForm: () => form },
     "next/navigation": { useRouter: () => ({ replace() {}, refresh() {} }) },
-    "next/link": { default: "a" }, "lucide-react": { Eye: "eye", EyeOff: "eyeoff" },
+    "next/link": { default: "a" }, "@tabler/icons-react": { IconEye: "eye", IconEyeOff: "eyeoff" },
     "@hookform/resolvers/zod": { zodResolver: schema => schema },
     "@/components/ui/mobile-back-button": { MobileBackButton: "back" },
     "@/lib/env": { env: { portoneStoreId: "fixture-store", portoneIdentityChannelKey: "fixture-channel" }, hasPortoneBrowserEnv: () => true, getSupabaseRuntimeStage: () => options.development ? "development" : "production" },

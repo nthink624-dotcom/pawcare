@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ArrowLeft, Check, ImagePlus, LoaderCircle } from "lucide-react";
+import { IconArrowLeft as ArrowLeft, IconCheck as Check, IconPhotoPlus as ImagePlus, IconLoader2 as LoaderCircle } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { validatePriceGuideDocument } from "@/components/auth/signup-price-guide-editor";

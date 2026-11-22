@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { IconPlus as Plus, IconTrash as Trash2 } from "@tabler/icons-react";
 import { useState } from "react";
 
 import type { MobilePriceGuideV2 } from "@/lib/price-photo/mobile-price-photo-adapter";

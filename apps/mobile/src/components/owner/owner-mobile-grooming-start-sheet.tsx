@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { IconX as X } from "@tabler/icons-react";
 import { useEffect, useRef, type KeyboardEvent } from "react";
 
 type Phase = "start" | "completion";

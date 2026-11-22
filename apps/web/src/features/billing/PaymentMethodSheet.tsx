@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, Plus, X } from "lucide-react";
+import { IconCreditCard as CreditCard, IconPlus as Plus, IconX as X } from "@tabler/icons-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -24,10 +24,10 @@ function PaymentOptionIcon({
   selected: boolean;
 }) {
   if (id === "saved") {
-    return <CreditCard className={`h-[18px] w-[18px] ${selected ? "text-[#1677ff]" : "text-[#64748b]"}`} strokeWidth={1.9} />;
+    return <CreditCard className={`h-[18px] w-[18px] ${selected ? "text-[#1677ff]" : "text-[#64748b]"}`} strokeWidth={1.9} aria-hidden="true" />;
   }
 
-  return <Plus className={`h-[18px] w-[18px] ${selected ? "text-[#1677ff]" : "text-[#64748b]"}`} strokeWidth={2.1} />;
+  return <Plus className={`h-[18px] w-[18px] ${selected ? "text-[#1677ff]" : "text-[#64748b]"}`} strokeWidth={2.1} aria-hidden="true" />;
 }
 
 function PaymentOptionCard({
@@ -222,7 +222,7 @@ export function PaymentMethodSheet({
               onClick={onClose}
               className="inline-flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-[#e8edf3] bg-white text-[#64748b]"
             >
-              <X className="h-4 w-4" strokeWidth={1.7} />
+              <X className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
             </button>
           </div>
 

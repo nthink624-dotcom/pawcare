@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { IconSearch as Search } from "@tabler/icons-react";
 
 import type { BootstrapPayload, NotificationStatus, NotificationType } from "@/types/domain";
 

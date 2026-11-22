@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { IconArrowRight as ArrowRight, IconChevronDown as ChevronDown } from "@tabler/icons-react";
 import Link from "next/link";
 
 import { SectionHeading } from "@/components/landing/landing-ui";

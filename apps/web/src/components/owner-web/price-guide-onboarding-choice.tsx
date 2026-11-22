@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, PencilLine } from "lucide-react";
+import { IconCamera as Camera, IconPencil as PencilLine } from "@tabler/icons-react";
 
 import { OWNER_TYPOGRAPHY } from "@/components/owner-web/owner-typography";
 

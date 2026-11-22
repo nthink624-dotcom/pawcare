@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, CalendarDays, LayoutGrid, PawPrint, Settings, Users } from "lucide-react";
+import {
+  IconChartBar as BarChart3,
+  IconCalendarWeek as CalendarDays,
+  IconLayoutGrid as LayoutGrid,
+  IconPaw as PawPrint,
+  IconSettings as Settings,
+  IconUsers as Users,
+} from "@tabler/icons-react";
 
 import { ownerWebScreenLabels, type OwnerWebScreenKey } from "@/components/owner-web/owner-web-data";
 import CalendarManagementScreen from "@/components/owner-web/calendar-management-screen";
@@ -66,7 +73,7 @@ export default function OwnerWebPreview() {
                     )}
                   >
                     <span className={cn("mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-[14px]", active ? "bg-[#e9f5f1]" : "bg-white/10")}>
-                      <Icon className={cn("h-4.5 w-4.5", active ? "text-[#1f6b5b]" : "text-white")} />
+                      <Icon className={cn("h-4.5 w-4.5", active ? "text-[#1f6b5b]" : "text-white")} aria-hidden="true" />
                     </span>
                     <span>
                       <span className="block text-[16px] font-semibold tracking-[-0.02em]">{screen.label}</span>
@@ -88,7 +95,7 @@ export default function OwnerWebPreview() {
           <div className="mb-5 flex items-center justify-between gap-4 rounded-[24px] border border-[#e9e0d8] bg-white px-5 py-4 shadow-[0_12px_30px_rgba(34,30,24,0.05)] xl:hidden">
             <div className="flex items-center gap-3">
               <span className="inline-flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#e9f5f1]">
-                <PawPrint className="h-5 w-5 text-[#1f6b5b]" />
+                <PawPrint className="h-5 w-5 text-[#1f6b5b]" aria-hidden="true" />
               </span>
               <div>
                 <p className="text-[12px] font-medium text-[#8a8178]">{PETMANAGER_SERVICE_NAME}</p>

@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, RefreshCcw, Save, ServerCog, ShieldCheck } from "lucide-react";
+import {
+  IconArrowLeft as ArrowLeft,
+  IconRefresh as RefreshCcw,
+  IconDeviceFloppy as Save,
+  IconServerCog as ServerCog,
+  IconShieldCheck as ShieldCheck,
+} from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 
 import AdminAlimtalkActivitySections from "@/components/admin/admin-alimtalk-activity-sections";
@@ -215,12 +221,12 @@ export default function AdminAlimtalkScreen({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-3">
               <Link href="/admin" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#7a7268]">
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 관리자 홈으로
               </Link>
               <div className="flex items-start gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-[8px] border border-[#e6e3dd] bg-white text-[#1f6b5b]">
-                  <ServerCog className="h-7 w-7" />
+                  <ServerCog className="h-7 w-7" aria-hidden="true" />
                 </div>
                 <div className="space-y-2">
                   <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">내부 전용</p>
@@ -266,7 +272,7 @@ export default function AdminAlimtalkScreen({
                   disabled={loading || saving}
                   className="inline-flex h-11 items-center gap-2 rounded-[6px] border border-[#d8d4ce] bg-white px-4 text-[13px] font-semibold text-[#5c554d] disabled:opacity-60"
                 >
-                  <RefreshCcw className="h-4 w-4" />
+                  <RefreshCcw className="h-4 w-4" aria-hidden="true" />
                   새로고침
                 </button>
                 <button
@@ -275,7 +281,7 @@ export default function AdminAlimtalkScreen({
                   disabled={!hasRelayConfig || loading || saving}
                   className="inline-flex h-11 items-center gap-2 rounded-[6px] bg-[#1f6b5b] px-4 text-[13px] font-semibold text-white disabled:opacity-60"
                 >
-                  <Save className="h-4 w-4" />
+                  <Save className="h-4 w-4" aria-hidden="true" />
                   저장
                 </button>
               </div>
@@ -319,7 +325,7 @@ export default function AdminAlimtalkScreen({
           <div className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
             <div className="flex items-start gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[6px] border border-[#e6e3dd] bg-white text-[#52667d]">
-                <ShieldCheck className="h-5 w-5" />
+                <ShieldCheck className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
                 <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">앱 서버(Vercel)</p>
@@ -365,7 +371,7 @@ export default function AdminAlimtalkScreen({
               disabled={loadingTemplates}
               className="inline-flex h-11 items-center gap-2 rounded-[6px] border border-[#d8d4ce] bg-white px-4 text-[13px] font-semibold text-[#5c554d] disabled:opacity-60"
             >
-              <RefreshCcw className="h-4 w-4" />
+              <RefreshCcw className="h-4 w-4" aria-hidden="true" />
               새로고침
             </button>
           </div>

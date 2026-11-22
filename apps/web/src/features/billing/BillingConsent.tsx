@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CreditCard } from "lucide-react";
+import { IconArrowLeft as ArrowLeft, IconCreditCard as CreditCard } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 
@@ -88,7 +88,7 @@ export function BillingConsent({
               onClick={onBack}
               className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] px-3 text-[14px] font-medium text-[#475569] transition hover:bg-[#eef2f7]"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {backLabel}
             </button>
           ) : <span />}
@@ -99,7 +99,7 @@ export function BillingConsent({
             onClick={onContinue}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] px-5 text-[14px] font-medium text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:bg-[#cbd5e1]"
           >
-            <CreditCard className="h-4 w-4" />
+            <CreditCard className="h-4 w-4" aria-hidden="true" />
             {continueLabel}
           </button>
         </footer>

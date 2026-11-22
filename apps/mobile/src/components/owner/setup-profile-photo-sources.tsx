@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, ImagePlus } from "lucide-react";
+import { IconCamera as Camera, IconPhotoPlus as ImagePlus } from "@tabler/icons-react";
 import { captureWithAndroidCameraApp, resolveExternalCameraAppsAvailability } from "@/lib/media/external-camera";
 
 export default function SetupProfilePhotoSources({ onFile, onBusyChange }: {

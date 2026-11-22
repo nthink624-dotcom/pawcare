@@ -1,6 +1,11 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
+import {
+  IconArrowLeft as ArrowLeft,
+  IconArrowRight as ArrowRight,
+  IconCircleCheck as CheckCircle2,
+  IconShieldCheck as ShieldCheck,
+} from "@tabler/icons-react";
 import { useState } from "react";
 
 import SignupReviewStep from "@/components/auth/signup-review-step";

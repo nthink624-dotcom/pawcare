@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CircleAlert, RefreshCcw } from "lucide-react";
+import { IconCircleCheck as CheckCircle2, IconExclamationCircle as CircleAlert, IconRefresh as RefreshCcw } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { getAdminErrorMessage } from "@/components/admin/admin-error-message";

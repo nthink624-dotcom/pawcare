@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { IconAlertCircle as AlertCircle, IconCircleCheck as CheckCircle2, IconPlus as Plus, IconTrash as Trash2 } from "@tabler/icons-react";
 import { useState, type ReactNode } from "react";
 
 import PriceGuideStructuredReviewTable from "@/components/owner-web/price-guide-structured-review-table";

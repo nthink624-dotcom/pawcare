@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, X } from "lucide-react";
+import { IconChevronDown as ChevronDown, IconX as X } from "@tabler/icons-react";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import type { PriceGuideV2WeightBand } from "@/types/price-guide-photo-import";

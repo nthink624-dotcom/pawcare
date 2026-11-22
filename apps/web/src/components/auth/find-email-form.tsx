@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, ShieldCheck } from "lucide-react";
+import { IconChevronRight as ChevronRight, IconShieldCheck as ShieldCheck } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 
 import { MobileBackButton } from "@/components/ui/mobile-back-button";

@@ -1,6 +1,12 @@
 "use client";
 
-import { ChevronRight, Smartphone, Vibrate, Volume2, VolumeX } from "lucide-react";
+import {
+  IconChevronRight as ChevronRight,
+  IconDeviceMobile as Smartphone,
+  IconDeviceMobileVibration as Vibrate,
+  IconVolume2 as Volume2,
+  IconVolumeOff as VolumeX,
+} from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Switch } from "@/components/ui/switch";

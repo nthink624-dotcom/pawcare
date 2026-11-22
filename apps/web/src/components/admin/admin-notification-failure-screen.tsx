@@ -1,6 +1,11 @@
 "use client";
 
-import { BellRing, CheckCircle2, Clock3, RefreshCcw } from "lucide-react";
+import {
+  IconBellRinging as BellRing,
+  IconCircleCheck as CheckCircle2,
+  IconClockHour3 as Clock3,
+  IconRefresh as RefreshCcw,
+} from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { formatAdminDateTime } from "@/components/admin/admin-dashboard-model";

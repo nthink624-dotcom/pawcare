@@ -1,15 +1,15 @@
 "use client";
 
 import {
-  DoorOpen,
-  KeyRound,
-  LayoutDashboard,
-  MonitorSmartphone,
-  ShieldCheck,
-  ShoppingBag,
-  Store,
-  UserRoundCog,
-} from "lucide-react";
+  IconDoorExit as DoorOpen,
+  IconKey as KeyRound,
+  IconLayoutDashboard as LayoutDashboard,
+  IconDevices as MonitorSmartphone,
+  IconShieldCheck as ShieldCheck,
+  IconShoppingBag as ShoppingBag,
+  IconBuildingStore as Store,
+  IconUserCog as UserRoundCog,
+} from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -82,7 +82,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
             <div className="flex items-start gap-4">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">
-                <UserRoundCog className="h-7 w-7" />
+                <UserRoundCog className="h-7 w-7" aria-hidden="true" />
               </div>
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">운영 모드</p>
@@ -154,7 +154,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             className="flex min-h-[148px] flex-col items-start justify-between rounded-[24px] border border-[#e8dfd3] bg-white px-5 py-5 text-left shadow-[0_10px_24px_rgba(23,20,17,0.04)]"
           >
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fdf4f2] text-[#b54b4b]">
-              <DoorOpen className="h-5 w-5" />
+              <DoorOpen className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
               <p className="text-[18px] font-semibold text-[#171411]">관리자 로그아웃</p>
@@ -181,7 +181,7 @@ function DashboardLink({
   return (
     <a href={href} className="flex min-h-[148px] flex-col items-start justify-between rounded-[24px] border border-[#e8dfd3] bg-white px-5 py-5 shadow-[0_10px_24px_rgba(23,20,17,0.04)]">
       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">
-        <Icon className="h-5 w-5" />
+        <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
       <div>
         <p className="text-[18px] font-semibold text-[#171411]">{title}</p>

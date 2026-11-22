@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, X } from "lucide-react";
+import { IconCircleCheck as CheckCircle2, IconX as X } from "@tabler/icons-react";
 
 import { AppButton } from "@/components/ui/app-button";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
@@ -49,13 +49,13 @@ export function OwnerBillingSuccessCard({
               aria-label="닫기"
               className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[var(--mid)]"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
         ) : null}
 
         <div className="mx-auto -mt-2 flex h-16 w-16 items-center justify-center rounded-full bg-[#eff6ff] text-[#1677ff] shadow-none">
-          <CheckCircle2 className="h-8 w-8" strokeWidth={2.2} />
+          <CheckCircle2 className="h-8 w-8" strokeWidth={2.2} aria-hidden="true" />
         </div>
 
         <p className="mt-5 text-center text-[12px] font-semibold tracking-[0.08em] text-[var(--acc)]">PAYMENT COMPLETE</p>

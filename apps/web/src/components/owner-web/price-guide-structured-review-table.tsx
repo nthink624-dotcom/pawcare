@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock3, PencilLine } from "lucide-react";
+import { IconClockHour3 as Clock3, IconPencil as PencilLine } from "@tabler/icons-react";
 
 import {
   buildPriceGuideStructuredProjection,

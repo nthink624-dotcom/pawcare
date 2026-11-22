@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { IconRefresh as RefreshCw } from "@tabler/icons-react";
 
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import {
@@ -38,7 +38,7 @@ export default function OwnerSupportHistoryPanel({
           className="inline-flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569] transition hover:bg-[#f8fafc] disabled:opacity-60"
           title="문의 내역 새로고침"
         >
-          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden="true" />
         </button>
       </div>
       {error ? (

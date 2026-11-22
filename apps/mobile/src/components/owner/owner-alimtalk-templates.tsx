@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { IconChevronDown as ChevronDown } from "@tabler/icons-react";
 import { fetchAppApiJson, getAccessTokenWithRecovery } from "@/lib/api";
 import type { ShopNotificationSettings } from "@/types/domain";
 

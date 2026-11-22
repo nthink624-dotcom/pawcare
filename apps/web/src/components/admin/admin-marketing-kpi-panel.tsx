@@ -1,9 +1,9 @@
 import {
-  CalendarCheck2,
-  CreditCard,
-  UserRoundCheck,
-  type LucideIcon,
-} from "lucide-react";
+  IconCalendarCheck as CalendarCheck2,
+  IconCreditCard as CreditCard,
+  IconUserCheck as UserRoundCheck,
+  type TablerIcon,
+} from "@tabler/icons-react";
 
 import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";
 import type {
@@ -125,7 +125,7 @@ function KpiCard({
   hasError,
   nextCondition,
 }: {
-  icon: LucideIcon;
+  icon: TablerIcon;
   label: string;
   current: number | null | undefined;
   previous: number | null | undefined;

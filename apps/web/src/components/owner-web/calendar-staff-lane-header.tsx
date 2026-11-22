@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Clock3 } from "lucide-react";
+import { IconCheck as Check, IconClockHour3 as Clock3 } from "@tabler/icons-react";
 import type { CSSProperties } from "react";
 
 import { StableAvatar } from "@/components/owner-web/stable-avatar";

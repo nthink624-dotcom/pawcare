@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { IconChevronDown as ChevronDown } from "@tabler/icons-react";
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -82,7 +82,7 @@ export function ScheduleDropdown({
           <span className={cn("block whitespace-normal break-words [overflow-wrap:anywhere]", selected ? "text-[#111827]" : "text-[#94a3b8]")}>{selected?.label ?? placeholder}</span>
           {showSelectedMeta && selected?.meta ? <span className="mt-0.5 block whitespace-normal break-words text-[13px] font-normal leading-5 text-[#64748b] [overflow-wrap:anywhere]">{selected.meta}</span> : null}
         </span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#64748b] transition", open && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#64748b] transition", open && "rotate-180")} aria-hidden="true" />
       </button>
 
       {open ? (

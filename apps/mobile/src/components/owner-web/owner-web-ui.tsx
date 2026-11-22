@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react";
-import { CalendarDays, ChevronDown, Search } from "lucide-react";
+import type { TablerIcon } from "@tabler/icons-react";
+import { IconCalendarWeek as CalendarDays, IconChevronDown as ChevronDown, IconSearch as Search } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 
@@ -44,7 +44,7 @@ export function ToolbarRow({ children, className }: { children: React.ReactNode;
 export function SearchField({ placeholder }: { placeholder: string }) {
   return (
     <label className="flex min-w-[240px] flex-1 items-center gap-3 rounded-[16px] border border-[#e4ddd6] bg-[#fbfaf8] px-4 py-3 text-[#746f68]">
-      <Search className="h-4 w-4 text-[#8f877d]" />
+      <Search className="h-4 w-4 text-[#8f877d]" aria-hidden="true" />
       <input
         className="w-full bg-transparent text-[14px] text-[#17211f] outline-none placeholder:text-[#958d84]"
         placeholder={placeholder}
@@ -53,7 +53,7 @@ export function SearchField({ placeholder }: { placeholder: string }) {
   );
 }
 
-export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label: string; icon?: LucideIcon; onClick?: () => void }) {
+export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label: string; icon?: TablerIcon; onClick?: () => void }) {
   return (
     <button
       type="button"
@@ -61,7 +61,7 @@ export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label
       className="inline-flex h-[46px] items-center gap-2 rounded-[16px] border border-[#e4ddd6] bg-white px-4 text-[14px] font-medium text-[#263430]"
     >
       <span>{label}</span>
-      <Icon className="h-4 w-4 text-[#7f796f]" />
+      <Icon className="h-4 w-4 text-[#7f796f]" aria-hidden="true" />
     </button>
   );
 }
@@ -372,7 +372,7 @@ export function EmptyCalendarHint() {
 export function DateToolbarBadge() {
   return (
     <span className="inline-flex items-center gap-2 rounded-full border border-[#e4ddd6] bg-white px-3 py-1.5 text-[13px] font-medium text-[#6d655c]">
-      <CalendarDays className="h-4 w-4 text-[#8b8279]" />
+      <CalendarDays className="h-4 w-4 text-[#8b8279]" aria-hidden="true" />
       이번 주 기준
     </span>
   );

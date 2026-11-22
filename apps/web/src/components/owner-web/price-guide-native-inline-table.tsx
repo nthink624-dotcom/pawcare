@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { IconPlus as Plus, IconTrash as Trash2 } from "@tabler/icons-react";
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { BreedManagementDialog } from "@/components/owner-web/service-price-guide-group-dialogs";

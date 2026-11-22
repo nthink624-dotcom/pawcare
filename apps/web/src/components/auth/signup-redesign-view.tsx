@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { Check, ChevronLeft } from "lucide-react";
+import { IconCheck as Check, IconChevronLeft as ChevronLeft } from "@tabler/icons-react";
 
 import {
   ownerSignupTerms,
@@ -119,7 +119,7 @@ function SignupShell({
               className="absolute left-0 inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-[#7184a6] transition hover:bg-[#f1f5fb] hover:text-[#111a30]"
               aria-label="이전 단계"
             >
-              <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
+              <ChevronLeft className="h-5 w-5" strokeWidth={2.2} aria-hidden="true" />
             </button>
             {title ? <h1 className="text-center text-[24px] font-semibold leading-8 tracking-[-0.02em] text-[#101a31]">{title}</h1> : null}
           </div>
@@ -201,7 +201,7 @@ export default function SignupRedesignView({
         <section className="w-full max-w-[448px]">
           <header className="text-center">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#edf7f2] text-[#1f9d55]" aria-hidden="true">
-              <Check className="h-7 w-7" strokeWidth={2.2} />
+              <Check className="h-7 w-7" strokeWidth={2.2} aria-hidden="true" />
             </div>
             <h1 className="mt-6 break-keep text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[#15213b] [overflow-wrap:anywhere]">
               가입이 완료되었습니다

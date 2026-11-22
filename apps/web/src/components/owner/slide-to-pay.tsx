@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronRight, Loader2 } from "lucide-react";
+import { IconCheck as Check, IconChevronRight as ChevronRight, IconLoader2 as Loader2 } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";

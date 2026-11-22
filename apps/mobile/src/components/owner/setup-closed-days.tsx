@@ -2,7 +2,13 @@
 
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import {
+  IconCalendarWeek as CalendarDays,
+  IconChevronDown as ChevronDown,
+  IconChevronLeft as ChevronLeft,
+  IconChevronRight as ChevronRight,
+  IconX as X,
+} from "@tabler/icons-react";
 import type { SetupClosureCycle } from "@/lib/initial-setup-hours-policy";
 import { setupInput, setupButton } from "./initial-setup-fields";
 import SetupModal from "@/components/ui/setup-modal";

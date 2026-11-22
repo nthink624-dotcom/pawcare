@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Activity } from "lucide-react";
+import { IconActivity as Activity } from "@tabler/icons-react";
 
 import { CustomerReportSectionTitle } from "@/components/customer/customer-report-section-title";
 import type { CustomerWeightMeasurement } from "@/lib/customer-weight-history";
@@ -57,7 +57,7 @@ export function CustomerWeightTrendCard({ history }: { history: CustomerWeightMe
 
   return (
     <section aria-label="몸무게 변화">
-      <CustomerReportSectionTitle icon={<Activity />}>몸무게 변화</CustomerReportSectionTitle>
+      <CustomerReportSectionTitle icon={<Activity aria-hidden="true" />}>몸무게 변화</CustomerReportSectionTitle>
 
       <div className="mt-2.5 rounded-[18px] border border-[#f5cdd4] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">

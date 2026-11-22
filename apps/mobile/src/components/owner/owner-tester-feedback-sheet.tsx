@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, HelpCircle, Lightbulb, Paperclip } from "lucide-react";
+import { IconAlertCircle as AlertCircle, IconHelpCircle as HelpCircle, IconBulb as Lightbulb, IconPaperclip as Paperclip } from "@tabler/icons-react";
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import { ActionButton, Sheet } from "@/components/owner/owner-app-ui";

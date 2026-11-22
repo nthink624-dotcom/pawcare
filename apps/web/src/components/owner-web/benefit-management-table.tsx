@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
+import { IconPencil as Pencil, IconRotate as RotateCcw, IconSearch as Search, IconTrash as Trash2 } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 
 import DiscountCouponEditor from "@/components/owner-web/discount-coupon-editor";

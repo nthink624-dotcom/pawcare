@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CreditCard } from "lucide-react";
+import { IconArrowLeft as ArrowLeft, IconCreditCard as CreditCard } from "@tabler/icons-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { AppButton } from "@/components/ui/app-button";

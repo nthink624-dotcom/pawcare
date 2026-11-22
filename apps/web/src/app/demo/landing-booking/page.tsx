@@ -1,4 +1,11 @@
-import { CalendarDays, Check, ChevronLeft, Clock3, PawPrint, Sparkles } from "lucide-react";
+import {
+  IconCalendarWeek as CalendarDays,
+  IconCheck as Check,
+  IconChevronLeft as ChevronLeft,
+  IconClockHour3 as Clock3,
+  IconPaw as PawPrint,
+  IconSparkles as Sparkles,
+} from "@tabler/icons-react";
 
 type LandingBookingExperience = "first" | "ai" | "revisit";
 

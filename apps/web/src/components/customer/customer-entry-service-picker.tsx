@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { IconChevronRight, IconCheck as Check } from "@tabler/icons-react";
 
 import { formatCustomerServiceDuration, type CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { formatServicePrice } from "@/lib/utils";
@@ -43,7 +43,7 @@ export default function CustomerEntryServicePicker({
               onClick={() => onSelect(service.id)}
             >
               <span className="radio-check" aria-hidden="true">
-                {selected ? <Check size={13} strokeWidth={2.8} /> : null}
+                {selected ? <Check size={13} strokeWidth={2.8} aria-hidden="true" /> : null}
               </span>
               <span className="n">{service.name}</span>
               <span className="d">{formatCustomerServiceDuration(service)}</span>
@@ -58,7 +58,7 @@ export default function CustomerEntryServicePicker({
         data-customer-price-guide-card-footer="true"
         onClick={onOpenPriceSheet}
       >
-        요금표 전체 보기 <span aria-hidden="true">›</span>
+        요금표 전체 보기 <IconChevronRight aria-hidden="true" size={16} className="inline-block align-text-bottom" />
       </button>
     </div>
   );

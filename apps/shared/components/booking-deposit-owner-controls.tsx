@@ -1,4 +1,5 @@
 "use client";
+import { IconChevronRight } from "@tabler/icons-react";
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { BookingDepositLedger } from "../contracts/booking-deposit-ledger";
 const money = (n: number) => `${n.toLocaleString("ko-KR")}원`;
@@ -8,7 +9,7 @@ const primary = `${button} w-full !border-[#111a30] !bg-[#111a30] !text-white`;
 const helper = "text-[13px] leading-5 text-[#64748b]";
 const disclosure = "flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[10px] px-3 py-2 hover:bg-[#f8fafc] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4778c7] [&::-webkit-details-marker]:hidden";
 function DisclosureArrow() {
-  return <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-[#64748b]"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="group-open:rotate-90"><path d="m9 6 6 6-6 6" /></svg></span>;
+  return <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-[#64748b]"><IconChevronRight size={14} stroke={1.8} className="group-open:rotate-90" aria-hidden="true" /></span>;
 }
 export default function OwnerDepositControls({ d, busy, appointmentStatus, remainingAmount, serviceAmount, act, loadDetails, additionalDetails, schedule, onReschedule, sectionRef }: {
   d: BookingDepositLedger; busy: boolean; appointmentStatus: string; remainingAmount?: number | null; serviceAmount?: number | null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, MessageCircle, Phone } from "lucide-react";
+import { IconCheck, IconBellRinging as BellRing, IconMessageCircle as MessageCircle, IconPhone as Phone } from "@tabler/icons-react";
 import { useState } from "react";
 
 const notificationScenarios = [
@@ -91,7 +91,7 @@ export function AutomaticNotificationPreview() {
           <div className="flex items-center gap-2 pb-3 text-[12px] text-[#455a66]">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-[#3775be]">펫</span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-semibold">펫매니저 <span aria-hidden="true">✓</span></span>
+              <span className="block truncate font-semibold">펫매니저 <IconCheck aria-hidden="true" size={12} className="inline-block align-middle" /></span>
               <span className="block text-[10px] text-[#607b8a]">알림톡</span>
             </span>
             <span aria-hidden="true" className="text-[19px] leading-none">⋮</span>

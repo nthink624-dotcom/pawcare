@@ -1,6 +1,13 @@
 "use client";
 
-import { ChevronLeft, Loader2, RotateCcw, Search, ShieldAlert, Store } from "lucide-react";
+import {
+  IconChevronLeft as ChevronLeft,
+  IconLoader2 as Loader2,
+  IconRotate as RotateCcw,
+  IconSearch as Search,
+  IconShieldExclamation as ShieldAlert,
+  IconBuildingStore as Store,
+} from "@tabler/icons-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
@@ -476,7 +483,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
             onClick={() => router.push("/admin" as never)}
             className="inline-flex h-[42px] items-center gap-2 rounded-full border border-[#ddd6cb] bg-white px-4 text-[13px] font-semibold text-[#171411]"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             관리자 메인으로
           </button>
           <button
@@ -512,7 +519,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
 
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <label className="relative min-w-[320px] flex-1">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9b9084]" />
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9b9084]" aria-hidden="true" />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -602,7 +609,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     <div>
                       <div className="flex items-center gap-2">
                         <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">
-                          <Store className="h-5 w-5" />
+                          <Store className="h-5 w-5" aria-hidden="true" />
                         </div>
                         <div>
                           <p className="text-[20px] font-semibold tracking-[-0.02em] text-[#171411]">{selectedOwner.ownerName}</p>
@@ -727,7 +734,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     >
                       {savingUserId === selectedOwner.userId ? (
                         <span className="inline-flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                           저장 중...
                         </span>
                       ) : (
@@ -739,7 +746,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                   <div className="rounded-[18px] border border-[#ebe5dc] bg-[#fcfbf8] p-4">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff4f1] text-[#b54b4b]">
-                        <ShieldAlert className="h-4 w-4" />
+                        <ShieldAlert className="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[14px] font-semibold text-[#171411]">계정 정지 / 정지 해제</p>
@@ -801,7 +808,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                   <div className="rounded-[18px] border border-[#ebe5dc] bg-[#fcfbf8] p-4">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff5f1] text-[#b86945]">
-                        <RotateCcw className="h-4 w-4" />
+                        <RotateCcw className="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[14px] font-semibold text-[#171411]">결제 내역 / 취소</p>
@@ -829,7 +836,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                         >
                           {resettingPaymentMethodUserId === selectedOwner.userId ? (
                             <span className="inline-flex items-center gap-2">
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                               초기화 중...
                             </span>
                           ) : (
@@ -890,7 +897,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                               >
                                 {refundingPaymentId === payment.paymentId ? (
                                   <span className="inline-flex items-center gap-2">
-                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                                     취소 처리 중...
                                   </span>
                                 ) : (
@@ -912,7 +919,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                   >
                     {savingUserId === selectedOwner.userId ? (
                       <span className="inline-flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                         저장 중...
                       </span>
                     ) : (
@@ -953,7 +960,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                   >
                     {savingUserId === selectedOwner.userId ? (
                       <span className="inline-flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                         ?€??欷?..
                       </span>
                     ) : (

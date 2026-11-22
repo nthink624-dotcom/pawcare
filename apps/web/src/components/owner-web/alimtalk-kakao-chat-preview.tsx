@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ChevronLeft, Ellipsis, Search } from "lucide-react";
+import { IconChevronLeft as ChevronLeft, IconDots as Ellipsis, IconSearch as Search } from "@tabler/icons-react";
 
 import { PETMANAGER_BRAND_MARK_SRC, PETMANAGER_MASTER_BRAND_NAME, PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 
@@ -19,10 +19,10 @@ export function AlimtalkKakaoChatPreview({
   return (
     <div className="mx-auto w-full max-w-[360px] overflow-hidden rounded-[10px] bg-[#b2c7d5] px-3 pb-4 pt-2 text-[#202124]">
       <div className="flex h-10 items-center gap-2 px-1 text-[#28343c]" aria-hidden="true">
-        <ChevronLeft className="h-5 w-5 shrink-0" />
+        <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate text-[16px] font-medium leading-6">{senderName}</span>
-        <Search className="h-[18px] w-[18px] shrink-0" />
-        <Ellipsis className="h-5 w-5 shrink-0" />
+        <Search className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+        <Ellipsis className="h-5 w-5 shrink-0" aria-hidden="true" />
       </div>
 
       <div className="flex justify-center py-3">

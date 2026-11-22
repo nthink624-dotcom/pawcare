@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardCheck, RefreshCcw } from "lucide-react";
+import { IconClipboardCheck as ClipboardCheck, IconRefresh as RefreshCcw } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { formatAdminDateTime } from "@/components/admin/admin-dashboard-model";

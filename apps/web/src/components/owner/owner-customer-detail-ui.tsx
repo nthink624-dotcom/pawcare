@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { ChevronRight } from "lucide-react";
+import { IconChevronRight as ChevronRight } from "@tabler/icons-react";
 
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import { Switch } from "@/components/ui/switch";
@@ -126,7 +126,7 @@ export function CustomerDetailInfoRow({
       </div>
       {onClick ? (
         <span className="flex h-5 items-center justify-center self-center">
-          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.8} aria-hidden="true" />
         </span>
       ) : null}
     </>

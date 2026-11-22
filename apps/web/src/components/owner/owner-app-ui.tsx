@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { Info, X } from "lucide-react";
+import { IconInfoCircle as Info, IconX as X } from "@tabler/icons-react";
 import { useState } from "react";
 
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
@@ -72,7 +72,7 @@ export function InfoTip({
         onBlur={() => setOpen(false)}
         className={`inline-flex ${buttonSizeClassName} items-center justify-center bg-transparent p-0 leading-none transition ${colorClassName}`.trim()}
       >
-        <Info className={`block ${iconSizeClassName}`} strokeWidth={2} />
+        <Info className={`block ${iconSizeClassName}`} strokeWidth={2} aria-hidden="true" />
       </button>
       {open ? (
         <span className={`absolute left-0 top-[22px] z-30 w-[218px] rounded-[12px] border bg-white px-3 py-2 text-left text-[12px] font-medium leading-5 tracking-[-0.01em] ${popoverColorClassName} ${popoverClassName}`.trim()}>
@@ -153,7 +153,7 @@ export function Sheet({
               className="inline-flex size-8 items-center justify-center rounded-full border border-[rgba(47,49,46,0.12)] bg-white text-[var(--muted)] transition hover:bg-[#fcfaf7]"
               onClick={onClose}
             >
-              <X className="h-4 w-4" strokeWidth={1.8} />
+              <X className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
             </button>
           </div>
         </div>

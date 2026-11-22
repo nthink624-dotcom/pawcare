@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { ChevronLeft, ChevronRight, CircleHelp } from "lucide-react";
+import { IconChevronLeft as ChevronLeft, IconChevronRight as ChevronRight, IconHelpCircle as CircleHelp } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { ScheduleDropdown, type ScheduleDropdownOption } from "@/components/owner-web/calendar-schedule-dropdown";
@@ -299,7 +299,7 @@ export function ScheduleCreateDialog({
               className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] text-[#475569] transition hover:bg-[#f8fafc]"
               aria-label="이전 날짜"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -317,7 +317,7 @@ export function ScheduleCreateDialog({
               className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] text-[#475569] transition hover:bg-[#f8fafc]"
               aria-label="다음 날짜"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
             <input
               ref={dateInputRef}

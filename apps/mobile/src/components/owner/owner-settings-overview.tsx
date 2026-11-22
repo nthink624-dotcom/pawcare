@@ -1,11 +1,11 @@
 "use client";
 
-import { ChevronRight, type LucideIcon } from "lucide-react";
+import { IconChevronRight as ChevronRight, type TablerIcon } from "@tabler/icons-react";
 import type { RefObject } from "react";
 
 export type OwnerSettingsOverviewItem = Readonly<{
   key: string;
-  icon: LucideIcon;
+  icon: TablerIcon;
   title: string;
   badge?: string;
   disabled?: boolean;

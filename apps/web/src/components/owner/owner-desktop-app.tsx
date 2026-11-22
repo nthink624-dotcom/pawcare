@@ -1,6 +1,14 @@
 ﻿"use client";
 
-import { CalendarDays, CheckCircle2, PawPrint, Settings, Store, Users, XCircle } from "lucide-react";
+import {
+  IconCalendarWeek as CalendarDays,
+  IconCircleCheck as CheckCircle2,
+  IconPaw as PawPrint,
+  IconSettings as Settings,
+  IconBuildingStore as Store,
+  IconUsers as Users,
+  IconCircleX as XCircle,
+} from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
@@ -81,7 +89,7 @@ function MetricTile({
           <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] text-[#17211f]">{value}</p>
         </div>
         <span className="inline-flex size-10 items-center justify-center rounded-[8px] bg-[#eef7f3] text-[#2f7866]">
-          <Icon className="h-5 w-5" strokeWidth={1.9} />
+          <Icon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
         </span>
       </div>
     </DesktopSurface>
@@ -146,7 +154,7 @@ export default function OwnerDesktopApp({
         <aside className="border-r border-[#e1d8ce] bg-[#173b33] px-4 py-5 text-white">
           <div className="flex items-center gap-3 rounded-[8px] bg-white/10 px-3 py-3">
             <span className="inline-flex size-10 items-center justify-center rounded-[8px] bg-white/12">
-              <PawPrint className="h-5 w-5" strokeWidth={2} />
+              <PawPrint className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
             </span>
             <div className="min-w-0">
               <p className="text-[12px] font-medium text-white/65">{PETMANAGER_SERVICE_NAME}</p>
@@ -167,7 +175,7 @@ export default function OwnerDesktopApp({
                     active ? "bg-white text-[#173b33]" : "text-white/78 hover:bg-white/10"
                   }`}
                 >
-                  <Icon className="h-4 w-4" strokeWidth={1.8} />
+                  <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
                   {item.label}
                 </button>
               );
@@ -303,7 +311,7 @@ export default function OwnerDesktopApp({
             <div className="mt-5 grid grid-cols-2 gap-4">
               <DesktopSurface className="px-5 py-4">
                 <div className="flex items-center gap-2">
-                  <Store className="h-5 w-5 text-[#2f7866]" />
+                  <Store className="h-5 w-5 text-[#2f7866]" aria-hidden="true" />
                   <h2 className="text-[18px] font-semibold tracking-[-0.02em]">매장 정보</h2>
                 </div>
                 <div className="mt-4 space-y-3 text-[14px]">

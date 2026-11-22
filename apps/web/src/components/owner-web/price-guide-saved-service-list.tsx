@@ -1,6 +1,6 @@
 "use client";
 
-import { PencilLine } from "lucide-react";
+import { IconPencil as PencilLine } from "@tabler/icons-react";
 
 export type SavedPriceGuideServiceSummary = {
   id: string;

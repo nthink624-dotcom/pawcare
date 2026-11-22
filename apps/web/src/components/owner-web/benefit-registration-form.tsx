@@ -1,6 +1,12 @@
 "use client";
 
-import { BadgePercent, Gift, RefreshCw, UserRoundPlus, UsersRound } from "lucide-react";
+import {
+  IconRosetteDiscount as BadgePercent,
+  IconGift as Gift,
+  IconRefresh as RefreshCw,
+  IconUserPlus as UserRoundPlus,
+  IconUsers as UsersRound,
+} from "@tabler/icons-react";
 import { useMemo, type ReactNode } from "react";
 
 import { buildDiscountServiceScopeOptions } from "@/components/owner-web/discount-service-scope";
@@ -114,19 +120,19 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
         <div className="flex flex-wrap gap-2">
           <ChoiceButton
             selected={draft.audience === "all"}
-            icon={<UsersRound className="h-5 w-5" strokeWidth={1.7} />}
+            icon={<UsersRound className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
             label="전체 고객"
             onClick={() => changeAudience("all")}
           />
           <ChoiceButton
             selected={draft.audience === "first_visit"}
-            icon={<UserRoundPlus className="h-5 w-5" strokeWidth={1.7} />}
+            icon={<UserRoundPlus className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
             label="첫 방문 고객"
             onClick={() => changeAudience("first_visit")}
           />
           <ChoiceButton
             selected={draft.audience === "revisit"}
-            icon={<RefreshCw className="h-5 w-5" strokeWidth={1.7} />}
+            icon={<RefreshCw className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
             label="재방문 고객"
             onClick={() => changeAudience("revisit")}
           />
@@ -137,19 +143,19 @@ export default function BenefitRegistrationForm({ draft, serviceOptions, onChang
         <div className="flex flex-wrap gap-2">
           <ChoiceButton
             selected={draft.discount_type === "fixed"}
-            icon={<Gift className="h-5 w-5" strokeWidth={1.7} />}
+            icon={<Gift className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
             label="정액 할인"
             onClick={() => changeBenefitType("fixed")}
           />
           <ChoiceButton
             selected={draft.discount_type === "percent"}
-            icon={<BadgePercent className="h-5 w-5" strokeWidth={1.7} />}
+            icon={<BadgePercent className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
             label="정률 할인"
             onClick={() => changeBenefitType("percent")}
           />
           <ChoiceButton
             selected={draft.discount_type === "service"}
-            icon={<Gift className="h-5 w-5" strokeWidth={1.7} />}
+            icon={<Gift className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
             label="서비스 추가"
             onClick={() => changeBenefitType("service")}
           />

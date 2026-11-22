@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCcw, Send } from "lucide-react";
+import { IconRefresh as RefreshCcw, IconSend as Send } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchApiJson } from "@/lib/api";
@@ -109,7 +109,7 @@ export default function AdminAlimtalkRuntimePanel({
             disabled={loadingDiagnostics}
             className="inline-flex h-11 items-center gap-2 rounded-[6px] border border-[#d8d4ce] bg-white px-4 text-[13px] font-semibold text-[#5c554d] disabled:opacity-60"
           >
-            <RefreshCcw className="h-4 w-4" />
+            <RefreshCcw className="h-4 w-4" aria-hidden="true" />
             새로고침
           </button>
         </div>
@@ -272,7 +272,7 @@ export default function AdminAlimtalkRuntimePanel({
             disabled={sending}
             className="inline-flex h-11 items-center gap-2 rounded-[6px] bg-[#1f6b5b] px-4 text-[13px] font-semibold text-white disabled:opacity-60"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-4 w-4" aria-hidden="true" />
             {sending ? "발송 중..." : "테스트 발송"}
           </button>
         </div>

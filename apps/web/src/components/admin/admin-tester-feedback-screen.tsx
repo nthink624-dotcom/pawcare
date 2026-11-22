@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCcw } from "lucide-react";
+import { IconRefresh as RefreshCcw } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AdminSectionNav from "@/components/admin/admin-section-nav";

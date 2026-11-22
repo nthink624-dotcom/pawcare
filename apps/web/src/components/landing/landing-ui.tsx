@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { useId, type ReactNode } from "react";
-import { BatteryFull, ChevronLeft, Signal, Wifi } from "lucide-react";
+import { IconBattery4 as BatteryFull, IconChevronLeft as ChevronLeft, IconAntennaBars5 as Signal, IconWifi as Wifi } from "@tabler/icons-react";
 
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 
@@ -108,9 +108,9 @@ export function IPhoneMockup({
             <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[5.7%] items-center justify-between border-b border-[#f2f3f5] bg-white px-[5.1%] text-[#111827]" aria-hidden="true">
               <time className="text-[8px] font-semibold leading-none">9:41</time>
               <div className="flex items-center gap-1">
-                <Signal className="h-2.5 w-2.5" strokeWidth={2.4} />
-                <Wifi className="h-2.5 w-2.5" strokeWidth={2.4} />
-                <BatteryFull className="h-3 w-3.5" strokeWidth={2.2} />
+                <Signal className="h-2.5 w-2.5" strokeWidth={2.4} aria-hidden="true" />
+                <Wifi className="h-2.5 w-2.5" strokeWidth={2.4} aria-hidden="true" />
+                <BatteryFull className="h-3 w-3.5" strokeWidth={2.2} aria-hidden="true" />
               </div>
             </div>
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex h-[5.7%] items-center justify-around border-t border-[#f2f3f5] bg-white text-[#111827]" aria-hidden="true">
@@ -120,7 +120,7 @@ export function IPhoneMockup({
                 <i className="h-2.5 w-[1.5px] rounded-full bg-[#111827]" />
               </span>
               <span className="h-3 w-4 rounded-[3px] border-[1.5px] border-[#111827]" />
-              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.4} />
+              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.4} aria-hidden="true" />
             </div>
           </>
         ) : src ? (
@@ -200,9 +200,9 @@ export function GalaxyPhoneMockup({
           <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[4.7%] items-center justify-between bg-white px-[5.2%] text-[#111827]" aria-hidden="true">
             <time className="text-[8px] font-semibold leading-none">9:41</time>
             <div className="flex items-center gap-1">
-              <Signal className="h-2.5 w-2.5" strokeWidth={2.4} />
-              <Wifi className="h-2.5 w-2.5" strokeWidth={2.4} />
-              <BatteryFull className="h-3 w-3.5" strokeWidth={2.2} />
+              <Signal className="h-2.5 w-2.5" strokeWidth={2.4} aria-hidden="true" />
+              <Wifi className="h-2.5 w-2.5" strokeWidth={2.4} aria-hidden="true" />
+              <BatteryFull className="h-3 w-3.5" strokeWidth={2.2} aria-hidden="true" />
             </div>
           </div>
           <span className="pointer-events-none absolute left-1/2 top-[1.35%] z-50 aspect-square w-[2.35%] -translate-x-1/2 rounded-full bg-[#08090a] ring-1 ring-[#34383b]" aria-hidden="true" />
@@ -214,7 +214,7 @@ export function GalaxyPhoneMockup({
               <i className="h-2.5 w-[1.5px] rounded-full bg-[#111827]" />
             </span>
             <span className="h-3 w-4 rounded-[3px] border-[1.5px] border-[#111827]" />
-            <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.4} />
+            <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.4} aria-hidden="true" />
           </div>
         </div>
         </div>

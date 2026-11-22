@@ -22,7 +22,7 @@ function harness(confirm = false, initial = matrix.createMobilePriceGuideSkeleto
   const states = [], prompts = [], changed = [];
   const hooks = { useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in states)) states[index] = initial; return [states[index], value => { states[index] = typeof value === "function" ? value(states[index]) : value; }]; }, useRef: value => ({ current: value }) };
   const Component = load("../src/components/auth/mobile-price-guide-matrix.tsx", {
-    react: hooks, "lucide-react": { Plus: "plus", Trash2: "trash", X: "close" },
+    react: hooks, "@tabler/icons-react": { IconPlus: "plus", IconTrash: "trash", IconX: "close" },
     "@/components/auth/mobile-price-guide-extras": { default: "extras" },
     "@/lib/price-photo/mobile-price-photo-adapter": adapter,
     "@/lib/price-photo/mobile-price-guide-matrix": { ...matrix, removeMobilePriceGuideWeightBand: (...args) => { calls++; return matrix.removeMobilePriceGuideWeightBand(...args); } },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarRange, Search } from "lucide-react";
+import { IconCalendarEvent as CalendarRange, IconSearch as Search } from "@tabler/icons-react";
 
 import { reservationRows, type ReservationStatus } from "@/components/owner-web/owner-web-data";
 import {
@@ -110,7 +110,7 @@ export default function ReservationManagementScreen() {
                 </div>,
                 <div key="channel" className="flex items-center justify-between gap-2">
                   <span className="text-[14px] text-[#5f5851]">{row.channel}</span>
-                  <Search className="h-4 w-4 text-[#b0a69c]" />
+                  <Search className="h-4 w-4 text-[#b0a69c]" aria-hidden="true" />
                 </div>,
               ]}
             />

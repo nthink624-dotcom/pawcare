@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { IconDownload as Download } from "@tabler/icons-react";
 
 import { revenueTrend, serviceShare, weekdayReservations } from "@/components/owner-web/owner-web-data";
 import {
@@ -58,7 +58,7 @@ export default function StatsManagementScreen() {
             <p>완료율과 취소율을 바로 비교할 수 있게 KPI 카드 하단에 짧은 메타 수치를 넣었고, 다운로드 버튼은 우측 상단에 두어 보고서 흐름과 분리했습니다.</p>
             <ToolbarRow>
               <button type="button" className="inline-flex items-center gap-2 rounded-[14px] border border-[#e5ddd6] bg-white px-4 py-2.5 text-[13px] font-medium text-[#3c4d48]">
-                <Download className="h-4 w-4" />
+                <Download className="h-4 w-4" aria-hidden="true" />
                 CSV 저장
               </button>
               <GhostButton label="주간 비교" />

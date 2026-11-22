@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { RefreshCcw, Search } from "lucide-react";
+import { IconRefresh as RefreshCcw, IconSearch as Search } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -192,7 +192,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <label className="relative min-w-0 flex-1 sm:min-w-[320px]">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9b9084]" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9b9084]" aria-hidden="true" />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -209,7 +209,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                   disabled={loading}
                   className={`inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#D7E0EA] bg-white px-3 text-[#475569] transition hover:bg-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 disabled:opacity-60 ${ADMIN_TYPOGRAPHY.control}`}
                 >
-                  <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
                   새로고침
                 </button>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileDown } from "lucide-react";
+import { IconFileDownload as FileDown } from "@tabler/icons-react";
 
 import { OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import type { Guardian, Pet } from "@/types/domain";
@@ -96,11 +96,11 @@ export default function CustomerExcelTools({ guardians, pets, disabled }: Custom
     <>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={downloadTemplate} className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}>
-          <FileDown className="h-4 w-4" />
+          <FileDown className="h-4 w-4" aria-hidden="true" />
           이전 양식
         </button>
         <button type="button" onClick={exportCustomers} disabled={disabled || guardians.length === 0} className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}>
-          <FileDown className="h-4 w-4" />
+          <FileDown className="h-4 w-4" aria-hidden="true" />
           내보내기
         </button>
       </div>

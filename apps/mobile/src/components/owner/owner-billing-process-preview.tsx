@@ -1,6 +1,12 @@
 "use client";
 
-import { AlertCircle, Ban, CheckCircle2, CreditCard, WalletCards } from "lucide-react";
+import {
+  IconAlertCircle as AlertCircle,
+  IconBan as Ban,
+  IconCircleCheck as CheckCircle2,
+  IconCreditCard as CreditCard,
+  IconWallet as WalletCards,
+} from "@tabler/icons-react";
 import { useMemo, useRef, useState } from "react";
 
 import { OwnerBillingSuccessCard } from "@/components/owner/owner-billing-flow-shared";
@@ -129,7 +135,7 @@ function PgHandoffCard({ plan }: { plan: OwnerPlan }) {
       <div className="rounded-[14px] border border-[#e6ded2] bg-white px-4 py-4">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[#ddd6ca] bg-[#fffdf8] text-[#1f6b5b]">
-            <CreditCard className="h-[18px] w-[18px]" />
+            <CreditCard className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <p className="text-[16px] font-medium tracking-[-0.02em] text-[#171411]">보안창에서 카드 등록이 진행돼요</p>
@@ -309,7 +315,7 @@ export function OwnerBillingProcessPreview() {
               <div className="rounded-[14px] border border-[#e6ded2] bg-white px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <WalletCards className="h-5 w-5 text-[#1f6b5b]" />
+                    <WalletCards className="h-5 w-5 text-[#1f6b5b]" aria-hidden="true" />
                     <div>
                       <p className="text-[16px] font-medium text-[#171411]">현재 등록 카드</p>
                       <p className="mt-1 text-[13px] text-[#6a645d]">하나카드 ·•••• 1234</p>
@@ -339,7 +345,7 @@ export function OwnerBillingProcessPreview() {
             <div className="rounded-[22px] border border-[#e5ddd1] bg-[#fffdfa] p-5">
               <div className="rounded-[14px] border border-[#e6ded2] bg-[#fffefb] px-4 py-4">
                 <div className="flex items-start gap-3">
-                  <Ban className="mt-0.5 h-5 w-5 shrink-0 text-[#9f6e45]" />
+                  <Ban className="mt-0.5 h-5 w-5 shrink-0 text-[#9f6e45]" aria-hidden="true" />
                   <div className="space-y-1.5 text-[14px] leading-[1.55] text-[#5f5951]">
                     <p className="font-medium text-[#171411]">정기결제를 해지할 수 있어요</p>
                     <p>해지 후에도 현재 이용기간 종료일까지는 서비스를 계속 사용할 수 있습니다.</p>
@@ -363,7 +369,7 @@ export function OwnerBillingProcessPreview() {
             <div className="rounded-[22px] border border-[#e5ddd1] bg-[#fffdfa] p-5">
               <div className="rounded-[14px] border border-[#ead8cf] bg-[#fffaf7] px-4 py-4">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-[#b45845]" />
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-[#b45845]" aria-hidden="true" />
                   <div className="space-y-1.5 text-[14px] leading-[1.55] text-[#61574f]">
                     <p className="font-medium text-[#171411]">이번 결제를 완료하지 못했어요</p>
                     <p>등록된 카드 한도 또는 유효기간을 확인한 뒤 다시 결제를 진행해 주세요.</p>
@@ -381,7 +387,7 @@ export function OwnerBillingProcessPreview() {
 
           <div className="rounded-[22px] border border-[#e4dccf] bg-white px-5 py-4">
             <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#1f6b5b]" />
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#1f6b5b]" aria-hidden="true" />
               <div className="text-[13px] leading-[1.6] text-[#5e5750]">
                 <p className="font-medium text-[#171411]">심사자료 기재 안내</p>
                 <p className="mt-1">

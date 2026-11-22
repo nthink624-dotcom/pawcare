@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react
 import { useRouter } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
-import { X } from "lucide-react";
+import { IconX as X } from "@tabler/icons-react";
 
 import OwnerApp, { type OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import OwnerBookingNotificationWatcher from "@/components/owner/owner-booking-notification-watcher";
@@ -112,7 +112,7 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
             aria-label="체험 플랜 안내 닫기"
             className="shrink-0 rounded-[10px] border border-[#dfe5e0] bg-white p-2 text-[#7a847f]"
           >
-            <X className="h-4 w-4" strokeWidth={2.2} />
+            <X className="h-4 w-4" strokeWidth={2.2} aria-hidden="true" />
           </button>
         </div>
         <div className="mt-3 space-y-2">

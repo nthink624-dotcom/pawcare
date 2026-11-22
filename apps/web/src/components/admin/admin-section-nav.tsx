@@ -1,4 +1,13 @@
-import { BellRing, ClipboardCheck, Gift, Home, MessageCircle, MessageSquareText, PanelsTopLeft, Store } from "lucide-react";
+import {
+  IconBellRinging as BellRing,
+  IconClipboardCheck as ClipboardCheck,
+  IconGift as Gift,
+  IconHome as Home,
+  IconMessageCircle as MessageCircle,
+  IconMessage2 as MessageSquareText,
+  IconLayoutDashboard as PanelsTopLeft,
+  IconBuildingStore as Store,
+} from "@tabler/icons-react";
 import Link from "next/link";
 
 import { ADMIN_TYPOGRAPHY } from "@/components/admin/admin-typography";

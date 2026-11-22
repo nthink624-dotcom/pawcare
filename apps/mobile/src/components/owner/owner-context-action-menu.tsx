@@ -1,6 +1,12 @@
 "use client";
 
-import { CalendarPlus, ChevronUp, CircleHelp, MessageSquareWarning, Plus } from "lucide-react";
+import {
+  IconCalendarPlus as CalendarPlus,
+  IconChevronUp as ChevronUp,
+  IconHelpCircle as CircleHelp,
+  IconMessageExclamation as MessageSquareWarning,
+  IconPlus as Plus,
+} from "@tabler/icons-react";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import type { TesterFeedbackCategory } from "@/lib/tester-feedback";
@@ -266,7 +272,7 @@ const OwnerContextActionMenu = forwardRef<HTMLButtonElement, OwnerContextActionM
           className={`inline-flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_8px_rgba(17,26,48,0.14)] ${scheduleAppearance ? "border-[#2f5fb3] bg-[#2f5fb3] text-white" : "text-[#111a30]"} ${scheduleAppearance ? "" : isTester ? "border-[#d8c59c] bg-[#fff5d9]" : "border-[#cfd8e3] bg-white"}`}
           aria-hidden="true"
         >
-          {scheduleAppearance ? <Plus className="h-4 w-4" strokeWidth={2.2} /> : <ChevronUp className={`h-4 w-4 transition-transform motion-reduce:transition-none ${isOpen ? "rotate-180" : ""}`} strokeWidth={2.2} />}
+          {scheduleAppearance ? <Plus className="h-4 w-4" strokeWidth={2.2} aria-hidden="true" /> : <ChevronUp className={`h-4 w-4 transition-transform motion-reduce:transition-none ${isOpen ? "rotate-180" : ""}`} strokeWidth={2.2} aria-hidden="true" />}
         </span>
       </button>
     </div>

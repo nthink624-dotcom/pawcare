@@ -1,7 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, Camera, FileImage, ImagePlus, Loader2, PencilLine, ShieldCheck } from "lucide-react";
+import {
+  IconArrowLeft as ArrowLeft,
+  IconArrowRight as ArrowRight,
+  IconCamera as Camera,
+  IconFileTypeJpg as FileImage,
+  IconPhotoPlus as ImagePlus,
+  IconLoader2 as Loader2,
+  IconPencil as PencilLine,
+  IconShieldCheck as ShieldCheck,
+} from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 
 import SignupPriceGuideEditor, {

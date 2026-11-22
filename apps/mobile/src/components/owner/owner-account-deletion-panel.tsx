@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { IconChevronRight, IconTrash as Trash2 } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 
 import { ApiRequestError } from "@/lib/api";
@@ -46,8 +46,8 @@ export default function OwnerAccountDeletionPanel({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="flex min-h-[52px] w-full items-center justify-between gap-3 px-1 py-2.5 text-left text-[#9a4e45] outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2">
-        <span className="flex min-w-0 items-center gap-3"><Trash2 className="size-[18px] shrink-0" strokeWidth={1.9} /><span className="text-[16px] font-medium leading-6">계정 삭제</span></span>
-        <span aria-hidden className="text-[20px] leading-none text-[#64748b]">›</span>
+        <span className="flex min-w-0 items-center gap-3"><Trash2 className="size-[18px] shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="text-[16px] font-medium leading-6">계정 삭제</span></span>
+        <IconChevronRight aria-hidden="true" size={20} className="shrink-0 text-[#64748b]" />
       </button>
     );
   }

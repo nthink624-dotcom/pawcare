@@ -1,6 +1,6 @@
 "use client";
 
-import { Gift, Search } from "lucide-react";
+import { IconGift as Gift, IconSearch as Search } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AdminSectionNav from "@/components/admin/admin-section-nav";

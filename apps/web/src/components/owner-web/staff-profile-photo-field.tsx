@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, RotateCcw, Trash2 } from "lucide-react";
+import { IconPhotoPlus as ImagePlus, IconRotate as RotateCcw, IconTrash as Trash2 } from "@tabler/icons-react";
 import { useEffect, useId, useState } from "react";
 
 import { StableAvatar } from "@/components/owner-web/stable-avatar";

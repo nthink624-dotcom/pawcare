@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Clock, ImagePlus, Save, Trash2 } from "lucide-react";
+import { IconClock as Clock, IconPhotoPlus as ImagePlus, IconDeviceFloppy as Save, IconTrash as Trash2 } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
@@ -266,7 +266,7 @@ export default function CustomerBookingPageManagementScreen({
               disabled={savingShop}
               className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-medium leading-6 text-white disabled:bg-[#94a3b8]"
             >
-              <Save className="h-4 w-4" />
+              <Save className="h-4 w-4" aria-hidden="true" />
               {savingShop ? "저장 중" : "저장"}
             </button>
           </div>
@@ -296,7 +296,7 @@ export default function CustomerBookingPageManagementScreen({
                   disabled={uploadingHeroImage}
                   className="inline-flex min-h-11 items-center gap-2 rounded-[8px] bg-[#2f7866] px-3 text-[16px] font-medium leading-6 text-white disabled:bg-[#94a3b8]"
                 >
-                  <ImagePlus className="h-4 w-4" />
+                  <ImagePlus className="h-4 w-4" aria-hidden="true" />
                   {uploadingHeroImage ? "업로드 중" : hasCustomHeroImage ? "사진 변경" : "사진 업로드"}
                 </button>
                 {hasCustomHeroImage ? (
@@ -306,7 +306,7 @@ export default function CustomerBookingPageManagementScreen({
                     disabled={uploadingHeroImage}
                     className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium leading-6 text-[#64748b] disabled:opacity-45"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
                     삭제
                   </button>
                 ) : null}
@@ -347,7 +347,7 @@ export default function CustomerBookingPageManagementScreen({
 
         <WebSurface className="p-5">
           <div className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-[#2f7866]" />
+            <Clock className="h-5 w-5 text-[#2f7866]" aria-hidden="true" />
             <h2 className="text-[18px] font-semibold text-[#111827]">영업시간</h2>
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

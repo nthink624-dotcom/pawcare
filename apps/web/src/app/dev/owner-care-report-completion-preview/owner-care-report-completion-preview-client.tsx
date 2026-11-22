@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, X } from "lucide-react";
+import { IconSparkles as Sparkles, IconX as X } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 
 import { CalendarCareReportCompletionPanel } from "@/components/owner-web/calendar-care-report-completion-panel";
@@ -125,7 +125,7 @@ export function OwnerCareReportCompletionPreviewClient({
           <header className={`z-20 flex shrink-0 items-center justify-between gap-5 rounded-t-[22px] border-b border-[#e5e8ec] bg-white px-4 py-2.5 ${readOnly ? "pr-0" : ""}`}>
             <div className="flex min-w-0 items-center gap-3.5">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-[#edf4ff] text-[#2f6fd6]">
-                <Sparkles className="h-5 w-5" />
+                <Sparkles className="h-5 w-5" aria-hidden="true" />
               </span>
               <div>
                 <h1 className={`${CARE_REPORT_TYPOGRAPHY.modalTitle} break-keep tracking-[-0.03em] text-[#142033] [line-height:1.3]`}>AI 케어리포트 작성</h1>
@@ -133,7 +133,7 @@ export function OwnerCareReportCompletionPreviewClient({
               </div>
             </div>
             <button type="button" aria-label="닫기" className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[#66717f] transition hover:bg-[#f2f4f6]">
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </header>
 

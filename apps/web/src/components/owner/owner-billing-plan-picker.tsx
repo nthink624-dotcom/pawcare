@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarX2, ChevronLeft } from "lucide-react";
+import { IconCalendarX as CalendarX2, IconChevronLeft as ChevronLeft } from "@tabler/icons-react";
 
 import {
   getOwnerPlanStaffAccountLabel,

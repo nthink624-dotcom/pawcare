@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarRange } from "lucide-react";
+import { IconSearch, IconCalendarEvent as CalendarRange } from "@tabler/icons-react";
 
 import { reservationRows, type ReservationStatus } from "@/components/owner-web/owner-web-data";
 import {
@@ -9,7 +9,6 @@ import {
   DetailBlock,
   DetailPanel,
   GhostButton,
-  AssetIcon,
   PrimaryButton,
   SearchField,
   SelectLike,
@@ -109,7 +108,7 @@ export default function ReservationManagementScreen() {
                 </div>,
                 <div key="channel" className="flex items-center justify-between gap-2">
                   <span className="text-[14px] text-[#5f5851]">{row.channel}</span>
-                  <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#b0a69c]" />
+                  <IconSearch aria-hidden="true" className="shrink-0 h-5 w-5 text-[#b0a69c]" />
                 </div>,
               ]}
             />

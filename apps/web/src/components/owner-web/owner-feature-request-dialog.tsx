@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ImagePlus, Send, X } from "lucide-react";
+import { IconCircleCheck as CheckCircle2, IconPhotoPlus as ImagePlus, IconSend as Send, IconX as X } from "@tabler/icons-react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import {
@@ -124,12 +124,12 @@ export default function OwnerFeatureRequestDialog({ open, shopId, activeScreen, 
       <section role="dialog" aria-modal="true" aria-labelledby={titleId} className="max-h-[calc(100dvh-24px)] w-full max-w-[480px] overflow-y-auto rounded-[12px] border border-[#dbe2ea] bg-white shadow-[0_20px_54px_rgba(15,23,42,0.18)]">
         <header className="flex items-center justify-between gap-4 border-b border-[#e8edf3] px-5 py-2.5">
           <h2 id={titleId} className="min-w-0 text-[20px] font-semibold tracking-[-0.02em] text-[#111827]">문의·의견 보내기</h2>
-          <button type="button" onClick={closeDialog} disabled={submitting} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-[#f3f6f9] hover:text-[#111827] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:opacity-40" aria-label="닫기"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={closeDialog} disabled={submitting} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-[#f3f6f9] hover:text-[#111827] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:opacity-40" aria-label="닫기"><X className="h-5 w-5" aria-hidden="true" /></button>
         </header>
 
         {sent ? (
           <div className="px-5 py-8 text-center">
-            <CheckCircle2 className="mx-auto h-10 w-10 text-[#1f9d55]" strokeWidth={1.8} />
+            <CheckCircle2 className="mx-auto h-10 w-10 text-[#1f9d55]" strokeWidth={1.8} aria-hidden="true" />
             <h3 className="mt-3 text-[18px] font-semibold text-[#111827]">보냈습니다</h3>
             <p className="mt-1 text-[14px] leading-5 text-[#64748b]">확인한 뒤 필요한 내용을 안내해 드릴게요.</p>
             {screenshotReceipt ? <p className="mt-2 text-[13px] font-medium text-[#1f6b5b]">스크린샷도 함께 접수했습니다.</p> : null}
@@ -154,7 +154,7 @@ export default function OwnerFeatureRequestDialog({ open, shopId, activeScreen, 
 
             <div>
               <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#2563eb]">
-                <ImagePlus className="h-4 w-4" strokeWidth={1.8} />
+                <ImagePlus className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
                 <span>스크린샷 첨부 <span className="font-normal text-[#7c8798]">(선택)</span></span>
                 <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0] ?? null; setError(""); setScreenshotReceipt(null); if (file && !ACCEPTED_SCREENSHOT_TYPES.has(file.type)) { setScreenshot(null); setError("PNG, JPG, WEBP 이미지 파일만 선택해 주세요."); return; } setScreenshot(file); }} />
               </label>
@@ -165,7 +165,7 @@ export default function OwnerFeatureRequestDialog({ open, shopId, activeScreen, 
 
             <footer className="flex justify-end gap-2 border-t border-[#e8edf3] pt-4">
               <button type="button" onClick={closeDialog} disabled={submitting} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-semibold text-[#475569] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:opacity-40">취소</button>
-              <button type="button" onClick={() => void submitFeedback()} disabled={!canSubmit} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-blue-600 px-4 text-[14px] font-semibold text-white transition enabled:hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[#cbd5e1]"><Send className="h-4 w-4" />{submitting ? "보내는 중" : "보내기"}</button>
+              <button type="button" onClick={() => void submitFeedback()} disabled={!canSubmit} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-blue-600 px-4 text-[14px] font-semibold text-white transition enabled:hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[#cbd5e1]"><Send className="h-4 w-4" aria-hidden="true" />{submitting ? "보내는 중" : "보내기"}</button>
             </footer>
           </div>
         )}

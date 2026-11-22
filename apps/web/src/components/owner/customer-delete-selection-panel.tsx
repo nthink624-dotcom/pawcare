@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Search } from "lucide-react";
+import { IconChevronRight as ChevronRight, IconSearch as Search } from "@tabler/icons-react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import type { Guardian, Pet } from "@/types/domain";
@@ -66,7 +66,7 @@ export default function CustomerDeleteSelectionPanel({
               <span>복구 가능 고객 {filteredDeletedGuardians.length}명 보기</span>
               <ChevronRight
                 className={`h-3.5 w-3.5 transition ${isDeletedCustomersOpen ? "rotate-90" : ""}`}
-                strokeWidth={1.9}
+                strokeWidth={1.9} aria-hidden="true"
               />
             </button>
           ) : null}
@@ -82,7 +82,7 @@ export default function CustomerDeleteSelectionPanel({
 
       <div className="mt-3 rounded-[10px] border border-[var(--border)] bg-white px-4 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          <Search className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
+          <Search className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} aria-hidden="true" />
           <input
             value={customerSearch}
             onChange={(event) => onCustomerSearchChange(event.target.value)}

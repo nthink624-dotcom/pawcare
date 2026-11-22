@@ -291,7 +291,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "revisit_notice",
-    title: "재예약 알림",
+      title: "재예약 알림",
     target: "guardian",
     channel: "alimtalk",
     trigger: "케어 완료 때 오너가 선택한 재예약 알림일에 자동 발송",
@@ -300,15 +300,12 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateConfigKey: "templateRevisitNotice",
     shopSettingKey: "revisit_enabled",
     guardianSettingKey: "revisit_enabled",
-    notes: "매장과 고객 모두 재방문 알림이 켜져 있고, 이후 예약이 없을 때 한 번만 발송",
+      notes: "매장과 보호자 모두 재방문 알림이 켜져 있고, 이후 예약이 없을 때 한 번 발송",
     draftBody: [
       "[#{매장명}]",
       "안녕하세요, 보호자님.",
-      "#{반려동물명}의 다음 미용 시기가 다가와 안내드려요.",
-      "",
-      "아이의 털 상태와 컨디션에 맞춰 편안하게 미용받을 수 있도록 꼼꼼히 준비하겠습니다.",
-      "원하시는 날짜와 시간은 아래 버튼에서 확인하고 예약해 주세요.",
-      "다음 방문에도 정성껏 돌봐드릴게요. 감사합니다.",
+        "#{반려동물명}의 다음 방문 안내일이 되어 알려드립니다.",
+        "예약 일정은 아래 버튼에서 확인하실 수 있습니다.",
     ].join("\n"),
   },
   {

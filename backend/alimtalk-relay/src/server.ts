@@ -9,9 +9,11 @@ import express, { type ErrorRequestHandler, type Response as ExpressResponse } f
 import { z } from "zod";
 
 import { collectTemplatePages, mapTemplateDetails, sharedTemplateCatalog, targetedTemplateReader } from "./template-catalog.js";
+import { registerTemplateSafely, TemplateRegistrationError } from "./template-registration.js";
 
 import { retireTemplate } from "./template-retirement.js";
 import { requireHttpsTransportUrl } from "./https-transport-url.js";
+import { isProviderOperationAllowed, isRelayOperationAllowed, readRelayAccessMode, READ_ONLY_MESSAGE } from "./access-mode.js";
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDirPath = path.dirname(currentFilePath);
@@ -61,6 +63,9 @@ const SEND_REQUEST_TIMEOUT_MS = readBoundedMilliseconds(
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 dotenv.config({ path: path.resolve(currentDirPath, "../.env"), override: false });
+
+// Immutable for this process: the management API cannot lift this restriction.
+const relayAccessMode = readRelayAccessMode(process.env.RELAY_ACCESS_MODE);
 
 type RelayConfig = {
   port: number;
@@ -589,6 +594,9 @@ async function fetchProvider(
   options: { deadlineAt?: number } = {},
 ) {
   const approvedUrl = requireApprovedSsodaaUrl(url, "SSODAA provider URL");
+  if (!isProviderOperationAllowed(relayAccessMode, approvedUrl)) {
+    throw new RelayHttpError(403, READ_ONLY_MESSAGE);
+  }
   const remainingMs = options.deadlineAt
     ? Math.min(PROVIDER_FETCH_TIMEOUT_MS, options.deadlineAt - Date.now())
     : PROVIDER_FETCH_TIMEOUT_MS;
@@ -1556,6 +1564,15 @@ app.use((request, response, next) => {
   }
   next();
 });
+app.use((request, response, next) => {
+  if (isRelayOperationAllowed(relayAccessMode, request.method, request.path)) return next();
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    return response.status(403).json({ ok: false, code: "RELAY_READ_ONLY", message: READ_ONLY_MESSAGE });
+  } catch (error) {
+    respondWithRouteError(response, error, "릴레이 접근 권한을 확인하지 못했습니다.");
+  }
+});
 app.use(express.json({ limit: "64kb", strict: true }));
 
 app.get("/health", (_request, response) => {
@@ -1563,6 +1580,7 @@ app.get("/health", (_request, response) => {
     ok: true,
     provider: "ssodaa",
     configured: isProviderConfigured(),
+    ...(relayAccessMode === "read-only" ? { accessMode: relayAccessMode } : {}),
   });
 });
 
@@ -1678,15 +1696,37 @@ app.post("/admin/templates/register", async (request, response) => {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
     const payload = templateRegisterSchema.parse(request.body);
-    await addSsodaaTemplate(payload);
-    if (payload.requestReview) await requestSsodaaTemplateReview(payload);
-    if (payload.templateConfigKey) mapTemplateCodeToRelayConfig(payload.templateConfigKey, payload.templateCode);
-    response.json({
-      ok: true,
-      registered: true,
-      reviewRequested: payload.requestReview,
+    const result = await registerTemplateSafely({
+      templateCode: payload.templateCode,
+      templateName: payload.templateName,
+      templateContent: payload.templateContent,
+      buttons: payload.templateButtons ?? [],
+      requestReview: payload.requestReview,
+    }, {
+      find: async (code) => {
+        const records = await fetchSsodaaTemplateList();
+        const record = records.find(item => getStringValue(item, ["templateCode", "template_code", "templtCode", "templt_code"]) === code);
+        if (!record) return null;
+        const detail = await fetchSsodaaTemplateDetail(code);
+        return detail;
+      },
+      add: () => addSsodaaTemplate(payload),
+      requestReview: () => requestSsodaaTemplateReview(payload),
     });
+    if (payload.templateConfigKey) mapTemplateCodeToRelayConfig(payload.templateConfigKey, payload.templateCode);
+    response.json({ ok: true, ...result });
   } catch (error) {
+    if (error instanceof TemplateRegistrationError) {
+      response.status(error.statusCode).json({
+        ok: false,
+        stage: error.stage,
+        registered: error.registered,
+        reviewRequested: error.reviewRequested,
+        retryable: error.retryable,
+        message: error.message,
+      });
+      return;
+    }
     respondWithRouteError(response, error, "릴레이 템플릿 등록 요청에 실패했습니다.");
   }
 });

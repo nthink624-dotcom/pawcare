@@ -3,10 +3,9 @@ import { z } from "zod";
 import { ALIMTALK_NOTIFICATION_REGISTRY, type AlimtalkTemplateAlias, type NotificationVariableBindings } from "@/lib/notification-registry";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
-import { getApprovedSsodaaTemplateDetails, getRelayTemplateCatalog, resolveShopSelectedTemplate, validateAlimtalkTemplateForAlias, type ConnectedTemplateDetail } from "@/server/alimtalk-approved-template";
+import { getApprovedSsodaaTemplateDetails, getRelayTemplateCatalog, isCanonicalUnassociatedTemplateForAlias, resolveShopSelectedTemplate, validateAlimtalkTemplateForAlias, type ConnectedTemplateDetail } from "@/server/alimtalk-approved-template";
 import { readAlimtalkRows } from "@/server/alimtalk-template-pages";
 import { matchesShopTemplateSnapshot } from "@/server/shop-alimtalk-template-contract";
-import { readAllowedAlimtalkCodes } from "@/server/alimtalk-template-ownership";
 import { readShopAlimtalkSelections } from "@/server/shop-alimtalk-selection-store";
 
 export const dynamic = "force-dynamic";
@@ -20,26 +19,51 @@ const inputSchema = z.object({
 async function readCatalog(shopId: string) {
   const admin = getSupabaseAdmin();
   if (!admin) throw new OwnerApiError("알림톡 설정을 불러오지 못했습니다.", 503);
-  const [requests, platform, selections] = await Promise.all([
-    readAlimtalkRows((from, to) => admin.from("shop_alimtalk_template_requests").select("shop_id,template_alias,template_code,template_content,template_buttons").eq("shop_id", shopId).order("id").range(from, to)),
-    admin.from("platform_alimtalk_templates").select("template_alias,provider_template_code,variable_bindings").eq("provider", "ssodaa"),
+  const catalog = await getRelayTemplateCatalog(undefined, true);
+  if (!catalog?.allTemplates) throw new OwnerApiError("쏘다 승인 문안 목록을 확인하지 못했습니다. 현재 매장 설정은 유지됩니다.", 503);
+  const catalogTemplates = catalog.allTemplates;
+  const codes = [...new Set(catalogTemplates.map(detail => detail.templateCode).filter(Boolean))];
+  const [requests, platform, selections, ownershipResult] = await Promise.all([
+    codes.length ? readAlimtalkRows((from, to) => admin.from("shop_alimtalk_template_requests").select("shop_id,template_alias,template_code,template_name,template_content,template_buttons,is_current").in("template_code", codes).order("id").range(from, to)) : Promise.resolve([]),
+    admin.from("platform_alimtalk_templates").select("template_alias,provider_template_code,variable_bindings,inspection_status,service_status").eq("provider", "ssodaa"),
     readShopAlimtalkSelections(shopId),
+    codes.length ? admin.from("alimtalk_template_registry").select("template_code,scope,owner_shop_id,retired_at").in("template_code", codes) : Promise.resolve({ data: [], error: null }),
   ]);
   if (platform.error) throw new OwnerApiError("승인된 알림톡 목록을 확인하지 못했습니다. 현재 설정은 유지됩니다.", 503);
-  const allowedCodes = await readAllowedAlimtalkCodes([...requests.map(row => row.template_code), ...(platform.data ?? []).map(row => row.provider_template_code)], shopId);
-  const catalog = allowedCodes.size ? await getRelayTemplateCatalog([...allowedCodes]) : { allTemplates: [] };
-  if (!catalog?.allTemplates) throw new OwnerApiError("승인된 알림톡 목록을 확인하지 못했습니다. 현재 설정은 유지됩니다.", 503);
+  if (ownershipResult.error || !ownershipResult.data) throw new OwnerApiError("승인 문안의 사용 범위를 확인하지 못했습니다. 현재 설정은 유지됩니다.", 503);
+  const ownership = new Map(ownershipResult.data.map(row => [row.template_code, row]));
   const shopTemplateCodes = new Set(requests
     .filter(row => row.shop_id === shopId)
     .map(row => `${row.template_alias}:${row.template_code}`));
-  const available = catalog.allTemplates.filter(detail => allowedCodes.has(detail.templateCode));
+  const requestedCodes = new Set(requests.map(row => row.template_code));
+  const available = catalogTemplates.filter(detail => {
+    const code = detail.templateCode;
+    const registered = ownership.get(code);
+    if (registered?.retired_at) return false;
+    if (registered?.scope === "shop") return registered.owner_shop_id === shopId;
+    if (registered?.scope === "platform") return !requestedCodes.has(code);
+    // Newly approved provider templates are public candidates unless they are
+    // in the reserved owner-code namespace or any shop has already claimed them.
+    return !/^PM[0-9A-F]{26}$/.test(code) && !requestedCodes.has(code);
+  });
   function candidates(alias: AlimtalkTemplateAlias) {
     return available.flatMap(detail => {
       const stored = selections.get(alias);
       const mapped = platform.data?.find(row => row.template_alias === alias && row.provider_template_code === detail.templateCode);
-      const own = requests.find(row => row.template_alias === alias && row.template_code === detail.templateCode);
-      // Positive membership only: an unregistered provider code is never public by default.
-      if (!mapped && (!own || !matchesShopTemplateSnapshot(own, detail))) return [];
+      const own = requests.find(row => row.shop_id === shopId && row.template_alias === alias && row.template_code === detail.templateCode);
+      const registered = ownership.get(detail.templateCode);
+      if (registered?.scope === "shop" && (!own || registered.owner_shop_id !== shopId || !matchesShopTemplateSnapshot(own, detail))) return [];
+      if (!registered && requestedCodes.has(detail.templateCode)) return [];
+      // A provider catalog entry without a PetManager alias association must
+      // not leak into unrelated notification types merely because its
+      // variables happen to be globally valid. Shop requests are already
+      // explicitly associated by their saved alias; platform mappings below
+      // are explicit alias associations too.
+      const aliasMapping = platform.data?.find(row => row.template_alias === alias);
+      const aliasReference = aliasMapping
+        ? catalogTemplates.find(candidate => candidate.templateCode === aliasMapping.provider_template_code)
+        : null;
+      if (!own && !mapped && !isCanonicalUnassociatedTemplateForAlias(alias, detail, aliasReference)) return [];
       const bindings: NotificationVariableBindings = mapped?.variable_bindings ?? (stored?.template_code === detail.templateCode ? stored.variable_bindings : {});
       try {
         validateAlimtalkTemplateForAlias(alias, detail, bindings);
@@ -47,7 +71,13 @@ async function readCatalog(shopId: string) {
       } catch { return []; }
     });
   }
-  return { admin, catalog, selections, candidates, shopTemplateCodes };
+  function hasConfiguredTemplate(alias: AlimtalkTemplateAlias) {
+    return selections.has(alias)
+      || requests.some(row => row.shop_id === shopId && row.template_alias === alias && row.is_current)
+      || (platform.data ?? []).some(row => row.template_alias === alias
+        && row.inspection_status === "approved" && row.service_status === "active");
+  }
+  return { admin, catalog, selections, requests, candidates, shopTemplateCodes, hasConfiguredTemplate };
 }
 
 function publicTemplate(detail: ConnectedTemplateDetail) {
@@ -61,7 +91,7 @@ export async function GET(request: NextRequest) {
   try {
     const owner = await requireOwnerShop(request, new URL(request.url).searchParams.get("shopId") || undefined);
     assertOwnerOrManager(owner);
-    const { catalog, selections, candidates, shopTemplateCodes } = await readCatalog(owner.shopId);
+    const { catalog, selections, requests, candidates, shopTemplateCodes, hasConfiguredTemplate } = await readCatalog(owner.shopId);
     const aliases = Array.from(new Set(ALIMTALK_NOTIFICATION_REGISTRY.map(item => item.templateAlias)));
     const defaults = await getApprovedSsodaaTemplateDetails(aliases.filter(alias => !selections.has(alias)), owner.shopId, catalog).catch(() => ({} as Partial<Record<AlimtalkTemplateAlias, ConnectedTemplateDetail>>));
     const items = await Promise.all(aliases.map(async alias => {
@@ -72,17 +102,28 @@ export async function GET(request: NextRequest) {
         current = selected ? resolveShopSelectedTemplate(alias, selected, catalog)
           : defaults[alias] ?? null;
       } catch { blocked = true; }
+      const configured = Boolean(selected) || hasConfiguredTemplate(alias);
+      // No mapping is a valid first-use state: owners can choose an approved
+      // candidate. Show a blocked state only when an existing connection was
+      // expected but could not be verified.
+      blocked = blocked || (configured && !current);
       const currentCode = current?.templateCode ?? selected?.template_code;
       const currentSource = currentCode
         ? shopTemplateCodes.has(`${alias}:${currentCode}`) ? "owner" : "petmanager"
         : null;
+      const ownerRequest = currentCode
+        ? requests.find(row => row.shop_id === owner.shopId && row.template_alias === alias && row.template_code === currentCode)
+        : null;
       return {
         alias, title: spec.title, version: selected?.version ?? 0,
-        current: current ? publicTemplate(current) : selected ? { code: selected.template_code, name: selected.template_name || "선택한 문구", content: selected.template_content, buttons: [] } : null,
+        current: current ? { ...publicTemplate(current), ...(currentSource === "owner" ? { name: ownerRequest?.template_name || selected?.template_name || "내 문안" } : { name: "기본 문안" }) } : selected ? { code: selected.template_code, name: selected.template_name || "내 문안", content: selected.template_content, buttons: [] } : null,
         currentSource,
-        blocked: blocked || !current,
+        blocked,
         options: candidates(alias).map(({ detail }) => ({
           ...publicTemplate(detail),
+          name: shopTemplateCodes.has(`${alias}:${detail.templateCode}`)
+            ? requests.find(row => row.shop_id === owner.shopId && row.template_alias === alias && row.template_code === detail.templateCode)?.template_name || "내 문안"
+            : "기본 문안",
           source: shopTemplateCodes.has(`${alias}:${detail.templateCode}`) ? "owner" as const : "petmanager" as const,
         })),
       };
@@ -99,6 +140,9 @@ export async function PUT(request: NextRequest) {
     if (!owner.userId) throw new OwnerApiError("다시 로그인해 주세요.", 401);
     const spec = ALIMTALK_NOTIFICATION_REGISTRY.find(item => item.templateAlias === input.templateAlias);
     if (!spec) throw new OwnerApiError("알림 종류를 확인해 주세요.", 400);
+    if (input.templateAlias === "revisit_notice") {
+      throw new OwnerApiError("재방문 일정 안내는 서비스 기본 문안으로 고정되어 오너가 변경할 수 없습니다.", 409);
+    }
     const { admin, candidates } = await readCatalog(owner.shopId);
     const chosen = candidates(spec.templateAlias).find(({ detail }) => detail.templateCode === input.templateCode);
     if (!chosen) throw new OwnerApiError("현재 승인되어 사용할 수 있는 문구를 다시 선택해 주세요. 기존 설정은 유지됩니다.", 409);

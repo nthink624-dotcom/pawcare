@@ -306,7 +306,7 @@ async function buildNotificationMessage(params: {
         })
         .join("\n");
     case "revisit_notice":
-      return `[${params.shopName}] ${params.petName} 재방문 시기가 가까워졌어요.`;
+      return `[${params.shopName}] ${params.petName}의 다음 방문 안내일이 되어 알려드립니다.`;
     case "birthday_greeting":
       return `[${params.shopName}] ${params.petName}의 생일을 축하드려요.`;
     default:

@@ -8,6 +8,7 @@ import {
   validateNotificationVariableBindings,
 } from "@/lib/notification-registry";
 import { APPROVED_ALIMTALK_CONTRACTS } from "@petmanager/shared/contracts/alimtalk";
+import { ALIMTALK_BUTTON_CONTRACTS, type AlimtalkButtonAlias } from "@petmanager/shared/contracts/alimtalk-buttons";
 import { DEPOSIT_ALIMTALK_REVIEW_CONTRACTS } from "@petmanager/shared/contracts/deposit-alimtalk-review";
 import { isSameBookingManageLink } from "@petmanager/shared/lib/booking-manage-link";
 import { getConfiguredAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
@@ -56,9 +57,11 @@ const aliasesThatMustHaveSsodaaButtons = new Set<AlimtalkTemplateAlias>([
   "booking_deposit_refunded",
   "booking_consent_request",
   "booking_confirmed",
+  "booking_cancelled",
   "appointment_reminder_10m",
   "visit_schedule_notice",
   "visit_reminder_notice",
+  "grooming_almost_done",
   "grooming_completed",
   "revisit_notice",
 ]);
@@ -114,8 +117,9 @@ export function isApprovedAndUsableTemplate(detail: ConnectedTemplateDetail, _al
   const inspectionStatus = detail.inspectionStatus?.toUpperCase() ?? "";
   const serviceStatus = detail.serviceStatus?.toUpperCase() ?? "";
 
-  // Official /service/api/kakaoapi: R=대기, A=정상, S=중지 (template/stop).
-  // A Kakao-approved but stopped template must not be treated as sendable.
+  // Inspection approval and provider service availability are separate. The
+  // live catalog uses R for approved templates available to the relay; S is
+  // stopped and must never be treated as sendable.
   return inspectionStatus === "APR"
     && ["ACT", "RDY", "R", "A", "ACTIVE", "READY"].includes(serviceStatus)
     && Array.isArray(detail.buttons) && detail.buttons.every(button=>button.type==="WL" && Boolean(button.name?.trim()) && Boolean(button.linkMobile?.trim()));
@@ -128,12 +132,44 @@ function normalizeTemplateText(value: string) {
 export function hasApprovedBookingConsentTemplateContract(detail: ConnectedTemplateDetail) {
   const contract = APPROVED_ALIMTALK_CONTRACTS.booking_consent_request;
   return normalizeTemplateText(detail.templateContent ?? "") === normalizeTemplateText(contract.body)
-    && detail.buttons.length === 1
-    && detail.buttons[0]?.type === "WL"
-    && detail.buttons[0]?.name.trim() === contract.button;
+    && hasAlimtalkButtonContract("booking_consent_request", detail);
+}
+
+function canonicalButtonLink(alias: AlimtalkButtonAlias, buttonName: string) {
+  return ALIMTALK_BUTTON_CONTRACTS[alias].find(button => button.buttonName === buttonName)?.linkMobile ?? null;
+}
+
+function normalizeManageButtonLink(value: string) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.pathname === "/book/manage") parsed.pathname = "/m";
+    return parsed.href;
+  } catch {
+    return value;
+  }
+}
+
+export function hasAlimtalkButtonContract(alias: AlimtalkTemplateAlias, detail: ConnectedTemplateDetail) {
+  const expected = ALIMTALK_BUTTON_CONTRACTS[alias as AlimtalkButtonAlias];
+  if (!expected?.length) return true;
+  if (detail.buttons.length > expected.length) return false;
+  const actual = new Map(detail.buttons.map(button => [button.name.trim(), button]));
+  if (actual.size !== detail.buttons.length) return false;
+  return detail.buttons.every(provider => {
+    const expectedLink = canonicalButtonLink(alias as AlimtalkButtonAlias, provider.name.trim());
+    if (!expectedLink) return false;
+    const canonicalLink = normalizeManageButtonLink(expectedLink);
+    if (!provider || provider.type !== "WL") return false;
+    const actualMobile = normalizeManageButtonLink(provider.linkMobile.trim());
+    const actualPc = normalizeManageButtonLink(provider.linkPc?.trim() || provider.linkMobile.trim());
+    return actualMobile === canonicalLink && actualPc === canonicalLink;
+  });
 }
 
 function validateTemplateContract(alias: AlimtalkTemplateAlias, detail: ConnectedTemplateDetail, _shopTemplateCode?: string | null) {
+  if (!hasAlimtalkButtonContract(alias, detail)) {
+    throw new Error("승인된 문안의 버튼 이름·개수·연결 주소가 알림 종류의 고정 기준과 달라 발송을 중단했습니다.");
+  }
   const depositContract = DEPOSIT_ALIMTALK_REVIEW_CONTRACTS[alias as keyof typeof DEPOSIT_ALIMTALK_REVIEW_CONTRACTS];
   // The active DB connection verifies provider identity; the fixed contract protects
   // mandatory wording/buttons, not a mutable provider name or versioned code.
@@ -151,6 +187,34 @@ export function validateAlimtalkTemplateForAlias(alias: AlimtalkTemplateAlias, d
   if ((alias in DEPOSIT_ALIMTALK_REVIEW_CONTRACTS || alias === "booking_consent_request") && Object.entries(bindings).some(([key,value])=>key!==value)) throw new Error("예약금·동의서의 필수 자동 입력 항목은 변경할 수 없습니다.");
   validateTemplateContract(alias, detail);
   validateNotificationVariableBindings([detail.templateContent, ...detail.buttons.flatMap(button => [button.name, button.linkMobile, button.linkPc ?? ""])], bindings);
+}
+
+/**
+ * Unassociated SSODAA catalog entries have no stable PetManager notification
+ * identity. Only expose one as a global choice when its approved body and
+ * button exactly match this alias's canonical contract. Shop-owned requests
+ * and explicit platform mappings are validated through their own association
+ * and can use their saved body snapshot.
+ */
+export function isCanonicalUnassociatedTemplateForAlias(
+  alias: AlimtalkTemplateAlias,
+  detail: ConnectedTemplateDetail,
+  reference?: ConnectedTemplateDetail | null,
+) {
+  const spec = ALIMTALK_NOTIFICATION_REGISTRY.find(item => item.templateAlias === alias);
+  if (!spec?.draftBody || normalizeTemplateText(detail.templateContent ?? "") !== normalizeTemplateText(spec.draftBody)) return false;
+
+  if (alias in ALIMTALK_BUTTON_CONTRACTS) return hasAlimtalkButtonContract(alias, detail);
+
+  // Some legacy aliases do not have a source-level button contract. In that
+  // case require an exact button shape from the already associated active
+  // alias template; without one there is not enough evidence to classify it.
+  if (!reference) return false;
+  return JSON.stringify(detail.buttons.map(button => ({
+    type: button.type, name: button.name.trim(), mobile: button.linkMobile.trim(), pc: (button.linkPc || button.linkMobile).trim(),
+  }))) === JSON.stringify(reference.buttons.map(button => ({
+    type: button.type, name: button.name.trim(), mobile: button.linkMobile.trim(), pc: (button.linkPc || button.linkMobile).trim(),
+  })));
 }
 
 export function hasApprovedBookingDepositTemplateContract(detail: ConnectedTemplateDetail) {
@@ -191,8 +255,10 @@ export async function getApprovedSsodaaTemplateButtonDefaults(
   aliases: AlimtalkTemplateAlias[],
   shopId?: string,
 ) {
-  const details = await getApprovedSsodaaTemplateDetails(aliases, shopId);
-  return Object.fromEntries(aliases.map(alias => [alias, details[alias]?.buttons.map(button => ({ buttonName: button.name, linkMobile: button.linkMobile })) ?? []])) as Partial<Record<AlimtalkTemplateAlias, Array<{ buttonName: string; linkMobile: string }>>>;
+  // Drafts and review requests must retain PetManager's fixed button contract,
+  // including multi-button templates, even when an older provider version has
+  // fewer buttons. Approval and dispatch still validate the provider snapshot.
+  return Object.fromEntries(aliases.map(alias => [alias, ALIMTALK_BUTTON_CONTRACTS[alias as AlimtalkButtonAlias] ?? []])) as Partial<Record<AlimtalkTemplateAlias, Array<{ buttonName: string; linkMobile: string; linkPc: string }>>>;
 }
 
 async function getShopApprovedTemplateCodes(shopId: string | undefined, aliases: AlimtalkTemplateAlias[], suppliedCatalog?: RelayTemplateCatalogBody) {
@@ -261,7 +327,35 @@ export async function getApprovedSsodaaTemplateFromCatalog(
   }
 
   const mapping = await getPlatformMappedTemplate(alias);
-  if (!mapping?.provider_template_code) return null;
+  if (!mapping?.provider_template_code) {
+    // A platform default is available even before a shop chooses an override.
+    // Older environments may not have persisted the platform mapping rows yet,
+    // so resolve only a uniquely matching, approved provider template whose
+    // body/button exactly match PetManager's canonical contract.
+    const discovery = body.allTemplates?.length ? body : await getRelayTemplateCatalog(undefined, true);
+    const candidates = (discovery?.allTemplates ?? []).filter((candidate) =>
+      isApprovedAndUsableTemplate(candidate)
+      && isCanonicalUnassociatedTemplateForAlias(alias, candidate),
+    );
+    if (candidates.length !== 1) return null;
+    const candidate = candidates[0]!;
+    const candidateCode = candidate.templateCode;
+    if (!candidateCode || /^PM[0-9A-F]{26}$/i.test(candidateCode)) return null;
+
+    // Do not mistake a shop-owned provider template for a PetManager default.
+    const admin = getSupabaseAdmin();
+    if (admin) {
+      const ownership = await admin.from("alimtalk_template_registry")
+        .select("scope,retired_at")
+        .eq("template_code", candidateCode)
+        .maybeSingle();
+      if (ownership.error) throw new Error("기본 알림톡 문안의 사용 범위를 확인하지 못했습니다.");
+      if (ownership.data?.retired_at || ownership.data?.scope === "shop") return null;
+    }
+
+    validateAlimtalkTemplateForAlias(alias, candidate);
+    return normalizeConnectedTemplateDetail(candidateCode, candidate);
+  }
   const detail = body.allTemplates?.find(item => item.templateCode === mapping.provider_template_code);
   if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
   if (!matchesShopTemplateSnapshot({template_code:mapping.provider_template_code,template_content:mapping.template_content,template_buttons:mapping.buttons},detail)) throw new Error("현재 연결과 쏘다 승인 본문·버튼이 달라 발송을 중단했습니다.");

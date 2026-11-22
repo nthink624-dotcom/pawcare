@@ -3,16 +3,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { registerHooks } from 'node:module';
 const stub=code=>({shortCircuit:true,url:'data:text/javascript,'+encodeURIComponent(code)});
-let selected=[],requests=[],platform=[],catalog=[],fail=false,role='owner',actorShop='shop-a';
+let selected=[],requests=[],platform=[],registry=[],catalog=[],fail=false,role='owner',actorShop='shop-a';
 class Query{
   constructor(table){this.table=table;this.filters=[];}select(){return this;}or(){this.filters.push(r=>r.service_status==='active'||['requested','reviewing','unknown','pending'].includes(r.inspection_status));return this;}range(from,to){this.slice=[from,to];return this;}order(){return this;}
   eq(k,v){this.filters.push(r=>r[k]===v);return this;}in(k,v){this.filters.push(r=>v.includes(r[k]));return this;}
-  async read(single=false){const table=this.table==='shop_alimtalk_template_selections'?selected:this.table==='shop_alimtalk_template_requests'?requests:platform;let rows=table.filter(r=>this.filters.every(f=>f(r)));if(this.slice)rows=rows.slice(this.slice[0],this.slice[1]+1);return {data:structuredClone(single?rows[0]??null:rows),error:null};}
+  async read(single=false){const table=this.table==='shop_alimtalk_template_selections'?selected:this.table==='shop_alimtalk_template_requests'?requests:this.table==='alimtalk_template_registry'?registry:platform;let rows=table.filter(r=>this.filters.every(f=>f(r)));if(this.slice)rows=rows.slice(this.slice[0],this.slice[1]+1);return {data:structuredClone(single?rows[0]??null:rows),error:null};}
   maybeSingle(){return this.read(true);}then(r,j){return this.read().then(r,j);}
 }
-const admin={from:t=>alimtalkStorageFixture(t,()=>({requests,platform,selected}))??new Query(t),rpc:async(n,p)=>{
+const admin={from:t=>alimtalkStorageFixture(t,()=>({requests,platform,selected,registry}))??new Query(t),rpc:async(n,p)=>{
   assert.equal(n,'set_shop_alimtalk_template_selection');const old=selected.find(r=>r.shop_id===p.p_shop&&r.template_alias===p.p_alias);
   if(fail||(old?.version??0)!==p.p_expected_version)return {data:null,error:{code:'40001'}};
+  let ownership=registry.find(r=>r.template_code===p.p_template.templateCode);
+  if(!ownership){const priorRequest=requests.find(r=>r.template_code===p.p_template.templateCode);if(/^PM[0-9A-F]{26}$/.test(p.p_template.templateCode)||requests.some(r=>r.template_code===p.p_template.templateCode&&r.shop_id!==p.p_shop))return {data:null,error:{code:'PM_TEMPLATE_PRIVATE_OR_RETIRED'}};ownership=priorRequest?{template_code:p.p_template.templateCode,scope:'shop',owner_shop_id:priorRequest.shop_id,retired_at:null}:{template_code:p.p_template.templateCode,scope:'platform',owner_shop_id:null,retired_at:null};registry.push(ownership);}
+  if(ownership.retired_at||(ownership.scope==='shop'&&(ownership.owner_shop_id!==p.p_shop||!requests.some(r=>r.shop_id===p.p_shop&&r.template_alias===p.p_alias&&r.template_code===p.p_template.templateCode)))||requests.some(r=>r.template_code===p.p_template.templateCode&&r.shop_id!==p.p_shop))return {data:null,error:{code:'PM_TEMPLATE_PRIVATE_OR_RETIRED'}};
   const row={shop_id:p.p_shop,template_alias:p.p_alias,template_code:p.p_template.templateCode,template_name:p.p_template.templateName,template_content:p.p_template.templateContent,template_buttons:p.p_template.buttons,variable_bindings:p.p_bindings,version:(old?.version??0)+1};
   selected=selected.filter(r=>r!==old);selected.push(row);return {data:structuredClone(row),error:null};
 }};
@@ -28,18 +31,31 @@ registerHooks({resolve(s,c,next){
 globalThis.fetch=async()=>Response.json({allTemplates:catalog});
 const {GET,PUT}=await import('../../src/app/api/owner/alimtalk-template-selection/route.ts');
 const {getApprovedSsodaaNotificationTemplate}=await import('../../src/server/alimtalk-approved-template.ts');
-const values={'보호자명':'김민수','반려동물명':'보리','예약 확인 링크':'https://www.petmanager.co.kr/m?t=fixture'};
-function reset(){selected=[];requests=[];platform=[];fail=false;role='owner';actorShop='shop-a';catalog=['A','D'].map(code=>({templateCode:code,templateName:'이름과 무관한 문구 '+code,templateContent:code+' #{보호자명}님, #{반려동물명} 미용 중이에요.',inspectionStatus:'APR',serviceStatus:'A',buttons:[{type:'WL',name:code+' 확인',linkMobile:'#{예약 확인 링크}'}]}));platform=catalog.map(t=>({provider:"ssodaa",service_status:"active",template_alias:"grooming_started",provider_template_code:t.templateCode,variable_bindings:{}}));}
+const values={'매장명':'가상 미용실','보호자명':'김민수','반려동물명':'보리','예약 확인 링크':'https://www.petmanager.co.kr/m?t=fixture'};
+const groomingStartedBody='[#{매장명}]\n\n#{보호자명}님, #{반려동물명} 미용을 시작했어요.\n\n이제 잠시 편하게 기다려 주세요.\n마무리되면 바로 안내드릴게요.';
+function reset(){selected=[];requests=[];platform=[];registry=[];fail=false;role='owner';actorShop='shop-a';catalog=['A','D'].map(code=>({templateCode:code,templateName:'이름과 무관한 문구 '+code,templateContent:groomingStartedBody,inspectionStatus:'APR',serviceStatus:'A',buttons:[]}));catalog.push({templateCode:'WRONG',templateName:'다른 알림',templateContent:'#{매장명} #{보호자명}님, 예약금 환불이 완료됐어요.',inspectionStatus:'APR',serviceStatus:'A',buttons:[{type:'WL',name:'예약 확인',linkMobile:'#{예약 확인 링크}'}]});}
 const put=(code,expectedVersion=0,shopId=actorShop)=>PUT(new Request('http://fixture/api',{method:'PUT',body:JSON.stringify({shopId,templateAlias:'grooming_started',templateCode:code,expectedVersion})}));
 const view=()=>GET(new Request('http://fixture/api?shopId='+actorShop));
 
-test('an unknown provider template is not public even when 10,000 foreign requests precede this shop',async()=>{
-  reset();platform=[];
+test('only canonical unassociated provider templates are selectable for a notification alias, independent of provider name/code',async()=>{
+  reset();
+  const item=(await (await view()).json()).items.find(row=>row.alias==='grooming_started');
+  assert.deepEqual(item.options.map(row=>row.code),['A','D']);
+  assert.equal(item.blocked,false,'a shop with no prior alias mapping can choose its first template');
+  assert(!item.options.some(row=>row.code==='WRONG'),'same general variables do not let a deposit message appear under grooming started');
+  assert.equal((await put('D')).status,200);
+  assert.equal(registry.find(row=>row.template_code==='D')?.scope,'platform');
+});
+test('public provider selection is independent per shop and unrelated foreign history does not hide it',async()=>{
+  reset();
   requests=Array.from({length:10_000},(_,i)=>({shop_id:'foreign-'+i,template_alias:'grooming_started',template_code:'foreign-'+i}));
   requests.push({shop_id:actorShop,template_alias:'grooming_started',template_code:'D',template_content:catalog[1].templateContent,template_buttons:catalog[1].buttons});
   const item=(await (await view()).json()).items.find(row=>row.alias==='grooming_started');
-  assert.deepEqual(item.options.map(row=>row.code),['D']);
-  assert.equal((await put('A')).status,409);assert.equal((await put('D')).status,200);
+  assert.deepEqual(item.options.map(row=>row.code),['A','D']);
+  assert.equal((await put('D')).status,200);
+  actorShop='shop-b';assert.equal((await put('A')).status,200);
+  const a=await getApprovedSsodaaNotificationTemplate('grooming_started',values,null,'shop-a'),b=await getApprovedSsodaaNotificationTemplate('grooming_started',values,null,'shop-b');
+  assert.equal(a.templateCode,'D');assert.equal(b.templateCode,'A');
 });
 test('shop-owned request history is paged past 1,000 rows with exact alias and snapshot checks',async()=>{
   reset();platform=[];
@@ -47,10 +63,10 @@ test('shop-owned request history is paged past 1,000 rows with exact alias and s
   requests.push({shop_id:actorShop,template_alias:'grooming_started',template_code:'D',template_content:catalog[1].templateContent,template_buttons:catalog[1].buttons});
   assert.equal((await put('D')).status,200);
 });
-test('each owner selects for their shop; actual resolver uses the selected current code/body/button/variables',async()=>{
-  reset();assert.equal((await put('D')).status,200);actorShop='shop-b';assert.equal((await put('A')).status,200);
-  const a=await getApprovedSsodaaNotificationTemplate('grooming_started',values,null,'shop-a'),b=await getApprovedSsodaaNotificationTemplate('grooming_started',values,null,'shop-b');
-  assert.equal(a.templateCode,'D');assert(a.body.includes('D 김민수님, 보리'));assert.equal(a.buttons[0].name,'D 확인');assert.equal(a.buttons[0].linkMobile,values['예약 확인 링크']);assert.equal(b.templateCode,'A');
+test('dispatch resolves the selected provider body, button and canonical variables',async()=>{
+  reset();assert.equal((await put('D')).status,200);
+  const a=await getApprovedSsodaaNotificationTemplate('grooming_started',values,null,'shop-a');
+  assert.equal(a.templateCode,'D');assert(a.body.includes('김민수님, 보리 미용을 시작했어요.'));assert.deepEqual(a.buttons,[]);
 });
 test('new approval appears after refresh but cannot replace the explicit selection until owner saves',async()=>{
   reset();catalog[1].inspectionStatus='REQ';assert.equal((await put('A')).status,200);

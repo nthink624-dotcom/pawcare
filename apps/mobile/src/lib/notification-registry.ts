@@ -248,8 +248,8 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateConfigKey: "templateRevisitNotice",
     shopSettingKey: "revisit_enabled",
     guardianSettingKey: "revisit_enabled",
-    notes: "매장과 고객 양쪽 revisit 설정이 모두 켜져야 함",
-    draftBody: "[#{매장명}]\n#{반려동물명}의 다음 케어 시기가 다가왔어요.\n\n마지막 방문: #{마지막방문일}\n권장 관리 주기: #{관리주기}\n\n예약 링크\n#{예약 링크}",
+    notes: "매장과 보호자 모두 재방문 알림이 켜져 있고, 이후 예약이 없을 때 한 번 발송",
+    draftBody: "[#{매장명}]\n안녕하세요, 보호자님.\n#{반려동물명}의 다음 방문 안내일이 되어 알려드립니다.\n예약 일정은 아래 버튼에서 확인하실 수 있습니다.",
   },
   {
     type: "birthday_greeting",

@@ -4,7 +4,7 @@ import test from 'node:test';
 import {registerHooks} from 'node:module';
 
 const stub=code=>({shortCircuit:true,url:'data:text/javascript,'+encodeURIComponent(code)});
-let rows=[],catalog={},platformRows=[],registered=[],sequence=0,queries=[],simulateSaveFailure=false;
+let rows=[],catalog={},platformRows=[],registered=[],sequence=0,queries=[],simulateSaveFailure=false,confirmReview=true;
 const clone=value=>structuredClone(value);
 class Query {
   constructor(table){this.table=table;this.filters=[];this.operation='select';this.payload=null;this.maximum=Infinity;}
@@ -56,21 +56,22 @@ const alias='appointment_reminder_10m',link='https://www.petmanager.co.kr/m?t=#{
 const values={'매장명':'가상 매장','보호자명':'김민수','반려동물명':'보리','예약일시':'11월1일10:00','서비스명':'목욕','예약관리토큰':'fixture-token','예약 확인 링크':'https://www.petmanager.co.kr/m?t=fixture-token','은행명':'가상 은행','입금계좌':'000000','예금주':'실제 송금 금지','예약금액':'20,000','납부기한':'10월31일10:00','기한안내':'기한 안에 신고해 주세요.'};
 function detail(code,body,button='예약 확인',patch={}){return {templateCode:code,templateName:'INTERNAL_PROVIDER_NAME',templateContent:body,inspectionStatus:'APR',serviceStatus:'A',buttons:button?[{type:'WL',name:button,linkMobile:link,linkPc:link}]:[],...patch};}
 function row(code,body,patch={}){return {id:'00000000-0000-4000-8000-'+String(++sequence).padStart(12,'0'),shop_id:'fixture-a',template_alias:alias,template_code:code,template_content:body,template_name:'INTERNAL_NAME',category_code:'001',inspection_status:'approved',service_status:'a',template_buttons:[{buttonType:'WL',buttonName:'예약 확인',linkMobile:link,linkPc:link}],...patch};}
-function reset(target=alias){rows=[];registered=[];queries=[];simulateSaveFailure=false;const c=deposit[target]??common[target];const d=detail(c.code,c.body,c.button);catalog={items:[{alias:target,configuredCode:c.code,detail:d}],allTemplates:[d]};platformRows=[{id:'fixture-platform',provider:'ssodaa',template_alias:target,provider_template_code:c.code,template_content:c.body,buttons:d.buttons,variable_bindings:{},inspection_status:'approved',service_status:'active'}];
+function reset(target=alias){rows=[];registered=[];queries=[];simulateSaveFailure=false;confirmReview=true;const c=deposit[target]??common[target];const d=detail(c.code,c.body,c.button);catalog={items:[{alias:target,configuredCode:c.code,detail:d}],allTemplates:[d]};platformRows=[{id:'fixture-platform',provider:'ssodaa',template_alias:target,provider_template_code:c.code,template_content:c.body,buttons:d.buttons,variable_bindings:{},inspection_status:'approved',service_status:'active'}];
   globalThis.fetch=async(url,init={})=>{const parsed=new URL(url);assert.equal(parsed.hostname,'relay.fixture.invalid','external network is forbidden');
     if(parsed.pathname==='/admin/templates/categories')return Response.json({categories:[{code:'001',name:'예약 안내'}]});
     if(parsed.pathname==='/admin/templates'&&(!init.method||init.method==='GET'))return Response.json(catalog);
-    if(parsed.pathname==='/admin/templates/register'&&init.method==='POST'){const p=JSON.parse(init.body);assert.equal(p.requestReview,true);assert.equal(p.templateConfigKey,null);registered.push(p);catalog.allTemplates.push(detail(p.templateCode,p.templateContent,p.templateButtons[0]?.buttonName??null,{inspectionStatus:'REQ',serviceStatus:'A'}));return Response.json({accepted:true});}
+    if(parsed.pathname==='/admin/templates/register'&&init.method==='POST'){const p=JSON.parse(init.body);assert.equal(p.requestReview,true);assert.equal(p.templateConfigKey,null);let existing=catalog.allTemplates.find(item=>item.templateCode===p.templateCode);if(!existing){registered.push(p);existing=detail(p.templateCode,p.templateContent,null,{inspectionStatus:'REG',serviceStatus:'A',buttons:p.templateButtons.map(button=>({type:button.buttonType,name:button.buttonName,linkMobile:button.linkMobile,linkPc:button.linkPc}))});catalog.allTemplates.push(existing);}if(confirmReview)existing.inspectionStatus='REQ';return Response.json({registered:true,reviewRequested:confirmReview});}
     throw Error('Unexpected network path '+parsed.pathname);
   };
 }
-function request(fields){return new Request('http://127.0.0.1/api/owner/alimtalk-templates',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({shopId:'fixture-a',templateAlias:alias,templateName:'owner does not choose this',templateContent:'#{보호자명}님, 조금 뒤에 만나요.',categoryCode:'001',action:'submit',...fields})});}
+function request(fields){return new Request('http://127.0.0.1/api/owner/alimtalk-templates',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({shopId:'fixture-a',templateAlias:alias,templateName:'매장 예약 안내 초안',templateContent:'#{보호자명}님, 조금 뒤에 만나요.',categoryCode:'001',action:'submit',...fields})});}
 const render=(target=alias,shop='fixture-a')=>getApprovedSsodaaNotificationTemplate(target,values,target,shop);
 
 test('approval updates review status but never replaces the owner current wording automatically',async()=>{
   reset();const old=row('PM_OLD','#{보호자명}님, 이전 승인 문구입니다.',{is_current:true});rows=[old];catalog.allTemplates.push(detail(old.template_code,old.template_content));
   const response=await POST(request({}));assert.equal(response.status,200);const submitted=(await response.json()).template;
-  assert.match(submitted.template_code,/^PM[A-F0-9]{26}$/);assert.notEqual(submitted.template_name,'owner does not choose this');assert.equal(registered.length,1);
+  assert.match(submitted.template_code,/^PM[A-F0-9]{26}$/);assert.equal(submitted.template_name,'매장 예약 안내 초안','매장 내부에서 구분하는 문안 제목을 보존한다');assert.equal(registered.length,1);
+  assert.equal(registered[0].templateName,`PM_${submitted.template_code}`,'Ssodaa receives a globally unique provider name, not the owner title');
   assert.equal((await render()).templateCode,old.template_code,'service A alone is not approval');
   catalog.allTemplates.find(t=>t.templateCode===submitted.template_code).inspectionStatus='APR';
   const page=await GET(new Request('http://127.0.0.1/api/owner/alimtalk-templates?shopId=fixture-a'));assert.equal(page.status,200);
@@ -105,6 +106,12 @@ test('repeated submit cannot register a second provider template for the same ac
   reset();const first=await POST(request({}));assert.equal(first.status,200);const id=(await first.json()).template.id;
   assert.equal((await POST(request({id}))).status,409);assert.equal(registered.length,1);
 });
+test('owner request is reported complete only when relay confirms Ssodaa review submission',async()=>{
+  reset();confirmReview=false;const response=await POST(request({}));assert.equal(response.status,502);
+  const pending=rows[0];assert.equal(pending.inspection_status,'unknown','ambiguous provider response is not shown as requested');
+  confirmReview=true;const retry=await POST(request({id:pending.id}));assert.equal(retry.status,200,'owner can resume the same immutable request');
+  assert.equal(rows[0].inspection_status,'requested');assert.equal(registered.length,1,'retry does not create another provider template');
+});
 test('current deposit v2 stays valid; newly approved shop wording is not automatically selected',async()=>{
   reset('booking_deposit_request');const c=deposit.booking_deposit_request;
   const response=await POST(request({templateAlias:'booking_deposit_request',templateContent:c.body}));assert.equal(response.status,200);
@@ -115,4 +122,26 @@ test('current deposit v2 stays valid; newly approved shop wording is not automat
 test('status and snapshot helpers require explicit approval, full text and exact signed-link button contract',()=>{
   assert.equal(shopTemplateInspectionState('APR'),'approved');assert.equal(shopTemplateInspectionState('ACTIVE'),'unknown');assert.equal(shopTemplateInspectionState('COMPLETE'),'unknown');
   const s=row('PM_SAFE','안내');assert(matchesShopTemplateSnapshot(s,detail('PM_SAFE','안내')));assert(!matchesShopTemplateSnapshot(s,detail('PM_SAFE','안내','예약 확인',{buttons:[{type:'WL',name:'예약 확인',linkMobile:'https://evil.invalid/'}]})));
+});
+
+test('local read-only mode saves a draft and exposes its restriction without submitting or changing draft status',async()=>{
+  reset();
+  const previous=process.env.ALIMTALK_RELAY_ACCESS_MODE;
+  process.env.ALIMTALK_RELAY_ACCESS_MODE='read-only';
+  try{
+    const saved=await POST(request({action:'save'}));
+    assert.equal(saved.status,200);
+    const draft=(await saved.json()).template;
+    assert.equal(draft.inspection_status,'draft');
+    assert.equal(registered.length,0);
+    const before=queries.length;
+    const denied=await POST(request({id:draft.id,action:'submit'}));
+    assert.equal(denied.status,403);
+    assert.equal(queries.length,before,'denied review must not change draft state');
+    assert.equal(rows[0].inspection_status,'draft');
+    assert.equal(registered.length,0);
+    const listing=await GET(new Request('https://app.fixture.invalid/api/owner/alimtalk-templates?shopId=fixture-a'));
+    assert.equal(listing.status,200);
+    assert.equal((await listing.json()).providerReadOnly,true);
+  }finally{if(previous===undefined)delete process.env.ALIMTALK_RELAY_ACCESS_MODE;else process.env.ALIMTALK_RELAY_ACCESS_MODE=previous;}
 });

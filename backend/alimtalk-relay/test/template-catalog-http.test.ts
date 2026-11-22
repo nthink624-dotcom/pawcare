@@ -6,6 +6,7 @@ import test from "node:test";
 test("real relay route parses 10,037 provider templates, shares refresh and scopes response codes", async () => {
   Object.assign(process.env, {
     NODE_ENV: "test", VERCEL: "1", RELAY_SECRET: "relay-test-secret",
+    RELAY_ACCESS_MODE: "full",
     SSODAA_API_URL: "https://apis.ssodaa.com/kakao/send/alimtalk",
     SSODAA_API_KEY: "fixture-key", SSODAA_TOKEN_KEY: "fixture-token", SSODAA_SENDER_KEY: "fixture-sender",
     ALIMTALK_TEMPLATE_BOOKING_CONFIRMED: "PM00000",

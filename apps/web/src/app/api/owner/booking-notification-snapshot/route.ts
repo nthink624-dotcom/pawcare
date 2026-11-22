@@ -6,6 +6,8 @@ import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mo
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+// This background read must not retain a Vercel invocation for minutes during an upstream outage.
+export const maxDuration = 15;
 
 function jsonNoStore(request: NextRequest, body: unknown, init?: ResponseInit) {
   const headers = new Headers(init?.headers);
@@ -14,9 +16,14 @@ function jsonNoStore(request: NextRequest, body: unknown, init?: ResponseInit) {
 }
 
 export async function GET(request: NextRequest) {
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), 8_000);
+  const signal = AbortSignal.any([request.signal, controller.signal]);
   try {
+    signal.throwIfAborted();
     const requestedShopId = new URL(request.url).searchParams.get("shopId") || undefined;
     const owner = await requireOwnerShop(request, requestedShopId);
+    signal.throwIfAborted();
     const supabase = getSupabaseAdmin();
 
     if (!supabase) {
@@ -30,7 +37,10 @@ export async function GET(request: NextRequest) {
       .eq("type", "owner_booking_requested")
       .eq("status", "sent")
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(50)
+      .abortSignal(signal);
+
+    signal.throwIfAborted();
 
     if (result.error) {
       throw new Error(result.error.message);
@@ -47,8 +57,17 @@ export async function GET(request: NextRequest) {
       return jsonNoStore(request, { message: error.message }, { status: error.status });
     }
 
+    if (signal.aborted) {
+      return jsonNoStore(request, { message: "예약 알림 조회가 지연되고 있습니다. 잠시 후 다시 시도해 주세요." }, {
+        status: 503,
+        headers: { "Retry-After": "60" },
+      });
+    }
+
     const message = error instanceof Error ? error.message : "예약 알림을 확인하지 못했습니다.";
     return jsonNoStore(request, { message }, { status: 500 });
+  } finally {
+    clearTimeout(deadline);
   }
 }
 

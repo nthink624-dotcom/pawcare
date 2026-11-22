@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { assertDepositNotificationValues } from "@/server/deposit-notification-validation";
 import { buildDepositTemplateValues } from "@petmanager/shared/lib/deposit-template-values";
+import { ALIMTALK_BUTTON_CONTRACTS } from "@petmanager/shared/contracts/alimtalk-buttons";
 import type { BookingPreparation } from "@petmanager/shared/contracts/booking-preparation";
 
 import {
@@ -527,7 +528,7 @@ function legacyBuildNotificationMessage(params: {
         })
         .join("\n");
     case "revisit_notice":
-      return `[${params.shopName}] ${params.petName} 재방문 시기가 가까워졌어요.`;
+      return `[${params.shopName}] ${params.petName}의 다음 방문 안내일이 되어 알려드립니다.`;
     case "birthday_greeting":
       return `[${params.shopName}] ${params.petName}의 생일을 축하드려요.`;
     default:
@@ -550,6 +551,8 @@ function buildOwnerBookingRequestedMessage(params: {
 export function buildNotificationTemplateValues(params: {
   appointment: Appointment | null;
   bookingAccessToken: string | null;
+  bookingRescheduleToken?: string | null;
+  bookingRescheduleUrl?: string | null;
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
   directionsUrl: string | null;
@@ -581,10 +584,10 @@ export function buildNotificationTemplateValues(params: {
     "예약 확인 링크": params.bookingManageUrl ?? "",
     예약관리링크: params.bookingManageUrl ?? "",
     예약관리토큰: params.bookingAccessToken ?? "",
-    예약시간변경링크: params.bookingManageUrl ?? "",
-    예약시간변경토큰: params.bookingAccessToken ?? "",
-    bookingRescheduleToken: params.bookingAccessToken ?? "",
-    bookingRescheduleUrl: params.bookingManageUrl ?? "",
+    예약시간변경링크: params.bookingRescheduleUrl ?? params.bookingManageUrl ?? "",
+    예약시간변경토큰: params.bookingRescheduleToken ?? params.bookingAccessToken ?? "",
+    bookingRescheduleToken: params.bookingRescheduleToken ?? params.bookingAccessToken ?? "",
+    bookingRescheduleUrl: params.bookingRescheduleUrl ?? params.bookingManageUrl ?? "",
     길찾기링크: params.directionsUrl ?? "",
     방문전알림분: String(visitReminderOffsetMinutes),
     방문전알림안내: `예약 시간 ${visitReminderOffsetMinutes}분 전 안내드립니다.`,
@@ -633,75 +636,35 @@ function buildNaverMapSearchUrl(shopName: string, shopAddress: string | null | u
   return `https://map.kakao.com/link/search/${encodeURIComponent(query)}`;
 }
 
-function buildNotificationButtons(params: {
+export function buildNotificationButtons(params: {
   type: NotificationType;
   templateAlias: string | null;
+  shopId: string;
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
+  bookingAccessToken: string | null;
+  bookingRescheduleToken: string | null;
   directionsUrl: string | null;
   hasMediaAttachments: boolean;
 }): AlimtalkButton[] {
-  if (params.type === "revisit_notice") {
-    if (!params.bookingEntryUrl) return [];
-    return [
-      {
-        type: "WL",
-        name: "바로 재예약",
-        linkMobile: params.bookingEntryUrl,
-        linkPc: params.bookingEntryUrl,
-      },
-    ];
-  }
-
-  if (
-    params.type === "appointment_reminder_10m" ||
-    params.type === "visit_schedule_notice" ||
-    params.type === "visit_reminder_notice"
-  ) {
-    if (params.directionsUrl) {
-      return [{
-        type: "WL",
-        name: "길찾기",
-        linkMobile: params.directionsUrl,
-        linkPc: params.directionsUrl,
-      }];
-    }
-    return [];
-  }
-
-  if (params.type === "booking_consent_request") {
-    if (!params.bookingManageUrl) return [];
-    return [{ type: "WL", name: "동의서 작성", linkMobile: params.bookingManageUrl, linkPc: params.bookingManageUrl }];
-  }
-  if (params.type === "booking_deposit_request") {
-    if (!params.bookingManageUrl) return [];
-    return [{ type: "WL", name: "예약금 입금 신고", linkMobile: params.bookingManageUrl, linkPc: params.bookingManageUrl }];
-  }
-
-  if (params.type === "booking_confirmed") {
-    if (params.bookingManageUrl) {
-      return [{
-        type: "WL",
-        name: "예약 확인",
-        linkMobile: params.bookingManageUrl,
-        linkPc: params.bookingManageUrl,
-      }];
-    }
-    return [];
-  }
-
-  if (params.type !== "grooming_completed" || params.templateAlias !== "grooming_completed" || !params.bookingManageUrl) {
-    return [];
-  }
-
-  return [
-    {
-      type: "WL",
-      name: "케어리포트 확인하기",
-      linkMobile: params.bookingManageUrl,
-      linkPc: params.bookingManageUrl,
-    },
-  ];
+  const alias = params.templateAlias as keyof typeof ALIMTALK_BUTTON_CONTRACTS | null;
+  if (!alias) return [];
+  const values: Record<string, string | null> = {
+    매장ID: params.shopId,
+    "예약 링크": params.bookingEntryUrl,
+    "예약 확인 링크": params.bookingManageUrl,
+    예약관리토큰: params.bookingAccessToken,
+    예약시간변경토큰: params.bookingRescheduleToken,
+    bookingRescheduleToken: params.bookingRescheduleToken,
+    길찾기링크: params.directionsUrl,
+  };
+  return (ALIMTALK_BUTTON_CONTRACTS[alias] ?? []).flatMap(button => {
+    const render = (url: string) => url.replace(/#\{([^{}]+)\}/g, (_match, key: string) => values[key] ?? "");
+    const linkMobile = render(button.linkMobile);
+    const linkPc = render(button.linkPc);
+    if (!linkMobile || /#\{[^{}]+\}/.test(linkMobile) || !linkPc || /#\{[^{}]+\}/.test(linkPc)) return [];
+    return [{ type: "WL" as const, name: button.buttonName, linkMobile, linkPc }];
+  });
 }
 
 function hasExistingNotification(
@@ -852,11 +815,25 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       : buildBookingEntryUrl(input.shopId);
   const bookingManageUrl =
     bookingAccessToken ? buildBookingManageUrl(input.shopId, bookingAccessToken) : null;
+  const bookingRescheduleToken = input.type === "booking_cancelled" && guardian?.id && pet?.id
+    ? createBookingAccessToken({
+        shopId: input.shopId,
+        guardianId: guardian.id,
+        petId: pet.id,
+        action: "rebook_source",
+        expiresInHours: 24 * 365,
+      })
+    : bookingAccessToken;
+  const bookingRescheduleUrl = bookingRescheduleToken
+    ? buildPersonalizedRebookingSourceUrl(input.shopId, bookingRescheduleToken)
+    : bookingManageUrl;
   const directionsUrl = buildNaverMapSearchUrl(bootstrap.shop.name, bootstrap.shop.address);
   const mediaAssetIds = normalizeMediaAssetIds(input.mediaAssetIds);
   const notificationTemplateValues = buildNotificationTemplateValues({
     appointment,
     bookingAccessToken,
+    bookingRescheduleToken,
+    bookingRescheduleUrl,
     bookingEntryUrl,
     bookingManageUrl,
     directionsUrl,
@@ -959,8 +936,11 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       : buildNotificationButtons({
           type: input.type,
           templateAlias,
+          shopId: input.shopId,
           bookingEntryUrl,
           bookingManageUrl,
+          bookingAccessToken,
+          bookingRescheduleToken,
           directionsUrl,
           hasMediaAttachments: mediaAttachments.length > 0,
         }));

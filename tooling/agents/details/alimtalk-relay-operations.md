@@ -12,6 +12,7 @@
 
 - relay 연결 키는 `ALIMTALK_RELAY_URL`, `ALIMTALK_RELAY_ADMIN_URL`, `ALIMTALK_RELAY_SECRET`이다. 값이나 secret을 채팅·명령 인수·로그·증거 문서에 출력하지 않는다.
 - 로컬 loopback HTTP relay는 개발/검사에서만 허용하고, loopback이 아닌 relay 전송 URL은 HTTPS 검증을 통과해야 한다.
+- 로컬 정상 실행은 `docs/alimtalk-local-development.md`를 따른다. 정본 `apps/web/.env.local`의 개발 DB·loopback 주소와 로컬 전용 인증키를 검증하고 중계서버를 `read-only`로 기동한다. 공용 운영 relay로 조회 주소만 바꿔 우회하지 않는다. 공급사 계정 자체의 권한 분리와 로컬 서버의 작업 차단을 같은 것으로 보고하지 않는다.
 - 승인 템플릿 코드나 relay 연결값이 바뀌면 공유 env 원본, 로컬 런타임과 승인된 Vercel Production 환경의 일관성을 같은 작업에서 확인한다.
 - 로컬 파일 비교는 `npm run check:alimtalk-env`, Vercel Production 비교는 `npm run check:alimtalk-env:vercel`을 사용하며 결과는 값 대신 `same`, `different`, `local-missing`, `production-missing` 상태로 확인한다.
 - `D:\petmanager`의 알림톡 env 변경 후 `npm run sync:alimtalk-relay-env`를 실행하고 relay 프로세스를 재시작한 다음 diagnostics를 확인한다.

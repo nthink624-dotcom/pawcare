@@ -109,14 +109,17 @@ function printGroup(title, keys, localValues, productionValues) {
         }
       })();
     const isAllowedOptionalProductionValue = OPTIONAL_TEMPLATE_KEYS.has(key) && status === "local-missing";
+    const localReadOnly = localValues.ALIMTALK_RELAY_ACCESS_MODE === "read-only";
+    const isolatedLocalSecret = key === "ALIMTALK_RELAY_SECRET" && localReadOnly && status === "different";
+    const unsafeSharedSecret = key === "ALIMTALK_RELAY_SECRET" && localReadOnly && status === "same";
     const isIssue =
-      status !== "same" &&
+      unsafeSharedSecret || (status !== "same" &&
       status !== "both-missing" &&
       status !== "present-sensitive" &&
       !isAllowedEnvironmentDifference &&
-      !isAllowedOptionalProductionValue;
+      !isAllowedOptionalProductionValue && !isolatedLocalSecret);
     hasIssue ||= isIssue;
-    console.log(`${isIssue ? "ERROR" : "OK"} ${key}: ${status}`);
+    console.log(`${isIssue ? "ERROR" : "OK"} ${key}: ${unsafeSharedSecret ? "unsafe-shared-secret" : isolatedLocalSecret ? "isolated-local" : status}`);
   });
 
   return hasIssue;
@@ -182,7 +185,7 @@ try {
 
   if (relayHasIssue || profileHasIssue || templateHasIssue) {
     console.error(
-      "\nAlimtalk sender/relay/template values must stay identical between local development and Vercel production.",
+      "\nCheck sender/template bindings and relay isolation. Read-only local relay credentials must differ from production.",
     );
     process.exitCode = 1;
   }

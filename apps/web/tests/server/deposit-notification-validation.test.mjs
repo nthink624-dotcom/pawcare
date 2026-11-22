@@ -23,6 +23,9 @@ test("invalid amounts and absent snapshots fail closed", () => {
 test("production dispatcher validates before template lookup and delivery", () => {
   const source = readFileSync(new URL("../../src/server/notification-dispatch.ts", import.meta.url), "utf8");
   const guard = source.indexOf("assertDepositNotificationValues(data);");
+  const canSend = source.indexOf("const canSend = canSendShop && canSendGuardian;", guard);
+  const templateLookup = source.indexOf("const connectedTemplate = canSend && (input.channel ?? \"alimtalk\") !== \"in_app\" ? await getApprovedSsodaaNotificationTemplate(", guard);
   assert.ok(guard > 0);
-  assert.ok(guard < source.indexOf("const connectedTemplate = await getApprovedSsodaaNotificationTemplate", guard));
+  assert.ok(canSend > guard, "saved deposit terms must be validated before send eligibility is evaluated");
+  assert.ok(templateLookup > canSend, "template lookup must be gated by shop/customer notification consent");
 });

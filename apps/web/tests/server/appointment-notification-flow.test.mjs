@@ -29,9 +29,11 @@ const { addDate, currentDateInTimeZone } = await import("../../src/lib/utils.ts"
 const { ACTIVE_ALIMTALK_TEMPLATE_ALIASES } = await import(
   "../../src/lib/notification-registry.ts"
 );
-const { dispatchNotification } = await import(
+const { ALIMTALK_BUTTON_CONTRACTS } = await import("../../../shared/contracts/alimtalk-buttons.ts");
+const { dispatchNotification, buildNotificationButtons } = await import(
   "../../src/server/notification-dispatch.ts"
 );
+const { createBookingAccessToken, verifyBookingAccessToken } = await import("../../src/server/booking-access-token.ts");
 const { getMockStore, resetMockStore, setMockStore } = await import("../../src/server/mock-store.ts");
 const {
   createAppointment,
@@ -128,6 +130,59 @@ beforeEach(() => {
 });
 
 describe("appointment and alimtalk flow guards", () => {
+  it("keeps both fixed confirmation buttons and resolves cancellation to a rebooking source token", () => {
+    const rebookingSource = createBookingAccessToken({
+      shopId: "demo-shop", guardianId: "guardian-1", petId: "pet-1", action: "rebook_source", expiresInHours: 24 * 365,
+    });
+    const manageUrl = "https://www.petmanager.co.kr/m?t=manage-token";
+    const directionsUrl = "https://map.kakao.com/link/search/shop";
+    const common = {
+      shopId: "demo-shop", bookingEntryUrl: "https://www.petmanager.co.kr/book/demo-shop",
+      bookingManageUrl: manageUrl, bookingAccessToken: "manage-token", directionsUrl, hasMediaAttachments: false,
+    };
+    const confirmation = buildNotificationButtons({
+      ...common, type: "booking_confirmed", templateAlias: "booking_confirmed", bookingRescheduleToken: "manage-token",
+    });
+    assert.deepEqual(confirmation.map(button => button.name), ["예약 확인", "길찾기"]);
+    assert.equal(confirmation[0].linkMobile, manageUrl);
+    assert.equal(confirmation[1].linkMobile, directionsUrl);
+
+    const cancellation = buildNotificationButtons({
+      ...common, type: "booking_cancelled", templateAlias: "booking_cancelled", bookingRescheduleToken: rebookingSource,
+    });
+    assert.equal(cancellation.length, 1);
+    const rebookingUrl = new URL(cancellation[0].linkMobile);
+    assert.equal(rebookingUrl.pathname, "/m");
+    assert.equal(verifyBookingAccessToken(rebookingUrl.searchParams.get("t")).action, "rebook_source");
+  });
+
+  it("builds every registered notification button with a complete destination", () => {
+    const sourceToken = createBookingAccessToken({
+      shopId: "demo-shop", guardianId: "guardian-1", petId: "pet-1", action: "rebook_source", expiresInHours: 24 * 365,
+    });
+    const manageToken = createBookingAccessToken({
+      shopId: "demo-shop", guardianId: "guardian-1", petId: "pet-1", appointmentId: "appointment-1", action: "manage",
+    });
+    for (const [alias, contract] of Object.entries(ALIMTALK_BUTTON_CONTRACTS)) {
+      const buttons = buildNotificationButtons({
+        type: alias, templateAlias: alias, shopId: "demo-shop",
+        bookingEntryUrl: `https://www.petmanager.co.kr/book/demo-shop?t=${sourceToken}`,
+        bookingManageUrl: `https://www.petmanager.co.kr/m?t=${manageToken}`,
+        bookingAccessToken: manageToken, bookingRescheduleToken: sourceToken,
+        directionsUrl: "https://map.kakao.com/link/search/테스트 매장", hasMediaAttachments: false,
+      });
+      assert.equal(buttons.length, contract.length, `${alias} retains every fixed button`);
+      for (const button of buttons) {
+        assert.equal(button.type, "WL");
+        assert.ok(button.name.trim());
+        assert.doesNotMatch(button.linkMobile, /#\{|undefined|null/);
+        assert.doesNotMatch(button.linkPc, /#\{|undefined|null/);
+        assert.equal(new URL(button.linkMobile).protocol, "https:");
+        assert.equal(new URL(button.linkPc).protocol, "https:");
+      }
+    }
+  });
+
   it("uses the active customer alimtalk templates", () => {
     assert.deepEqual(ACTIVE_ALIMTALK_TEMPLATE_ALIASES, [
       "booking_consent_request",

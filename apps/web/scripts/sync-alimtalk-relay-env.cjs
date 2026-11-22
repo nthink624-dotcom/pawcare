@@ -2,15 +2,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const rootDir = path.resolve(__dirname, "..");
-const sharedEnvPath = "D:\\petmanager-shared\\env\\petmanager.env.local";
 const localEnvPath = path.join(rootDir, ".env.local");
 const relayEnvPath = path.join(rootDir, "../../backend", "alimtalk-relay", ".env");
 
-const sourceEnvPath = fs.existsSync(sharedEnvPath) ? sharedEnvPath : localEnvPath;
+// This checkout's local runtime must not inherit a shared production credential.
+const sourceEnvPath = localEnvPath;
 
 const relayKeys = [
   "PORT",
   "RELAY_SECRET",
+  "RELAY_ACCESS_MODE",
   "SSODAA_API_URL",
   "SSODAA_SENT_LIST_URL",
   "SSODAA_API_KEY",
@@ -63,9 +64,13 @@ function serialize(value) {
 }
 
 const env = parseEnv(sourceEnvPath);
+if (env.get("ALIMTALK_RELAY_ACCESS_MODE") !== "read-only" || !env.get("ALIMTALK_RELAY_SECRET")?.startsWith("local-alimtalk-")) {
+  throw new Error("Run the safe local relay launcher to configure an isolated read-only credential first.");
+}
 const relayValues = {
   PORT: env.get("ALIMTALK_RELAY_LOCAL_PORT") || "14010",
   RELAY_SECRET: env.get("ALIMTALK_RELAY_SECRET") || "",
+  RELAY_ACCESS_MODE: "read-only",
   SSODAA_API_URL: env.get("ALIMTALK_API_URL") || "https://apis.ssodaa.com/kakao/send/alimtalk",
   SSODAA_SENT_LIST_URL: env.get("ALIMTALK_SENT_LIST_URL") || "https://apis.ssodaa.com/kakao/alimtalk/sent/list",
   SSODAA_API_KEY: env.get("ALIMTALK_API_KEY") || "",
@@ -101,5 +106,5 @@ fs.writeFileSync(
 console.log(`Synced Alimtalk relay env from ${sourceEnvPath} to ${relayEnvPath}`);
 for (const key of relayKeys) {
   const value = relayValues[key] || "";
-  console.log(`${key}: ${value ? `set(${value.length})` : "empty"}`);
+  console.log(`${key}: ${value ? "set" : "empty"}`);
 }

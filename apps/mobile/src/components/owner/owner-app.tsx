@@ -3167,7 +3167,7 @@ function OwnerAppContent({
         )}
 
         {activeTab === "home" && (
-          <section className="flex h-full min-h-0 flex-col gap-2 bg-[#f6f9fc] px-2.5 pb-[calc(var(--pm-safe-bottom)+128px)] pt-2">
+          <section className="flex h-full min-h-0 flex-col gap-2 bg-[#f6f9fc] px-2.5 pb-[calc(var(--pm-safe-bottom)+60px)] pt-2">
             {isOnboardingIncomplete ? (
               <Panel title="예약 오픈 전 체크리스트" action={`${onboardingTasks.length}단계 남음`}>
                 <div className="space-y-2.5">

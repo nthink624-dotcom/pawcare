@@ -24,5 +24,7 @@ test("mobile owner layout declares iPhone viewport and safe-area contracts", asy
   assert.match(platform, /root\.style\.setProperty\("--pm-safe-top", inset\)/);
   assert.match(ownerApp, /pt-\[calc\(var\(--pm-safe-top\)\+12px\)\]/);
   assert.match(ownerApp, /pb-\[calc\(var\(--pm-safe-bottom\)\+2px\)\]/);
-  assert.match(ownerApp, /pb-\[calc\(var\(--pm-safe-bottom\)\+128px\)\]/);
+  // The today tab reserves only the bottom navigation; its list scrolls down to the nav.
+  assert.match(ownerApp, /bg-\[#f6f9fc\] px-2\.5 pb-\[calc\(var\(--pm-safe-bottom\)\+60px\)\]/);
+  assert.doesNotMatch(ownerApp, /pb-\[calc\(var\(--pm-safe-bottom\)\+128px\)\]/);
 });

@@ -129,5 +129,5 @@ test("all owner tabs share one contextual menu that opens the canonical reservat
   assert.doesNotMatch(contextMenuSource, /clampAxis\(\s*position\.x,\s*EDGE_GAP_PX \+ half,\s*window\.innerWidth/s);
   assert.match(ownerAppSource, /setModal\(\{ type: "new-appointment" \}\)/);
   assert.match(ownerAppSource, /modal\.type === "new-appointment"[\s\S]*onSave=\{\(payload\) => mutate\("\/api\/appointments"/);
-  assert.match(ownerAppSource, /pb-\[calc\(var\(--pm-safe-bottom\)\+128px\)\]/);
+  assert.match(ownerAppSource, /bg-\[#f6f9fc\] px-2\.5 pb-\[calc\(var\(--pm-safe-bottom\)\+60px\)\]/);
 });

@@ -31,6 +31,8 @@ export default function MobilePricePhotoRegistrationPreview({ setupFlow = false 
 
 function MobileInitialSetupPreview() {
   const [closed, setClosed] = useState(false);
+  // Like a fresh signup, the preview opens on the welcome; reopening it resumes the wizard.
+  const [resumed, setResumed] = useState(false);
   const [preview] = useState(() => {
     const transport = createInMemoryAuthenticatedOwnerTransport();
     const base = buildOwnerDemoBootstrap();
@@ -68,8 +70,8 @@ function MobileInitialSetupPreview() {
   return <main className="owner-font min-h-dvh bg-[#f1f3f7]" data-mobile-initial-setup-preview>
     {closed ? <>
       <OwnerApp initialData={preview.bootstrap} ownedShops={[{ id: preview.bootstrap.shop.id, name: preview.bootstrap.shop.name, address: preview.bootstrap.shop.address, heroImageUrl: "" }]} selectedShopId={preview.bootstrap.shop.id} appRole="owner" isPreviewDemo startupReadOnly />
-      {!preview.readiness.completed && <aside className="pointer-events-none fixed inset-x-3 top-3 z-40 mx-auto flex max-w-[404px] justify-end"><button type="button" className="pointer-events-auto min-h-11 rounded-[10px] border border-[#c7ddff] bg-white px-3 text-[14px] text-[#174ea6] shadow-sm" onClick={() => setClosed(false)}>설정 이어서 하기</button></aside>}
+      {!preview.readiness.completed && <aside className="pointer-events-none fixed inset-x-3 top-3 z-40 mx-auto flex max-w-[404px] justify-end"><button type="button" className="pointer-events-auto min-h-11 rounded-[10px] border border-[#c7ddff] bg-white px-3 text-[14px] text-[#174ea6] shadow-sm" onClick={() => { setResumed(true); setClosed(false); }}>설정 이어서 하기</button></aside>}
     </>
-      : <InitialSetupWizard bootstrap={preview.bootstrap} readiness={preview.readiness} operations={preview.operations} onDefer={() => setClosed(true)} onFinish={() => setClosed(true)} />}
+      : <InitialSetupWizard bootstrap={preview.bootstrap} readiness={preview.readiness} operations={preview.operations} welcome={!resumed} onDefer={() => setClosed(true)} onFinish={() => setClosed(true)} />}
   </main>;
 }

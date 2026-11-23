@@ -79,6 +79,8 @@ type OwnerInitialSetupState = {
   readiness: OwnerInitialSetupReadiness;
   bootstrap?: BootstrapPayload;
   roleContext: OwnerMobileRoleContext;
+  /** Arrived straight from signup: greet the owner before the setup wizard opens. */
+  welcome?: boolean;
 };
 
 type OwnerMobileLoadFailure = {
@@ -544,7 +546,7 @@ export default function OwnerMobilePage() {
           rejectStartupSnapshot();
           setData(null);
           setSubscriptionSummary(null);
-          setInitialSetupState({ readiness, roleContext, bootstrap: canonicalBootstrap });
+          setInitialSetupState({ readiness, roleContext, bootstrap: canonicalBootstrap, welcome: true });
           return;
         }
 

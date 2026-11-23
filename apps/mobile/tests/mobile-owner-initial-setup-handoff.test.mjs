@@ -66,6 +66,18 @@ test("first signup alone opens the wizard; a saved checkpoint never blocks the o
   assert.doesNotMatch(ownerPage, /if \(!nextReadiness\.completed\)/);
 });
 
+test("a fresh signup sees the welcome first and starts setup from its button", () => {
+  // Only the signup entry asks for the welcome; the 설정 마무리하기 re-entry opens the wizard directly.
+  assert.match(ownerPage, /bootstrap: canonicalBootstrap, welcome: true/);
+  assert.equal(ownerPage.match(/welcome: true/g)?.length, 1);
+  assert.match(setupFlow, /welcome=\{setup\.welcome\}/);
+  // An owner who already saved a step skips the welcome.
+  assert.match(setupFlow, /welcome && !Object\.values\(readiness\.steps\)\.some\(Boolean\)/);
+  assert.match(setupFlow, /buttonText="기본항목 설정하기"/);
+  assert.match(setupFlow, /onButtonClick=\{\(\) => setShowWelcome\(false\)\}/);
+  assert.match(setupFlow, /onSecondaryActionClick=\{onDefer\}/);
+});
+
 test("signup consumes nextAction, persists a returned session, and separates recoverable atomic states", async () => {
   const { resolveAtomicSignupNextPath } = await importFunction(
     signupForm,

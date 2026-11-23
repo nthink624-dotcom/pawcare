@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import SetupModal from "@/components/ui/setup-modal";
+import { WelcomeScreen } from "@/components/ui/onboarding-welcome-screen";
+import { PETMANAGER_PRODUCT_NAME } from "@/lib/brand";
 import OwnerApp from "./owner-app";
 import OwnerInitialSetupFrame, { SetupStepNavigation } from "./owner-initial-setup-frame";
 import type { MobilePricePhotoAdapter } from "@/lib/price-photo/mobile-price-photo-adapter";
@@ -17,7 +19,7 @@ import { bookingBoundsFromHours, validateClosedPolicy, restoreTemporaryClosedDat
 import { readHoursDraft, saveHoursDraft, clearHoursDraft } from "@/lib/initial-setup-hours-draft";
 import { readSetupResumeDraft, saveSetupResumeDraft, clearSetupResumeDraft } from "@/lib/initial-setup-resume-draft";
 
-type OwnerInitialSetupState = { readiness: SetupReadiness; roleContext: OwnerMobileRoleContext; bootstrap?: BootstrapPayload };
+type OwnerInitialSetupState = { readiness: SetupReadiness; roleContext: OwnerMobileRoleContext; bootstrap?: BootstrapPayload; welcome?: boolean };
 export type InitialSetupOperations = {
   saveStep: typeof saveSetupStep;
   reload: typeof reloadSetup;
@@ -33,10 +35,10 @@ export default function OwnerInitialSetupFlow({ setup, onRefresh, onDefer, onFin
     <p>대표가 매장 초기 설정을 완료하면 이용할 수 있습니다.</p>
     <button className={`${setupButton} w-full`} onClick={onRefresh}>설정 상태 다시 확인</button>
   </section></SetupModal>;
-  return <InitialSetupWizard bootstrap={setup.bootstrap} readiness={setup.readiness} onDefer={onDefer} onFinish={onFinish} />;
+  return <InitialSetupWizard bootstrap={setup.bootstrap} readiness={setup.readiness} welcome={setup.welcome} onDefer={onDefer} onFinish={onFinish} />;
 }
 
-export function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish, operations = liveSetupOperations }: { bootstrap: BootstrapPayload; readiness: SetupReadiness; onDefer: () => void; onFinish: () => void; operations?: InitialSetupOperations }) {
+export function InitialSetupWizard({ bootstrap, readiness, welcome = false, onDefer, onFinish, operations = liveSetupOperations }: { bootstrap: BootstrapPayload; readiness: SetupReadiness; welcome?: boolean; onDefer: () => void; onFinish: () => void; operations?: InitialSetupOperations }) {
   const { saveStep: saveSetupStep, reload: reloadSetup } = operations;
   const key = `petmanager:initial-setup:${bootstrap.shop.owner_user_id ?? "owner"}:${bootstrap.shop.id}`;
   const priceGuideKey = ownerPriceGuideSessionKey(bootstrap);
@@ -64,6 +66,9 @@ export function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish, op
   const [error, setError] = useState("");
   const lock = useRef(false);
   const verifiedStaffDraft = useRef<string | null>(null);
+  // Straight after signup, a short welcome comes first; setup opens when the owner taps to start.
+  // An owner who has already saved a step resumes the wizard directly.
+  const [showWelcome, setShowWelcome] = useState(() => welcome && !Object.values(readiness.steps).some(Boolean));
   const advance = (next: SetupStep) => { clearSetupResumeDraft(key); writeSetupCheckpoint(key, next); setStep(next); setError(""); };
 
   function persistAndDefer(priceDraft = draft) {
@@ -143,6 +148,16 @@ export function InitialSetupWizard({ bootstrap, readiness, onDefer, onFinish, op
   const actions = step === "hours" || step === "staff" ? <SetupStepNavigation onPrevious={onPrevious} onNext={() => void save()} busy={busy || uploading} nextDisabled={editingHours} nextLabel={busy ? "저장 중…" : "다음"} /> : step === "complete" ? <div className="border-t border-[#e5eaf1] p-4">
     <button type="button" className={`${setupButton} w-full`} onClick={() => { try { window.sessionStorage.removeItem(key); } catch { /* Optional navigation hint. */ } onFinish(); }}>매장 시작하기</button>
   </div> : undefined;
+
+  if (showWelcome) return <WelcomeScreen
+    imageUrl="/images/demo/grooming-salon-hero.png"
+    title={<><span className="text-[#2f6fd6]">{PETMANAGER_PRODUCT_NAME}</span>에<br />오신 걸 환영해요</>}
+    description="영업시간, 담당자, 요금표만 정하면 바로 매장 운영을 시작할 수 있어요. 정한 내용은 나중에 언제든 바꿀 수 있어요."
+    buttonText="기본항목 설정하기"
+    onButtonClick={() => setShowWelcome(false)}
+    secondaryActionText="나중에 할게요"
+    onSecondaryActionClick={onDefer}
+  />;
 
   return <>
     {/* The real Today screen stays behind the dialog. Only the wizard can write

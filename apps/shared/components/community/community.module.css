@@ -151,9 +151,11 @@
   border-radius: 14px;
   padding: 20px;
 }
-.discussionPanel { background: var(--community-canvas); scrollbar-width: none; }
-.discussionPanel::-webkit-scrollbar { display: none; }
-.resourcesPanel { align-self: start; max-height: 100%; background: white; }
+.discussionPanel { background: var(--community-canvas); }
+.discussionPanel, .resourcesPanel { scrollbar-width: none; }
+.discussionPanel::-webkit-scrollbar, .resourcesPanel::-webkit-scrollbar { display: none; }
+/* Fills the whole row whatever the tab holds, so the panel keeps one fixed height. */
+.resourcesPanel { background: white; }
 .discussionPanel .content, .discussionPanel .composer {
   width: 100%;
   max-width: 840px;

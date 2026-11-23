@@ -1,16 +1,17 @@
 import { z } from "zod";
-import type { ShopCalendarEvent, ShopCalendarEventInput } from "@petmanager/shared/contracts/owner-calendar";
+import { shopCalendarBodyMaxLength, shopCalendarTitleMaxLength, type ShopCalendarEvent, type ShopCalendarEventInput } from "@petmanager/shared/contracts/owner-calendar";
 import { calendarMonthBounds, seoulCalendarDate, seoulCalendarInstant } from "@petmanager/shared/lib/owner-calendar";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { OwnerApiError, type OwnerShopContext } from "@/server/owner-api-auth";
 
 const dayMs = 86_400_000;
-const eventFields = "id,title,starts_at,ends_at,all_day,source";
+const eventFields = "id,title,body,starts_at,ends_at,all_day,source";
 
 export const shopCalendarMonthSchema = z.string().regex(/^(?:19[7-9]\d|20\d{2}|2100)-(?:0[1-9]|1[0-2])$/);
 
 export const calendarEventSchema = z.object({
-  title: z.string().trim().min(1).max(160),
+  title: z.string().trim().min(1).max(shopCalendarTitleMaxLength),
+  body: z.string().trim().max(shopCalendarBodyMaxLength).optional(),
   startsAt: z.string().datetime({ offset: true }),
   endsAt: z.string().datetime({ offset: true }),
   allDay: z.boolean(),
@@ -29,6 +30,7 @@ export const calendarEventSchema = z.object({
 type EventRow = {
   id: string;
   title: string;
+  body: string | null;
   starts_at: string;
   ends_at: string;
   all_day: boolean;
@@ -36,11 +38,12 @@ type EventRow = {
 };
 
 function projectEvent(row: EventRow): ShopCalendarEvent {
-  return { id: row.id, title: row.title, startsAt: row.starts_at, endsAt: row.ends_at, allDay: row.all_day, source: row.source };
+  return { id: row.id, title: row.title, body: row.body ?? "", startsAt: row.starts_at, endsAt: row.ends_at, allDay: row.all_day, source: row.source };
 }
 
 function eventValues(event: ShopCalendarEventInput) {
-  return { title: event.title, starts_at: event.startsAt, ends_at: event.endsAt, all_day: event.allDay };
+  // A PATCH without a body keeps the stored one, so an older client cannot wipe it.
+  return { title: event.title, ...(event.body === undefined ? {} : { body: event.body }), starts_at: event.startsAt, ends_at: event.endsAt, all_day: event.allDay };
 }
 
 function calendarAdmin() {

@@ -3,9 +3,9 @@
 import { IconCalendarEvent, IconChevronRight, IconPlus } from "@tabler/icons-react";
 import { NoteSectionIcon } from "./day-panel-icons";
 import { useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import type { CalendarRequest, ShopCalendarEvent, ShopCalendarEventInput } from "../contracts/owner-calendar";
+import { shopCalendarBodyMaxLength, shopCalendarTitleMaxLength, type CalendarRequest, type ShopCalendarEvent, type ShopCalendarEventInput } from "../contracts/owner-calendar";
 import { cn } from "../lib/cn";
-import { isCalendarDate, seoulCalendarDate, seoulCalendarInstant, seoulCalendarTime, shiftCalendarDate, shopEventDayRange } from "../lib/owner-calendar";
+import { isCalendarDate, noteEditorText, seoulCalendarDate, seoulCalendarInstant, seoulCalendarTime, shiftCalendarDate, shopEventDayRange } from "../lib/owner-calendar";
 import { calendarSecondaryButtonClass } from "./calendar-dialog";
 
 export function CalendarHolidayLabel({ names }: { names?: string[] }) {
@@ -84,7 +84,8 @@ export function ShopCalendarAgenda({ date, shopId, events, canEdit, loading, err
               const showMeta = Boolean(rangeLabel) || timeLabel !== "종일" || event.source === "ics";
               const body = (
                 <span className="min-w-0 flex-1">
-                  <span className="line-clamp-3 whitespace-pre-line break-keep text-[14px] font-medium leading-5 text-[#0f1b2d] [overflow-wrap:anywhere]">{event.title}</span>
+                  <span className="line-clamp-2 whitespace-pre-line break-keep text-[14px] font-medium leading-5 text-[#0f1b2d] [overflow-wrap:anywhere]">{event.title}</span>
+                  {event.body ? <span className="mt-0.5 line-clamp-2 whitespace-pre-line break-keep text-[13px] leading-[18px] text-[#526175] [overflow-wrap:anywhere]">{event.body}</span> : null}
                   {showMeta ? (
                     <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-[12px] leading-4 text-[#6b7a90]">
                       {rangeLabel ? <span className="whitespace-nowrap">{rangeLabel}</span> : null}
@@ -151,8 +152,11 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
   const event = editor.event;
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const textRef = useRef<HTMLTextAreaElement>(null);
-  const [title, setTitle] = useState(event?.title ?? "");
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const initialText = noteEditorText(event);
+  const [title, setTitle] = useState(initialText.title);
+  const [body, setBody] = useState(initialText.body);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -166,8 +170,8 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
     const dialog = dialogRef.current;
     if (!dialog) return;
     dialog.showModal();
-    // showModal focuses the first date field; start in the text instead, with the cursor after the existing note.
-    const text = textRef.current;
+    // showModal focuses the first date field; start in the title instead, with the cursor after the existing text.
+    const text = titleRef.current;
     text?.focus();
     text?.setSelectionRange(text.value.length, text.value.length);
     return () => dialog.close();
@@ -176,6 +180,7 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const text = title.trim();
+    const note = body.trim();
     if (busy || confirmDelete || !text) return;
     if (!isCalendarDate(startDate) || !isCalendarDate(endDate) || endDate < startDate) {
       setError("날짜를 다시 확인해 주세요.");
@@ -184,9 +189,10 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
     // Notes cover whole days from the start date through the end date (stored with an exclusive end midnight).
     // A timed (imported) event keeps its times of day and only moves by the days the dates moved.
     const input: ShopCalendarEventInput = !event || event.allDay
-      ? { title: text, startsAt: seoulCalendarInstant(startDate), endsAt: seoulCalendarInstant(shiftCalendarDate(endDate, 1)), allDay: true }
+      ? { title: text, body: note, startsAt: seoulCalendarInstant(startDate), endsAt: seoulCalendarInstant(shiftCalendarDate(endDate, 1)), allDay: true }
       : {
         title: text,
+        body: note,
         startsAt: new Date(Date.parse(event.startsAt) + calendarDayDiff(initialRange.first, startDate) * dayMs).toISOString(),
         endsAt: new Date(Date.parse(event.endsAt) + calendarDayDiff(initialRange.last, endDate) * dayMs).toISOString(),
         allDay: false,
@@ -231,16 +237,30 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
           <span className="px-0.5 text-[#a3afbf]" aria-hidden="true">~</span>
           <NoteDateField label="종료일" value={endDate} min={startDate} disabled={busy || confirmDelete} onChange={value => setEndDate(value < startDate ? startDate : value)} />
         </div>
+        {/* A one-line textarea rather than an input, so the owner web's 40px input styling leaves the note's paper look alone.
+            Enter moves on to the body instead of adding a line. */}
         <textarea
-          ref={textRef}
+          ref={titleRef}
+          rows={1}
           value={title}
-          onChange={e => setTitle(e.target.value)}
-          maxLength={noteMaxLength}
+          onChange={e => setTitle(e.target.value.replace(/\r?\n/g, " "))}
+          onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); bodyRef.current?.focus(); } }}
+          maxLength={shopCalendarTitleMaxLength}
           required
           disabled={busy || confirmDelete}
-          aria-label="노트 내용"
-          placeholder="메모를 적어 주세요"
-          className="min-h-[200px] w-full flex-1 resize-none bg-transparent pr-8 text-[19px] leading-[1.55] text-[#0f1b2d] outline-none placeholder:text-[#a3afbf] [overflow-wrap:anywhere] disabled:opacity-70"
+          aria-label="노트 제목"
+          placeholder="제목"
+          className="max-h-[84px] w-full min-w-0 resize-none border-b border-[#edf1f5] bg-transparent pb-2.5 pr-8 text-[19px] font-semibold leading-7 text-[#0f1b2d] outline-none [field-sizing:content] [overflow-wrap:anywhere] placeholder:font-medium placeholder:text-[#a3afbf] focus:border-[#cbd5e1] disabled:opacity-70"
+        />
+        <textarea
+          ref={bodyRef}
+          value={body}
+          onChange={e => setBody(e.target.value)}
+          maxLength={shopCalendarBodyMaxLength}
+          disabled={busy || confirmDelete}
+          aria-label="노트 본문"
+          placeholder="내용을 적어 주세요"
+          className="mt-3 min-h-[180px] w-full flex-1 resize-none bg-transparent pr-2 text-[16px] leading-[1.6] text-[#334155] outline-none placeholder:text-[#a3afbf] [overflow-wrap:anywhere] disabled:opacity-70"
         />
         {error ? <p role="alert" className="mt-2 break-words text-[13px] leading-5 text-[#c62f37]">{error}</p> : null}
         <div className="mt-4 flex min-h-10 items-center gap-1.5">
@@ -252,7 +272,7 @@ function ShopCalendarEditor({ editor, date, shopId, request, onClose, onSaved }:
             </>
           ) : (
             <>
-              <p className="mr-auto min-w-0 text-[12px] tabular-nums text-[#a3afbf]" aria-hidden="true">{title.length}/{noteMaxLength}</p>
+              <p className="mr-auto min-w-0 text-[12px] tabular-nums text-[#a3afbf]" aria-hidden="true">{body.length}/{shopCalendarBodyMaxLength}</p>
               {event ? <button type="button" data-owner-control-size="content" disabled={busy} className={cn(noteGhostButtonClass, "text-[#c62f37] hover:bg-[#fff0f0] hover:text-[#a8232b]")} onClick={() => setConfirmDelete(true)}>삭제</button> : null}
               <button type="button" data-owner-control-size="content" disabled={busy} className={noteGhostButtonClass} onClick={onClose}>취소</button>
               <button type="submit" data-owner-control-size="content" disabled={busy || !title.trim()} className="inline-flex min-h-10 items-center rounded-[8px] bg-[#1e293b] px-4 text-[14px] font-semibold text-white hover:bg-[#0f172a] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff] disabled:bg-[#e2e8f0] disabled:text-[#94a3b8]">{busy ? "저장 중…" : "저장"}</button>
@@ -306,5 +326,4 @@ function calendarDayDiff(from: string, to: string) {
 
 const dayMs = 86_400_000;
 const noteFoldSize = 44;
-const noteMaxLength = 160;
 const noteGhostButtonClass = "inline-flex min-h-10 items-center rounded-[8px] px-3 text-[14px] font-medium text-[#475569] hover:bg-[#f1f5f9] hover:text-[#1e293b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677ff] disabled:opacity-40";

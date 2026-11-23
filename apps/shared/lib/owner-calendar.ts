@@ -46,6 +46,14 @@ export function calendarHolidaysByDate(holidays: CalendarHoliday[]) {
 }
 
 /** The first and last Korea calendar day an event covers; `endsAt` is exclusive. */
+/** Notes saved before titles and bodies were separate keep every line in the title; edit them as a first-line title and a body. */
+export function noteEditorText(event?: Pick<ShopCalendarEvent, "title" | "body">) {
+  if (!event) return { title: "", body: "" };
+  if (event.body) return { title: event.title, body: event.body };
+  const [first, ...rest] = event.title.split(/\r?\n/);
+  return { title: first.trim(), body: rest.join("\n").trim() };
+}
+
 export function shopEventDayRange(event: Pick<ShopCalendarEvent, "startsAt" | "endsAt">) {
   const first = seoulCalendarDate(event.startsAt);
   const end = Date.parse(event.endsAt);

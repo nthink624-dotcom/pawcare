@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { parseCalendarHolidays } from "../../src/server/calendar-holidays.ts";
 import { parseCalendarImport } from "../../src/server/parse-calendar-import.ts";
-import { calendarMonthBounds, isCalendarDate, layoutShopEventBars, shopEventDayRange, shopEventsOnDate } from "@petmanager/shared/lib/owner-calendar";
+import { calendarMonthBounds, isCalendarDate, layoutShopEventBars, noteEditorText, shopEventDayRange, shopEventsOnDate } from "@petmanager/shared/lib/owner-calendar";
 
 function ics(...lines) {
   return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//PetManager test//KO", ...lines, "END:VCALENDAR"].join("\r\n");
@@ -102,4 +102,11 @@ test("note bars split by week row, stack longer notes first, and cap the lanes",
     "long:1:0:1:0:true:false",
   ]);
   assert.deepEqual(lanesByRow, [2, 1, 0, 0, 0]);
+});
+
+test("제목과 본문이 나뉘기 전의 여러 줄 노트는 첫 줄을 제목, 나머지를 본문으로 연다", () => {
+  assert.deepEqual(noteEditorText(), { title: "", body: "" });
+  assert.deepEqual(noteEditorText({ title: "재고 확인", body: "샴푸 2통\n타월" }), { title: "재고 확인", body: "샴푸 2통\n타월" });
+  assert.deepEqual(noteEditorText({ title: "재고 확인\r\n샴푸 2통\n타월 ", body: "" }), { title: "재고 확인", body: "샴푸 2통\n타월" });
+  assert.deepEqual(noteEditorText({ title: "열심히 살자", body: "" }), { title: "열심히 살자", body: "" });
 });

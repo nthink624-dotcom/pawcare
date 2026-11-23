@@ -44,14 +44,15 @@ function DayPanelSupportProgramList({ programs, title, controls, footer, referen
       {programs.map(program => {
         const badge = deadlineBadge(program.closesOn, referenceDate);
         const meta = [program.agency, program.applicationPeriod ? shortPeriod(program.applicationPeriod) : ""].filter(Boolean);
+        // The whole row opens the official notice, so it carries no separate arrow.
         return <li key={program.id}>
-          <a href={program.sourceUrl} target="_blank" rel="noopener noreferrer" data-owner-control-size="content" data-support-program={program.id} className="flex min-h-11 w-full min-w-0 items-start gap-3 px-3 py-2.5 transition-colors hover:bg-[#f8fafc] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#1677ff]">
-            <div className="min-w-0 flex-1">
-              {badge ? <div className="mb-1 flex"><span className={cn("inline-flex h-[18px] items-center rounded-[5px] px-1.5 text-[11px] font-medium", badge.className)}>{badge.label}</span></div> : null}
-              <p title={program.title} className="line-clamp-2 break-keep text-[14px] font-medium leading-5 text-[#0f1b2d] [overflow-wrap:anywhere]">{program.title}</p>
-              {meta.length ? <p className="mt-0.5 text-[12px] leading-4 text-[#6b7a90] [overflow-wrap:anywhere]">{meta.join(" · ")}</p> : null}
-            </div>
-            <IconArrowUpRight size={14} className="mt-0.5 shrink-0 text-[#a3afbf]" aria-hidden="true" /><span className="sr-only">공고 원문 · 새 창</span>
+          <a href={program.sourceUrl} target="_blank" rel="noopener noreferrer" data-owner-control-size="content" data-support-program={program.id} className="block min-h-11 w-full min-w-0 px-3 py-2 transition-colors hover:bg-[#f8fafc] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#1677ff]">
+            {badge || meta.length ? <span className="mb-0.5 flex min-w-0 items-center gap-1.5">
+              {badge ? <span className={cn("inline-flex h-[18px] shrink-0 items-center rounded-[5px] px-1.5 text-[11px] font-medium tabular-nums", badge.className)}>{badge.label}</span> : null}
+              {meta.length ? <span className="min-w-0 truncate text-[12px] leading-4 text-[#6b7a90]">{meta.join(" · ")}</span> : null}
+            </span> : null}
+            <span title={program.title} className="line-clamp-2 break-keep text-[14px] font-medium leading-5 text-[#0f1b2d] [overflow-wrap:anywhere]">{program.title}</span>
+            <span className="sr-only">공고 원문 · 새 창</span>
           </a>
         </li>;
       })}

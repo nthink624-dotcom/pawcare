@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readSupportProgramPage, supportProgramServiceKey } from "../../src/server/support-programs.ts";
+import { isSupportProgramForPetShop, readSupportProgramPage, supportProgramServiceKey } from "../../src/server/support-programs.ts";
 import { supportProgramsForShop } from "@petmanager/shared/lib/support-program-coverage";
 
 test("지원사업 전용 키가 없으면 공휴일과 같은 공공데이터 키를 쓴다", () => {
@@ -8,6 +8,24 @@ test("지원사업 전용 키가 없으면 공휴일과 같은 공공데이터 �
   assert.equal(supportProgramServiceKey({ DATA_GO_KR_SUPPORT_SERVICE_KEY: "support", DATA_GO_KR_SERVICE_KEY: "shared" }), "support");
   assert.equal(supportProgramServiceKey({ DATA_GO_KR_SUPPORT_SERVICE_KEY: " ", DATA_GO_KR_SERVICE_KEY: "shared" }), "shared");
   assert.equal(supportProgramServiceKey({}), null);
+});
+
+test("애견미용실과 무관한 제조·수출·운영기관 모집 공고는 뺀다", () => {
+  for (const title of [
+    "2027년 서울 창신 의류제조 공동인프라 운영기관 모집 공고",
+    "[인천] 2026년 소공인 경영안정 및 성장지원을 위한 소공인 지원 특례보증 지원사업 공고",
+    "[경기] 2026년 섬유분야 유해물질 시험분석 및 인증지원 공고",
+    "2026년 중소기업 수출지원사업 통합 공고",
+  ]) assert.equal(isSupportProgramForPetShop({ title, tags: ["소상공인"] }), false, title);
+  assert.equal(isSupportProgramForPetShop({ title: "중소기업ㆍ소상공인 포장재 지원사업", tags: ["가공", "제조"] }), false);
+  assert.equal(isSupportProgramForPetShop({ title: "소상공인 포장재 구입비 긴급 지원", tags: ["음식점업"] }), false);
+});
+
+test("여러 업종을 함께 받거나 서비스업을 포함한 공고는 남긴다", () => {
+  assert.equal(isSupportProgramForPetShop({ title: "[울산] 소상공인 경영안정자금 융자지원계획 공고", tags: ["제조업", "도소매업", "서비스업"] }), true);
+  assert.equal(isSupportProgramForPetShop({ title: "제조업ㆍ서비스업 소상공인 특례보증 공고", tags: [] }), true);
+  assert.equal(isSupportProgramForPetShop({ title: "2026년 중소벤처기업부 소상공인 지원사업 통합 공고", tags: ["클린제조", "스마트제조", "소공인"] }), true);
+  assert.equal(isSupportProgramForPetShop({ title: "[충북] 청년 소상공인 점포 임차료 지원사업", tags: ["소상공인", "경영"] }), true);
 });
 
 const officialNotice = "https://www.bizinfo.go.kr/web/lay1/bbs/S1T122C128/AS/74/view.do?pblancId=PBLN_0001";

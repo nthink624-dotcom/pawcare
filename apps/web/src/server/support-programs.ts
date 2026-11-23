@@ -116,8 +116,20 @@ const readSupportPrograms = unstable_cache(async () => {
     (second.publishedAt ?? "").localeCompare(first.publishedAt ?? "") || second.id.localeCompare(first.id));
 }, ["korean-small-business-support-calendar-regions-v1"], { revalidate: 3600 });
 
+// Every PetManager shop is a pet grooming service business. Notices only for manufacturers, exporters,
+// farms and fisheries, lodging and restaurants, or calls for agencies to run a programme are left out.
+const unrelatedTitle = /소공인|제조|공장|의류|섬유|봉제|공산품|수출|해외바이어|농업|농식품|농가|농산물|어업|어촌|수산|축산|임업|산림|숙박|음식점|외식|식품|레시피|(?:운영|수행|주관|위탁)기관/;
+const serviceTitle = /서비스|비제조|소매/;
+const unrelatedIndustryTags = new Set(["제조", "제조업", "가공", "가공업", "즉석식품제조가공업", "의류제조", "음식점", "음식점업", "음식업"]);
+const serviceIndustryTags = new Set(["서비스업", "비제조업", "소매업", "도매업", "도소매업"]);
+
+export function isSupportProgramForPetShop({ title, tags }: Pick<SupportProgram, "title" | "tags">) {
+  if (unrelatedTitle.test(title) && !serviceTitle.test(title)) return false;
+  return !tags.some(tag => unrelatedIndustryTags.has(tag)) || tags.some(tag => serviceIndustryTags.has(tag));
+}
+
 export async function listOpenSupportPrograms() {
   const today = seoulCalendarDate(new Date().toISOString());
   const programs = await readSupportPrograms();
-  return programs.filter(program => !program.closesOn || program.closesOn >= today);
+  return programs.filter(program => (!program.closesOn || program.closesOn >= today) && isSupportProgramForPetShop(program));
 }

@@ -2,7 +2,7 @@
 
 import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { IconNotes as NotebookPen, IconScissors as Scissors } from "@tabler/icons-react";
+import { IconNotes as NotebookPen } from "@tabler/icons-react";
 import { buildServiceReservationChipTones, type ReservationChipService } from "@petmanager/shared/lib/reservation-chip-colors";
 
 import {
@@ -13,6 +13,7 @@ import {
 import { CalendarStaffLaneHeader } from "@/components/owner-web/calendar-staff-lane-header";
 import { CalendarTimeRail, CalendarTimeRailHeader } from "@/components/owner-web/calendar-time-rail";
 import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
+import { getDotIndicatorClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { getReservationChipTone } from "@/lib/reservation-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { StaffScheduleOverride } from "@/types/domain";
@@ -74,14 +75,25 @@ const scheduleBodyInsetY = 7;
 const quarterSlotHeight = pixelsPerHour / 4;
 const scheduleSnapSegmentsPerHour = 4;
 const bookingCardWidth = "96%";
-const bookingCardHorizontalInset = "2%";
+// Cards float a little below their start-time line; the bottom already keeps a 4px gap.
+const bookingCardTopInsetPx = 4;
 const detailedBookingMinimumDuration = 1;
 
-function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, height, pendingOverlapLabel }: {
+// One neutral chip for every status; only the small status dot carries the status color.
+function BookingStatusChip({ label, tone, className }: { label: string; tone: StatusIndicatorTone; className?: string }) {
+  return (
+    <span data-booking-status="true" className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#e2e8f0] bg-white px-2 text-[14px] font-medium leading-5 text-[#475569]", className)}>
+      <span aria-hidden="true" className={getDotIndicatorClass(tone)} />
+      {label}
+    </span>
+  );
+}
+
+function BookingChipContent({ booking, timeLabel, statusLabel, statusTone, height, pendingOverlapLabel }: {
   booking: DailyBooking;
   timeLabel: string;
   statusLabel: string;
-  statusPillClass: string;
+  statusTone: StatusIndicatorTone;
   height: number;
   pendingOverlapLabel?: string;
 }) {
@@ -97,7 +109,7 @@ function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, 
       <span data-booking-content="identity" className="max-w-[25%] min-w-0 shrink-0 truncate font-medium text-[#17243c]">{booking.pet}</span>
       <span data-booking-content="service" className="min-w-0 flex-1 truncate" title={service}>{service}</span>
       <span data-booking-content="time" title={timeLabel} className="shrink-0 whitespace-nowrap tabular-nums text-[#526174]"><span className="@[300px]/chip:hidden">{timeLabel.split("-")[0]}</span><span className="hidden @[300px]/chip:inline">{timeLabel}</span></span>
-      <span data-booking-status="true" className={cn("hidden shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5 @[300px]/chip:inline", statusPillClass)}>{statusLabel}</span>
+      <BookingStatusChip label={statusLabel} tone={statusTone} className="hidden @[300px]/chip:inline-flex" />
     </span>
   );
   return (
@@ -105,40 +117,38 @@ function BookingChipContent({ booking, timeLabel, statusLabel, statusPillClass, 
       <span className="flex min-w-0 flex-col gap-0.5 @[300px]/chip:hidden">
         <span className="flex min-w-0 items-center justify-between gap-2">
           <span data-booking-content="identity" title={[booking.pet, booking.customer].filter(Boolean).join(" · ")} className="min-w-0 truncate font-medium text-[#17243c]">{booking.pet}</span>
-          {height >= 100 ? <span data-booking-status="true" className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span> : <span data-booking-content="time" title={timeLabel} className="shrink-0 whitespace-nowrap tabular-nums text-[#526174]">{timeLabel.split("-")[0]}</span>}
+          {height >= 100 ? <BookingStatusChip label={statusLabel} tone={statusTone} /> : <span data-booking-content="time" title={timeLabel} className="shrink-0 whitespace-nowrap tabular-nums text-[#526174]">{timeLabel.split("-")[0]}</span>}
         </span>
         <span className="flex min-w-0 items-center gap-2">
           <span data-booking-content="service" title={service} className="min-w-0 flex-1 truncate text-[#526174]">{service}</span>
-          {height < 100 ? <span data-booking-status="true" className={cn("shrink-0 rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span> : null}
+          {height < 100 ? <BookingStatusChip label={statusLabel} tone={statusTone} /> : null}
         </span>
         {height >= 100 ? <span data-booking-content="time" className="whitespace-nowrap tabular-nums text-[#526174]">{timeLabel}</span> : null}
       </span>
-      <span className="hidden min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 @[300px]/chip:grid">
-        <span className="flex min-w-0 items-center gap-2.5">
-          {height >= 100 ? (
-            <span data-booking-avatar="true" className="hidden size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-white/80 bg-white/80 @[300px]/chip:inline-flex">
-              <img src={booking.petPhotoUrl || "/images/default-pet-profile.png"} alt="" draggable={false} loading="lazy" className={cn("size-full", booking.petPhotoUrl ? "object-cover" : "object-contain")} onError={(event) => { if (!event.currentTarget.src.endsWith("/images/default-pet-profile.png")) event.currentTarget.src = "/images/default-pet-profile.png"; }} />
-            </span>
-          ) : null}
+      <span className="hidden min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 @[300px]/chip:grid @[560px]/chip:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_auto]">
+        <span className="flex min-w-0 items-center">
           <span className="min-w-0 flex-1">
             <span data-booking-content="identity" className="flex min-w-0 items-baseline gap-1.5" title={[booking.pet, booking.customer].filter(Boolean).join(" · ")}>
               <span className="min-w-0 truncate font-medium text-[#17243c]">{booking.pet}</span>
               {booking.customer ? <span className="hidden min-w-0 truncate text-[#526174] @[380px]/chip:inline">· {booking.customer}</span> : null}
             </span>
-            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[#526174]">
-              <Scissors aria-hidden="true" className="hidden size-4 shrink-0 @[300px]/chip:block" />
+            <span className="mt-0.5 flex min-w-0 items-center text-[#526174]">
               <span data-booking-content="service" className="min-w-0 truncate" title={service}>{service}</span>
             </span>
           </span>
         </span>
+        {/* Wide cards (a lone staff column) use the middle for the request/booking memo instead of empty space. */}
+        <span data-booking-content="memo-inline" className={cn("hidden min-w-0 self-center text-[14px] leading-5 text-[#526174] @[560px]/chip:block", memo && "border-l border-[#0f172a]/10 pl-3")}>
+          {memo ? <span data-booking-content="memo" data-booking-request-note="present" title={memo} className={cn("block min-w-0", height >= 100 ? "line-clamp-2" : "truncate")}>{memo}</span> : null}
+        </span>
         <span className="flex shrink-0 flex-col items-end gap-1">
           <span data-booking-content="time" className="whitespace-nowrap font-medium tabular-nums text-[#526174]">{timeLabel}</span>
-          <span data-booking-status="true" className={cn("rounded-full border px-2 text-[14px] font-medium leading-5", statusPillClass)}>{statusLabel}</span>
+          <BookingStatusChip label={statusLabel} tone={statusTone} />
         </span>
       </span>
       {pendingOverlapLabel ? <span className="truncate text-[14px] leading-5 text-[#a46710]">{pendingOverlapLabel}</span> : null}
       {height >= 100 && memo ? (
-        <span className={cn("min-w-0 items-start gap-2 text-[#526174]", height >= 140 ? "mt-auto flex" : "hidden @[300px]/chip:flex") }>
+        <span className={cn("min-w-0 items-start gap-2 text-[#526174] @[560px]/chip:hidden", height >= 140 ? "mt-auto flex" : "hidden @[300px]/chip:flex") }>
           <NotebookPen aria-hidden="true" className="mt-1 size-4 shrink-0" />
           <span data-booking-content="memo" data-booking-request-note="present" title={memo} className={cn("min-w-0", height >= 180 ? "line-clamp-2" : height >= 140 ? "truncate @[300px]/chip:line-clamp-2 @[300px]/chip:whitespace-normal" : "truncate")}>{memo}</span>
         </span>
@@ -200,17 +210,18 @@ function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, 
   return status;
 }
 
-function getReservationStatusPillClass(booking: DailyBooking, selectedDate: string, currentHour: number) {
+function getReservationStatusTone(booking: DailyBooking, selectedDate: string, currentHour: number): StatusIndicatorTone {
   const status = getTimedBookingStatus(booking, selectedDate, currentHour);
-  if (isOverduePendingBookingStatus(status)) return "border-[#ead6dc] bg-white/70 text-[#a04455]";
-  if (status === "방문 확인 필요" || status === "완료 확인 필요") return "border-[#ead9b8] bg-white/70 text-[#8a5b11]";
-  if (status === "확정") return "border-[#cfe3d7] bg-white/70 text-[#24784b]";
-  if (status === "진행 중") return "border-[#cdddf7] bg-white/70 text-[#2563eb]";
-  if (status === "픽업 준비") return "border-[#ddd3f1] bg-white/70 text-[#6d50a0]";
-  if (status === "완료") return "border-[#d9e0e7] bg-white/70 text-[#64748b]";
-  if (status.includes("변경")) return "border-[#ead9b8] bg-white/70 text-[#8a5b11]";
-  if (status.includes("취소") || status.includes("거절") || status.includes("노쇼")) return "border-[#ead6dc] bg-white/70 text-[#a04455]";
-  return "border-[#dfe5ec] bg-white/70 text-[#475569]";
+  if (isOverduePendingBookingStatus(status)) return "noshow";
+  if (status === "방문 확인 필요" || status === "완료 확인 필요") return "pending";
+  if (status === "확정") return "confirmed";
+  if (status === "진행 중") return "active";
+  if (status === "픽업 준비") return "pickupReady";
+  if (status === "완료") return "completed";
+  if (isPendingBookingStatus(status)) return "pending";
+  if (status.includes("변경")) return "changed";
+  if (status.includes("취소") || status.includes("거절") || status.includes("노쇼")) return "cancelled";
+  return "neutral";
 }
 
 function getScheduleDisplayLayout(operatingWindow: { enabled: boolean; openHour: number; closeHour: number }): ScheduleDisplayLayout {
@@ -304,10 +315,19 @@ function getPendingOverlapLabel(booking: DailyBooking, bookings: DailyBooking[])
   return "";
 }
 
+// Cards are centered in their column (a 2% side inset at the 96% card width).
 function getBookingLayoutStyle(lane: number, laneCount: number) {
+  const sideInset = `((100% - ${bookingCardWidth}) / 2)`;
   const width = laneCount > 1 ? `calc(${bookingCardWidth} / ${laneCount})` : bookingCardWidth;
-  const left = laneCount > 1 ? `calc(${bookingCardHorizontalInset} + (${bookingCardWidth} / ${laneCount}) * ${lane})` : bookingCardHorizontalInset;
+  const left = laneCount > 1 ? `calc(${sideInset} + (${bookingCardWidth} / ${laneCount}) * ${lane})` : `calc(${sideInset})`;
   return { left, width };
+}
+
+function getBookingCardFrame(start: number, bookingHeight: number, layout: ScheduleDisplayLayout) {
+  return {
+    top: getBookingTop(start, layout) + bookingCardTopInsetPx,
+    height: Math.max(minimumBookingCardHitTarget, bookingHeight - bookingCardTopInsetPx),
+  };
 }
 
 function getSnappedBookingStart(pointerY: number, columnTop: number, duration: number, layout: ScheduleDisplayLayout) {
@@ -853,7 +873,7 @@ export function DailyScheduleGrid({
                           const bookingLayout = bookingLayouts.get(booking.id) ?? { lane: 0, laneCount: 1 };
                           const bookingLayoutStyle = getBookingLayoutStyle(bookingLayout.lane, bookingLayout.laneCount);
                           const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
-                          const statusPillClass = getReservationStatusPillClass(booking, selectedDate, currentHour);
+                          const statusTone = getReservationStatusTone(booking, selectedDate, currentHour);
                           const pendingOverlapLabel = getPendingOverlapLabel(booking, conflictBookings);
                           const requestNote = [booking.customerMemo?.trim(), booking.memo?.trim()].filter(Boolean).join(" / ");
                           const requestNoteText = requestNote ? `고객 메모 ${requestNote}` : "고객 메모 없음";
@@ -876,13 +896,12 @@ export function DailyScheduleGrid({
                                 )}
                                 style={{
                                   ...bookingLayoutStyle,
-                                  top: getBookingTop(booking.start, scheduleDisplayLayout),
-                                  height: bookingHeight,
+                                  ...getBookingCardFrame(booking.start, bookingHeight, scheduleDisplayLayout),
                                   backgroundColor: completedBooking ? identityTone.mutedBackground : identityTone.background,
                                   borderColor: completedBooking ? identityTone.mutedBackground : identityTone.border,
                                 }}
                               >
-                                <BookingChipContent booking={booking} timeLabel={booking.scheduledTimeLabel ?? timeLabel} statusLabel={statusLabel} statusPillClass={statusPillClass} height={bookingHeight} pendingOverlapLabel={pendingOverlapLabel} />
+                                <BookingChipContent booking={booking} timeLabel={booking.scheduledTimeLabel ?? timeLabel} statusLabel={statusLabel} statusTone={statusTone} height={bookingHeight} pendingOverlapLabel={pendingOverlapLabel} />
                               </button>
                             );
                           }
@@ -914,13 +933,12 @@ export function DailyScheduleGrid({
                               )}
                               style={{
                                 ...bookingLayoutStyle,
-                                top: getBookingTop(booking.start, scheduleDisplayLayout),
-                                height: bookingHeight,
+                                ...getBookingCardFrame(booking.start, bookingHeight, scheduleDisplayLayout),
                                 backgroundColor: completedBooking ? identityTone.mutedBackground : identityTone.background,
                                 borderColor: completedBooking ? identityTone.mutedBackground : identityTone.border,
                               }}
                             >
-                              <BookingChipContent booking={booking} timeLabel={displayTimeLabel} statusLabel={statusLabel} statusPillClass={statusPillClass} height={bookingHeight} pendingOverlapLabel={pendingOverlapLabel} />
+                              <BookingChipContent booking={booking} timeLabel={displayTimeLabel} statusLabel={statusLabel} statusTone={statusTone} height={bookingHeight} pendingOverlapLabel={pendingOverlapLabel} />
 
                               {canAdjustBookingTime ? (
                               <div

@@ -88,7 +88,7 @@ function CareReportTextEditor({
         disabled={disabled}
         maxLength={4000}
         aria-label="고객에게 보낼 케어리포트"
-        className="min-h-[180px] w-full resize-y overflow-y-hidden rounded-[12px] border border-[#dde2e8] bg-white px-4 pb-8 pt-3 text-[16px] font-normal leading-6 text-[#1b2d43] [field-sizing:content] outline-none focus:outline-none focus:ring-0 disabled:bg-[#f8f9fa] disabled:opacity-60 sm:min-h-[220px]"
+        className="min-h-[180px] w-full resize-y overflow-y-hidden rounded-[14px] border border-[#dde2e8] bg-white px-4 pb-8 pt-3 text-[16px] font-normal leading-6 text-[#1b2d43] [field-sizing:content] outline-none transition focus:border-[#9db9e8] focus:shadow-[0_0_0_3px_rgba(47,111,214,0.12)] focus:outline-none focus:ring-0 disabled:bg-[#f8f9fa] disabled:opacity-60 sm:min-h-[220px]"
         style={focused && inputModality === "keyboard" ? { outline: "2px solid #2563eb", outlineOffset: 2 } : undefined}
       />
       <span className="pointer-events-none absolute bottom-2 right-3.5 rounded bg-white/90 px-1 text-[13px] font-normal leading-5 text-[#89939e]">
@@ -287,6 +287,7 @@ export function CalendarCareReportCompletionPanel({
           submitLabel="AI 초안 만들기"
           submitting={generating && !reportText}
           disabled={previewMode || disabled}
+          emphasis={reportText ? "secondary" : "primary"}
         />
 
         {generating ? <AiGeneratingMessage onCancel={cancelGeneration} /> : null}

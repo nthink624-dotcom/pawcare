@@ -66,6 +66,7 @@ export function CalendarCareNoteInput({
   submitLabel,
   submitting,
   disabled,
+  emphasis = "primary",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -73,6 +74,8 @@ export function CalendarCareNoteInput({
   submitLabel: "AI 초안 만들기" | "다시 작성";
   submitting?: boolean;
   disabled?: boolean;
+  /** Secondary once a draft exists, so "확정하여 보내기" stays the only primary action. */
+  emphasis?: "primary" | "secondary";
 }) {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const valueRef = useRef(value);
@@ -160,7 +163,8 @@ export function CalendarCareNoteInput({
     });
   }
 
-  const textareaFocusStyle = textareaFocused && textareaInputModality === "keyboard"
+  // Keyboard focus is drawn on the rounded composer, never as a square outline on the inner textarea.
+  const composerFocusStyle = textareaFocused && textareaInputModality === "keyboard"
     ? { outline: "2px solid #2563eb", outlineOffset: 2 }
     : undefined;
 
@@ -172,7 +176,8 @@ export function CalendarCareNoteInput({
       onKeyDownCapture={markKeyboardTextareaFocus}
       onBlurCapture={resetTextareaFocusAfterLeave}
       data-care-note-composer
-      className="relative overflow-visible rounded-[14px] border border-[#d7dde4] bg-white shadow-[0_7px_20px_rgba(20,39,63,0.06)] transition focus-within:border-[#8c99a7] focus-within:shadow-[0_9px_24px_rgba(20,39,63,0.10)]"
+      className="relative overflow-visible rounded-[14px] border border-[#d7dde4] bg-white shadow-[0_7px_20px_rgba(20,39,63,0.06)] transition focus-within:border-[#9db9e8] focus-within:shadow-[0_0_0_3px_rgba(47,111,214,0.12),0_9px_24px_rgba(20,39,63,0.08)]"
+      style={composerFocusStyle}
     >
       <textarea
         data-care-note-input
@@ -189,8 +194,7 @@ export function CalendarCareNoteInput({
         disabled={disabled}
         maxLength={1000}
         placeholder={"오늘 관찰 메모\n예) 목욕은 잘 진행했고, 귀가 조금 예민했어요."}
-        className={`${OWNER_TYPOGRAPHY.body} min-h-[88px] max-h-[164px] w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent pb-12 pl-4 pr-4 pt-3 text-[#263547] [field-sizing:content] [line-height:1.5] outline-none focus:outline-none focus:ring-0 placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
-        style={textareaFocusStyle}
+        className={`${OWNER_TYPOGRAPHY.body} min-h-[88px] max-h-[164px] w-full resize-none overflow-y-auto overscroll-contain rounded-[14px] border-0 bg-transparent pb-12 pl-4 pr-4 pt-3 text-[#263547] [field-sizing:content] [line-height:1.5] outline-none focus:outline-none focus:ring-0 placeholder:font-normal placeholder:text-[#a1a9b2] disabled:opacity-60`}
       />
 
       {speechError ? (
@@ -218,7 +222,11 @@ export function CalendarCareNoteInput({
           title={submitLabel}
           onClick={onSubmit}
           disabled={disabled || submitting || !value.trim()}
-          className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] bg-[#111a30] px-4 text-[16px] font-medium leading-6 text-white transition hover:bg-[#1b2944] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed disabled:opacity-45"
+          className={`group inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] px-4 text-[16px] font-medium leading-6 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb] disabled:cursor-not-allowed ${
+            emphasis === "primary"
+              ? "bg-[#2f6fd6] text-white shadow-[0_6px_16px_rgba(47,111,214,0.18)] hover:bg-[#245fbd] disabled:opacity-40 disabled:shadow-none"
+              : "border border-[#d5dbe2] bg-white text-[#526171] hover:bg-[#f3f5f7] disabled:opacity-50"
+          }`}
         >
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ArrowUp className="h-4 w-4" aria-hidden="true" />}
           {submitLabel}

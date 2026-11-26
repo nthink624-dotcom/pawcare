@@ -1,11 +1,11 @@
 "use client";
-import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
 
 
 import { IconCheck as Check, IconChevronLeft as ChevronLeft, IconUser as UserRound } from "@tabler/icons-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import CustomerBreedAutocomplete from "@/components/customer/customer-breed-autocomplete";
+import CustomerBookingTimeOptions from "@/components/customer/customer-booking-time-options";
 import BookingSignaturePad from "@petmanager/shared/components/booking-signature-pad";
 import type { SignaturePoint } from "@petmanager/shared/contracts/booking-preparation";
 import { formatCustomerServiceDuration, type CustomerServiceSourceOption } from "@/lib/customer-service-options";
@@ -135,11 +135,6 @@ function ClaudeStyles() {
       .pm-proto .dcell.sel{border-color:var(--primary);background:var(--primary)}
       .pm-proto .dcell.sel .dw,.pm-proto .dcell.sel .dn,.pm-proto .dcell.sel .avail{color:var(--text)}
       .pm-proto .dcell.sel .avail::before{background:var(--text)}
-      .pm-proto .tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-      .pm-proto .tcell{height:46px;text-align:center;font-size:16px;line-height:24px;font-weight:500;border-radius:10px;border:1.5px solid var(--border);background:var(--card);font-variant-numeric:tabular-nums;cursor:pointer}
-      .pm-proto .tcell.sel{border-color:var(--primary);background:var(--primary);color:var(--text)}
-      .pm-proto .tcell .rec{margin-left:4px;color:var(--primaryDk);font-size:15px;font-weight:500}
-      .pm-proto .tcell.sel .rec{color:var(--text)}
       .pm-proto .hint{font-size:15px;color:var(--textMuted);text-align:center;line-height:1.45}
       .pm-proto .empty-slots{display:flex;min-height:106px;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border);border-radius:14px;background:rgba(255,255,255,.72);padding:20px 16px;text-align:center}
       .pm-proto .empty-slots strong{font-size:16px;font-weight:600;color:var(--text);letter-spacing:-.02em}
@@ -339,9 +334,6 @@ export default function CustomerFirstVisitClaudeFlow({
   onAddBooking: () => void;
 }) {
   const breedInputRef = useRef<HTMLInputElement | null>(null);
-  const [expandedTimesKey, setExpandedTimesKey] = useState("");
-  const timesKey = `${firstVisit.date}:${firstVisit.staffId}:${firstVisit.serviceId}:${selectedServiceOption?.durationMinutes}`;
-  const otherTimesExpanded = expandedTimesKey === timesKey;
   const savedPetPickerKey = `${step}:${savedPets.length}`;
   const [newPetPickerKey, setNewPetPickerKey] = useState<string | null>(null);
   const serviceSummaryName = firstVisit.serviceId === CUSTOM_SERVICE_ID ? "상담 후 결정" : selectedServiceOption?.displayName || selectedService?.name || "서비스 선택";
@@ -352,11 +344,6 @@ export default function CustomerFirstVisitClaudeFlow({
         priceLabel: formatServicePrice(selectedServiceOption.price, selectedServiceOption.priceType),
       }
     : null;
-  const uniqueAvailableSlots = useMemo(() => Array.from(new Set(availableSlots)), [availableSlots]);
-  const uniqueRecommendedSlots = useMemo(
-    () => Array.from(new Set(recommendedSlots)).filter((slot) => uniqueAvailableSlots.includes(slot)),
-    [recommendedSlots, uniqueAvailableSlots],
-  );
   const petNameForConsent = firstVisit.petName.trim() || "아기";
   const selectedSavedPet = savedPets.find((pet) => pet.name.trim() && pet.name.trim() === firstVisit.petName.trim()) ?? null;
   const showSavedPetPicker = savedPets.length > 0 && newPetPickerKey !== savedPetPickerKey;
@@ -629,35 +616,21 @@ export default function CustomerFirstVisitClaudeFlow({
                 <div role="alert" className="text-[14px] leading-6 text-[#9a5e4e]"><p>{slotError}</p><button type="button" onClick={onAvailabilityRetry} className="min-h-11 underline">시간 다시 확인</button></div>
               ) : loadingSlots ? (
                 <div className="hint">가능한 시간을 확인하고 있어요.</div>
-              ) : uniqueAvailableSlots.length === 0 ? (
+              ) : availableSlots.length === 0 ? (
                 <div className="empty-slots" role="status">
                   <strong>예약 가능한 시간이 없어요</strong>
                   <span>다른 날짜를 선택해 주세요.</span>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {uniqueRecommendedSlots.length > 0 ? (
-                    <div>
-                      <p className="mb-2 text-[13px] font-medium text-[#15213b]">{recommendationSource === "ai" ? "AI 추천 시간" : "추천 시간"}<span className="ml-1.5 font-normal text-[#64748b]">예약 흐름을 고려했어요</span></p>
-                      <div className="tgrid">
-                        <WheelTimeField aria-label="시간 선택" value={firstVisit.timeSlot} onValueChange={onTimeSelect} allowedTimes={uniqueRecommendedSlots} className="col-span-full w-full" />
-                      </div>
-                    </div>
-                  ) : null}
-                  {allowOtherAvailableTimes && uniqueAvailableSlots.some((slot) => !uniqueRecommendedSlots.includes(slot)) ? (
-                    <button type="button" aria-expanded={otherTimesExpanded} onClick={() => setExpandedTimesKey(otherTimesExpanded ? "" : timesKey)} className="min-h-11 w-full rounded-[8px] border border-[#dbe2ea] px-3 text-[14px] text-[#15213b]">
-                      {otherTimesExpanded ? "다른 가능한 시간 접기" : "다른 가능한 시간 보기"}
-                    </button>
-                  ) : null}
-                  {allowOtherAvailableTimes && otherTimesExpanded && uniqueAvailableSlots.some((slot) => !uniqueRecommendedSlots.includes(slot)) ? (
-                    <div>
-                      {uniqueRecommendedSlots.length > 0 ? <p className="mb-2 text-[13px] font-medium text-[#15213b]">다른 예약 가능한 시간</p> : null}
-                      <div className="tgrid">
-                        <WheelTimeField aria-label="다른 예약 시간 선택" value={firstVisit.timeSlot} onValueChange={onTimeSelect} allowedTimes={uniqueAvailableSlots.filter((slot) => !uniqueRecommendedSlots.includes(slot))} className="col-span-full w-full" />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
+                <CustomerBookingTimeOptions
+                  key={`${firstVisit.date}:${firstVisit.staffId}:${firstVisit.serviceId}:${selectedServiceOption?.id}`}
+                  slots={availableSlots}
+                  recommendedSlots={recommendedSlots}
+                  recommendationSource={recommendationSource}
+                  allowOtherAvailableTimes={allowOtherAvailableTimes}
+                  value={firstVisit.timeSlot}
+                  onSelect={onTimeSelect}
+                />
               )}
             </div>
           </div>

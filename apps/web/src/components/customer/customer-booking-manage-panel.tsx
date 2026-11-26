@@ -1,5 +1,4 @@
 "use client";
-import { WheelTimeField } from "@petmanager/shared/components/ui/wheel-time-field";
 
 import { addDays, format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -11,6 +10,7 @@ import {
   type CustomerResultMediaAsset,
 } from "@/components/customer/customer-grooming-result-card";
 import type { CustomerWeightMeasurement } from "@/lib/customer-weight-history";
+import CustomerBookingTimeOptions from "@/components/customer/customer-booking-time-options";
 import { fetchApiJson } from "@/lib/api";
 import BookingPreparationPanel from "@/components/booking/booking-preparation-panel";
 import BookingDevelopmentNotice from "@petmanager/shared/components/booking-development-notice";
@@ -244,8 +244,6 @@ export default function CustomerBookingManagePanel({
   const [manageSlotsError, setManageSlotsError] = useState("");
   const [manageSlotsRetry, setManageSlotsRetry] = useState(0);
   const [manageAllowOtherTimes, setManageAllowOtherTimes] = useState(false);
-  const [manageExpandedTimesKey, setManageExpandedTimesKey] = useState("");
-  const manageTimesKey = `${manageForm?.date}:${manageForm?.staffId}:${manageForm?.serviceId}:${manageForm?.customerServiceOptionId}`;
 
   useBookingResumeRefresh(Boolean(initialAccessToken) && !submitting, async () => {
     const query = new URLSearchParams({ shopId });
@@ -326,7 +324,7 @@ export default function CustomerBookingManagePanel({
         if (!active) return;
         setManageSlots(result.slots);
         setManageAllowOtherTimes(result.allowOtherAvailableTimes === true);
-        setManageRecommendedSlots((result.recommendedSlots ?? []).filter((slot) => result.slots.includes(slot)).slice(0, 4));
+        setManageRecommendedSlots(result.recommendedSlots ?? []);
         if (!result.slots.includes(manageForm.timeSlot)) {
           setManageForm((prev) => (prev ? { ...prev, timeSlot: "" } : prev));
         }
@@ -794,26 +792,14 @@ export default function CustomerBookingManagePanel({
                           ) : manageSlots.length === 0 ? (
                             <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#8a7a72]">선택한 날짜에 가능한 시간이 없어요.</div>
                           ) : (
-                            <div className="space-y-3">
-                              {manageRecommendedSlots.length > 0 ? (
-                                <div>
-                                  <p className="text-[13px] font-medium text-[#3a2e2a]">추천 시간</p>
-                                  <div className="mt-2 grid grid-cols-2 gap-2">
-                                    <WheelTimeField aria-label="예약 시간 선택" value={manageForm.timeSlot} onValueChange={(timeSlot) => setManageForm((prev) => prev ? { ...prev, timeSlot } : prev)} allowedTimes={manageRecommendedSlots} className="col-span-full w-full" />
-                                  </div>
-                                </div>
-                              ) : null}
-                              {manageAllowOtherTimes && manageSlots.some((slot) => !manageRecommendedSlots.includes(slot)) ? <button type="button" className="min-h-11 w-full rounded-[8px] border px-3" aria-expanded={manageExpandedTimesKey === manageTimesKey} onClick={() => setManageExpandedTimesKey(manageExpandedTimesKey === manageTimesKey ? "" : manageTimesKey)}>{manageExpandedTimesKey === manageTimesKey ? "다른 가능한 시간 접기" : "다른 가능한 시간 보기"}</button> : null}
-                              {manageAllowOtherTimes && manageExpandedTimesKey === manageTimesKey && manageSlots.some((slot) => !manageRecommendedSlots.includes(slot)) ? (
-                                <div>
-                                  <p className="text-[13px] font-medium text-[#3a2e2a]">예약 가능한 시간</p>
-                                  <div className="mt-2 grid grid-cols-3 gap-2">
-                                    <WheelTimeField aria-label="예약 시간 선택" value={manageForm.timeSlot} onValueChange={(timeSlot) => setManageForm((prev) => prev ? { ...prev, timeSlot } : prev)} allowedTimes={manageSlots
-                                      .filter((slot) => !manageRecommendedSlots.includes(slot))} className="col-span-full w-full" />
-                                  </div>
-                                </div>
-                              ) : null}
-                            </div>
+                            <CustomerBookingTimeOptions
+                              key={`${manageForm.appointmentId}:${manageForm.date}:${manageForm.staffId}:${manageForm.customerServiceOptionId}`}
+                              slots={manageSlots}
+                              recommendedSlots={manageRecommendedSlots}
+                              allowOtherAvailableTimes={manageAllowOtherTimes}
+                              value={manageForm.timeSlot}
+                              onSelect={(timeSlot) => setManageForm((prev) => prev ? { ...prev, timeSlot } : prev)}
+                            />
                           )}
                         </div>
                       </div>

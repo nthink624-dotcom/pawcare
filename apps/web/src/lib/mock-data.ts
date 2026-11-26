@@ -54,6 +54,11 @@ export const demoShop: Shop = {
   booking_slot_offset_minutes: 0,
   booking_available_start_time: "10:00",
   booking_available_end_time: "17:00",
+  reservation_policy_settings: {
+    cancel_window: "2h",
+    customer_change_enabled: true,
+    customer_other_available_times_enabled: true,
+  },
   approval_mode: "auto",
   notification_settings: normalizeShopNotificationSettings({
     enabled: true,
